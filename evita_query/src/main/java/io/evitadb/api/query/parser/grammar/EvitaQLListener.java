@@ -809,17 +809,17 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitTextMatchesConstraint(EvitaQLParser.TextMatchesConstraintContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code inFieldConstraint}
+	 * Enter a parse tree produced by the {@code inAttributeConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void enterInFieldConstraint(EvitaQLParser.InFieldConstraintContext ctx);
+	void enterInAttributeConstraint(EvitaQLParser.InAttributeConstraintContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code inFieldConstraint}
+	 * Exit a parse tree produced by the {@code inAttributeConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void exitInFieldConstraint(EvitaQLParser.InFieldConstraintContext ctx);
+	void exitInAttributeConstraint(EvitaQLParser.InAttributeConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code orderByConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.

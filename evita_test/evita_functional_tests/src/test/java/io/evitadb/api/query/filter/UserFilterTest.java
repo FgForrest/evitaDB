@@ -207,7 +207,7 @@ class UserFilterTest {
 				EvitaInvalidUsageException.class,
 				() -> new UserFilter(
 					attributeEquals("code", "A"),
-					textMatches("black leather jacket", inField("name"))
+					textMatches("black leather jacket", inAttribute("name"))
 				)
 			);
 			assertTrue(

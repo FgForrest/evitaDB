@@ -27,23 +27,36 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.filter.InField;
+import io.evitadb.api.query.filter.InAttribute;
+
+import javax.annotation.Nonnull;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link InField} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link InAttribute} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class InFieldSerializer extends Serializer<InField> {
+public class InAttributeSerializer extends Serializer<InAttribute> {
 
 	@Override
-	public void write(Kryo kryo, Output output, InField inField) {
-		output.writeString(inField.getFieldName());
+	public void write(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull InAttribute inAttribute) {
+		final String[] names = inAttribute.getAttributeNames();
+		output.writeVarInt(names.length, true);
+		for (final String name : names) {
+			output.writeString(name);
+		}
 	}
 
+	@Nonnull
 	@Override
-	public InField read(Kryo kryo, Input input, Class<? extends InField> type) {
-		return new InField(input.readString());
+	public InAttribute read(
+		@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends InAttribute> type
+	) {
+		final String[] names = new String[input.readVarInt(true)];
+		for (int i = 0; i < names.length; i++) {
+			names[i] = input.readString();
+		}
+		return new InAttribute(names);
 	}
 
 }

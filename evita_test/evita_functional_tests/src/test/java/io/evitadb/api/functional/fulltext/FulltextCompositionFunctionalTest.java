@@ -52,6 +52,7 @@ import io.evitadb.core.query.algebra.fulltext.FulltextFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
@@ -68,6 +69,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.time.OffsetDateTime;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -87,6 +89,7 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -190,6 +193,19 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 				session.upsertEntity(session.createNewEntity(type, 1).setAttribute("name", Locale.ENGLISH, "leather")
 					.setReference("blocks", 101));
 			}
+			final String type = "SelectedAttributes";
+			session.defineEntitySchema(type).withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
+				.withAttribute("a", String.class, a -> a.localized().nullable().searchable())
+				.withAttribute("b", String.class, a -> a.localized().nullable().searchable())
+				.withReferenceToEntity("blocks", BLOCK, Cardinality.ZERO_OR_MORE,
+					r -> r.indexedForFiltering().searchableThrough(COMPOSITION))
+				.updateVia(session);
+			session.upsertEntity(session.createNewEntity(type, 1).setAttribute("a", Locale.ENGLISH, "jacket"));
+			session.upsertEntity(session.createNewEntity(type, 2).setAttribute("b", Locale.ENGLISH, "jacket"));
+			session.upsertEntity(session.createNewEntity(type, 3)
+				.setAttribute("a", Locale.ENGLISH, "jacket").setAttribute("b", Locale.ENGLISH, "jacket"));
+			session.upsertEntity(session.createNewEntity(type, 4)
+				.setAttribute("a", Locale.ENGLISH, "plain").setReference("blocks", 101));
 			defineOneLevelFixture(session);
 			definePlaceIdentityFixture(session);
 			session.goLiveAndClose();
@@ -246,22 +262,92 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 		 * The automatic union is limited to plain entity text; existing nested and selector surfaces retain meaning.
 		 */
 		@Test
-		@DisplayName("Keeps explicit fields, direct reference text, undeclared references and entityHaving distinct")
+		@DisplayName("Keeps selected searchable attributes and direct and nested reference text distinct")
 		void shouldRespectQuerySurfaces() {
 			evita().queryCatalog(TEST_CATALOG, session -> {
 				assertArrayEquals(new int[]{1, 3, 4},
 					ids(session, PRODUCT, textMatches("leather jacket "), Scope.LIVE));
 				assertArrayEquals(new int[]{1, 3, 4}, ids(session, PRODUCT, textMatches("winter jacket "), Scope.LIVE));
 				assertArrayEquals(new int[0], ids(session, "Plain", textMatches("leather jacket "), Scope.LIVE));
-				assertArrayEquals(new int[0], ids(session, PRODUCT, textMatches("leather winter ", inField("name")),
+				assertArrayEquals(new int[0], ids(session, PRODUCT, textMatches("leather winter ", inAttribute("name")),
 					Scope.LIVE));
-				assertArrayEquals(new int[]{7, 9}, ids(session, PRODUCT, textMatches("jacket ", inField("name")),
+				assertArrayEquals(new int[]{7, 9}, ids(session, PRODUCT, textMatches("jacket ", inAttribute("name")),
 					Scope.LIVE));
 				assertArrayEquals(new int[0], ids(session, PRODUCT,
 					referenceHaving("blocks", textMatches("winter ")), Scope.LIVE));
 				assertArrayEquals(new int[]{1, 2, 3, 8, 10}, ids(session, PRODUCT,
 					referenceHaving("blocks", entityHaving(textMatches("jacket "))), Scope.LIVE));
 				assertArrayEquals(new int[]{1}, ids(session, "EmptyOwner", textMatches("jacket "), Scope.LIVE));
+			});
+		}
+
+		/** Both attributes contribute independently; explicit selection also excludes composed-only owners. */
+		@Test
+		@DisplayName("Unions several searchable attributes with identical scores and order and disables composition")
+		void shouldUnionSelectedAttributesWithoutComposingTargets() {
+			evita().queryCatalog(TEST_CATALOG, session -> {
+				final String type = "SelectedAttributes";
+
+				assertArrayEquals(new int[]{1, 2, 3, 4}, ids(session, type, textMatches("jacket "), Scope.LIVE));
+				assertArrayEquals(new int[]{1, 3},
+					ids(session, type, textMatches("jacket ", inAttribute("a")), Scope.LIVE));
+				assertArrayEquals(new int[]{2, 3},
+					ids(session, type, textMatches("jacket ", inAttribute("b")), Scope.LIVE));
+				final int[] candidates = {1, 2, 3};
+				final FilterConstraint separate = textMatches("jacket ", inAttribute("a"), inAttribute("b"));
+				final long[] expectedScores = plannedFormula(session, type, separate)
+					.getFulltextScores(candidates).composites();
+				final int[] expectedOrder = rankedIds(session, type, separate);
+				for (final FilterConstraint selector : new FilterConstraint[]{
+					textMatches("jacket ", inAttribute("a", "b")),
+					textMatches("jacket ", inAttribute("a", "b", "a", "b")),
+					textMatches("jacket ", inAttribute("a", "b"), inAttribute("b"), inAttribute("a", "b"))
+				}) {
+					assertArrayEquals(candidates, ids(session, type, selector, Scope.LIVE));
+					assertArrayEquals(expectedOrder, rankedIds(session, type, selector));
+					assertArrayEquals(expectedScores, plannedFormula(session, type, selector)
+						.getFulltextScores(candidates).composites());
+				}
+				assertTrue(expectedScores[1] > 0, "The second attribute must contribute a score");
+			});
+		}
+
+		/** Duplicate selectors must share the expansion work of a single selected attribute. */
+		@Test
+		@DisplayName("Plans duplicate entity attribute names as one fulltext expansion")
+		void shouldDeduplicateSelectedAttributeFormulas() {
+			evita().queryCatalog(TEST_CATALOG, session -> {
+				final Map<Locale, FulltextIndex> indexes = field(global("SelectedAttributes", Scope.LIVE),
+					"fulltextIndexes");
+				final FulltextIndex original = indexes.get(Locale.ENGLISH);
+				final FulltextIndex observed = spy(original);
+				final AtomicInteger lookups = new AtomicInteger();
+				// The spy only observes work: exact-term collection itself also deduplicates field contributions.
+				doAnswer(invocation -> {
+					lookups.incrementAndGet();
+					return invocation.callRealMethod();
+				}).when(observed).termLookup(anyInt());
+				indexes.put(Locale.ENGLISH, observed);
+				try {
+					final FulltextFormula single = plannedFormula(session, "SelectedAttributes",
+						textMatches("jacket ", inAttribute("a")));
+					assertEquals(1, single.getTokens().length);
+					assertEquals(1, single.getTokens()[0].length, "The selected attribute must expand a real term");
+					final int expectedLookups = lookups.get();
+					assertTrue(expectedLookups > 0, "The real planner must read the selected attribute");
+					for (final FilterConstraint duplicate : new FilterConstraint[]{
+						textMatches("jacket ", inAttribute("a", "a")),
+						textMatches("jacket ", inAttribute("a"), inAttribute("a"))
+					}) {
+						lookups.set(0);
+						final FulltextFormula formula = plannedFormula(session, "SelectedAttributes", duplicate);
+						assertEquals(single.getTokens().length, formula.getTokens().length);
+						assertEquals(single.getTokens()[0].length, formula.getTokens()[0].length);
+						assertEquals(expectedLookups, lookups.get(), "Repeated names must not expand a field twice");
+					}
+				} finally {
+					indexes.put(Locale.ENGLISH, original);
+				}
 			});
 		}
 
@@ -1028,6 +1114,13 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 			.mapToInt(EntityReference::getPrimaryKey).toArray());
 	}
 
+	/** Reads the real relevance order for a selector form. */
+	private static int[] rankedIds(EvitaSessionContract session, String type, FilterConstraint constraint) {
+		return session.query(query(collection(type), filterBy(entityLocaleEquals(Locale.ENGLISH), constraint),
+			orderBy(relevanceText()), require(page(1, 100))), EntityReference.class).getRecordData().stream()
+			.mapToInt(EntityReference::getPrimaryKey).toArray();
+	}
+
 	/** Reads scores from the real planned formula; no score implementation is duplicated by the tests. */
 	private long[] scores(EvitaSessionContract session, String text, int... candidates) {
 		return plannedFormula(session, PRODUCT, text).getFulltextScores(candidates).composites();
@@ -1035,7 +1128,14 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 
 	/** Extracts the one plain text score source from a real production planner context. */
 	private FulltextFormula plannedFormula(EvitaSessionContract session, String type, String text, Scope... scopes) {
-		final QueryPlanningContext context = context(session, type, text, scopes);
+		return plannedFormula(session, type, textMatches(text), scopes);
+	}
+
+	/** Extracts actual scores for arbitrary selector forms through the production planner. */
+	private FulltextFormula plannedFormula(
+		EvitaSessionContract session, String type, FilterConstraint constraint, Scope... scopes
+	) {
+		final QueryPlanningContext context = context(session, type, constraint, scopes);
 		final QueryPlan plan = QueryPlanner.planQuery(context);
 		final Collection<FulltextFormula> formulas = FormulaFinder.find(
 			plan.getFilter(), FulltextFormula.class,
@@ -1046,13 +1146,20 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 
 	/** Builds the production planning context without asking for any data index. */
 	private QueryPlanningContext context(EvitaSessionContract session, String type, String text, Scope... scopes) {
+		return context(session, type, textMatches(text), scopes);
+	}
+
+	/** Builds the production context with the supplied fulltext selector forms. */
+	private QueryPlanningContext context(
+		EvitaSessionContract session, String type, FilterConstraint constraint, Scope... scopes
+	) {
 		final Catalog catalog = (Catalog) this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
 		final EntityCollection collection = (EntityCollection) catalog.getCollectionForEntityOrThrowException(type);
 		final EvitaSessionContract actual = Proxy.isProxyClass(session.getClass()) ?
 			field(Proxy.getInvocationHandler(session), "evitaSession") : session;
 		final Query request = query(collection(type), filterBy(
 			scope(scopes.length == 0 ? new Scope[]{Scope.LIVE} : scopes),
-			entityLocaleEquals(Locale.ENGLISH), textMatches(text)));
+			entityLocaleEquals(Locale.ENGLISH), constraint));
 		return new QueryPlanningContext(catalog, collection, actual,
 			new EvitaRequest(request, OffsetDateTime.now(), EntityReference.class, null),
 			QueryTelemetry.root(QueryPhase.OVERALL),

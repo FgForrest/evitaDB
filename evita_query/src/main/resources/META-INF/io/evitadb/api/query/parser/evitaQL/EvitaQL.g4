@@ -97,7 +97,7 @@ filterConstraint
     | 'inScope'                             args = inScopeFilterArgs                                        # filterInScopeConstraint
     | 'scope'                               args = valueListArgs                                            # entityScopeConstraint
     | 'textMatches'                         args = textMatchesArgs                                          # textMatchesConstraint
-    | 'inField'                             args = classifierArgs                                           # inFieldConstraint
+    | 'inAttribute'                         args = classifierListArgs                                       # inAttributeConstraint
     ;
 
 orderConstraint

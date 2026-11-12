@@ -26,7 +26,7 @@ package io.evitadb.core.query.filter.translator.fulltext;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.filter.InField;
+import io.evitadb.api.query.filter.InAttribute;
 import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
@@ -86,6 +86,7 @@ import javax.annotation.Nullable;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
@@ -143,7 +144,8 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
  * is a separate owner place, weighted by its own weight times the reference weight. Referenced entities are items
  * of that place: their best impact per word is lifted to the owners before word intersection and place scoring.
  * Target analyzers join the shared split; targets in every processed scope map to owners in this formula's scope.
- * Explicit `inField` selectors search own fields only. Composition writes no index and reads current schemas.
+ * Explicit `inAttribute` selectors search own searchable attributes only. Composition writes no index and reads
+ * current schemas.
  * Without an eligible composed place, preparation reuses the scope index and one shared own-field weight array;
  * source maps, place remapping and lifting are allocated only for composition.
  *
@@ -158,11 +160,11 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
  *
  * The engine neither filters nor sorts over data it keeps no index for, so a query that cannot be answered from a
  * fulltext index fails rather than returning an empty result: no locale, neither an own searchable place nor a
- * composition declaration in a processed scope,
- * an `inField` naming an unknown field or one not searchable in a processed scope, `textMatches` anywhere under
- * `userFilter` (the query model rejects only a direct child), or with more words
- * than the scorer can count. Every check runs before any index is consulted, so the query never fails or passes
- * depending on the data. A searchable field the index retired or never saw simply contributes nothing.
+ * composition declaration in a processed scope, an `inAttribute` naming an unknown searchable attribute or one not
+ * searchable in a processed scope, `textMatches` anywhere under `userFilter` (the query model rejects only a direct
+ * child), or with more words than the scorer can count. Every check runs before any index is consulted, so the query
+ * never fails or passes depending on the data. A searchable field the index retired or never saw simply contributes
+ * nothing.
  *
  * A text whose analysis yields no token at all - stop words or punctuation only - matches nothing: the strict match
  * set of zero tokens is empty by the same rule that makes a token without terms match nothing, and an empty search box
@@ -220,7 +222,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		final String entityType = entitySchema.getName();
 		final CatalogSchemaContract catalogSchema = queryContext.getCatalogSchema();
 		final Map<Scope, List<SearchableSource>> sources = resolveSources(
-			entitySchema, fieldsByScope, catalogSchema, referenceSchema == null && textMatches.getInFields().length == 0
+			entitySchema, fieldsByScope, catalogSchema,
+			referenceSchema == null && textMatches.getInAttributes().length == 0
 		);
 		// All own and target analyzers compile before any index containing data is read, also for check-only plans.
 		final Set<CompiledFulltextAnalyzer> analyzers = CollectionUtils.createLinkedHashSet(4);
@@ -681,7 +684,24 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	}
 
 	/**
-	 * Validates selectors against this reference, before inspecting any index data.
+	 * Unions the names of every attribute selector in the order supplied, so that a name repeated within or across
+	 * selectors is searched and scored once.
+	 * @param selectors the attribute selectors of one `textMatches`
+	 * @return the distinct selected attribute names, empty without a selector
+	 */
+	@Nonnull
+	private static Set<String> collectSelectedAttributeNames(@Nonnull InAttribute[] selectors) {
+		final Set<String> names = CollectionUtils.createLinkedHashSet(selectors.length);
+		for (final InAttribute selector : selectors) {
+			Collections.addAll(names, selector.getAttributeNames());
+		}
+		return names;
+	}
+
+	/**
+	 * Validates selectors against this reference, before inspecting any index data. The selectors name the union of
+	 * their attributes, a repeated name counting once; without a selector, every reference attribute searchable in the
+	 * scope is selected.
 	 * @param textMatches direct body text constraint
 	 * @param entitySchema owner schema used in diagnostics and field identities
 	 * @param reference schema supplying searchable attributes
@@ -693,10 +713,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		@Nonnull TextMatches textMatches, @Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract reference, @Nonnull Set<Scope> scopes
 	) {
-		final Set<String> names = CollectionUtils.createLinkedHashSet(textMatches.getInFields().length);
-		for (final InField selector : textMatches.getInFields()) {
-			names.add(selector.getFieldName());
-		}
+		final Set<String> names = collectSelectedAttributeNames(textMatches.getInAttributes());
 		final Map<Scope, FulltextFieldDefinition[]> result = new EnumMap<>(Scope.class);
 		for (final Scope scope : scopes) {
 			final List<FulltextFieldDefinition> selected = new ArrayList<>(reference.getAttributes().size());
@@ -769,21 +786,22 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	/**
 	 * Resolves the fields the constraint searches in every processed scope, and verifies they may be searched there.
 	 *
-	 * Without `inField` the constraint searches every searchable field of the collection in the scope: its entity
+	 * Without `inAttribute` the constraint searches every searchable field of the collection in the scope: its entity
 	 * attributes (global attributes included), the attributes of its references and its associated data; places
-	 * reached through a `COMPOSITION` reference are not its fields and are resolved separately. With
-	 * `inField` it searches the named entity or global attributes only - duplicates are de-duplicated, and each must be
-	 * searchable in every processed scope, as an attribute filter must be filterable in every one. Reference attributes
-	 * and associated data are reachable only through the default; naming them needs a specification constraint of
-	 * their own.
+	 * reached through a `COMPOSITION` reference are not its fields and are resolved separately. With `inAttribute` it
+	 * searches the named entity or global attributes only - a name repeated within or across selectors counts once,
+	 * and each must be searchable in every processed scope, as an attribute filter must be filterable in every one.
+	 * Here reference attributes and associated data are reachable only through the default: `inAttribute` names
+	 * reference attributes only inside `referenceHaving` (see `resolveReferenceFields`), and associated data cannot
+	 * be named at all.
 	 *
 	 * @param textMatches  the constraint
 	 * @param entitySchema schema of the queried collection
 	 * @param scopes       the processed scopes
 	 * @return own searched fields per scope, possibly empty when a composition is declared
-	 * @throws AttributeNotFoundException when an `inField` names an attribute the collection does not declare
-	 * @throws AttributeNotSearchableException when an `inField` names an attribute that is not searchable at all, or
-	 *                                        not in some processed scope
+	 * @throws AttributeNotFoundException when an `inAttribute` names an attribute the collection does not declare
+	 * @throws AttributeNotSearchableException when an `inAttribute` names an attribute that is not searchable at all,
+	 *                                        or not in some processed scope
 	 * @throws EvitaInvalidUsageException     when a processed scope has neither a searchable field nor a reference
 	 *                                        declaring composition
 	 */
@@ -794,8 +812,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		@Nonnull Set<Scope> scopes
 	) {
 		final Map<Scope, FulltextFieldDefinition[]> result = new EnumMap<>(Scope.class);
-		final InField[] inFields = textMatches.getInFields();
-		if (inFields.length == 0) {
+		final InAttribute[] inAttributes = textMatches.getInAttributes();
+		if (inAttributes.length == 0) {
 			for (final Scope scope : scopes) {
 				final FulltextFieldDefinition[] fields = collectSearchableFields(entitySchema, scope);
 				Assert.isTrue(
@@ -811,10 +829,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				result.put(scope, fields);
 			}
 		} else {
-			final Set<String> names = CollectionUtils.createLinkedHashSet(inFields.length);
-			for (final InField inField : inFields) {
-				names.add(inField.getFieldName());
-			}
+			final Set<String> names = collectSelectedAttributeNames(inAttributes);
 			final FulltextFieldDefinition[] fields = new FulltextFieldDefinition[names.size()];
 			int index = 0;
 			for (final String name : names) {

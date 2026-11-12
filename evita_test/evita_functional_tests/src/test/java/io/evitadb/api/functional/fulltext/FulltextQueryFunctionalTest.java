@@ -415,26 +415,26 @@ public class FulltextQueryFunctionalTest {
 			);
 		}
 
-		@DisplayName("Should restrict the search to the fields named by inField")
+		@DisplayName("Should restrict the search to the searchable attributes named by inAttribute")
 		@UseDataSet(FULLTEXT_DATASET)
 		@Test
-		void shouldRestrictTheSearchToInFields(Evita evita) {
+		void shouldRestrictTheSearchToInAttributes(Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					assertMatches(session, new int[]{1, 10}, textMatches("green tea", inField(ATTRIBUTE_NAME)));
-					assertMatches(session, new int[]{1, 3, 10}, textMatches("green", inField(ATTRIBUTE_NAME)));
+					assertMatches(session, new int[]{1, 10}, textMatches("green tea", inAttribute(ATTRIBUTE_NAME)));
+					assertMatches(session, new int[]{1, 3, 10}, textMatches("green", inAttribute(ATTRIBUTE_NAME)));
 					assertMatches(
 						session, new int[]{1, 3, 4, 8, 10},
-						textMatches("green", inField(ATTRIBUTE_NAME), inField(ATTRIBUTE_DESCRIPTION))
+						textMatches("green", inAttribute(ATTRIBUTE_NAME), inAttribute(ATTRIBUTE_DESCRIPTION))
 					);
-					// a duplicate field is searched once
+					// a duplicate searchable attribute is searched once
 					assertMatches(
 						session, new int[]{1, 10},
-						textMatches("green tea", inField(ATTRIBUTE_NAME), inField(ATTRIBUTE_NAME))
+						textMatches("green tea", inAttribute(ATTRIBUTE_NAME), inAttribute(ATTRIBUTE_NAME))
 					);
-					assertMatches(session, new int[]{2, 5}, textMatches("bestseller", inField(ATTRIBUTE_HEADLINE)));
-					assertMatches(session, new int[0], textMatches("bestseller", inField(ATTRIBUTE_NAME)));
+					assertMatches(session, new int[]{2, 5}, textMatches("bestseller", inAttribute(ATTRIBUTE_HEADLINE)));
+					assertMatches(session, new int[0], textMatches("bestseller", inAttribute(ATTRIBUTE_NAME)));
 					return null;
 				}
 			);
@@ -479,7 +479,7 @@ public class FulltextQueryFunctionalTest {
 					);
 					assertMatches(
 						session, new int[]{1, 10, 11},
-						inScope(Scope.LIVE, textMatches("green tea", inField(ATTRIBUTE_NAME))),
+						inScope(Scope.LIVE, textMatches("green tea", inAttribute(ATTRIBUTE_NAME))),
 						inScope(Scope.ARCHIVED, textMatches("limited")),
 						scope(Scope.LIVE, Scope.ARCHIVED)
 					);
@@ -596,20 +596,20 @@ public class FulltextQueryFunctionalTest {
 			);
 		}
 
-		@DisplayName("Should refuse an unknown or non-searchable inField")
+		@DisplayName("Should refuse an unknown or non-searchable inAttribute")
 		@UseDataSet(FULLTEXT_DATASET)
 		@Test
-		void shouldRefuseUnknownOrNonSearchableInField(Evita evita) {
+		void shouldRefuseUnknownOrNonSearchableInAttribute(Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					assertThrows(
 						AttributeNotFoundException.class,
-						() -> assertMatches(session, new int[0], textMatches("tea", inField("unknown")))
+						() -> assertMatches(session, new int[0], textMatches("tea", inAttribute("unknown")))
 					);
 					final AttributeNotSearchableException notSearchable = assertThrows(
 						AttributeNotSearchableException.class,
-						() -> assertMatches(session, new int[0], textMatches("tea", inField(ATTRIBUTE_CODE)))
+						() -> assertMatches(session, new int[0], textMatches("tea", inAttribute(ATTRIBUTE_CODE)))
 					);
 					assertTrue(notSearchable.getMessage().contains("`code`"), notSearchable.getMessage());
 					// the description is searchable in the live scope only
@@ -617,13 +617,31 @@ public class FulltextQueryFunctionalTest {
 						AttributeNotSearchableException.class,
 						() -> assertMatches(
 							session, new int[0],
-							textMatches("tea", inField(ATTRIBUTE_DESCRIPTION)), scope(Scope.LIVE, Scope.ARCHIVED)
+							textMatches("tea", inAttribute(ATTRIBUTE_DESCRIPTION)), scope(Scope.LIVE, Scope.ARCHIVED)
 						)
 					);
 					assertTrue(notInArchive.getMessage().contains("ARCHIVED"), notInArchive.getMessage());
 					return null;
 				}
 			);
+		}
+
+		/** Validation must inspect later names even when the first is valid. */
+		@DisplayName("Should name an unknown or non-searchable attribute among valid selector names")
+		@UseDataSet(FULLTEXT_DATASET)
+		@Test
+		void shouldRefuseInvalidLaterAttributeName(Evita evita) {
+			evita.queryCatalog(TEST_CATALOG, session -> {
+				final AttributeNotFoundException unknown = assertThrows(AttributeNotFoundException.class,
+					() -> assertMatches(session, new int[0],
+						textMatches("tea", inAttribute(ATTRIBUTE_NAME, "unknown"))));
+				assertTrue(unknown.getMessage().contains("unknown"), unknown.getMessage());
+				final AttributeNotSearchableException notSearchable = assertThrows(
+					AttributeNotSearchableException.class,
+					() -> assertMatches(session, new int[0],
+						textMatches("tea", inAttribute(ATTRIBUTE_NAME, ATTRIBUTE_CODE))));
+				assertTrue(notSearchable.getMessage().contains(ATTRIBUTE_CODE), notSearchable.getMessage());
+			});
 		}
 
 		@DisplayName("Should refuse textMatches nested anywhere under userFilter")
@@ -646,20 +664,21 @@ public class FulltextQueryFunctionalTest {
 			);
 		}
 
-		@DisplayName("Should refuse inField outside textMatches and accept searchable reference text")
+		@DisplayName("Should refuse inAttribute outside textMatches and accept searchable reference text")
 		@UseDataSet(FULLTEXT_DATASET)
 		@Test
 		void shouldRefuseMisplacedConstraints(Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					final EvitaInvalidUsageException strayInField = assertThrows(
+					final EvitaInvalidUsageException strayInAttribute = assertThrows(
 						EvitaInvalidUsageException.class,
 						() -> assertMatches(
-							session, new int[0], or(inField(ATTRIBUTE_NAME), attributeEquals(ATTRIBUTE_CODE, "P101"))
+							session, new int[0],
+							or(inAttribute(ATTRIBUTE_NAME), attributeEquals(ATTRIBUTE_CODE, "P101"))
 						)
 					);
-					assertTrue(strayInField.getMessage().contains("textMatches"), strayInField.getMessage());
+					assertTrue(strayInAttribute.getMessage().contains("textMatches"), strayInAttribute.getMessage());
 					assertMatches(
 						session, new int[]{1, 2}, referenceHaving(REFERENCE_CATEGORIES, textMatches("loose"))
 					);
@@ -996,7 +1015,7 @@ public class FulltextQueryFunctionalTest {
 					assertMatchesIn(session, CZECH, new int[]{13}, textMatches("prostorny byt"));
 					// held by the index, so not dropped even where the searched field lacks it
 					assertMatchesIn(
-						session, CZECH, new int[0], textMatches("volny byt", inField(ATTRIBUTE_DESCRIPTION))
+						session, CZECH, new int[0], textMatches("volny byt", inAttribute(ATTRIBUTE_DESCRIPTION))
 					);
 					return null;
 				}
@@ -1067,7 +1086,8 @@ public class FulltextQueryFunctionalTest {
 					);
 					assertMatches(
 						session, new int[]{3, 6, 7},
-						referenceHaving(REFERENCE_BRANDS, entityHaving(textMatches("green", inField(ATTRIBUTE_NAME)))),
+						referenceHaving(REFERENCE_BRANDS,
+							entityHaving(textMatches("green", inAttribute(ATTRIBUTE_NAME)))),
 						referenceHaving(REFERENCE_BRANDS, entityPrimaryKeyInSet(2))
 					);
 					return null;

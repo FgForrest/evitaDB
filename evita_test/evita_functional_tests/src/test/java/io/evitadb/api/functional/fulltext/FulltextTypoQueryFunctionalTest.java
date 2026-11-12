@@ -93,7 +93,7 @@ class FulltextTypoQueryFunctionalTest implements EvitaTestSupport {
 		final int[] actual = this.evita.queryCatalog(TEST_CATALOG, session -> {
 			return session.query(
 			query(collection("product"), filterBy(entityLocaleEquals(Locale.ENGLISH),
-				field == null ? textMatches(text) : textMatches(text, inField(field))),
+				field == null ? textMatches(text) : textMatches(text, inAttribute(field))),
 				require(page(1, expected.length + 1))),
 			EntityReference.class).getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray();
 		});

@@ -154,7 +154,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 	void shouldFilterHierarchyParentsWithDisjointFields() {
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
 			final Query query = query(collection(OWNER), filterBy(entityLocaleEquals(Locale.ENGLISH),
-				hierarchyWithin(REFERENCE, textMatches("green ", inField("label")))));
+				hierarchyWithin(REFERENCE, textMatches("green ", inAttribute("label")))));
 			assertArrayEquals(new int[]{2}, keys(session, query));
 		});
 	}
@@ -165,7 +165,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 	void shouldUseHierarchySchemaWeight() {
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
 			final Query query = query(collection(OWNER), filterBy(entityLocaleEquals(Locale.ENGLISH),
-				hierarchyWithin(REFERENCE, textMatches("green ", inField("name")))));
+				hierarchyWithin(REFERENCE, textMatches("green ", inAttribute("name")))));
 			assertArrayEquals(new int[]{1}, keys(session, query));
 			final QueryPlanningContext context = context(session, query);
 			QueryPlanner.planQuery(context);
@@ -195,11 +195,11 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				groups ? groupHaving(search) : entityHaving(search)));
 			assertArrayEquals(new int[]{2, 1}, keys(session, query));
 			assertArrayEquals(new int[]{1}, keys(session, ranked(referenceHaving(referenceName,
-				groups ? groupHaving(textMatches("green ", inField("name"))) :
-					entityHaving(textMatches("green ", inField("name")))))));
+				groups ? groupHaving(textMatches("green ", inAttribute("name"))) :
+					entityHaving(textMatches("green ", inAttribute("name")))))));
 			assertArrayEquals(new int[]{2}, keys(session, ranked(referenceHaving(referenceName,
-				groups ? groupHaving(textMatches("green ", inField("label"))) :
-					entityHaving(textMatches("green ", inField("label")))))));
+				groups ? groupHaving(textMatches("green ", inAttribute("label"))) :
+					entityHaving(textMatches("green ", inAttribute("label")))))));
 		});
 	}
 
@@ -231,7 +231,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				.setReference(REFERENCE, 2, r -> r.setGroup(TARGET, 1)));
 		});
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			final TextMatches text = textMatches("green ", inField("name"));
+			final TextMatches text = textMatches("green ", inAttribute("name"));
 			final FilterConstraint entity = entityHaving(text);
 			final FilterConstraint group = groupHaving(text);
 			final Query query = ranked(referenceHaving(REFERENCE,
@@ -260,8 +260,8 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				.setReference(REFERENCE, 2, r -> r.setGroup(TARGET, 1)));
 		});
 		assertOnBothPlans(referenceHaving(REFERENCE, or(
-			entityHaving(textMatches("green ", inField("label"))),
-			groupHaving(textMatches("green ", inField("label"))))), false, 2, 1);
+			entityHaving(textMatches("green ", inAttribute("label"))),
+			groupHaving(textMatches("green ", inAttribute("label"))))), false, 2, 1);
 	}
 
 	/** Separate nested text constraints contribute even if reached through the same entity mapping. */
@@ -273,8 +273,8 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				.setReference(REFERENCE, 1, r -> r.setGroup(TARGET, 1)));
 		});
 		assertOnBothPlans(or(
-			referenceHaving(REFERENCE, entityHaving(textMatches("green ", inField("label")))),
-			referenceHaving(REFERENCE, entityHaving(textMatches("amber ", inField("label"))))), false, 2, 1);
+			referenceHaving(REFERENCE, entityHaving(textMatches("green ", inAttribute("label")))),
+			referenceHaving(REFERENCE, entityHaving(textMatches("amber ", inAttribute("label"))))), false, 2, 1);
 	}
 
 	/** One constraint planned for two target scopes still has exactly one reference weight and strength. */
@@ -293,7 +293,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				.setReference(REFERENCE, 3, r -> r.setGroup(TARGET, 3)));
 		});
 		assertOnBothPlans(referenceHaving(REFERENCE,
-			entityHaving(textMatches("green ", inField("label")))), true, 1, 2);
+			entityHaving(textMatches("green ", inAttribute("label")))), true, 1, 2);
 	}
 
 	/** Repeated reduced-index translations and mixed representations preserve one multi-child place. */
@@ -311,7 +311,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 		});
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
 			final FilterConstraint filter = referenceHaving(referenceName, entityHaving(
-				textMatches("green ", inField("label")), attributeEquals("enabled", true)));
+				textMatches("green ", inAttribute("label")), attributeEquals("enabled", true)));
 			if (VIRTUAL_REFERENCE.equals(referenceName)) {
 				final Map<EntityIndexKey, EntityIndex> indexes = field(context(session, ranked(filter))
 					.getEntityCollection(OWNER).orElseThrow(), "indexes");
@@ -338,8 +338,8 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 	void shouldCollapseEqualConstraints() {
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
 			final FilterConstraint filter = or(
-				referenceHaving(REFERENCE, entityHaving(textMatches("green ", inField("label")))),
-				referenceHaving(REFERENCE, entityHaving(textMatches("green ", inField("label")))));
+				referenceHaving(REFERENCE, entityHaving(textMatches("green ", inAttribute("label")))),
+				referenceHaving(REFERENCE, entityHaving(textMatches("green ", inAttribute("label")))));
 			final long score = 0x01ffff0000000000L | (3056L << FulltextScoringPolicy.STRENGTH_SHIFT);
 			for (final PlanPreference preference : PlanPreference.values()) {
 				assertPlanScores(session, preference, filter, 1, new long[]{0, score}, 2);
@@ -358,13 +358,13 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				.setAttribute("name", Locale.ENGLISH, "green"));
 		});
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			final FilterConstraint child = entityHaving(textMatches("green ", inField("label")));
+			final FilterConstraint child = entityHaving(textMatches("green ", inAttribute("label")));
 			final FilterConstraint shared = or(referenceHaving(REFERENCE, child), referenceHaving(REFERENCE, child),
-				textMatches("green ", inField("name")));
+				textMatches("green ", inAttribute("name")));
 			final FilterConstraint rebuilt = or(
-				referenceHaving(REFERENCE, entityHaving(textMatches("green ", inField("label")))),
-				referenceHaving(REFERENCE, entityHaving(textMatches("green ", inField("label")))),
-				textMatches("green ", inField("name")));
+				referenceHaving(REFERENCE, entityHaving(textMatches("green ", inAttribute("label")))),
+				referenceHaving(REFERENCE, entityHaving(textMatches("green ", inAttribute("label")))),
+				textMatches("green ", inAttribute("name")));
 			assertEquals(shared, rebuilt);
 			assertEquals(shared.toString(), rebuilt.toString());
 			final long quality = 0x01ffff0000000000L;
@@ -386,9 +386,9 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				.setAttribute("name", Locale.ENGLISH, "green"));
 		});
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			final FilterConstraint single = textMatches("green ", inField("name"));
-			final FilterConstraint repeated = or(textMatches("green ", inField("name")),
-				textMatches("green ", inField("name")));
+			final FilterConstraint single = textMatches("green ", inAttribute("name"));
+			final FilterConstraint repeated = or(textMatches("green ", inAttribute("name")),
+				textMatches("green ", inAttribute("name")));
 			final long score = 0x01ffff0000000000L | (65535L << FulltextScoringPolicy.STRENGTH_SHIFT);
 			for (final PlanPreference preference : PlanPreference.values()) {
 				assertPlanScores(session, preference, single, 1, new long[]{score, 0}, 1);
@@ -456,7 +456,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				.setAttribute("name", Locale.ENGLISH, "green"));
 		});
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			final Query query = ranked(textMatches("green ", inField("name")));
+			final Query query = ranked(textMatches("green ", inAttribute("name")));
 			final QueryPlanningContext context = context(session, query);
 			context.getFulltextScoringPolicy();
 			final Map<String, FulltextScoringPolicy> policies = field(context, "fulltextScoringPolicies");

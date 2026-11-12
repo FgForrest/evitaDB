@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.filter.translator.fulltext;
 
-import io.evitadb.api.query.filter.InField;
+import io.evitadb.api.query.filter.InAttribute;
 import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -33,20 +33,21 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import javax.annotation.Nonnull;
 
 /**
- * Rejects an {@link InField} placed anywhere but directly inside {@link TextMatches}. The {@link TextMatchesTranslator}
- * consumes its `inField` children itself and never lets the visitor reach them, so a translation reaching this one
- * means the constraint was misplaced - which the Java API and the EvitaQL grammar both allow. Without a translator of
- * its own it would fail as an internal "no translator found" error instead of telling the client what is wrong.
+ * Rejects an {@link InAttribute} placed anywhere but directly inside {@link TextMatches}. This translator is reached
+ * only when `inAttribute` is not a direct child of `textMatches`, because {@link TextMatchesTranslator} consumes its
+ * `inAttribute` children itself and never lets the visitor reach them. The Java API and the EvitaQL grammar both
+ * allow such a misplaced selector; without a translator of its own it would fail as an internal "no translator
+ * found" error instead of telling the client what is wrong.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class InFieldTranslator implements FilteringConstraintTranslator<InField> {
+public class InAttributeTranslator implements FilteringConstraintTranslator<InAttribute> {
 
 	@Nonnull
 	@Override
-	public Formula translate(@Nonnull InField inField, @Nonnull FilterByVisitor filterByVisitor) {
+	public Formula translate(@Nonnull InAttribute inAttribute, @Nonnull FilterByVisitor filterByVisitor) {
 		throw new EvitaInvalidUsageException(
-			"Constraint `" + inField + "` can only be used directly inside the `textMatches` constraint!"
+			"Constraint `" + inAttribute + "` can only be used directly inside the `textMatches` constraint!"
 		);
 	}
 

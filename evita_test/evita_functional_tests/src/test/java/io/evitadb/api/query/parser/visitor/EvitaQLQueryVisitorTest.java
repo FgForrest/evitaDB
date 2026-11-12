@@ -281,14 +281,15 @@ class EvitaQLQueryVisitorTest {
             collection("Product"),
             filterBy(
                 entityLocaleEquals(Locale.forLanguageTag("cs")),
-                textMatches("černá kožená bunda", inField("name"), inField("description"))
+                textMatches("černá kožená bunda", inAttribute("name"), inAttribute("description"))
             ),
             orderBy(relevanceText())
         );
 
         final Query parsed = parseQueryUnsafe(
             "query(collection('Product'),filterBy(entityLocaleEquals('cs'),"
-                + "textMatches('černá kožená bunda',inField('name'),inField('description'))),orderBy(relevanceText()))"
+				+ "textMatches('černá kožená bunda',inAttribute('name'),inAttribute('description'))),"
+				+ "orderBy(relevanceText()))"
         );
         assertEquals(expected, parsed);
 

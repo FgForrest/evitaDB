@@ -834,13 +834,13 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterInFieldConstraint(EvitaQLParser.InFieldConstraintContext ctx) { }
+	@Override public void enterInAttributeConstraint(EvitaQLParser.InAttributeConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitInFieldConstraint(EvitaQLParser.InFieldConstraintContext ctx) { }
+	@Override public void exitInAttributeConstraint(EvitaQLParser.InAttributeConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

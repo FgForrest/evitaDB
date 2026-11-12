@@ -48,15 +48,15 @@ import java.io.Serializable;
  * ```evitaql
  * textMatches(
  *     argument:string!,
- *     filterConstraint:inField*
+ *     filterConstraint:inAttribute*
  * )
  * ```
  *
  * **Arguments**
  *
  * - `argument:string!`: the text to search for, mandatory and non-blank
- * - `filterConstraint:inField*`: optional {@link InField} children restricting the search to the named searchable
- *   fields; without any child, every searchable field of the queried collection is searched
+ * - `filterConstraint:inAttribute*`: optional {@link InAttribute} children restricting the search to the named
+ *   searchable attributes; without any child, every searchable place of the queried collection is searched
  *
  * **Examples**
  *
@@ -76,8 +76,8 @@ import java.io.Serializable;
  * ```evitaql
  * textMatches(
  *     "black leather jacket",
- *     inField("name"),
- *     inField("description")
+ *     inAttribute("name"),
+ *     inAttribute("description")
  * )
  * ```
  *
@@ -86,13 +86,13 @@ import java.io.Serializable;
  * - the fulltext index is maintained per locale, so the query must declare its locale by `entityLocaleEquals`
  * - the constraint is forbidden inside {@link UserFilter}: it has no relaxation semantics a facet or histogram
  *   computation could peel off, and facet counts are expected to describe the search result
- * - only {@link TextMatchesSpecificationFilterConstraint} children (such as `inField`) are accepted
+ * - only {@link TextMatchesSpecificationFilterConstraint} children (such as `inAttribute`) are accepted
  *
  * The constraint has no `attribute` prefix, because a searchable field is not necessarily an entity attribute.
  * The order of the matched entities is controlled by the {@link io.evitadb.api.query.order.RelevanceText} ordering
  * constraint, which reads the relevance this filter computes.
  *
- * @see InField
+ * @see InAttribute
  * @see io.evitadb.api.query.order.RelevanceText
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -109,6 +109,12 @@ public class TextMatches extends AbstractFilterConstraintContainer implements Ge
 	private static final TextMatchesSpecificationFilterConstraint[] NO_SPECIFICATIONS =
 		new TextMatchesSpecificationFilterConstraint[0];
 
+	/**
+	 * Creates a copy with new arguments or children.
+	 *
+	 * @param arguments the searched text
+	 * @param children search refinements
+	 */
 	private TextMatches(@Nonnull Serializable[] arguments, @Nonnull FilterConstraint... children) {
 		super(CONSTRAINT_NAME, arguments, children);
 	}
@@ -117,7 +123,7 @@ public class TextMatches extends AbstractFilterConstraintContainer implements Ge
 	 * Creates the fulltext search constraint.
 	 *
 	 * @param text           the text to search for, must not be blank
-	 * @param specifications optional refinements of the search, e.g. {@link InField} restrictions
+	 * @param specifications optional refinements of the search, e.g. {@link InAttribute} restrictions
 	 */
 	@Creator
 	public TextMatches(
@@ -137,6 +143,8 @@ public class TextMatches extends AbstractFilterConstraintContainer implements Ge
 
 	/**
 	 * Returns the text to search for.
+	 *
+	 * @return the searched text
 	 */
 	@Nonnull
 	public String getText() {
@@ -145,6 +153,8 @@ public class TextMatches extends AbstractFilterConstraintContainer implements Ge
 
 	/**
 	 * Returns all refinements of the search in the order they were specified.
+	 *
+	 * @return the search refinements
 	 */
 	@Nonnull
 	public TextMatchesSpecificationFilterConstraint[] getSpecifications() {
@@ -158,30 +168,34 @@ public class TextMatches extends AbstractFilterConstraintContainer implements Ge
 	}
 
 	/**
-	 * Returns the {@link InField} restrictions of the search. An empty array means that every searchable field of the
-	 * queried collection is searched.
+	 * Returns the {@link InAttribute} restrictions of the search. An empty array searches every searchable place of
+	 * the queried collection, including composition.
+	 *
+	 * @return the searchable attribute selectors
 	 */
 	@Nonnull
-	public InField[] getInFields() {
+	public InAttribute[] getInAttributes() {
 		final FilterConstraint[] children = getChildren();
 		int count = 0;
 		for (final FilterConstraint child : children) {
-			if (child instanceof InField) {
+			if (child instanceof InAttribute) {
 				count++;
 			}
 		}
-		final InField[] result = new InField[count];
+		final InAttribute[] result = new InAttribute[count];
 		int index = 0;
 		for (final FilterConstraint child : children) {
-			if (child instanceof InField inField) {
-				result[index++] = inField;
+			if (child instanceof InAttribute inAttribute) {
+				result[index++] = inAttribute;
 			}
 		}
 		return result;
 	}
 
 	/**
-	 * The container is necessary even with a single child — flattening it would leave a bare `inField` behind.
+	 * The container is necessary even with a single child — flattening it would leave a bare `inAttribute` behind.
+	 *
+	 * @return whether the searched text is present, regardless of the number of selectors
 	 */
 	@Override
 	public boolean isNecessary() {
@@ -190,6 +204,8 @@ public class TextMatches extends AbstractFilterConstraintContainer implements Ge
 
 	/**
 	 * The container is applicable without children — no child means "search all searchable fields".
+	 *
+	 * @return whether the searched text argument is present
 	 */
 	@Override
 	public boolean isApplicable() {

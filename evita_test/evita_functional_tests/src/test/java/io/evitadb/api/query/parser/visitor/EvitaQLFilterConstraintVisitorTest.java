@@ -34,6 +34,8 @@ import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
@@ -42,6 +44,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
@@ -55,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.FILTER;
@@ -2049,27 +2053,29 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertEquals(textMatches("black leather jacket"), constraint1);
 
 			final FilterConstraint constraint2 = parseFilterConstraintUnsafe(
-				"textMatches ( 'jacket' , inField('name') )"
+				"textMatches ( 'jacket' , inAttribute('name') )"
 			);
-			assertEquals(textMatches("jacket", inField("name")), constraint2);
+			assertEquals(textMatches("jacket", inAttribute("name")), constraint2);
 
 			final FilterConstraint constraint3 = parseFilterConstraintUnsafe(
-				"textMatches('černá kožená bunda',inField('name'),inField('description'))"
+				"textMatches('černá kožená bunda',inAttribute('name'),inAttribute('description'))"
 			);
-			assertEquals(textMatches("černá kožená bunda", inField("name"), inField("description")), constraint3);
+			assertEquals(
+				textMatches("černá kožená bunda", inAttribute("name"), inAttribute("description")), constraint3
+			);
 
 			final FilterConstraint constraint4 = parseFilterConstraint("textMatches(?)", "jacket");
 			assertEquals(textMatches("jacket"), constraint4);
 
 			final FilterConstraint constraint5 = parseFilterConstraint(
-				"textMatches(?, inField(?), inField(?))", "jacket", "name", "brand"
+				"textMatches(?, inAttribute(?), inAttribute(?))", "jacket", "name", "brand"
 			);
-			assertEquals(textMatches("jacket", inField("name"), inField("brand")), constraint5);
+			assertEquals(textMatches("jacket", inAttribute("name"), inAttribute("brand")), constraint5);
 
 			final FilterConstraint constraint6 = parseFilterConstraint(
-				"textMatches(@text, inField(@field))", Map.of("text", "jacket", "field", "name")
+				"textMatches(@text, inAttribute(@field))", Map.of("text", "jacket", "field", "name")
 			);
-			assertEquals(textMatches("jacket", inField("name")), constraint6);
+			assertEquals(textMatches("jacket", inAttribute("name")), constraint6);
 		}
 
 		@Test
@@ -2080,7 +2086,7 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("textMatches(1)"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("textMatches('')"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("textMatches('  ')"));
-			// only `inField` is accepted as a child
+			// only `inAttribute` is accepted as a child
 			assertThrows(
 				EvitaSyntaxException.class,
 				() -> parseFilterConstraintUnsafe("textMatches('a', attributeEquals('b','c'))")
@@ -2090,26 +2096,79 @@ class EvitaQLFilterConstraintVisitorTest {
 		}
 
 		@Test
-		@DisplayName("Should parse inField constraint")
-		void shouldParseInFieldConstraint() {
-			final FilterConstraint constraint1 = parseFilterConstraintUnsafe("inField('name')");
-			assertEquals(inField("name"), constraint1);
+		@DisplayName("Should parse inAttribute constraint")
+		void shouldParseInAttributeConstraint() {
+			final FilterConstraint constraint1 = parseFilterConstraintUnsafe("inAttribute('name')");
+			assertEquals(inAttribute("name"), constraint1);
 
-			final FilterConstraint constraint2 = parseFilterConstraint("inField ( ? )", "name");
-			assertEquals(inField("name"), constraint2);
+			final FilterConstraint constraint2 = parseFilterConstraint("inAttribute ( ? )", "name");
+			assertEquals(inAttribute("name"), constraint2);
 
-			final FilterConstraint constraint3 = parseFilterConstraint("inField(@a)", Map.of("a", "name"));
-			assertEquals(inField("name"), constraint3);
+			final FilterConstraint constraint3 = parseFilterConstraint("inAttribute(@a)", Map.of("a", "name"));
+			assertEquals(inAttribute("name"), constraint3);
+		}
+
+		/** Lists and bound arrays retain every classifier, including through string round trips. */
+		@Test
+		@DisplayName("Should parse and round trip several searchable attribute names")
+		void shouldParseSeveralInAttributeNames() {
+			final FilterConstraint expected = inAttribute("a", "b");
+			assertEquals(expected, parseFilterConstraintUnsafe("inAttribute('a', 'b')"));
+			assertEquals(expected, parseFilterConstraintUnsafe(expected.toString()));
+			assertEquals(expected, parseFilterConstraint("inAttribute(?, ?)", "a", "b"));
+			assertEquals(expected, parseFilterConstraint("inAttribute(@names)",
+				Map.of("names", new String[]{"a", "b"})));
+		}
+
+		/** Bound names with a null reach selector validation and are refused with its diagnostic. */
+		@ParameterizedTest(name = "named={0}, array={1}, nullFirst={2}")
+		@CsvSource({
+			"false, true, true", "false, true, false", "false, false, false",
+			"true, true, true", "true, true, false", "true, false, false"
+		})
+		@DisplayName("Should refuse null bound names with the inAttribute diagnostic")
+		void shouldNotParseNullInAttributeNames(boolean named, boolean array, boolean nullFirst) {
+			final String[] names = nullFirst ? new String[]{null, "a"} : new String[]{"a", null};
+			final Object value = array ? names : Arrays.asList(names);
+			final EvitaSyntaxException exception = assertThrows(EvitaSyntaxException.class, () -> {
+				if (named) {
+					parseFilterConstraint("inAttribute(@names)", Map.of("names", value));
+				} else {
+					parseFilterConstraint("inAttribute(?)", new Object[]{value});
+				}
+			});
+			assertTrue(exception.getMessage().contains(
+				"Constraint `inAttribute` requires at least one searchable attribute name; " +
+					"every name must be a non-blank String!"), exception.getMessage());
+		}
+
+		/** A bound name of another type than String is a client error, also after a valid first item. */
+		@Test
+		@DisplayName("Should refuse bound inAttribute names that are not Strings")
+		void shouldNotParseNonStringInAttributeNames() {
+			assertThrows(
+				EvitaSyntaxException.class,
+				() -> parseFilterConstraint("inAttribute(?, ?)", "code", new String[]{"name"})
+			);
+			assertThrows(
+				EvitaSyntaxException.class,
+				() -> parseFilterConstraint("inAttribute(?)", new Object[]{List.of("code", 42)})
+			);
+			assertThrows(
+				EvitaSyntaxException.class,
+				() -> parseFilterConstraint("inAttribute(@names)", Map.of("names", List.of("code", 42)))
+			);
 		}
 
 		@Test
-		@DisplayName("Should not parse invalid inField constraint")
-		void shouldNotParseInFieldConstraint() {
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("inField"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inField()"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inField(1)"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inField('')"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inField('a','b')"));
+		@DisplayName("Should not parse invalid inAttribute constraint")
+		void shouldNotParseInAttributeConstraint() {
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("inAttribute"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inAttribute()"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inAttribute(1)"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inAttribute('')"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inAttribute('a','')"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inAttribute('a',' ')"));
 		}
 	}
 

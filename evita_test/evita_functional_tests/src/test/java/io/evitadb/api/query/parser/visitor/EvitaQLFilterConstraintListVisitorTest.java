@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEqualsTrue;
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
-import static io.evitadb.api.query.QueryConstraints.inField;
+import static io.evitadb.api.query.QueryConstraints.inAttribute;
 import static io.evitadb.api.query.QueryConstraints.textMatches;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -86,10 +86,10 @@ class EvitaQLFilterConstraintListVisitorTest {
         );
 
         final List<FilterConstraint> constraintList5 = parseFilterConstraintList(
-            "entityLocaleEquals(?),textMatches(?,inField(?))", "cs", "jacket", "name"
+            "entityLocaleEquals(?),textMatches(?,inAttribute(?))", "cs", "jacket", "name"
         );
         assertEquals(
-            List.of(entityLocaleEquals(Locale.forLanguageTag("cs")), textMatches("jacket", inField("name"))),
+            List.of(entityLocaleEquals(Locale.forLanguageTag("cs")), textMatches("jacket", inAttribute("name"))),
             constraintList5
         );
     }

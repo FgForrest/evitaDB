@@ -490,12 +490,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitTextMatchesConstraint(EvitaQLParser.TextMatchesConstraintContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code inFieldConstraint}
+	 * Visit a parse tree produced by the {@code inAttributeConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInFieldConstraint(EvitaQLParser.InFieldConstraintContext ctx);
+	T visitInAttributeConstraint(EvitaQLParser.InAttributeConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code orderByConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.

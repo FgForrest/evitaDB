@@ -1567,18 +1567,21 @@ public interface QueryConstraints {
 
 	/**
 	 * Fulltext search: matches entities whose searchable fields contain every word of the text, analyzed the same way
-	 * the fields were indexed. Without `inField` children every searchable field is searched. Requires the query
+	 * the fields were indexed. Without `inAttribute` children every searchable field is searched. Requires the query
 	 * locale and is forbidden inside `userFilter`. A `null` or blank text drops the constraint from the query.
 	 *
 	 * ```evitaql
 	 * filterBy(
 	 *     entityLocaleEquals("en"),
-	 *     textMatches("black leather jacket", inField("name"))
+	 *     textMatches("black leather jacket", inAttribute("name"))
 	 * )
 	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/fulltext#text-matches)
 	 *
+	 * @param text the text to search for; null or blank omits the constraint
+	 * @param specifications optional refinements restricting the fulltext search
+	 * @return the fulltext constraint, or null for null or blank text
 	 * @see io.evitadb.api.query.filter.TextMatches
 	 */
 	@Nullable
@@ -1590,20 +1593,28 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Restricts the enclosing `textMatches` fulltext search to a single searchable field. Usable only as a child of
-	 * `textMatches`; several `inField` children search all the named fields.
+	 * Restricts the enclosing `textMatches` search to the union of one or more searchable attributes. Repeated names
+	 * within this selector or across sibling selectors are ignored, including when scoring. Usable only as a child
+	 * of `textMatches`; any selector disables composition through referenced entities.
+	 *
+	 * Searchable attribute names are application settings, so the factory never omits the selector: a null or empty
+	 * array, and a null or blank name, are refused. Omitting it would widen the search to every searchable place.
 	 *
 	 * ```evitaql
-	 * textMatches("black leather jacket", inField("name"), inField("description"))
+	 * textMatches('black leather jacket', inAttribute('name', 'description'))
 	 * ```
 	 *
-	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/fulltext#in-field)
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/fulltext#in-attribute)
 	 *
-	 * @see io.evitadb.api.query.filter.InField
+	 * @param attributeNames searchable attribute names, at least one and none null or blank
+	 * @return the selector
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the array is null or empty, or a name is null or
+	 *                                                         blank
+	 * @see io.evitadb.api.query.filter.InAttribute
 	 */
-	@Nullable
-	static InField inField(@Nullable String fieldName) {
-		return fieldName == null ? null : new InField(fieldName);
+	@Nonnull
+	static InAttribute inAttribute(@Nonnull String... attributeNames) {
+		return new InAttribute(attributeNames);
 	}
 
 	/*

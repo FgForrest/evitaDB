@@ -36,11 +36,12 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenH
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FilterInScopeConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.GroupHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.HierarchyAnyHavingConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.InFieldConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.InAttributeConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.TextMatchesConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
@@ -828,11 +829,14 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		);
 	}
 
+	@Nonnull
 	@Override
-	public FilterConstraint visitInFieldConstraint(InFieldConstraintContext ctx) {
+	public FilterConstraint visitInAttributeConstraint(@Nonnull InAttributeConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new InField(ctx.args.classifier.accept(this.stringValueTokenVisitor).asString())
+			() -> new InAttribute(
+				ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArrayRetainingNulls()
+			)
 		);
 	}
 }

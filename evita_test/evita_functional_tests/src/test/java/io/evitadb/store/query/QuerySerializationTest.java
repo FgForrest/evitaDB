@@ -435,16 +435,18 @@ public class QuerySerializationTest {
 			@Nonnull
 			static Stream<Arguments> variants() {
 				return Stream.of(
-					arguments("textMatches without field restriction",
+					arguments("textMatches without attribute restriction",
 						textMatches("black leather jacket")),
-					arguments("textMatches with one field",
-						textMatches("jacket", inField("name"))),
-					arguments("textMatches with two fields",
-						textMatches("jacket", inField("name"), inField("description"))),
+					arguments("textMatches with one searchable attribute",
+						textMatches("jacket", inAttribute("name"))),
+					arguments("textMatches with two searchable attributes",
+						textMatches("jacket", inAttribute("name"), inAttribute("description"))),
 					arguments("textMatches with diacritics",
-						textMatches("černá kožená bunda", inField("name"))),
-					arguments("inField",
-						inField("name"))
+						textMatches("černá kožená bunda", inAttribute("name"))),
+					arguments("inAttribute",
+						inAttribute("name")),
+					arguments("inAttribute with several searchable attributes",
+						inAttribute("name", "description"))
 				);
 			}
 		}

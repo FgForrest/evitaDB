@@ -31,19 +31,19 @@ import io.evitadb.api.query.FilterConstraint;
  *
  * **Implementations**
  *
- * - {@link InField}: restricts the search to a single searchable field
+ * - {@link InAttribute}: restricts the search to one or more searchable attributes
  *
  * **Why a marker and not a concrete child type**
  *
- * The `textMatches` creator is typed by this interface rather than by `InField`, so that further refinements of the
+ * The `textMatches` creator is typed by this interface rather than by `InAttribute`, so that further refinements of the
  * search (such as an adaptive relaxation of the strict match) arrive as new
  * implementations of this interface instead of as a change of the `textMatches` signature.
  *
  * **Containment**
  *
- * - **Valid**: `textMatches("black leather jacket", inField("name"), inField("description"))`
- * - **Invalid**: `and(inField("name"), attributeEquals("code", "A"))` — the Java API and the EvitaQL grammar accept
- *   such a query, but its execution is rejected
+ * - **Valid**: `textMatches("black leather jacket", inAttribute("name"), inAttribute("description"))`
+ * - **Invalid**: `and(inAttribute("name"), attributeEquals("code", "A"))` — the Java API and the EvitaQL grammar
+ *   accept such a query, but its execution is rejected
  *
  * Unlike {@link HierarchySpecificationFilterConstraint}, this interface does not extend a property-type marker: every
  * implementation declares exactly one property type of its own.

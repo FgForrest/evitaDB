@@ -89,7 +89,7 @@ import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanEq
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanTranslator;
 import io.evitadb.core.query.filter.translator.entity.alternative.ScopeEntityToBitmapFilter;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
-import io.evitadb.core.query.filter.translator.fulltext.InFieldTranslator;
+import io.evitadb.core.query.filter.translator.fulltext.InAttributeTranslator;
 import io.evitadb.core.query.filter.translator.fulltext.TextMatchesTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
@@ -235,7 +235,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		TRANSLATORS.put(FilterInScope.class, new FilterInScopeTranslator());
 		TRANSLATORS.put(EntityScope.class, FilteringConstraintTranslator.noOpTranslator());
 		TRANSLATORS.put(TextMatches.class, new TextMatchesTranslator());
-		TRANSLATORS.put(InField.class, new InFieldTranslator());
+		TRANSLATORS.put(InAttribute.class, new InAttributeTranslator());
 
 		CONJUNCTIVE_FORMULAS = new HashSet<>(16);
 		CONJUNCTIVE_FORMULAS.add(AndFormula.class);

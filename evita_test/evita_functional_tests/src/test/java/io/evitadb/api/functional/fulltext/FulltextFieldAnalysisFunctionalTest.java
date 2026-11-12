@@ -201,12 +201,12 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 			put(2, Locale.ENGLISH, "red", "USB-TYPEC");
 			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "USB-TYPEC", null, 2);
 			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "USBTYPEC", null, 1);
-			// Reverse analyzer encounter order with two inField constraints.
+			// Reverse analyzer encounter order with two inAttribute constraints.
 			FulltextFieldAnalysisFunctionalTest.this.evita.queryCatalog(TEST_CATALOG, session -> {
 				for (final boolean reversed : new boolean[]{false, true}) {
 					assertEquals(1, session.query(query(collection(PRODUCT),
 						filterBy(entityLocaleEquals(Locale.ENGLISH), textMatches("USB-TYPEC",
-							inField(reversed ? "body" : "title"), inField(reversed ? "title" : "body")))),
+							inAttribute(reversed ? "body" : "title"), inAttribute(reversed ? "title" : "body")))),
 						EntityReference.class).getTotalRecordCount());
 				}
 				return null;
@@ -547,7 +547,7 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 		final int[] actual = engine.queryCatalog(TEST_CATALOG, session -> {
 			return session.query(
 				query(collection(PRODUCT), filterBy(entityLocaleEquals(locale),
-					field == null ? textMatches(text) : textMatches(text, inField(field))), require(page(1, 100))),
+					field == null ? textMatches(text) : textMatches(text, inAttribute(field))), require(page(1, 100))),
 				EntityReference.class).getRecordData().stream()
 				.mapToInt(EntityReference::getPrimaryKey).sorted().toArray();
 		});
@@ -638,12 +638,12 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 			for (final String field : new String[]{"title", "body"}) {
 				final int expected = field.equals("title") ? 1 : 2;
 				final int actual = session.query(query(collection(PRODUCT), filterBy(entityLocaleEquals(Locale.ENGLISH),
-					textMatches("green ", inField(field))), orderBy(relevanceText()), require(page(1, 1))),
+					textMatches("green ", inAttribute(field))), orderBy(relevanceText()), require(page(1, 1))),
 					EntityReference.class).getRecordData().getFirst().getPrimaryKey();
 				assertEquals(expected, actual, "Candidate 3 is below top one in " + field);
 			}
 			final int actual = session.query(query(collection(PRODUCT), filterBy(entityLocaleEquals(Locale.ENGLISH),
-				or(textMatches("green ", inField("title")), textMatches("green ", inField("body")))),
+				or(textMatches("green ", inAttribute("title")), textMatches("green ", inAttribute("body")))),
 				orderBy(relevanceText()), require(page(1, 1))), EntityReference.class)
 				.getRecordData().getFirst().getPrimaryKey();
 			assertEquals(3, actual, "Two slightly lower impacts combine above either source's winner");

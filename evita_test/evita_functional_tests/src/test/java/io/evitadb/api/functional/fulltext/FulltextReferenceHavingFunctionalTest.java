@@ -62,6 +62,7 @@ import io.evitadb.core.query.sort.fulltext.RelevanceTextSorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencePartitionSplit;
 import io.evitadb.index.ReferencedTypeEntityIndex;
@@ -85,6 +86,7 @@ import javax.annotation.Nonnull;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.time.OffsetDateTime;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -95,6 +97,7 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Real planner regressions for direct reference text, sharing one catalog across all partition representations. */
@@ -438,35 +441,35 @@ class FulltextReferenceHavingFunctionalTest {
 			evita.queryCatalog(CATALOG, session -> {
 				for (final PlanPreference plan : PlanPreference.values()) {
 					assertIds(session, representation, plan, new int[0], and(entityPrimaryKeyInSet(4),
-						referenceHaving("labels1", textMatches("bundy ", inField("label")))));
+						referenceHaving("labels1", textMatches("bundy ", inAttribute("label")))));
 					assertIds(session, representation, plan, new int[]{4}, and(entityPrimaryKeyInSet(4),
-						referenceHaving("labels1", textMatches("bundy ", inField("other")))));
+						referenceHaving("labels1", textMatches("bundy ", inAttribute("other")))));
 					assertIds(session, representation, plan, new int[]{4}, and(entityPrimaryKeyInSet(4),
 						referenceHaving("labels1", textMatches("zimní bundy "))));
 				}
 				for (final String field : new String[]{"label", "other"}) {
 					assertIds(session, representation, PlanPreference.INDEX_SCAN, new int[0],
 						and(entityPrimaryKeyInSet(4),
-							referenceHaving("labels1", textMatches("zimní bundy ", inField(field)))));
+							referenceHaving("labels1", textMatches("zimní bundy ", inAttribute(field)))));
 				}
 				assertIds(session, representation, PlanPreference.INDEX_SCAN, new int[0],
-					referenceHaving("labels1", textMatches("owneronly ", inField("label"))));
+					referenceHaving("labels1", textMatches("owneronly ", inAttribute("label"))));
 				assertIds(session, representation, PlanPreference.INDEX_SCAN, new int[0],
 					referenceHaving("labels1", textMatches("winter jackets ")));
 				final AttributeNotFoundException absent = assertThrows(AttributeNotFoundException.class,
 					() -> ids(session, representation, PlanPreference.INDEX_SCAN,
-						referenceHaving("labels1", textMatches("x", inField("absent")))));
+						referenceHaving("labels1", textMatches("x", inAttribute("absent")))));
 				assertTrue(absent.getMessage().contains("`absent`") && absent.getMessage().contains("`labels1`"),
 					absent.getMessage());
 				final AttributeNotSearchableException notSearchable = assertThrows(
 					AttributeNotSearchableException.class,
 					() -> ids(session, representation, PlanPreference.INDEX_SCAN,
-						referenceHaving("labels1", textMatches("x", inField("primary")))));
+						referenceHaving("labels1", textMatches("x", inAttribute("primary")))));
 				assertTrue(notSearchable.getMessage().contains("labels1"));
 				final AttributeNotSearchableException liveOnly = assertThrows(AttributeNotSearchableException.class,
 					() -> session.query(query(collection(representation.name()),
 						filterBy(scope(Scope.LIVE, Scope.ARCHIVED), entityLocaleEquals(CZECH),
-							referenceHaving("labels1", textMatches("x", inField("liveOnly"))))),
+							referenceHaving("labels1", textMatches("x", inAttribute("liveOnly"))))),
 					EntityReference.class));
 				assertTrue(liveOnly.getMessage().contains("`liveOnly`") && liveOnly.getMessage().contains("`ARCHIVED`"),
 					liveOnly.getMessage());
@@ -479,6 +482,89 @@ class FulltextReferenceHavingFunctionalTest {
 					filterBy(scope(Scope.LIVE, Scope.ARCHIVED), entityLocaleEquals(CZECH), entityPrimaryKeyInSet(201),
 						referenceHaving("labels1", textMatches("zimní bundy ")))), EntityReference.class);
 				assertEquals(0, crossedScope.getTotalRecordCount());
+			});
+		}
+
+		/** A second searchable reference attribute contributes even when the first has no matching word. */
+		@ParameterizedTest
+		@EnumSource(Representation.class)
+		@UseDataSet(DATA)
+		@DisplayName("Unions several searchable reference attributes without multiplying scores")
+		void shouldUnionSeveralReferenceAttributes(Representation representation, Evita evita) {
+			evita.queryCatalog(CATALOG, session -> {
+				final FilterConstraint separate = referenceHaving("labels1",
+					textMatches("bundy ", inAttribute("label"), inAttribute("other")));
+				final long[] expected = scores(evita, session, representation, separate);
+				for (final FilterConstraint combined : new FilterConstraint[]{
+					referenceHaving("labels1", textMatches("bundy ", inAttribute("label", "other"))),
+					referenceHaving("labels1", textMatches("bundy ", inAttribute("label", "other", "other"),
+						inAttribute("label", "other")))
+				}) {
+					for (final PlanPreference plan : PlanPreference.values()) {
+						assertArrayEquals(ids(session, representation, plan, separate),
+							ids(session, representation, plan, combined));
+						assertIds(session, representation, plan, new int[]{4},
+							and(entityPrimaryKeyInSet(4), combined));
+					}
+					assertArrayEquals(expected, scores(evita, session, representation, combined));
+				}
+				final AttributeNotFoundException absent = assertThrows(AttributeNotFoundException.class,
+					() -> ids(session, representation, PlanPreference.INDEX_SCAN,
+						referenceHaving("labels1", textMatches("bundy ", inAttribute("label", "absent")))));
+				assertTrue(absent.getMessage().contains("absent"), absent.getMessage());
+			});
+		}
+
+		/** Inspect the real planner's union before row scoring can collapse duplicate place contributions. */
+		@ParameterizedTest
+		@EnumSource(Representation.class)
+		@UseDataSet(DATA)
+		@DisplayName("Plans duplicate reference attribute names as one fulltext expansion")
+		void shouldDeduplicateReferenceAttributeFormulas(Representation representation, Evita evita) {
+			evita.queryCatalog(CATALOG, session -> {
+				final QueryPlanningContext context = context(evita, session, representation,
+					query(collection(representation.name()), filterBy(entityLocaleEquals(CZECH))));
+				final Map<Locale, FulltextIndex> indexes = field(context
+					.getGlobalEntityIndexIfExists(representation.name(), Scope.LIVE).orElseThrow(), "fulltextIndexes");
+				final FulltextIndex original = indexes.get(CZECH);
+				final FulltextIndex observed = spy(original);
+				final AtomicInteger lookups = new AtomicInteger();
+				// Delegate every read to the real index, observing work hidden by later field deduplication.
+				doAnswer(invocation -> {
+					lookups.incrementAndGet();
+					return invocation.callRealMethod();
+				}).when(observed).termLookup(anyInt());
+				indexes.put(CZECH, observed);
+				try {
+					FulltextFormula single = null;
+					int expectedLookups = 0;
+					for (final FilterConstraint selector : new FilterConstraint[]{
+						textMatches("bundy ", inAttribute("label")),
+						textMatches("bundy ", inAttribute("label", "label")),
+						textMatches("bundy ", inAttribute("label"), inAttribute("label"))
+					}) {
+						lookups.set(0);
+						final Query query = query(collection(representation.name()), filterBy(entityLocaleEquals(CZECH),
+							referenceHaving("labels1", selector)), orderBy(relevanceText()));
+						final QueryPlan plan = QueryPlanner.planQuery(context(evita, session, representation, query));
+						final FulltextScoreAccessor[] sources = field(plan.getSorters().iterator().next(), "accessors");
+						assertEquals(1, sources.length);
+						final FulltextFormula formula = field(sources[0], "union");
+						assertEquals(1, formula.getTokens().length);
+						if (single == null) {
+							single = formula;
+							assertEquals(1, single.getTokens()[0].length, "The reference must expand a real term");
+							expectedLookups = lookups.get();
+							assertTrue(expectedLookups > 0, "The real planner must read the reference attribute");
+						} else {
+							assertEquals(single.getTokens()[0].length, formula.getTokens()[0].length);
+							assertEquals(expectedLookups, lookups.get(),
+								"Repeated names must not expand a field twice");
+						}
+					}
+				} finally {
+					indexes.put(CZECH, original);
+				}
 			});
 		}
 
@@ -538,7 +624,8 @@ class FulltextReferenceHavingFunctionalTest {
 				for (final String selector : new String[]{"absent", "primary"}) {
 					final EvitaInvalidUsageException error = assertThrows(EvitaInvalidUsageException.class,
 						() -> session.query(query(collection("Empty"), filterBy(entityLocaleEquals(CZECH),
-							referenceHaving("labels1", textMatches("x", inField(selector))))), EntityReference.class));
+							referenceHaving("labels1", textMatches("x", inAttribute(selector))))),
+							EntityReference.class));
 					assertTrue(error.getMessage().contains(selector), error.getMessage());
 					assertTrue(error.getMessage().contains("labels1"), error.getMessage());
 				}
@@ -792,9 +879,9 @@ class FulltextReferenceHavingFunctionalTest {
 			evita.queryCatalog(CATALOG, session -> {
 				final String type = "Root" + representation.name();
 				final Query query = query(collection(type), filterBy(entityLocaleEquals(CZECH), or(
-					textMatches("root ", inField("name")), referenceHaving("owners", textMatches("reference ")),
-					referenceHaving("owners", entityHaving(textMatches("owneronly ", inField("label")))),
-					referenceHaving("owners", groupHaving(textMatches("owneronly ", inField("label"))))
+					textMatches("root ", inAttribute("name")), referenceHaving("owners", textMatches("reference ")),
+					referenceHaving("owners", entityHaving(textMatches("owneronly ", inAttribute("label")))),
+					referenceHaving("owners", groupHaving(textMatches("owneronly ", inAttribute("label"))))
 				)), orderBy(relevanceText()));
 				final QueryPlanningContext context = context(evita, session, type, query, NoCacheSupervisor.INSTANCE);
 				final QueryPlan plan = QueryPlanner.planQuery(context);

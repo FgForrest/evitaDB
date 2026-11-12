@@ -120,7 +120,7 @@ import static io.evitadb.api.query.QueryConstraints.textMatches;
  * documents it matches as a query token, and a query takes all its words from one class. Every combination of word
  * count and class gets a pool of up to {@link #POOL_SIZE} queries. Words come from attributes only - replicating the
  * text expressions associated data is extracted with is not worth it for sampling - but every query still searches the
- * associated data, because a `textMatches` without `inField` searches every searchable field.
+ * associated data, because a `textMatches` without `inAttribute` searches every searchable field.
  *
  * # What every query is checked for
  *
@@ -978,7 +978,7 @@ public final class FulltextCatalogFixture {
 		}
 
 		/**
-		 * Lists the fields a `textMatches` without `inField` searches in the live scope - see
+		 * Lists the fields a `textMatches` without `inAttribute` searches in the live scope - see
 		 * `TextMatchesTranslator#collectSearchableFields`.
 		 *
 		 * @param entitySchema schema of the queried collection

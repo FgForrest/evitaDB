@@ -42,7 +42,7 @@ import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.AttributeStartsWith;
 import io.evitadb.api.query.filter.HierarchySpecificationFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
-import io.evitadb.api.query.filter.InField;
+import io.evitadb.api.query.filter.InAttribute;
 import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.RelevanceText;
@@ -133,21 +133,21 @@ class ConstraintProcessorTest {
 			// the fulltext constraints are kept out of `ConstraintRegistry` until their external API shape is
 			// designed, so their annotations are validated here instead of at registry processing
 			final List<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(
-					Set.of(TextMatches.class, InField.class, RelevanceText.class)
+					Set.of(TextMatches.class, InAttribute.class, RelevanceText.class)
 				)
 				.stream()
 				.sorted(Comparator.comparing(ConstraintDescriptor::fullName))
 				.toList();
 
 			assertEquals(
-				List.of("inField", "relevanceText", "textMatches"),
+				List.of("inAttribute", "relevanceText", "textMatches"),
 				descriptors.stream().map(ConstraintDescriptor::fullName).toList()
 			);
 
-			final ConstraintDescriptor inField = descriptors.get(0);
-			assertEquals(ConstraintType.FILTER, inField.type());
-			assertEquals(ConstraintPropertyType.GENERIC, inField.propertyType());
-			assertEquals(ConstraintValueStructure.PRIMITIVE, inField.creator().valueStructure());
+			final ConstraintDescriptor inAttribute = descriptors.get(0);
+			assertEquals(ConstraintType.FILTER, inAttribute.type());
+			assertEquals(ConstraintPropertyType.GENERIC, inAttribute.propertyType());
+			assertEquals(ConstraintValueStructure.PRIMITIVE, inAttribute.creator().valueStructure());
 
 			final ConstraintDescriptor relevanceText = descriptors.get(1);
 			assertEquals(ConstraintType.ORDER, relevanceText.type());
@@ -162,7 +162,7 @@ class ConstraintProcessorTest {
 			assertEquals(ConstraintValueStructure.COMPLEX, textMatches.creator().valueStructure());
 			final List<ChildParameterDescriptor> childParameters = textMatches.creator().childParameters();
 			assertEquals(1, childParameters.size());
-			// several `inField` children must be allowed, so the children must not be unique by type
+			// several `inAttribute` children must be allowed, so the children must not be unique by type
 			assertFalse(childParameters.get(0).uniqueChildren());
 			assertFalse(childParameters.get(0).required());
 		}

@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
-import static io.evitadb.api.query.QueryConstraints.inField;
+import static io.evitadb.api.query.QueryConstraints.inAttribute;
 import static io.evitadb.api.query.QueryConstraints.textMatches;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.FILTER;
@@ -60,8 +60,8 @@ class TextMatchesTest {
 	class ConstructionTest {
 
 		@Test
-		@DisplayName("should create via factory without field restrictions")
-		void shouldCreateViaFactoryWithoutFieldRestrictions() {
+		@DisplayName("should create via factory without attribute selectors")
+		void shouldCreateViaFactoryWithoutAttributeSelectors() {
 			final TextMatches constraint = textMatches("black leather jacket");
 
 			assertEquals("black leather jacket", constraint.getText());
@@ -69,19 +69,19 @@ class TextMatchesTest {
 		}
 
 		@Test
-		@DisplayName("should create via factory with field restrictions")
-		void shouldCreateViaFactoryWithFieldRestrictions() {
-			final TextMatches constraint = textMatches("jacket", inField("name"), inField("description"));
+		@DisplayName("should create via factory with attribute selectors")
+		void shouldCreateViaFactoryWithAttributeSelectors() {
+			final TextMatches constraint = textMatches("jacket", inAttribute("name"), inAttribute("description"));
 
 			assertEquals(2, constraint.getChildrenCount());
 		}
 
 		@Test
-		@DisplayName("should drop null field restrictions")
-		void shouldDropNullFieldRestrictions() {
-			final TextMatches constraint = textMatches("jacket", inField(null), inField("name"));
+		@DisplayName("should drop null attribute selectors")
+		void shouldDropNullAttributeSelectors() {
+			final TextMatches constraint = textMatches("jacket", (InAttribute) null, inAttribute("name"));
 
-			assertArrayEquals(new InField[]{inField("name")}, constraint.getInFields());
+			assertArrayEquals(new InAttribute[]{inAttribute("name")}, constraint.getInAttributes());
 		}
 
 		@Test
@@ -95,14 +95,14 @@ class TextMatchesTest {
 		@Test
 		@DisplayName("should return null from factory when text is null")
 		void shouldReturnNullFromFactoryWhenTextIsNull() {
-			assertNull(textMatches(null, inField("name")));
+			assertNull(textMatches(null, inAttribute("name")));
 		}
 
 		@Test
 		@DisplayName("should return null from factory when text is blank")
 		void shouldReturnNullFromFactoryWhenTextIsBlank() {
 			assertNull(textMatches(""));
-			assertNull(textMatches("   ", inField("name")));
+			assertNull(textMatches("   ", inAttribute("name")));
 		}
 
 		@Test
@@ -124,23 +124,25 @@ class TextMatchesTest {
 		}
 
 		@Test
-		@DisplayName("should return field restrictions in declaration order")
-		void shouldReturnFieldRestrictionsInDeclarationOrder() {
-			final TextMatches constraint = textMatches("jacket", inField("name"), inField("description"));
+		@DisplayName("should return attribute selectors in declaration order")
+		void shouldReturnAttributeSelectorsInDeclarationOrder() {
+			final TextMatches constraint = textMatches("jacket", inAttribute("name"), inAttribute("description"));
 
-			assertArrayEquals(new InField[]{inField("name"), inField("description")}, constraint.getInFields());
 			assertArrayEquals(
-				new TextMatchesSpecificationFilterConstraint[]{inField("name"), inField("description")},
+				new InAttribute[]{inAttribute("name"), inAttribute("description")}, constraint.getInAttributes()
+			);
+			assertArrayEquals(
+				new TextMatchesSpecificationFilterConstraint[]{inAttribute("name"), inAttribute("description")},
 				constraint.getSpecifications()
 			);
 		}
 
 		@Test
-		@DisplayName("should return empty field restrictions when searching all fields")
-		void shouldReturnEmptyFieldRestrictionsWhenSearchingAllFields() {
+		@DisplayName("should return no attribute selectors when searching all searchable places")
+		void shouldReturnNoAttributeSelectorsWhenSearchingAllPlaces() {
 			final TextMatches constraint = textMatches("jacket");
 
-			assertEquals(0, constraint.getInFields().length);
+			assertEquals(0, constraint.getInAttributes().length);
 			assertEquals(0, constraint.getSpecifications().length);
 		}
 	}
@@ -161,7 +163,7 @@ class TextMatchesTest {
 		@Test
 		@DisplayName("should be applicable and necessary with a single child")
 		void shouldBeApplicableAndNecessaryWithSingleChild() {
-			final TextMatches constraint = textMatches("jacket", inField("name"));
+			final TextMatches constraint = textMatches("jacket", inAttribute("name"));
 
 			assertTrue(constraint.isApplicable());
 			assertTrue(constraint.isNecessary());
@@ -170,7 +172,7 @@ class TextMatchesTest {
 		@Test
 		@DisplayName("should be applicable and necessary with multiple children")
 		void shouldBeApplicableAndNecessaryWithMultipleChildren() {
-			final TextMatches constraint = textMatches("jacket", inField("name"), inField("description"));
+			final TextMatches constraint = textMatches("jacket", inAttribute("name"), inAttribute("description"));
 
 			assertTrue(constraint.isApplicable());
 			assertTrue(constraint.isNecessary());
@@ -192,7 +194,7 @@ class TextMatchesTest {
 		@Test
 		@DisplayName("should not flatten constraint with a single child")
 		void shouldNotFlattenConstraintWithSingleChild() {
-			final TextMatches constraint = textMatches("jacket", inField("name"));
+			final TextMatches constraint = textMatches("jacket", inAttribute("name"));
 
 			assertEquals(constraint, QueryPurifierVisitor.purify(constraint));
 		}
@@ -200,7 +202,7 @@ class TextMatchesTest {
 		@Test
 		@DisplayName("should keep constraint inside a flattened container")
 		void shouldKeepConstraintInsideFlattenedContainer() {
-			final TextMatches constraint = textMatches("jacket", inField("name"));
+			final TextMatches constraint = textMatches("jacket", inAttribute("name"));
 
 			assertEquals(constraint, QueryPurifierVisitor.purify(and(constraint)));
 		}
@@ -213,20 +215,20 @@ class TextMatchesTest {
 		@Test
 		@DisplayName("should create copy with new children preserving text")
 		void shouldCreateCopyWithNewChildrenPreservingText() {
-			final TextMatches original = textMatches("jacket", inField("name"));
+			final TextMatches original = textMatches("jacket", inAttribute("name"));
 
 			final FilterConstraint copy = original.getCopyWithNewChildren(
-				new FilterConstraint[]{inField("description")},
+				new FilterConstraint[]{inAttribute("description")},
 				new Constraint<?>[0]
 			);
 
-			assertEquals(textMatches("jacket", inField("description")), copy);
+			assertEquals(textMatches("jacket", inAttribute("description")), copy);
 		}
 
 		@Test
 		@DisplayName("should create copy without children")
 		void shouldCreateCopyWithoutChildren() {
-			final TextMatches original = textMatches("jacket", inField("name"));
+			final TextMatches original = textMatches("jacket", inAttribute("name"));
 
 			final FilterConstraint copy = original.getCopyWithNewChildren(
 				new FilterConstraint[0], new Constraint<?>[0]
@@ -271,11 +273,11 @@ class TextMatchesTest {
 		@Test
 		@DisplayName("should create new instance with different text preserving children")
 		void shouldCreateNewInstanceWithDifferentTextPreservingChildren() {
-			final TextMatches original = textMatches("jacket", inField("name"));
+			final TextMatches original = textMatches("jacket", inAttribute("name"));
 
 			final FilterConstraint clone = original.cloneWithArguments(new Serializable[]{"coat"});
 
-			assertEquals(textMatches("coat", inField("name")), clone);
+			assertEquals(textMatches("coat", inAttribute("name")), clone);
 		}
 
 		@Test
@@ -312,7 +314,7 @@ class TextMatchesTest {
 		@Test
 		@DisplayName("should accept visitor")
 		void shouldAcceptVisitor() {
-			final TextMatches constraint = textMatches("jacket", inField("name"));
+			final TextMatches constraint = textMatches("jacket", inAttribute("name"));
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
 			constraint.accept(c -> visited.set((Constraint<?>) c));
@@ -335,8 +337,8 @@ class TextMatchesTest {
 		@DisplayName("should format with children and diacritics")
 		void shouldFormatWithChildrenAndDiacritics() {
 			assertEquals(
-				"textMatches('černá kožená bunda',inField('name'),inField('brand'))",
-				textMatches("černá kožená bunda", inField("name"), inField("brand")).toString()
+				"textMatches('černá kožená bunda',inAttribute('name'),inAttribute('brand'))",
+				textMatches("černá kožená bunda", inAttribute("name"), inAttribute("brand")).toString()
 			);
 		}
 	}
@@ -348,10 +350,10 @@ class TextMatchesTest {
 		@Test
 		@DisplayName("should equal identical constraint")
 		void shouldEqualIdenticalConstraint() {
-			assertEquals(textMatches("jacket", inField("name")), textMatches("jacket", inField("name")));
+			assertEquals(textMatches("jacket", inAttribute("name")), textMatches("jacket", inAttribute("name")));
 			assertEquals(
-				textMatches("jacket", inField("name")).hashCode(),
-				textMatches("jacket", inField("name")).hashCode()
+				textMatches("jacket", inAttribute("name")).hashCode(),
+				textMatches("jacket", inAttribute("name")).hashCode()
 			);
 		}
 
@@ -365,8 +367,8 @@ class TextMatchesTest {
 		@Test
 		@DisplayName("should not equal constraint with different children")
 		void shouldNotEqualConstraintWithDifferentChildren() {
-			assertNotEquals(textMatches("jacket", inField("name")), textMatches("jacket", inField("brand")));
-			assertNotEquals(textMatches("jacket", inField("name")), textMatches("jacket"));
+			assertNotEquals(textMatches("jacket", inAttribute("name")), textMatches("jacket", inAttribute("brand")));
+			assertNotEquals(textMatches("jacket", inAttribute("name")), textMatches("jacket"));
 		}
 	}
 }
