@@ -479,6 +479,8 @@ message GrpcDataChunk {
   // Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
   // requirement; `entityReferences` is then empty.
   repeated GrpcSealedEntity sealedEntities = 2;
+  // Field 3 carried entities in the binary entity form, removed together with binary entity support. Kept reserved
+  // rather than reused so an older peer never decodes a new field as binary entities.
   reserved 3;
   reserved "binaryEntities";
   // Exactly one of these is set, matching which paging requirement (`page()`/`strip()`) the query used.
@@ -721,6 +723,8 @@ message GrpcQueryOneResponse {
   // The matched entity, fully fetched in structured form. See the message-level comment for
   // when this field (vs. the other) is populated.
   GrpcSealedEntity sealedEntity = 2;
+  // Field 3 carried the entity in the binary entity form, removed together with binary entity support. Kept reserved
+  // rather than reused so an older peer never decodes a new field as a binary entity.
   reserved 3;
   reserved "binaryEntity";
 }
@@ -738,6 +742,8 @@ message GrpcQueryListResponse {
   // Matched entities, fully fetched in structured form. See the message-level comment for
   // when this field (vs. the other) is the active one.
   repeated GrpcSealedEntity sealedEntities = 2;
+  // Field 3 carried entities in the binary entity form, removed together with binary entity support. Kept reserved
+  // rather than reused so an older peer never decodes a new field as binary entities.
   reserved 3;
   reserved "binaryEntities";
 }

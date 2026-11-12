@@ -602,7 +602,7 @@ class ReferencesStoragePartTest {
 		// isEmpty must report true when only dropped references are present
 		assertTrue(part.isEmpty());
 
-		// all getters must ignore dropped references and return empty arrays
+		// getReferencedIds must ignore dropped references and return an empty array for every name
 		assertArrayEquals(new int[0], part.getReferencedIds("A"));
 		assertArrayEquals(new int[0], part.getReferencedIds("B"));
 	}
