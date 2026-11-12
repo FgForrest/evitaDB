@@ -1,7 +1,7 @@
 ---
 title: A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue
 date: 2026-11-11
-updated: 2026-11-12 18:43
+updated: 2026-11-12 22:20
 status: accepted
 kind: fix
 issues: [1911, 1916, 1918, 1923]
@@ -315,7 +315,8 @@ condition pays one more condition evaluation per affected reference and histogra
 - **Catalogs written by the previous release may hold doubled or stale values.** *Not repaired by this change.*
   A correct writer stops new drift and does not look for old drift; where a withdrawal expects a value such a
   catalog lacks, the write fails loudly until the catalog is rebuilt. The release already recommends a full
-  reindex.
+  reindex. The server setting `missingHistogramValueBehavior: REPORT` (#1948) lets such writes go on until then: each
+  value the withdrawal cannot find is logged at error level and skipped.
 - **Local and cross-entity work can apply one contribution twice.** *Open: #1925.* For a self-referencing entity
   type, and for a reference with a reflected counterpart, one upsert engages the local or nested path and the
   cross-entity path on the same contribution, and the value is added twice. Measured: 36 failing cases in three
