@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
@@ -41,6 +42,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -610,6 +612,112 @@ class AttributeSchemaTest {
 
 			assertNotEquals(a, b);
 			assertNotEquals(a.hashCode(), b.hashCode());
+		}
+
+		@Test
+		@DisplayName("should be equal only to a schema of its own class, in both directions")
+		void shouldBeEqualOnlyToSchemaOfItsOwnClass() {
+			final AttributeSchema[] schemas = {
+				AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED),
+				EntityAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED),
+				GlobalAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED)
+			};
+			final AttributeSchema[] twins = {
+				AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED),
+				EntityAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED),
+				GlobalAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED)
+			};
+
+			for (int i = 0; i < schemas.length; i++) {
+				for (int j = 0; j < twins.length; j++) {
+					final String pair = schemas[i].getClass().getSimpleName() + " vs " +
+						twins[j].getClass().getSimpleName();
+					if (i == j) {
+						assertEquals(schemas[i], twins[j], pair);
+						assertEquals(schemas[i].hashCode(), twins[j].hashCode(), pair);
+					} else {
+						assertNotEquals(schemas[i], twins[j], pair);
+					}
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("should not be equal when range default values differ only in the scale of their bounds")
+		void shouldNotBeEqualWhenRangeDefaultValuesDifferOnlyInScale() {
+			final BigDecimalNumberRange tenToTwenty = BigDecimalNumberRange.between(
+				new BigDecimal("10"), new BigDecimal("20")
+			);
+			final BigDecimalNumberRange oneToTwo = BigDecimalNumberRange.between(
+				new BigDecimal("1.0"), new BigDecimal("2.0")
+			);
+			// the ranges themselves are equal, because the equality of a range is the equality of its encoded bounds
+			assertEquals(tenToTwenty, oneToTwo);
+
+			assertNotEquals(rangeAttribute(tenToTwenty), rangeAttribute(oneToTwo));
+			assertNotEquals(rangeAttribute(oneToTwo), rangeAttribute(tenToTwenty));
+			assertNotEquals(rangeEntityAttribute(tenToTwenty), rangeEntityAttribute(oneToTwo));
+			assertEquals(rangeAttribute(oneToTwo), rangeAttribute(oneToTwo));
+		}
+
+		@Test
+		@DisplayName("should be equal with the same hash code when array default values hold equal items")
+		void shouldBeEqualWhenArrayDefaultValuesHoldEqualItems() {
+			final AttributeSchema a = stringArrayAttribute(new String[]{"a", "b"});
+			final AttributeSchema b = stringArrayAttribute(new String[]{"a", "b"});
+
+			assertEquals(a, b);
+			assertEquals(b, a);
+			assertEquals(a.hashCode(), b.hashCode());
+			assertNotEquals(a, stringArrayAttribute(new String[]{"a", "c"}));
+		}
+
+		/**
+		 * Builds a decimal range attribute holding the default value, with no other trait.
+		 *
+		 * @param defaultValue the default value the attribute holds
+		 * @return the attribute schema
+		 */
+		@Nonnull
+		private static AttributeSchema rangeAttribute(@Nonnull BigDecimalNumberRange defaultValue) {
+			return AttributeSchema._internalBuild(
+				"range", null, null, null, null,
+				false, false, false,
+				BigDecimalNumberRange.class, defaultValue,
+				ConflictResolutionOverride.INHERITED
+			);
+		}
+
+		/**
+		 * Builds a decimal range entity attribute holding the default value, with no other trait.
+		 *
+		 * @param defaultValue the default value the attribute holds
+		 * @return the entity attribute schema
+		 */
+		@Nonnull
+		private static EntityAttributeSchema rangeEntityAttribute(@Nonnull BigDecimalNumberRange defaultValue) {
+			return EntityAttributeSchema._internalBuild(
+				"range", null, null, null, null,
+				false, false, false,
+				BigDecimalNumberRange.class, defaultValue,
+				ConflictResolutionOverride.INHERITED
+			);
+		}
+
+		/**
+		 * Builds a `String[]` attribute holding the default value, with no other trait.
+		 *
+		 * @param defaultValue the default value the attribute holds
+		 * @return the attribute schema
+		 */
+		@Nonnull
+		private static AttributeSchema stringArrayAttribute(@Nonnull String[] defaultValue) {
+			return AttributeSchema._internalBuild(
+				"tags", null, null, null, null,
+				false, false, false,
+				String[].class, defaultValue,
+				ConflictResolutionOverride.INHERITED
+			);
 		}
 	}
 

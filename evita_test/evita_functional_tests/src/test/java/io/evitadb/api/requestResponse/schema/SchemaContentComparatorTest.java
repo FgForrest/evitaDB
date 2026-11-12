@@ -45,6 +45,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithPriceMutation;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.test.Entities;
@@ -60,6 +61,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import javax.annotation.Nonnull;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Currency;
@@ -103,6 +105,8 @@ class SchemaContentComparatorTest {
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_URL = "url";
+	private static final String ATTRIBUTE_RANGE = "range";
+	private static final String ATTRIBUTE_GLOBAL_RANGE = "globalRange";
 	private static final String ASSOCIATED_DATA_LABELS = "labels";
 	private static final String REFERENCE_BRAND = "brand";
 	private static final String REFERENCE_CATEGORIES = "categories";
@@ -172,11 +176,20 @@ class SchemaContentComparatorTest {
 			.withLocale(Locale.ENGLISH)
 			.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterable().sortable())
 			.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::sortable)
+			.withAttribute(
+				ATTRIBUTE_RANGE, BigDecimalNumberRange.class, whichIs -> whichIs.withDefaultValue(tenToTwenty())
+			)
 			.withSortableAttributeCompound(
 				COMPOUND_CODE_NAME, attributeElement(ATTRIBUTE_CODE), attributeElement(ATTRIBUTE_NAME)
 			)
 			.withAssociatedData(ASSOCIATED_DATA_LABELS, String.class)
-			.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE)
+			.withReferenceTo(
+				REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.withAttribute(
+					ATTRIBUTE_RANGE, BigDecimalNumberRange.class,
+					attribute -> attribute.withDefaultValue(tenToTwenty())
+				)
+			)
 			.toInstance();
 		this.baseBrandSchema = (EntitySchema) new InternalEntitySchemaBuilder(
 			blankCatalogSchema, EntitySchema._internalBuild(Entities.BRAND)
@@ -188,7 +201,31 @@ class SchemaContentComparatorTest {
 		)
 			.withDescription(ORIGINAL_DESCRIPTION)
 			.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale())
+			.withAttribute(
+				ATTRIBUTE_GLOBAL_RANGE, BigDecimalNumberRange.class, whichIs -> whichIs.withDefaultValue(tenToTwenty())
+			)
 			.toInstance();
+	}
+
+	/**
+	 * Returns the range `[10,20]`, the default value of the range attributes of the base schemas.
+	 *
+	 * @return a new instance of the range
+	 */
+	@Nonnull
+	private static BigDecimalNumberRange tenToTwenty() {
+		return BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"));
+	}
+
+	/**
+	 * Returns the range `[1.0,2.0]`, which is `equals` to {@link #tenToTwenty()} as its bounds encode to the same
+	 * numbers, although a reader tells the two apart.
+	 *
+	 * @return a new instance of the range
+	 */
+	@Nonnull
+	private static BigDecimalNumberRange oneToTwo() {
+		return BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
 	}
 
 	/**
@@ -224,6 +261,22 @@ class SchemaContentComparatorTest {
 				"attribute", builder -> builder.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::nullable)
 			),
 			entityScenario(
+				"range default value of an attribute",
+				builder -> builder.withAttribute(
+					ATTRIBUTE_RANGE, BigDecimalNumberRange.class, whichIs -> whichIs.withDefaultValue(oneToTwo())
+				)
+			),
+			entityScenario(
+				"range default value of a reference attribute",
+				builder -> builder.withReferenceTo(
+					REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					whichIs -> whichIs.withAttribute(
+						ATTRIBUTE_RANGE, BigDecimalNumberRange.class,
+						attribute -> attribute.withDefaultValue(oneToTwo())
+					)
+				)
+			),
+			entityScenario(
 				"sortable attribute compound",
 				builder -> builder.withSortableAttributeCompound(
 					"nameCode", attributeElement(ATTRIBUTE_NAME), attributeElement(ATTRIBUTE_CODE)
@@ -250,6 +303,16 @@ class SchemaContentComparatorTest {
 				builder -> builder
 					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.withDescription("changed"))
 					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.withDescription(null))
+			),
+			entityScenario(
+				"range default value of an attribute",
+				builder -> builder
+					.withAttribute(
+						ATTRIBUTE_RANGE, BigDecimalNumberRange.class, whichIs -> whichIs.withDefaultValue(oneToTwo())
+					)
+					.withAttribute(
+						ATTRIBUTE_RANGE, BigDecimalNumberRange.class, whichIs -> whichIs.withDefaultValue(tenToTwenty())
+					)
 			),
 			entityScenario(
 				"reference",
@@ -298,6 +361,12 @@ class SchemaContentComparatorTest {
 			catalogScenario(
 				"global attribute",
 				builder -> builder.withAttribute(ATTRIBUTE_URL, String.class, GlobalAttributeSchemaEditor::uniqueGlobally)
+			),
+			catalogScenario(
+				"range default value of a global attribute",
+				builder -> builder.withAttribute(
+					ATTRIBUTE_GLOBAL_RANGE, BigDecimalNumberRange.class, whichIs -> whichIs.withDefaultValue(oneToTwo())
+				)
 			)
 		);
 	}

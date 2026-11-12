@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import org.junit.jupiter.api.DisplayName;
@@ -45,6 +46,7 @@ import org.mockito.Mockito;
 import org.junit.jupiter.api.Tag;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
 import static java.util.Optional.of;
@@ -351,6 +353,56 @@ class ModifyAttributeSchemaDefaultValueMutationTest {
 		assertSame(referenceSchema, mutatedSchema);
 	}
 
+	@Test
+	@DisplayName("Should replace a range default value by a range whose bounds merely encode to the same numbers")
+	void shouldMutateAttributeSchemaWhenRangeDefaultValueDiffersOnlyInRepresentation() {
+		final AttributeSchemaContract existingSchema = createDecimalRangeAttributeSchema(
+			BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+		);
+		final BigDecimalNumberRange newDefaultValue = BigDecimalNumberRange.between(
+			new BigDecimal("1.0"), new BigDecimal("2.0")
+		);
+		// the two ranges are equal, because equality of a range is the equality of its encoded bounds
+		assertEquals(existingSchema.getDefaultValue(), newDefaultValue);
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, newDefaultValue
+		);
+
+		final AttributeSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class), existingSchema, AttributeSchemaContract.class
+		);
+
+		assertNotSame(existingSchema, mutatedSchema);
+		assertEquals("[1.0,2.0]", String.valueOf(mutatedSchema.getDefaultValue()));
+	}
+
+	@Test
+	@DisplayName("Should replace a range default value of a reference attribute by a range of another representation")
+	void shouldMutateReferenceSchemaWhenRangeDefaultValueDiffersOnlyInRepresentation() {
+		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
+		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME))
+			.thenReturn(
+				of(
+					createDecimalRangeAttributeSchema(
+						BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+					)
+				)
+			);
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+		);
+
+		final ReferenceSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(EntitySchemaContract.class), referenceSchema
+		);
+
+		assertNotSame(referenceSchema, mutatedSchema);
+		assertEquals(
+			"[1.0,2.0]",
+			String.valueOf(mutatedSchema.getAttribute(ATTRIBUTE_NAME).orElseThrow().getDefaultValue())
+		);
+	}
+
 	/**
 	 * Builds a `String[]` entity attribute without a default value or any other trait.
 	 *
@@ -398,6 +450,34 @@ class ModifyAttributeSchemaDefaultValueMutationTest {
 			String[].class,
 			defaultValue,
 			0,
+			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
+	 * Builds a decimal range attribute with the given default value and no other trait.
+	 *
+	 * @param defaultValue the default value of the attribute
+	 * @return the attribute schema
+	 */
+	@Nonnull
+	private static AttributeSchemaContract createDecimalRangeAttributeSchema(
+		@Nonnull BigDecimalNumberRange defaultValue
+	) {
+		return AttributeSchema._internalBuild(
+			ATTRIBUTE_NAME,
+			null,
+			null,
+			null,
+			Scope.NO_SCOPE,
+			null,
+			Scope.NO_SCOPE,
+			false,
+			false,
+			false,
+			BigDecimalNumberRange.class,
+			defaultValue,
+			1,
 			ConflictResolutionOverride.INHERITED
 		);
 	}

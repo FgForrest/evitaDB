@@ -369,12 +369,13 @@ public class CreateGlobalAttributeSchemaMutation
 							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(this.name, newValue)
 						),
 						makeTypeMutationIfDifferent(createdVersion, existingVersion, this.indexedDecimalPlaces),
-						makeMutationIfDifferent(
-							GlobalAttributeSchemaContract.class,
-							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::getDefaultValue,
-							newValue -> new ModifyAttributeSchemaDefaultValueMutation(this.name, this.defaultValue)
-						),
+						// a range default value is `equals` to a range whose bounds encode to the same numbers, which
+						// a reader tells apart
+						EvitaDataTypes.storedValueDiffers(
+							existingVersion.getDefaultValue(), createdVersion.getDefaultValue()
+						)
+							? new ModifyAttributeSchemaDefaultValueMutation(this.name, this.defaultValue)
+							: null,
 						makeMutationIfDifferent(
 							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,

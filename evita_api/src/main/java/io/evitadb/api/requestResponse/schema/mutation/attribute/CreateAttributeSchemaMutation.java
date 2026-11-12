@@ -375,12 +375,13 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 						newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(this.name, newValue)
 					),
 					makeTypeMutationIfDifferent(createdVersion, existingSchema, this.indexedDecimalPlaces),
-					makeMutationIfDifferent(
-						AttributeSchemaContract.class,
-						createdVersion, existingSchema,
-						AttributeSchemaContract::getDefaultValue,
-						newValue -> new ModifyAttributeSchemaDefaultValueMutation(this.name, this.defaultValue)
-					),
+					// a range default value is `equals` to a range whose bounds encode to the same numbers, which a
+					// reader tells apart
+					EvitaDataTypes.storedValueDiffers(
+						existingSchema.getDefaultValue(), createdVersion.getDefaultValue()
+					)
+						? new ModifyAttributeSchemaDefaultValueMutation(this.name, this.defaultValue)
+						: null,
 					makeMutationIfDifferent(
 						AttributeSchemaContract.class,
 						createdVersion, existingSchema,

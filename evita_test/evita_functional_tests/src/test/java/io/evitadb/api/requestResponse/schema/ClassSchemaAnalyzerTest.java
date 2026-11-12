@@ -2846,6 +2846,34 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("Verify a range default value is replaced by a range whose bounds merely encode to the same numbers")
+	@Test
+	void shouldReplaceRangeDefaultValueWhenNewRangeDiffersOnlyInScale() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityDefaultValueEvolutionV1.class);
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						GetterBasedEntityDefaultValueEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertEquals(
+					"[10,20]", String.valueOf(initialSchema.getAttribute("range").orElseThrow().getDefaultValue())
+				);
+
+				// the new range is `equals` to the stored one, because the equality of a range is that of its
+				// encoded bounds
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityDefaultValueEvolutionV2RescaledRange.class);
+
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						GetterBasedEntityDefaultValueEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertEquals(
+					"[1.0,2.0]", String.valueOf(updatedSchema.getAttribute("range").orElseThrow().getDefaultValue())
+				);
+			}
+		);
+	}
+
 	@DisplayName("Verify Attribute.localized=true is narrowed when annotation uses default settings")
 	@Test
 	void shouldNarrowAttributeLocalizedWhenAnnotationUsesDefaultSettings() {

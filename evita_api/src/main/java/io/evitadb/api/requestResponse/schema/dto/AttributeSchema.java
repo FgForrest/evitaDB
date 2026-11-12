@@ -40,7 +40,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -56,6 +55,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -66,7 +66,6 @@ import java.util.stream.Collectors;
  */
 @Immutable
 @ThreadSafe
-@EqualsAndHashCode
 public sealed class AttributeSchema implements AttributeSchemaContract
 	permits EntityAttributeSchema, GlobalAttributeSchema {
 	@Serial private static final long serialVersionUID = -4825670975814791472L;
@@ -169,13 +168,13 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * schema per attribute per entity only to compare it or to look a value up by it, and then discards it - since
 	 * the schema is immutable and outlives all of those uses, the key is created once here instead.
 	 */
-	@EqualsAndHashCode.Exclude @Nonnull private final AttributeKey attributeKey;
+	@Nonnull private final AttributeKey attributeKey;
 	/**
 	 * Canonical localized {@link AttributeKey} instances of this attribute, keyed by locale and filled in on demand.
 	 * The locale domain is bounded by the locales of the entities using this schema, so the map stays small. It is
 	 * `null` for non-localized attributes, which never look a localized key up repeatedly.
 	 */
-	@EqualsAndHashCode.Exclude @Nullable private final Map<Locale, AttributeKey> localizedAttributeKeys;
+	@Nullable private final Map<Locale, AttributeKey> localizedAttributeKeys;
 
 	/**
 	 * Converts an array of ScopedAttributeUniquenessType objects into an EnumMap linking Scope to AttributeUniquenessType.
@@ -760,6 +759,85 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				"Type `" + this.type + "` cannot be inverted!"
 			);
 		}
+	}
+
+	/**
+	 * Returns `true` when the other object is an attribute schema of the same class with the same definition; the
+	 * canonical attribute keys derive from the name and are not compared.
+	 *
+	 * The default value is compared as a stored value by {@link EvitaDataTypes#storedValueDiffers(Serializable,
+	 * Serializable)} rather than by `equals`, because `equals` of a range compares only its encoded bounds and finds
+	 * `[10,20]` equal to `[1.0,2.0]`, which a reader of the default value tells apart. The stored value comparison also
+	 * finds two arrays of the same items equal, which `equals` of an array does not.
+	 *
+	 * The comparison is written by hand for that reason: a field added to the definition of an attribute has to be
+	 * added here and to {@link #hashCode()} as well.
+	 *
+	 * @param o the object to compare with
+	 * @return `true` when the other object is an attribute schema of the same class with the same definition
+	 */
+	@Override
+	public boolean equals(@Nullable Object o) {
+		if (this == o) {
+			return true;
+		}
+		if (!(o instanceof AttributeSchema that) || !that.canEqual(this)) {
+			return false;
+		}
+		return this.indexedDecimalPlaces == that.indexedDecimalPlaces &&
+			this.localized == that.localized &&
+			this.nullable == that.nullable &&
+			this.representative == that.representative &&
+			this.conflictResolutionOverride == that.conflictResolutionOverride &&
+			Objects.equals(this.name, that.name) &&
+			Objects.equals(this.nameVariants, that.nameVariants) &&
+			Objects.equals(this.description, that.description) &&
+			Objects.equals(this.deprecationNotice, that.deprecationNotice) &&
+			Objects.equals(this.type, that.type) &&
+			Objects.equals(this.plainType, that.plainType) &&
+			Objects.equals(this.uniquenessTypeInScopes, that.uniquenessTypeInScopes) &&
+			Objects.equals(this.filterableInScopes, that.filterableInScopes) &&
+			Objects.equals(this.acceleratorsInScopes, that.acceleratorsInScopes) &&
+			Objects.equals(this.sortableInScopes, that.sortableInScopes) &&
+			!EvitaDataTypes.storedValueDiffers(this.defaultValue, that.defaultValue);
+	}
+
+	/**
+	 * Returns `true` when the other object may be equal to this attribute schema. The subclasses override it to accept
+	 * only their own class, which keeps {@link #equals(Object)} symmetric: an attribute schema is never equal to an
+	 * instance of another class of the hierarchy, in either direction.
+	 *
+	 * @param other the object {@link #equals(Object)} compares with
+	 * @return `true` when the other object is an attribute schema
+	 */
+	protected boolean canEqual(@Nullable Object other) {
+		return other instanceof AttributeSchema;
+	}
+
+	/**
+	 * Returns a hash code consistent with {@link #equals(Object)}. The default value is left out: two default values
+	 * {@link #equals(Object)} finds the same - two arrays of the same items above all - need not share a hash code.
+	 *
+	 * @return the hash code of the attribute schema definition without its default value
+	 */
+	@Override
+	public int hashCode() {
+		int result = Integer.hashCode(this.indexedDecimalPlaces);
+		result = 31 * result + Boolean.hashCode(this.localized);
+		result = 31 * result + Boolean.hashCode(this.nullable);
+		result = 31 * result + Boolean.hashCode(this.representative);
+		result = 31 * result + Objects.hashCode(this.conflictResolutionOverride);
+		result = 31 * result + Objects.hashCode(this.name);
+		result = 31 * result + Objects.hashCode(this.nameVariants);
+		result = 31 * result + Objects.hashCode(this.description);
+		result = 31 * result + Objects.hashCode(this.deprecationNotice);
+		result = 31 * result + Objects.hashCode(this.type);
+		result = 31 * result + Objects.hashCode(this.plainType);
+		result = 31 * result + Objects.hashCode(this.uniquenessTypeInScopes);
+		result = 31 * result + Objects.hashCode(this.filterableInScopes);
+		result = 31 * result + Objects.hashCode(this.acceleratorsInScopes);
+		result = 31 * result + Objects.hashCode(this.sortableInScopes);
+		return result;
 	}
 
 	@Override
