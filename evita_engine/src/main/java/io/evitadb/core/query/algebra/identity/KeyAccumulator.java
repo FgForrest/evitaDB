@@ -29,14 +29,15 @@ import io.evitadb.core.query.algebra.attribute.ThresholdComparison;
 import io.evitadb.core.query.algebra.attribute.ThresholdRange;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
 import io.evitadb.index.price.model.PriceIndexKey;
-import net.openhft.hashing.LongHashFunction;
 import net.openhft.hashing.Access;
-import java.nio.ByteOrder;
+import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteOrder;
 import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.List;
@@ -45,9 +46,11 @@ import java.util.Locale;
 /**
  * Single-pass structural hash, retained weight, opacity and locality description.
  * Primitive overloads avoid boxing and each nested value feeds this same accumulator.
+ * Every nullable overload mixes a presence marker first, so a null never hashes like an empty value.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@NotThreadSafe
 public final class KeyAccumulator {
 	/** Content hash independent of the legacy formula hash machinery. */
 	private static final LongHashFunction CONTENT_HASH = LongHashFunction.xx3();
@@ -68,6 +71,7 @@ public final class KeyAccumulator {
 	public KeyAccumulator(long classId) {
 		this.hash = mix(0, classId);
 	}
+
 	/** Combines one primitive word with an avalanche mixer. */
 	public static long mix(long seed, long value) {
 		long mixed = value + 0x9e3779b97f4a7c15L;
@@ -75,50 +79,75 @@ public final class KeyAccumulator {
 		mixed = (mixed ^ (mixed >>> 33)) * 0xc4ceb9fe1a85ec53L;
 		return Long.rotateLeft(seed, 27) * 0x9e3779b97f4a7c15L ^ mixed ^ (mixed >>> 33);
 	}
+
+	/** Hashes one producer identifier qualified by its role, shared by producer tokens and compact token lists. */
+	static long producerHash(long id, @Nonnull TokenRole role) {
+		return mix(mix(1, id), role.ordinal());
+	}
+
 	/** Hashes every character without allocating a byte array or using String.hashCode. */
 	public static long contentHash(@Nonnull CharSequence text) {
 		return CONTENT_HASH.hash(text, CHAR_ACCESS, 0, (long) text.length() * Character.BYTES);
 	}
+
 	/** Adds weights with saturation rather than overflow. */
 	static int sumWeight(int left, int right) {
 		return left > Integer.MAX_VALUE - right ? Integer.MAX_VALUE : left + right;
 	}
+
+	/** Charges retained text by its length, one unit per started block of 16 characters. */
+	static int textWeight(int length) {
+		return 1 + length / 16;
+	}
+
+	/** Charges a retained decimal by the bit length of its unscaled magnitude, one unit per started 64-bit word. */
+	static int decimalWeight(@Nonnull BigInteger unscaled) {
+		return 1 + unscaled.bitLength() / 64;
+	}
+
 	/** Mixes a word without charging it as a separately retained component. */
 	void mixValue(long value) {
 		this.hash = mix(this.hash, value);
 	}
+
 	/** Adds retained weight. */
 	private void charge(int value) {
 		this.weight = sumWeight(this.weight, value);
 	}
+
 	/** Adds a boolean without boxing. */
 	public void add(boolean value) {
 		mixValue(value ? 1 : 0);
 		charge(1);
 	}
+
 	/** Adds an integer without boxing. */
 	public void add(int value) {
 		mixValue(value);
 		charge(1);
 	}
+
 	/** Adds a long without boxing. */
 	public void add(long value) {
 		mixValue(value);
 		charge(1);
 	}
+
 	/** Adds nullable text by content and charges its retained characters. */
 	public void add(@Nullable String value) {
 		mixValue(value == null ? 0 : 1);
 		if (value != null) {
 			mixValue(contentHash(value));
-			charge(1 + value.length() / 16);
+			charge(textWeight(value.length()));
 		}
 	}
+
 	/** Adds an enum by ordinal with a distinct null marker. */
 	public void add(@Nullable Enum<?> value) {
 		mixValue(value == null ? 0 : value.ordinal() + 1L);
 		charge(1);
 	}
+
 	/** Hashes locale component and extension text without concatenation or iterator allocation. */
 	static long localeHash(@Nonnull Locale value) {
 		long hash = mix(contentHash(value.getLanguage()), contentHash(value.getScript()));
@@ -132,6 +161,7 @@ public final class KeyAccumulator {
 		}
 		return hash;
 	}
+
 	/** Measures delimited language, script, country, variant and extension text without building it. */
 	static int localeTextLength(@Nonnull Locale value) {
 		int length = value.getLanguage().length() + value.getScript().length() +
@@ -144,18 +174,21 @@ public final class KeyAccumulator {
 		}
 		return length;
 	}
+
 	/** Adds delimited locale component text, including variants and extensions, without concatenating it. */
 	public void add(@Nullable Locale value) {
 		mixValue(value == null ? 0 : 1);
 		if (value != null) {
 			mixValue(localeHash(value));
-			charge(1 + localeTextLength(value) / 16);
+			charge(textWeight(localeTextLength(value)));
 		}
 	}
+
 	/** Adds currency code text. */
 	public void add(@Nullable Currency value) {
 		add(value == null ? null : value.getCurrencyCode());
 	}
+
 	/** Adds the instant, nanoseconds and offset, preserving OffsetDateTime equality. */
 	public void add(@Nullable OffsetDateTime value) {
 		mixValue(value == null ? 0 : 1);
@@ -166,6 +199,7 @@ public final class KeyAccumulator {
 			charge(1);
 		}
 	}
+
 	/** Adds the attribute name and locale. */
 	public void add(@Nullable AttributeKey value) {
 		mixValue(value == null ? 0 : 1);
@@ -174,6 +208,7 @@ public final class KeyAccumulator {
 			add(value.locale());
 		}
 	}
+
 	/** Adds the value components of a price index key. */
 	public void add(@Nullable PriceIndexKey value) {
 		mixValue(value == null ? 0 : 1);
@@ -183,17 +218,20 @@ public final class KeyAccumulator {
 			add(value.getRecordHandling());
 		}
 	}
+
 	/** Adds validity and ordered target price index identities. */
 	public void add(@Nullable PriceEvaluationContext value) {
 		mixValue(value == null ? 0 : 1);
 		if (value != null) {
 			add(value.validIn());
-			mixValue(value.targetPriceIndexes().size());
-			for (int i = 0; i < value.targetPriceIndexes().size(); i++) {
-				add(value.targetPriceIndexes().get(i));
+			final List<PriceIndexKey> indexes = value.targetPriceIndexes();
+			mixValue(indexes.size());
+			for (int i = 0; i < indexes.size(); i++) {
+				add(indexes.get(i));
 			}
 		}
 	}
+
 	/** Adds a sealed requested threshold condition. */
 	public void add(@Nullable RequestedThresholdPredicate value) {
 		if (value == null) {
@@ -210,21 +248,24 @@ public final class KeyAccumulator {
 			throw new IllegalArgumentException("Unsupported threshold condition.");
 		}
 	}
+
 	/** Adds normalized decimal scale and unscaled magnitude; charges the magnitude's bit length. */
 	void addDecimal(@Nullable BigDecimal value) {
 		mixValue(value == null ? 0 : 1);
 		if (value != null) {
 			final BigInteger unscaled = value.unscaledValue();
 			mixValue(decimalHash(unscaled, value.scale()));
-			charge(1 + unscaled.bitLength() / 64);
+			charge(decimalWeight(unscaled));
 		}
 	}
+
 	/** Hashes scale and the complete signed magnitude; long-sized magnitudes need no temporary array. */
 	static long decimalHash(@Nonnull BigInteger unscaled, int scale) {
 		final long magnitudeHash = unscaled.bitLength() <= 63 ? mix(0, unscaled.longValue()) :
 			CONTENT_HASH.hashBytes(unscaled.toByteArray());
 		return mix(mix(0, scale), magnitudeHash);
 	}
+
 	/** Adds a nested value record through its own description, with no intermediate accumulator. */
 	public void add(@Nullable IdentityRecord value) {
 		mixValue(value == null ? 0 : 1);
@@ -233,6 +274,7 @@ public final class KeyAccumulator {
 			value.describeTo(this);
 		}
 	}
+
 	/** Adds an operand token and propagates opacity. */
 	public void add(@Nullable IdentityToken value) {
 		mixValue(value == null ? 0 : 1);
@@ -243,6 +285,7 @@ public final class KeyAccumulator {
 			this.queryLocal |= value.isOpaque();
 		}
 	}
+
 	/** Adds an immutable operand list and its admission classification. */
 	public void add(@Nullable TokenList value) {
 		mixValue(value == null ? 0 : 1);
@@ -253,6 +296,7 @@ public final class KeyAccumulator {
 			this.queryLocal |= value.isQueryLocal();
 		}
 	}
+
 	/** Adds immutable bucket values and their admission classification. */
 	public void add(@Nullable ValueList value) {
 		mixValue(value == null ? 0 : 1);
@@ -263,6 +307,7 @@ public final class KeyAccumulator {
 			this.queryLocal |= value.isQueryLocal();
 		}
 	}
+
 	/** Adds a side key; an opaque root makes the owning record opaque. */
 	public void add(@Nullable FormulaKey value) {
 		mixValue(value == null ? 0 : 1);
@@ -272,6 +317,7 @@ public final class KeyAccumulator {
 			addChild(value);
 		}
 	}
+
 	/** Adds a formula child without propagating its own opacity to this record. */
 	void addChild(@Nonnull FormulaKey value) {
 		mixValue(value.getHash64());
@@ -279,6 +325,7 @@ public final class KeyAccumulator {
 		this.queryLocal |= value.isQueryLocal();
 		this.sideKeys |= value.hasSideKeys();
 	}
+
 	/** Adds ordered side keys, preserving duplicates. */
 	public void addKeys(@Nonnull List<FormulaKey> values) {
 		mixValue(values.size());
@@ -286,6 +333,7 @@ public final class KeyAccumulator {
 			add(values.get(i));
 		}
 	}
+
 	/** Adds nullable ordered strings by content. */
 	public void addStrings(@Nullable List<String> values) {
 		mixValue(values == null ? 0 : 1);
@@ -296,22 +344,27 @@ public final class KeyAccumulator {
 			}
 		}
 	}
+
 	/** Returns the completed structural hash. */
 	long hash64() {
 		return this.hash;
 	}
+
 	/** Returns retained weight. */
 	int weight() {
 		return this.weight;
 	}
+
 	/** Returns own-record opacity. */
 	boolean isOpaque() {
 		return this.opaque;
 	}
+
 	/** Returns aggregate locality. */
 	boolean isQueryLocal() {
 		return this.queryLocal;
 	}
+
 	/** Returns whether a side key was encountered. */
 	boolean hasSideKeys() {
 		return this.sideKeys;

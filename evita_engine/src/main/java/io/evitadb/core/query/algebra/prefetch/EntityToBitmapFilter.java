@@ -25,10 +25,9 @@ package io.evitadb.core.query.algebra.prefetch;
 
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.index.bitmap.Bitmap;
-
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 
@@ -52,7 +51,6 @@ public interface EntityToBitmapFilter extends RequirementsDefiner {
 	default IdentityRecord identity() {
 		throw new GenericEvitaInternalError("Identity not declared: " + getClass().getName());
 	}
-
 
 	/**
 	 * Method produces bitmap with entity ids of all {@link SealedEntity entities} that match the filter. Implementation

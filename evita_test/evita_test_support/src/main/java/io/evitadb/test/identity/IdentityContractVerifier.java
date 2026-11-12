@@ -25,6 +25,8 @@ package io.evitadb.test.identity;
 
 import com.thoughtworks.qdox.JavaProjectBuilder;
 import com.thoughtworks.qdox.model.JavaClass;
+import com.thoughtworks.qdox.model.JavaConstructor;
+import com.thoughtworks.qdox.model.JavaMethod;
 import com.thoughtworks.qdox.model.JavaSource;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.query.algebra.Formula;
@@ -39,16 +41,16 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.io.StringReader;
+import java.io.UncheckedIOException;
 import java.lang.reflect.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -60,16 +62,31 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class IdentityContractVerifier {
+	/**
+	 * Accepts discovered holders that have no declared identity yet, provided they have no fixture either. Only this
+	 * class reads the value, so every inventory test applies the same rule however its own module was compiled.
+	 */
+	public static final boolean ACCEPT_UNDECLARED_IDENTITIES = true;
+	/** Entity filter alternatives, the only holder family keyed from `identity()` and `getClassId()` directly. */
+	private static final Class<?> ENTITY_FILTER_TYPE = loadType(
+		"io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter"
+	);
 	/** Holder interfaces included in the source inventory. */
 	private static final List<Class<?>> HOLDER_TYPES = List.of(
 		Formula.class, loadType("io.evitadb.core.query.algebra.deferred.BitmapSupplier"),
 		HierarchyFilteringPredicate.class,
 		loadType("io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer"),
-		loadType("io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter")
+		ENTITY_FILTER_TYPE
 	);
 	/** Closed threshold value interface, kept inside its production module's package boundary. */
 	private static final Class<?> THRESHOLD_TYPE = loadType(
 		"io.evitadb.core.query.algebra.attribute.RequestedThresholdPredicate"
+	);
+	/** Component value types admitted besides enums, nested identity records and lists. */
+	private static final Set<Class<?>> PERMITTED_COMPONENT_TYPES = Set.of(
+		boolean.class, int.class, long.class, String.class, Locale.class, Currency.class, OffsetDateTime.class,
+		AttributeKey.class, PriceIndexKey.class, PriceEvaluationContext.class, THRESHOLD_TYPE, IdentityToken.class,
+		TokenList.class, ValueList.class, FormulaKey.class
 	);
 	/** Prevents instantiation of the verifier. */
 	private IdentityContractVerifier() { }
@@ -87,10 +104,14 @@ public final class IdentityContractVerifier {
 	}
 
 	/**
-	 * Accepts only a complete migrated declaration with its conventional fixture, or a pending class without one.
-	 * Returns true for a migrated class; named exemptions are handled explicitly by the calling inventory test.
+	 * Verifies a discovered holder that declares an identity against its conventional fixture. A holder that has no
+	 * declared identity yet must have no fixture either and passes only while {@link #ACCEPT_UNDECLARED_IDENTITIES}
+	 * permits it. Named exemptions are left to the calling inventory test.
+	 *
+	 * @param holderType discovered concrete holder
+	 * @return true when the holder declares an identity and its fixture passed verification
 	 */
-	public static boolean verifyDiscovered(@Nonnull Class<?> holderType, boolean migrationMode) {
+	public static boolean verifyDiscovered(@Nonnull Class<?> holderType) {
 		final String fixtureName = holderType.getPackageName() + "." +
 			holderType.getName().substring(holderType.getPackageName().length() + 1).replace("$", "") +
 			"IdentityFixture";
@@ -98,11 +119,11 @@ public final class IdentityContractVerifier {
 		try {
 			fixtureType = Class.forName(fixtureName, false, holderType.getClassLoader());
 		} catch (ClassNotFoundException ignored) {
-			// A pending holder has no fixture; all other loading failures propagate.
+			// A holder without a declared identity has no fixture; all other loading failures propagate.
 		}
 		if (!declares(holderType, "identity")) {
-			assertNull(fixtureType, "Pending holder already has a fixture: " + holderType.getName());
-			assertTrue(migrationMode, "Pending identity: " + holderType.getName());
+			assertNull(fixtureType, "Holder without a declared identity has a fixture: " + holderType.getName());
+			assertTrue(ACCEPT_UNDECLARED_IDENTITIES, "Undeclared identity: " + holderType.getName());
 			return false;
 		}
 		assertNotNull(fixtureType, "Declared identity has no fixture: " + fixtureName);
@@ -110,6 +131,24 @@ public final class IdentityContractVerifier {
 		assertInstanceOf(IdentityFixture.class, fixture, fixtureName);
 		verifyUnchecked(holderType, (IdentityFixture<?>) fixture);
 		return true;
+	}
+
+	/**
+	 * Verifies every discovered holder except the named exemptions by {@link #verifyDiscovered(Class)}, under the
+	 * shared {@link #ACCEPT_UNDECLARED_IDENTITIES} rule.
+	 *
+	 * @param inventory discovered concrete holders
+	 * @param exemptions binary names of holders the calling test verifies by a rule of its own
+	 * @return number of verified holders that declare an identity
+	 */
+	public static int verifyInventory(@Nonnull Set<Class<?>> inventory, @Nonnull Set<String> exemptions) {
+		int declared = 0;
+		for (final Class<?> type : inventory) {
+			if (!exemptions.contains(type.getName()) && verifyDiscovered(type)) {
+				declared++;
+			}
+		}
+		return declared;
 	}
 
 	/** Bridges fixture loading to the type-safe verification entry point. */
@@ -125,29 +164,14 @@ public final class IdentityContractVerifier {
 	@Nonnull
 	public static Set<Class<?>> discover(@Nonnull Path sourceRoot, @Nonnull Path... relatedRoots) {
 		assertTrue(Files.isDirectory(sourceRoot), "Missing source root: " + sourceRoot);
+		final Path primaryRoot = sourceRoot.toAbsolutePath().normalize();
 		final JavaProjectBuilder builder = new JavaProjectBuilder();
-		final Map<JavaSource, Path> sourcePaths = new IdentityHashMap<>();
 		final Set<Path> roots = CollectionUtils.createLinkedHashSet(relatedRoots.length + 1);
-		roots.add(sourceRoot.toAbsolutePath().normalize());
+		roots.add(primaryRoot);
 		for (final Path relatedRoot : relatedRoots) {
 			roots.add(relatedRoot.toAbsolutePath().normalize());
 		}
-		for (final Path root : roots) {
-			assertTrue(Files.isDirectory(root), "Missing related source root: " + root);
-			try (final Stream<Path> paths = Files.walk(root)) {
-				for (final Path path : paths.filter(it -> it.toString().endsWith(".java")).sorted().toList()) {
-					final String source = Files.readString(path);
-					final String parserInput = parserInput(source);
-					try {
-						sourcePaths.put(builder.addSource(new StringReader(parserInput)), path);
-					} catch (RuntimeException ex) {
-						throw new AssertionError("Cannot parse identity inventory source: " + path, ex);
-					}
-				}
-			} catch (IOException ex) {
-				throw new UncheckedIOException(ex);
-			}
-		}
+		final Map<JavaSource, Path> sourcePaths = parseSources(roots, builder);
 		final Set<Class<?>> classes = CollectionUtils.createLinkedHashSet(128);
 		final Set<String> typeNames = CollectionUtils.createHashSet(128);
 		for (final Class<?> holderType : HOLDER_TYPES) {
@@ -155,8 +179,7 @@ public final class IdentityContractVerifier {
 		}
 		for (final JavaSource source : builder.getSources()) {
 			for (final JavaClass javaClass : source.getClasses()) {
-				collect(javaClass, classes, typeNames,
-					sourcePaths.get(source).startsWith(sourceRoot.toAbsolutePath().normalize()));
+				collect(javaClass, classes, typeNames, sourcePaths.get(source).startsWith(primaryRoot));
 			}
 		}
 		final String alternatives = String.join("|", typeNames);
@@ -180,6 +203,29 @@ public final class IdentityContractVerifier {
 			}
 		}
 		return Collections.unmodifiableSet(classes);
+	}
+
+	/** Parses every Java source below the roots into the builder, remembering the path each source came from. */
+	@Nonnull
+	private static Map<JavaSource, Path> parseSources(@Nonnull Set<Path> roots, @Nonnull JavaProjectBuilder builder) {
+		final Map<JavaSource, Path> sourcePaths = new IdentityHashMap<>();
+		for (final Path root : roots) {
+			assertTrue(Files.isDirectory(root), "Missing related source root: " + root);
+			try (final Stream<Path> paths = Files.walk(root)) {
+				for (final Path path : paths.filter(it -> it.toString().endsWith(".java")).sorted().toList()) {
+					final String source = Files.readString(path);
+					final String parserInput = parserInput(source);
+					try {
+						sourcePaths.put(builder.addSource(new StringReader(parserInput)), path);
+					} catch (RuntimeException ex) {
+						throw new AssertionError("Cannot parse identity inventory source: " + path, ex);
+					}
+				}
+			} catch (IOException ex) {
+				throw new UncheckedIOException(ex);
+			}
+		}
+		return sourcePaths;
 	}
 
 	/** Distinguishes an anonymous body from surrounding control-flow blocks using balanced arguments. */
@@ -294,13 +340,13 @@ public final class IdentityContractVerifier {
 
 	/** Rejects local holder declarations hidden in methods or constructors. */
 	private static void rejectLocal(@Nonnull JavaClass source, @Nonnull Pattern local) {
-		for (final com.thoughtworks.qdox.model.JavaMethod method : source.getMethods()) {
+		for (final JavaMethod method : source.getMethods()) {
 			if (method.getSourceCode() != null) {
 				assertFalse(local.matcher(method.getSourceCode()).find(),
 					"Local identity holder in " + source.getBinaryName() + "#" + method.getName());
 			}
 		}
-		for (final com.thoughtworks.qdox.model.JavaConstructor constructor : source.getConstructors()) {
+		for (final JavaConstructor constructor : source.getConstructors()) {
 			if (constructor.getSourceCode() != null) {
 				assertFalse(local.matcher(constructor.getSourceCode()).find(),
 					"Local identity holder in " + source.getBinaryName() + "#" + constructor.getName());
@@ -327,6 +373,42 @@ public final class IdentityContractVerifier {
 			assertTrue(mode.oversizedVariants().isEmpty(), "check 8: oversized variants require a base");
 			assertFalse(mode.opaqueVariants().isEmpty(), "Always opaque mode needs an opaque supplier");
 		}
+		final List<T> variants = collectVariants(base, mode);
+		samples.addAll(variants);
+		assertFalse(samples.isEmpty(), "Mode has no instances");
+		final IdentityRecord record = identity(samples.getFirst());
+		assertTrue(record.getClass().isRecord(), "check 9: identity must be a record");
+		final RecordComponent[] components = record.getClass().getRecordComponents();
+		final Set<String> componentNames = CollectionUtils.createHashSet(components.length);
+		for (final RecordComponent component : components) {
+			componentNames.add(component.getName());
+			checkDomain(component.getGenericType());
+		}
+		assertTrue(componentNames.containsAll(mode.pinned()), "check 2: unknown pinned component");
+		assertTrue(componentNames.containsAll(mode.alwaysExact()), "check 8: unknown alwaysExact component");
+		if (components.length > 0) {
+			assertTrue(declares(record.getClass(), "describeTo", KeyAccumulator.class),
+				"check 11: component-bearing record must declare describeTo");
+		}
+		for (final T sample : samples) {
+			verifyDeclaredPair(holderType, sample, identity(sample));
+			verifyComponentValues(identity(sample));
+			verifyArraySnapshots(holderType, sample);
+		}
+		if (base != null) {
+			verifyCoverage(base, variants, components, mode);
+		}
+		verifyLocalityCoverage(components, samples, mode);
+		if (base != null) {
+			verifyClones(base, mode, false);
+			verifyChildren(base, mode.base());
+		}
+		verifyFields(holderType, base, variants, samples, componentNames, mode);
+	}
+
+	/** Builds the value, opaque and oversized variants of a mode, checking each kind's own obligations. */
+	@Nonnull
+	private static <T> List<T> collectVariants(@Nullable T base, @Nonnull ConstructionMode<T> mode) {
 		final List<T> variants = new ArrayList<>();
 		for (final Supplier<T> supplier : mode.variants().values()) {
 			final T variant = supplier.get();
@@ -354,30 +436,13 @@ public final class IdentityContractVerifier {
 			assertTrue(key(oversized).getWeight() > key(base).getWeight(), "check 8: oversized weight");
 			variants.add(oversized);
 		}
-		samples.addAll(variants);
-		assertFalse(samples.isEmpty(), "Mode has no instances");
-		final IdentityRecord record = identity(samples.getFirst());
-		assertTrue(record.getClass().isRecord(), "check 9: identity must be a record");
-		final RecordComponent[] components = record.getClass().getRecordComponents();
-		final Set<String> componentNames = CollectionUtils.createHashSet(components.length);
-		for (final RecordComponent component : components) {
-			componentNames.add(component.getName());
-			checkDomain(component.getGenericType());
-		}
-		assertTrue(componentNames.containsAll(mode.pinned()), "check 2: unknown pinned component");
-		assertTrue(componentNames.containsAll(mode.alwaysExact()), "check 8: unknown alwaysExact component");
-		if (components.length > 0) {
-			assertTrue(declares(record.getClass(), "describeTo", KeyAccumulator.class),
-				"check 11: component-bearing record must declare describeTo");
-		}
-		for (final T sample : samples) {
-			verifyDeclaredPair(holderType, sample, identity(sample));
-			verifyComponentValues(identity(sample));
-			verifyArraySnapshots(holderType, sample);
-		}
-		if (base != null) {
-			verifyCoverage(base, variants, components, mode);
-		}
+		return variants;
+	}
+
+	/** Requires each token, list or key component to turn query-local in some sample, unless declared always exact. */
+	private static <T> void verifyLocalityCoverage(
+		@Nonnull RecordComponent[] components, @Nonnull List<T> samples, @Nonnull ConstructionMode<T> mode
+	) {
 		for (final RecordComponent component : components) {
 			if (localityType(component.getGenericType())) {
 				boolean local = false;
@@ -391,15 +456,9 @@ public final class IdentityContractVerifier {
 				}
 			}
 		}
-
-		if (base != null) {
-			verifyClones(base, mode, false);
-			verifyChildren(base, mode.base());
-		}
-		verifyFields(holderType, base, variants, samples, componentNames, mode);
 	}
 
-	/** Checks component variants, pinned components and locality coverage. */
+	/** Checks component variants and pinned components. */
 	private static <T> void verifyCoverage(
 		@Nonnull T base, @Nonnull List<T> variants, @Nonnull RecordComponent[] components,
 		@Nonnull ConstructionMode<T> mode
@@ -442,7 +501,7 @@ public final class IdentityContractVerifier {
 		} catch (ReflectiveOperationException ex) {
 			throw new AssertionError("check 10: isolated component construction refused: " + changed.getName(), ex);
 		}
-		final FormulaKey original = FormulaKey.of(base, base.classId(), FormulaKey.NO_CHILDREN, base);
+		final FormulaKey original = leafKey(base, base);
 		final FormulaKey modified = FormulaKey.of(perturbed, base.classId(), FormulaKey.NO_CHILDREN, base);
 		assertNotEquals(original, modified, "check 2: isolated component did not move key: " + changed.getName());
 		assertNotEquals(original.getHash64(), modified.getHash64(),
@@ -489,10 +548,10 @@ public final class IdentityContractVerifier {
 						continue;
 					}
 					final IdentityRecord record = identity(holder);
-					final FormulaKey captured = FormulaKey.of(record, record.classId(), FormulaKey.NO_CHILDREN, holder);
+					final FormulaKey captured = leafKey(record, holder);
 					try {
 						setArrayElement(array, i, replacement);
-						assertEqualKeys(captured, FormulaKey.of(record, record.classId(), FormulaKey.NO_CHILDREN, holder),
+						assertEqualKeys(captured, leafKey(record, holder),
 							"check 9: retained array changed captured identity: " + field);
 					} finally {
 						Array.set(array, i, original);
@@ -720,10 +779,7 @@ public final class IdentityContractVerifier {
 					"check 11: nested describeTo absent");
 			}
 		} else {
-			assertTrue(Set.of(boolean.class, int.class, long.class, String.class, Locale.class, Currency.class,
-				OffsetDateTime.class, AttributeKey.class, PriceIndexKey.class, PriceEvaluationContext.class,
-				THRESHOLD_TYPE, IdentityToken.class, TokenList.class, ValueList.class,
-				FormulaKey.class).contains(component), "check 9: forbidden component type: " + type);
+			assertTrue(PERMITTED_COMPONENT_TYPES.contains(component), "check 9: forbidden component type: " + type);
 		}
 	}
 
@@ -806,12 +862,18 @@ public final class IdentityContractVerifier {
 	/** Invokes a holder's key API, including the leaf key of an entity filter alternative. */
 	@Nonnull
 	private static FormulaKey key(@Nonnull Object holder) {
-		if (HOLDER_TYPES.get(4).isInstance(holder)) {
+		if (ENTITY_FILTER_TYPE.isInstance(holder)) {
 			final IdentityRecord identity = (IdentityRecord) invoke(findMethod(holder.getClass(), "identity"), holder);
 			final long classId = (long) invoke(findMethod(holder.getClass(), "getClassId"), holder);
 			return FormulaKey.of(identity, classId, FormulaKey.NO_CHILDREN, holder);
 		}
 		return (FormulaKey) invoke(findMethod(holder.getClass(), "getKey"), holder);
+	}
+
+	/** Builds a childless key over a record under the record's own class identifier. */
+	@Nonnull
+	private static FormulaKey leafKey(@Nonnull IdentityRecord record, @Nonnull Object owner) {
+		return FormulaKey.of(record, record.classId(), FormulaKey.NO_CHILDREN, owner);
 	}
 
 	/** Asserts all equal-key hash obligations together. */
@@ -886,13 +948,13 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Loads a holder interface without requiring production exports for the test inventory. */
+	/** Loads a type without requiring production exports for the test inventory. */
 	@Nonnull
 	private static Class<?> loadType(@Nonnull String name) {
 		try {
 			return Class.forName(name, false, IdentityContractVerifier.class.getClassLoader());
 		} catch (ClassNotFoundException ex) {
-			throw new AssertionError("Missing holder interface: " + name, ex);
+			throw new AssertionError("Missing type: " + name, ex);
 		}
 	}
 

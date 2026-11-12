@@ -27,11 +27,10 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
-import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
-import net.openhft.hashing.LongHashFunction;
-
 import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.exception.GenericEvitaInternalError;
+import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 

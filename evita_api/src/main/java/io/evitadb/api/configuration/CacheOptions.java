@@ -53,9 +53,13 @@ public record CacheOptions(
 	int verifyOneHitIn
 ) {
 
+	/** Cross-query caching stays off unless enabled; equal to the shipped server configuration's default. */
 	public static final boolean DEFAULT_ENABLED = false;
+	/** Minimal estimated computation cost for cache admission; equal to the shipped server configuration's default. */
 	public static final long DEFAULT_MINIMAL_COMPLEXITY_THRESHOLD = 10_000L;
+	/** Idle time in seconds before an entry expires; equal to the shipped server configuration's default. */
 	public static final int DEFAULT_DROP_ENTRIES_AFTER_SECONDS_OF_INACTIVITY = 600;
+	/** Verifies one in this many cache hits; equal to the shipped server configuration's default. */
 	public static final int DEFAULT_VERIFY_ONE_HIT_IN = 1_000;
 	private static final long DEFAULT_CACHE_SIZE;
 

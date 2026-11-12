@@ -23,16 +23,18 @@
 
 package io.evitadb.core.query.algebra.identity;
 
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.CACHE;
-import static org.junit.jupiter.api.Assertions.*;
 
-import io.evitadb.index.bitmap.BaseBitmap;
-import io.evitadb.index.bitmap.TransactionalBitmap;
 import java.util.Arrays;
+import java.util.stream.IntStream;
+
+import static io.evitadb.test.TestTags.CACHE;
+import static io.evitadb.test.TestTags.ENGINE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies versioned operands, copied content, and opaque admission limits.
@@ -57,6 +59,7 @@ class IdentityTokenTest {
 		assertNotEquals(IdentityToken.ofContent(new int[]{1}).hash64(),
 			IdentityToken.derived(1, TokenRole.DIRECT).hash64());
 	}
+
 	/** Verifies the inclusive copy limit and the marker above it. */
 	@Test
 	@DisplayName("Copies bounded arrays and marks larger content opaque")
@@ -70,7 +73,7 @@ class IdentityTokenTest {
 		assertNotEquals(exact, IdentityToken.ofContent(content));
 		assertSame(IdentityToken.OPAQUE, IdentityToken.ofContent(new int[IdentityToken.CONTENT_LIMIT + 1]));
 		assertSame(IdentityToken.OPAQUE,
-			IdentityToken.of(new BaseBitmap(java.util.stream.IntStream.range(0, 1025).toArray())));
+			IdentityToken.of(new BaseBitmap(IntStream.range(0, 1025).toArray())));
 		assertTrue(IdentityToken.OPAQUE.isOpaque());
 		assertEquals(1, IdentityToken.OPAQUE.weight());
 	}

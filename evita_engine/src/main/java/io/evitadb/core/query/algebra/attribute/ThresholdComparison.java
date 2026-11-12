@@ -40,10 +40,7 @@ public record ThresholdComparison(@Nonnull ThresholdOperator operator, @Nullable
 	/** Normalizes the requested value for numeric equality. */
 	public ThresholdComparison {
 		Objects.requireNonNull(operator);
-		if (value != null) {
-			final BigDecimal normalized = value.stripTrailingZeros();
-			value = new BigDecimal(normalized.unscaledValue(), normalized.scale());
-		}
+		value = ThresholdRange.normalize(value);
 	}
 
 	/** Evaluates the comparison against the normalized value. */

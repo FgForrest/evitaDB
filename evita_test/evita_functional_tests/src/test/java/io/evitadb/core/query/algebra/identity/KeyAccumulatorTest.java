@@ -23,23 +23,37 @@
 
 package io.evitadb.core.query.algebra.identity;
 
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.CACHE;
-import static org.junit.jupiter.api.Assertions.*;
-
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.core.query.algebra.attribute.RequestedThresholdPredicate;
 import io.evitadb.core.query.algebra.attribute.ThresholdComparison;
 import io.evitadb.core.query.algebra.attribute.ThresholdOperator;
 import io.evitadb.core.query.algebra.attribute.ThresholdRange;
+import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
+import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.utils.CollectionUtils;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import io.evitadb.utils.CollectionUtils;
+import java.time.OffsetDateTime;
+import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+
+import static io.evitadb.test.TestTags.CACHE;
+import static io.evitadb.test.TestTags.ENGINE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies content hashing, collision families and retained weight.
@@ -50,6 +64,11 @@ import java.util.Set;
 @Tag(ENGINE)
 @Tag(CACHE)
 class KeyAccumulatorTest {
+	/** Price index shared by the component forms that need one. */
+	private static final PriceIndexKey PRICE_INDEX = new PriceIndexKey(
+		"basic", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE
+	);
+
 	/**
 	 * Feeds both coordinates without using the record's generated hash.
 	 *
@@ -60,12 +79,140 @@ class KeyAccumulatorTest {
 	private record Coordinates(int from, int to) implements IdentityRecord {
 		/** Returns a synthetic record identifier. */
 		@Override public long classId() { return 1; }
+
 		/** Includes both integer components. */
 		@Override public void describeTo(@Nonnull KeyAccumulator accumulator) {
 			accumulator.add(this.from);
 			accumulator.add(this.to);
 		}
 	}
+
+	/** Builds a fresh value key over two coordinates. */
+	@Nonnull
+	private static FormulaKey coordinatesKey(int from, int to) {
+		return FormulaKey.of(new Coordinates(from, to), 1, FormulaKey.NO_CHILDREN, new Object());
+	}
+
+	/** Returns the hash of one component description in a fresh accumulator. */
+	private static long hashOf(@Nonnull Consumer<KeyAccumulator> description) {
+		final KeyAccumulator accumulator = new KeyAccumulator(1);
+		description.accept(accumulator);
+		return accumulator.hash64();
+	}
+
+	/**
+	 * Lists every component overload with a value, a different value and, for reference types, the null form.
+	 * Each description builds fresh instances, so describing it twice compares equal values rather than one instance.
+	 */
+	@Nonnull
+	static Stream<Arguments> componentForms() {
+		return Stream.of(
+			form("boolean", it -> it.add(true), it -> it.add(false), null),
+			form("int", it -> it.add(7), it -> it.add(8), null),
+			form("long", it -> it.add(8L), it -> it.add(9L), null),
+			form("String", it -> it.add("component"), it -> it.add("other"), it -> it.add((String) null)),
+			form(
+				"Enum", it -> it.add(ThresholdOperator.LESS_THAN), it -> it.add(ThresholdOperator.GREATER_THAN),
+				it -> it.add((Enum<?>) null)
+			),
+			form(
+				"Locale", it -> it.add(Locale.forLanguageTag("en-Latn-US-u-ca-gregory")),
+				it -> it.add(Locale.forLanguageTag("en-Latn-US-u-ca-buddhist")), it -> it.add((Locale) null)
+			),
+			form(
+				"Currency", it -> it.add(Currency.getInstance("EUR")), it -> it.add(Currency.getInstance("CZK")),
+				it -> it.add((Currency) null)
+			),
+			form(
+				"OffsetDateTime with another offset of the same instant",
+				it -> it.add(OffsetDateTime.parse("2026-01-01T00:00:00+01:00")),
+				it -> it.add(OffsetDateTime.parse("2025-12-31T23:00:00Z")), it -> it.add((OffsetDateTime) null)
+			),
+			form(
+				"AttributeKey", it -> it.add(new AttributeKey("name", Locale.ENGLISH)),
+				it -> it.add(new AttributeKey("name", Locale.GERMAN)), it -> it.add((AttributeKey) null)
+			),
+			form(
+				"PriceIndexKey",
+				it -> it.add(new PriceIndexKey("basic", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE)),
+				it -> it.add(new PriceIndexKey("basic", Currency.getInstance("EUR"), PriceInnerRecordHandling.SUM)),
+				it -> it.add((PriceIndexKey) null)
+			),
+			form(
+				"PriceEvaluationContext", it -> it.add(new PriceEvaluationContext(7L, PRICE_INDEX)),
+				it -> it.add(new PriceEvaluationContext(8L, PRICE_INDEX)),
+				it -> it.add((PriceEvaluationContext) null)
+			),
+			form(
+				"RequestedThresholdPredicate",
+				it -> it.add(new ThresholdComparison(ThresholdOperator.LESS_THAN, new BigDecimal("2.0"))),
+				it -> it.add(new ThresholdRange(BigDecimal.ONE, new BigDecimal("2"))),
+				it -> it.add((RequestedThresholdPredicate) null)
+			),
+			form(
+				"IdentityRecord", it -> it.add(new Coordinates(4, 5)), it -> it.add(new Coordinates(5, 4)),
+				it -> it.add((IdentityRecord) null)
+			),
+			form(
+				"IdentityToken", it -> it.add(IdentityToken.ofContent(new int[]{1, 2})),
+				it -> it.add(IdentityToken.ofContent(new int[]{2, 1})), it -> it.add((IdentityToken) null)
+			),
+			form(
+				"TokenList", it -> it.add(TokenList.ofProducerIds(new long[]{1, 2}, false)),
+				it -> it.add(TokenList.ofProducerIds(new long[]{2, 1}, false)), it -> it.add((TokenList) null)
+			),
+			form(
+				"ValueList", it -> it.add(new ValueList("value", 1)), it -> it.add(new ValueList("value", 2)),
+				it -> it.add((ValueList) null)
+			),
+			form(
+				"FormulaKey", it -> it.add(coordinatesKey(4, 5)), it -> it.add(coordinatesKey(5, 4)),
+				it -> it.add((FormulaKey) null)
+			),
+			form(
+				"side key list", it -> it.addKeys(List.of(coordinatesKey(4, 5))),
+				it -> it.addKeys(List.of(coordinatesKey(5, 4))), null
+			),
+			form(
+				"string list", it -> it.addStrings(List.of("one", "two")),
+				it -> it.addStrings(List.of("two", "one")), it -> it.addStrings(null)
+			)
+		);
+	}
+
+	/** Packs one row of {@link #componentForms()}. */
+	@Nonnull
+	private static Arguments form(
+		@Nonnull String name, @Nonnull Consumer<KeyAccumulator> value, @Nonnull Consumer<KeyAccumulator> other,
+		@Nullable Consumer<KeyAccumulator> absent
+	) {
+		return Arguments.of(name, value, other, absent);
+	}
+
+	/** Requires every overload to hash equal values alike and to separate changed values and the null marker. */
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("componentForms")
+	@DisplayName("Hashes each component form by value and separates its null marker")
+	void shouldHashComponentFormByValue(
+		@Nonnull String name, @Nonnull Consumer<KeyAccumulator> value, @Nonnull Consumer<KeyAccumulator> other,
+		@Nullable Consumer<KeyAccumulator> absent
+	) {
+		final long hash = hashOf(value);
+
+		assertEquals(hash, hashOf(value), "equal values must hash alike");
+		assertNotEquals(hash, hashOf(other), "a changed value must move the hash");
+		if (absent != null) {
+			assertNotEquals(hash, hashOf(absent), "null must not hash like a value");
+		}
+	}
+
+	/** Separates absent text from empty text. */
+	@Test
+	@DisplayName("Hashes null text differently from empty text")
+	void shouldSeparateNullTextFromEmptyText() {
+		assertNotEquals(hashOf(it -> it.add((String) null)), hashOf(it -> it.add("")));
+	}
+
 	/** Verifies the complete numeric collision family. */
 	@Test
 	@DisplayName("Separates 10000 coordinate pairs with one linear hash")
@@ -78,6 +225,7 @@ class KeyAccumulatorTest {
 		}
 		assertEquals(10_000, hashes.size());
 	}
+
 	/** Checks the entire magnitude rather than its Java hash and low word. */
 	@Test
 	@DisplayName("Separates 10000 decimal magnitudes with colliding Java hashes and low words")
@@ -132,6 +280,7 @@ class KeyAccumulatorTest {
 		}
 		assertEquals(1_024, hashes.size());
 	}
+
 	/** Verifies nullable markers, normalized threshold values and content-sensitive weight. */
 	@Test
 	@DisplayName("Charges text and decimal content and distinguishes nullable lists")
@@ -141,7 +290,7 @@ class KeyAccumulatorTest {
 		assertEquals(12, text.weight());
 		final KeyAccumulator decimal = new KeyAccumulator(1);
 		decimal.add(new ThresholdComparison(ThresholdOperator.LESS_THAN,
-			new BigDecimal(java.math.BigInteger.ONE.shiftLeft(640))));
+			new BigDecimal(BigInteger.ONE.shiftLeft(640))));
 		assertEquals(13, decimal.weight());
 		final KeyAccumulator nullList = new KeyAccumulator(1);
 		nullList.addStrings(null);
@@ -157,9 +306,10 @@ class KeyAccumulatorTest {
 		locale.add(Locale.forLanguageTag("en-Latn-US-u-ca-gregory"));
 		assertFalse(locale.isQueryLocal());
 	}
-	/** Verifies that each supported component distinguishes changed content and nullable markers. */
+
+	/** Verifies that the supported component forms keep a key exact and propagate locality and side keys. */
 	@Test
-	@DisplayName("Hashes all supported component forms and propagates locality")
+	@DisplayName("Accepts all supported component forms and propagates locality")
 	void shouldDescribeClosedComponentDomain() {
 		final KeyAccumulator accumulator = new KeyAccumulator(3);
 		accumulator.add(true);
@@ -167,15 +317,11 @@ class KeyAccumulatorTest {
 		accumulator.add(8L);
 		accumulator.add("component");
 		accumulator.add(ThresholdOperator.LESS_THAN);
-		accumulator.add(java.util.Currency.getInstance("EUR"));
-		accumulator.add(java.time.OffsetDateTime.parse("2026-01-01T00:00:00+01:00"));
-		accumulator.add(new io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey(
-			"name", Locale.ENGLISH));
-		final io.evitadb.index.price.model.PriceIndexKey priceIndex = new io.evitadb.index.price.model.PriceIndexKey(
-			"basic", java.util.Currency.getInstance("EUR"),
-			io.evitadb.api.requestResponse.data.PriceInnerRecordHandling.NONE);
-		accumulator.add(priceIndex);
-		accumulator.add(new io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext(7L, priceIndex));
+		accumulator.add(Currency.getInstance("EUR"));
+		accumulator.add(OffsetDateTime.parse("2026-01-01T00:00:00+01:00"));
+		accumulator.add(new AttributeKey("name", Locale.ENGLISH));
+		accumulator.add(PRICE_INDEX);
+		accumulator.add(new PriceEvaluationContext(7L, PRICE_INDEX));
 		accumulator.add(new Coordinates(4, 5));
 		accumulator.add(IdentityToken.ofContent(new int[]{1, 2}));
 		accumulator.add(TokenList.ofProducerIds(new long[]{1, 2}, false));
@@ -184,8 +330,7 @@ class KeyAccumulatorTest {
 		assertFalse(accumulator.isOpaque());
 		assertFalse(accumulator.isQueryLocal());
 		assertFalse(accumulator.hasSideKeys());
-		final FormulaKey sideKey = FormulaKey.of(new Coordinates(4, 5), 1, FormulaKey.NO_CHILDREN, new Object());
-		accumulator.addKeys(List.of(sideKey));
+		accumulator.addKeys(List.of(coordinatesKey(4, 5)));
 		assertTrue(accumulator.hasSideKeys());
 		assertFalse(accumulator.isOpaque());
 		final KeyAccumulator oversized = new KeyAccumulator(1);
@@ -198,20 +343,20 @@ class KeyAccumulatorTest {
 		assertTrue(opaque.isQueryLocal());
 	}
 
-	/** Checks both value and null branches of nullable component overloads. */
+	/** Checks the null branch of every nullable component overload and content hashing of character sequences. */
 	@Test
-	@DisplayName("Hashes nullable component markers without conflating empty values")
-	void shouldDescribeNullComponents() {
+	@DisplayName("Keeps null components exact and hashes character sequences by content")
+	void shouldKeepNullComponentsExact() {
 		final KeyAccumulator accumulator = new KeyAccumulator(1);
 		accumulator.add((String) null);
 		accumulator.add((Enum<?>) null);
 		accumulator.add((Locale) null);
-		accumulator.add((java.util.Currency) null);
-		accumulator.add((java.time.OffsetDateTime) null);
-		accumulator.add((io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey) null);
-		accumulator.add((io.evitadb.index.price.model.PriceIndexKey) null);
-		accumulator.add((io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext) null);
-		accumulator.add((io.evitadb.core.query.algebra.attribute.RequestedThresholdPredicate) null);
+		accumulator.add((Currency) null);
+		accumulator.add((OffsetDateTime) null);
+		accumulator.add((AttributeKey) null);
+		accumulator.add((PriceIndexKey) null);
+		accumulator.add((PriceEvaluationContext) null);
+		accumulator.add((RequestedThresholdPredicate) null);
 		accumulator.add((IdentityRecord) null);
 		accumulator.add((IdentityToken) null);
 		accumulator.add((TokenList) null);
@@ -223,5 +368,4 @@ class KeyAccumulatorTest {
 		assertEquals(KeyAccumulator.contentHash("characters"),
 			KeyAccumulator.contentHash(new StringBuilder("characters")));
 	}
-
 }

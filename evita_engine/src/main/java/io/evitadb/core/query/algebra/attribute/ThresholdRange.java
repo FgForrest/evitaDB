@@ -38,14 +38,21 @@ public record ThresholdRange(@Nullable BigDecimal from, @Nullable BigDecimal to)
 	implements RequestedThresholdPredicate {
 	/** Normalizes both bounds for numeric equality. */
 	public ThresholdRange {
-		if (from != null) {
-			final BigDecimal normalized = from.stripTrailingZeros();
-			from = new BigDecimal(normalized.unscaledValue(), normalized.scale());
+		from = normalize(from);
+		to = normalize(to);
+	}
+
+	/**
+	 * Strips trailing zeros and rebuilds the value as an exact `BigDecimal`, so numerically equal values are equal
+	 * records and no subclass instance is retained.
+	 */
+	@Nullable
+	static BigDecimal normalize(@Nullable BigDecimal value) {
+		if (value == null) {
+			return null;
 		}
-		if (to != null) {
-			final BigDecimal normalized = to.stripTrailingZeros();
-			to = new BigDecimal(normalized.unscaledValue(), normalized.scale());
-		}
+		final BigDecimal normalized = value.stripTrailingZeros();
+		return new BigDecimal(normalized.unscaledValue(), normalized.scale());
 	}
 
 	/** Tests both inclusive bounds. */

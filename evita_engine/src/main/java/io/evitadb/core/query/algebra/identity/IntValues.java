@@ -25,13 +25,15 @@ package io.evitadb.core.query.algebra.identity;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 import java.util.Arrays;
 
 /**
- * Detached immutable bounded integer content owned by an exact token.
+ * Detached bounded integer content owned by an exact token.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@Immutable
 public final class IntValues {
 	/** Copied content, never exposed. */
 	private final int[] values;
@@ -75,6 +77,6 @@ public final class IntValues {
 	/** Returns a hash consistent with content equality. */
 	@Override
 	public int hashCode() {
-		return (int) (this.hash64 ^ (this.hash64 >>> 32));
+		return Long.hashCode(this.hash64);
 	}
 }

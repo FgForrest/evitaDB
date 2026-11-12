@@ -26,18 +26,20 @@ package io.evitadb.core.query.algebra.identity;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.CACHE;
-import static org.junit.jupiter.api.Assertions.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.UUID;
+
+import static io.evitadb.test.TestTags.CACHE;
+import static io.evitadb.test.TestTags.ENGINE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies immutable bucket values, type fidelity and content-sensitive admission weight.
@@ -71,6 +73,7 @@ class ValueListTest {
 		assertNotEquals(new ValueList(1, 2), new ValueList(2, 1));
 		assertNotEquals(new ValueList(1).hash64(), new ValueList(1L).hash64());
 	}
+
 	/** Checks foreign values, count limits and retained text size. */
 	@Test
 	@DisplayName("Rejects foreign values and charges retained text")
@@ -79,7 +82,7 @@ class ValueListTest {
 		assertTrue(new ValueList((Object) null).isQueryLocal());
 		assertEquals(11, new ValueList("a".repeat(160)).weight());
 		final Object[] many = new Object[TokenList.CAP + 1];
-		java.util.Arrays.fill(many, "bucket");
+		Arrays.fill(many, "bucket");
 		final ValueList oversized = new ValueList(many);
 		assertTrue(oversized.isQueryLocal());
 		assertFalse(oversized.isOpaque());

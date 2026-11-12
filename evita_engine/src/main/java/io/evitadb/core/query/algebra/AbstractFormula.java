@@ -23,15 +23,15 @@
 
 package io.evitadb.core.query.algebra;
 
-import io.evitadb.core.query.algebra.identity.FormulaKey;
-import io.evitadb.core.query.algebra.identity.IdentityRecord;
-import io.evitadb.core.query.algebra.identity.IdentityExempt;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -107,11 +107,19 @@ public abstract class AbstractFormula implements Formula {
 	 */
 	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH) private long transactionalIdHash;
 
-	/** Detached identity, computed only when requested. */
+	/**
+	 * Detached identity, built on the first {@link #getKey()} call and never invalidated afterwards.
+	 *
+	 * The field is plain rather than volatile: threads that request the first key at the same time may each build one,
+	 * and all of them are equal, because they are derived from the same inputs and {@link FormulaKey} publishes its
+	 * state through final fields. {@link #clearMemory()} deliberately leaves the key in place - it drops the computed
+	 * result and cost, while the key describes construction-time inputs and child keys. An ancestor therefore keeps
+	 * the key it built first, even if a child mutated in place would describe itself differently afterwards.
+	 */
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private FormulaKey memoizedKey;
 
-	/** Returns the detached identity built from declared inputs and ordered child keys. */
+	/** Returns the detached identity built from declared inputs and ordered child keys, memoized on the first call. */
 	@Nonnull
 	@Override
 	public final FormulaKey getKey() {

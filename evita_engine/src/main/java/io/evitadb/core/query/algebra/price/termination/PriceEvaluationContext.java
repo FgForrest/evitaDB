@@ -49,8 +49,8 @@ import java.util.List;
  *                           select different prices share one memoized result. {@code Long.MIN_VALUE} means "no
  *                           validity constraint", which no real moment can reach (a moment saturates one step short
  *                           of it).
- * @param targetPriceIndexes Set of price list identifications that control which price indexes will the formula target. Retrieved from
- *                           the local scope of the input query.
+ * @param targetPriceIndexes ordered, immutable list of the price indexes the formula targets, retrieved from the local
+ *                           scope of the input query; the order is part of the context's identity.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record PriceEvaluationContext(

@@ -40,12 +40,13 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 
-import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.CACHE;
+import static io.evitadb.test.TestTags.ENGINE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Inventories concrete holders and enforces complete declared identities or explicit pending status.
+ * Inventories concrete holders and verifies the declared identity of each, accepting holders without one only as
+ * {@link IdentityContractVerifier#ACCEPT_UNDECLARED_IDENTITIES} permits.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -53,8 +54,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(ENGINE)
 @Tag(CACHE)
 class FormulaIdentityContractTest implements EvitaTestSupport {
-	/** Allows holders with neither a declared identity nor a fixture. */
-	private static final boolean MIGRATION_MODE = true;
 	/** Minimum engine inventory, preventing a truncated source scan from passing. */
 	private static final int ENGINE_FLOOR = 64;
 	/** Minimum inventory of functional test holders, including named nested classes. */
@@ -69,7 +68,7 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 
 	/** Verifies the engine and test inventories independently against their floors. */
 	@Test
-	@DisplayName("Discovers engine and test holders and verifies their migration state")
+	@DisplayName("Discovers engine and test holders and verifies their identity declarations")
 	void shouldVerifyEveryDiscoveredHolder() throws ReflectiveOperationException {
 		final Path root = getRootDirectory();
 		final Set<Class<?>> engine = IdentityContractVerifier.discover(root.resolve("evita_engine/src/main/java"));
@@ -83,37 +82,37 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 				tests.stream().anyMatch(type -> type.getName().equals(exemption.getKey())),
 				"Stale named exemption: " + exemption.getKey());
 		}
-		final int engineMigrated = verifyInventory(engine);
-		final int testsMigrated = verifyInventory(tests);
+		final int engineDeclared = verifyInventory(engine);
+		final int testsDeclared = verifyInventory(tests);
 		System.out.println("Identity discovery: engine=" + engine.size() + "/floor=" + ENGINE_FLOOR +
-			", functional=" + tests.size() + "/floor=" + TEST_FLOOR + ", migrated=" +
-			(engineMigrated + testsMigrated) + ", pending=" +
-			(engine.size() + tests.size() - engineMigrated - testsMigrated));
+			", functional=" + tests.size() + "/floor=" + TEST_FLOOR + ", declared=" +
+			(engineDeclared + testsDeclared) + ", undeclared=" +
+			(engine.size() + tests.size() - engineDeclared - testsDeclared));
 	}
 
-	/** Verifies each discovered class, with the mutable wrapper checked by its forwarding contract. */
+	/**
+	 * Verifies each discovered class by the shared rule, except the mutable wrapper, which is checked by its forwarding
+	 * contract; returns how many of them declare an identity.
+	 */
 	private static int verifyInventory(@Nonnull Set<Class<?>> inventory) throws ReflectiveOperationException {
-		int migrated = 0;
+		int declared = IdentityContractVerifier.verifyInventory(inventory, EXEMPTIONS.keySet());
 		for (final Class<?> type : inventory) {
-			if (EXEMPTIONS.containsKey(type.getName())) {
-				if (type.getName().equals(MUTABLE_FORMULA)) {
-					if (verifyMutable(type)) {
-						migrated++;
-					}
-				}
-			} else if (IdentityContractVerifier.verifyDiscovered(type, MIGRATION_MODE)) {
-				migrated++;
+			if (type.getName().equals(MUTABLE_FORMULA) && verifyMutable(type)) {
+				declared++;
 			}
 		}
-		return migrated;
+		return declared;
 	}
 
-	/** Checks pending status or, once declared, forwarding before and after a delegate swap. */
+	/**
+	 * Applies the shared rule while the wrapper declares no key of its own; once it declares one, checks that the key
+	 * follows the current delegate before and after a delegate swap.
+	 */
 	private static boolean verifyMutable(@Nonnull Class<?> type) throws ReflectiveOperationException {
 		try {
 			type.getDeclaredMethod("getKey");
 		} catch (NoSuchMethodException ignored) {
-			return IdentityContractVerifier.verifyDiscovered(type, MIGRATION_MODE);
+			return IdentityContractVerifier.verifyDiscovered(type);
 		}
 		final FacetGroupFormula first = new FacetGroupAndFormula("reference", 1,
 			new BaseBitmap(1), new BaseBitmap(10));

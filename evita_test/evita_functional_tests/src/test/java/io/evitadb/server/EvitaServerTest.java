@@ -23,17 +23,15 @@
 
 package io.evitadb.server;
 
-import com.google.protobuf.Empty;
-import com.linecorp.armeria.client.ClientFactory;
-import com.linecorp.armeria.client.WebClient;
-import com.linecorp.armeria.client.grpc.GrpcClients;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.google.protobuf.Empty;
+import com.linecorp.armeria.client.ClientFactory;
+import com.linecorp.armeria.client.WebClient;
+import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.TlsKeyPair;
 import io.evitadb.api.EvitaSessionContract;
@@ -44,6 +42,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.certificate.LoadedCertificates;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
@@ -63,7 +62,6 @@ import io.evitadb.externalApi.lab.LabProvider;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.system.SystemProvider;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.server.yaml.UnknownPropertyProblemHandler;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
@@ -79,6 +77,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 
@@ -116,6 +116,9 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 @Tag(MANAGEMENT)
 class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private static final String DIR_EVITA_SERVER_TEST = "evitaServerTest";
+	private static final List<String> REMOVED_CACHE_PROPERTIES = List.of(
+		"reevaluateEachSeconds", "anteroomRecordCount", "minimalUsageThreshold"
+	);
 	private static final String REMOVED_CACHE_PROPERTIES_YAML = """
 		cache:
 		  reevaluateEachSeconds: 60
@@ -1108,25 +1111,12 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"null", "0", "1048576", "2M"})
-	@DisplayName("should resolve YAML cache budgets")
-	void shouldResolveYamlCacheBudgets(@Nonnull String value) throws IOException {
+	@CsvSource({"null, 0", "0, 0", "1048576, 1048576", "2M, 2000000"})
+	@DisplayName("should resolve YAML cache budgets like the builder")
+	void shouldResolveYamlCacheBudgets(@Nonnull String value, long budget) throws IOException {
 		final CacheOptions options = loadCacheOptions("cache:\n  cacheSizeInBytes: " + value + "\n", true);
-		final long expected = switch (value) {
-			case "1048576" -> 1_048_576L;
-			case "2M" -> 2_000_000L;
-			default -> new CacheOptions().cacheSizeInBytes();
-		};
+		final long expected = CacheOptions.builder().cacheSizeInBytes(budget).build().cacheSizeInBytes();
 		assertEquals(expected, options.cacheSizeInBytes());
-	}
-
-	@Test
-	@DisplayName("should map YAML null to primitive zero before cache budget normalization")
-	void shouldMapYamlNullToPrimitiveZeroForCacheBudget() throws IOException {
-		// The server mapper uses Jackson's default primitive-null handling.
-		final ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-		assertEquals(0L, mapper.readValue("null", long.class));
-		assertEquals(new CacheOptions(), loadCacheOptions("cache:\n  cacheSizeInBytes: null\n", true));
 	}
 
 	@Test
@@ -1152,7 +1142,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"reevaluateEachSeconds", "anteroomRecordCount", "minimalUsageThreshold"})
+	@FieldSource("REMOVED_CACHE_PROPERTIES")
 	@DisplayName("should reject each removed cache property in strict mode")
 	void shouldRejectRemovedCachePropertiesInStrictMode(@Nonnull String property) {
 		final IllegalArgumentException exception = assertThrows(
@@ -1162,19 +1152,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			UnrecognizedPropertyException.class, ExceptionUtils.getRootCause(exception)
 		);
 		assertEquals(property, cause.getPropertyName());
-	}
-
-	@Test
-	@DisplayName("should reject an old YAML containing all removed cache properties in strict mode")
-	void shouldRejectOldCacheYamlInStrictMode() {
-		final IllegalArgumentException exception = assertThrows(
-			IllegalArgumentException.class, () -> loadCacheOptions(REMOVED_CACHE_PROPERTIES_YAML, true)
-		);
-		final UnrecognizedPropertyException cause = assertInstanceOf(
-			UnrecognizedPropertyException.class, ExceptionUtils.getRootCause(exception)
-		);
-		assertTrue(List.of("reevaluateEachSeconds", "anteroomRecordCount", "minimalUsageThreshold")
-			.contains(cause.getPropertyName()));
 	}
 
 	@Test
@@ -1189,7 +1166,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				REMOVED_CACHE_PROPERTIES_YAML,
 				false
 			));
-			for (String property : List.of("reevaluateEachSeconds", "anteroomRecordCount", "minimalUsageThreshold")) {
+			for (final String property : REMOVED_CACHE_PROPERTIES) {
 				assertEquals(1L, appender.list.stream().filter(
 					event -> event.getLevel() == Level.WARN &&
 						event.getFormattedMessage().contains("cache." + property)

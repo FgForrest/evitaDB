@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.identity;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -36,16 +37,17 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Detached ordered immutable bucket values. Unsupported values are replaced by an opaque marker.
+ * Detached ordered bucket values. Unsupported values are replaced by an opaque marker.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@Immutable
 public final class ValueList {
 	/** Detached supported values; unsupported objects are never retained. */
 	private final Object[] values;
 	/** Precomputed content hash. */
 	private final long hash64;
-	/** Retained content weight. */
+	/** Retained content weight, saturated to `Integer.MAX_VALUE` once any value is unsupported. */
 	private final int weight;
 	/** Whether unsupported values were encountered. */
 	private final boolean opaque;
@@ -80,6 +82,7 @@ public final class ValueList {
 		this.weight = weight;
 		this.opaque = opaque;
 	}
+
 	/** Recognizes only the closed immutable bucket value domain. */
 	private static boolean supported(@Nullable Object value) {
 		return value instanceof String || value instanceof Byte || value instanceof Short ||
@@ -90,6 +93,7 @@ public final class ValueList {
 			value instanceof UUID ||
 			value != null && value.getClass() == BigDecimal.class;
 	}
+
 	/** Hashes one supported value with its type discriminator and no temporary accumulator. */
 	private static long valueHash(@Nonnull Object value) {
 		if (value instanceof final String text) {
@@ -128,47 +132,55 @@ public final class ValueList {
 		}
 		throw new IllegalArgumentException("Unsupported bucket value.");
 	}
+
 	/** Charges supported retained values by content, never assigning unbounded values a unit weight. */
 	private static int valueWeight(@Nonnull Object value) {
 		if (value instanceof final String text) {
-			return 1 + text.length() / 16;
+			return KeyAccumulator.textWeight(text.length());
 		} else if (value instanceof final Locale locale) {
-			return 1 + KeyAccumulator.localeTextLength(locale) / 16;
+			return KeyAccumulator.textWeight(KeyAccumulator.localeTextLength(locale));
 		} else if (value instanceof final Currency currency) {
-			return 1 + currency.getCurrencyCode().length() / 16;
+			return KeyAccumulator.textWeight(currency.getCurrencyCode().length());
 		} else if (value instanceof final BigDecimal decimal) {
-			return 1 + decimal.unscaledValue().bitLength() / 64;
+			return KeyAccumulator.decimalWeight(decimal.unscaledValue());
 		}
 		return 1;
 	}
+
 	/** Returns the number of bucket values. */
 	public int size() {
 		return this.values.length;
 	}
+
 	/** Returns the precomputed content hash. */
 	public long hash64() {
 		return this.hash64;
 	}
+
 	/** Returns content-sensitive retained weight. */
 	public int weight() {
 		return this.weight;
 	}
+
 	/** Reports unsupported values. */
 	public boolean isOpaque() {
 		return this.opaque;
 	}
+
 	/** Refuses cross-query reuse for unsupported values or an oversized sequence. */
 	public boolean isQueryLocal() {
 		return this.opaque || size() > TokenList.CAP;
 	}
+
 	/** Compares normalized ordered values. */
 	@Override
 	public boolean equals(@Nullable Object other) {
 		return this == other || other instanceof final ValueList that && Arrays.equals(this.values, that.values);
 	}
+
 	/** Folds the precomputed hash. */
 	@Override
 	public int hashCode() {
-		return (int) (this.hash64 ^ (this.hash64 >>> 32));
+		return Long.hashCode(this.hash64);
 	}
 }

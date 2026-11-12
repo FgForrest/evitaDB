@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.algebra.identity;
 
+import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.identity.CloneOutcome;
 import io.evitadb.test.identity.ClonePath;
@@ -33,6 +35,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,7 +49,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.TEST_HARNESS;
@@ -59,20 +66,123 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(TEST_HARNESS)
 @Tag(CACHE)
 class IdentityContractVerifierTest implements EvitaTestSupport {
+	/** Correct-holder variant whose operand list exceeds the cross-query admission limit. */
+	private static final Map<String, Supplier<CorrectIdentityHolder>> OVERSIZED = Map.of(
+		"oversized", () -> new CorrectIdentityHolder(1, TokenList.ofProducerIds(new long[TokenList.CAP + 1], false))
+	);
+
 	/** Verifies a complete value identity, field transplant and declared equal clone. */
 	@Test
 	@DisplayName("Accepts a correct value holder")
 	void shouldAcceptCorrectHolder() {
-		IdentityContractVerifier.verify(CorrectIdentityHolder.class, () -> Map.of("value", new ConstructionMode<>(
-			() -> new CorrectIdentityHolder(1), Map.of(
-				"value", () -> new CorrectIdentityHolder(2),
-				"tokens", () -> new CorrectIdentityHolder(1, TokenList.ofProducerIds(new long[]{2}, false))
-			), Map.of(), Map.of("oversized", () -> new CorrectIdentityHolder(
-				1, TokenList.ofProducerIds(new long[TokenList.CAP + 1], false)
-			)), Map.of("copy", new ClonePath<>(
-				holder -> new CorrectIdentityHolder(holder.value, holder.tokens), CloneOutcome.EQUAL)),
-			Set.of(), Set.of()
-		)));
+		IdentityContractVerifier.verify(CorrectIdentityHolder.class, correctHolderFixture(OVERSIZED, Map.of(
+			"copy", new ClonePath<>(
+				holder -> new CorrectIdentityHolder(holder.value, holder.tokens), CloneOutcome.EQUAL
+			)
+		), Set.of()));
+	}
+
+	/** Verifies a clone declared equal cannot move the key. */
+	@Test
+	@DisplayName("Detects an equal-declared clone that moves the key through check 7")
+	void shouldDetectEqualDeclaredCloneMovingKey() {
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			CorrectIdentityHolder.class, correctHolderFixture(OVERSIZED, Map.of("equal-declared", new ClonePath<>(
+				holder -> new CorrectIdentityHolder(holder.value + 1, holder.tokens), CloneOutcome.EQUAL
+			)), Set.of())));
+		assertTrue(error.getMessage().contains("check 7: equal-declared"), error::getMessage);
+	}
+
+	/** Verifies a clone declared unequal cannot keep the key. */
+	@Test
+	@DisplayName("Detects an unequal-declared clone that keeps the key through check 7")
+	void shouldDetectUnequalDeclaredCloneKeepingKey() {
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			CorrectIdentityHolder.class, correctHolderFixture(OVERSIZED, Map.of("unequal-declared", new ClonePath<>(
+				holder -> new CorrectIdentityHolder(holder.value, holder.tokens), CloneOutcome.UNEQUAL
+			)), Set.of())));
+		assertTrue(error.getMessage().contains("check 7: unequal-declared"), error::getMessage);
+	}
+
+	/** Verifies a clone declared rejected must actually refuse to clone. */
+	@Test
+	@DisplayName("Detects a rejected-declared clone that succeeds through check 7")
+	void shouldDetectRejectedDeclaredCloneSucceeding() {
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			CorrectIdentityHolder.class, correctHolderFixture(OVERSIZED, Map.of("rejected-declared", new ClonePath<>(
+				holder -> new CorrectIdentityHolder(holder.value, holder.tokens), CloneOutcome.REJECTED
+			)), Set.of())));
+		assertTrue(error.getMessage().contains("check 7: rejected-declared"), error::getMessage);
+	}
+
+	/** Verifies an opaque clone returning its own holder cannot be declared unequal. */
+	@Test
+	@DisplayName("Detects an opaque self clone declared unequal through check 7")
+	void shouldDetectOpaqueSelfCloneDeclaredUnequal() {
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			OpaqueSelfHolder.class, opaqueFixture(
+				OpaqueSelfHolder::new, new ClonePath<>(holder -> holder, CloneOutcome.UNEQUAL))));
+		assertTrue(error.getMessage().contains("check 7: clone"), error::getMessage);
+	}
+
+	/** Verifies every token component needs a variant that makes it query-local. */
+	@Test
+	@DisplayName("Detects a token component without an oversized variant through check 8")
+	void shouldDetectMissingLocalityVariant() {
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			CorrectIdentityHolder.class, correctHolderFixture(Map.of(), Map.of(), Set.of())));
+		assertTrue(error.getMessage().contains("check 8: no opaque/oversized variant for tokens"), error::getMessage);
+	}
+
+	/** Verifies a component declared always exact cannot become query-local. */
+	@Test
+	@DisplayName("Detects an always-exact component that becomes query-local through check 8")
+	void shouldDetectLocalAlwaysExactComponent() {
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			CorrectIdentityHolder.class, correctHolderFixture(OVERSIZED, Map.of(), Set.of("tokens"))));
+		assertTrue(error.getMessage().contains("check 8: alwaysExact component became query-local: tokens"),
+			error::getMessage);
+	}
+
+	/** Verifies an identity built from a snapshot cannot hide the field it claims to represent. */
+	@Test
+	@DisplayName("Detects a field whose transplant does not move the key through check 4")
+	void shouldDetectFieldNotFeedingIdentity() {
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			SnapshotIdentityHolder.class, valueFixture(() -> new SnapshotIdentityHolder(1),
+				() -> new SnapshotIdentityHolder(2))));
+		assertTrue(error.getMessage().contains("check 4: transplanted field did not move key"), error::getMessage);
+	}
+
+	/** Verifies a field declared derived must be equal whenever the keys are. */
+	@Test
+	@DisplayName("Detects a derived field that differs between equal keys through check 5")
+	void shouldDetectUndeterminedDerivedField() {
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			StampedIdentityHolder.class, valueFixture(() -> new StampedIdentityHolder(1),
+				() -> new StampedIdentityHolder(2))));
+		assertTrue(error.getMessage().contains("check 5: equal keys have different DERIVED field"),
+			error::getMessage);
+	}
+
+	/** Verifies the record's class identifier must match the holder's constant. */
+	@Test
+	@DisplayName("Detects a record class identifier differing from CLASS_ID through check 12")
+	void shouldDetectMislabeledClassId() {
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			MislabeledIdentityHolder.class, valueFixture(() -> new MislabeledIdentityHolder(1),
+				() -> new MislabeledIdentityHolder(2))));
+		assertTrue(error.getMessage().contains("check 12: record classId differs from CLASS_ID"), error::getMessage);
+	}
+
+	/** Verifies components outside the closed value domain are refused. */
+	@Test
+	@DisplayName("Detects a component type outside the closed domain through check 9")
+	void shouldDetectForbiddenComponentType() {
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			RatioIdentityHolder.class, valueFixture(() -> new RatioIdentityHolder(1),
+				() -> new RatioIdentityHolder(2))));
+		assertTrue(error.getMessage().contains("check 9: forbidden component type: double"), error::getMessage);
 	}
 
 	/** Verifies that incomplete variants cannot make an identity contract vacuously pass. */
@@ -136,18 +246,75 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 		assertTrue(error.getMessage().contains("check 9"), error::getMessage);
 	}
 
-	/** Checks all Java line terminators when stripping a leading line comment. */
+	/** Lists the Java line terminators by name, keeping control characters out of the test display names. */
+	@Nonnull
+	static Stream<Arguments> lineTerminators() {
+		return Stream.of(Arguments.of("CR", "\r"), Arguments.of("LF", "\n"), Arguments.of("CRLF", "\r\n"));
+	}
+
+	/** Checks every Java line terminator when stripping a leading line comment. */
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("lineTerminators")
+	@DisplayName("Discovers source after a line comment")
+	void shouldRecognizeLineTerminators(
+		@Nonnull String name, @Nonnull String terminator, @TempDir @Nonnull Path sourceRoot
+	) throws IOException {
+		Files.writeString(sourceRoot.resolve("Missing.java"), "// header" + terminator +
+			"package missing;" + terminator + "class Missing {}" + terminator);
+
+		final AssertionError error = assertThrows(AssertionError.class,
+			() -> IdentityContractVerifier.discover(sourceRoot));
+		assertTrue(error.getMessage().contains("Cannot load discovered source class missing.Missing"),
+			error::getMessage);
+	}
+
+	/** Checks that literal and comment contents cannot derail the source parser. */
 	@Test
-	@DisplayName("Discovers source after CR, LF and CRLF line comments")
-	void shouldRecognizeLineTerminators(@TempDir @Nonnull Path sourceRoot) throws IOException {
-		for (final String terminator : List.of("\r", "\n", "\r\n")) {
-			Files.writeString(sourceRoot.resolve("Missing.java"), "// header" + terminator +
-				"package missing;" + terminator + "class Missing {}" + terminator);
-			final AssertionError error = assertThrows(AssertionError.class,
-				() -> IdentityContractVerifier.discover(sourceRoot));
-			assertTrue(error.getMessage().contains("Cannot load discovered source class missing.Missing"),
-				error::getMessage);
-		}
+	@DisplayName("Parses text blocks, character literals and comments containing quotes")
+	void shouldParseQuotesInsideLiteralsAndComments(@TempDir @Nonnull Path sourceRoot) throws IOException {
+		Files.writeString(sourceRoot.resolve("IdentityContractVerifierTest.java"), """
+			package io.evitadb.core.query.algebra.identity;
+			class IdentityContractVerifierTest {
+				String block = \"""
+					text with "quotes" and an apostrophe's mark
+					\""";
+				// a comment that isn't closed by its apostrophe
+				char quote = '"';
+				char apostrophe = '\\'';
+				String url = "http://localhost/*";
+				/* a comment with a " quote */
+				void sealed() { }
+			}
+			""");
+
+		assertTrue(IdentityContractVerifier.discover(sourceRoot).isEmpty());
+	}
+
+	/** Checks the inventory keeps concrete holders of the primary root only, including named nested classes. */
+	@Test
+	@DisplayName("Inventories concrete holders of the primary root only")
+	void shouldInventoryConcreteHoldersOfPrimaryRoot(@TempDir @Nonnull Path temporary) throws IOException {
+		final Path primary = Files.createDirectories(temporary.resolve("primary"));
+		final Path related = Files.createDirectories(temporary.resolve("related"));
+		Files.writeString(primary.resolve("ConstantFormula.java"),
+			"package io.evitadb.core.query.algebra.base;\npublic class ConstantFormula {}\n");
+		Files.writeString(primary.resolve("AbstractFormula.java"),
+			"package io.evitadb.core.query.algebra;\npublic abstract class AbstractFormula {}\n");
+		Files.writeString(primary.resolve("Formula.java"),
+			"package io.evitadb.core.query.algebra;\npublic interface Formula {}\n");
+		Files.writeString(primary.resolve("HierarchyFilteringPredicate.java"), """
+			package io.evitadb.index.hierarchy.predicate;
+			public interface HierarchyFilteringPredicate {
+				class AndHierarchyFilteringPredicate {}
+			}
+			""");
+		Files.writeString(related.resolve("AndFormula.java"),
+			"package io.evitadb.core.query.algebra.base;\npublic class AndFormula {}\n");
+
+		assertEquals(
+			Set.of(ConstantFormula.class, HierarchyFilteringPredicate.AndHierarchyFilteringPredicate.class),
+			IdentityContractVerifier.discover(primary, related)
+		);
 	}
 
 	/** Verifies the field inventory cannot silently ignore a new holder input. */
@@ -172,7 +339,8 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 			}, CloneOutcome.UNEQUAL));
 		final AssertionError error = assertThrows(AssertionError.class,
 			() -> IdentityContractVerifier.verify(OpaqueAllocatingHolder.class, fixture));
-		assertTrue(error.getMessage().contains("check 8: newly allocated opaque clone"), error::getMessage);
+		assertTrue(error.getMessage().contains("check 8: newly allocated opaque clone compares equal"),
+			error::getMessage);
 	}
 
 	/** Verifies the same allocating path passes when the clone binds to its new owner. */
@@ -238,6 +406,21 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.discover(
 			sourceRoot, getRootDirectory().resolve("evita_engine/src/main/java")));
 		assertTrue(error.getMessage().contains("Local identity holder"), error::getMessage);
+	}
+
+	/** Builds the correct holder's complete value mode with the given oversized variants, clones and exact parts. */
+	@Nonnull
+	private static IdentityFixture<CorrectIdentityHolder> correctHolderFixture(
+		@Nonnull Map<String, Supplier<CorrectIdentityHolder>> oversizedVariants,
+		@Nonnull Map<String, ClonePath<CorrectIdentityHolder>> clonePaths,
+		@Nonnull Set<String> alwaysExact
+	) {
+		return () -> Map.of("value", new ConstructionMode<>(
+			() -> new CorrectIdentityHolder(1), Map.of(
+				"value", () -> new CorrectIdentityHolder(2),
+				"tokens", () -> new CorrectIdentityHolder(1, TokenList.ofProducerIds(new long[]{2}, false))
+			), Map.of(), oversizedVariants, clonePaths, Set.of(), alwaysExact
+		));
 	}
 
 	/** Builds a fixture that varies the only value component. */
@@ -410,7 +593,9 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 			/** Returns the holder identifier. */
 			@Override public long classId() { return CLASS_ID; }
 			/** Describes the list content. */
-			@Override public void describeTo(@Nonnull KeyAccumulator accumulator) { accumulator.addStrings(this.values); }
+			@Override public void describeTo(@Nonnull KeyAccumulator accumulator) {
+				accumulator.addStrings(this.values);
+			}
 		}
 	}
 
@@ -445,6 +630,148 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 			/** Returns the owning holder's identifier. */
 			@Override public long classId() { return CLASS_ID; }
 			/** Includes the declared input component. */
+			@Override public void describeTo(@Nonnull KeyAccumulator accumulator) { accumulator.add(this.value); }
+		}
+	}
+
+	/**
+	 * Defective holder whose identity reads a constructor-time snapshot instead of the field it claims to represent.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private static final class SnapshotIdentityHolder {
+		/** Stable holder identifier. */
+		private static final long CLASS_ID = 4983150720710203257L;
+		/** Input matching the identity component by name, deliberately never read by the identity. */
+		private final int value;
+		/** Copy of the input taken at construction; a later change of the input does not reach it. */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
+		private final int snapshot;
+		/** Captures the input and its snapshot. */
+		private SnapshotIdentityHolder(int value) { this.value = value; this.snapshot = value; }
+		/** Returns an identity built from the snapshot. */
+		@Nonnull private IdentityRecord identity() { return new Identity(this.snapshot); }
+		/** Returns this holder's identifier. */
+		private long getClassId() { return CLASS_ID; }
+		/** Builds the detached key. */
+		@Nonnull private FormulaKey getKey() {
+			return FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+		}
+		/**
+		 * Input value as captured by the snapshot.
+		 *
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		private record Identity(int value) implements IdentityRecord {
+			/** Returns the owning holder's identifier. */
+			@Override public long classId() { return CLASS_ID; }
+			/** Includes the input component. */
+			@Override public void describeTo(@Nonnull KeyAccumulator accumulator) { accumulator.add(this.value); }
+		}
+	}
+
+	/**
+	 * Defective holder with a field declared derived that differs between holders with equal keys.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private static final class StampedIdentityHolder {
+		/** Stable holder identifier. */
+		private static final long CLASS_ID = 8158553858646080118L;
+		/** Counts constructions, so every holder gets a different stamp. */
+		private static final AtomicInteger CONSTRUCTIONS = new AtomicInteger();
+		/** Input represented directly in the identity. */
+		private final int value;
+		/** Declared derived although no identity component determines it. */
+		@IdentityExempt(IdentityExempt.Reason.DERIVED)
+		private final int stamp;
+		/** Captures the input and stamps the construction. */
+		private StampedIdentityHolder(int value) { this.value = value; this.stamp = CONSTRUCTIONS.incrementAndGet(); }
+		/** Returns the input identity. */
+		@Nonnull private IdentityRecord identity() { return new Identity(this.value); }
+		/** Returns this holder's identifier. */
+		private long getClassId() { return CLASS_ID; }
+		/** Builds the detached key. */
+		@Nonnull private FormulaKey getKey() {
+			return FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+		}
+		/**
+		 * Complete input value.
+		 *
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		private record Identity(int value) implements IdentityRecord {
+			/** Returns the owning holder's identifier. */
+			@Override public long classId() { return CLASS_ID; }
+			/** Includes the input component. */
+			@Override public void describeTo(@Nonnull KeyAccumulator accumulator) { accumulator.add(this.value); }
+		}
+	}
+
+	/**
+	 * Defective holder whose identity and key carry a class identifier other than its `CLASS_ID` constant.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private static final class MislabeledIdentityHolder {
+		/** Stable holder identifier that the identity deliberately does not use. */
+		private static final long CLASS_ID = 413462203321305713L;
+		/** Input represented directly in the identity. */
+		private final int value;
+		/** Captures the input. */
+		private MislabeledIdentityHolder(int value) { this.value = value; }
+		/** Returns the mislabeled identity. */
+		@Nonnull private IdentityRecord identity() { return new Identity(this.value); }
+		/** Returns the identity's identifier rather than the declared constant. */
+		private long getClassId() { return CLASS_ID + 1; }
+		/** Builds the detached key under the mislabeled identifier. */
+		@Nonnull private FormulaKey getKey() {
+			return FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+		}
+		/**
+		 * Complete input value under an identifier other than the holder's constant.
+		 *
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		private record Identity(int value) implements IdentityRecord {
+			/** Returns an identifier that differs from the holder's constant. */
+			@Override public long classId() { return CLASS_ID + 1; }
+			/** Includes the input component. */
+			@Override public void describeTo(@Nonnull KeyAccumulator accumulator) { accumulator.add(this.value); }
+		}
+	}
+
+	/**
+	 * Defective holder whose identity carries a floating-point component outside the closed value domain.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private static final class RatioIdentityHolder {
+		/** Stable holder identifier. */
+		private static final long CLASS_ID = -1519163504097783874L;
+		/** Input represented directly in the identity. */
+		private final int value;
+		/** Constant input of a type the identity domain does not admit. */
+		private final double ratio;
+		/** Captures the input with a constant ratio. */
+		private RatioIdentityHolder(int value) { this.value = value; this.ratio = 0.5d; }
+		/** Returns the identity with the forbidden component. */
+		@Nonnull private IdentityRecord identity() { return new Identity(this.value, this.ratio); }
+		/** Returns this holder's identifier. */
+		private long getClassId() { return CLASS_ID; }
+		/** Builds the detached key. */
+		@Nonnull private FormulaKey getKey() {
+			return FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+		}
+		/**
+		 * Input value with a floating-point component, which no accumulator overload describes.
+		 *
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		private record Identity(int value, double ratio) implements IdentityRecord {
+			/** Returns the owning holder's identifier. */
+			@Override public long classId() { return CLASS_ID; }
+			/** Includes the input component only; the ratio has no accumulator overload. */
 			@Override public void describeTo(@Nonnull KeyAccumulator accumulator) { accumulator.add(this.value); }
 		}
 	}

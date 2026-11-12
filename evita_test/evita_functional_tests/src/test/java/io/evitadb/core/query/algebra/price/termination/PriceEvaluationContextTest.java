@@ -39,13 +39,16 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Currency;
+import java.util.List;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.PRICE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -203,24 +206,34 @@ class PriceEvaluationContextTest {
 			);
 		}
 	}
-	/** Checks list value equality and defensive copies from both constructor forms. */
-	@Test
-	@DisplayName("Compares independently constructed ordered index values and owns its list")
-	void shouldOwnOrderedIndexValues() {
-		final PriceIndexKey first = new PriceIndexKey("basic", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE);
-		final PriceIndexKey second = new PriceIndexKey("sale", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE);
-		final PriceIndexKey[] array = {first, second};
-		final PriceEvaluationContext context = new PriceEvaluationContext(7L, array);
-		array[0] = second;
-		final java.util.List<PriceIndexKey> list = new java.util.ArrayList<>(java.util.List.of(first, second));
-		final PriceEvaluationContext equal = new PriceEvaluationContext(7L, list);
-		list.clear();
-		assertEquals(context, equal);
-		assertEquals(context.hashCode(), equal.hashCode());
-		assertEquals(context.computeHash(HASH_FUNCTION), equal.computeHash(HASH_FUNCTION));
-		assertNotEquals(context, new PriceEvaluationContext(7L, second, first));
-		org.junit.jupiter.api.Assertions.assertThrows(UnsupportedOperationException.class,
-			() -> context.targetPriceIndexes().clear());
+
+	@Nested
+	@DisplayName("Target price indexes as an ordered value")
+	class TargetIndexesTest {
+
+		/** Checks list value equality and defensive copies from both constructor forms. */
+		@Test
+		@DisplayName("Compares independently constructed ordered index values and owns its list")
+		void shouldOwnOrderedIndexValues() {
+			final PriceIndexKey first = new PriceIndexKey(
+				"basic", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE
+			);
+			final PriceIndexKey second = new PriceIndexKey(
+				"sale", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE
+			);
+			final PriceIndexKey[] array = {first, second};
+			final PriceEvaluationContext context = new PriceEvaluationContext(7L, array);
+			array[0] = second;
+			final List<PriceIndexKey> list = new ArrayList<>(List.of(first, second));
+			final PriceEvaluationContext equal = new PriceEvaluationContext(7L, list);
+			list.clear();
+
+			assertEquals(context, equal);
+			assertEquals(context.hashCode(), equal.hashCode());
+			assertEquals(context.computeHash(HASH_FUNCTION), equal.computeHash(HASH_FUNCTION));
+			assertNotEquals(context, new PriceEvaluationContext(7L, second, first));
+			assertThrows(UnsupportedOperationException.class, () -> context.targetPriceIndexes().clear());
+		}
 	}
 
 }

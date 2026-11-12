@@ -80,16 +80,19 @@ public sealed interface IdentityToken permits IdentityToken.ProducerId, Identity
 		public ProducerId {
 			Objects.requireNonNull(role);
 		}
+
 		/** Hashes both producer and role. */
 		@Override
 		public long hash64() {
-			return KeyAccumulator.mix(KeyAccumulator.mix(1, this.id), this.role.ordinal());
+			return KeyAccumulator.producerHash(this.id, this.role);
 		}
+
 		/** A producer identifier occupies one weight unit. */
 		@Override
 		public int weight() {
 			return 1;
 		}
+
 		/** Producer identifiers are exact. */
 		@Override
 		public boolean isOpaque() {
@@ -108,16 +111,19 @@ public sealed interface IdentityToken permits IdentityToken.ProducerId, Identity
 		public Exact {
 			Objects.requireNonNull(values);
 		}
+
 		/** Distinguishes content from producer identifiers. */
 		@Override
 		public long hash64() {
 			return KeyAccumulator.mix(2, this.values.hash64());
 		}
+
 		/** Charges every retained integer. */
 		@Override
 		public int weight() {
 			return this.values.size();
 		}
+
 		/** Bounded copied content is exact. */
 		@Override
 		public boolean isOpaque() {
@@ -136,16 +142,19 @@ public sealed interface IdentityToken permits IdentityToken.ProducerId, Identity
 		/** Prevents creation of additional markers. */
 		private Opaque() {
 		}
+
 		/** Returns the opaque kind discriminator. */
 		@Override
 		public long hash64() {
 			return 3;
 		}
+
 		/** Charges the marker reference. */
 		@Override
 		public int weight() {
 			return 1;
 		}
+
 		/** Opaque operands bind their key to its owner. */
 		@Override
 		public boolean isOpaque() {

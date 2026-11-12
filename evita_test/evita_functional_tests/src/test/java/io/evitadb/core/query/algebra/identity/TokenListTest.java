@@ -23,16 +23,18 @@
 
 package io.evitadb.core.query.algebra.identity;
 
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.CACHE;
-import static org.junit.jupiter.api.Assertions.*;
-
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import java.util.Arrays;
+
+import static io.evitadb.test.TestTags.CACHE;
+import static io.evitadb.test.TestTags.ENGINE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies ordered and canonical operand sequences and admission limits.
@@ -61,6 +63,7 @@ class TokenListTest {
 		assertFalse(canonical.isOpaque());
 		assertFalse(canonical.isQueryLocal());
 	}
+
 	/** Checks primitive storage and exact oversized sequences. */
 	@Test
 	@DisplayName("Copies producer ids and keeps oversized lists exact")
@@ -78,12 +81,13 @@ class TokenListTest {
 		assertEquals(TokenList.ofProducerIds(new long[]{bitmap.getId()}, false),
 			TokenList.ordered(new Bitmap[]{bitmap}));
 	}
+
 	/** Checks that large unowned operands make the sequence opaque. */
 	@Test
 	@DisplayName("Propagates opaque bitmap operands")
 	void shouldPropagateOpaqueOperands() {
 		final int[] content = new int[IdentityToken.CONTENT_LIMIT + 1];
-		java.util.Arrays.setAll(content, index -> index);
+		Arrays.setAll(content, index -> index);
 		final TokenList tokens = TokenList.ordered(new Bitmap[]{new BaseBitmap(content)});
 		assertTrue(tokens.isOpaque());
 		assertTrue(tokens.isQueryLocal());

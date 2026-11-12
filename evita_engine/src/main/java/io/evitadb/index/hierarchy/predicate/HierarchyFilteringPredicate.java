@@ -24,13 +24,12 @@
 package io.evitadb.index.hierarchy.predicate;
 
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.utils.Assert;
-import lombok.Getter;
-
 import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.Assert;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -63,7 +62,6 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 	default IdentityRecord identity() {
 		throw new GenericEvitaInternalError("Identity not declared: " + getClass().getName());
 	}
-
 
 	HierarchyFilteringPredicate REJECT_ALL_NODES_PREDICATE = new HierarchyFilteringRejectAllPredicate();
 	HierarchyFilteringPredicate ACCEPT_ALL_NODES_PREDICATE = new HierarchyFilteringAcceptAllPredicate();
