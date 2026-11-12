@@ -67,6 +67,10 @@ import io.evitadb.spi.store.catalog.chunk.ExpressionBasedSlicer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.RandomUtils;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -537,14 +541,7 @@ public class QueryPlanner {
 			return new DeferredFormula(
 				new FormulaWrapper(
 					nestedFormula,
-					(executionContext, formula) -> {
-						try {
-							executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
-							return formula.compute();
-						} finally {
-							executionContext.popStep();
-						}
-					}
+					stepDescriptionSupplier
 				)
 			);
 		} finally {
@@ -771,6 +768,7 @@ public class QueryPlanner {
 		/**
 		 * This formula represents the real formula to compute the negated set.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		@Getter private final Formula innerFormula;
 
 		/**
@@ -969,6 +967,34 @@ public class QueryPlanner {
 		protected Bitmap computeInternal() {
 			throw new UnsupportedOperationException(ERROR_TEMPORARY);
 		}
+
+		/** Returns detached inputs without computing the bitmap. */
+		@Nonnull
+		@Override
+		protected IdentityRecord identity() {
+			return new Identity(this.innerFormula.getKey());
+		}
+
+		/**
+		 * Detached computation inputs.
+		 *
+		 * @param innerFormula detached innerFormula input
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		public record Identity(@Nonnull FormulaKey innerFormula) implements IdentityRecord {
+			/** Returns the declaring holder identifier. */
+			@Override
+			public long classId() {
+				return CLASS_ID;
+			}
+
+			/** Includes every input in declaration order. */
+			@Override
+			public void describeTo(@Nonnull KeyAccumulator accumulator) {
+				accumulator.add(this.innerFormula);
+			}
+		}
+
 	}
 
 	/**

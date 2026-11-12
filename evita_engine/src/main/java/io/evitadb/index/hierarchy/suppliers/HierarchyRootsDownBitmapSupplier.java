@@ -29,6 +29,11 @@ import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -45,6 +50,7 @@ public class HierarchyRootsDownBitmapSupplier extends AbstractHierarchyBitmapSup
 	/**
 	 * Contains set of entity primary keys whose subtrees should be excluded from listing.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final @Nonnull HierarchyFilteringPredicate excludedNodeTrees;
 
 	public HierarchyRootsDownBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex, long[] transactionalId, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
@@ -83,4 +89,40 @@ public class HierarchyRootsDownBitmapSupplier extends AbstractHierarchyBitmapSup
 		return "HIERARCHY FOR ROOTS " + this.excludedNodeTrees + " DOWN";
 	}
 
+
+	/** Returns detached inputs without computing the bitmap. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.excludedNodeTrees.getKey(), getHierarchyIndexIdentityToken());
+	}
+
+	/** Returns the stable holder discriminator. */
+	@Override
+	protected long getClassId() {
+		return CLASS_ID;
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param excludedNodeTrees detached excludedNodeTrees input
+	 * @param hierarchyIndex detached hierarchyIndex input
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull FormulaKey excludedNodeTrees,
+		@Nonnull IdentityToken hierarchyIndex) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.excludedNodeTrees);
+			accumulator.add(this.hierarchyIndex);
+		}
+	}
 }

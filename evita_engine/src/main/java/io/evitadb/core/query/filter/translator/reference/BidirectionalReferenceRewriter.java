@@ -946,16 +946,7 @@ public class BidirectionalReferenceRewriter {
 		return new DeferredFormula(
 			new FormulaWrapper(
 				nestedFormula,
-				(executionContext, formula) -> {
-					try {
-						executionContext.pushStep(
-							QueryPhase.EXECUTION_FILTER_NESTED_QUERY, () -> nestedQueryDescription
-						);
-						return formula.compute();
-					} finally {
-						executionContext.popStep();
-					}
-				}
+				() -> nestedQueryDescription
 			)
 		);
 	}

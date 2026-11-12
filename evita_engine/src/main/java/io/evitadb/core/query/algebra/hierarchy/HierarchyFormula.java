@@ -34,6 +34,10 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -143,5 +147,32 @@ public class HierarchyFormula extends AbstractFormula implements ChildrenDepende
 		return this.referenceName == null
 			? "HIERARCHY: " + this.innerFormulas[0].toStringVerbose()
 			: "HIERARCHY (" + this.referenceName + "): " + this.innerFormulas[0].toStringVerbose();
+	}
+
+	/** Returns detached inputs without computing the bitmap. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.referenceName);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param referenceName detached referenceName input
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nullable String referenceName) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.referenceName);
+		}
 	}
 }
