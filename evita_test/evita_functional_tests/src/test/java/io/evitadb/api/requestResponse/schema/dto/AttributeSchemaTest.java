@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
@@ -39,15 +40,22 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -615,31 +623,68 @@ class AttributeSchemaTest {
 		}
 
 		@Test
+		@DisplayName("should not be equal to null or to an object of another type")
+		void shouldNotBeEqualToNullOrForeignObject() {
+			final AttributeSchema schema = AttributeSchema._internalBuild(
+				"code", String.class, false, ConflictResolutionOverride.INHERITED
+			);
+
+			// the schema goes first, so that its own `equals` is the one called
+			assertNotEquals(schema, null);
+			assertNotEquals(schema, "code");
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("singleTraitChanges")
+		@DisplayName("should not be equal when a single trait of the definition differs")
+		void shouldNotBeEqualWhenSingleTraitDiffers(@Nonnull String trait, @Nonnull Consumer<SchemaDefinition> change) {
+			final SchemaDefinition changedDefinition = new SchemaDefinition();
+			change.accept(changedDefinition);
+			final AttributeSchema base = new SchemaDefinition().build();
+			final AttributeSchema changed = changedDefinition.build();
+
+			// two schemas of the unchanged definition are equal, so the inequality below is the changed trait's alone
+			assertEquals(base, new SchemaDefinition().build());
+			assertNotEquals(base, changed, trait);
+			assertNotEquals(changed, base, trait);
+		}
+
+		@Test
 		@DisplayName("should be equal only to a schema of its own class, in both directions")
 		void shouldBeEqualOnlyToSchemaOfItsOwnClass() {
-			final AttributeSchema[] schemas = {
-				AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED),
-				EntityAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED),
-				GlobalAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED)
-			};
-			final AttributeSchema[] twins = {
-				AttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED),
-				EntityAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED),
-				GlobalAttributeSchema._internalBuild("code", String.class, false, ConflictResolutionOverride.INHERITED)
-			};
+			final AttributeSchema plain = AttributeSchema._internalBuild(
+				"code", String.class, false, ConflictResolutionOverride.INHERITED
+			);
+			final AttributeSchema entity = EntityAttributeSchema._internalBuild(
+				"code", String.class, false, ConflictResolutionOverride.INHERITED
+			);
+			final AttributeSchema global = GlobalAttributeSchema._internalBuild(
+				"code", String.class, false, ConflictResolutionOverride.INHERITED
+			);
+			final AttributeSchema plainTwin = AttributeSchema._internalBuild(
+				"code", String.class, false, ConflictResolutionOverride.INHERITED
+			);
+			final AttributeSchema entityTwin = EntityAttributeSchema._internalBuild(
+				"code", String.class, false, ConflictResolutionOverride.INHERITED
+			);
+			final AttributeSchema globalTwin = GlobalAttributeSchema._internalBuild(
+				"code", String.class, false, ConflictResolutionOverride.INHERITED
+			);
 
-			for (int i = 0; i < schemas.length; i++) {
-				for (int j = 0; j < twins.length; j++) {
-					final String pair = schemas[i].getClass().getSimpleName() + " vs " +
-						twins[j].getClass().getSimpleName();
-					if (i == j) {
-						assertEquals(schemas[i], twins[j], pair);
-						assertEquals(schemas[i].hashCode(), twins[j].hashCode(), pair);
-					} else {
-						assertNotEquals(schemas[i], twins[j], pair);
-					}
-				}
-			}
+			assertAll(
+				() -> assertEquals(plain, plainTwin, "AttributeSchema vs AttributeSchema"),
+				() -> assertEquals(plain.hashCode(), plainTwin.hashCode(), "hash code of AttributeSchema"),
+				() -> assertEquals(entity, entityTwin, "EntityAttributeSchema vs EntityAttributeSchema"),
+				() -> assertEquals(entity.hashCode(), entityTwin.hashCode(), "hash code of EntityAttributeSchema"),
+				() -> assertEquals(global, globalTwin, "GlobalAttributeSchema vs GlobalAttributeSchema"),
+				() -> assertEquals(global.hashCode(), globalTwin.hashCode(), "hash code of GlobalAttributeSchema"),
+				() -> assertNotEquals(plain, entityTwin, "AttributeSchema vs EntityAttributeSchema"),
+				() -> assertNotEquals(plain, globalTwin, "AttributeSchema vs GlobalAttributeSchema"),
+				() -> assertNotEquals(entity, plainTwin, "EntityAttributeSchema vs AttributeSchema"),
+				() -> assertNotEquals(entity, globalTwin, "EntityAttributeSchema vs GlobalAttributeSchema"),
+				() -> assertNotEquals(global, plainTwin, "GlobalAttributeSchema vs AttributeSchema"),
+				() -> assertNotEquals(global, entityTwin, "GlobalAttributeSchema vs EntityAttributeSchema")
+			);
 		}
 
 		@Test
@@ -670,6 +715,82 @@ class AttributeSchemaTest {
 			assertEquals(b, a);
 			assertEquals(a.hashCode(), b.hashCode());
 			assertNotEquals(a, stringArrayAttribute(new String[]{"a", "c"}));
+		}
+
+		@Test
+		@DisplayName("should not be equal when date-time range default values differ only in the zone offset")
+		void shouldNotBeEqualWhenDateTimeRangeDefaultValuesDifferOnlyInOffset() {
+			final LocalDateTime noon = LocalDateTime.of(2024, 1, 1, 12, 0);
+			final DateTimeRange atTwo = DateTimeRange.between(
+				noon.atOffset(ZoneOffset.ofHours(2)), noon.plusHours(1).atOffset(ZoneOffset.ofHours(2))
+			);
+			final DateTimeRange atOne = DateTimeRange.between(
+				noon.minusHours(1).atOffset(ZoneOffset.ofHours(1)), noon.atOffset(ZoneOffset.ofHours(1))
+			);
+			// the ranges themselves are equal, because they name the same instants
+			assertEquals(atTwo, atOne);
+
+			assertNotEquals(dateTimeRangeAttribute(atTwo), dateTimeRangeAttribute(atOne));
+			assertNotEquals(dateTimeRangeAttribute(atOne), dateTimeRangeAttribute(atTwo));
+		}
+
+		/**
+		 * Returns changes of a single trait of {@link SchemaDefinition}, each changing exactly one field the equality
+		 * of an attribute schema compares. The name, the type and the conflict resolution override have tests of their
+		 * own.
+		 *
+		 * @return the name of the trait and the change of the definition
+		 */
+		@Nonnull
+		static Stream<Arguments> singleTraitChanges() {
+			return Stream.of(
+				traitChange("name variants", it -> it.nameVariants = NamingConvention.generate("otherCode")),
+				traitChange("description", it -> it.description = "other description"),
+				traitChange("deprecation notice", it -> it.deprecationNotice = "other deprecation notice"),
+				traitChange("uniqueness", it -> it.uniqueInScopes = null),
+				traitChange("filterability", it -> it.filterableInScopes = new Scope[]{Scope.LIVE, Scope.ARCHIVED}),
+				traitChange(
+					"accelerators",
+					it -> it.acceleratorsInScopes = new ScopedAttributeFilterAccelerators[]{
+						new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+					}
+				),
+				traitChange("sortability", it -> it.sortableInScopes = null),
+				traitChange("localized", it -> it.localized = true),
+				traitChange("nullable", it -> it.nullable = true),
+				traitChange("representative", it -> it.representative = true),
+				traitChange("indexed decimal places", it -> it.indexedDecimalPlaces = 2),
+				traitChange("default value", it -> it.defaultValue = "other"),
+				traitChange("no default value", it -> it.defaultValue = null)
+			);
+		}
+
+		/**
+		 * Pairs the name of a trait with the change of the definition setting it.
+		 *
+		 * @param trait  the name of the trait, used as the name of the test case
+		 * @param change the change of the definition
+		 * @return the arguments of the test case
+		 */
+		@Nonnull
+		private static Arguments traitChange(@Nonnull String trait, @Nonnull Consumer<SchemaDefinition> change) {
+			return Arguments.of(trait, change);
+		}
+
+		/**
+		 * Builds a date-time range attribute holding the default value, with no other trait.
+		 *
+		 * @param defaultValue the default value the attribute holds
+		 * @return the attribute schema
+		 */
+		@Nonnull
+		private static AttributeSchema dateTimeRangeAttribute(@Nonnull DateTimeRange defaultValue) {
+			return AttributeSchema._internalBuild(
+				"range", null, null, null, null,
+				false, false, false,
+				DateTimeRange.class, defaultValue,
+				ConflictResolutionOverride.INHERITED
+			);
 		}
 
 		/**
@@ -718,6 +839,45 @@ class AttributeSchemaTest {
 				String[].class, defaultValue,
 				ConflictResolutionOverride.INHERITED
 			);
+		}
+
+		/**
+		 * Arguments of the full `_internalBuild` form of a unique, filterable and sortable `String` attribute with a
+		 * description, a deprecation notice and a default value. The fields are mutable, so that a test case changes
+		 * exactly one of them. The attribute is a filterable `String` so that an accelerator applies to it.
+		 */
+		private static final class SchemaDefinition {
+			@Nonnull Map<NamingConvention, String> nameVariants = NamingConvention.generate("code");
+			@Nullable String description = "description";
+			@Nullable String deprecationNotice = "deprecation notice";
+			@Nullable ScopedAttributeUniquenessType[] uniqueInScopes = {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			};
+			@Nullable Scope[] filterableInScopes = {Scope.LIVE};
+			@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes = null;
+			@Nullable Scope[] sortableInScopes = {Scope.LIVE};
+			boolean localized;
+			boolean nullable;
+			boolean representative;
+			@Nullable String defaultValue = "abc";
+			int indexedDecimalPlaces;
+
+			/**
+			 * Builds the attribute schema of the definition.
+			 *
+			 * @return the attribute schema
+			 */
+			@Nonnull
+			AttributeSchema build() {
+				return AttributeSchema._internalBuild(
+					"code", this.nameVariants,
+					this.description, this.deprecationNotice,
+					this.uniqueInScopes, this.filterableInScopes, this.acceleratorsInScopes, this.sortableInScopes,
+					this.localized, this.nullable, this.representative,
+					String.class, this.defaultValue, this.indexedDecimalPlaces,
+					ConflictResolutionOverride.INHERITED
+				);
+			}
 		}
 	}
 

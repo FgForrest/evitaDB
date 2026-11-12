@@ -170,7 +170,8 @@ class RangeAttributeDefaultValueFunctionalTest implements EvitaTestSupport {
 			}
 		);
 		this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::goLiveAndClose);
-		// a fixture fault must not pass for the change being swallowed
+		// pin the starting default values: without it a test expecting the replacement would pass on a fixture already
+		// holding the new range, and a test expecting no change would blame the change for a fault of the fixture
 		assertAll(entityDefaultValueIs("[10,20]", 0));
 		assertAll(globalDefaultValueIs("[10,20]", 0));
 		assertAll(unusedGlobalDefaultValueIs("[10,20]", 0));

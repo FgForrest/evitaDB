@@ -803,9 +803,13 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	}
 
 	/**
-	 * Returns `true` when the other object may be equal to this attribute schema. The subclasses override it to accept
-	 * only their own class, which keeps {@link #equals(Object)} symmetric: an attribute schema is never equal to an
+	 * Returns `true` when the other object may be equal to this attribute schema. Each subclass overrides it to accept
+	 * only its own class, which keeps {@link #equals(Object)} symmetric: an attribute schema is never equal to an
 	 * instance of another class of the hierarchy, in either direction.
+	 *
+	 * The overrides of {@link EntityAttributeSchema} and {@link GlobalAttributeSchema} do not appear in their source -
+	 * Lombok's `@EqualsAndHashCode(callSuper = true)` generates them. A new permitted subclass needs the same override,
+	 * otherwise its instances are equal to the plain attribute schemas of the same definition.
 	 *
 	 * @param other the object {@link #equals(Object)} compares with
 	 * @return `true` when the other object is an attribute schema
@@ -815,8 +819,10 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	}
 
 	/**
-	 * Returns a hash code consistent with {@link #equals(Object)}. The default value is left out: two default values
-	 * {@link #equals(Object)} finds the same - two arrays of the same items above all - need not share a hash code.
+	 * Returns a hash code consistent with {@link #equals(Object)}. The default value is left out of it, because
+	 * {@link #equals(Object)} compares it by {@link EvitaDataTypes#storedValueDiffers(Serializable, Serializable)},
+	 * which finds two arrays of the same items the same, while the hash code of an array is that of its identity:
+	 * hashing the default value would give two equal schemas different hash codes.
 	 *
 	 * @return the hash code of the attribute schema definition without its default value
 	 */

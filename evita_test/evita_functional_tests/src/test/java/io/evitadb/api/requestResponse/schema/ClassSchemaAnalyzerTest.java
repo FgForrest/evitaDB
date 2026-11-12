@@ -45,6 +45,7 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssoc
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaLocalizedMutation;
@@ -2862,13 +2863,47 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 				// the new range is `equals` to the stored one, because the equality of a range is that of its
 				// encoded bounds
-				session.defineEntitySchemaFromModelClass(GetterBasedEntityDefaultValueEvolutionV2RescaledRange.class);
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityDefaultValueEvolutionV2RescaledRange.class
+				);
+
+				final Optional<ModifyAttributeSchemaDefaultValueMutation> defaultValueMutation =
+					findEntitySchemaMutation(mutations, ModifyAttributeSchemaDefaultValueMutation.class);
+				assertTrue(
+					defaultValueMutation.isPresent(),
+					"Expected ModifyAttributeSchemaDefaultValueMutation but got: " + Arrays.toString(mutations)
+				);
+				assertEquals("range", defaultValueMutation.get().getName());
+				assertEquals("[1.0,2.0]", String.valueOf(defaultValueMutation.get().getDefaultValue()));
 
 				final SealedEntitySchema updatedSchema = session.getEntitySchema(
 						GetterBasedEntityDefaultValueEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertEquals(
 					"[1.0,2.0]", String.valueOf(updatedSchema.getAttribute("range").orElseThrow().getDefaultValue())
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify that analyzing a model with an unchanged range default value again produces no mutations")
+	@Test
+	void shouldProduceNoMutationsWhenRangeDefaultValueIsUnchanged() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityDefaultValueEvolutionV1.class);
+
+				// the getter builds a new instance of the range on every call, so the second analysis compares two
+				// distinct instances of the same range - a mutation follows only when both the analysis and the
+				// `equals` of the rebuilt attribute schema tell them apart
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityDefaultValueEvolutionV1.class
+				);
+
+				assertEquals(
+					0, mutations.length,
+					"Expected no mutations but got: " + Arrays.toString(mutations)
 				);
 			}
 		);

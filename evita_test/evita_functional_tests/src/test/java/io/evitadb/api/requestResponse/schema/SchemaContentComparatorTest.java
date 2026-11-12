@@ -315,6 +315,24 @@ class SchemaContentComparatorTest {
 					)
 			),
 			entityScenario(
+				"range default value of a reference attribute",
+				builder -> builder
+					.withReferenceTo(
+						REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.withAttribute(
+							ATTRIBUTE_RANGE, BigDecimalNumberRange.class,
+							attribute -> attribute.withDefaultValue(oneToTwo())
+						)
+					)
+					.withReferenceTo(
+						REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.withAttribute(
+							ATTRIBUTE_RANGE, BigDecimalNumberRange.class,
+							attribute -> attribute.withDefaultValue(tenToTwenty())
+						)
+					)
+			),
+			entityScenario(
 				"reference",
 				builder -> builder.withReferenceTo(
 					REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
@@ -390,6 +408,20 @@ class SchemaContentComparatorTest {
 		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(this.baseCatalogSchema)
 			.withAttribute(ATTRIBUTE_URL, String.class, GlobalAttributeSchemaEditor::uniqueGlobally)
 			.withAttribute(ATTRIBUTE_URL, String.class, GlobalAttributeSchemaEditor::uniqueGloballyWithinLocale);
+
+		assertEquals(Optional.empty(), builder.toMutation());
+	}
+
+	@DisplayName("emit nothing when the range default value of a global attribute is changed and restored")
+	@Test
+	void shouldEmitNothingWhenGlobalRangeDefaultValueIsRestored() {
+		final CatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(this.baseCatalogSchema)
+			.withAttribute(
+				ATTRIBUTE_GLOBAL_RANGE, BigDecimalNumberRange.class, whichIs -> whichIs.withDefaultValue(oneToTwo())
+			)
+			.withAttribute(
+				ATTRIBUTE_GLOBAL_RANGE, BigDecimalNumberRange.class, whichIs -> whichIs.withDefaultValue(tenToTwenty())
+			);
 
 		assertEquals(Optional.empty(), builder.toMutation());
 	}

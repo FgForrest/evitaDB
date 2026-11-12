@@ -654,7 +654,8 @@ class EvitaClientSchemaRedefinitionTest implements EvitaTestSupport {
 		evitaClient.defineCatalog(catalog);
 		definition.apply(evitaClient, catalog);
 		// in the transactional mode every committed schema mutation advances the catalog version and the catalog schema
-		// version, even one that leaves the entity schema as it was
+		// version, even one that leaves the entity schema as it was - going live first therefore makes a mutation of
+		// a re-definition visible in the versions compared at the end
 		evitaClient.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
 		final RangeHolderVersions definedVersions = readVersionsOnServer(evitaServer, catalog);
 
