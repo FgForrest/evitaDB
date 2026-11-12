@@ -78,7 +78,9 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 						return true;
 					} else {
 						final Serializable otherValue = other.value();
-						return it.dropped() != other.dropped() || QueryUtils.valueDiffers(thisValue, otherValue);
+						return it.dropped() != other.dropped() ||
+							QueryUtils.valueDiffers(thisValue, otherValue) ||
+							EvitaDataTypes.rangeRepresentationDiffers(thisValue, otherValue);
 					}
 				});
 		}
@@ -481,7 +483,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 		public boolean differsFrom(@Nullable AttributeValue otherAttributeValue) {
 			if (otherAttributeValue == null) return true;
 			if (!Objects.equals(this.key, otherAttributeValue.key)) return true;
-			if (!Objects.equals(this.value, otherAttributeValue.value)) return true;
+			if (EvitaDataTypes.storedValueDiffers(this.value, otherAttributeValue.value)) return true;
 			return this.dropped != otherAttributeValue.dropped;
 		}
 

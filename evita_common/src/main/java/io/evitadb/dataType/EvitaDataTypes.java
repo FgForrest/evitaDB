@@ -24,6 +24,9 @@
 package io.evitadb.dataType;
 
 import io.evitadb.dataType.data.DataItem;
+import io.evitadb.dataType.data.DataItemArray;
+import io.evitadb.dataType.data.DataItemMap;
+import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.Expression;
@@ -1254,6 +1257,190 @@ public class EvitaDataTypes {
 		@Nullable Serializable unknownObject
 	) throws UnsupportedDataTypeException {
 		return toSupportedTypeOrItsArray(unknownObject, true);
+	}
+
+	/**
+	 * Returns `true` when a reader of the stored data can tell the two stored values apart - the question the
+	 * "did the value change" checks of the attribute write paths ask before they bump a version or rewrite a stored
+	 * part. It is `equals` with two refinements:
+	 *
+	 * - two values `equals` finds the same are told apart by {@link #rangeRepresentationDiffers(Serializable,
+	 *   Serializable)} when they are ranges, whose `equals` compares the encoded bounds only, or complex data holding
+	 *   such ranges as leaves;
+	 * - arrays are compared element by element under the same rule rather than by identity, so an array holding the
+	 *   very same values is no change.
+	 *
+	 * The method runs on every attribute upsert: a value that is neither an object array, a range nor complex data
+	 * costs one type check and the `equals` call when the values differ, and three more type checks when they are the
+	 * same. Nothing is allocated on that path; complex data `equals` finds the same are walked a second time.
+	 *
+	 * @param existing  the value stored so far, may be `null`
+	 * @param candidate the value about to be stored, may be `null`
+	 * @return `true` when the values are distinguishable, `false` when the candidate stores the very same value
+	 */
+	public static boolean storedValueDiffers(@Nullable Serializable existing, @Nullable Serializable candidate) {
+		if (existing == candidate) {
+			return false;
+		} else if (existing == null || candidate == null) {
+			return true;
+		} else if (existing instanceof Object[] existingArray) {
+			if (!(candidate instanceof Object[] candidateArray) || existingArray.length != candidateArray.length) {
+				return true;
+			}
+			for (int i = 0; i < existingArray.length; i++) {
+				if (storedValueDiffers((Serializable) existingArray[i], (Serializable) candidateArray[i])) {
+					return true;
+				}
+			}
+			return false;
+		} else if (existing.equals(candidate)) {
+			return rangeRepresentationDiffers(existing, candidate);
+		} else {
+			// an array of primitives - which the stored type normalization lets through - has identity equals
+			return !(existing.getClass().isArray() && Objects.deepEquals(existing, candidate));
+		}
+	}
+
+	/**
+	 * Answers the one question the comparisons of the write paths cannot answer with `equals` or `compareTo`: do two
+	 * values those comparisons find the same differ in a range a reader gets back? A {@link Range} compares by its
+	 * encoded bounds, the identity the indexes rely on, so `[1.0,2.0]` equals `[10,20]` and two ranges naming the same
+	 * instants at different zone offsets are equal too. Here two ranges are the same value only when they are of the
+	 * same class, their precise bounds are equal by `equals` (so `1.0` differs from `1.00` and `12:00+02:00` from
+	 * `11:00+01:00`) and, for a {@link BigDecimalNumberRange}, they retain the same effective number of decimal
+	 * places. Arrays of ranges are compared element by element.
+	 *
+	 * {@link ComplexDataObject} compares by its tree of {@link DataItem data items}, so a range leaf anywhere in the
+	 * tree - a property of a {@link DataItemMap}, an item of a {@link DataItemArray}, however deeply nested - carries
+	 * its encoded equality into the equality of the whole object. Complex data are therefore walked leaf by leaf, and
+	 * every pair of {@link DataItemValue} leaves is put the range question. Leaves that are not ranges stay the
+	 * business of the base comparison; trees of a different shape count as told apart, which the base comparison will
+	 * have reported already. An array of DTOs is stored as a single complex object with an array root, which the walk
+	 * covers like any other tree.
+	 *
+	 * The method refines a base comparison that has already found the two values the same and is meant to be
+	 * combined with it - `!equals(a, b) || rangeRepresentationDiffers(a, b)`. For any value that is neither a range,
+	 * complex data nor an array of ranges it returns `false` and leaves the decision to the base comparison, at the
+	 * cost of three type checks and no allocation. Complex data are walked a second time - after `equals` - and the
+	 * walk allocates the iterators of the maps it passes through.
+	 *
+	 * @param existing  the value stored so far, may be `null`
+	 * @param candidate the value about to be stored, may be `null`
+	 * @return `true` when the values are ranges, arrays of ranges or complex data a reader can tell apart
+	 */
+	public static boolean rangeRepresentationDiffers(
+		@Nullable Serializable existing,
+		@Nullable Serializable candidate
+	) {
+		if (existing instanceof Range<?> existingRange) {
+			return !(candidate instanceof Range<?> candidateRange) ||
+				representationDiffers(existingRange, candidateRange);
+		} else if (existing instanceof ComplexDataObject existingObject) {
+			return !(candidate instanceof ComplexDataObject candidateObject) ||
+				rangeLeafDiffers(existingObject.root(), candidateObject.root());
+		} else if (existing instanceof Range<?>[] existingRanges) {
+			if (!(candidate instanceof Range<?>[] candidateRanges) || existingRanges.length != candidateRanges.length) {
+				return true;
+			}
+			for (int i = 0; i < existingRanges.length; i++) {
+				final Range<?> existingRange = existingRanges[i];
+				final Range<?> candidateRange = candidateRanges[i];
+				if (existingRange == null || candidateRange == null) {
+					if (existingRange != candidateRange) {
+						return true;
+					}
+				} else if (representationDiffers(existingRange, candidateRange)) {
+					return true;
+				}
+			}
+			return false;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Walks two trees of complex data in parallel and returns `true` when a pair of their leaves are ranges a reader
+	 * can tell apart (see {@link #rangeRepresentationDiffers(Serializable, Serializable)}) or when the trees differ in
+	 * shape: a different kind of item at the same place, a different number of items or properties, a property missing
+	 * on one side, or a `null` item or leaf value on one side only.
+	 *
+	 * @param existing  the item of the tree stored so far, may be `null` inside an array
+	 * @param candidate the item at the same place of the tree about to be stored, may be `null` inside an array
+	 * @return `true` when the trees are told apart by a range leaf or by their shape
+	 */
+	private static boolean rangeLeafDiffers(@Nullable DataItem existing, @Nullable DataItem candidate) {
+		if (existing == null || candidate == null) {
+			return existing != candidate;
+		}
+		if (existing instanceof DataItemValue existingValue) {
+			if (!(candidate instanceof DataItemValue candidateValue)) {
+				return true;
+			}
+			final Serializable existingLeaf = existingValue.value();
+			final Serializable candidateLeaf = candidateValue.value();
+			return existingLeaf == null || candidateLeaf == null ?
+				existingLeaf != candidateLeaf :
+				rangeRepresentationDiffers(existingLeaf, candidateLeaf);
+		} else if (existing instanceof DataItemArray existingArray) {
+			if (!(candidate instanceof DataItemArray candidateArray)) {
+				return true;
+			}
+			final DataItem[] existingChildren = existingArray.children();
+			final DataItem[] candidateChildren = candidateArray.children();
+			if (existingChildren.length != candidateChildren.length) {
+				return true;
+			}
+			for (int i = 0; i < existingChildren.length; i++) {
+				if (rangeLeafDiffers(existingChildren[i], candidateChildren[i])) {
+					return true;
+				}
+			}
+			return false;
+		} else if (existing instanceof DataItemMap existingMap) {
+			if (!(candidate instanceof DataItemMap candidateMap)) {
+				return true;
+			}
+			final Map<String, DataItem> existingProperties = existingMap.childrenIndex();
+			final Map<String, DataItem> candidateProperties = candidateMap.childrenIndex();
+			if (existingProperties.size() != candidateProperties.size()) {
+				return true;
+			}
+			for (final Map.Entry<String, DataItem> existingProperty : existingProperties.entrySet()) {
+				final String propertyName = existingProperty.getKey();
+				final DataItem candidateChild = candidateProperties.get(propertyName);
+				if (candidateChild == null && !candidateProperties.containsKey(propertyName)) {
+					return true;
+				}
+				if (rangeLeafDiffers(existingProperty.getValue(), candidateChild)) {
+					return true;
+				}
+			}
+			return false;
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unexpected data item type `" + existing.getClass().getName() + "` in complex data!"
+			);
+		}
+	}
+
+	/**
+	 * Returns `true` when the two ranges differ in anything a reader can see: their class, a precise bound, or - for
+	 * a {@link BigDecimalNumberRange} - the effective number of retained decimal places.
+	 *
+	 * @param existing  the range stored so far
+	 * @param candidate the range about to be stored
+	 * @return `true` when the ranges are distinguishable
+	 */
+	private static boolean representationDiffers(@Nonnull Range<?> existing, @Nonnull Range<?> candidate) {
+		if (existing.getClass() != candidate.getClass() ||
+			!Objects.equals(existing.getPreciseFrom(), candidate.getPreciseFrom()) ||
+			!Objects.equals(existing.getPreciseTo(), candidate.getPreciseTo())) {
+			return true;
+		}
+		return existing instanceof BigDecimalNumberRange existingDecimal &&
+			existingDecimal.getEffectiveRetainedDecimalPlaces() !=
+				((BigDecimalNumberRange) candidate).getEffectiveRetainedDecimalPlaces();
 	}
 
 	/**

@@ -72,7 +72,8 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 					final Serializable otherValue = key.locale() == null ?
 						second.getAssociatedData(key.associatedDataName()) :
 						second.getAssociatedData(key.associatedDataName(), key.localeOrThrowException());
-					return QueryUtils.valueDiffers(thisValue, otherValue);
+					return QueryUtils.valueDiffers(thisValue, otherValue) ||
+						EvitaDataTypes.rangeRepresentationDiffers(thisValue, otherValue);
 				});
 		}
 	}
@@ -370,7 +371,8 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 		public boolean differsFrom(@Nullable AssociatedDataValue otherAssociatedDataValue) {
 			if (otherAssociatedDataValue == null) return true;
 			if (!Objects.equals(this.key, otherAssociatedDataValue.key)) return true;
-			if (QueryUtils.valueDiffers(this.value, otherAssociatedDataValue.value)) return true;
+			if (QueryUtils.valueDiffers(this.value, otherAssociatedDataValue.value) ||
+				EvitaDataTypes.rangeRepresentationDiffers(this.value, otherAssociatedDataValue.value)) return true;
 			return this.dropped != otherAssociatedDataValue.dropped;
 		}
 

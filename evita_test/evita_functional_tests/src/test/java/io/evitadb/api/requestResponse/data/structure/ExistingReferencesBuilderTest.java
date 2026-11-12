@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +52,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -1509,6 +1511,54 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 					.map(it -> it.getAttribute(COUNTRY, String.class))
 					.collect(Collectors.toSet())
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Values equal by their encoded bounds")
+	class EncodedEqualValuesTest {
+
+		/**
+		 * Setting an existing reference again describes its complete new state, and an attribute upsert equal to the
+		 * effective value is dropped as redundant. `[1.0,2.0]` and `[10,20]` compare equal by their encoded bounds,
+		 * yet a reader gets other bounds back - the upsert of one over the other is not redundant.
+		 */
+		@Test
+		@DisplayName("should not drop a reference attribute range encoded to the same longs when the reference is set")
+		void shouldNotDropReferenceAttributeRangeEncodedToSameLongsWhenReferenceIsSet() {
+			final EntitySchemaContract schema = new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+				.withReferenceToEntity(
+					BRAND, BRAND, Cardinality.ZERO_OR_MORE,
+					r -> r.withAttribute("decimalRange", BigDecimalNumberRange.class)
+				)
+				.toInstance();
+			final InitialReferencesBuilder initial = new InitialReferencesBuilder(schema);
+			initial.setReference(
+				BRAND, 1,
+				ref -> ref.setAttribute(
+					"decimalRange", BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+				)
+			);
+			final ExistingReferencesBuilder builder = new ExistingReferencesBuilder(
+				schema, initial.build(), ReferenceContractSerializablePredicate.DEFAULT_INSTANCE, key -> Optional.empty()
+			);
+
+			builder.setReference(
+				BRAND, 1,
+				ref -> ref.setAttribute(
+					"decimalRange", BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+				)
+			);
+
+			final List<String> upsertedValues = builder.buildChangeSet()
+				.filter(ReferenceAttributeMutation.class::isInstance)
+				.map(it -> ((ReferenceAttributeMutation) it).getAttributeMutation())
+				.filter(UpsertAttributeMutation.class::isInstance)
+				.map(it -> String.valueOf(((UpsertAttributeMutation) it).getAttributeValue()))
+				.toList();
+			assertEquals(List.of("[10,20]"), upsertedValues);
+			final ReferenceContract reference = builder.getReference(BRAND, 1).orElseThrow();
+			assertEquals("[10,20]", String.valueOf((Object) reference.getAttribute("decimalRange")));
 		}
 	}
 }

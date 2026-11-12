@@ -28,6 +28,7 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
@@ -44,11 +45,13 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
@@ -58,6 +61,7 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.GRPC;
@@ -481,4 +485,35 @@ class EvitaDataTypesConverterTest {
 		assertEquals(GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.STRING, EvitaDataTypesConverter.toGrpcEvitaAssociatedDataDataType(String.class));
 		assertEquals(GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.COMPLEX_DATA_OBJECT, EvitaDataTypesConverter.toGrpcEvitaAssociatedDataDataType(ComplexDataObject.class));
 	}
+	/**
+	 * A value fetched over gRPC and upserted again must not count as a change, so the conversion has to carry
+	 * everything the stored value comparison reads - the zone offset and nanoseconds of a date-time range, the
+	 * materialized bound of a long range, the retained scale of a decimal range given explicitly.
+	 */
+	@Test
+	@DisplayName("should convert range values to gRPC and back as the very same stored value")
+	void shouldConvertRangeValuesToGrpcAndBackAsSameStoredValue() {
+		final Serializable[] values = {
+			BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"), 1),
+			BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20")),
+			LongNumberRange.from(5L),
+			LongNumberRange.between(Long.MIN_VALUE, Long.MAX_VALUE),
+			DateTimeRange.between(
+				OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 123_456_789, ZoneOffset.ofHours(2)),
+				OffsetDateTime.of(2024, 1, 2, 12, 0, 0, 0, ZoneOffset.ofHours(2))
+			),
+			new Integer[]{1, 2}
+		};
+		for (final Serializable value : values) {
+			final Serializable stored = EvitaDataTypes.toSupportedStoredTypeOrItsArray(value);
+			final Serializable readBack =
+				EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaValue(stored));
+
+			assertFalse(
+				EvitaDataTypes.storedValueDiffers(stored, readBack),
+				() -> "Value read back differs: " + Arrays.deepToString(new Object[]{stored, readBack})
+			);
+		}
+	}
+
 }

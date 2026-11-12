@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data;
 
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
@@ -177,7 +178,7 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 		if (!Objects.equals(priceWithoutTax(), otherPrice.priceWithoutTax())) return true;
 		if (!Objects.equals(priceWithTax(), otherPrice.priceWithTax())) return true;
 		if (!Objects.equals(taxRate(), otherPrice.taxRate())) return true;
-		if (!Objects.equals(validity(), otherPrice.validity())) return true;
+		if (EvitaDataTypes.storedValueDiffers(validity(), otherPrice.validity())) return true;
 		if (indexed() != otherPrice.indexed()) return true;
 		return dropped() != otherPrice.dropped();
 	}

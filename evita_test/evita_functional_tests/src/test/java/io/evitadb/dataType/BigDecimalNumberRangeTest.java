@@ -336,4 +336,51 @@ class BigDecimalNumberRangeTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Equality")
+	class EqualityTest {
+
+		@Test
+		@DisplayName(
+			"Should equal a range of other bounds encoded to the same longs by explicit precision, " +
+				"yet differ as a stored value"
+		)
+		void shouldEqualRangeOfOtherBoundsEncodedToSameLongsByExplicitPrecisionYetDifferAsStoredValue() {
+			final BigDecimalNumberRange oneToTwo =
+				BigDecimalNumberRange.between(new BigDecimal("1"), new BigDecimal("2"), 1);
+			final BigDecimalNumberRange tenToTwenty =
+				BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"), 0);
+
+			// the two ranges denote different sets of numbers
+			assertFalse(oneToTwo.isWithin(new BigDecimal("15")));
+			assertTrue(tenToTwenty.isWithin(new BigDecimal("15")));
+			// equality is the identity the indexes rely on and compares the encoded bounds only
+			assertEquals(oneToTwo, tenToTwenty);
+			assertEquals(0, oneToTwo.compareTo(tenToTwenty));
+			// whether they are the very same value is answered by the range representation comparison
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(oneToTwo, tenToTwenty));
+		}
+
+		@Test
+		@DisplayName(
+			"Should equal a range of other bounds encoded to the same longs by own scale, " +
+				"yet differ as a stored value"
+		)
+		void shouldEqualRangeOfOtherBoundsEncodedToSameLongsByOwnScaleYetDifferAsStoredValue() {
+			final BigDecimalNumberRange oneToTwo =
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+			final BigDecimalNumberRange tenToTwenty =
+				BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"));
+
+			// the two ranges denote different sets of numbers
+			assertFalse(oneToTwo.isWithin(new BigDecimal("15")));
+			assertTrue(tenToTwenty.isWithin(new BigDecimal("15")));
+			// equality is the identity the indexes rely on and compares the encoded bounds only
+			assertEquals(oneToTwo, tenToTwenty);
+			assertEquals(0, oneToTwo.compareTo(tenToTwenty));
+			// whether they are the very same value is answered by the range representation comparison
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(oneToTwo, tenToTwenty));
+		}
+	}
+
 }
