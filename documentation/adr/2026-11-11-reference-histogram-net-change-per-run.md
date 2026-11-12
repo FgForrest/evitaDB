@@ -1,11 +1,11 @@
 ---
 title: A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue
 date: 2026-11-11
-updated: 2026-11-11 18:12
+updated: 2026-11-12 11:30
 status: accepted
 kind: fix
 issues: [1911, 1916, 1918]
-prs: []
+prs: [1921]
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation/local, evita_engine/src/main/java/io/evitadb/core/catalog]
 supersedes: []
 superseded-by: []
