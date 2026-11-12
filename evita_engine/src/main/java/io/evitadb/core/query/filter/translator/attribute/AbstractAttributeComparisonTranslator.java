@@ -32,10 +32,13 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
+import io.evitadb.core.query.algebra.attribute.RequestedThresholdPredicate;
+import io.evitadb.core.query.algebra.attribute.ThresholdComparison;
+import io.evitadb.core.query.algebra.attribute.ThresholdOperator;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
-import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.Index;
@@ -50,8 +53,6 @@ import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
-import java.util.function.IntPredicate;
-import java.util.function.Predicate;
 
 /**
  * An abstract class designed to translate attribute comparison constraints into specific filtering formulas.
@@ -62,9 +63,9 @@ import java.util.function.Predicate;
 @RequiredArgsConstructor
 public class AbstractAttributeComparisonTranslator extends AbstractAttributeTranslator {
 	/**
-	 * The predicate used to compare the result of the filtering operation.
+	 * The comparison operator applied to the ordering result.
 	 */
-	private final IntPredicate comparisonResultPredicate;
+	private final ThresholdOperator comparisonOperator;
 	/**
 	 * The function that will extract formula matching the searched string from the filter index.
 	 */
@@ -91,7 +92,7 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 	) {
 		return AttributeValueMatcher.comparing(
 			attributeIndexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
-			attributeConstraint.getAttributeValue(), this.comparisonResultPredicate
+			attributeConstraint.getAttributeValue(), this.comparisonOperator::accepts
 		);
 	}
 
@@ -142,7 +143,7 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 					attributeSchema,
 					index -> this.filterIndexResolver.apply(index, comparableValue)
 				),
-				createHistogramRequestedPredicate(attributeType, Objects.requireNonNull(comparableValue), this.comparisonResultPredicate)
+				createHistogramRequestedPredicate(attributeType, Objects.requireNonNull(comparableValue), this.comparisonOperator)
 			);
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
@@ -167,18 +168,19 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 	 *
 	 * @param attributeType The type of the attribute to compare.
 	 * @param comparableValue The value to compare the attribute against.
+	 * @param comparisonOperator comparison applied to each histogram threshold
 	 * @return A predicate to apply on BigDecimal values, or null if the attribute type is not a Number.
 	 */
 	@Nullable
-	private static Predicate<BigDecimal> createHistogramRequestedPredicate(
+	private static RequestedThresholdPredicate createHistogramRequestedPredicate(
 		@Nonnull Class<? extends Serializable> attributeType,
 		@Nonnull Serializable comparableValue,
-		@Nonnull IntPredicate comparisonPredicate
+		@Nonnull ThresholdOperator comparisonOperator
 	) {
-		final Predicate<BigDecimal> requestedPredicate;
+		final RequestedThresholdPredicate requestedPredicate;
 		if (Number.class.isAssignableFrom(attributeType)) {
 			final BigDecimal fromBigDecimal = EvitaDataTypes.toTargetType(comparableValue, BigDecimal.class);
-			requestedPredicate = threshold -> fromBigDecimal == null || comparisonPredicate.test(threshold.compareTo(fromBigDecimal));
+			requestedPredicate = new ThresholdComparison(comparisonOperator, fromBigDecimal);
 		} else {
 			requestedPredicate = null;
 		}

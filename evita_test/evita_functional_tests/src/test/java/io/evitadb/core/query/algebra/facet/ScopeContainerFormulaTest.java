@@ -260,9 +260,68 @@ class ScopeContainerFormulaTest {
 		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedFormulas() {
+			final ScopeContainerFormula formulaA = new ScopeContainerFormula(
+				Scope.LIVE,
+				new ConstantFormula(new ArrayBitmap(10, 20))
+			);
+			final ScopeContainerFormula formulaB = new ScopeContainerFormula(
+				Scope.LIVE,
+				new ConstantFormula(new ArrayBitmap(10, 20))
+			);
+
+			assertEquals(formulaA.getKey(), formulaB.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce different key for different inner formulas")
+		void shouldProduceDifferentKeyForDifferentInnerFormulas() {
+			final ScopeContainerFormula formulaA = new ScopeContainerFormula(
+				Scope.LIVE,
+				new ConstantFormula(new ArrayBitmap(10, 20))
+			);
+			final ScopeContainerFormula formulaB = new ScopeContainerFormula(
+				Scope.LIVE,
+				new ConstantFormula(new ArrayBitmap(30, 40))
+			);
+
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce different keys for different scopes with same children")
+		void shouldProduceDifferentKeysForDifferentScopesWithSameChildren() {
+			// The scope remains observable when a surviving container is inspected.
+			final ScopeContainerFormula formulaLive = new ScopeContainerFormula(
+				Scope.LIVE,
+				new ConstantFormula(new ArrayBitmap(10, 20))
+			);
+			final ScopeContainerFormula formulaArchived = new ScopeContainerFormula(
+				Scope.ARCHIVED,
+				new ConstantFormula(new ArrayBitmap(10, 20))
+			);
+
+			assertNotEquals(formulaLive.getKey(), formulaArchived.getKey());
+		}
+	}
+
+	@Nested
+	@DisplayName("Legacy: Hash determinism and sensitivity")
+	class LegacyHashTest {
 
 		@Test
 		@DisplayName("should produce identical hash for identically constructed formulas")
@@ -339,4 +398,13 @@ class ScopeContainerFormulaTest {
 		}
 	}
 
+
+	/** Verifies the real construction modes and all independently described inputs of {@link ScopeContainerFormula}. */
+	@Test
+	@DisplayName("Verifies ScopeContainerFormula identity construction contracts")
+	void shouldVerifyScopeContainerFormulaIdentityContract() {
+		io.evitadb.test.identity.IdentityContractVerifier.verify(
+			ScopeContainerFormula.class, new ScopeContainerFormulaIdentityFixture()
+		);
+	}
 }

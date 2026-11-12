@@ -48,6 +48,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
+
 /**
  * Implemented by the {@link FilteringConstraintTranslator translators} of the attribute constraints that test a
  * single attribute value - the comparisons, the set, the interval, the range envelope and the string searches. The
@@ -67,6 +69,11 @@ import java.util.function.Supplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public interface AttributeValueMatchingTranslator<T extends FilterConstraint & AttributeConstraint<FilterConstraint>> {
+
+	/** Returns whether matching this constraint reads the query's implicit moment. */
+	default boolean readsQueryMoment(@Nonnull T constraint) {
+		return false;
+	}
 
 	/**
 	 * Creates the matcher of the constraint over the attribute. The conversion and the normalization of the constraint
@@ -222,7 +229,7 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 		@Nonnull AttributeValueMatcher matcher,
 		@Nonnull AttributeTrait... traits
 	) {
-		return createBitmapFilter(constraint, filterByVisitor, attributeSchema -> matcher, traits);
+		return createBitmapFilter(constraint, filterByVisitor, attributeSchema -> matcher, false, traits);
 	}
 
 	/**
@@ -250,7 +257,7 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 			attributeSchema -> createMainQueryMatcher(
 				constraint, filterByVisitor, processingScope, requestedScopes, attributeSchema
 			),
-			traits
+			true, traits
 		);
 	}
 
@@ -261,6 +268,7 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	 * @param constraint      the constraint
 	 * @param filterByVisitor the visitor translating the query
 	 * @param matcherFactory  creates the matcher from the schema of the attribute
+	 * @param matcherPerEntityType whether each entity type creates its own matcher
 	 * @param traits          the traits the attribute schema must have
 	 * @return the filter
 	 */
@@ -269,17 +277,23 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 		@Nonnull T constraint,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory,
+		boolean matcherPerEntityType,
 		@Nonnull AttributeTrait... traits
 	) {
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		return AttributeBitmapFilter.matching(
-			constraint.getAttributeName(),
+		return AttributeBitmapFilter.forConstraint(
+			constraint, constraint.getAttributeName(),
+			attributeContent(constraint.getAttributeName()),
 			processingScope::getAttributeSchema,
 			(entity, attributeName) -> processingScope.getAttributeValueStream(
 				entity, attributeName, filterByVisitor.getLocale()
 			),
-			matcherFactory,
-			traits
+			attributeSchema -> {
+				final AttributeValueMatcher matcher = matcherFactory.apply(attributeSchema);
+				return values -> values.anyMatch(value -> value.isPresent() && matcher.matches(value.get().value()));
+			},
+			filterByVisitor.getLocale(), matcherPerEntityType,
+			readsQueryMoment(constraint) ? filterByVisitor.getNow() : null, traits
 		);
 	}
 

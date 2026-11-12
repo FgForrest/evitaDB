@@ -74,15 +74,16 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 * widens to the super set, exactly as a `not` does: the attribute is still resolved first, so an undeclared one
 	 * is refused just the same.
 	 *
-	 * @param attributeName   the name of the attribute to be checked for null values
+	 * @param constraint      the attribute null constraint
 	 * @param filterByVisitor the visitor responsible for filtering operations
 	 * @return a Formula representing the translated "IS NULL" condition for the specified attribute
 	 */
 	@Nonnull
 	private static Formula translateIsNull(
-		@Nonnull String attributeName,
+		@Nonnull AttributeIs constraint,
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
+		final String attributeName = constraint.getAttributeName();
 		if (filterByVisitor.isEntityTypeKnown()) {
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 			final AttributeSchemaContract attributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE)
@@ -106,7 +107,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		} else {
 			return new EntityFilteringFormula(
 				"attribute is filter",
-				createAlternativeNullBitmapFilter(attributeName, filterByVisitor)
+				createAlternativeNullBitmapFilter(constraint, filterByVisitor)
 			);
 		}
 	}
@@ -375,15 +376,16 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	/**
 	 * Translates an "IS NOT NULL" attribute condition into a corresponding Formula.
 	 *
-	 * @param attributeName   the name of the attribute to be checked for non-null values
+	 * @param constraint      the attribute presence constraint
 	 * @param filterByVisitor the visitor responsible for filtering operations
 	 * @return a Formula representing the translated "IS NOT NULL" condition for the specified attribute
 	 */
 	@Nonnull
 	private static Formula translateIsNotNull(
-		@Nonnull String attributeName,
+		@Nonnull AttributeIs constraint,
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
+		final String attributeName = constraint.getAttributeName();
 		if (filterByVisitor.isEntityTypeKnown()) {
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 			final Set<Scope> scopes = processingScope.getScopes();
@@ -405,7 +407,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			) {
 				return new SelectionFormula(
 					filteringFormula,
-					createAlternativeNotNullBitmapFilter(attributeKey.attributeName(), filterByVisitor)
+					createAlternativeNotNullBitmapFilter(constraint, filterByVisitor)
 				);
 			} else {
 				return filteringFormula;
@@ -413,7 +415,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		} else {
 			return new EntityFilteringFormula(
 				"attribute is filter",
-				createAlternativeNotNullBitmapFilter(attributeName, filterByVisitor)
+				createAlternativeNotNullBitmapFilter(constraint, filterByVisitor)
 			);
 		}
 	}
@@ -421,58 +423,59 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	/**
 	 * Creates an AttributeBitmapFilter that checks for the absence of a specified attribute.
 	 *
-	 * @param attributeName   the name of the attribute to be checked for absence
+	 * @param constraint      the attribute absence constraint
 	 * @param filterByVisitor the visitor responsible for filtering operations
 	 * @return an AttributeBitmapFilter instance configured to check for attribute absence
 	 */
 	@Nonnull
 	private static AttributeBitmapFilter createAlternativeNullBitmapFilter(
-		@Nonnull String attributeName,
+		@Nonnull AttributeIs constraint,
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
+		final String attributeName = constraint.getAttributeName();
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		return new AttributeBitmapFilter(
-			attributeName,
+		return AttributeBitmapFilter.forConstraint(
+			constraint, attributeName,
 			Objects.requireNonNull(processingScope.getRequirements()),
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> optionalStream -> optionalStream.noneMatch(Optional::isPresent),
-			AttributeTrait.FILTERABLE
+			filterByVisitor.getLocale(), true, null, AttributeTrait.FILTERABLE
 		);
 	}
 
 	/**
 	 * Creates an AttributeBitmapFilter that ensures a specified attribute is not null.
 	 *
-	 * @param attributeName   the name of the attribute to check for non-null values
+	 * @param constraint      the attribute presence constraint
 	 * @param filterByVisitor the visitor responsible for filtering operations
 	 * @return an AttributeBitmapFilter instance configured to check for non-null attribute values
 	 */
 	@Nonnull
 	private static AttributeBitmapFilter createAlternativeNotNullBitmapFilter(
-		@Nonnull String attributeName,
+		@Nonnull AttributeIs constraint,
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
+		final String attributeName = constraint.getAttributeName();
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		return new AttributeBitmapFilter(
-			attributeName,
+		return AttributeBitmapFilter.forConstraint(
+			constraint, attributeName,
 			Objects.requireNonNull(processingScope.getRequirements()),
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> optionalStream -> optionalStream.anyMatch(Optional::isPresent),
-			AttributeTrait.FILTERABLE
+			filterByVisitor.getLocale(), true, null, AttributeTrait.FILTERABLE
 		);
 	}
 
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull AttributeIs attributeIs, @Nonnull FilterByVisitor filterByVisitor) {
-		final String attributeName = attributeIs.getAttributeName();
 
 		// also consider the possibly more special values supported in the future
 		return switch (attributeIs.getAttributeSpecialValue()) {
-			case NULL -> translateIsNull(attributeName, filterByVisitor);
-			case NOT_NULL -> translateIsNotNull(attributeName, filterByVisitor);
+			case NULL -> translateIsNull(attributeIs, filterByVisitor);
+			case NOT_NULL -> translateIsNotNull(attributeIs, filterByVisitor);
 		};
 	}
 

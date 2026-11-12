@@ -27,6 +27,8 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 
@@ -50,9 +52,17 @@ import java.util.function.BooleanSupplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 class MutableFormula implements Formula {
+	/** Whether the pivot is temporarily omitted from the current computation. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private boolean suppressPivot;
+	/** Mandatory group term merged with the current delegate. */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private FacetGroupFormula pivot;
+	/** Current group term selected by the summary computation. */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private FacetGroupFormula delegate;
+	/** Memoized combination of the pivot and delegate. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private FacetGroupFormula result;
 
 	public MutableFormula(@Nonnull FacetGroupFormula delegate) {
@@ -101,6 +111,13 @@ class MutableFormula implements Formula {
 	@Override
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 		getInnerFormula().initialize(executionContext);
+	}
+
+	/** Returns the current delegate's key without retaining it across delegate changes. */
+	@Nonnull
+	@Override
+	public FormulaKey getKey() {
+		return getInnerFormula().getKey();
 	}
 
 	@Override

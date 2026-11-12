@@ -343,9 +343,167 @@ class FacetGroupFormulaTest {
 		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce identical key for identically constructed AND formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedAndFormulas() {
+			final FacetGroupAndFormula formulaA = new FacetGroupAndFormula(
+				"product", 1,
+				new ArrayBitmap(1, 2),
+				new BaseBitmap(10, 20),
+				new BaseBitmap(30, 40)
+			);
+			final FacetGroupAndFormula formulaB = new FacetGroupAndFormula(
+				"product", 1,
+				new ArrayBitmap(1, 2),
+				new BaseBitmap(10, 20),
+				new BaseBitmap(30, 40)
+			);
+
+			assertEquals(formulaA.getKey(), formulaB.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce different key for different reference names")
+		void shouldProduceDifferentKeyForDifferentReferenceNames() {
+			final FacetGroupAndFormula formulaA = new FacetGroupAndFormula(
+				"product", 1,
+				new ArrayBitmap(1),
+				new BaseBitmap(10)
+			);
+			final FacetGroupAndFormula formulaB = new FacetGroupAndFormula(
+				"category", 1,
+				new ArrayBitmap(1),
+				new BaseBitmap(10)
+			);
+
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce different key for different facet group ids")
+		void shouldProduceDifferentKeyForDifferentFacetGroupIds() {
+			final FacetGroupAndFormula formulaA = new FacetGroupAndFormula(
+				"product", 1,
+				new ArrayBitmap(1),
+				new BaseBitmap(10)
+			);
+			final FacetGroupAndFormula formulaB = new FacetGroupAndFormula(
+				"product", 2,
+				new ArrayBitmap(1),
+				new BaseBitmap(10)
+			);
+
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce different key for different facet ids")
+		void shouldProduceDifferentKeyForDifferentFacetIds() {
+			final FacetGroupAndFormula formulaA = new FacetGroupAndFormula(
+				"product", 1,
+				new ArrayBitmap(1),
+				new BaseBitmap(10)
+			);
+			final FacetGroupAndFormula formulaB = new FacetGroupAndFormula(
+				"product", 1,
+				new ArrayBitmap(2),
+				new BaseBitmap(10)
+			);
+
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce different keys for AND vs OR formulas")
+		void shouldProduceDifferentKeysForAndVsOrFormulas() {
+			final FacetGroupAndFormula andFormula = new FacetGroupAndFormula(
+				"product", 1,
+				new ArrayBitmap(1),
+				new BaseBitmap(10, 20)
+			);
+			final FacetGroupOrFormula orFormula = new FacetGroupOrFormula(
+				"product", 1,
+				new ArrayBitmap(1),
+				new BaseBitmap(10, 20)
+			);
+
+			assertNotEquals(andFormula.getKey(), orFormula.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce identical key for identically constructed OR formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedOrFormulas() {
+			final FacetGroupOrFormula formulaA = new FacetGroupOrFormula(
+				"product", 1,
+				new ArrayBitmap(1, 2),
+				new BaseBitmap(10, 20),
+				new BaseBitmap(30, 40)
+			);
+			final FacetGroupOrFormula formulaB = new FacetGroupOrFormula(
+				"product", 1,
+				new ArrayBitmap(1, 2),
+				new BaseBitmap(10, 20),
+				new BaseBitmap(30, 40)
+			);
+
+			assertEquals(formulaA.getKey(), formulaB.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should handle null facet group id in key")
+		void shouldHandleNullFacetGroupIdInKey() {
+			final FacetGroupAndFormula formulaA = new FacetGroupAndFormula(
+				"product", null,
+				new ArrayBitmap(1),
+				new BaseBitmap(10)
+			);
+			final FacetGroupAndFormula formulaB = new FacetGroupAndFormula(
+				"product", null,
+				new ArrayBitmap(1),
+				new BaseBitmap(10)
+			);
+
+			assertEquals(formulaA.getKey(), formulaB.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should produce different key for null vs non-null facet group id")
+		void shouldProduceDifferentKeyForNullVsNonNullFacetGroupId() {
+			final FacetGroupAndFormula formulaA = new FacetGroupAndFormula(
+				"product", null,
+				new ArrayBitmap(1),
+				new BaseBitmap(10)
+			);
+			final FacetGroupAndFormula formulaB = new FacetGroupAndFormula(
+				"product", 1,
+				new ArrayBitmap(1),
+				new BaseBitmap(10)
+			);
+
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
+		}
+	}
+
+	@Nested
+	@DisplayName("Legacy: Hash determinism and sensitivity")
+	class LegacyHashTest {
 
 		@Test
 		@DisplayName("should produce identical hash for identically constructed AND formulas")
@@ -887,5 +1045,63 @@ class FacetGroupFormulaTest {
 		}
 
 		assertEquals(expected, actual);
+	}
+
+	/** Keeps PlainAndContent distinguishable in detached keys. */
+	@Test
+	@DisplayName("Distinguishes PlainAndContent")
+	void shouldDistinguishPlainAndContent() {
+		assertNotEquals(
+			new FacetGroupAndFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(10)).getKey(),
+			new FacetGroupAndFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(20)).getKey()
+		);
+	}
+
+	/** Keeps PlainOrContent distinguishable in detached keys. */
+	@Test
+	@DisplayName("Distinguishes PlainOrContent")
+	void shouldDistinguishPlainOrContent() {
+		assertNotEquals(
+			new FacetGroupOrFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(10)).getKey(),
+			new FacetGroupOrFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(20)).getKey()
+		);
+	}
+
+	/** Keeps AbsentGroupAndFacetBoundary distinguishable in detached keys. */
+	@Test
+	@DisplayName("Distinguishes AbsentGroupAndFacetBoundary")
+	void shouldDistinguishAbsentGroupAndFacetBoundary() {
+		assertNotEquals(
+			new FacetGroupAndFormula("reference", null, new ArrayBitmap(1, 2), new BaseBitmap(10), new BaseBitmap(20)).getKey(),
+			new FacetGroupAndFormula("reference", 1, new ArrayBitmap(2), new BaseBitmap(20)).getKey()
+		);
+	}
+
+	/** Keeps BitmapAssociation distinguishable in detached keys. */
+	@Test
+	@DisplayName("Distinguishes BitmapAssociation")
+	void shouldDistinguishBitmapAssociation() {
+		assertNotEquals(
+			new FacetGroupOrFormula("reference", 1, new ArrayBitmap(1, 2), new BaseBitmap(10), new BaseBitmap(20)).getKey(),
+			new FacetGroupOrFormula("reference", 1, new ArrayBitmap(1, 2), new BaseBitmap(20), new BaseBitmap(10)).getKey()
+		);
+	}
+
+	/** Verifies the real construction modes and all independently described inputs of {@link FacetGroupAndFormula}. */
+	@Test
+	@DisplayName("Verifies FacetGroupAndFormula identity construction contracts")
+	void shouldVerifyFacetGroupAndFormulaIdentityContract() {
+		io.evitadb.test.identity.IdentityContractVerifier.verify(
+			FacetGroupAndFormula.class, new FacetGroupAndFormulaIdentityFixture()
+		);
+	}
+
+	/** Verifies the real construction modes and all independently described inputs of {@link FacetGroupOrFormula}. */
+	@Test
+	@DisplayName("Verifies FacetGroupOrFormula identity construction contracts")
+	void shouldVerifyFacetGroupOrFormulaIdentityContract() {
+		io.evitadb.test.identity.IdentityContractVerifier.verify(
+			FacetGroupOrFormula.class, new FacetGroupOrFormulaIdentityFixture()
+		);
 	}
 }

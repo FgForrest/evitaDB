@@ -60,6 +60,12 @@ import static java.util.Optional.ofNullable;
 public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 	implements FilteringConstraintTranslator<AttributeInRange>, AttributeValueMatchingTranslator<AttributeInRange> {
 
+	/** A range without an explicit probe uses the query's implicit moment. */
+	@Override
+	public boolean readsQueryMoment(@Nonnull AttributeInRange constraint) {
+		return constraint.getUnknownArgument() == null;
+	}
+
 	/**
 	 * Computes a comparable long value from the provided filter constraint based on the attribute definition type -
 	 * the point the {@link io.evitadb.index.range.RangeIndex} of the attribute is probed with.

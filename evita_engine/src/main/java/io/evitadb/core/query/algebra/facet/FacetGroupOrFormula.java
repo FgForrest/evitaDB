@@ -28,6 +28,10 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.identity.TokenList;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -194,5 +198,47 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 			sum += bitmap.size();
 		}
 		return sum * getOperationCost();
+	}
+
+	/** Captures this formula's own computation inputs. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.referenceName,
+			this.facetGroupId == null ? NO_FACET_GROUP : this.facetGroupId.longValue(),
+			this.facetIds.size() > IdentityToken.CONTENT_LIMIT ? IdentityToken.OPAQUE :
+				IdentityToken.ofContent(this.facetIds.getArray()),
+			TokenList.ordered(this.bitmaps));
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param referenceName target reference
+	 * @param facetGroupId group identifier or NO_FACET_GROUP
+	 * @param facetIds ascending facet identifiers
+	 * @param bitmaps operands paired with the facet identifiers
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		@Nonnull String referenceName,
+		long facetGroupId,
+		@Nonnull IdentityToken facetIds,
+		@Nonnull TokenList bitmaps
+	) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.referenceName);
+			accumulator.add(this.facetGroupId);
+			accumulator.add(this.facetIds);
+			accumulator.add(this.bitmaps);
+		}
 	}
 }

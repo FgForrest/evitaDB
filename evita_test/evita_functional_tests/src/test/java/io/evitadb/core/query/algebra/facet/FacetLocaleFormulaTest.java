@@ -173,9 +173,39 @@ class FacetLocaleFormulaTest {
 		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash")
-	class HashTest {
+	@DisplayName("Key")
+	class KeyTest {
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should key guards of different references differently")
+		void shouldDifferInKeyWhenReferenceDiffers() {
+			final FacetLocaleFormula brand = new FacetLocaleFormula(REFERENCE_NAME, constant(1, 2), constant(2));
+			final FacetLocaleFormula store = new FacetLocaleFormula("store", constant(1, 2), constant(2));
+
+			assertNotEquals(brand.getKey(), store.getKey());
+		}
+
+		/** Verifies the stated equality or input distinction with real formulas. */
+		@Test
+		@DisplayName("should key identically constructed guards equally")
+		void shouldEqualInKeyWhenReferenceAndChildrenMatch() {
+			final FacetLocaleFormula first = new FacetLocaleFormula(REFERENCE_NAME, constant(1, 2), constant(2));
+			final FacetLocaleFormula second = new FacetLocaleFormula(REFERENCE_NAME, constant(1, 2), constant(2));
+
+			assertEquals(first.getKey(), second.getKey());
+		}
+	}
+
+	@Nested
+	@DisplayName("Legacy: Hash")
+	class LegacyHashTest {
 
 		@Test
 		@DisplayName("should hash guards of different references differently")
@@ -331,5 +361,14 @@ class FacetLocaleFormulaTest {
 
 			assertArrayEquals(new int[]{1, 2, 7, 8}, project(formula));
 		}
+	}
+
+	/** Verifies the real construction modes and all independently described inputs of {@link FacetLocaleFormula}. */
+	@Test
+	@DisplayName("Verifies FacetLocaleFormula identity construction contracts")
+	void shouldVerifyFacetLocaleFormulaIdentityContract() {
+		io.evitadb.test.identity.IdentityContractVerifier.verify(
+			FacetLocaleFormula.class, new FacetLocaleFormulaIdentityFixture()
+		);
 	}
 }

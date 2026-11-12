@@ -32,10 +32,12 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.attribute.BetweenAttributeFormula;
+import io.evitadb.core.query.algebra.attribute.RequestedThresholdPredicate;
+import io.evitadb.core.query.algebra.attribute.ThresholdRange;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
-import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -53,7 +55,6 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Optional;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
@@ -75,9 +76,10 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 	 * @return A predicate that returns true if the {@link BigDecimal} object falls within the specified range.
 	 */
 	@Nonnull
-	private static Predicate<BigDecimal> createBigDecimalPredicate(@Nullable BigDecimal from, @Nullable BigDecimal to) {
-		return threshold -> (from == null || threshold.compareTo(from) >= 0) &&
-			(to == null || threshold.compareTo(to) <= 0);
+	private static ThresholdRange createBigDecimalPredicate(
+		@Nullable BigDecimal from, @Nullable BigDecimal to
+	) {
+		return new ThresholdRange(from, to);
 	}
 
 	/**
@@ -100,7 +102,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 	) {
 		final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
 		final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
-		final Predicate<BigDecimal> requestedPredicate = NumberRange.class.isAssignableFrom(attributeType) ?
+		final RequestedThresholdPredicate requestedPredicate = NumberRange.class.isAssignableFrom(attributeType) ?
 			createBigDecimalPredicate(toTargetType(from, BigDecimal.class), toTargetType(to, BigDecimal.class)) :
 			null;
 		final long comparableFrom = encodeRangeBound(attributeType, indexedDecimalPlaces, from, Long.MIN_VALUE);
@@ -229,7 +231,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 					filterByVisitor, from, to, attributeSchema, attributeKey
 				);
 			} else {
-				final Predicate<BigDecimal> requestedPredicate;
+				final RequestedThresholdPredicate requestedPredicate;
 				if (Number.class.isAssignableFrom(attributeType)) {
 					final BigDecimal fromBigDecimal = toTargetType(from, BigDecimal.class);
 					final BigDecimal toBigDecimal = toTargetType(to, BigDecimal.class);

@@ -23,6 +23,9 @@
 
 package io.evitadb.core.query.filter.translator.reference;
 
+import io.evitadb.core.query.algebra.attribute.RequestedThresholdPredicate;
+import io.evitadb.core.query.algebra.attribute.ThresholdComparison;
+import io.evitadb.core.query.algebra.attribute.ThresholdOperator;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
@@ -57,7 +60,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static io.evitadb.test.TestTags.ENGINE;
@@ -129,7 +131,8 @@ class ReferenceBodyTransposerTest {
 	@DisplayName("Should keep the histogram predicate of a wrapper it returns as it stands")
 	@Test
 	void shouldKeepTheHistogramPredicateOfAWrapperItReturnsAsItStands() {
-		final Predicate<BigDecimal> requestedPredicate = value -> value.signum() > 0;
+		final RequestedThresholdPredicate requestedPredicate = new ThresholdComparison(
+			ThresholdOperator.GREATER_THAN, BigDecimal.ZERO);
 		final Formula body = new AttributeFormula(
 			false, new AttributeKey("a"),
 			new OrFormula(new IndexTaggedFormula(1, constant(1)), new IndexTaggedFormula(2, constant(2))),
