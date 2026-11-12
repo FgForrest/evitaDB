@@ -103,7 +103,7 @@ public class SkipFormula extends AbstractFormula {
 		return 0L;
 	}
 
-	/** Returns the computation inputs independently of execution state. */
+	/** Returns the identity of a formula without inputs, so its class identifier alone forms the key. */
 	@Nonnull
 	@Override
 	protected IdentityRecord identity() {

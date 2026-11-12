@@ -51,7 +51,7 @@ public class LocaleFormula extends ConstantFormula {
 		super(delegate);
 	}
 
-	/** Returns the computation inputs independently of execution state. */
+	/** Returns the identity formed by the delegate bitmap's token, which this formula derives from the bitmap. */
 	@Nonnull
 	@Override
 	protected IdentityRecord identity() {

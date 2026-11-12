@@ -106,27 +106,30 @@ public final class IdentityContractVerifier {
 	}
 
 	/**
-	 * Requires attested fields to be decomposed and exercised without attestation in another mode that has a base. A field inherited
-	 * from a superclass needs no such mode here: the fixture of the declaring class owns that obligation.
+	 * Requires attested fields to be decomposed and exercised without attestation in another mode that has a base.
+	 * An inherited field is exempt only while no fixture instance sets it, because it is then no input of this holder;
+	 * the superclass fixture cannot witness it, since every holder declares its own `identity()`.
 	 */
 	private static <T> void verifyAttestations(
 		@Nonnull Class<T> holderType, @Nonnull String modeName, @Nonnull Map<String, ConstructionMode<T>> modes
 	) {
 		for (final String name : modes.get(modeName).attested()) {
 			boolean decomposed = false;
-			boolean inherited = false;
+			Field inheritedField = null;
 			for (Class<?> current = holderType; current != Object.class; current = current.getSuperclass()) {
 				for (final Field field : current.getDeclaredFields()) {
 					if (field.getName().equals(name) &&
 						!Modifier.isStatic(field.getModifiers()) && !field.isSynthetic()) {
 						final IdentityExempt exemption = field.getAnnotation(IdentityExempt.class);
 						decomposed |= exemption != null && exemption.value() == IdentityExempt.Reason.DECOMPOSED;
-						inherited |= current != holderType;
+						if (current != holderType) {
+							inheritedField = field;
+						}
 					}
 				}
 			}
 			assertTrue(decomposed, "check 4: attested field is not DECOMPOSED: " + name);
-			boolean checkedElsewhere = inherited;
+			boolean checkedElsewhere = inheritedField != null && unsetInEveryInstance(inheritedField, modes);
 			for (final Map.Entry<String, ConstructionMode<T>> other : modes.entrySet()) {
 				// a mode without a base runs no transplant, so it cannot witness the field
 				checkedElsewhere |= !other.getKey().equals(modeName) && other.getValue().base() != null &&
@@ -134,6 +137,32 @@ public final class IdentityContractVerifier {
 			}
 			assertTrue(checkedElsewhere, "check 4: attested field lacks a non-attesting mode: " + name);
 		}
+	}
+
+	/**
+	 * Builds every instance the fixture declares and requires the field to hold its type's default value in each.
+	 * Equal values alone would not do: a fixture without variants has them for any field.
+	 */
+	private static <T> boolean unsetInEveryInstance(
+		@Nonnull Field field, @Nonnull Map<String, ConstructionMode<T>> modes
+	) {
+		field.setAccessible(true);
+		final Object unset = field.getType().isPrimitive() ?
+			Array.get(Array.newInstance(field.getType(), 1), 0) : null;
+		for (final ConstructionMode<T> mode : modes.values()) {
+			if (mode.base() != null && !Objects.equals(unset, read(field, mode.base().get()))) {
+				return false;
+			}
+			for (final Map<String, Supplier<T>> suppliers :
+				List.of(mode.variants(), mode.opaqueVariants(), mode.oversizedVariants())) {
+				for (final Supplier<T> supplier : suppliers.values()) {
+					if (!Objects.equals(unset, read(field, supplier.get()))) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
 	}
 
 	/**

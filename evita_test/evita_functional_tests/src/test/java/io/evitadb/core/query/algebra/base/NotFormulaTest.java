@@ -23,9 +23,8 @@
 
 package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.algebra.identity.FormulaKey;
-
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -43,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link NotFormula} verifying boolean negation (NOT) computation, memoization,
- * cloning, identity and cost estimation.
+ * cloning, hashing, identity and cost estimation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -51,22 +50,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(ENGINE)
 @Tag(QUERY)
 class NotFormulaTest {
-
-	/** Verifies both raw positions contribute independently to equality and the structural prefilter. */
-	@Test
-	@DisplayName("Includes each ordered raw operand in the key and its structural hash")
-	void shouldIncludeEachRawOperand() {
-		final Bitmap subtracted = new BaseBitmap(1);
-		final Bitmap superset = new BaseBitmap(2);
-		final FormulaKey key = new NotFormula(subtracted, superset).getKey();
-		final FormulaKey differentSubtracted = new NotFormula(new BaseBitmap(3), superset).getKey();
-		final FormulaKey differentSuperset = new NotFormula(subtracted, new BaseBitmap(3)).getKey();
-		assertNotEquals(key, differentSubtracted);
-		assertNotEquals(key, differentSuperset);
-		assertNotEquals(key, new NotFormula(superset, subtracted).getKey());
-		assertNotEquals(key.getHash64(), differentSubtracted.getHash64());
-		assertNotEquals(key.getHash64(), differentSuperset.getHash64());
-	}
 
 	@Nested
 	@DisplayName("Computation correctness")
@@ -238,6 +221,62 @@ class NotFormulaTest {
 
 			assertNotEquals(keyAB, keyBA);
 		}
+
+		/** Verifies both raw positions contribute independently to equality and the structural prefilter. */
+		@Test
+		@DisplayName("should include each ordered raw operand in the key and its structural hash")
+		void shouldIncludeEachRawOperand() {
+			final Bitmap subtracted = new BaseBitmap(1);
+			final Bitmap superset = new BaseBitmap(2);
+
+			final FormulaKey key = new NotFormula(subtracted, superset).getKey();
+			final FormulaKey differentSubtracted = new NotFormula(new BaseBitmap(3), superset).getKey();
+			final FormulaKey differentSuperset = new NotFormula(subtracted, new BaseBitmap(3)).getKey();
+			final FormulaKey swapped = new NotFormula(superset, subtracted).getKey();
+
+			assertNotEquals(key, differentSubtracted);
+			assertNotEquals(key, differentSuperset);
+			assertNotEquals(key, swapped);
+			assertNotEquals(key.getHash64(), differentSubtracted.getHash64());
+			assertNotEquals(key.getHash64(), differentSuperset.getHash64());
+		}
+	}
+
+	/** Pins the legacy structural hash, which the formula deduplicator still keys formulas on. */
+	@Nested
+	@DisplayName("Legacy hash consumed by the formula deduplicator")
+	class LegacyHashTest {
+
+		@Test
+		@DisplayName("should produce identical hash for identically-constructed formulas")
+		void shouldProduceIdenticalHashForIdenticalFormulas() {
+			final long hashA = createNotFormula(new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}).getHash();
+			final long hashB = createNotFormula(new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}).getHash();
+
+			assertEquals(hashA, hashB);
+		}
+
+		@Test
+		@DisplayName("should produce different hash for different children")
+		void shouldProduceDifferentHashForDifferentChildren() {
+			final long hashA = createNotFormula(new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}).getHash();
+			final long hashB = createNotFormula(new int[]{1, 3}, new int[]{1, 2, 3, 4, 5}).getHash();
+
+			assertNotEquals(hashA, hashB);
+		}
+
+		@Test
+		@DisplayName("should produce different hash when subtracted and superset are swapped (order-significant)")
+		void shouldProduceDifferentHashWhenArgumentsSwapped() {
+			final ConstantFormula childA = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 2, 3)));
+			final ConstantFormula childB = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(2, 3, 4, 5)));
+
+			// NOT(A, B) vs NOT(B, A) — order matters
+			final long hashAB = new NotFormula(childA, childB).getHash();
+			final long hashBA = new NotFormula(childB, childA).getHash();
+
+			assertNotEquals(hashAB, hashBA);
+		}
 	}
 
 	@Nested
@@ -321,7 +360,7 @@ class NotFormulaTest {
 	}
 
 	/**
-	 * Creates a {@link NotFormula} from formula-based children for identity testing.
+	 * Creates a {@link NotFormula} from formula-based children for hash and identity testing.
 	 */
 	@Nonnull
 	private static NotFormula createNotFormula(@Nonnull int[] subtracted, @Nonnull int[] superset) {

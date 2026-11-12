@@ -135,7 +135,10 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		return sum * getOperationCost();
 	}
 
-	/** Returns the computation inputs independently of execution state. */
+	/**
+	 * Returns the identity formed by the canonically ordered raw bitmap operands; in formula mode there are none, and
+	 * the children's keys carry the operands.
+	 */
 	@Nonnull
 	@Override
 	protected IdentityRecord identity() {

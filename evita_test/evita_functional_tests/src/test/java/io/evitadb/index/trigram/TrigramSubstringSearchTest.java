@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.filter.translator.attribute.AttributeContainsTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeEndsWithTranslator;
 import io.evitadb.core.transaction.Transaction;
@@ -63,7 +64,6 @@ import javax.annotation.Nullable;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -109,12 +109,12 @@ class TrigramSubstringSearchTest {
 	/**
 	 * Values planted with the `zebra` pattern. Deliberately above
 	 * {@link io.evitadb.core.query.response.TransactionalDataRelatedStructure#EXCESSIVE_HIGH_CARDINALITY} (100), which
-	 * is the bitmap count at which the folded formula stops keying on its individual buckets and falls back to the
-	 * index-level token set - the only shape in which the trigram index's own identity is observable.
+	 * is the bitmap count at which the staleness ids of the folded formula stop naming its individual buckets and
+	 * fall back to the index-level token set. The key of the formula names its buckets at every size.
 	 *
 	 * It is also the widest candidate set any test here searches for, so it is what {@link #FILLER_VALUES} has to be
-	 * sized against. This value must NOT be lowered to make that sizing cheaper - the cache-key assertions depend on
-	 * it clearing the high-cardinality threshold, and the filler is the free side of the ratio.
+	 * sized against. This value must NOT be lowered to make that sizing cheaper - the key assertions cover both sides
+	 * of the high-cardinality threshold with it, and the filler is the free side of the ratio.
 	 */
 	private static final int ZEBRA_VALUES = 120;
 
@@ -270,11 +270,11 @@ class TrigramSubstringSearchTest {
 	/**
 	 * Builds a global index holding the whole corpus under one attribute.
 	 *
-	 * Every distinct value carries TWO records rather than one, which is not incidental: a single-record bucket is
-	 * backed by a `SingleRecordBitmap` that owns no transactional identity at all, so a formula folded over such
-	 * buckets gathers an EMPTY transactional id set and the cache-key assertions below would be asserted against
-	 * nothing. Two records make every bucket a real `TransactionalBitmap`, which is also the shape a production
-	 * corpus of any size has.
+	 * Every distinct value carries TWO records rather than one, which is not incidental: a two-record bucket reaches a
+	 * formula as a `SortedArrayBitmap` view stamped with the leaf that owns it. The cache key identifies the bucket by
+	 * its record content, while the legacy hash also folds in the owning leaf, which is what tells two indexes holding
+	 * equal values apart there; a single-record bucket carries no such stamp. Two records are also the shape a
+	 * production corpus of any size has.
 	 *
 	 * @param attributeName the attribute to write to
 	 * @param locale        the locale to write under, or `null`
@@ -1153,23 +1153,26 @@ class TrigramSubstringSearchTest {
 	/**
 	 * Pins the EAGER assembly of the matched buckets, and only that: every assertion here goes through
 	 * {@link InvertedIndex#toFormula}, whose cache identity is content-addressed precisely because the selection has
-	 * already happened. A deferred assembly would hash the question instead of the answer, and these assertions would
-	 * have to be restated rather than merely re-pointed. Everything the substring path does BEFORE the fold is pinned
-	 * by the sibling classes, which never mention a formula.
+	 * already happened. A deferred assembly would key on the question instead of the answer, and these assertions
+	 * would have to be restated rather than merely re-pointed. Everything the substring path does BEFORE the fold is
+	 * pinned by the sibling classes, which never mention a formula.
 	 */
 	@Nested
 	@DisplayName("the eager assembly keys on everything its answer depends on")
 	class CacheKey {
 
-		/** Verifies eager scan and accelerated folds identify the same matched operands. */
+		/**
+		 * Verifies eager scan and accelerated folds identify the same matched operands, both below the legacy
+		 * high-cardinality threshold of 100 bitmaps (`omega`, 5 buckets) and above it (`zebra`, 120 buckets).
+		 */
 		@Test
 		@DisplayName("the accelerated formula and the scan's share one cache entry")
 		void shouldHaveEqualKeysToTheScan() {
 			// A far stronger statement than "different results hash differently": the two paths agree on the answer
 			// AND land on the same cache entry, so accelerating a query cannot fragment the formula cache. It holds
-			// because both fold the very same bucket record sets, and `AbstractBitmapCacheableFormula` sorts the
-			// bitmap tokens for the key - so the candidate order the trigram path produces (ascending VALUE id) and
-			// the bucket order the scan produces (ascending KEY) are indistinguishable to the key.
+			// because both fold the very same bucket record sets, and `OrFormula#identity()` sorts the bitmap tokens
+			// through `TokenList.canonical` - so the candidate order the trigram path produces (ascending VALUE id)
+			// and the bucket order the scan produces (ascending KEY) are indistinguishable to the key.
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			final FilterIndex filterIndex = filterIndexOf(index, ATTRIBUTE_TITLE, null);
 			for (final String pattern : new String[]{"zebra", "omega", "abcd", NFC_CAFE}) {
@@ -1186,25 +1189,13 @@ class TrigramSubstringSearchTest {
 			}
 		}
 
-		/** Verifies the coarse invalidation threshold never changes the operand identity. */
-		@Test
-		@DisplayName("scan and acceleration share keys below and above the legacy cardinality threshold")
-		void shouldShareKeysAtEveryCardinality() {
-			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
-			final FilterIndex filterIndex = filterIndexOf(index, ATTRIBUTE_TITLE, null);
-			for (final String term : new String[]{"omega", "zebra"}) {
-				assertEquals(filterIndex.getRecordsWhoseValuesContains(term).getKey(),
-					accelerated(index, ATTRIBUTE_TITLE, null, term, CONTAINS).getKey());
-			}
-		}
-
 		/** Verifies adding a selected bucket changes the raw operand identity. */
 		@Test
 		@DisplayName("changing the selected high-cardinality buckets changes the key")
 		void shouldChangeKeyWhenHighCardinalitySelectionChanges() {
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			final Formula before = accelerated(index, ATTRIBUTE_TITLE, null, "zebra", CONTAINS);
-			final io.evitadb.core.query.algebra.identity.FormulaKey key = before.getKey();
+			final FormulaKey key = before.getKey();
 			index.upsertAttribute(null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES,
 				Scope.LIVE, null, "another zebra", 100_001);
 			final Formula after = accelerated(index, ATTRIBUTE_TITLE, null, "zebra", CONTAINS);
@@ -1212,15 +1203,14 @@ class TrigramSubstringSearchTest {
 			assertNotEquals(key, after.getKey());
 		}
 
-		/** Verifies a small selection is represented by its verified bucket contents. */
+		/** Verifies a small selection is keyed exactly by its verified bucket contents, shareable across queries. */
 		@Test
 		@DisplayName("a low-cardinality match keys on the verified bucket contents")
 		void shouldKeyOnVerifiedLeaves() {
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			final Formula formula = accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
 			assertEquals(2 * OMEGA_VALUES, formula.compute().size());
-			assertEquals(filterIndexOf(index, ATTRIBUTE_TITLE, null)
-				.getRecordsWhoseValuesContains("omega").getKey(), formula.getKey());
+			assertFalse(formula.getKey().isQueryLocal(), "bounded bucket contents must give a cross-query key");
 		}
 
 		@Test
@@ -1255,13 +1245,14 @@ class TrigramSubstringSearchTest {
 			assertEquals(firstSearch.getKey(), secondSearch.getKey());
 			assertNotEquals(firstSearch.getHash(), secondSearch.getHash());
 
+			// `omega` is already a value of the corpus, so the write changes the records of an existing bucket
 			second.upsertAttribute(
-				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "one more omega", 100_001);
+				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "omega", 100_001);
 			final Formula afterWrite = accelerated(second, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
+			final FormulaKey firstAfterWrite = accelerated(first, ATTRIBUTE_TITLE, null, "omega", CONTAINS).getKey();
 			assertEquals(firstSearch.compute().size() + 1, afterWrite.compute().size());
-			assertNotEquals(
-				accelerated(first, ATTRIBUTE_TITLE, null, "omega", CONTAINS).getKey(), afterWrite.getKey()
-			);
+			assertEquals(firstSearch.getKey(), firstAfterWrite);
+			assertNotEquals(firstAfterWrite, afterWrite.getKey());
 		}
 
 		@Test
@@ -1283,10 +1274,9 @@ class TrigramSubstringSearchTest {
 		void shouldInvalidateWhenTheDataChanges() {
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			final Formula before = accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
-			final io.evitadb.core.query.algebra.identity.FormulaKey keyBefore = before.getKey();
+			final FormulaKey keyBefore = before.getKey();
 
-			// two records again, so the new bucket is a TransactionalBitmap with an identity of its own rather than a
-			// SingleRecordBitmap, which owns none and would leave the gathered id set unchanged
+			// two records again, so the new bucket has the same shape as every other bucket of the corpus
 			index.upsertAttribute(
 				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "one more omega", 100_001);
 			index.upsertAttribute(

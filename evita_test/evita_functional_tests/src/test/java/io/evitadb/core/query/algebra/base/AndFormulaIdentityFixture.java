@@ -30,6 +30,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.test.identity.*;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nonnull;
@@ -48,7 +49,7 @@ public class AndFormulaIdentityFixture implements IdentityFixture<AndFormula> {
 	public Map<String, ConstructionMode<AndFormula>> modes() {
 		final Bitmap producer = new TransactionalBitmap(new BaseBitmap(1));
 		final Bitmap[] oversized = new Bitmap[TokenList.CAP + 1];
-		java.util.Arrays.fill(oversized, producer);
+		Arrays.fill(oversized, producer);
 		final int[] values = new int[IdentityToken.CONTENT_LIMIT + 1];
 		for (int i = 0; i < values.length; i++) {
 			values[i] = i;

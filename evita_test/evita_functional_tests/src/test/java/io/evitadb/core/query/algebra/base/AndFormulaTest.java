@@ -23,11 +23,11 @@
 
 package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.algebra.identity.FormulaKey;
-
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.bitmap.ArrayBitmap;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link AndFormula} verifying boolean conjunction (AND) computation, memoization,
- * cloning, identity and cost estimation.
+ * cloning, hashing, identity and cost estimation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -52,19 +52,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class AndFormulaTest {
 
 	private static final long[] INDEX_TRANSACTION_ID = {1L};
-
-	/** Pins raw multiset identity, including duplicate occurrences and excluding coarse invalidation ids. */
-	@Test
-	@DisplayName("Canonicalizes raw operands while retaining multiplicity and ignoring coarse ids")
-	void shouldCanonicalizeRawOperandsWithMultiplicity() {
-		final Bitmap first = new io.evitadb.index.bitmap.BaseBitmap(1);
-		final Bitmap second = new io.evitadb.index.bitmap.BaseBitmap(2);
-		final FormulaKey key = new AndFormula(new long[]{1}, first, second).getKey();
-		assertEquals(key, new AndFormula(new long[]{2}, second, first).getKey());
-		final FormulaKey repeated = new AndFormula(new long[]{1}, first, second, second).getKey();
-		assertNotEquals(key, repeated);
-		assertNotEquals(key.getHash64(), repeated.getHash64());
-	}
 
 	@Nested
 	@DisplayName("Computation correctness")
@@ -270,7 +257,7 @@ class AndFormulaTest {
 			assertNotEquals(keyA, keyB);
 		}
 
-		/** Different computation inputs produce unequal detached keys. */
+		/** Reordered children produce unequal detached keys, because the key keeps the child keys in order. */
 		@Test
 		@DisplayName("should produce different keys when children are reordered")
 		void shouldProduceDifferentKeyWhenChildrenReordered() {
@@ -281,6 +268,58 @@ class AndFormulaTest {
 			final FormulaKey keyBA = new AndFormula(childB, childA).getKey();
 
 			assertNotEquals(keyAB, keyBA);
+		}
+
+		/** Pins raw multiset identity, including duplicate occurrences and excluding coarse invalidation ids. */
+		@Test
+		@DisplayName("should canonicalize raw operands while retaining multiplicity and ignoring coarse ids")
+		void shouldCanonicalizeRawOperandsWithMultiplicity() {
+			final Bitmap first = new BaseBitmap(1);
+			final Bitmap second = new BaseBitmap(2);
+
+			final FormulaKey key = new AndFormula(new long[]{1}, first, second).getKey();
+			final FormulaKey reordered = new AndFormula(new long[]{2}, second, first).getKey();
+			final FormulaKey repeated = new AndFormula(new long[]{1}, first, second, second).getKey();
+
+			assertEquals(key, reordered);
+			assertNotEquals(key, repeated);
+			assertNotEquals(key.getHash64(), repeated.getHash64());
+		}
+	}
+
+	/** Pins the legacy structural hash, which the formula deduplicator still keys formulas on. */
+	@Nested
+	@DisplayName("Legacy hash consumed by the formula deduplicator")
+	class LegacyHashTest {
+
+		@Test
+		@DisplayName("should produce identical hash for identically-constructed formulas")
+		void shouldProduceIdenticalHashForIdenticalFormulas() {
+			final long hashA = createAndFormula(1, 2, 3, 4).getHash();
+			final long hashB = createAndFormula(1, 2, 3, 4).getHash();
+
+			assertEquals(hashA, hashB);
+		}
+
+		@Test
+		@DisplayName("should produce different hash for different children")
+		void shouldProduceDifferentHashForDifferentChildren() {
+			final long hashA = createAndFormula(1, 2, 3).getHash();
+			final long hashB = createAndFormula(4, 5, 6).getHash();
+
+			assertNotEquals(hashA, hashB);
+		}
+
+		@Test
+		@DisplayName("should produce same hash when children are reordered (order-insignificant)")
+		void shouldProduceSameHashWhenChildrenReordered() {
+			final ConstantFormula childA = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 2, 3)));
+			final ConstantFormula childB = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(4, 5, 6)));
+
+			final long hashAB = new AndFormula(childA, childB).getHash();
+			final long hashBA = new AndFormula(childB, childA).getHash();
+
+			assertEquals(hashAB, hashBA);
 		}
 	}
 
@@ -340,7 +379,7 @@ class AndFormulaTest {
 	}
 
 	/**
-	 * Creates an {@link AndFormula} from two bitmap-based children for identity testing: one bitmap
+	 * Creates an {@link AndFormula} from two bitmap-based children for hash and identity testing: one bitmap
 	 * holds the supplied values, the other holds a fixed reference set.
 	 */
 	@Nonnull

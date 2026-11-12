@@ -26,8 +26,11 @@ package io.evitadb.core.query.algebra.base;
 import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.core.query.algebra.identity.TokenRole;
+import io.evitadb.core.query.algebra.infra.SkipFormula;
+import io.evitadb.core.query.algebra.locale.LocaleFormula;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -60,44 +63,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(ENGINE)
 @Tag(QUERY)
 class ConstantFormulaTest {
-
-	/** Pins the boundary between bounded value content and instance-bound opaque content. */
-	@Test
-	@DisplayName("Binds large unowned content to its holder and propagates query locality through children")
-	void shouldBindLargeContentToItsHolder() {
-		final int[] values = new int[io.evitadb.core.query.algebra.identity.IdentityToken.CONTENT_LIMIT + 1];
-		for (int i = 0; i < values.length; i++) {
-			values[i] = i;
-		}
-		final BaseBitmap bitmap = new BaseBitmap(values);
-		final ConstantFormula first = new ConstantFormula(bitmap);
-		final ConstantFormula second = new ConstantFormula(bitmap);
-		assertTrue(first.getKey().isOpaque());
-		assertTrue(first.getKey().isQueryLocal());
-		assertSame(first.getKey(), first.getKey());
-		assertNotEquals(first.getKey(), second.getKey());
-		final AndFormula parent = new AndFormula(first, new ConstantFormula(new BaseBitmap(1)));
-		assertFalse(parent.getKey().isOpaque());
-		assertTrue(parent.getKey().isQueryLocal());
-		assertEquals(parent.getKey(),
-			new AndFormula(first, new ConstantFormula(new BaseBitmap(1))).getKey());
-	}
-
-	/** Pins the semantic class discriminator used to recognize locale formulas. */
-	@Test
-	@DisplayName("Distinguishes constant, locale, empty and skip formula identities")
-	void shouldDistinguishFormulaClasses() {
-		final FormulaKey constant = new ConstantFormula(new BaseBitmap(1)).getKey();
-		final FormulaKey locale =
-			new io.evitadb.core.query.algebra.locale.LocaleFormula(new BaseBitmap(1)).getKey();
-		final FormulaKey differentLocale =
-			new io.evitadb.core.query.algebra.locale.LocaleFormula(new BaseBitmap(2)).getKey();
-		assertNotEquals(constant, locale);
-		assertNotEquals(locale, differentLocale);
-		assertNotEquals(locale.getHash64(), differentLocale.getHash64());
-		assertNotEquals(EmptyFormula.INSTANCE.getKey(),
-			io.evitadb.core.query.algebra.infra.SkipFormula.INSTANCE.getKey());
-	}
 
 	@Nested
 	@DisplayName("Cardinality memoization")
@@ -168,6 +133,15 @@ class ConstantFormulaTest {
 			assertThrows(GenericEvitaInternalError.class, () -> new ConstantFormula(new BaseBitmap()));
 		}
 
+		/** Verifies the attesting constructor guards the same nonempty premise as the deriving one. */
+		@Test
+		@DisplayName("should reject an empty delegate bitmap with a supplied identity")
+		void shouldRejectAnEmptyDelegateWithSuppliedIdentity() {
+			final IdentityToken token = IdentityToken.derived(1, TokenRole.FILTER_INDEX_ALL_RECORDS);
+
+			assertThrows(GenericEvitaInternalError.class, () -> new ConstantFormula(new BaseBitmap(), token));
+		}
+
 		@Test
 		@DisplayName("should never report the sentinel value as a cardinality")
 		void shouldNeverReportTheSentinelValueAsCardinality() {
@@ -211,10 +185,10 @@ class ConstantFormulaTest {
 			final ConstantFormula formula = new ConstantFormula(bitmap, token);
 			assertSame(bitmap, formula.compute());
 			assertSame(token, ((ConstantFormula.Identity) formula.identity()).delegateIdentity());
-			assertSame(token, ((ConstantFormula.Identity) formula.identity()).delegateIdentity());
 			assertFalse(formula.getKey().isOpaque());
 			assertFalse(formula.getKey().isQueryLocal());
 			assertEquals(new ConstantFormula(bitmap).getHash(), formula.getHash());
+			assertArrayEquals(new ConstantFormula(bitmap).gatherTransactionalIds(), formula.gatherTransactionalIds());
 		}
 
 		/** Verifies ordinary bitmap identity is recomputed rather than retained by the formula. */
@@ -254,6 +228,74 @@ class ConstantFormulaTest {
 				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getKey(),
 				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 9)).getKey()
 			);
+		}
+
+		/** Pins the legacy structural hash, which the formula deduplicator still keys formulas on. */
+		@Test
+		@DisplayName("should give equal contents the same legacy hash and differing contents different ones")
+		void shouldHashByDelegateContents() {
+			// a plain bitmap has no transactional id, so its contents are the legacy hash's only discriminator
+			assertEquals(
+				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getHash(),
+				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getHash()
+			);
+			assertNotEquals(
+				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getHash(),
+				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 9)).getHash()
+			);
+		}
+
+		/** Verifies an attested token keys the delegate even when the bitmap is a producer with an id of its own. */
+		@Test
+		@DisplayName("should prefer the supplied identity over the producer id of the delegate")
+		void shouldPreferSuppliedIdentityOverProducerId() {
+			final TransactionalBitmap first = new TransactionalBitmap(new BaseBitmap(1));
+			final TransactionalBitmap second = new TransactionalBitmap(new BaseBitmap(1));
+			final IdentityToken token = IdentityToken.derived(1, TokenRole.FILTER_INDEX_ALL_RECORDS);
+
+			final FormulaKey attestedFirst = new ConstantFormula(first, token).getKey();
+			final FormulaKey attestedSecond = new ConstantFormula(second, token).getKey();
+			final FormulaKey derivedFirst = new ConstantFormula(first).getKey();
+			final FormulaKey derivedSecond = new ConstantFormula(second).getKey();
+
+			assertEquals(attestedFirst, attestedSecond);
+			assertNotEquals(derivedFirst, derivedSecond, "distinct producers must key apart without attestation");
+		}
+
+		/** Pins the boundary between bounded value content and instance-bound opaque content. */
+		@Test
+		@DisplayName("should bind large unowned content to its holder and propagate query locality through children")
+		void shouldBindLargeContentToItsHolder() {
+			final int[] values = new int[IdentityToken.CONTENT_LIMIT + 1];
+			for (int i = 0; i < values.length; i++) {
+				values[i] = i;
+			}
+			final BaseBitmap bitmap = new BaseBitmap(values);
+			final ConstantFormula first = new ConstantFormula(bitmap);
+			final ConstantFormula second = new ConstantFormula(bitmap);
+			assertTrue(first.getKey().isOpaque());
+			assertTrue(first.getKey().isQueryLocal());
+			assertSame(first.getKey(), first.getKey());
+			assertNotEquals(first.getKey(), second.getKey());
+			final AndFormula parent = new AndFormula(first, new ConstantFormula(new BaseBitmap(1)));
+			assertFalse(parent.getKey().isOpaque());
+			assertTrue(parent.getKey().isQueryLocal());
+			assertEquals(parent.getKey(),
+				new AndFormula(first, new ConstantFormula(new BaseBitmap(1))).getKey());
+		}
+
+		/** Pins the semantic class discriminator used to recognize locale formulas. */
+		@Test
+		@DisplayName("should distinguish constant, locale, empty and skip formula identities")
+		void shouldDistinguishFormulaClasses() {
+			final FormulaKey constant = new ConstantFormula(new BaseBitmap(1)).getKey();
+			final FormulaKey locale = new LocaleFormula(new BaseBitmap(1)).getKey();
+			final FormulaKey differentLocale = new LocaleFormula(new BaseBitmap(2)).getKey();
+
+			assertNotEquals(constant, locale);
+			assertNotEquals(locale, differentLocale);
+			assertNotEquals(locale.getHash64(), differentLocale.getHash64());
+			assertNotEquals(EmptyFormula.INSTANCE.getKey(), SkipFormula.INSTANCE.getKey());
 		}
 	}
 

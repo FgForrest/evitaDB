@@ -23,9 +23,9 @@
 
 package io.evitadb.core.query.algebra.infra;
 
-import io.evitadb.core.query.algebra.base.*;
 import io.evitadb.test.identity.*;
 
+import java.lang.reflect.Constructor;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nonnull;
@@ -52,7 +52,7 @@ public class SkipFormulaIdentityFixture implements IdentityFixture<SkipFormula> 
 	@Nonnull
 	private static SkipFormula fresh() {
 		try {
-			final java.lang.reflect.Constructor<SkipFormula> constructor = SkipFormula.class.getDeclaredConstructor();
+			final Constructor<SkipFormula> constructor = SkipFormula.class.getDeclaredConstructor();
 			constructor.setAccessible(true);
 			return constructor.newInstance();
 		} catch (ReflectiveOperationException ex) {

@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.test.identity.*;
 
+import java.lang.reflect.Constructor;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nonnull;
@@ -51,7 +52,7 @@ public class EmptyFormulaIdentityFixture implements IdentityFixture<EmptyFormula
 	@Nonnull
 	private static EmptyFormula fresh() {
 		try {
-			final java.lang.reflect.Constructor<EmptyFormula> constructor = EmptyFormula.class.getDeclaredConstructor();
+			final Constructor<EmptyFormula> constructor = EmptyFormula.class.getDeclaredConstructor();
 			constructor.setAccessible(true);
 			return constructor.newInstance();
 		} catch (ReflectiveOperationException ex) {

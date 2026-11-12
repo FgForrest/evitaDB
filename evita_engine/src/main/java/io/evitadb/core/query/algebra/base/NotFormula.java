@@ -206,7 +206,10 @@ public class NotFormula extends AbstractCacheableFormula {
 		return this.supersetBitmap == null ? null : IdentityToken.of(this.supersetBitmap);
 	}
 
-	/** Returns the computation inputs independently of execution state. */
+	/**
+	 * Returns the identity formed by the raw subtracted and superset bitmaps in their positions; both are absent in
+	 * formula mode, where the two children's keys carry the operands.
+	 */
 	@Nonnull
 	@Override
 	protected IdentityRecord identity() {

@@ -70,6 +70,8 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 		"Deliberately mismatches its class identifier and inherited identity.",
 		"io.evitadb.core.query.algebra.identity.LoudFailureTest$UndeclaredIdentityFormula",
 		"Deliberately retains the throwing identity default.",
+		"io.evitadb.core.query.algebra.identity.IdentityContractVerifierTest$DelegateBlindFormula",
+		"Deliberately drops an inherited input to prove attestation cannot hide it.",
 		"io.evitadb.core.query.algebra.identity.FormulaKeyTest$UndeclaredFormula",
 		"Keeps the formula identity default observable.",
 		"io.evitadb.core.query.algebra.identity.FormulaKeyTest$UndeclaredHierarchyPredicate",

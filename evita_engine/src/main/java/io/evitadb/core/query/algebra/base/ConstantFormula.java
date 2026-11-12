@@ -86,8 +86,10 @@ public class ConstantFormula extends AbstractFormula {
 	}
 
 	/**
-	 * Captures a nonempty bitmap with a caller-attested identity. The caller attests that the bitmap is a
-	 * deterministic function of the versioned owner named by the token and checks freshness of the memo itself.
+	 * Captures a nonempty bitmap whose identity the caller attests: the token names a versioned owner and the bitmap's
+	 * derivation from it, and the caller guarantees the token changes whenever the bitmap's content does. The formula
+	 * neither verifies that nor derives an identity from the bitmap, so a token kept across a content change yields a
+	 * stale key.
 	 *
 	 * @param delegate bitmap returned as the result
 	 * @param delegateIdentity token identifying the versioned owner and the bitmap's derivation
@@ -143,7 +145,10 @@ public class ConstantFormula extends AbstractFormula {
 		return this.suppliedIdentity == null ? IdentityToken.of(this.delegate) : this.suppliedIdentity;
 	}
 
-	/** Returns the computation inputs independently of execution state. */
+	/**
+	 * Returns the identity formed by the delegate bitmap's token: the caller-attested one when supplied, otherwise
+	 * one derived from the bitmap.
+	 */
 	@Nonnull
 	@Override
 	protected IdentityRecord identity() {

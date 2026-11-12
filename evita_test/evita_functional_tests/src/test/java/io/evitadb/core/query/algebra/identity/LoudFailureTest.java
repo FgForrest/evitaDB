@@ -70,7 +70,11 @@ class LoudFailureTest {
 	@Test
 	@DisplayName("Rejects a class identifier paired with an inherited identity")
 	void shouldRejectMismatchedClassIdentifier() {
-		assertThrows(GenericEvitaInternalError.class, () -> new MismatchedClassFormula().getKey());
+		final MismatchedClassFormula formula = new MismatchedClassFormula();
+
+		final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class, formula::getKey);
+
+		assertEquals("Identity class identifier differs from its holder's identifier.", error.getMessage());
 	}
 
 	/** Proves the throwing default identifies the holder whose declaration is missing. */

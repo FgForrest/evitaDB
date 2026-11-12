@@ -23,9 +23,9 @@
 
 package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.algebra.identity.FormulaKey;
-
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.ArrayBitmap;
@@ -49,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link OrFormula} verifying boolean disjunction (OR) computation, memoization,
- * cloning, identity and cost estimation.
+ * cloning, hashing, identity and cost estimation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -59,19 +59,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class OrFormulaTest {
 
 	private static final long[] INDEX_TRANSACTION_ID = {1L};
-
-	/** Pins raw multiset identity, including duplicate occurrences and excluding coarse invalidation ids. */
-	@Test
-	@DisplayName("Canonicalizes raw operands while retaining multiplicity and ignoring coarse ids")
-	void shouldCanonicalizeRawOperandsWithMultiplicity() {
-		final Bitmap first = new BaseBitmap(1);
-		final Bitmap second = new BaseBitmap(2);
-		final FormulaKey key = new OrFormula(new long[]{1}, first, second).getKey();
-		assertEquals(key, new OrFormula(new long[]{2}, second, first).getKey());
-		final FormulaKey repeated = new OrFormula(new long[]{1}, first, second, second).getKey();
-		assertNotEquals(key, repeated);
-		assertNotEquals(key.getHash64(), repeated.getHash64());
-	}
 
 	@Nested
 	@DisplayName("Computation correctness")
@@ -307,7 +294,7 @@ class OrFormulaTest {
 			assertNotEquals(keyA, keyB);
 		}
 
-		/** Different computation inputs produce unequal detached keys. */
+		/** Reordered children produce unequal detached keys, because the key keeps the child keys in order. */
 		@Test
 		@DisplayName("should produce different keys when children are reordered")
 		void shouldProduceDifferentKeyWhenChildrenReordered() {
@@ -318,6 +305,58 @@ class OrFormulaTest {
 			final FormulaKey keyBA = new OrFormula(childB, childA).getKey();
 
 			assertNotEquals(keyAB, keyBA);
+		}
+
+		/** Pins raw multiset identity, including duplicate occurrences and excluding coarse invalidation ids. */
+		@Test
+		@DisplayName("should canonicalize raw operands while retaining multiplicity and ignoring coarse ids")
+		void shouldCanonicalizeRawOperandsWithMultiplicity() {
+			final Bitmap first = new BaseBitmap(1);
+			final Bitmap second = new BaseBitmap(2);
+
+			final FormulaKey key = new OrFormula(new long[]{1}, first, second).getKey();
+			final FormulaKey reordered = new OrFormula(new long[]{2}, second, first).getKey();
+			final FormulaKey repeated = new OrFormula(new long[]{1}, first, second, second).getKey();
+
+			assertEquals(key, reordered);
+			assertNotEquals(key, repeated);
+			assertNotEquals(key.getHash64(), repeated.getHash64());
+		}
+	}
+
+	/** Pins the legacy structural hash, which the formula deduplicator still keys formulas on. */
+	@Nested
+	@DisplayName("Legacy hash consumed by the formula deduplicator")
+	class LegacyHashTest {
+
+		@Test
+		@DisplayName("should produce identical hash for identically-constructed formulas")
+		void shouldProduceIdenticalHashForIdenticalFormulas() {
+			final long hashA = createOrFormula(1, 2, 3).getHash();
+			final long hashB = createOrFormula(1, 2, 3).getHash();
+
+			assertEquals(hashA, hashB);
+		}
+
+		@Test
+		@DisplayName("should produce different hash for different children")
+		void shouldProduceDifferentHashForDifferentChildren() {
+			final long hashA = createOrFormula(1, 2, 3).getHash();
+			final long hashB = createOrFormula(7, 8, 9).getHash();
+
+			assertNotEquals(hashA, hashB);
+		}
+
+		@Test
+		@DisplayName("should produce same hash when children are reordered (order-insignificant)")
+		void shouldProduceSameHashWhenChildrenReordered() {
+			final ConstantFormula childA = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 2, 3)));
+			final ConstantFormula childB = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(4, 5, 6)));
+
+			final long hashAB = new OrFormula(childA, childB).getHash();
+			final long hashBA = new OrFormula(childB, childA).getHash();
+
+			assertEquals(hashAB, hashBA);
 		}
 	}
 
@@ -554,8 +593,8 @@ class OrFormulaTest {
 		@DisplayName("the fold leaves the formula's own operands, key and cardinality estimate exactly as they were")
 		void shouldLeaveTheFormulaOwnStateUntouchedByTheFold() {
 			// The fold builds a fresh array on the way into the union. The formula's OWN operand array is what its
-			// hash, its cached identity and its transactional ids are derived from, so a fold that wrote into it would
-			// silently move the cache key of every query holding this formula.
+			// identity is derived from on every call, so a fold that wrote into it would silently change the identity
+			// behind a key that was already built.
 			final Bitmap[] operands = {
 				new SingleRecordBitmap(5),
 				new BaseBitmap(2, 7, 40),
@@ -568,7 +607,7 @@ class OrFormulaTest {
 				contentBefore[i] = operands[i].getArray();
 			}
 			final OrFormula formula = new OrFormula(INDEX_TRANSACTION_ID, operands);
-			final FormulaKey keyBefore = formula.getKey();
+			final IdentityRecord identityBefore = formula.identity();
 			final int cardinalityBefore = formula.getEstimatedCardinality();
 
 			formula.compute();
@@ -580,7 +619,7 @@ class OrFormulaTest {
 					"operand " + i + " must hold exactly the ids it was built with"
 				);
 			}
-			assertEquals(keyBefore, formula.getKey(), "computing must not move the formula's cache key");
+			assertEquals(identityBefore, formula.identity(), "computing must not move the formula's cache key");
 			assertEquals(cardinalityBefore, formula.getEstimatedCardinality());
 		}
 
@@ -639,7 +678,7 @@ class OrFormulaTest {
 	}
 
 	/**
-	 * Creates an {@link OrFormula} wrapping two constant formulas for identity testing.
+	 * Creates an {@link OrFormula} wrapping two constant formulas for hash and identity testing.
 	 *
 	 * @param values the ids of the first constant formula
 	 * @return the assembled formula

@@ -97,7 +97,7 @@ public class EmptyFormula extends AbstractFormula {
 		return CLASS_ID;
 	}
 
-	/** Returns the computation inputs independently of execution state. */
+	/** Returns the identity of a formula without inputs, so its class identifier alone forms the key. */
 	@Nonnull
 	@Override
 	protected IdentityRecord identity() {

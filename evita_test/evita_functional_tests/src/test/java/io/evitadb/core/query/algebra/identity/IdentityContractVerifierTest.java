@@ -71,6 +71,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(TEST_HARNESS)
 @Tag(CACHE)
 class IdentityContractVerifierTest implements EvitaTestSupport {
+	/** Correct-holder variant whose operand list exceeds the cross-query admission limit. */
+	private static final Map<String, Supplier<CorrectIdentityHolder>> OVERSIZED = Map.of(
+		"oversized", () -> new CorrectIdentityHolder(1, TokenList.ofProducerIds(new long[TokenList.CAP + 1], false))
+	);
+
 	/** Proves the children check rejects a real formula whose memo was seeded without its declared children. */
 	@Test
 	@DisplayName("Detects a formula key omitting its children through check 6")
@@ -80,7 +85,8 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 				Map.of(), Map.of(), Map.of(), Map.of(), Set.of("bitmaps"), Set.of("bitmaps"), Set.of()));
 		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
 			AndFormula.class, fixture));
-		assertTrue(error.getMessage().contains("check 6:"), error.getMessage());
+		assertTrue(error.getMessage().contains("check 6: holder key must include its declared children"),
+			error::getMessage);
 	}
 
 	/** Seeds a defective childless key on an otherwise valid holder, using test-only reflection. */
@@ -99,11 +105,6 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 			throw new AssertionError(ex);
 		}
 	}
-
-	/** Correct-holder variant whose operand list exceeds the cross-query admission limit. */
-	private static final Map<String, Supplier<CorrectIdentityHolder>> OVERSIZED = Map.of(
-		"oversized", () -> new CorrectIdentityHolder(1, TokenList.ofProducerIds(new long[TokenList.CAP + 1], false))
-	);
 
 	/** Verifies a complete value identity, field transplant and declared equal clone. */
 	@Test
@@ -237,6 +238,23 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 		);
 		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
 			ConstantFormula.class, fixture));
+		assertTrue(error.getMessage().contains("check 4: attested field lacks a non-attesting mode: delegate"),
+			error::getMessage);
+	}
+
+	/** Verifies attesting an inherited field cannot hide a holder whose own identity drops that input. */
+	@Test
+	@DisplayName("Rejects an attested inherited input that the holder's own identity drops")
+	void shouldRejectAttestedInheritedInputDroppedByOwnIdentity() {
+		assertEquals(new DelegateBlindFormula(1).getKey(), new DelegateBlindFormula(2).getKey(),
+			"the holder must be defective: different results under one key");
+		final IdentityFixture<DelegateBlindFormula> fixture = () -> Map.of("blind", new ConstructionMode<>(
+			() -> new DelegateBlindFormula(1), Map.of(), Map.of(), Map.of(), Map.of(),
+			Set.of("delegateIdentity"), Set.of("delegateIdentity"), Set.of("delegate", "suppliedIdentity")));
+
+		final AssertionError error = assertThrows(AssertionError.class,
+			() -> IdentityContractVerifier.verify(DelegateBlindFormula.class, fixture));
+
 		assertTrue(error.getMessage().contains("check 4: attested field lacks a non-attesting mode: delegate"),
 			error::getMessage);
 	}
@@ -933,6 +951,49 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 			@Override public long classId() { return CLASS_ID; }
 			/** Includes the opaque marker. */
 			@Override public void describeTo(@Nonnull KeyAccumulator accumulator) { accumulator.add(this.token); }
+		}
+	}
+
+	/**
+	 * Defective constant subclass whose own identity ignores the bitmap it inherits and returns.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private static final class DelegateBlindFormula extends ConstantFormula {
+		/** Stable holder identifier. */
+		private static final long CLASS_ID = 4064504944427197567L;
+
+		/** Captures a one-record bitmap as the result. */
+		private DelegateBlindFormula(int recordId) {
+			super(new BaseBitmap(recordId));
+		}
+
+		/** Deliberately returns a fixed token instead of one derived from the inherited bitmap. */
+		@Nonnull
+		@Override
+		protected IdentityRecord identity() {
+			return new Identity(IdentityToken.derived(0, TokenRole.FILTER_INDEX_ALL_RECORDS));
+		}
+
+		/** Returns this holder's identifier. */
+		@Override
+		protected long getClassId() {
+			return CLASS_ID;
+		}
+
+		/**
+		 * Operand token that does not depend on the bitmap.
+		 *
+		 * @param delegateIdentity fixed token standing in for the bitmap operand
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		private record Identity(@Nonnull IdentityToken delegateIdentity) implements IdentityRecord {
+			/** Returns the owning holder's identifier. */
+			@Override public long classId() { return CLASS_ID; }
+			/** Includes the fixed operand token. */
+			@Override public void describeTo(@Nonnull KeyAccumulator accumulator) {
+				accumulator.add(this.delegateIdentity);
+			}
 		}
 	}
 }

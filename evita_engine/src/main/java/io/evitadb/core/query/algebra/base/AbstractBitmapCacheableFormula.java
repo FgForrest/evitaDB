@@ -143,9 +143,8 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 			Arrays.sort(hashes);
 			// NOT folded in here: `indexTransactionId`. It is a STALENESS token set, not part of the identity of the
 			// computation, and the two differ - the trigram-accelerated path carries the accelerator's own id while
-			// the scan over the same buckets cannot, yet both must land on one cache entry (see
-			// TrigramSubstringSearchTest#shouldHashIdenticallyToTheScan). Staleness is carried by
-			// `gatherBitmapIdsInternal` instead, which is what the cache validates a hit against.
+			// the scan over the same buckets cannot, yet both must hash alike. Staleness is carried by
+			// `gatherBitmapIdsInternal` instead.
 			return hashFunction.hashLongs(hashes);
 		}
 	}

@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.locale;
 
-import io.evitadb.core.query.algebra.base.*;
 import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
