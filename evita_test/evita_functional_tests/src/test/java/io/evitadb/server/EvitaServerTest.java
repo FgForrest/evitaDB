@@ -27,9 +27,17 @@ import com.google.protobuf.Empty;
 import com.linecorp.armeria.client.ClientFactory;
 import com.linecorp.armeria.client.WebClient;
 import com.linecorp.armeria.client.grpc.GrpcClients;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.TlsKeyPair;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
@@ -55,21 +63,29 @@ import io.evitadb.externalApi.lab.LabProvider;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.system.SystemProvider;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.server.yaml.UnknownPropertyProblemHandler;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils.Property;
+import io.evitadb.utils.ExceptionUtils;
 import io.evitadb.utils.NetworkUtils;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -100,6 +116,12 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 @Tag(MANAGEMENT)
 class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private static final String DIR_EVITA_SERVER_TEST = "evitaServerTest";
+	private static final String REMOVED_CACHE_PROPERTIES_YAML = """
+		cache:
+		  reevaluateEachSeconds: 60
+		  anteroomRecordCount: 100000
+		  minimalUsageThreshold: 2
+		""";
 	public static final int TIMEOUT_IN_MILLIS = 30_000;
 	/**
 	 * Time budget for polling a health probe (`readiness` / `liveness` / `status`) until it settles.
@@ -1075,6 +1097,144 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			fail("The server should have failed to start due to unknown properties in the configuration file.");
 		} catch (Exception ex) {
 			// this is okey
+		}
+	}
+
+	@Test
+	@DisplayName("should share cache defaults with the shipped YAML")
+	void shouldShareCacheDefaultsWithShippedYaml() throws IOException {
+		assertEquals(new CacheOptions(), loadCacheOptions("", true));
+		assertEquals(CacheOptions.builder().build(), loadCacheOptions("cache:\n  enabled: false\n", true));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"null", "0", "1048576", "2M"})
+	@DisplayName("should resolve YAML cache budgets")
+	void shouldResolveYamlCacheBudgets(@Nonnull String value) throws IOException {
+		final CacheOptions options = loadCacheOptions("cache:\n  cacheSizeInBytes: " + value + "\n", true);
+		final long expected = switch (value) {
+			case "1048576" -> 1_048_576L;
+			case "2M" -> 2_000_000L;
+			default -> new CacheOptions().cacheSizeInBytes();
+		};
+		assertEquals(expected, options.cacheSizeInBytes());
+	}
+
+	@Test
+	@DisplayName("should map YAML null to primitive zero before cache budget normalization")
+	void shouldMapYamlNullToPrimitiveZeroForCacheBudget() throws IOException {
+		// The server mapper uses Jackson's default primitive-null handling.
+		final ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+		assertEquals(0L, mapper.readValue("null", long.class));
+		assertEquals(new CacheOptions(), loadCacheOptions("cache:\n  cacheSizeInBytes: null\n", true));
+	}
+
+	@Test
+	@DisplayName("should accept zero expiry and verification in YAML cache options")
+	void shouldAcceptZeroExpiryAndVerificationInYamlCacheOptions() throws IOException {
+		final CacheOptions options = loadCacheOptions(
+			"cache:\n  dropEntriesAfterSecondsOfInactivity: 0\n  verifyOneHitIn: 0\n", true
+		);
+		assertEquals(0, options.dropEntriesAfterSecondsOfInactivity());
+		assertEquals(0, options.verifyOneHitIn());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+		"minimalComplexityThreshold", "cacheSizeInBytes", "dropEntriesAfterSecondsOfInactivity", "verifyOneHitIn"
+	})
+	@DisplayName("should reject negative YAML cache limits")
+	void shouldRejectNegativeYamlCacheLimits(@Nonnull String property) {
+		final IllegalArgumentException exception = assertThrows(
+			IllegalArgumentException.class, () -> loadCacheOptions("cache:\n  " + property + ": -1\n", true)
+		);
+		assertInstanceOf(EvitaInvalidUsageException.class, ExceptionUtils.getRootCause(exception));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"reevaluateEachSeconds", "anteroomRecordCount", "minimalUsageThreshold"})
+	@DisplayName("should reject each removed cache property in strict mode")
+	void shouldRejectRemovedCachePropertiesInStrictMode(@Nonnull String property) {
+		final IllegalArgumentException exception = assertThrows(
+			IllegalArgumentException.class, () -> loadCacheOptions("cache:\n  " + property + ": 1\n", true)
+		);
+		final UnrecognizedPropertyException cause = assertInstanceOf(
+			UnrecognizedPropertyException.class, ExceptionUtils.getRootCause(exception)
+		);
+		assertEquals(property, cause.getPropertyName());
+	}
+
+	@Test
+	@DisplayName("should reject an old YAML containing all removed cache properties in strict mode")
+	void shouldRejectOldCacheYamlInStrictMode() {
+		final IllegalArgumentException exception = assertThrows(
+			IllegalArgumentException.class, () -> loadCacheOptions(REMOVED_CACHE_PROPERTIES_YAML, true)
+		);
+		final UnrecognizedPropertyException cause = assertInstanceOf(
+			UnrecognizedPropertyException.class, ExceptionUtils.getRootCause(exception)
+		);
+		assertTrue(List.of("reevaluateEachSeconds", "anteroomRecordCount", "minimalUsageThreshold")
+			.contains(cause.getPropertyName()));
+	}
+
+	@Test
+	@DisplayName("should warn and ignore removed cache properties in non-strict mode")
+	void shouldWarnAndIgnoreRemovedCachePropertiesInNonStrictMode() throws IOException {
+		final Logger logger = (Logger) LoggerFactory.getLogger(UnknownPropertyProblemHandler.class);
+		final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+		appender.start();
+		logger.addAppender(appender);
+		try {
+			assertEquals(new CacheOptions(), loadCacheOptions(
+				REMOVED_CACHE_PROPERTIES_YAML,
+				false
+			));
+			for (String property : List.of("reevaluateEachSeconds", "anteroomRecordCount", "minimalUsageThreshold")) {
+				assertEquals(1L, appender.list.stream().filter(
+					event -> event.getLevel() == Level.WARN &&
+						event.getFormattedMessage().contains("cache." + property)
+				).count());
+			}
+		} finally {
+			logger.detachAppender(appender);
+			appender.stop();
+		}
+	}
+
+	/**
+	 * Loads cache options through the server's YAML merge, substitution and deserialization path.
+	 * APIs are disabled so that configuration checks do not need listening sockets.
+	 */
+	@Nonnull
+	private CacheOptions loadCacheOptions(@Nonnull String yaml, boolean strict) throws IOException {
+		final Path directory = getPathInTargetDirectory(DIR_EVITA_SERVER_TEST);
+		Files.createDirectories(directory);
+		if (yaml.isEmpty()) {
+			Files.deleteIfExists(directory.resolve("cache.yaml"));
+		} else {
+			Files.writeString(directory.resolve("cache.yaml"), yaml);
+		}
+		final Map<String, String> arguments = createHashMap(4);
+		arguments.put("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString());
+		arguments.put("export.fileSystem.enabled", "true");
+		arguments.put(
+			"export.fileSystem.directory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST + "_export").toString()
+		);
+		for (ExternalApiProviderRegistrar<?> provider : ExternalApiServer.gatherExternalApiProviders()) {
+			arguments.put("api.endpoints." + provider.getExternalApiCode() + ".enabled", "false");
+		}
+		final EvitaServer server = new EvitaServer(directory, strict, null, arguments);
+		try {
+			server.run();
+			return server.getEvita().getConfiguration().cache();
+		} finally {
+			try {
+				server.stop().join();
+			} finally {
+				if (server.getEvita() != null) {
+					server.getEvita().close();
+				}
+			}
 		}
 	}
 

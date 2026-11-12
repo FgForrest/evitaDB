@@ -398,10 +398,6 @@ duration of the probe.</dd>
   <dd>Background tasks started<br/><br/><strong>Labels:</strong> <Term>taskName</Term><br/></dd>
   <dt><code>io_evitadb_system_background_task_timed_out_timed_out_tasks</code> (COUNTER)</dt>
   <dd><strong>Timed out tasks</strong>: Number of timed out and canceled tasks.<br/><br/><strong>Labels:</strong> <Term>taskName</Term><br/></dd>
-  <dt><code>io_evitadb_system_evita_statistics_cache_anteroom_record_limit</code> (GAUGE)</dt>
-  <dd><strong>Maximum number of records in the cache anteroom</strong>: Configured threshold for the maximum number of records in the cache anteroom (`cache.anteroomRecordCount`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
-  <dt><code>io_evitadb_system_evita_statistics_cache_reevaluation_seconds</code> (GAUGE)</dt>
-  <dd><strong>Cache reevaluation interval in seconds</strong>: Configured threshold for the cache reevaluation interval in seconds (`cache.reevaluateEachSeconds`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_cache_size_in_bytes</code> (GAUGE)</dt>
   <dd><strong>Maximum cache size in Bytes</strong>: Configured threshold for the maximum cache size in Bytes (`cache.cacheSizeInBytes`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_catalogs</code> (GAUGE)</dt>

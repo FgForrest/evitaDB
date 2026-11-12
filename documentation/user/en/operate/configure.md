@@ -92,11 +92,10 @@ transaction:                                      # [see Transaction configurati
 cache:                                            # [see Cache configuration](#cache-configuration)
   enabled: false
   reflection: CACHE
-  reevaluateEachSeconds: 60
-  anteroomRecordCount: 100K
   minimalComplexityThreshold: 10K
-  minimalUsageThreshold: 2
   cacheSizeInBytes: null
+  dropEntriesAfterSecondsOfInactivity: 600
+  verifyOneHitIn: 1000
 
 api:                                              # [see API configuration](#api-configuration)
   workerGroupThreads: 4
@@ -1077,70 +1076,45 @@ occur in your application.
 
 ## Cache configuration
 
-The cache speeds up responses for fully or partially identical queries. The cache might in some case increase
-the throughput of the system several times.
-
-<Note type="warning">
-In current version we recommend disabling the cache until [the issue #37](https://github.com/FgForrest/evitaDB/issues/37)
-is resolved.
-</Note>
+The cross-query cache retains formula computation results for reuse across queries. Its memory budget is bounded by
+an estimate of the size of retained entries. Cache options accept only non-negative thresholds, budgets, expiry periods
+and verification rates.
 
 <dl>
-    <dt>enabled</dt>
-    <dd>
-        <p>**Default:** `false`</p>
-        <p>This setting enables or disables the use of the cache entirely.</p>
-    </dd>
     <dt>reflection</dt>
     <dd>
         <p>**Default:** `CACHE`</p>
-        <p>This setting enables or disables caching of Java reflection information. The `CACHE` mode is usually recommended 
-        unless you're running some kind of test.</p>
+        <p>Controls caching of Java reflection metadata. `CACHE` is recommended for normal operation;
+        `NO_CACHE` disables reflection caching independently of formula result caching.</p>
     </dd>
-    <dt>reevaluateEachSeconds</dt>
+    <dt>enabled</dt>
     <dd>
-        <p>**Default:** `60`</p>
-        <p>It defines the period for re-evaluating cache adepts to be propagated to cache or pruned.
-        The reevaluation may be also triggered by exceeding maximum allowed `anteroomRecordCount`, but no later than
-        `reevaluateEachSeconds` since the last re-evaluation (with the exception when there is no free thread in 
-        thread pool to serve this task). See [detailed caching process description](../deep-dive/cache.md).</p>
-    </dd>
-    <dt>anteroomRecordCount</dt>
-    <dd>
-        <p>**Default:** `100K`</p>
-        <p>It defines the maximum number of records in cache anteroom. When this count is reached the re-evaluation
-        process is automatically triggered leading to anteroom purge. The anteroom is also periodically purged
-        each `reevaluateEachSeconds`. See [detailed caching process description](../deep-dive/cache.md).</p>
+        <p>**Default:** `false`</p>
+        <p>Enables or disables cross-query caching of formula computation results. Use `false` to disable this cache.</p>
     </dd>
     <dt>minimalComplexityThreshold</dt>
     <dd>
-        <p>**Default:** `10K`</p>
-        <p>It specifies the minimum computational complexity that must be achieved to store the cached result in the 
-        cache. It's sort of a virtual number, so there's no guide as to how big it should be. If the cache fills up with
-        a lot of results of doubtful use, you might try to increase this threshold to higher values.</p>
-    </dd>
-    <dt>minimalUsageThreshold</dt>
-    <dd>
-        <p>**Default:** `2`</p>
-        <p>It specifies the minimum number of times a computed result can be reused before it is cached. If the cache is 
-        filling up with cached values with low hit ratios, you might try increasing this threshold to higher values.</p>
+        <p>**Default:** `10K` (`10000`)</p>
+        <p>The minimal estimated cost of a computation whose result may be cached. Raising this threshold restricts
+        admission to more expensive computations.</p>
     </dd>
     <dt>cacheSizeInBytes</dt>
     <dd>
-        <p>**Default:** `null`, which means that evitaDB uses 25% of the free memory measured at the moment it starts and loads all data into it</p>
-        <p>evitaDB tries to estimate the memory size of each cached object and avoid exceeding this threshold.</p>
-
-        <Note type="question">
-
-        <NoteTitle toggles="true">
-
-        ##### How do we measure the object size?
-        </NoteTitle>
-
-        Measuring the exact amount of memory each object allocates is not easy in Java, and at the moment it's only 
-        an approximation from our side. According to our experience, our estimates are set higher than the reality and 
-        the system stops at around 90% of the set `cacheSizeInBytes` limit (but this experience is based on OS Linux, x86_64 architecture).
-        </Note>
+        <p>**Default:** `null` (25% of free heap measured when `CacheOptions` is initialized)</p>
+        <p>The target budget in bytes for the estimated size of retained entries. Omission, `null` and `0` select
+        the same default budget. Use `enabled: false` to disable formula result caching.</p>
+    </dd>
+    <dt>dropEntriesAfterSecondsOfInactivity</dt>
+    <dd>
+        <p>**Default:** `600`</p>
+        <p>The idle period in seconds after which an entry expires, also used as the maintenance period.
+        Expired entries are reclaimed during maintenance on a best-effort basis. `0` disables expiry and its timer.</p>
+    </dd>
+    <dt>verifyOneHitIn</dt>
+    <dd>
+        <p>**Default:** `1000`</p>
+        <p>The sampling rate for verifying cached results by recomputation: `1000` verifies one in a thousand hits,
+        `1` verifies every hit and `0` disables verification.</p>
     </dd>
 </dl>
 

@@ -77,14 +77,12 @@ transaction:
   conflictPolicy: ${transaction.conflictPolicy:[ENTITY]}
 
 cache:
-  # Query cache settings are accepted; query caching is inactive. Reflection caching remains configurable.
   enabled: ${cache.enabled:false}
   reflection: ${cache.reflection:CACHE}
-  reevaluateEachSeconds: ${cache.reevaluateEachSeconds:60}
-  anteroomRecordCount: ${cache.anteroomRecordCount:100K}
   minimalComplexityThreshold: ${cache.minimalComplexityThreshold:10K}
-  minimalUsageThreshold: ${cache.minimalUsageThreshold:2}
   cacheSizeInBytes: ${cache.cacheSizeInBytes:null}
+  dropEntriesAfterSecondsOfInactivity: ${cache.dropEntriesAfterSecondsOfInactivity:600}
+  verifyOneHitIn: ${cache.verifyOneHitIn:1000}
 
 api:
   workerGroupThreads: ${api.workerGroupThreads:null}
