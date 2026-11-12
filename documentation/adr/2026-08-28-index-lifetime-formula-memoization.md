@@ -1,7 +1,7 @@
 ---
 title: Index caches memoize the bitmap, never the formula, because a formula node carries per-query state
 date: 2026-08-28
-updated: 2026-08-28 13:25
+updated: 2026-11-12 21:12
 status: accepted
 kind: fix
 issues: [1458]
@@ -22,7 +22,7 @@ fresh `ConstantFormula` wrapper per call.
 
 ## Why
 
-Production (decodoma ks02, evitaDB 2026.1.15) leaked a post-GC live heap floor from 8.30 GB to 14.43 GB
+A production e-commerce deployment (evitaDB 2026.1.15) leaked a post-GC live heap floor from 8.30 GB to 14.43 GB
 over 45 hours — about 139 MB/h, 3.3 GB/day, against a 22 GiB maximum, never recovering. A heap dump showed
 126 `EvitaSession` instances and at least 41 `Catalog` generations still reachable long after the sessions
 had been closed and killed.
