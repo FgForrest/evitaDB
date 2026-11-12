@@ -123,9 +123,11 @@ the virtual product with LOWEST_PRICE strategy manifests itself with sub-product
 When we calculate the discount, we need to use the price from different price lists, but only the price that refers to 
 the same product variant as the price for sale.
 
-Moreover, if we further narrow the query with the [price between constraint](../filtering/price.md#price-between), 
-the representative variant will be the one with the lowest price in the selected price range. In this case, 
-the reference price must also be calculated from the different sets of price lists for the same product variant.
+Narrowing the query with the [price between constraint](../filtering/price.md#price-between) does not change
+the representative variant. The product passes the filter when at least one of its variants has a selling price in
+the selected price range, and it is still represented by the variant with the lowest selling price overall, even when
+that price lies outside the range. The reference price is calculated from the different sets of price lists for
+that same product variant.
 
 ###### Sum price strategy
 

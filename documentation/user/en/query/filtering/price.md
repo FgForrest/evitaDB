@@ -100,9 +100,9 @@ For non-default price inner record handling modes, the price is calculated this 
    <dt>LOWEST_PRICE</dt>
    <dd>
       The sales price is selected as the lowest sales price calculated separately for blocks of prices with the same
-      inner record id, compared in the [price type](../requirements/price.md#price-type) of the query. If the
-      [price between](#price-between) constraint is specified, the price is the lowest selling price valid for the
-      specified price range.
+      inner record id, compared in the [price type](../requirements/price.md#price-type) of the query. The
+      [price between](#price-between) constraint is satisfied when the selling price of at least one block lies in
+      the specified price range; it does not change the sales price, which stays the lowest one overall.
    </dd>
    <dt>SUM</dt>
    <dd>

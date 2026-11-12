@@ -82,8 +82,11 @@ inner record. The entity builders reject a price whose validity overlaps the val
 price list, currency and inner record - a price without validity overlaps every other one - and the server rejects it
 too when the entity is stored, whatever way the change arrives. For an entity without inner record handling, the
 builders and the server also reject overlapping prices of one price list and currency that differ only in their inner
-record ids, because the inner record id has no meaning for such an entity. The builders check this when they produce
-the entity mutation, so the inner record handling may still be set after the prices.
+record ids, because the inner record id has no meaning for such an entity. The builders check the prices when they
+produce the entity mutation, not when a price is set, so a price may still be moved or removed and the inner record
+handling may still be set after the prices. Like the server, they check only the prices the change adds or moves - a
+change of the inner record handling moves all of them - so an entity that already holds two such prices stays editable
+as long as neither of them is moved.
 
 An entity may still have several prices in one price list with non-overlapping validity spans. When the evitaDB
 [query](../query/basics.md) is missing the [`priceValidIn`](../query/filtering/price.md#price-valid-in) constraint that
