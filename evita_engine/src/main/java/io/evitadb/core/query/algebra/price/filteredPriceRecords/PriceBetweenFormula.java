@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.algebra.price.filteredPriceRecords;
 
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
@@ -119,4 +121,29 @@ public class PriceBetweenFormula extends AbstractFormula implements ChildrenDepe
 	public String toStringVerbose() {
 		return "PRICE BETWEEN (" + this.innerFormulas[0].toStringVerbose() + ")";
 	}
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity();
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity() implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+		}
+	}
+
 }

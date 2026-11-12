@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.price.termination;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
@@ -67,9 +68,98 @@ class PlainPriceTerminationFormulaWithPriceFilterTest {
 	private static final Currency CZK = Currency.getInstance("CZK");
 	private static final Currency EUR = Currency.getInstance("EUR");
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticalFormulas() {
+			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
+			final PriceEvaluationContext context = createContext("basic", CZK);
+			final PriceRecordPredicate predicate = PricePredicate.ALL_RECORD_FILTER;
+
+			final PlainPriceTerminationFormulaWithPriceFilter f1 =
+				new PlainPriceTerminationFormulaWithPriceFilter(inner, context, predicate);
+			final PlainPriceTerminationFormulaWithPriceFilter f2 =
+				new PlainPriceTerminationFormulaWithPriceFilter(inner, context, predicate);
+
+			assertEquals(f1.getKey(), f2.getKey());
+		}
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce different key for different evaluation context")
+		void shouldProduceDifferentKeyForDifferentEvaluationContext() {
+			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
+
+			final PlainPriceTerminationFormulaWithPriceFilter f1 =
+				new PlainPriceTerminationFormulaWithPriceFilter(
+					inner, createContext("basic", CZK), PricePredicate.ALL_RECORD_FILTER
+				);
+			final PlainPriceTerminationFormulaWithPriceFilter f2 =
+				new PlainPriceTerminationFormulaWithPriceFilter(
+					inner, createContext("vip", CZK), PricePredicate.ALL_RECORD_FILTER
+				);
+
+			assertNotEquals(f1.getKey(), f2.getKey());
+		}
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce different key for different price predicate")
+		void shouldProduceDifferentKeyForDifferentPricePredicate() {
+			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
+			final PriceEvaluationContext context = createContext("basic", CZK);
+
+			final PlainPriceTerminationFormulaWithPriceFilter f1 =
+				new PlainPriceTerminationFormulaWithPriceFilter(
+					inner, context, PricePredicate.ALL_RECORD_FILTER
+				);
+			final PriceRecordPredicate rangePredicate = new PricePredicate.PriceRecordPredicate(
+				BigDecimal.ONE, BigDecimal.TEN, WITH_TAX, 2
+			);
+			final PlainPriceTerminationFormulaWithPriceFilter f2 =
+				new PlainPriceTerminationFormulaWithPriceFilter(inner, context, rangePredicate);
+
+			assertNotEquals(f1.getKey(), f2.getKey());
+		}
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce different key for different inner formulas")
+		void shouldProduceDifferentKeyForDifferentInnerFormulas() {
+			final PriceEvaluationContext context = createContext("basic", CZK);
+
+			final PlainPriceTerminationFormulaWithPriceFilter f1 =
+				new PlainPriceTerminationFormulaWithPriceFilter(
+					new ConstantFormula(new ArrayBitmap(1, 2)),
+					context, PricePredicate.ALL_RECORD_FILTER
+				);
+			final PlainPriceTerminationFormulaWithPriceFilter f2 =
+				new PlainPriceTerminationFormulaWithPriceFilter(
+					new ConstantFormula(new ArrayBitmap(3, 4)),
+					context, PricePredicate.ALL_RECORD_FILTER
+				);
+
+			assertNotEquals(f1.getKey(), f2.getKey());
+		}
+	}
+
+	/**
+	 * Preserves the hash contract used by the formula deduplicator.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Legacy hash determinism and sensitivity")
+	class LegacyHashTest {
 
 		@Test
 		@DisplayName("should produce identical hash for identically constructed formulas")
@@ -146,6 +236,7 @@ class PlainPriceTerminationFormulaWithPriceFilterTest {
 	@DisplayName("Cloning")
 	class CloningTest {
 
+		/** Verifies that cloning retains the declared computation inputs. */
 		@Test
 		@DisplayName("should preserve context and predicate when cloning with new inner formula")
 		void shouldPreserveContextAndPredicateWhenCloning() {
@@ -165,8 +256,8 @@ class PlainPriceTerminationFormulaWithPriceFilterTest {
 			final PlainPriceTerminationFormulaWithPriceFilter typedClone =
 				(PlainPriceTerminationFormulaWithPriceFilter) clone;
 			assertEquals(
-				new PlainPriceTerminationFormulaWithPriceFilter(newInner, context, predicate).getHash(),
-				typedClone.getHash()
+				new PlainPriceTerminationFormulaWithPriceFilter(newInner, context, predicate).getKey(),
+				typedClone.getKey()
 			);
 			assertSame(predicate, typedClone.getPricePredicate());
 		}
@@ -190,6 +281,7 @@ class PlainPriceTerminationFormulaWithPriceFilterTest {
 			);
 		}
 
+		/** Verifies that cloning retains the declared computation inputs. */
 		@Test
 		@DisplayName("should create clone with inner formulas preserving context")
 		void shouldCreateCloneWithInnerFormulasPreservingContext() {
@@ -207,8 +299,8 @@ class PlainPriceTerminationFormulaWithPriceFilterTest {
 			final PlainPriceTerminationFormulaWithPriceFilter typedClone =
 				(PlainPriceTerminationFormulaWithPriceFilter) clone;
 			assertEquals(
-				new PlainPriceTerminationFormulaWithPriceFilter(newInner, context, predicate).getHash(),
-				typedClone.getHash()
+				new PlainPriceTerminationFormulaWithPriceFilter(newInner, context, predicate).getKey(),
+				typedClone.getKey()
 			);
 			assertSame(predicate, typedClone.getPricePredicate());
 		}
@@ -337,4 +429,61 @@ class PlainPriceTerminationFormulaWithPriceFilterTest {
 			new PriceIndexKey(priceList, currency, PriceInnerRecordHandling.NONE)
 		);
 	}
+	/**
+	 * Preserves legacy hash assertions for cloning and side-output configuration.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Legacy hash cloning and configuration")
+	class LegacyHashCloneTest {
+		@Test
+		@DisplayName("should preserve context and predicate when cloning with new inner formula")
+		void shouldPreserveContextAndPredicateWhenCloning() {
+			final PriceEvaluationContext context = createContext("vip", EUR);
+			final PriceRecordPredicate predicate = new PricePredicate.PriceRecordPredicate(
+				BigDecimal.ONE, BigDecimal.TEN, WITH_TAX, 2
+			);
+			final PlainPriceTerminationFormulaWithPriceFilter original =
+				new PlainPriceTerminationFormulaWithPriceFilter(
+					new ConstantFormula(new ArrayBitmap(1)), context, predicate
+				);
+
+			final ConstantFormula newInner = new ConstantFormula(new ArrayBitmap(10, 20));
+			final Formula clone = original.getCloneWithInnerFormulas(newInner);
+
+			assertInstanceOf(PlainPriceTerminationFormulaWithPriceFilter.class, clone);
+			final PlainPriceTerminationFormulaWithPriceFilter typedClone =
+				(PlainPriceTerminationFormulaWithPriceFilter) clone;
+			assertEquals(
+				new PlainPriceTerminationFormulaWithPriceFilter(newInner, context, predicate).getHash(),
+				typedClone.getHash()
+			);
+			assertSame(predicate, typedClone.getPricePredicate());
+		}
+
+		@Test
+		@DisplayName("should create clone with inner formulas preserving context")
+		void shouldCreateCloneWithInnerFormulasPreservingContext() {
+			final PriceEvaluationContext context = createContext("basic", CZK);
+			final PriceRecordPredicate predicate = PricePredicate.ALL_RECORD_FILTER;
+			final PlainPriceTerminationFormulaWithPriceFilter original =
+				new PlainPriceTerminationFormulaWithPriceFilter(
+					new ConstantFormula(new ArrayBitmap(1)), context, predicate
+				);
+
+			final ConstantFormula newInner = new ConstantFormula(new ArrayBitmap(5, 6));
+			final Formula clone = original.getCloneWithInnerFormulas(newInner);
+
+			assertInstanceOf(PlainPriceTerminationFormulaWithPriceFilter.class, clone);
+			final PlainPriceTerminationFormulaWithPriceFilter typedClone =
+				(PlainPriceTerminationFormulaWithPriceFilter) clone;
+			assertEquals(
+				new PlainPriceTerminationFormulaWithPriceFilter(newInner, context, predicate).getHash(),
+				typedClone.getHash()
+			);
+			assertSame(predicate, typedClone.getPricePredicate());
+		}
+	}
+
 }

@@ -23,6 +23,10 @@
 
 package io.evitadb.core.query.algebra.price.priceIndex;
 
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import javax.annotation.Nullable;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.NotFormula;
@@ -30,7 +34,6 @@ import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
 
 /**
  * This is formula that is an extension of {@link NotFormula} that captures the relation between two price lists.
@@ -54,17 +57,17 @@ public class PriceListCombinationFormula extends NotFormula {
 	/**
 	 * Name of the price list whose entity ids are subtracted from the superset formula result.
 	 */
-	@Getter private final Serializable subtractedPriceListName;
+	@Getter private final String subtractedPriceListName;
 	/**
 	 * Name of the price list whose entity ids form the superset formula result.
 	 */
-	@Getter private final Serializable priceListName;
+	@Getter private final String priceListName;
 	/**
 	 * Price evaluation context carrying information about price lists and currency used for price evaluation.
 	 */
 	private final PriceEvaluationContext priceEvaluationContext;
 
-	public PriceListCombinationFormula(@Nonnull Serializable subtractedPriceListName, @Nonnull Serializable priceListName, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
+	public PriceListCombinationFormula(@Nonnull String subtractedPriceListName, @Nonnull String priceListName, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
 		super(subtractedFormula, supersetFormula);
 		this.subtractedPriceListName = subtractedPriceListName;
 		this.priceListName = priceListName;
@@ -89,6 +92,49 @@ public class PriceListCombinationFormula extends NotFormula {
 	@Override
 	public String toString() {
 		return "WITH PRICE IN " + this.priceListName + " WHEN NO PRICE EXISTS IN " + this.subtractedPriceListName;
+	}
+
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(getSubtractedBitmapIdentityToken(),
+			getSupersetBitmapIdentityToken(),
+			this.subtractedPriceListName,
+			this.priceListName,
+			this.priceEvaluationContext);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param subtractedBitmap raw subtracted operand, absent with formula children
+	 * @param supersetBitmap raw universe operand, absent with formula children
+	 * @param subtractedPriceListName name of the subtracted price list
+	 * @param priceListName name of the superset price list
+	 * @param priceEvaluationContext validity and ordered target price indexes
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nullable IdentityToken subtractedBitmap,
+		@Nullable IdentityToken supersetBitmap,
+		@Nonnull String subtractedPriceListName,
+		@Nonnull String priceListName,
+		@Nonnull PriceEvaluationContext priceEvaluationContext) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.subtractedBitmap);
+			accumulator.add(this.supersetBitmap);
+			accumulator.add(this.subtractedPriceListName);
+			accumulator.add(this.priceListName);
+			accumulator.add(this.priceEvaluationContext);
+		}
 	}
 
 }

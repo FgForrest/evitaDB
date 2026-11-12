@@ -23,6 +23,9 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import java.util.List;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -148,6 +151,46 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 			bitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(formulas[i].compute());
 		}
 		return bitmaps;
+	}
+
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.priceLists == null ? null : List.of(this.priceLists),
+			this.currency,
+			this.validIn);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param priceLists ordered price-list criteria, absent when unconstrained
+	 * @param currency currency criterion, absent when unconstrained
+	 * @param validIn validity criterion, absent when unconstrained
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nullable List<String> priceLists,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime validIn) implements IdentityRecord {
+		/** Copies present price-list criteria into an immutable ordered list. */
+		public Identity {
+			priceLists = priceLists == null ? null : List.copyOf(priceLists);
+		}
+
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.addStrings(this.priceLists);
+			accumulator.add(this.currency);
+			accumulator.add(this.validIn);
+		}
 	}
 
 }

@@ -23,12 +23,17 @@
 
 package io.evitadb.core.query.algebra.price.priceIndex;
 
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.identity.TokenRole;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.LazyEvaluatedEntityPriceRecords;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.price.AbstractPriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -131,4 +136,39 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	protected long getClassId() {
 		return CLASS_ID;
 	}
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(new IdentityToken.ProducerId(
+				((AbstractPriceListAndCurrencyPriceIndex<?>) this.priceIndex).getId(), TokenRole.DIRECT
+			),
+			new IdentityToken.ProducerId(
+				((AbstractPriceListAndCurrencyPriceIndex<?>) this.lowestPriceRecordsSource).getId(), TokenRole.DIRECT
+			));
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param priceIndex version token of the price index read by the formula
+	 * @param lowestPriceRecordsSource version token of the index supplying entity price records
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull IdentityToken priceIndex,
+		@Nonnull IdentityToken lowestPriceRecordsSource) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.priceIndex);
+			accumulator.add(this.lowestPriceRecordsSource);
+		}
+	}
+
 }

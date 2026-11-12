@@ -23,6 +23,9 @@
 
 package io.evitadb.core.query.algebra.price.predicate;
 
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.core.query.algebra.Formula;
@@ -52,20 +55,28 @@ import java.util.function.ToIntFunction;
 @RequiredArgsConstructor
 public sealed abstract class PricePredicate implements PricePredicateContract
 	permits NoPriceContractPredicate, NoPriceRecordPredicate, PriceContractPredicate, PriceRecordPredicate {
+	/** Identifier of the nested predicate value identity. */
+	private static final long CLASS_ID = 7335491001828446428L;
+
 	public static final io.evitadb.core.query.algebra.price.predicate.PriceContractPredicate ALL_CONTRACT_FILTER = new NoPriceContractPredicate();
 	public static final io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate ALL_RECORD_FILTER = new NoPriceRecordPredicate();
 
 	/**
 	 * Contains brief description of what predicate does.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private final String description;
 	private final QueryPriceMode queryPriceMode;
 	private final int indexedPricePlaces;
 	private final int fromAsInt;
 	private final int toAsInt;
+	@IdentityExempt(IdentityExempt.Reason.DERIVED)
 	protected final Function<PriceContract, BigDecimal> priceExtractor;
+	@IdentityExempt(IdentityExempt.Reason.DERIVED)
 	protected final ToIntFunction<PriceRecordContract> priceRecordExtractor;
+	@IdentityExempt(IdentityExempt.Reason.DERIVED)
 	protected final PriceAmountPredicate amountPredicate;
+	@IdentityExempt(IdentityExempt.Reason.DERIVED)
 	protected final IntPredicate intAmountPredicate;
 
 	protected PricePredicate(
@@ -206,6 +217,45 @@ public sealed abstract class PricePredicate implements PricePredicateContract
 			return this.intAmountPredicate.test(this.priceRecordExtractor.applyAsInt(priceRecordContract));
 		}
 
+	}
+
+	/** Returns the detached value inputs that determine price matching. */
+	@Nonnull
+	@Override
+	public Identity identity() {
+		return new Identity(this.queryPriceMode,
+			this.indexedPricePlaces,
+			this.fromAsInt,
+			this.toAsInt);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param queryPriceMode tax mode used to evaluate prices
+	 * @param indexedPricePlaces number of indexed decimal places
+	 * @param fromAsInt inclusive indexed lower price bound
+	 * @param toAsInt inclusive indexed upper price bound
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nullable QueryPriceMode queryPriceMode,
+		int indexedPricePlaces,
+		int fromAsInt,
+		int toAsInt) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.queryPriceMode);
+			accumulator.add(this.indexedPricePlaces);
+			accumulator.add(this.fromAsInt);
+			accumulator.add(this.toAsInt);
+		}
 	}
 
 }

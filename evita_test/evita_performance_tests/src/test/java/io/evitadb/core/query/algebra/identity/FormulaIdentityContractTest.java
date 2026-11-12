@@ -23,6 +23,12 @@
 
 package io.evitadb.core.query.algebra.identity;
 
+import io.evitadb.spike.mock.MockInnerRecordIdsFormula;
+import io.evitadb.spike.mock.MockEntityIdsFormula;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.identity.IdentityContractVerifier;
 import org.junit.jupiter.api.DisplayName;
@@ -33,7 +39,7 @@ import java.util.Set;
 
 import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.ENGINE;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Applies the shared identity contract to holders declared in the performance module's main sources.
@@ -44,8 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(ENGINE)
 @Tag(CACHE)
 class FormulaIdentityContractTest implements EvitaTestSupport {
-	/** Minimum number of benchmark holders; equals the three mock formulas, so a scan that loses one fails. */
-	private static final int PERFORMANCE_FLOOR = 3;
+	/** Minimum number of benchmark holders; covers the two benchmark formula implementations. */
+	private static final int PERFORMANCE_FLOOR = 2;
 
 	/** Discovers every benchmark holder and checks the same contract as the functional tests. */
 	@Test
@@ -58,5 +64,36 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 		final int declared = IdentityContractVerifier.verifyInventory(holders, Set.of());
 		System.out.println("Identity discovery: performance=" + holders.size() + "/floor=" + PERFORMANCE_FLOOR +
 			", declared=" + declared + ", undeclared=" + (holders.size() - declared));
+	}
+	/** Uses the bitmap-and-record constructor used by the benchmark states. */
+	@Test
+	@DisplayName("Initializes EntityIds benchmark formulas with stable instance-unique opaque keys")
+	void shouldInitializeEntityIdsFormulaWithOpaqueKeys() {
+		final Bitmap bitmap = new BaseBitmap(1);
+		final FilteredPriceRecords records = new ResolvedFilteredPriceRecords();
+		final MockEntityIdsFormula formula = new MockEntityIdsFormula(bitmap, records);
+		assertSame(formula.getKey(), formula.getKey());
+		assertNotEquals(formula.getKey(), new MockEntityIdsFormula(bitmap, records).getKey());
+		assertTrue(formula.getKey().isOpaque());
+		assertTrue(formula.getKey().isQueryLocal());
+		assertEquals(formula.getKey().getWeight() + 1,
+			new MockEntityIdsFormula(new BaseBitmap(1, 2), records).getKey().getWeight());
+		assertTrue(formula.getEstimatedCost() >= 0);
+	}
+
+	/** Uses the bitmap-and-record constructor used by the benchmark states. */
+	@Test
+	@DisplayName("Initializes InnerRecordIds benchmark formulas with stable instance-unique opaque keys")
+	void shouldInitializeInnerRecordIdsFormulaWithOpaqueKeys() {
+		final Bitmap bitmap = new BaseBitmap(1);
+		final FilteredPriceRecords records = new ResolvedFilteredPriceRecords();
+		final MockInnerRecordIdsFormula formula = new MockInnerRecordIdsFormula(bitmap, records);
+		assertSame(formula.getKey(), formula.getKey());
+		assertNotEquals(formula.getKey(), new MockInnerRecordIdsFormula(bitmap, records).getKey());
+		assertTrue(formula.getKey().isOpaque());
+		assertTrue(formula.getKey().isQueryLocal());
+		assertEquals(formula.getKey().getWeight() + 1,
+			new MockInnerRecordIdsFormula(new BaseBitmap(1, 2), records).getKey().getWeight());
+		assertTrue(formula.getEstimatedCost() >= 0);
 	}
 }

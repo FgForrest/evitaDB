@@ -23,7 +23,15 @@
 
 package io.evitadb.core.query.algebra.price.translate;
 
+import java.util.Currency;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
+import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
+import io.evitadb.index.price.model.priceRecord.PriceRecord;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.index.bitmap.ArrayBitmap;
@@ -41,12 +49,6 @@ import static io.evitadb.test.TestTags.PRICE;
  * Tests for {@link PriceIdToEntityIdTranslateFormula} verifying construction, hashing, cloning
  * and cardinality estimation.
  *
- * Note: full computation tests for `compute()` require a subtree containing
- * {@link io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula} implementations
- * with a real {@link io.evitadb.index.price.PriceListAndCurrencyPriceIndex}, which cannot be
- * constructed without mocking or full index setup. The contract tests below cover all aspects
- * that don't require actual price record resolution.
- *
  * @author evitaDB
  */
 @DisplayName("PriceIdToEntityIdTranslateFormula")
@@ -55,9 +57,51 @@ import static io.evitadb.test.TestTags.PRICE;
 @Tag(PRICE)
 class PriceIdToEntityIdTranslateFormulaTest {
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticalFormulas() {
+			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
+
+			final PriceIdToEntityIdTranslateFormula f1 = new PriceIdToEntityIdTranslateFormula(inner);
+			final PriceIdToEntityIdTranslateFormula f2 = new PriceIdToEntityIdTranslateFormula(inner);
+
+			assertEquals(f1.getKey(), f2.getKey());
+		}
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce different key for different inner formulas")
+		void shouldProduceDifferentKeyForDifferentInnerFormulas() {
+			final PriceIdToEntityIdTranslateFormula f1 = new PriceIdToEntityIdTranslateFormula(
+				new ConstantFormula(new ArrayBitmap(1, 2))
+			);
+			final PriceIdToEntityIdTranslateFormula f2 = new PriceIdToEntityIdTranslateFormula(
+				new ConstantFormula(new ArrayBitmap(3, 4))
+			);
+
+			assertNotEquals(f1.getKey(), f2.getKey());
+		}
+
+	}
+
+	/**
+	 * Preserves the hash contract used by the formula deduplicator.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Legacy hash determinism and sensitivity")
+	class LegacyHashTest {
 
 		@Test
 		@DisplayName("should produce identical hash for identically constructed formulas")
@@ -222,6 +266,28 @@ class PriceIdToEntityIdTranslateFormulaTest {
 			// getPriceIdBitmap delegates to inner formula's compute
 			assertArrayEquals(new int[]{100, 200, 300}, formula.getPriceIdBitmap().getArray());
 		}
+	}
+
+	/** A clone resolves records from its own child even after the original memo was populated. */
+	@Test
+	@DisplayName("Recomputes translated price records after replacing a computed child")
+	void shouldResolveCloneRecordsFromReplacementChild() {
+		final PriceListAndCurrencyPriceSuperIndex index =
+			new PriceListAndCurrencyPriceSuperIndex(
+				new PriceIndexKey("basic", Currency.getInstance("CZK"),
+					PriceInnerRecordHandling.NONE)
+			);
+		final PriceIdToEntityIdTranslateFormula original = new PriceIdToEntityIdTranslateFormula(EmptyFormula.INSTANCE);
+		original.compute();
+		index.addPrice(new PriceRecord(1, 1, 10, 121, 100), null);
+		final Formula replacement = new PriceIdContainerFormula(
+			index, new ConstantFormula(new ArrayBitmap(1))
+		);
+		final PriceIdToEntityIdTranslateFormula clone =
+			(PriceIdToEntityIdTranslateFormula) original.getCloneWithInnerFormulas(replacement);
+		assertEquals(1, ((ResolvedFilteredPriceRecords)
+			clone.getFilteredPriceRecords(null)).getPriceRecords().length);
+		assertArrayEquals(new int[]{10}, clone.compute().getArray());
 	}
 
 }
