@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data;
 
 import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
@@ -48,9 +49,11 @@ import java.util.stream.Stream;
  * the data that are available on the read-only {@link PricesContract} interface.
  *
  * An entity may hold at most one price valid at any moment per price list, currency and inner record - per price list
- * and currency when it has no inner record handling. Setting a price does not check this: the builder decides it on
- * the prices and the handling it ends up with when it produces the mutations of the entity - by `toMutation()` or by
- * the upsert of the builder - and refuses a price it adds or moves that breaks it with {@link AmbiguousPriceException}.
+ * and currency when it has no inner record handling. Setting a price does not check this. For a new entity, or an
+ * existing entity fetched with {@link PriceContentMode#ALL}, the builder decides it on the prices and the handling it
+ * ends up with when it produces the mutations of the entity - by `toMutation()` or by the upsert of the builder - and
+ * refuses a price it adds or moves that breaks it with {@link AmbiguousPriceException}. With partially fetched prices,
+ * the builder skips ambiguity verification entirely and the server alone verifies the full state on upsert.
  * Building the entity instance (`toInstance()`) does not check it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

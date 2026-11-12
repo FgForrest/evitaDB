@@ -25,15 +25,21 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.dataType.DateTimeRange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,6 +52,8 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.data.structure.InitialPricesBuilderTest.assertPrice;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -688,6 +696,63 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 			return new ExistingPricesBuilder(
 				PRODUCT_SCHEMA, new Prices(PRODUCT_SCHEMA, 1, List.of(prices), handling, true)
 			);
+		}
+
+		/**
+		 * Creates a builder whose stored prices contain only the entries fetched by the requested content mode.
+		 *
+		 * @param mode price content mode of the fetched entity
+		 * @return the builder over the fetched prices
+		 */
+		@Nonnull
+		private static ExistingPricesBuilder builderWithFetchedPrices(@Nonnull PriceContentMode mode) {
+			final PriceContract first = price(1, "basic", 1, wholeYear(2020));
+			final PriceContract second = price(2, "basic", 1, null);
+			final OffsetDateTime validIn = OffsetDateTime.of(2021, 1, 15, 0, 0, 0, 0, ZoneOffset.UTC);
+			final EvitaRequest request = new EvitaRequest(
+				query(
+					collection("product"),
+					filterBy(priceInCurrency(CZK), priceInPriceLists("basic"), priceValidIn(validIn)),
+					require(entityFetch(priceContent(mode)))
+				),
+				validIn, SealedEntity.class, null
+			);
+			return new ExistingPricesBuilder(
+				PRODUCT_SCHEMA,
+				new Prices(
+					PRODUCT_SCHEMA, 1, mode == PriceContentMode.ALL ? List.of(first, second) : List.of(second),
+					PriceInnerRecordHandling.LOWEST_PRICE, true
+				),
+				new PriceContractSerializablePredicate(request, (Boolean) null)
+			);
+		}
+
+		@ParameterizedTest
+		@EnumSource(value = PriceContentMode.class, names = {"ALL", "RESPECTING_FILTER"})
+		@DisplayName("should accept an amount change of a stored price with complete or partial fetched prices")
+		void shouldAcceptAmountChangeOfStoredPriceWithCompleteOrPartialFetchedPrices(@Nonnull PriceContentMode mode) {
+			final ExistingPricesBuilder builder = builderWithFetchedPrices(mode);
+			builder.setPrice(
+				1, "basic", CZK, 1, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, wholeYear(2020), true
+			);
+
+			assertEquals(1, builder.buildChangeSet().count());
+		}
+
+		@ParameterizedTest
+		@EnumSource(value = PriceContentMode.class, names = {"ALL", "RESPECTING_FILTER"})
+		@DisplayName("should verify a new conflicting price only with complete fetched prices")
+		void shouldVerifyNewConflictingPriceOnlyWithCompleteFetchedPrices(@Nonnull PriceContentMode mode) {
+			final ExistingPricesBuilder builder = builderWithFetchedPrices(mode);
+			builder.setPrice(
+				3, "basic", CZK, 1, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
+			);
+
+			if (mode == PriceContentMode.ALL) {
+				assertThrows(AmbiguousPriceException.class, builder::buildChangeSet);
+			} else {
+				assertEquals(1, builder.buildChangeSet().count());
+			}
 		}
 
 		@Test

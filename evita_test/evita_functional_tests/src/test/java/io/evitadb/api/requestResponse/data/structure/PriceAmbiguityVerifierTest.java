@@ -193,9 +193,9 @@ class PriceAmbiguityVerifierTest {
 		@Test
 		@DisplayName("should keep an untouched ambiguous pair legal next to a touched price valid at other moments")
 		void shouldKeepUntouchedAmbiguousPairLegalNextToTouchedPriceValidAtOtherMoments() {
-			final Price storedFirst = price(1, BASIC, 1, null);
-			final Price storedSecond = price(2, BASIC, 1, hours(0, 10));
-			final Price touched = price(3, BASIC, 2, hours(0, 10));
+			final Price storedFirst = price(1, BASIC, 1, hours(0, 10));
+			final Price storedSecond = price(2, BASIC, 1, hours(5, 15));
+			final Price touched = price(3, BASIC, 1, hours(16, 20));
 
 			assertDoesNotThrow(
 				() -> PriceAmbiguityVerifier.verifyPricesNotAmbiguous(

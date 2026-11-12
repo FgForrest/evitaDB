@@ -82,7 +82,9 @@ import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.cdc.CatalogChangeObserver;
+import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
@@ -103,6 +105,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatus;
 import io.evitadb.externalApi.grpc.generated.GrpcUuid;
 import io.evitadb.externalApi.system.SystemProvider;
+import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -123,6 +126,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -4077,6 +4082,116 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		} finally {
 			evitaClient.deleteCatalogIfExists(catalogA);
 			evitaClient.deleteCatalogIfExists(catalogB);
+		}
+	}
+
+	/**
+	 * A filtered client entity omits one price of a stored ambiguous pair. An amount change of that price leaves
+	 * the pair untouched, while adding a new conflicting price is refused when the server executes the mutation.
+	 */
+	@ParameterizedTest(name = "alive: {0}")
+	@ValueSource(booleans = {false, true})
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@Tag(PRICE)
+	@DisplayName("should defer ambiguity verification of partially fetched client prices to the server")
+	void shouldDeferAmbiguityVerificationOfPartiallyFetchedClientPricesToServer(
+		boolean alive, EvitaClient evitaClient, Evita evita
+	) {
+		final String catalog = "partialPriceClientCatalog";
+		final OffsetDateTime january = OffsetDateTime.parse("2020-01-01T00:00:00Z");
+		final DateTimeRange firstValidity = DateTimeRange.between(january, january.plusDays(9));
+		final DateTimeRange secondValidity = DateTimeRange.between(january.plusDays(4), january.plusDays(19));
+		try {
+			evitaClient.defineCatalog(catalog);
+			evitaClient.updateCatalog(
+				catalog,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT).withoutGeneratedPrimaryKey().withPrice().updateVia(session);
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
+							.setPrice(
+								1, PRICE_LIST_BASIC, CURRENCY_CZK, 1,
+								BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, firstValidity, true
+							)
+					);
+				}
+			);
+			// Reproduce a pair stored before ambiguity verification was enforced.
+			evita.updateCatalog(
+				catalog,
+				session -> {
+					session.upsertEntity(
+						new ServerEntityUpsertMutation(
+							Entities.PRODUCT, 1, EntityExistence.MUST_EXIST,
+							EnumSet.allOf(ImplicitMutationBehavior.class), true, false,
+							new UpsertPriceMutation(
+								2, PRICE_LIST_BASIC, CURRENCY_CZK, 1,
+								BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, secondValidity, true
+							)
+						)
+					);
+				}
+			);
+			if (alive) {
+				evitaClient.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+			}
+			final SealedEntity partial = evitaClient.queryCatalog(
+				catalog,
+				session -> {
+					return session.queryOne(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(1), priceInCurrency(CURRENCY_CZK),
+								priceInPriceLists(PRICE_LIST_BASIC), priceValidIn(january.plusDays(14))
+							),
+							require(entityFetch(priceContentRespectingFilter()))
+						),
+						SealedEntity.class
+					).orElseThrow();
+				}
+			);
+			assertEquals(List.of(2), partial.getPrices().stream().map(PriceContract::priceId).toList());
+			final EntityBuilder amountChange = partial.openForWrite().setPrice(
+				1, PRICE_LIST_BASIC, CURRENCY_CZK, 1,
+				new BigDecimal("2.00"), BigDecimal.ZERO, new BigDecimal("2.00"), firstValidity, true
+			);
+			assertDoesNotThrow(
+				() -> evitaClient.updateCatalog(catalog, session -> { session.upsertEntity(amountChange); })
+			);
+			final SealedEntity updated = evitaClient.queryCatalog(
+				catalog,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 1, priceContentAll()).orElseThrow();
+				}
+			);
+			assertEquals(2, updated.getPrices().size());
+			assertEquals(
+				new BigDecimal("2.00"),
+				updated.getPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK).orElseThrow().priceWithoutTax()
+			);
+			assertEquals(firstValidity, updated.getPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK).orElseThrow().validity());
+
+			final EntityBuilder newPrice = partial.openForWrite().setPrice(
+				3, PRICE_LIST_BASIC, CURRENCY_CZK, 1,
+				BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, secondValidity, true
+			);
+			final EntityMutation mutation = assertDoesNotThrow(() -> newPrice.toMutation().orElseThrow());
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> evitaClient.updateCatalog(catalog, session -> { session.upsertEntity(mutation); })
+			);
+			assertTrue(exception.getMessage().contains("validity spans overlap"), exception.getMessage());
+			final SealedEntity afterRefusal = evitaClient.queryCatalog(
+				catalog,
+				session -> {
+					return session.getEntity(Entities.PRODUCT, 1, priceContentAll()).orElseThrow();
+				}
+			);
+			assertEquals(Set.copyOf(updated.getPrices()), Set.copyOf(afterRefusal.getPrices()));
+		} finally {
+			evitaClient.deleteCatalogIfExists(catalog);
 		}
 	}
 

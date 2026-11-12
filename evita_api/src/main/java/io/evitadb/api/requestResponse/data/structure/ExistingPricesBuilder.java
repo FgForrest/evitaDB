@@ -83,9 +83,11 @@ import static java.util.Optional.ofNullable;
  * {@link PriceContentMode}, prevents ambiguous price combinations and can optionally remove
  * all non‑touched prices.
  *
- * Ambiguous prices are refused when the change set is built ({@link #buildChangeSet()}, which the entity builder
- * calls to produce its mutation), never when a price is set: the decision is made on the state the change set leads
- * to, by the rule the server applies ({@link PriceAmbiguityVerifier}). {@link #build()} does not check it.
+ * When all base prices were fetched with {@link PriceContentMode#ALL}, ambiguous prices are refused when the change
+ * set is built ({@link #buildChangeSet()}, which the entity builder calls to produce its mutation), never when a
+ * price is set: the decision is made on the state the change set leads to, by the rule the server applies
+ * ({@link PriceAmbiguityVerifier}). With partially fetched prices, verification is left entirely to the server.
+ * {@link #build()} does not check it.
  */
 public class ExistingPricesBuilder implements PricesBuilder {
 	@Serial private static final long serialVersionUID = 5366182867172493114L;
@@ -812,15 +814,21 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * record, or its price list and currency when the entity ends up without inner record handling. When this builder
 	 * changes the inner record handling, every price counts as moved. An entity that already holds an ambiguous pair
 	 * stays updatable as long as the pair is left alone. The check runs when the change set is built, because a price
-	 * may still be removed or moved and the handling may still change after a price is set, and it sees only the
-	 * prices the base entity was fetched with - the server checks the rest.
+	 * may still be removed or moved and the handling may still change after a price is set.
 	 *
-	 * Costs nothing but a pass over the pending mutations when the builder adds or moves no price and changes no
-	 * handling.
+	 * Verification runs only when the base entity was fetched with {@link PriceContentMode#ALL}. A partial snapshot
+	 * cannot distinguish an unfetched stored price from a newly added one, so it skips verification entirely and
+	 * leaves the decision to the server, which has all stored prices.
+	 *
+	 * With all prices fetched, costs nothing but a pass over the pending mutations when the builder adds or moves no
+	 * price and changes no handling.
 	 *
 	 * @throws AmbiguousPriceException when a touched price competes with another price of the entity
 	 */
 	private void assertPricesNotAmbiguous() {
+		if (this.pricePredicate.getPriceContentMode() != PriceContentMode.ALL) {
+			return;
+		}
 		// the mutation is kept only when it changes the handling, and a change of the handling touches every price
 		final SetPriceInnerRecordHandlingMutation handlingMutation = this.priceInnerRecordHandlingEntityMutation;
 		final boolean handlingChanged = handlingMutation != null;
