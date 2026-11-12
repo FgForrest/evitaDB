@@ -1,7 +1,7 @@
 ---
 title: Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership
 date: 2026-08-31
-updated: 2026-09-28 12:55
+updated: 2026-11-11 02:30
 status: accepted
 kind: fix
 issues: [1467]
@@ -9,7 +9,8 @@ prs: [1468, 1469]
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation, evita_engine/src/main/java/io/evitadb/core/collection]
 supersedes: []
 superseded-by: []
-relates: [2026-04-23-bucketed-histogram-indexing, 2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-09-09-sibling-resolver-partition-cardinality]
+relates: [2026-04-23-bucketed-histogram-indexing, 2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-09-09-sibling-resolver-partition-cardinality,
+  2026-11-11-reference-histogram-net-change-per-run]
 ---
 
 # Cross-entity histogram removal is gated on the pre-mutation condition, captured before the batch is applied
@@ -307,6 +308,10 @@ shared catalog, not a duplicated op or a Surefire rerun.
 - [[2026-04-23-bucketed-histogram-indexing]] — introduced the cardinality-gated insert/remove pair and
   stated the once-per-bucket invariant this record restores. The defect was a violation of that
   record's invariant, not a change to it.
+- [[2026-11-11-reference-histogram-net-change-per-run]] — replaced the local path's per-mutation removal,
+  including the `removeHistogramWithConditionGuard` this record's *Previous state* cites, with one withdrawal
+  per reference per run. The condition-before-removal principle is unchanged; this record's Options C and D were weighed
+  again there and declined again.
 
 ## Timeline
 

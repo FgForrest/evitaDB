@@ -1238,6 +1238,86 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 
 	}
 
+	/**
+	 * Verifies that owner attribute relevance is local, scoped, deduplicated and rebuilt without mutating readers.
+	 */
+	@Nested
+	@DisplayName("Local histogram owner attribute relevance")
+	class LocalHistogramEntityAttributeTest {
+
+		/**
+		 * Multiple histograms on one reference must produce only one reference name in the lookup.
+		 */
+		@Test
+		@DisplayName("Should isolate and deduplicate reference names by owner, scope and attribute")
+		void shouldIsolateAndDeduplicateReferenceNamesByOwnerScopeAndAttribute() {
+			final CatalogExpressionTriggerRegistry registry =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(
+					PRODUCT,
+					List.of(
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "first", "visible"),
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "second", "visible"),
+						trigger(PRODUCT, BRAND_REF, Scope.LIVE, "brand", "visible"),
+						trigger(PRODUCT, ALT_PARAMETER_REF, Scope.ARCHIVED, "archived", "priority")
+					)
+				);
+			assertEquals(Set.of(PARAMETER_REF, BRAND_REF),
+				registry.getLocalHistogramReferencesForEntityAttribute(PRODUCT, Scope.LIVE, "visible"));
+			assertEquals(Set.of(ALT_PARAMETER_REF),
+				registry.getLocalHistogramReferencesForEntityAttribute(PRODUCT, Scope.ARCHIVED, "priority"));
+			assertTrue(
+				registry.getLocalHistogramReferencesForEntityAttribute(PRODUCT, Scope.LIVE, "priority").isEmpty()
+			);
+			assertTrue(registry.getLocalHistogramReferencesForEntityAttribute(BRAND, Scope.LIVE, "visible").isEmpty());
+			assertFalse(registry.hasEntityAttributeTrigger(PRODUCT, "visible"));
+			assertThrows(UnsupportedOperationException.class,
+				() -> registry.getLocalHistogramReferencesForEntityAttribute(PRODUCT, Scope.LIVE, "visible").clear());
+		}
+
+		/**
+		 * Rebuilding one owner's definitions replaces its relevance and preserves another owner's lookup.
+		 */
+		@Test
+		@DisplayName("Should rebuild relevance without changing existing registry readers")
+		void shouldRebuildRelevanceWithoutChangingExistingRegistryReaders() {
+			final CatalogExpressionTriggerRegistry original =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(
+					PRODUCT, List.of(trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "first", "visible"))
+				).rebuildForEntityType(
+					BRAND, List.of(trigger(BRAND, BRAND_REF, Scope.ARCHIVED, "brand", "priority"))
+				);
+			final CatalogExpressionTriggerRegistry rebuilt = original.rebuildForEntityType(
+				PRODUCT, List.of(trigger(PRODUCT, ALT_PARAMETER_REF, Scope.ARCHIVED, "new", "active"))
+			);
+			assertEquals(Set.of(PARAMETER_REF),
+				original.getLocalHistogramReferencesForEntityAttribute(PRODUCT, Scope.LIVE, "visible"));
+			assertTrue(rebuilt.getLocalHistogramReferencesForEntityAttribute(PRODUCT, Scope.LIVE, "visible").isEmpty());
+			assertEquals(Set.of(ALT_PARAMETER_REF),
+				rebuilt.getLocalHistogramReferencesForEntityAttribute(PRODUCT, Scope.ARCHIVED, "active"));
+			assertEquals(Set.of(BRAND_REF),
+				rebuilt.getLocalHistogramReferencesForEntityAttribute(BRAND, Scope.ARCHIVED, "priority"));
+			assertTrue(rebuilt.rebuildForEntityType(PRODUCT, List.of())
+				.getLocalHistogramReferencesForEntityAttribute(PRODUCT, Scope.ARCHIVED, "active").isEmpty());
+		}
+
+		/**
+		 * Creates a local histogram trigger reading one owner attribute.
+		 */
+		@Nonnull
+		private static HistogramExpressionTrigger trigger(
+			@Nonnull String owner, @Nonnull String reference, @Nonnull Scope scope,
+			@Nonnull String histogram, @Nonnull String attribute
+		) {
+			return new DefaultHistogramExpressionTrigger(
+				owner, reference, scope, Set.of(attribute), Set.of(), Set.of(), false, null, null, histogram,
+				new HistogramValueDescriptor(
+					HistogramValueSource.REFERENCE_ATTRIBUTE, null, "weight", Integer.class,
+					false, false, null, null, 0
+				)
+			);
+		}
+	}
+
 	@Nested
 	@DisplayName("Localized histogram trigger handling")
 	class LocalizedHistogramTriggerTest {
