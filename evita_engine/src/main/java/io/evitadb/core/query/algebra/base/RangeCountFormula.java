@@ -25,6 +25,10 @@ package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.identity.TokenList;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.Bitmap;
@@ -73,14 +77,17 @@ public class RangeCountFormula extends AbstractCacheableFormula {
 	 * Transactional id of the index the operands were read from, used as the staleness token when the operand count
 	 * makes per-bitmap tokens uneconomical.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 	private final long indexTransactionId;
 	/**
 	 * Operands each membership of which contributes `+1`.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final Bitmap[] plus;
 	/**
 	 * Operands each membership of which contributes `-1`.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final Bitmap[] minus;
 
 	public RangeCountFormula(
@@ -129,6 +136,13 @@ public class RangeCountFormula extends AbstractCacheableFormula {
 	@Override
 	protected boolean isFormulaOrderSignificant() {
 		return true;
+	}
+
+	/** Captures both canonical signed families, retaining every operand occurrence. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(TokenList.canonical(this.plus), TokenList.canonical(this.minus));
 	}
 
 	@Override
@@ -256,6 +270,28 @@ public class RangeCountFormula extends AbstractCacheableFormula {
 			sb.append(this.minus[i]);
 		}
 		return sb.append(']').toString();
+	}
+
+	/**
+	 * Detached signed operand families, with canonical order within each family and retained multiplicity.
+	 *
+	 * @param plus positive operand identities
+	 * @param minus negative operand identities
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull TokenList plus, @Nonnull TokenList minus) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes both signed families in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.plus);
+			accumulator.add(this.minus);
+		}
 	}
 
 	/*

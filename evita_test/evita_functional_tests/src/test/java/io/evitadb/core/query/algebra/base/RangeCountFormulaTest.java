@@ -99,9 +99,76 @@ class RangeCountFormulaTest {
 		return operands;
 	}
 
+	/**
+	 * Verifies detached operand families independently of the legacy hash.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Formula identity")
-	class Identity {
+	@DisplayName("Declared formula key")
+	class KeyTest {
+		/** Each signed family contributes its own operand identity and hash bits. */
+		@Test
+		@DisplayName("Changing either signed family changes the key and hash64")
+		void shouldIncludeBothFamilies() {
+			final Formula base = new RangeCountFormula(INDEX_ID, new Bitmap[]{bitmap(1)}, new Bitmap[]{bitmap(2)});
+			final Formula plus = new RangeCountFormula(INDEX_ID, new Bitmap[]{bitmap(3)}, new Bitmap[]{bitmap(2)});
+			final Formula minus = new RangeCountFormula(INDEX_ID, new Bitmap[]{bitmap(1)}, new Bitmap[]{bitmap(3)});
+			assertNotEquals(base.getKey(), plus.getKey());
+			assertNotEquals(base.getKey().getHash64(), plus.getKey().getHash64());
+			assertNotEquals(base.getKey(), minus.getKey());
+			assertNotEquals(base.getKey().getHash64(), minus.getKey().getHash64());
+		}
+
+		/** The family boundary survives identical concatenated operand sequences. */
+		@Test
+		@DisplayName("Family splits and swapped signs have different keys")
+		void shouldDistinguishFamilyBoundaryAndSigns() {
+			final Bitmap a = bitmap(1, 2);
+			final Bitmap b = bitmap(2, 3);
+			final Bitmap c = bitmap(3);
+			final Formula first = new RangeCountFormula(INDEX_ID, new Bitmap[]{a, b}, new Bitmap[]{c});
+			final Formula split = new RangeCountFormula(INDEX_ID, new Bitmap[]{a}, new Bitmap[]{b, c});
+			final Formula swapped = new RangeCountFormula(INDEX_ID, new Bitmap[]{c}, new Bitmap[]{a, b});
+			assertNotEquals(first.getKey(), split.getKey());
+			assertNotEquals(first.getKey().getHash64(), split.getKey().getHash64());
+			assertNotEquals(first.getKey(), swapped.getKey());
+			assertArrayEquals(new int[]{1, 2}, first.compute().getArray());
+			assertArrayEquals(new int[]{1}, split.compute().getArray());
+		}
+
+		/** Canonicalization keeps the multiplicities used by signed counting. */
+		@Test
+		@DisplayName("Family permutations share keys while repeated operands retain their signs")
+		void shouldCanonicalizeFamiliesAndKeepMultiplicity() {
+			final Bitmap a = bitmap(1, 2);
+			final Bitmap b = bitmap(2, 3);
+			final Formula base = new RangeCountFormula(INDEX_ID, new Bitmap[]{a, b}, new Bitmap[]{a, b});
+			final Formula reordered = new RangeCountFormula(INDEX_ID + 1, new Bitmap[]{b, a}, new Bitmap[]{b, a});
+			final Formula extraPlus = new RangeCountFormula(INDEX_ID, new Bitmap[]{a, b, a}, new Bitmap[]{a, b});
+			final Formula extraMinus = new RangeCountFormula(INDEX_ID, new Bitmap[]{a, b}, new Bitmap[]{a, b, a});
+			assertEquals(base.getKey(), reordered.getKey());
+			assertEquals(base.getKey().getHash64(), reordered.getKey().getHash64());
+			assertNotEquals(base.getKey(), extraPlus.getKey());
+			assertNotEquals(base.getKey(), extraMinus.getKey());
+			assertArrayEquals(new int[]{1, 2}, extraPlus.compute().getArray());
+			assertTrue(base.compute().isEmpty());
+		}
+
+		/** Transactional operand versions remain identity inputs even at large widths. */
+		@Test
+		@DisplayName("Operand versions distinguish keys independently of the coarse index id")
+		void shouldIncludeOperandVersions() {
+			final Formula first = new RangeCountFormula(INDEX_ID, transactionalOperands(101), new Bitmap[0]);
+			final Formula second = new RangeCountFormula(INDEX_ID, transactionalOperands(101), new Bitmap[0]);
+			assertNotEquals(first.getKey(), second.getKey());
+			assertNotEquals(first.getKey().getHash64(), second.getKey().getHash64());
+		}
+	}
+
+	@Nested
+	@DisplayName("Legacy hash consumed by the formula deduplicator")
+	class LegacyHashTest {
 
 		@Test
 		@DisplayName("Two different splits of the same operand sequence into families hash differently")
@@ -216,8 +283,8 @@ class RangeCountFormulaTest {
 	}
 
 	@Nested
-	@DisplayName("Staleness token")
-	class StalenessToken {
+	@DisplayName("Legacy transactional ids consumed by the formula cache")
+	class LegacyTransactionalIdsTest {
 
 		@Test
 		@DisplayName("At the cardinality threshold the per-operand ids are gathered, one above it the index id is")

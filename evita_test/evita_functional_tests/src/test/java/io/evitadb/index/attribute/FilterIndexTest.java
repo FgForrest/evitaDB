@@ -23,10 +23,23 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.comparator.LocalizedStringComparator;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.TokenRole;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -65,6 +78,7 @@ import java.text.Collator;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -613,6 +627,142 @@ class FilterIndexTest {
 				new int[]{1, 2},
 				afterWrite.getArray()
 			);
+		}
+	}
+
+	/**
+	 * Verifies that a memo's owner and derivation identify its committed contents.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("All-records memo identity freshness")
+	class MemoIdentityTest {
+		/** A large merged bitmap keeps an exact owner token without copying its contents into the key. */
+		@Test
+		@DisplayName("Large memo uses the filter-index derivation token and stays exact")
+		void shouldIdentifyLargeMemoByOwnerAndRole() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(new AttributeIndexKey(null, "memo", null), String.class);
+			for (int i = 1; i <= IdentityToken.CONTENT_LIMIT + 1; i++) {
+				index.addRecord(i, i % 2 == 0 ? "A" : "B");
+			}
+			final Formula first = index.getAllRecordsFormula();
+			final Formula second = index.getAllRecordsFormula();
+			final Formula expected = new ConstantFormula(index.getAllRecords(),
+				IdentityToken.derived(index.getId(), TokenRole.FILTER_INDEX_ALL_RECORDS));
+			assertNotSame(first, second);
+			assertSame(first.compute(), second.compute());
+			assertEquals(expected.getKey(), first.getKey());
+			assertEquals(first.getKey(), second.getKey());
+			assertFalse(first.getKey().isOpaque());
+			assertFalse(first.getKey().isQueryLocal());
+			assertEquals(2, first.getKey().getWeight());
+			assertNotEquals(new ConstantFormula(new BaseBitmap(1),
+				IdentityToken.derived(index.getId(), TokenRole.HIERARCHY_ALL_NODES)).getKey(), first.getKey());
+		}
+
+		/** An ordinary committed insertion invalidates a primed union memo. */
+		@Test
+		@DisplayName("Committed owner mutation changes the key and rebuilds the memo")
+		void shouldRefreshMemoAfterOwnerCommit() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(new AttributeIndexKey(null, "memo", null), String.class);
+			index.addRecord(1, "A");
+			index.addRecord(2, "B");
+			final Formula before = index.getAllRecordsFormula();
+			assertStateAfterCommit(index, original -> original.addRecord(3, "A"), (original, committed) -> {
+				final Formula after = committed.getAllRecordsFormula();
+				assertNotEquals(original.getId(), committed.getId());
+				assertNotEquals(before.getKey(), after.getKey());
+				assertNotEquals(before.getKey().getHash64(), after.getKey().getHash64());
+				assertArrayEquals(new int[]{1, 2}, before.compute().getArray());
+				assertArrayEquals(new int[]{1, 2, 3}, after.compute().getArray());
+				assertEquals(before.getKey(), original.getAllRecordsFormula().getKey());
+			});
+		}
+
+		/** Views follow the committed shared tree, including changes within an existing bucket. */
+		@Test
+		@DisplayName("Shared-tree mutation changes a view key while a clean merge preserves it")
+		void shouldFollowSharedTreeVersionAcrossMerges() {
+			final OwnerFilterIndex owner = new OwnerFilterIndex(new AttributeIndexKey(null, "memo", null), String.class);
+			owner.addRecord(1, "A");
+			owner.addRecord(2, "B");
+			final InvertedIndex tree = owner.getInvertedIndex();
+			final FilterIndexView view = view(tree);
+			final Formula before = view.getAllRecordsFormula();
+			final InvertedIndex[] changed = new InvertedIndex[1];
+			assertStateAfterCommit(tree, original -> view.addRecord(3, "A"), (original, committed) -> {
+				changed[0] = committed;
+				assertNotEquals(before.getKey(), view(committed).getAllRecordsFormula().getKey());
+				assertArrayEquals(new int[]{1, 2, 3}, view(committed).getAllRecordsFormula().compute().getArray());
+			});
+			final FormulaKey cleanKey = view(changed[0]).getAllRecordsFormula().getKey();
+			assertStateAfterCommit(changed[0], original -> view(original).getAllRecordsFormula(),
+				(original, committed) -> {
+					assertSame(original, committed);
+					assertEquals(cleanKey, view(committed).getAllRecordsFormula().getKey());
+				});
+		}
+
+		/** Owner copies mint an id even when their shared data is untouched. */
+		@Test
+		@DisplayName("Clean owner copies preserve contents with a fresh owner identity")
+		void shouldKeepOwnerCleanCopyBehavior() {
+			final OwnerFilterIndex[] clean = new OwnerFilterIndex[1];
+			assertStateAfterCommit(
+				new OwnerFilterIndex(new AttributeIndexKey(null, "memo", null), String.class),
+				original -> original.addRecord(1, "A"), (original, committed) -> clean[0] = committed);
+			final OwnerFilterIndex index = clean[0];
+			final Formula before = index.getAllRecordsFormula();
+			assertStateAfterCommit(index, original -> original.getAllRecordsFormula(), (original, committed) -> {
+				assertNotEquals(original.getId(), committed.getId());
+				assertNotEquals(before.getKey(), committed.getAllRecordsFormula().getKey());
+				assertArrayEquals(before.compute().getArray(), committed.getAllRecords().getArray());
+			});
+		}
+
+		/** Distinct scope trees and reference-type trees never share an all-records identity. */
+		@Test
+		@DisplayName("LIVE, ARCHIVED and reference-type memos remain separate with equal contents")
+		void shouldSeparateScopeAndReferenceTypeMemos() {
+			final EntityIndex[] indexes = {
+				new GlobalEntityIndex(1, "item", new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE), false),
+				new GlobalEntityIndex(2, "item", new EntityIndexKey(EntityIndexType.GLOBAL, Scope.ARCHIVED), false),
+				new ReferencedTypeEntityIndex(3, "item",
+					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, "category"), false),
+				new ReferencedTypeEntityIndex(4, "item",
+					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, "tag"), false)
+			};
+			final EntityAttributeSchema schema = EntityAttributeSchema._internalBuild(
+				"memo", null, new Scope[]{Scope.LIVE, Scope.ARCHIVED}, null, null,
+				false, false, false, String.class, null, ConflictResolutionOverride.INHERITED);
+			final Formula[] formulas = new Formula[indexes.length];
+			for (int i = 0; i < indexes.length; i++) {
+				indexes[i].insertFilterAttribute(null, schema, Set.of(), null, "A", 1, false);
+				indexes[i].insertFilterAttribute(null, schema, Set.of(), null, "B", 2, false);
+				formulas[i] = indexes[i].getFilterIndex(new AttributeIndexKey(null, "memo", null)).getAllRecordsFormula();
+			}
+			for (int i = 0; i < formulas.length; i++) {
+				for (int j = i + 1; j < formulas.length; j++) {
+					assertArrayEquals(formulas[i].compute().getArray(), formulas[j].compute().getArray());
+					assertNotEquals(formulas[i].getKey(), formulas[j].getKey());
+					assertNotEquals(formulas[i].getKey().getHash64(), formulas[j].getKey().getHash64());
+				}
+			}
+		}
+
+		/** Empty indexes still return the shared empty formula. */
+		@Test
+		@DisplayName("An empty memo returns EmptyFormula")
+		void shouldKeepEmptyMemoFormula() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(new AttributeIndexKey(null, "memo", null), String.class);
+			assertSame(EmptyFormula.INSTANCE, index.getAllRecordsFormula());
+		}
+
+		/** Builds a query view over a real shared value tree. */
+		@Nonnull
+		private FilterIndexView view(@Nonnull InvertedIndex tree) {
+			return new FilterIndexView(new AttributeIndexKey(null, "memo", null), tree, null, String.class);
 		}
 	}
 

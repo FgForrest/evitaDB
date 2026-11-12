@@ -25,6 +25,8 @@ package io.evitadb.core.query.algebra.filter;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -93,6 +95,13 @@ public class HistogramHavingFormula extends AbstractFormula implements Attribute
 		return CLASS_ID;
 	}
 
+	/** Identifies the wrapper; its single child carries all computation inputs. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity();
+	}
+
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
@@ -114,5 +123,23 @@ public class HistogramHavingFormula extends AbstractFormula implements Attribute
 	@Override
 	public String toStringVerbose() {
 		return "HISTOGRAM HAVING (" + this.innerFormulas[0].toStringVerbose() + ")";
+	}
+
+	/**
+	 * Detached identity of the pass-through wrapper, whose inputs are its single child.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity() implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** The wrapper has no inputs outside its child. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+		}
 	}
 }

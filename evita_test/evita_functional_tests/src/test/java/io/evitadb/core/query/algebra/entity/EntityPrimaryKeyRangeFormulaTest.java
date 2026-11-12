@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra.entity;
 
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.dataType.array.CompositeIntArray;
@@ -631,9 +632,72 @@ class EntityPrimaryKeyRangeFormulaTest {
 		}
 	}
 
+	/**
+	 * Verifies inclusive bounds and child identity without a folded numeric surrogate.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Declared formula key")
+	class KeyTest {
+		/** Fresh instances over equal bounds and content share detached keys. */
+		@Test
+		@DisplayName("Equal ranges and supersets share keys")
+		void shouldShareKeysForEqualInputs() {
+			final Formula first = createFormula(1, 10, 1, 5, 10);
+			final Formula second = createFormula(1, 10, 1, 5, 10);
+			assertEquals(first.getKey(), second.getKey());
+			assertEquals(first.getKey().getHash64(), second.getKey().getHash64());
+		}
+
+		/** Both endpoints and the superset contribute independently. */
+		@Test
+		@DisplayName("Each bound and the superset change the key and hash64")
+		void shouldIncludeEachBoundAndSuperset() {
+			final Formula base = createFormula(1, 10, 1, 5, 10);
+			final Formula[] variants = {
+				createFormula(2, 10, 1, 5, 10), createFormula(1, 9, 1, 5, 10), createFormula(1, 10, 2, 6, 9)
+			};
+			for (final Formula variant : variants) {
+				assertNotEquals(base.getKey(), variant.getKey());
+				assertNotEquals(base.getKey().getHash64(), variant.getKey().getHash64());
+			}
+		}
+
+		/** A family of equal linear folds remains a family of distinct range identities. */
+		@Test
+		@DisplayName("Int-pair collision families have distinct keys and hash64 values")
+		void shouldDistinguishIntPairCollisionFamily() {
+			final Formula inner = new ConstantFormula(new ArrayBitmap(1, 2, 69, 70, 100));
+			for (int from = 1; from <= 4; from++) {
+				final int to = 131 - 31 * from;
+				final Formula first = new EntityPrimaryKeyRangeFormula(from, to, inner);
+				for (int otherFrom = from + 1; otherFrom <= 4; otherFrom++) {
+					final int otherTo = 131 - 31 * otherFrom;
+					final Formula second = new EntityPrimaryKeyRangeFormula(otherFrom, otherTo, inner);
+					assertEquals(31 * from + to, 31 * otherFrom + otherTo);
+					assertNotEquals(first.getKey(), second.getKey());
+					assertNotEquals(first.getKey().getHash64(), second.getKey().getHash64());
+				}
+			}
+		}
+
+		/** The memoized key survives execution state changes and equal-child cloning. */
+		@Test
+		@DisplayName("Execution and equal-child cloning preserve the key")
+		void shouldPreserveKeyAcrossExecutionAndClone() {
+			final Formula formula = createFormula(1, 10, 1, 5, 10);
+			final FormulaKey key = formula.getKey();
+			formula.compute();
+			formula.clearMemory();
+			assertSame(key, formula.getKey());
+			assertEquals(key, formula.getCloneWithInnerFormulas(formula.getInnerFormulas()).getKey());
+		}
+	}
+
+	@Nested
+	@DisplayName("Legacy hash consumed by the formula deduplicator")
+	class LegacyHashTest {
 
 		@Test
 		@DisplayName("should produce identical hash for same range and superset")
@@ -695,6 +759,24 @@ class EntityPrimaryKeyRangeFormulaTest {
 			assertEquals(wide.getTransactionalIdHash(), narrow.getTransactionalIdHash());
 			assertNotEquals(wide.getHash(), narrow.getHash());
 		}
+
+		@Test
+		@DisplayName("should preserve hash across compute + clearMemory cycle")
+		void shouldPreserveHashAfterClearMemory() {
+			// the hash is the formula's identity; if clearMemory accidentally invalidated the memoised
+			// hash as well, the same formula would carry a different identity before and after the reset
+			final EntityPrimaryKeyRangeFormula formula = createFormula(
+				5, 15,
+				1, 5, 10, 15, 20
+			);
+
+			final long hashBefore = formula.getHash();
+			formula.compute();
+			formula.clearMemory();
+			final long hashAfter = formula.getHash();
+
+			assertEquals(hashBefore, hashAfter);
+		}
 	}
 
 	@Nested
@@ -743,23 +825,7 @@ class EntityPrimaryKeyRangeFormulaTest {
 			assertArrayEquals(first.getArray(), second.getArray());
 		}
 
-		@Test
-		@DisplayName("should preserve hash across compute + clearMemory cycle")
-		void shouldPreserveHashAfterClearMemory() {
-			// the hash is the formula's identity; if clearMemory accidentally invalidated the memoised
-			// hash as well, the same formula would carry a different identity before and after the reset
-			final EntityPrimaryKeyRangeFormula formula = createFormula(
-				5, 15,
-				1, 5, 10, 15, 20
-			);
 
-			final long hashBefore = formula.getHash();
-			formula.compute();
-			formula.clearMemory();
-			final long hashAfter = formula.getHash();
-
-			assertEquals(hashBefore, hashAfter);
-		}
 	}
 
 	@Nested

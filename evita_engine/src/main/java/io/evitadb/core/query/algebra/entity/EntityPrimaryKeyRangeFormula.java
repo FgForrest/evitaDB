@@ -25,6 +25,8 @@ package io.evitadb.core.query.algebra.entity;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -111,6 +113,13 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 		return ((long) this.from << 32) | (this.to & 0xFFFFFFFFL);
 	}
 
+	/** Captures both inclusive bounds; the superset is represented by its child key. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.from, this.to);
+	}
+
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
@@ -173,5 +182,27 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 	@Override
 	public String toString() {
 		return "PK_RANGE[" + this.from + "," + this.to + "]";
+	}
+
+	/**
+	 * Detached inclusive bounds of the primary key range.
+	 *
+	 * @param from inclusive lower bound
+	 * @param to inclusive upper bound
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(int from, int to) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes each bound independently in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.from);
+			accumulator.add(this.to);
+		}
 	}
 }

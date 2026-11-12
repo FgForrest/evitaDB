@@ -26,6 +26,7 @@ package io.evitadb.index.range;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -329,10 +330,62 @@ class RangeIndexTest {
 		}
 	}
 
+	/**
+	 * Verifies per-operand version identities across wide range-index reads.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Version identity (formula-cache staleness token)")
+	@DisplayName("Declared range formula keys across commits")
+	class FormulaKeyTest {
+		/** Changes to an existing bitmap remain visible without changing operand count. */
+		@Test
+		@DisplayName("Committed bitmap mutations change a wide range formula key")
+		void shouldChangeKeyOnCommittedOperandMutation() {
+			final RangeIndex index = populatedIndex();
+			final Formula before = index.getRecordsFrom(50L);
+			assertStateAfterCommit(index,
+				original -> original.addRecord(10L, 10_100L, 100_000),
+				(original, committed) -> {
+					final Formula after = committed.getRecordsFrom(50L);
+					assertNotEquals(before.getKey(), after.getKey());
+					assertNotEquals(before.getKey().getHash64(), after.getKey().getHash64());
+					assertFalse(before.compute().contains(100_000));
+					assertTrue(after.compute().contains(100_000));
+				});
+		}
+
+		/** Read-only merging retains the transactional bitmap versions in both signed families. */
+		@Test
+		@DisplayName("Clean committed range formulas retain their keys")
+		void shouldPreserveKeyOnCleanCommit() {
+			final RangeIndex index = populatedIndex();
+			final Formula before = index.getRecordsFrom(50L);
+			assertStateAfterCommit(index,
+				original -> original.getRecordsFrom(50L),
+				(original, committed) -> {
+					assertEquals(before.getKey(), committed.getRecordsFrom(50L).getKey());
+					assertEquals(before.getKey().getHash64(), committed.getRecordsFrom(50L).getKey().getHash64());
+				});
+		}
+
+		/** Builds a clean index whose suffix carries more than one hundred operands. */
+		@Nonnull
+		private RangeIndex populatedIndex() {
+			final RangeIndex[] result = new RangeIndex[1];
+			assertStateAfterCommit(new RangeIndex(), original -> {
+				for (int i = 1; i <= 150; i++) {
+					original.addRecord(i, 10_000 + i, i);
+				}
+			}, (original, committed) -> result[0] = committed);
+			return result[0];
+		}
+	}
+
+	@Nested
+	@DisplayName("Legacy version identity and transactional ids consumed by the formula cache")
 	@Tag(CACHE)
-	class VersionIdentity {
+	class LegacyTransactionalIdsTest {
 
 		@Test
 		@DisplayName("Distinct instances carry distinct version ids (not the constant Void 1L)")

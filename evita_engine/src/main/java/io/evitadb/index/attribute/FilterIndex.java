@@ -30,6 +30,8 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.TokenRole;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
@@ -1435,12 +1437,16 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * would otherwise distribute surrounding {@code NOT(OR(b₁..b_N), U)} via De Morgan into a wide
 	 * {@code AND(NOT b₁ ... NOT b_N)} — a transformation that explodes cost for high-cardinality indexes.
 	 *
+	 * The index version and the all-records derivation identify the memo without copying the union into its key.
+	 *
 	 * A **fresh** formula is returned on every call. What is memoized is the bitmap behind it — see
 	 * {@link #memoizedAllRecords} for why an index must never hand out the same formula instance twice.
 	 */
 	public Formula getAllRecordsFormula() {
 		final Bitmap allRecords = getAllRecords();
-		return allRecords.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
+		return allRecords.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(
+			allRecords, IdentityToken.derived(getId(), TokenRole.FILTER_INDEX_ALL_RECORDS)
+		);
 	}
 
 	/**

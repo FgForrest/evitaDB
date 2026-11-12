@@ -238,9 +238,42 @@ class HistogramHavingFormulaTest {
 		}
 	}
 
+	/**
+	 * Verifies the wrapper class and its sole ordered child.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash stability")
-	class HashStabilityTest {
+	@DisplayName("Declared formula key")
+	class KeyTest {
+		/** The wrapper identity is empty and the child supplies its value inputs. */
+		@Test
+		@DisplayName("Equal children share wrapper keys and different children change keys")
+		void shouldIdentifyChild() {
+			final Formula first = new HistogramHavingFormula(newInnerFormula());
+			final Formula equal = new HistogramHavingFormula(newInnerFormula());
+			final Formula different = new HistogramHavingFormula(new ConstantFormula(new ArrayBitmap(1)));
+			assertEquals(first.getKey(), equal.getKey());
+			assertEquals(first.getKey().getHash64(), equal.getKey().getHash64());
+			assertNotEquals(first.getKey(), different.getKey());
+			assertNotEquals(first.getKey().getHash64(), different.getKey().getHash64());
+			assertEquals(first.getKey(), first.getCloneWithInnerFormulas(first.getInnerFormulas()).getKey());
+		}
+
+		/** A range carrier remains distinguishable from its bare child. */
+		@Test
+		@DisplayName("Wrapper class identity distinguishes the key from its child")
+		void shouldIncludeWrapperClassIdentity() {
+			final Formula inner = newInnerFormula();
+			final Formula wrapper = new HistogramHavingFormula(inner);
+			assertNotEquals(inner.getKey(), wrapper.getKey());
+			assertNotEquals(inner.getKey().getHash64(), wrapper.getKey().getHash64());
+		}
+	}
+
+	@Nested
+	@DisplayName("Legacy hash consumed by the formula deduplicator")
+	class LegacyHashTest {
 
 		@Test
 		@DisplayName("should produce identical hash for two wrappers around identical children")
