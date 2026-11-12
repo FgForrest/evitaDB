@@ -57,7 +57,7 @@ import static org.mockito.Mockito.when;
  * supplier-level identity contract — the value-content lookup hash (shared across ranges of the same field) versus
  * the field-coarse staleness id hash.
  *
- * The assertions mirror the production hash function exactly: {@link HistogramBitmapSupplier} hashes via the shared
+ * The legacy assertions use the production hash function: {@link HistogramBitmapSupplier} hashes via the shared
  * `HASH_FUNCTION = CacheSupervisor.createHashFunction()`, which is {@link LongHashFunction#xx3()}. This test
  * reproduces that exact function so the expected hashes are computed identically rather than merely sampled.
  *
@@ -76,9 +76,78 @@ class HistogramBitmapSupplierTest {
 	 */
 	private static final LongHashFunction HASH_FUNCTION = LongHashFunction.xx3();
 
+	/**
+	 * Detached supplier keys include values and leaf provenance.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Value-hash strategy")
-	class ValueHashStrategyTest {
+	@DisplayName("Detached supplier keys")
+	class KeyTest {
+		/** Ordered bucket values affect equality and the hash prefilter. */
+		@Test
+		@DisplayName("Distinguishes bucket values and order")
+		void shouldDistinguishBucketValuesAndOrder() {
+			final HistogramBitmapSupplier first = new HistogramBitmapSupplier(1L,
+				new ValueToRecord[]{new ValueToRecordPrimitive(5, 1), new ValueToRecordPrimitive(10, 2)});
+			final HistogramBitmapSupplier changed = new HistogramBitmapSupplier(1L,
+				new ValueToRecord[]{new ValueToRecordPrimitive(7, 1), new ValueToRecordPrimitive(10, 2)});
+			final HistogramBitmapSupplier reversed = new HistogramBitmapSupplier(1L,
+				new ValueToRecord[]{new ValueToRecordPrimitive(10, 2), new ValueToRecordPrimitive(5, 1)});
+			assertNotEquals(first.getKey(), changed.getKey());
+			assertNotEquals(first.getKey().getHash64(), changed.getKey().getHash64());
+			assertNotEquals(first.getKey(), reversed.getKey());
+			assertNotEquals(first.getKey().getHash64(), reversed.getKey().getHash64());
+		}
+
+		/** String content remains distinct even when the ordinary string hashes collide. */
+		@Test
+		@DisplayName("Distinguishes bucket strings with colliding 32-bit hashes")
+		void shouldDistinguishCollidingStringValues() {
+			assertEquals("Aa".hashCode(), "BB".hashCode());
+			final HistogramBitmapSupplier first = new HistogramBitmapSupplier(1L,
+				new ValueToRecord[]{new ValueToRecordPrimitive("Aa", 1)});
+			final HistogramBitmapSupplier second = new HistogramBitmapSupplier(1L,
+				new ValueToRecord[]{new ValueToRecordPrimitive("BB", 1)});
+			assertNotEquals(first.getKey(), second.getKey());
+			assertNotEquals(first.getKey().getHash64(), second.getKey().getHash64());
+		}
+
+		/** A bucket value's type remains part of its detached identity. */
+		@Test
+		@DisplayName("Distinguishes numeric and string buckets with the same text")
+		void shouldDistinguishValueTypesWithSameText() {
+			final HistogramBitmapSupplier integral = new HistogramBitmapSupplier(1L,
+				new ValueToRecord[]{new ValueToRecordPrimitive(5, 1)});
+			final HistogramBitmapSupplier text = new HistogramBitmapSupplier(1L,
+				new ValueToRecord[]{new ValueToRecordPrimitive("5", 1)});
+			assertNotEquals(integral.getKey(), text.getKey());
+			assertNotEquals(integral.getKey().getHash64(), text.getKey().getHash64());
+		}
+
+		/** Equal values under different leaf versions describe different computations. */
+		@Test
+		@DisplayName("Distinguishes leaf version sets")
+		void shouldDistinguishLeafVersions() {
+			final ValueToRecord[] buckets = {new ValueToRecordPrimitive(5, 1)};
+			final HistogramBitmapSupplier first = new HistogramBitmapSupplier(new long[]{7, 9}, buckets);
+			final HistogramBitmapSupplier changed = new HistogramBitmapSupplier(new long[]{7, 10}, buckets);
+			final HistogramBitmapSupplier shorter = new HistogramBitmapSupplier(new long[]{7}, buckets);
+			assertNotEquals(first.getKey(), changed.getKey());
+			assertNotEquals(first.getKey().getHash64(), changed.getKey().getHash64());
+			assertNotEquals(first.getKey(), shorter.getKey());
+			assertEquals(first.getKey(), new HistogramBitmapSupplier(new long[]{7, 9}, buckets).getKey());
+		}
+	}
+
+	/**
+	 * Retains the hash behavior used by the current formula deduplicator.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Legacy value-hash strategy")
+	class LegacyValueHashStrategyTest {
 
 		@Test
 		@DisplayName("A String value resolves to the chars strategy and hashes through it")
@@ -184,9 +253,75 @@ class HistogramBitmapSupplierTest {
 		}
 	}
 
+	/**
+	 * Verifies deferred bucket access and the execution cost independent of cache lookup hashes.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Supplier identity and staleness")
-	class SupplierIdentityTest {
+	@DisplayName("Supplier execution and cost")
+	class SupplierExecutionTest {
+
+		@Test
+		@DisplayName("The estimated cardinality is the sum of the bucket sizes")
+		void shouldComputeEstimatedCardinalityAsSumOfBucketSizes() {
+			final HistogramBitmapSupplier supplier = new HistogramBitmapSupplier(
+				1L,
+				new ValueToRecord[]{
+					new ValueToRecordPrimitive(5, 1),       // size 1
+					new ValueToRecordBitmap(10, 2, 3, 4)    // size 3
+				}
+			);
+
+			assertEquals(4, supplier.getEstimatedCardinality());
+		}
+
+		@Test
+		@DisplayName("Construction reads no bucket's record set, so the union really is deferred")
+		void shouldNotUnionTheBucketsAtConstruction() {
+			// the whole point of wrapping this supplier in a DeferredFormula is that the union is paid only if the
+			// formula is actually computed. Reading a bucket's record set at construction defeats that outright - the
+			// attribute-histogram path unions the WHOLE index while the plan is still being costed
+			final ValueToRecord bucket = mock(ValueToRecord.class);
+			when(bucket.getValue()).thenReturn(5);
+			when(bucket.size()).thenReturn(3);
+			when(bucket.getRecordIds()).thenReturn(new BaseBitmap(1, 2, 3));
+
+			final HistogramBitmapSupplier supplier = new HistogramBitmapSupplier(
+				1L, new ValueToRecord[]{bucket}
+			);
+			verify(bucket, never()).getRecordIds();
+			// the cheap facts are still available without the union - they come off `size()`
+			assertEquals(3, supplier.getEstimatedCardinality());
+			verify(bucket, never()).getRecordIds();
+
+			assertArrayEquals(new int[]{1, 2, 3}, supplier.get().getArray());
+			verify(bucket, atLeastOnce()).getRecordIds();
+		}
+
+		@Test
+		@DisplayName("An empty slice is priced at zero")
+		void shouldPriceAnEmptySlice() {
+			// A bucket that holds no record id is the reachable shape - the tree deletes drained buckets, but a
+			// caller may hand this supplier a freshly built, still-empty one
+			final HistogramBitmapSupplier supplier = assertDoesNotThrow(
+				() -> new HistogramBitmapSupplier(1L, new ValueToRecord[]{new ValueToRecordBitmap(5)})
+			);
+			assertTrue(supplier.get().isEmpty());
+			assertEquals(0, supplier.getEstimatedCardinality());
+			assertEquals(0L, supplier.getEstimatedCost());
+			assertEquals(0L, supplier.getCost());
+		}
+	}
+
+	/**
+	 * Retains the hash behavior used by the current formula deduplicator.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Legacy supplier hashes and staleness")
+	class LegacySupplierHashTest {
 
 		@Test
 		@DisplayName("Different ranges of the same field share the field-coarse staleness id hash")
@@ -250,57 +385,6 @@ class HistogramBitmapSupplierTest {
 			// the scalar convenience ctor now folds to the one-element leaf-version set {77L}; its hash is the
 			// canonical multi-id hash over that set (hashLongs), not the single-scalar hashLong
 			assertEquals(HASH_FUNCTION.hashLongs(new long[]{77L}), supplier.getTransactionalIdHash());
-		}
-
-		@Test
-		@DisplayName("The estimated cardinality is the sum of the bucket sizes")
-		void shouldComputeEstimatedCardinalityAsSumOfBucketSizes() {
-			final HistogramBitmapSupplier supplier = new HistogramBitmapSupplier(
-				1L,
-				new ValueToRecord[]{
-					new ValueToRecordPrimitive(5, 1),       // size 1
-					new ValueToRecordBitmap(10, 2, 3, 4)    // size 3
-				}
-			);
-
-			assertEquals(4, supplier.getEstimatedCardinality());
-		}
-
-		@Test
-		@DisplayName("Construction reads no bucket's record set, so the union really is deferred")
-		void shouldNotUnionTheBucketsAtConstruction() {
-			// the whole point of wrapping this supplier in a DeferredFormula is that the union is paid only if the
-			// formula is actually computed. Reading a bucket's record set at construction defeats that outright - the
-			// attribute-histogram path unions the WHOLE index while the plan is still being costed
-			final ValueToRecord bucket = mock(ValueToRecord.class);
-			when(bucket.getValue()).thenReturn(5);
-			when(bucket.size()).thenReturn(3);
-			when(bucket.getRecordIds()).thenReturn(new BaseBitmap(1, 2, 3));
-
-			final HistogramBitmapSupplier supplier = new HistogramBitmapSupplier(
-				1L, new ValueToRecord[]{bucket}
-			);
-			verify(bucket, never()).getRecordIds();
-			// the cheap facts are still available without the union - they come off `size()`
-			assertEquals(3, supplier.getEstimatedCardinality());
-			verify(bucket, never()).getRecordIds();
-
-			assertArrayEquals(new int[]{1, 2, 3}, supplier.get().getArray());
-			verify(bucket, atLeastOnce()).getRecordIds();
-		}
-
-		@Test
-		@DisplayName("An empty slice is priced at zero")
-		void shouldPriceAnEmptySlice() {
-			// A bucket that holds no record id is the reachable shape - the tree deletes drained buckets, but a
-			// caller may hand this supplier a freshly built, still-empty one
-			final HistogramBitmapSupplier supplier = assertDoesNotThrow(
-				() -> new HistogramBitmapSupplier(1L, new ValueToRecord[]{new ValueToRecordBitmap(5)})
-			);
-			assertTrue(supplier.get().isEmpty());
-			assertEquals(0, supplier.getEstimatedCardinality());
-			assertEquals(0L, supplier.getEstimatedCost());
-			assertEquals(0L, supplier.getCost());
 		}
 
 		@Test
