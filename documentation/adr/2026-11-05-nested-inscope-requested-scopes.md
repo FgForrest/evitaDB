@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-11 18:28
+updated: 2026-11-12 15:51
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917]
@@ -534,13 +534,12 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
     locale source, by a planned query (`EntityLocaleMissingException`, the check of the locale record). It used to be
     answered in that locale, dropping every body without data in it. `dataInLocales` in the fetch of the bodies
     brings every body back, with the attribute where the body has it.
-- **A Java driver and the server must agree on the body locale.** The driver reconstructs the predicates of the
-  bodies by `QueryUtils#resolveReferenceBodyLocale` (`2026-10-21-one-locale-per-entity-level`), so a driver older
-  than #1915 disagrees with this server for a locale below `or`, `not` or `inScope`.
 - **Open, left by #1915:**
-  - `getEntity` plans no fetch, so it answers the named localized attribute above, which a planned query refuses. It
-    does so with or without a locale below `or` - also for a filter with no `entityHaving` at all - so the split is
-    older than this change.
+  - #1949: `getEntity` plans no fetch, so it does not refuse the named localized attribute above, which a planned
+    query refuses. It returns the entity, or the referenced entity bodies, without the attribute (measured), also for
+    a filter with no `entityHaving` at all, so the split is older than this change. For a locale named only below
+    `or`, `not` or `inScope` it used to fetch the bodies in that locale, dropping every body without data in it (read
+    from the code); under the and-only rule neither answer is right.
   - #1920: an `inScope` in the require section narrows the scopes the planning check of a nested `referenceContent`
     inherits, while the pre-flight and the fetch do not, so the planned query refuses a filter they admit.
   - The `EXISTING` gate of the referenced entities searches every scope the filter names at any level
