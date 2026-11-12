@@ -68,6 +68,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -83,6 +84,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.PaginatedList;
@@ -186,6 +188,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	private static final String ATTRIBUTE_CATEGORY_OPEN = "open";
 	private static final String ATTRIBUTE_CATEGORY_MARKET_OPEN = "marketOpen";
 	private static final String ATTRIBUTE_CATEGORY_MARKET = "market";
+	private static final String ATTRIBUTE_DECIMAL_RANGE = "decimalRange";
+	private static final String ATTRIBUTE_STOCK = "stock";
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
@@ -4650,5 +4654,189 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * A decimal range created without explicit retained decimal places compares at the scale of its own bounds -
+	 * `[1.0,2.0]` as `10..20`. Stored through the client and read back through it, the range must still compare so,
+	 * otherwise the value the client reads differs from the value it wrote.
+	 *
+	 * @param evitaClient the driver instance provided by the test extension
+	 */
+	@Test
+	@Tag(ATTRIBUTE)
+	@DisplayName("should read back a decimal range attribute exactly as the client wrote it")
+	@UseDataSet(value = EVITA_CLIENT_EMPTY_DATA_SET, destroyAfterTest = true)
+	void shouldReadBackDecimalRangeAttributeAsWritten(EvitaClient evitaClient) {
+		final BigDecimalNumberRange written = BigDecimalNumberRange.between(
+			new BigDecimal("1.0"), new BigDecimal("2.0")
+		);
+		storeProductWithDecimalRange(evitaClient, written);
+
+		final BigDecimalNumberRange readBack = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PRODUCT, 1, attributeContent(ATTRIBUTE_DECIMAL_RANGE))
+					.orElseThrow()
+					.getAttribute(ATTRIBUTE_DECIMAL_RANGE, BigDecimalNumberRange.class);
+			}
+		);
+
+		// `2.4` lies above `10..20`, yet rounds into `1..2`
+		final BigDecimal probe = new BigDecimal("2.4");
+		assertFalse(written.isWithin(probe), "the probe must lie outside the written range");
+		assertAll(
+			() -> assertEquals(
+				written.getEffectiveRetainedDecimalPlaces(), readBack.getEffectiveRetainedDecimalPlaces(),
+				"effective retained decimal places of " + written
+			),
+			() -> assertEquals(written.getFrom(), readBack.getFrom(), "encoded lower bound of " + written),
+			() -> assertEquals(written.getTo(), readBack.getTo(), "encoded upper bound of " + written),
+			() -> assertFalse(readBack.isWithin(probe), written + " isWithin " + probe),
+			() -> assertEquals(written.toString(), readBack.toString(), "rendering"),
+			() -> assertEquals(written, readBack, "equality of " + written)
+		);
+	}
+
+	/**
+	 * The filter index re-encodes a decimal range at the `indexedDecimalPlaces` of its schema, so a range stored
+	 * through the client is found by the values it holds at that scale and by no other.
+	 *
+	 * @param evitaClient the driver instance provided by the test extension
+	 */
+	@Test
+	@Tag(ATTRIBUTE)
+	@DisplayName("should filter by a decimal range attribute the client wrote")
+	@UseDataSet(value = EVITA_CLIENT_EMPTY_DATA_SET, destroyAfterTest = true)
+	void shouldFilterByDecimalRangeAttributeWrittenThroughClient(EvitaClient evitaClient) {
+		storeProductWithDecimalRange(
+			evitaClient, BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+		);
+
+		final List<Integer> inside = queryProductsWithDecimalRangeHolding(evitaClient, new BigDecimal("1.5"));
+		final List<Integer> outside = queryProductsWithDecimalRangeHolding(evitaClient, new BigDecimal("2.4"));
+
+		assertEquals(List.of(1), inside, "`1.5` lies within `[1.0,2.0]`");
+		assertEquals(List.of(), outside, "`2.4` lies above `[1.0,2.0]`");
+	}
+
+	/**
+	 * A required range whose precision comes from its bounds guards a delta at that precision: `[0.0,1.0]` refuses
+	 * `1.4` even though `1.4` would round into it at zero decimal places. The guard is evaluated on the server, after
+	 * the range travelled there through gRPC.
+	 *
+	 * @param evitaClient the driver instance provided by the test extension
+	 */
+	@Test
+	@Tag(ATTRIBUTE)
+	@DisplayName("should refuse a delta result outside a required decimal range the client sent")
+	@UseDataSet(value = EVITA_CLIENT_EMPTY_DATA_SET, destroyAfterTest = true)
+	void shouldRefuseDeltaResultOutsideRequiredDecimalRange(EvitaClient evitaClient) {
+		evitaClient.defineCatalog(TEST_CATALOG)
+		           .updateViaNewSession(evitaClient);
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+				       .withoutGeneratedPrimaryKey()
+				       .withAttribute(ATTRIBUTE_STOCK, BigDecimal.class, thatIs -> thatIs.indexDecimalPlaces(1))
+				       .updateVia(session);
+				session.createNewEntity(Entities.PRODUCT, 1)
+				       .setAttribute(ATTRIBUTE_STOCK, new BigDecimal("1.0"))
+				       .upsertVia(session);
+			}
+		);
+
+		final BigDecimalNumberRange requiredRange = BigDecimalNumberRange.between(
+			new BigDecimal("0.0"), new BigDecimal("1.0")
+		);
+		assertFalse(requiredRange.isWithin(new BigDecimal("1.4")), "the result must lie outside the required range");
+		final EvitaInvalidUsageException exception = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> evitaClient.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.upsertEntity(
+						new EntityUpsertMutation(
+							Entities.PRODUCT, 1, EntityExistence.MUST_EXIST,
+							new ApplyDeltaAttributeMutation<>(ATTRIBUTE_STOCK, new BigDecimal("0.4"), requiredRange)
+						)
+					);
+				}
+			),
+			"the server must refuse `1.0 + 0.4` for the required range " + requiredRange
+		);
+
+		assertTrue(
+			exception.getMessage().contains("produced result 1.4 which is out of specified range " + requiredRange),
+			"Unexpected exception message: " + exception.getMessage()
+		);
+
+		final BigDecimal stock = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PRODUCT, 1, attributeContent(ATTRIBUTE_STOCK))
+					.orElseThrow()
+					.getAttribute(ATTRIBUTE_STOCK, BigDecimal.class);
+			}
+		);
+		assertEquals(new BigDecimal("1.0"), stock, "the refused delta must leave the stock untouched");
+	}
+
+	/**
+	 * Creates the test catalog with a product collection holding one filterable decimal range attribute indexed at
+	 * one decimal place, and stores product `1` with the given range in it - all through the client.
+	 *
+	 * @param evitaClient the driver instance provided by the test extension
+	 * @param range       the range to store
+	 */
+	private static void storeProductWithDecimalRange(
+		@Nonnull EvitaClient evitaClient,
+		@Nonnull BigDecimalNumberRange range
+	) {
+		evitaClient.defineCatalog(TEST_CATALOG)
+		           .updateViaNewSession(evitaClient);
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+				       .withoutGeneratedPrimaryKey()
+				       .withAttribute(
+					       ATTRIBUTE_DECIMAL_RANGE, BigDecimalNumberRange.class,
+					       thatIs -> thatIs.filterable().indexDecimalPlaces(1)
+				       )
+				       .updateVia(session);
+				session.createNewEntity(Entities.PRODUCT, 1)
+				       .setAttribute(ATTRIBUTE_DECIMAL_RANGE, range)
+				       .upsertVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Returns the primary keys of the products whose decimal range attribute holds the given value.
+	 *
+	 * @param evitaClient the driver instance provided by the test extension
+	 * @param value       the value the range must hold
+	 * @return the primary keys found
+	 */
+	@Nonnull
+	private static List<Integer> queryProductsWithDecimalRangeHolding(
+		@Nonnull EvitaClient evitaClient,
+		@Nonnull BigDecimal value
+	) {
+		return evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryListOfSealedEntities(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(attributeInRange(ATTRIBUTE_DECIMAL_RANGE, value))
+						)
+					)
+					.stream()
+					.map(SealedEntity::getPrimaryKey)
+					.toList();
+			}
+		);
+	}
 
 }

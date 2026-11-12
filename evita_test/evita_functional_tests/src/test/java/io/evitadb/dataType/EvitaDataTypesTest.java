@@ -40,6 +40,9 @@ import io.evitadb.utils.MemoryMeasuringConstants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Serializable;
@@ -60,6 +63,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import javax.annotation.Nonnull;
@@ -4324,6 +4328,169 @@ class EvitaDataTypesTest {
 						Arrays.deepToString(new Object[]{stored, readBack})
 				);
 			}
+		}
+
+		@Test
+		@DisplayName("should tell apart an open decimal range from one with the materialized sentinel bound")
+		void shouldTellApartOpenDecimalRangeFromMaterializedSentinelBound() {
+			final BigDecimalNumberRange open = BigDecimalNumberRange.from(new BigDecimal("1"));
+			final BigDecimalNumberRange materialized =
+				BigDecimalNumberRange.between(new BigDecimal("1"), new BigDecimal(Long.MAX_VALUE));
+
+			assertEquals(open, materialized);
+			assertTrue(EvitaDataTypes.storedValueDiffers(open, materialized));
+		}
+
+		@Test
+		@DisplayName("should compare object arrays holding null elements or nested arrays element by element")
+		void shouldCompareObjectArraysHoldingNullElementsOrNestedArraysElementByElement() {
+			assertFalse(EvitaDataTypes.storedValueDiffers(new Integer[]{1, null}, new Integer[]{1, null}));
+			assertTrue(EvitaDataTypes.storedValueDiffers(new Integer[]{1, null}, new Integer[]{1, 2}));
+			assertTrue(EvitaDataTypes.storedValueDiffers(new Integer[]{1, 2}, new Integer[]{1, null}));
+			assertFalse(
+				EvitaDataTypes.storedValueDiffers(new Integer[][]{{1}, {2, 3}}, new Integer[][]{{1}, {2, 3}})
+			);
+			assertTrue(
+				EvitaDataTypes.storedValueDiffers(new Integer[][]{{1}, {2, 3}}, new Integer[][]{{1}, {2, 4}})
+			);
+		}
+
+		/**
+		 * Only a range, an array of ranges or complex data stored so far puts the candidate the range question - any
+		 * other stored value leaves the decision to the base comparison, whatever the candidate is.
+		 */
+		@Test
+		@DisplayName("should tell a stored range apart from a candidate of another type, not the other way round")
+		void shouldTellStoredRangeApartFromCandidateOfAnotherTypeOnly() {
+			final BigDecimalNumberRange oneToTwo =
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+			final ComplexDataObject complexData =
+				new ComplexDataObject(new DataItemMap(Map.of("range", new DataItemValue(oneToTwo))));
+
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(oneToTwo, null));
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(oneToTwo, new BigDecimal("1.0")));
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(new BigDecimalNumberRange[]{oneToTwo}, oneToTwo));
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(complexData, oneToTwo));
+			assertFalse(EvitaDataTypes.rangeRepresentationDiffers(new BigDecimal("1.0"), oneToTwo));
+			assertFalse(EvitaDataTypes.rangeRepresentationDiffers(null, oneToTwo));
+		}
+
+		@Test
+		@DisplayName("should tell apart arrays of ranges of other length or with a null element on one side only")
+		void shouldTellApartArraysOfRangesOfOtherLengthOrWithNullElementOnOneSideOnly() {
+			final BigDecimalNumberRange oneToTwo =
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+
+			assertTrue(
+				EvitaDataTypes.rangeRepresentationDiffers(
+					new BigDecimalNumberRange[]{oneToTwo}, new BigDecimalNumberRange[]{oneToTwo, oneToTwo}
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.rangeRepresentationDiffers(
+					new BigDecimalNumberRange[]{oneToTwo, null}, new BigDecimalNumberRange[]{oneToTwo, oneToTwo}
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.rangeRepresentationDiffers(
+					new BigDecimalNumberRange[]{oneToTwo, oneToTwo}, new BigDecimalNumberRange[]{oneToTwo, null}
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should tell apart arrays of decimal ranges of equal bounds retained at another precision")
+		void shouldTellApartArraysOfDecimalRangesOfEqualBoundsRetainedAtAnotherPrecision() {
+			final BigDecimalNumberRange[] onePlace = {
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"), 1)
+			};
+			final BigDecimalNumberRange[] twoPlaces = {
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"), 2)
+			};
+
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(onePlace, twoPlaces));
+			assertTrue(EvitaDataTypes.storedValueDiffers(onePlace, twoPlaces));
+		}
+
+		/**
+		 * The walk over complex data reports two trees of a different shape as told apart, whether or not they hold a
+		 * range leaf - none of the trees here does.
+		 *
+		 * @param shape     description of the difference
+		 * @param existing  root of the complex data stored so far
+		 * @param candidate root of the complex data about to be stored
+		 */
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("complexDataOfDifferentShape")
+		@DisplayName("should tell apart complex data of a different shape")
+		void shouldTellApartComplexDataOfDifferentShape(
+			@Nonnull String shape,
+			@Nonnull DataItem existing,
+			@Nonnull DataItem candidate
+		) {
+			assertTrue(
+				EvitaDataTypes.rangeRepresentationDiffers(
+					new ComplexDataObject(existing), new ComplexDataObject(candidate)
+				),
+				shape
+			);
+		}
+
+		/**
+		 * Pairs of complex data roots that differ in shape only, none of them holding a range leaf.
+		 *
+		 * @return description of the difference, the root stored so far and the root about to be stored
+		 */
+		@Nonnull
+		static Stream<Arguments> complexDataOfDifferentShape() {
+			final DataItem one = new DataItemValue(1);
+			return Stream.of(
+				Arguments.of(
+					"value versus array",
+					new DataItemMap(Map.of("p", one)),
+					new DataItemMap(Map.of("p", new DataItemArray(new DataItem[]{one})))
+				),
+				Arguments.of(
+					"array versus map",
+					new DataItemMap(Map.of("p", new DataItemArray(new DataItem[]{one}))),
+					new DataItemMap(Map.of("p", new DataItemMap(Map.of("x", one))))
+				),
+				Arguments.of(
+					"map versus value",
+					new DataItemMap(Map.of("p", new DataItemMap(Map.of("x", one)))),
+					new DataItemMap(Map.of("p", one))
+				),
+				Arguments.of(
+					"map root versus array root",
+					new DataItemMap(Map.of("p", one)),
+					new DataItemArray(new DataItem[]{one})
+				),
+				Arguments.of(
+					"arrays of other length",
+					new DataItemMap(Map.of("p", new DataItemArray(new DataItem[]{one}))),
+					new DataItemMap(Map.of("p", new DataItemArray(new DataItem[]{one, one})))
+				),
+				Arguments.of(
+					"maps of other size",
+					new DataItemMap(Map.of("a", one)),
+					new DataItemMap(Map.of("a", one, "b", one))
+				),
+				Arguments.of(
+					"maps of the same size with another property name",
+					new DataItemMap(Map.of("a", one)),
+					new DataItemMap(Map.of("b", one))
+				),
+				Arguments.of(
+					"null leaf value on one side only",
+					new DataItemMap(Map.of("a", new DataItemValue(null))),
+					new DataItemMap(Map.of("a", one))
+				),
+				Arguments.of(
+					"null array item on one side only",
+					new DataItemMap(Map.of("p", new DataItemArray(new DataItem[]{null}))),
+					new DataItemMap(Map.of("p", new DataItemArray(new DataItem[]{one})))
+				)
+			);
 		}
 
 		/**

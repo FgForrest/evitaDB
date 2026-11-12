@@ -25,6 +25,7 @@ package io.evitadb.api.functional.attribute;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -56,7 +57,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Currency;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,7 +93,6 @@ class RangeValueUpsertFunctionalTest {
 	private static final String HOLDER = "holder";
 	private static final String HOLDERS = "holders";
 	private static final int PK = 1;
-	private static final Currency CZK = Currency.getInstance("CZK");
 
 	/**
 	 * Returns the range `[1.0,2.0]`, written first.
@@ -222,6 +221,53 @@ class RangeValueUpsertFunctionalTest {
 				() -> assertEquals("[10,20]", String.valueOf((Object) product.getAttribute(RANGE))),
 				() -> assertEquals(List.of(PK), queryPrimaryKeys(evita, attributeEquals(RANGE, tenToTwenty()))),
 				() -> assertEquals(List.of(), queryPrimaryKeys(evita, attributeEquals(RANGE, oneToTwo())))
+			);
+		}
+
+		/**
+		 * Two date-time ranges naming the same instants at different zone offsets compare equal by their encoded
+		 * bounds, yet a reader gets other bounds back.
+		 */
+		@Test
+		@DisplayName("should replace an entity attribute by a date-time range of the same instants at another offset")
+		void shouldReplaceEntityAttributeByDateTimeRangeOfSameInstantsAtAnotherOffset(Evita evita) {
+			final LocalDateTime noon = LocalDateTime.of(2024, 1, 1, 12, 0);
+			final DateTimeRange storedRange = DateTimeRange.between(
+				noon.atOffset(ZoneOffset.ofHours(2)), noon.plusHours(1).atOffset(ZoneOffset.ofHours(2))
+			);
+			final DateTimeRange newRange = DateTimeRange.between(
+				noon.minusHours(1).atOffset(ZoneOffset.ofHours(1)), noon.atOffset(ZoneOffset.ofHours(1))
+			);
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(PRODUCT)
+						.withAttribute(RANGE, DateTimeRange.class, whichIs -> whichIs.filterable())
+						.updateVia(session);
+					session.createNewEntity(PRODUCT, PK).setAttribute(RANGE, storedRange).upsertVia(session);
+				}
+			);
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(PRODUCT, PK, attributeContentAll()).orElseThrow()
+						.openForWrite()
+						.setAttribute(RANGE, newRange)
+						.upsertVia(session);
+				}
+			);
+
+			final AttributeValue attribute = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(PRODUCT, PK, attributeContentAll()).orElseThrow()
+						.getAttributeValue(RANGE)
+						.orElseThrow();
+				}
+			);
+			assertAll(
+				() -> assertEquals(newRange.toString(), String.valueOf(attribute.value())),
+				() -> assertEquals(2, attribute.version())
 			);
 		}
 
@@ -377,56 +423,6 @@ class RangeValueUpsertFunctionalTest {
 			assertAll(
 				() -> assertEquals("[[10,20]]", Arrays.deepToString((Object[]) product.getAssociatedData(RANGE))),
 				() -> assertTrue(holders.contains("[10,20]") && !holders.contains("[1.0,2.0]"), holders)
-			);
-		}
-	}
-
-	@Nested
-	@DisplayName("A price validity naming the same instants at another zone offset")
-	class PriceValidityTest {
-
-		@Test
-		@DisplayName("should replace the validity of a price")
-		void shouldReplaceValidityOfPrice(Evita evita) {
-			final LocalDateTime noon = LocalDateTime.of(2024, 1, 1, 12, 0);
-			final DateTimeRange storedValidity = DateTimeRange.between(
-				noon.atOffset(ZoneOffset.ofHours(2)), noon.plusHours(1).atOffset(ZoneOffset.ofHours(2))
-			);
-			final DateTimeRange newValidity = DateTimeRange.between(
-				noon.minusHours(1).atOffset(ZoneOffset.ofHours(1)), noon.atOffset(ZoneOffset.ofHours(1))
-			);
-			evita.updateCatalog(
-				TEST_CATALOG,
-				session -> {
-					session.defineEntitySchema(PRODUCT).withPrice().updateVia(session);
-					session.createNewEntity(PRODUCT, PK)
-						.setPrice(
-							1, "basic", CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, storedValidity, true
-						)
-						.upsertVia(session);
-				}
-			);
-			evita.updateCatalog(
-				TEST_CATALOG,
-				session -> {
-					session.getEntity(PRODUCT, PK, priceContentAll()).orElseThrow()
-						.openForWrite()
-						.setPrice(
-							1, "basic", CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, newValidity, true
-						)
-						.upsertVia(session);
-				}
-			);
-
-			final SealedEntity product = evita.queryCatalog(
-				TEST_CATALOG,
-				session -> {
-					return session.getEntity(PRODUCT, PK, priceContentAll()).orElseThrow();
-				}
-			);
-			assertEquals(
-				newValidity.toString(),
-				String.valueOf(product.getPrice(1, "basic", CZK).orElseThrow().validity())
 			);
 		}
 	}

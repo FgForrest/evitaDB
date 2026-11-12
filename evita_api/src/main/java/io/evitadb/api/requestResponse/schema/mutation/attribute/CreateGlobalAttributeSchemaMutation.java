@@ -369,12 +369,7 @@ public class CreateGlobalAttributeSchemaMutation
 							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(this.name, newValue)
 						),
 						makeTypeMutationIfDifferent(createdVersion, existingVersion, this.indexedDecimalPlaces),
-						makeMutationIfDifferent(
-							GlobalAttributeSchemaContract.class,
-							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::getDefaultValue,
-							newValue -> new ModifyAttributeSchemaDefaultValueMutation(this.name, this.defaultValue)
-						),
+						makeDefaultValueMutationIfDifferent(createdVersion, existingVersion, this.defaultValue),
 						makeMutationIfDifferent(
 							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,

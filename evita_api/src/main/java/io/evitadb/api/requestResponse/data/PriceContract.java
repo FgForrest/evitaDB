@@ -169,7 +169,10 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	}
 
 	/**
-	 * Returns true if this price differs in any business related data from the other value.
+	 * Returns true if this price differs in any business related data from the other value. The amounts are compared
+	 * by `equals`, so a `BigDecimal` rescaled to the same number is a difference, and the validity is compared as
+	 * stored by {@link EvitaDataTypes#storedValueDiffers(Serializable, Serializable)}, so the same instants at another
+	 * zone offset are a difference too.
 	 */
 	@Override
 	default boolean differsFrom(@Nullable PriceContract otherPrice) {

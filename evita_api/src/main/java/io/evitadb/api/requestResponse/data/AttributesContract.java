@@ -57,7 +57,10 @@ import java.util.stream.Stream;
 public interface AttributesContract<S extends AttributeSchemaContract> extends Serializable, AttributesAvailabilityChecker {
 
 	/**
-	 * Returns true if single attribute differs between first and second instance.
+	 * Returns true if single attribute differs between first and second instance. Values are compared by
+	 * {@link QueryUtils#valueDiffers(Serializable, Serializable)} refined by
+	 * {@link EvitaDataTypes#rangeRepresentationDiffers(Serializable, Serializable)}, so a range of another
+	 * representation is a difference while a `BigDecimal` rescaled to the same number is not.
 	 */
 	static <S extends AttributeSchemaContract> boolean anyAttributeDifferBetween(@Nonnull AttributesContract<S> first, @Nonnull AttributesContract<S> second) {
 		final Collection<AttributeValue> thisValues = first.attributesAvailable() ? first.getAttributeValues() : Collections.emptyList();
@@ -477,7 +480,9 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 		}
 
 		/**
-		 * Returns true if this attribute differs in key factors from the passed attribute.
+		 * Returns true if this attribute differs in key factors from the passed attribute. The values are compared as
+		 * stored by {@link EvitaDataTypes#storedValueDiffers(Serializable, Serializable)}, so a `BigDecimal` rescaled
+		 * to the same number is a difference, unlike in {@link AttributesContract#anyAttributeDifferBetween}.
 		 */
 		@Override
 		public boolean differsFrom(@Nullable AttributeValue otherAttributeValue) {

@@ -53,6 +53,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -1559,6 +1560,109 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			assertEquals(List.of("[10,20]"), upsertedValues);
 			final ReferenceContract reference = builder.getReference(BRAND, 1).orElseThrow();
 			assertEquals("[10,20]", String.valueOf((Object) reference.getAttribute("decimalRange")));
+		}
+
+		/**
+		 * A second setting of the same reference in one session compares its attribute upserts with the value the
+		 * first setting left in the queue - the effective value the working layer already holds. `[1.0,2.0]` after
+		 * `[10,20]` is a change although the two compare equal by their encoded bounds, so its upsert must reach the
+		 * queue.
+		 */
+		@Test
+		@DisplayName("should queue a range encoded to the same longs as the one set earlier in the session")
+		void shouldQueueRangeEncodedToSameLongsAsOneSetEarlierInSession() {
+			final ExistingReferencesBuilder builder = createBuilderWithDecimalRange(
+				BigDecimalNumberRange.between(new BigDecimal("3"), new BigDecimal("4"))
+			);
+
+			builder.setReference(
+				BRAND, 1,
+				ref -> ref.setAttribute(
+					"decimalRange", BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+				)
+			);
+			builder.setReference(
+				BRAND, 1,
+				ref -> ref.setAttribute(
+					"decimalRange", BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+				)
+			);
+
+			assertEquals(List.of("[1.0,2.0]"), queuedDecimalRanges(builder));
+			final ReferenceContract reference = builder.getReference(BRAND, 1).orElseThrow();
+			assertEquals("[1.0,2.0]", String.valueOf((Object) reference.getAttribute("decimalRange")));
+		}
+
+		/**
+		 * The very same range set again in the same session is the value the working layer already holds, so its
+		 * upsert is redundant and leaves the queue.
+		 */
+		@Test
+		@DisplayName("should drop a range that is the very same value as the one set earlier in the session")
+		void shouldDropRangeThatIsVerySameValueAsOneSetEarlierInSession() {
+			final ExistingReferencesBuilder builder = createBuilderWithDecimalRange(
+				BigDecimalNumberRange.between(new BigDecimal("3"), new BigDecimal("4"))
+			);
+
+			builder.setReference(
+				BRAND, 1,
+				ref -> ref.setAttribute(
+					"decimalRange", BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+				)
+			);
+			builder.setReference(
+				BRAND, 1,
+				ref -> ref.setAttribute(
+					"decimalRange", BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+				)
+			);
+
+			assertEquals(List.of(), queuedDecimalRanges(builder));
+		}
+
+		/**
+		 * Creates a builder over a base entity holding reference {@link #BRAND} 1 whose attribute `decimalRange` holds
+		 * the passed range.
+		 *
+		 * @param storedRange the range stored in the base entity
+		 * @return the builder of the existing references
+		 */
+		@Nonnull
+		private static ExistingReferencesBuilder createBuilderWithDecimalRange(
+			@Nonnull BigDecimalNumberRange storedRange
+		) {
+			final EntitySchemaContract schema = new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+				.withReferenceToEntity(
+					BRAND, BRAND, Cardinality.ZERO_OR_MORE,
+					r -> r.withAttribute("decimalRange", BigDecimalNumberRange.class)
+				)
+				.toInstance();
+			final InitialReferencesBuilder initial = new InitialReferencesBuilder(schema);
+			initial.setReference(BRAND, 1, ref -> ref.setAttribute("decimalRange", storedRange));
+			return createBuilder(schema, initial.build());
+		}
+
+		/**
+		 * Returns the values of the `decimalRange` upserts queued for reference {@link #BRAND} 1, read from the raw
+		 * queue the working layer reads eagerly rather than from the change set.
+		 *
+		 * @param builder the builder whose queue is read
+		 * @return the upserted ranges in the order of the queue
+		 */
+		@Nonnull
+		private static List<String> queuedDecimalRanges(@Nonnull ExistingReferencesBuilder builder) {
+			final List<String> upsertedValues = new ArrayList<>(4);
+			final Map<Integer, List<ReferenceMutation<?>>> queues = builder.getRawReferenceMutations()
+				.getOrDefault(new ReferenceKey(BRAND, 1), Map.of());
+			for (final List<ReferenceMutation<?>> queue : queues.values()) {
+				for (final ReferenceMutation<?> mutation : queue) {
+					if (mutation instanceof ReferenceAttributeMutation ram &&
+						ram.getAttributeMutation() instanceof UpsertAttributeMutation upsert) {
+						upsertedValues.add(String.valueOf(upsert.getAttributeValue()));
+					}
+				}
+			}
+			return upsertedValues;
 		}
 	}
 }

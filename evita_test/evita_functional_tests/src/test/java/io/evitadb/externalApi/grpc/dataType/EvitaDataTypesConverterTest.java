@@ -36,6 +36,7 @@ import io.evitadb.dataType.data.DataItemMap;
 import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.AssociatedDataForm;
+import io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType;
@@ -43,9 +44,11 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaValue;
 import io.evitadb.externalApi.grpc.generated.GrpcStringArray;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -59,11 +62,13 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Tag;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
@@ -474,6 +479,29 @@ class EvitaDataTypesConverterTest {
 		assertEquals(openTo, openToRoundTripped);
 	}
 
+	/**
+	 * A message without bounds decodes to `[0,0]`, so the unbounded range the Java writer sends without bounds does
+	 * not survive the transfer.
+	 */
+	@Test
+	@DisplayName("should decode a decimal range without bounds as the single point zero")
+	void shouldDecodeDecimalRangeWithoutBoundsAsZeroPoint() {
+		final GrpcBigDecimalNumberRange withoutBounds = GrpcBigDecimalNumberRange.getDefaultInstance();
+		final BigDecimalNumberRange zeroPoint = BigDecimalNumberRange.between(BigDecimal.ZERO, BigDecimal.ZERO);
+		assertEquals(zeroPoint, EvitaDataTypesConverter.toBigDecimalNumberRange(withoutBounds));
+
+		final GrpcBigDecimalNumberRange written = EvitaDataTypesConverter.toGrpcBigDecimalNumberRange(
+			BigDecimalNumberRange.INFINITE
+		);
+		assertFalse(written.hasFrom());
+		assertFalse(written.hasTo());
+		assertEquals(withoutBounds, written);
+		final BigDecimalNumberRange readBack = EvitaDataTypesConverter.toBigDecimalNumberRange(written);
+		assertEquals(BigDecimal.ZERO, readBack.getPreciseFrom());
+		assertEquals(BigDecimal.ZERO, readBack.getPreciseTo());
+		assertEquals(zeroPoint, readBack);
+	}
+
 	@Test
 	void getGrpcDataType() {
 		assertEquals(GrpcEvitaDataType.STRING, EvitaDataTypesConverter.toGrpcEvitaDataType(String.class));
@@ -516,4 +544,139 @@ class EvitaDataTypesConverterTest {
 		}
 	}
 
+
+	/**
+	 * A `BigDecimalNumberRange` created without explicit retained decimal places encodes its comparison bounds at the
+	 * scale its own bounds carry - `[1.0,2.0]` compares as `10..20`, not as `1..2`. The range read back from gRPC must
+	 * compare exactly as the range that was sent: the same encoded bounds, the same effective precision, and so the
+	 * same answer of `isWithin` for a value that only one of the two encodings would accept.
+	 */
+	@Nested
+	@DisplayName("Decimal range precision across the gRPC boundary")
+	@Tag(DATA_TYPE)
+	class DecimalRangePrecisionTest {
+
+		@Test
+		@DisplayName("should keep the precision of a range whose bounds share one fractional scale")
+		void shouldKeepPrecisionWhenBothBoundsShareFractionalScale() {
+			final BigDecimalNumberRange sent = BigDecimalNumberRange.between(
+				new BigDecimal("1.0"), new BigDecimal("2.0")
+			);
+			// `2.4` lies above `10..20`, yet rounds into `1..2`
+			assertComparesAlike(sent, roundTrip(sent), new BigDecimal("2.4"), false);
+		}
+
+		@Test
+		@DisplayName("should keep the precision of a range whose bounds differ in scale")
+		void shouldKeepPrecisionWhenBoundsDifferInScale() {
+			final BigDecimalNumberRange sent = BigDecimalNumberRange.between(
+				new BigDecimal("1.5"), new BigDecimal("2.25")
+			);
+			// the larger scale wins - `150..225`, which `2.4` is above, while `2..2` would take it
+			assertComparesAlike(sent, roundTrip(sent), new BigDecimal("2.4"), false);
+		}
+
+		@Test
+		@DisplayName("should keep the precision of a range open above")
+		void shouldKeepPrecisionWhenOnlyLowerBoundIsSet() {
+			final BigDecimalNumberRange sent = BigDecimalNumberRange.from(new BigDecimal("1.2"));
+			// `0.8` lies below `12..`, yet rounds onto the bound of `1..`
+			assertComparesAlike(sent, roundTrip(sent), new BigDecimal("0.8"), false);
+		}
+
+		@Test
+		@DisplayName("should keep the precision of a range open below")
+		void shouldKeepPrecisionWhenOnlyUpperBoundIsSet() {
+			final BigDecimalNumberRange sent = BigDecimalNumberRange.to(new BigDecimal("2.2"));
+			// `2.4` lies above `..22`, yet rounds onto the bound of `..2`
+			assertComparesAlike(sent, roundTrip(sent), new BigDecimal("2.4"), false);
+		}
+
+		@Test
+		@DisplayName("should keep the precision of a range whose bounds carry a negative scale")
+		void shouldKeepPrecisionWhenBoundsCarryNegativeScale() {
+			// `stripTrailingZeros` turns `100` into `1E+2` - a scale of -2 that encodes the range in hundreds
+			final BigDecimalNumberRange sent = BigDecimalNumberRange.between(
+				new BigDecimal("100").stripTrailingZeros(), new BigDecimal("200").stripTrailingZeros()
+			);
+			// `249` rounds onto the upper bound in hundreds, but lies above `100..200`
+			assertComparesAlike(sent, roundTrip(sent), new BigDecimal("249"), true);
+		}
+
+		@Test
+		@DisplayName("should keep the precision of every range in an array")
+		void shouldKeepPrecisionOfEveryRangeInArray() {
+			final BigDecimalNumberRange[] sent = new BigDecimalNumberRange[]{
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0")),
+				BigDecimalNumberRange.to(new BigDecimal("2.2"))
+			};
+			final BigDecimalNumberRange[] readBack = EvitaDataTypesConverter.toEvitaValue(
+				EvitaDataTypesConverter.toGrpcEvitaValue(sent)
+			);
+			assertEquals(sent.length, readBack.length);
+			for (int i = 0; i < sent.length; i++) {
+				assertComparesAlike(sent[i], readBack[i], new BigDecimal("2.4"), false);
+			}
+		}
+
+		@Test
+		@DisplayName("should keep an explicit precision coarser than the scale of the bounds")
+		void shouldKeepExplicitPrecisionCoarserThanScaleOfBounds() {
+			final BigDecimalNumberRange sent = BigDecimalNumberRange.between(
+				new BigDecimal("1.55"), new BigDecimal("2.00"), 1
+			);
+			final BigDecimalNumberRange readBack = roundTrip(sent);
+			// `2.04` rounds to `2.0` at the explicit precision, but would lie above `155..200` at the bounds' scale
+			assertComparesAlike(sent, readBack, new BigDecimal("2.04"), true);
+			assertEquals(
+				Integer.valueOf(1), readBack.getRetainedDecimalPlaces(), "an explicit precision must stay explicit"
+			);
+		}
+
+		/**
+		 * Sends the range through the gRPC value conversion and reads it back, as an attribute value travels.
+		 *
+		 * @param range the range to send
+		 * @return the range read back on the other side
+		 */
+		@Nonnull
+		private static BigDecimalNumberRange roundTrip(@Nonnull BigDecimalNumberRange range) {
+			return EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaValue(range));
+		}
+
+		/**
+		 * Asserts that the range read back compares exactly like the range sent: the same effective precision, the
+		 * same encoded bounds, the same precise bounds and rendering, equality, and the same `isWithin` answer for a
+		 * probe that the sent range and its rounded twin would answer differently.
+		 *
+		 * @param sent          the range that was sent
+		 * @param readBack      the range read back
+		 * @param probe         a value whose membership tells the sent encoding from the rounded one
+		 * @param probeIsWithin whether the sent range contains the probe
+		 */
+		private static void assertComparesAlike(
+			@Nonnull BigDecimalNumberRange sent,
+			@Nonnull BigDecimalNumberRange readBack,
+			@Nonnull BigDecimal probe,
+			boolean probeIsWithin
+		) {
+			assertEquals(
+				probeIsWithin, sent.isWithin(probe), "the probe must be answered by the sent range as expected"
+			);
+			assertAll(
+				() -> assertEquals(
+					sent.getEffectiveRetainedDecimalPlaces(), readBack.getEffectiveRetainedDecimalPlaces(),
+					"effective retained decimal places of " + sent
+				),
+				() -> assertEquals(sent.getFrom(), readBack.getFrom(), "encoded lower bound of " + sent),
+				() -> assertEquals(sent.getTo(), readBack.getTo(), "encoded upper bound of " + sent),
+				() -> assertEquals(probeIsWithin, readBack.isWithin(probe), sent + " isWithin " + probe),
+				() -> assertEquals(sent.getPreciseFrom(), readBack.getPreciseFrom(), "precise lower bound"),
+				() -> assertEquals(sent.getPreciseTo(), readBack.getPreciseTo(), "precise upper bound"),
+				() -> assertEquals(sent.toString(), readBack.toString(), "rendering"),
+				() -> assertEquals(sent, readBack, "equality of " + sent)
+			);
+		}
+
+	}
 }
