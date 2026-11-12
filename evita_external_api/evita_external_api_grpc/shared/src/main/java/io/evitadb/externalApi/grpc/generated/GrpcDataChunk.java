@@ -29,9 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * A page or strip of entities, in one of three representations (references, full sealed entities, or
- * binary entities) depending on what the query's `require` block asked for. Only one representation is
- * populated per response and only one of the two pagination descriptors below is set, matching whichever
+ * A page or strip of entities, represented as references or full sealed entities depending on what the
+ * query's `require` block asked for. Only one representation is populated per response and only one of
+ * the two pagination descriptors below is set, matching whichever
  * paging requirement (`page()`/`strip()`) the query used.
  * </pre>
  *
@@ -49,7 +49,6 @@ private static final long serialVersionUID = 0L;
   private GrpcDataChunk() {
     entityReferences_ = java.util.Collections.emptyList();
     sealedEntities_ = java.util.Collections.emptyList();
-    binaryEntities_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -120,7 +119,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Entity references (type + primary key only, no content). Populated when the query's `require` block
-   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+   * has no `entityFetch` requirement; `sealedEntities` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -132,7 +131,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Entity references (type + primary key only, no content). Populated when the query's `require` block
-   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+   * has no `entityFetch` requirement; `sealedEntities` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -145,7 +144,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Entity references (type + primary key only, no content). Populated when the query's `require` block
-   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+   * has no `entityFetch` requirement; `sealedEntities` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -157,7 +156,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Entity references (type + primary key only, no content). Populated when the query's `require` block
-   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+   * has no `entityFetch` requirement; `sealedEntities` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -169,7 +168,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Entity references (type + primary key only, no content). Populated when the query's `require` block
-   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+   * has no `entityFetch` requirement; `sealedEntities` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -185,9 +184,8 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> sealedEntities_;
   /**
    * <pre>
-   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-   * are then both empty.
+   * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+   * requirement; `entityReferences` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -198,9 +196,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-   * are then both empty.
+   * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+   * requirement; `entityReferences` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -212,9 +209,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-   * are then both empty.
+   * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+   * requirement; `entityReferences` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -225,9 +221,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-   * are then both empty.
+   * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+   * requirement; `entityReferences` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -238,9 +233,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-   * are then both empty.
+   * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+   * requirement; `entityReferences` is then empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -249,77 +243,6 @@ private static final long serialVersionUID = 0L;
   public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getSealedEntitiesOrBuilder(
       int index) {
     return sealedEntities_.get(index);
-  }
-
-  public static final int BINARYENTITIES_FIELD_NUMBER = 3;
-  @SuppressWarnings("serial")
-  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> binaryEntities_;
-  /**
-   * <pre>
-   * Fully fetched entities in the server's binary storage format, for clients that decode entities
-   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-   * storage format; `entityReferences`/`sealedEntities` are then both empty.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> getBinaryEntitiesList() {
-    return binaryEntities_;
-  }
-  /**
-   * <pre>
-   * Fully fetched entities in the server's binary storage format, for clients that decode entities
-   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-   * storage format; `entityReferences`/`sealedEntities` are then both empty.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
-      getBinaryEntitiesOrBuilderList() {
-    return binaryEntities_;
-  }
-  /**
-   * <pre>
-   * Fully fetched entities in the server's binary storage format, for clients that decode entities
-   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-   * storage format; `entityReferences`/`sealedEntities` are then both empty.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  @java.lang.Override
-  public int getBinaryEntitiesCount() {
-    return binaryEntities_.size();
-  }
-  /**
-   * <pre>
-   * Fully fetched entities in the server's binary storage format, for clients that decode entities
-   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-   * storage format; `entityReferences`/`sealedEntities` are then both empty.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity getBinaryEntities(int index) {
-    return binaryEntities_.get(index);
-  }
-  /**
-   * <pre>
-   * Fully fetched entities in the server's binary storage format, for clients that decode entities
-   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-   * storage format; `entityReferences`/`sealedEntities` are then both empty.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder getBinaryEntitiesOrBuilder(
-      int index) {
-    return binaryEntities_.get(index);
   }
 
   public static final int PAGINATEDLIST_FIELD_NUMBER = 4;
@@ -533,9 +456,6 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < sealedEntities_.size(); i++) {
       output.writeMessage(2, sealedEntities_.get(i));
     }
-    for (int i = 0; i < binaryEntities_.size(); i++) {
-      output.writeMessage(3, binaryEntities_.get(i));
-    }
     if (chunkCase_ == 4) {
       output.writeMessage(4, (io.evitadb.externalApi.grpc.generated.GrpcPaginatedList) chunk_);
     }
@@ -579,10 +499,6 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < sealedEntities_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, sealedEntities_.get(i));
-    }
-    for (int i = 0; i < binaryEntities_.size(); i++) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, binaryEntities_.get(i));
     }
     if (chunkCase_ == 4) {
       size += com.google.protobuf.CodedOutputStream
@@ -639,8 +555,6 @@ private static final long serialVersionUID = 0L;
         .equals(other.getEntityReferencesList())) return false;
     if (!getSealedEntitiesList()
         .equals(other.getSealedEntitiesList())) return false;
-    if (!getBinaryEntitiesList()
-        .equals(other.getBinaryEntitiesList())) return false;
     if (getTotalRecordCount()
         != other.getTotalRecordCount()) return false;
     if (getIsFirst()
@@ -686,10 +600,6 @@ private static final long serialVersionUID = 0L;
     if (getSealedEntitiesCount() > 0) {
       hash = (37 * hash) + SEALEDENTITIES_FIELD_NUMBER;
       hash = (53 * hash) + getSealedEntitiesList().hashCode();
-    }
-    if (getBinaryEntitiesCount() > 0) {
-      hash = (37 * hash) + BINARYENTITIES_FIELD_NUMBER;
-      hash = (53 * hash) + getBinaryEntitiesList().hashCode();
     }
     hash = (37 * hash) + TOTALRECORDCOUNT_FIELD_NUMBER;
     hash = (53 * hash) + getTotalRecordCount();
@@ -822,9 +732,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * A page or strip of entities, in one of three representations (references, full sealed entities, or
-   * binary entities) depending on what the query's `require` block asked for. Only one representation is
-   * populated per response and only one of the two pagination descriptors below is set, matching whichever
+   * A page or strip of entities, represented as references or full sealed entities depending on what the
+   * query's `require` block asked for. Only one representation is populated per response and only one of
+   * the two pagination descriptors below is set, matching whichever
    * paging requirement (`page()`/`strip()`) the query used.
    * </pre>
    *
@@ -875,13 +785,6 @@ private static final long serialVersionUID = 0L;
         sealedEntitiesBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00000002);
-      if (binaryEntitiesBuilder_ == null) {
-        binaryEntities_ = java.util.Collections.emptyList();
-      } else {
-        binaryEntities_ = null;
-        binaryEntitiesBuilder_.clear();
-      }
-      bitField0_ = (bitField0_ & ~0x00000004);
       if (paginatedListBuilder_ != null) {
         paginatedListBuilder_.clear();
       }
@@ -949,38 +852,29 @@ private static final long serialVersionUID = 0L;
       } else {
         result.sealedEntities_ = sealedEntitiesBuilder_.build();
       }
-      if (binaryEntitiesBuilder_ == null) {
-        if (((bitField0_ & 0x00000004) != 0)) {
-          binaryEntities_ = java.util.Collections.unmodifiableList(binaryEntities_);
-          bitField0_ = (bitField0_ & ~0x00000004);
-        }
-        result.binaryEntities_ = binaryEntities_;
-      } else {
-        result.binaryEntities_ = binaryEntitiesBuilder_.build();
-      }
     }
 
     private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcDataChunk result) {
       int from_bitField0_ = bitField0_;
-      if (((from_bitField0_ & 0x00000020) != 0)) {
+      if (((from_bitField0_ & 0x00000010) != 0)) {
         result.totalRecordCount_ = totalRecordCount_;
       }
-      if (((from_bitField0_ & 0x00000040) != 0)) {
+      if (((from_bitField0_ & 0x00000020) != 0)) {
         result.isFirst_ = isFirst_;
       }
-      if (((from_bitField0_ & 0x00000080) != 0)) {
+      if (((from_bitField0_ & 0x00000040) != 0)) {
         result.isLast_ = isLast_;
       }
-      if (((from_bitField0_ & 0x00000100) != 0)) {
+      if (((from_bitField0_ & 0x00000080) != 0)) {
         result.hasPrevious_ = hasPrevious_;
       }
-      if (((from_bitField0_ & 0x00000200) != 0)) {
+      if (((from_bitField0_ & 0x00000100) != 0)) {
         result.hasNext_ = hasNext_;
       }
-      if (((from_bitField0_ & 0x00000400) != 0)) {
+      if (((from_bitField0_ & 0x00000200) != 0)) {
         result.isSinglePage_ = isSinglePage_;
       }
-      if (((from_bitField0_ & 0x00000800) != 0)) {
+      if (((from_bitField0_ & 0x00000400) != 0)) {
         result.isEmpty_ = isEmpty_;
       }
     }
@@ -1094,32 +988,6 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
-      if (binaryEntitiesBuilder_ == null) {
-        if (!other.binaryEntities_.isEmpty()) {
-          if (binaryEntities_.isEmpty()) {
-            binaryEntities_ = other.binaryEntities_;
-            bitField0_ = (bitField0_ & ~0x00000004);
-          } else {
-            ensureBinaryEntitiesIsMutable();
-            binaryEntities_.addAll(other.binaryEntities_);
-          }
-          onChanged();
-        }
-      } else {
-        if (!other.binaryEntities_.isEmpty()) {
-          if (binaryEntitiesBuilder_.isEmpty()) {
-            binaryEntitiesBuilder_.dispose();
-            binaryEntitiesBuilder_ = null;
-            binaryEntities_ = other.binaryEntities_;
-            bitField0_ = (bitField0_ & ~0x00000004);
-            binaryEntitiesBuilder_ = 
-              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
-                 getBinaryEntitiesFieldBuilder() : null;
-          } else {
-            binaryEntitiesBuilder_.addAllMessages(other.binaryEntities_);
-          }
-        }
-      }
       if (other.getTotalRecordCount() != 0) {
         setTotalRecordCount(other.getTotalRecordCount());
       }
@@ -1206,19 +1074,6 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 18
-            case 26: {
-              io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity m =
-                  input.readMessage(
-                      io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.parser(),
-                      extensionRegistry);
-              if (binaryEntitiesBuilder_ == null) {
-                ensureBinaryEntitiesIsMutable();
-                binaryEntities_.add(m);
-              } else {
-                binaryEntitiesBuilder_.addMessage(m);
-              }
-              break;
-            } // case 26
             case 34: {
               input.readMessage(
                   getPaginatedListFieldBuilder().getBuilder(),
@@ -1235,37 +1090,37 @@ private static final long serialVersionUID = 0L;
             } // case 42
             case 48: {
               totalRecordCount_ = input.readInt32();
-              bitField0_ |= 0x00000020;
+              bitField0_ |= 0x00000010;
               break;
             } // case 48
             case 56: {
               isFirst_ = input.readBool();
-              bitField0_ |= 0x00000040;
+              bitField0_ |= 0x00000020;
               break;
             } // case 56
             case 64: {
               isLast_ = input.readBool();
-              bitField0_ |= 0x00000080;
+              bitField0_ |= 0x00000040;
               break;
             } // case 64
             case 72: {
               hasPrevious_ = input.readBool();
-              bitField0_ |= 0x00000100;
+              bitField0_ |= 0x00000080;
               break;
             } // case 72
             case 80: {
               hasNext_ = input.readBool();
-              bitField0_ |= 0x00000200;
+              bitField0_ |= 0x00000100;
               break;
             } // case 80
             case 88: {
               isSinglePage_ = input.readBool();
-              bitField0_ |= 0x00000400;
+              bitField0_ |= 0x00000200;
               break;
             } // case 88
             case 96: {
               isEmpty_ = input.readBool();
-              bitField0_ |= 0x00000800;
+              bitField0_ |= 0x00000400;
               break;
             } // case 96
             default: {
@@ -1315,7 +1170,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1330,7 +1185,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1345,7 +1200,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1360,7 +1215,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1382,7 +1237,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1401,7 +1256,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1422,7 +1277,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1444,7 +1299,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1463,7 +1318,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1482,7 +1337,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1502,7 +1357,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1520,7 +1375,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1538,7 +1393,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1550,7 +1405,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1565,7 +1420,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1581,7 +1436,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1593,7 +1448,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1606,7 +1461,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Entity references (type + primary key only, no content). Populated when the query's `require` block
-     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+     * has no `entityFetch` requirement; `sealedEntities` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1644,9 +1499,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1660,9 +1514,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1676,9 +1529,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1692,9 +1544,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1715,9 +1566,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1735,9 +1585,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1757,9 +1606,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1780,9 +1628,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1800,9 +1647,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1820,9 +1666,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1841,9 +1686,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1860,9 +1704,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1879,9 +1722,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1892,9 +1734,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1908,9 +1749,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1925,9 +1765,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1938,9 +1777,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1952,9 +1790,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-     * are then both empty.
+     * Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+     * requirement; `entityReferences` is then empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1976,354 +1813,6 @@ private static final long serialVersionUID = 0L;
         sealedEntities_ = null;
       }
       return sealedEntitiesBuilder_;
-    }
-
-    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> binaryEntities_ =
-      java.util.Collections.emptyList();
-    private void ensureBinaryEntitiesIsMutable() {
-      if (!((bitField0_ & 0x00000004) != 0)) {
-        binaryEntities_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity>(binaryEntities_);
-        bitField0_ |= 0x00000004;
-       }
-    }
-
-    private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> binaryEntitiesBuilder_;
-
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> getBinaryEntitiesList() {
-      if (binaryEntitiesBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(binaryEntities_);
-      } else {
-        return binaryEntitiesBuilder_.getMessageList();
-      }
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public int getBinaryEntitiesCount() {
-      if (binaryEntitiesBuilder_ == null) {
-        return binaryEntities_.size();
-      } else {
-        return binaryEntitiesBuilder_.getCount();
-      }
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity getBinaryEntities(int index) {
-      if (binaryEntitiesBuilder_ == null) {
-        return binaryEntities_.get(index);
-      } else {
-        return binaryEntitiesBuilder_.getMessage(index);
-      }
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder setBinaryEntities(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity value) {
-      if (binaryEntitiesBuilder_ == null) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.set(index, value);
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.setMessage(index, value);
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder setBinaryEntities(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder builderForValue) {
-      if (binaryEntitiesBuilder_ == null) {
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.set(index, builderForValue.build());
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.setMessage(index, builderForValue.build());
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder addBinaryEntities(io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity value) {
-      if (binaryEntitiesBuilder_ == null) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.add(value);
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.addMessage(value);
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder addBinaryEntities(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity value) {
-      if (binaryEntitiesBuilder_ == null) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.add(index, value);
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.addMessage(index, value);
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder addBinaryEntities(
-        io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder builderForValue) {
-      if (binaryEntitiesBuilder_ == null) {
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.add(builderForValue.build());
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.addMessage(builderForValue.build());
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder addBinaryEntities(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder builderForValue) {
-      if (binaryEntitiesBuilder_ == null) {
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.add(index, builderForValue.build());
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.addMessage(index, builderForValue.build());
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder addAllBinaryEntities(
-        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> values) {
-      if (binaryEntitiesBuilder_ == null) {
-        ensureBinaryEntitiesIsMutable();
-        com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, binaryEntities_);
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.addAllMessages(values);
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder clearBinaryEntities() {
-      if (binaryEntitiesBuilder_ == null) {
-        binaryEntities_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000004);
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.clear();
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder removeBinaryEntities(int index) {
-      if (binaryEntitiesBuilder_ == null) {
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.remove(index);
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.remove(index);
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder getBinaryEntitiesBuilder(
-        int index) {
-      return getBinaryEntitiesFieldBuilder().getBuilder(index);
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder getBinaryEntitiesOrBuilder(
-        int index) {
-      if (binaryEntitiesBuilder_ == null) {
-        return binaryEntities_.get(index);  } else {
-        return binaryEntitiesBuilder_.getMessageOrBuilder(index);
-      }
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
-         getBinaryEntitiesOrBuilderList() {
-      if (binaryEntitiesBuilder_ != null) {
-        return binaryEntitiesBuilder_.getMessageOrBuilderList();
-      } else {
-        return java.util.Collections.unmodifiableList(binaryEntities_);
-      }
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder addBinaryEntitiesBuilder() {
-      return getBinaryEntitiesFieldBuilder().addBuilder(
-          io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.getDefaultInstance());
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder addBinaryEntitiesBuilder(
-        int index) {
-      return getBinaryEntitiesFieldBuilder().addBuilder(
-          index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.getDefaultInstance());
-    }
-    /**
-     * <pre>
-     * Fully fetched entities in the server's binary storage format, for clients that decode entities
-     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-     * storage format; `entityReferences`/`sealedEntities` are then both empty.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder> 
-         getBinaryEntitiesBuilderList() {
-      return getBinaryEntitiesFieldBuilder().getBuilderList();
-    }
-    private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
-        getBinaryEntitiesFieldBuilder() {
-      if (binaryEntitiesBuilder_ == null) {
-        binaryEntitiesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder>(
-                binaryEntities_,
-                ((bitField0_ & 0x00000004) != 0),
-                getParentForChildren(),
-                isClean());
-        binaryEntities_ = null;
-      }
-      return binaryEntitiesBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2707,7 +2196,7 @@ private static final long serialVersionUID = 0L;
     public Builder setTotalRecordCount(int value) {
 
       totalRecordCount_ = value;
-      bitField0_ |= 0x00000020;
+      bitField0_ |= 0x00000010;
       onChanged();
       return this;
     }
@@ -2720,7 +2209,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearTotalRecordCount() {
-      bitField0_ = (bitField0_ & ~0x00000020);
+      bitField0_ = (bitField0_ & ~0x00000010);
       totalRecordCount_ = 0;
       onChanged();
       return this;
@@ -2751,7 +2240,7 @@ private static final long serialVersionUID = 0L;
     public Builder setIsFirst(boolean value) {
 
       isFirst_ = value;
-      bitField0_ |= 0x00000040;
+      bitField0_ |= 0x00000020;
       onChanged();
       return this;
     }
@@ -2764,7 +2253,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIsFirst() {
-      bitField0_ = (bitField0_ & ~0x00000040);
+      bitField0_ = (bitField0_ & ~0x00000020);
       isFirst_ = false;
       onChanged();
       return this;
@@ -2795,7 +2284,7 @@ private static final long serialVersionUID = 0L;
     public Builder setIsLast(boolean value) {
 
       isLast_ = value;
-      bitField0_ |= 0x00000080;
+      bitField0_ |= 0x00000040;
       onChanged();
       return this;
     }
@@ -2808,7 +2297,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIsLast() {
-      bitField0_ = (bitField0_ & ~0x00000080);
+      bitField0_ = (bitField0_ & ~0x00000040);
       isLast_ = false;
       onChanged();
       return this;
@@ -2839,7 +2328,7 @@ private static final long serialVersionUID = 0L;
     public Builder setHasPrevious(boolean value) {
 
       hasPrevious_ = value;
-      bitField0_ |= 0x00000100;
+      bitField0_ |= 0x00000080;
       onChanged();
       return this;
     }
@@ -2852,7 +2341,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearHasPrevious() {
-      bitField0_ = (bitField0_ & ~0x00000100);
+      bitField0_ = (bitField0_ & ~0x00000080);
       hasPrevious_ = false;
       onChanged();
       return this;
@@ -2883,7 +2372,7 @@ private static final long serialVersionUID = 0L;
     public Builder setHasNext(boolean value) {
 
       hasNext_ = value;
-      bitField0_ |= 0x00000200;
+      bitField0_ |= 0x00000100;
       onChanged();
       return this;
     }
@@ -2896,7 +2385,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearHasNext() {
-      bitField0_ = (bitField0_ & ~0x00000200);
+      bitField0_ = (bitField0_ & ~0x00000100);
       hasNext_ = false;
       onChanged();
       return this;
@@ -2927,7 +2416,7 @@ private static final long serialVersionUID = 0L;
     public Builder setIsSinglePage(boolean value) {
 
       isSinglePage_ = value;
-      bitField0_ |= 0x00000400;
+      bitField0_ |= 0x00000200;
       onChanged();
       return this;
     }
@@ -2940,7 +2429,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIsSinglePage() {
-      bitField0_ = (bitField0_ & ~0x00000400);
+      bitField0_ = (bitField0_ & ~0x00000200);
       isSinglePage_ = false;
       onChanged();
       return this;
@@ -2971,7 +2460,7 @@ private static final long serialVersionUID = 0L;
     public Builder setIsEmpty(boolean value) {
 
       isEmpty_ = value;
-      bitField0_ |= 0x00000800;
+      bitField0_ |= 0x00000400;
       onChanged();
       return this;
     }
@@ -2984,7 +2473,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIsEmpty() {
-      bitField0_ = (bitField0_ & ~0x00000800);
+      bitField0_ = (bitField0_ & ~0x00000400);
       isEmpty_ = false;
       onChanged();
       return this;

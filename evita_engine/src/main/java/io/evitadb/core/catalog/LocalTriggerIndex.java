@@ -34,8 +34,10 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Immutable, thread-safe index for local trigger lookup by `(ownerEntityType, referenceName, scope)`.
@@ -64,6 +66,13 @@ final class LocalTriggerIndex {
 	private final Map<String, Map<String, Map<Scope, LocalReferenceTriggers>>> index;
 
 	/**
+	 * Owner entity type -> scope -> owner attribute -> affected reference names. Built from the deduplicated local
+	 * histogram triggers when the registry is rebuilt; mutations perform only map lookups and a gated reference walk.
+	 */
+	@Nonnull
+	private final Map<String, Map<Scope, Map<String, Set<String>>>> histogramReferencesByEntityAttribute;
+
+	/**
 	 * Creates a frozen index from an already-frozen map. Callers must ensure the map and all nested
 	 * structures are unmodifiable.
 	 *
@@ -73,6 +82,7 @@ final class LocalTriggerIndex {
 		@Nonnull Map<String, Map<String, Map<Scope, LocalReferenceTriggers>>> frozenIndex
 	) {
 		this.index = frozenIndex;
+		this.histogramReferencesByEntityAttribute = indexHistogramEntityAttributes(frozenIndex);
 	}
 
 	/**
@@ -112,6 +122,58 @@ final class LocalTriggerIndex {
 	) {
 		final LocalReferenceTriggers leaf = resolve(ownerEntityType, referenceName, scope);
 		return leaf != null ? leaf.histogramTriggers().values() : Collections.emptyList();
+	}
+
+	/**
+	 * Returns the reference names whose histogram conditions read this owner attribute in the given scope.
+	 */
+	@Nonnull
+	Set<String> getHistogramReferencesForEntityAttribute(
+		@Nonnull String ownerEntityType,
+		@Nonnull Scope scope,
+		@Nonnull String attributeName
+	) {
+		final Map<Scope, Map<String, Set<String>>> byScope =
+			this.histogramReferencesByEntityAttribute.get(ownerEntityType);
+		final Map<String, Set<String>> byAttribute = byScope == null ? null : byScope.get(scope);
+		return byAttribute == null ? Collections.emptySet() :
+			byAttribute.getOrDefault(attributeName, Collections.emptySet());
+	}
+
+	/**
+	 * Inverts the frozen local histogram triggers into an immutable attribute relevance lookup. Duplicate dependency
+	 * variants and histograms sharing an owner attribute contribute their reference name only once.
+	 */
+	@Nonnull
+	private static Map<String, Map<Scope, Map<String, Set<String>>>> indexHistogramEntityAttributes(
+		@Nonnull Map<String, Map<String, Map<Scope, LocalReferenceTriggers>>> triggers
+	) {
+		if (triggers.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		final Map<String, Map<Scope, Map<String, Set<String>>>> result = createHashMap(triggers.size());
+		for (final Entry<String, Map<String, Map<Scope, LocalReferenceTriggers>>> owner : triggers.entrySet()) {
+			for (final Entry<String, Map<Scope, LocalReferenceTriggers>> reference : owner.getValue().entrySet()) {
+				for (final Entry<Scope, LocalReferenceTriggers> scope : reference.getValue().entrySet()) {
+					for (final HistogramExpressionTrigger trigger : scope.getValue().histogramTriggers().values()) {
+						for (final String attribute : trigger.getLocalEntityAttributes()) {
+							result.computeIfAbsent(owner.getKey(), ignored -> new EnumMap<>(Scope.class))
+								.computeIfAbsent(scope.getKey(), ignored -> createHashMap(4))
+								.computeIfAbsent(attribute, ignored -> createHashSet(4))
+								.add(reference.getKey());
+						}
+					}
+				}
+			}
+		}
+		for (final Map<Scope, Map<String, Set<String>>> byScope : result.values()) {
+			for (final Map<String, Set<String>> byAttribute : byScope.values()) {
+				byAttribute.replaceAll((attribute, references) -> Collections.unmodifiableSet(references));
+			}
+			byScope.replaceAll((scope, attributes) -> Collections.unmodifiableMap(attributes));
+		}
+		result.replaceAll((owner, scopes) -> Collections.unmodifiableMap(scopes));
+		return Collections.unmodifiableMap(result);
 	}
 
 	/**

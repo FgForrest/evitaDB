@@ -468,22 +468,21 @@ message GrpcStripList {
   int32 offset = 2;
 }
 
-// A page or strip of entities, in one of three representations (references, full sealed entities, or
-// binary entities) depending on what the query's `require` block asked for. Only one representation is
-// populated per response and only one of the two pagination descriptors below is set, matching whichever
+// A page or strip of entities, represented as references or full sealed entities depending on what the
+// query's `require` block asked for. Only one representation is populated per response and only one of
+// the two pagination descriptors below is set, matching whichever
 // paging requirement (`page()`/`strip()`) the query used.
 message GrpcDataChunk {
   // Entity references (type + primary key only, no content). Populated when the query's `require` block
-  // has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
+  // has no `entityFetch` requirement; `sealedEntities` is then empty.
   repeated GrpcEntityReference entityReferences = 1;
-  // Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
-  // requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
-  // are then both empty.
+  // Fully fetched entities in structured form. Populated when `require` has an `entityFetch`
+  // requirement; `entityReferences` is then empty.
   repeated GrpcSealedEntity sealedEntities = 2;
-  // Fully fetched entities in the server's binary storage format, for clients that decode entities
-  // themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
-  // storage format; `entityReferences`/`sealedEntities` are then both empty.
-  repeated GrpcBinaryEntity binaryEntities = 3;
+  // Field 3 carried entities in the binary entity form, removed together with binary entity support. Kept reserved
+  // rather than reused so an older peer never decodes a new field as binary entities.
+  reserved 3;
+  reserved "binaryEntities";
   // Exactly one of these is set, matching which paging requirement (`page()`/`strip()`) the query used.
   oneof chunk {
     // Set when the query used page-based paging (`page()`).
@@ -703,7 +702,7 @@ message GrpcQueryUnsafeRequest {
 
 // Response to Query request.
 message GrpcQueryResponse {
-  // The fetched page or strip of entities (in whichever of the three representations the query's
+  // The fetched page or strip of entities (in whichever of the two representations the query's
   // `require` block asked for - see `GrpcDataChunk`).
   GrpcDataChunk recordPage = 1;
   // Extra results computed by `require` constraints beyond the entity page itself (facet summary,
@@ -713,40 +712,40 @@ message GrpcQueryResponse {
 }
 
 // Response for a query executed via QueryOne, i.e. expecting zero or one matching entity. At most one of
-// `entityReference`/`sealedEntity`/`binaryEntity` is populated. If an entity matched, which one is chosen
-// the same way as in `GrpcDataChunk`: no `entityFetch` requirement in the query's `require` block yields
-// `entityReference`; an `entityFetch` requirement yields `sealedEntity` (structured form) or `binaryEntity`
-// (binary storage form), depending on whether the session uses the binary storage format. If no entity
-// matched the query, all three fields are left unset - this is not an error.
+// `entityReference`/`sealedEntity` is populated. The populated field is chosen the same way as in
+// `GrpcDataChunk`: no `entityFetch` requirement in the query's `require` block yields
+// `entityReference`; an `entityFetch` requirement yields `sealedEntity`. If no entity matched the query,
+// both fields are left unset - this is not an error.
 message GrpcQueryOneResponse {
   // The matched entity as a reference (type + primary key only). See the message-level comment for when
-  // this field (vs. the other two) is populated.
+  // this field (vs. the other) is populated.
   GrpcEntityReference entityReference = 1;
-  // The matched entity, fully fetched in structured (non-binary) form. See the message-level comment for
-  // when this field (vs. the other two) is populated.
+  // The matched entity, fully fetched in structured form. See the message-level comment for
+  // when this field (vs. the other) is populated.
   GrpcSealedEntity sealedEntity = 2;
-  // The matched entity, fully fetched in the server's binary storage format. See the message-level comment
-  // for when this field (vs. the other two) is populated.
-  GrpcBinaryEntity binaryEntity = 3;
+  // Field 3 carried the entity in the binary entity form, removed together with binary entity support. Kept reserved
+  // rather than reused so an older peer never decodes a new field as a binary entity.
+  reserved 3;
+  reserved "binaryEntity";
 }
 
 // Response for a query executed via QueryList, i.e. expecting a flat list of matching entities (no paging
 // metadata - use plain `Query` via `GrpcQueryResponse` if paging is needed). Exactly one of
-// `entityReferences`/`sealedEntities`/`binaryEntities` is the active field, chosen the same way as in
+// `entityReferences`/`sealedEntities` is the active field, chosen the same way as in
 // `GrpcDataChunk`: no `entityFetch` requirement in the query's `require` block selects `entityReferences`;
-// an `entityFetch` requirement selects `sealedEntities` (structured form) or `binaryEntities` (binary
-// storage form), depending on whether the session uses the binary storage format. The other two fields are
-// always left empty; note the active field is itself also empty when zero entities matched.
+// an `entityFetch` requirement selects `sealedEntities`. The other field is always left empty;
+// note the active field is itself also empty when zero entities matched.
 message GrpcQueryListResponse {
   // Matched entities as references (type + primary key only). See the message-level comment for when this
-  // field (vs. the other two) is the active one.
+  // field (vs. the other) is the active one.
   repeated GrpcEntityReference entityReferences = 1;
-  // Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-  // when this field (vs. the other two) is the active one.
+  // Matched entities, fully fetched in structured form. See the message-level comment for
+  // when this field (vs. the other) is the active one.
   repeated GrpcSealedEntity sealedEntities = 2;
-  // Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-  // for when this field (vs. the other two) is the active one.
-  repeated GrpcBinaryEntity binaryEntities = 3;
+  // Field 3 carried entities in the binary entity form, removed together with binary entity support. Kept reserved
+  // rather than reused so an older peer never decodes a new field as binary entities.
+  reserved 3;
+  reserved "binaryEntities";
 }
 
 // Request for upserting (inserting/updating) an entity and returning it fetched in the richness

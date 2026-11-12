@@ -163,17 +163,28 @@ import java.util.Set;
  *
  * ## Where the Constraint Applies
  *
- * The constraint selects the scopes in the root of a filter, boolean containers included, and in {@link EntityHaving}
- * and {@link GroupHaving}, for the entities they reach. Below any other {@link SeparateEntityScopeContainer} - a
- * hierarchy constraint, a direct child of {@link ReferenceHaving} or {@link FacetHaving} - nothing would read it, so a
- * query placing it there is refused. The filter of a `referenceContent` takes it in its root only as a direct child of
- * its `filterBy`.
+ * The constraint selects the scopes of its whole entity level and may appear once per level: directly at the
+ * root of that level's filter or below a chain of {@link And} containers from the root. An {@link Or} with a
+ * single child is transparent on that path too. Two scope constraints in one level are refused even when equal;
+ * name all scopes in one constraint in the order you prefer them. Repeated values within one constraint are allowed.
  *
- * A query placing it below {@link Not}, at any depth of the same entity level, is refused too: the constraint selects
- * scopes and filters no entity, so there is nothing to negate. A `not` enclosing an {@link EntityHaving} or
- * {@link GroupHaving} with its own `scope` negates that container as a whole and stays valid.
+ * Within the same level, placement below {@link Not}, multi-child {@link Or}, {@link FilterInScope},
+ * {@link UserFilter} or any other container outside the allowed root path is refused. The constraint produces no
+ * entity predicate. Name the scopes at the root of the same level and keep only conditions inside `inScope`, for
+ * example `scope(LIVE, ARCHIVED), inScope(LIVE, attributeEquals("code", "a"))` to return every archived entity and
+ * the live entities with that code.
  *
- * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/behavioral#scope)
+ * A {@link SeparateEntityScopeContainer} starts a new level. {@link EntityHaving} and {@link GroupHaving} read
+ * their own scope, even when an outer logical container encloses them. A scope in any other separate container's
+ * own level, such as {@link ReferenceHaving}, {@link FacetHaving} or a hierarchy filter, is refused as having no
+ * effect, including below `and`. Each filter in the require section has its own root; `referenceContent` accepts
+ * the same root path.
+ *
+ * Two accepted roots are exceptions to scope selection: a hierarchy requirement's `node` filter and a `segment`'s
+ * `entityHaving` validate their scope's placement and uniqueness, but the root scope has no effect. They evaluate
+ * against the supplied hierarchy index or enclosing processing scopes instead.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/constant#scope)
  *
  * @see Scope
  * @see FilterInScope
@@ -184,7 +195,7 @@ import java.util.Set;
 	name = "scope",
 	shortDescription = "The constraint controls the scope of the entity search, accepting one or more scopes (LIVE, ARCHIVED)" +
 		" where entities should be searched.",
-	userDocsLink = "/documentation/query/filtering/behavioral#scope",
+	userDocsLink = "/documentation/query/filtering/constant#scope",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class EntityScope extends AbstractFilterConstraintLeaf implements GenericConstraint<FilterConstraint> {

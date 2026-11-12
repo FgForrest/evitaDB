@@ -23,8 +23,6 @@
 
 package io.evitadb.store.catalog;
 
-import com.esotericsoftware.kryo.io.ByteBufferOutput;
-import com.esotericsoftware.kryo.io.Input;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexFlushEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexRecordTypeCountChangedEvent;
@@ -229,28 +227,6 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 		} else {
 			throw new PersistenceServiceClosed();
 		}
-	}
-
-	@Nonnull
-	@Override
-	public <T extends StoragePart> byte[] serializeStoragePart(@Nonnull T storagePart) {
-		return this.offsetIndex.executeWithKryo(
-			kryo -> {
-				final ByteBufferOutput output = new ByteBufferOutput(8192, -1);
-				kryo.writeObject(output, storagePart);
-				return output.toBytes();
-			}
-		);
-	}
-
-	@Nonnull
-	@Override
-	public <T extends StoragePart> T deserializeStoragePart(@Nonnull byte[] storagePart, @Nonnull Class<T> containerType) {
-		return this.offsetIndex.executeWithKryo(
-			kryo -> kryo.readObject(
-				new Input(storagePart), containerType
-			)
-		);
 	}
 
 	@Nonnull

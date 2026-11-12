@@ -25,11 +25,8 @@ package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.SessionTraits;
-import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
@@ -63,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies that named localized associated data honor all-locales requests on initial fetch and enrichment.
- * The same shared catalog exercises embedded reads, gRPC conversion and binary storage-part fetching.
+ * The same shared catalog exercises embedded reads and gRPC conversion.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -225,43 +222,6 @@ class AssociatedDataAllLocalesFunctionalTest {
 				assertEquals("English description", initial.getAssociatedData(DESCRIPTION, Locale.ENGLISH));
 				assertEquals(1, initial.getAssociatedDataValues().size());
 				assertFetchParity(requirements -> session.enrichEntity(initial, requirements));
-			}
-		}
-	}
-
-	/**
-	 * Covers storage-part selection before the binary entity reaches a transport converter.
-	 */
-	@Nested
-	@DisplayName("Binary fetching")
-	class BinaryFetching {
-		/**
-		 * Compares binary part counts to explicit locales and all-data controls on the stored two-locale entity.
-		 */
-		@Test
-		@DisplayName("Includes both localized parts when querying named data in all locales")
-		@UseDataSet(DATA_SET)
-		void shouldFetchBothPartsWhenQueryingNamedBinaryData(@Nonnull Evita evita) {
-			try (final EvitaSessionContract objectSession = evita.createReadOnlySession(TEST_CATALOG)) {
-				assertStoredTranslations(objectSession);
-			}
-			try (final EvitaSessionContract session = evita.createSession(
-				new SessionTraits(TEST_CATALOG, SessionFlags.BINARY)
-			)) {
-				final Function<EntityContentRequire[], BinaryEntity> fetch = requirements -> session.queryOne(
-					query(collection(Entities.PRODUCT), filterBy(entityPrimaryKeyInSet(1)),
-						require(entityFetch(requirements))), BinaryEntity.class
-				).orElseThrow();
-				assertEquals(4, fetch.apply(new EntityContentRequire[] {
-					associatedDataContentAll(), dataInLocalesAll()
-				}).getAssociatedDataStorageParts().length);
-				assertEquals(2, fetch.apply(new EntityContentRequire[] {
-					associatedDataContent(DESCRIPTION), dataInLocales(Locale.ENGLISH, Locale.GERMAN)
-				}).getAssociatedDataStorageParts().length);
-				assertEquals(2, fetch.apply(new EntityContentRequire[] {
-					associatedDataContent(DESCRIPTION), dataInLocalesAll()
-				}).getAssociatedDataStorageParts().length,
-					"Named binary associated data must include both localized storage parts");
 			}
 		}
 	}

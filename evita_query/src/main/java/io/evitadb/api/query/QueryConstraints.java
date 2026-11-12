@@ -1555,7 +1555,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/behavioral#scope)
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/constant#scope)
 	 *
 	 * @see io.evitadb.api.query.filter.EntityScope
 	 */

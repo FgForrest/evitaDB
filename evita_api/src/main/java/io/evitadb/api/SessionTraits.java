@@ -47,7 +47,6 @@ import java.util.EnumSet;
  * - **Access mode**: Read-only vs. read-write ({@link SessionFlags#READ_WRITE})
  * - **Commit behavior**: When to consider changes committed ({@link CommitBehavior})
  * - **Dry-run mode**: Test changes without persisting ({@link SessionFlags#DRY_RUN})
- * - **Binary mode**: Internal API mode for raw binary entities ({@link SessionFlags#BINARY})
  * - **Termination callback**: Optional cleanup logic on session close
  *
  * **Common Usage Patterns**
@@ -78,7 +77,7 @@ import java.util.EnumSet;
  * create sessions with identical configuration.
  *
  * @param catalogName     unique name of the catalog, refers to {@link CatalogContract#getName()}
- * @param flags           flags that alter session behaviour (read-only, read-write, dry-run, binary mode)
+ * @param flags           flags that alter session behaviour (read-only, read-write, dry-run)
  * @param commitBehaviour when to consider a transaction committed (conflict resolution, WAL persistence, changes visible)
  * @param onTermination   callback function that will be executed once the session is closed (optional)
  */
@@ -130,18 +129,6 @@ public record SessionTraits(
 
 	public SessionTraits(@Nonnull String catalogName, @Nullable SessionFlags... flags) {
 		this(catalogName, null, CommitBehavior.defaultBehaviour(), flags);
-	}
-
-	/**
-	 * Returns `true` if the session operates in binary mode, returning entity bodies in raw binary format.
-	 *
-	 * Binary mode is an internal API feature used for low-level evitaDB operations and inter-node communication.
-	 * Client applications typically do not use this mode.
-	 *
-	 * @return `true` if {@link SessionFlags#BINARY} is set, `false` otherwise
-	 */
-	public boolean isBinary() {
-		return this.flags.contains(SessionFlags.BINARY);
 	}
 
 	/**
@@ -228,24 +215,6 @@ public record SessionTraits(
 		 * detection at commit time.
 		 */
 		READ_WRITE,
-
-		/**
-		 * Enables binary mode where entity bodies are returned in raw binary format (internal API).
-		 *
-		 * **Behavior**
-		 *
-		 * When this flag is set, entities are not deserialized into {@link io.evitadb.api.requestResponse.data.SealedEntity}
-		 * objects but returned as binary blobs. This mode is used internally by evitaDB for:
-		 * - Inter-node replication in distributed setups
-		 * - Low-level storage operations
-		 * - Performance-critical internal APIs
-		 *
-		 * **Warning**
-		 *
-		 * This flag is for evitaDB internal use only. Client applications should not use binary mode.
-		 */
-		@Internal("evitaDB's own transport between server and driver; open a session without this flag")
-		BINARY,
 
 		/**
 		 * Marks the session's transaction as being driven by an external client (e.g. the gRPC driver) rather than by

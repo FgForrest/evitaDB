@@ -196,6 +196,22 @@ public interface CatalogExpressionTriggerRegistry {
 	);
 
 	/**
+	 * Returns reference names whose local histogram conditions read an owner attribute in this scope. This lookup
+	 * is independent of cross-entity dependencies and is rebuilt together with the local histogram triggers.
+	 *
+	 * @param ownerEntityType the entity type owning the references
+	 * @param scope the scope of the local mutation
+	 * @param attributeName the owner attribute being changed
+	 * @return immutable affected reference names, or an empty set
+	 */
+	@Nonnull
+	Set<String> getLocalHistogramReferencesForEntityAttribute(
+		@Nonnull String ownerEntityType,
+		@Nonnull Scope scope,
+		@Nonnull String attributeName
+	);
+
+	/**
 	 * Rebuilds the registry index for the given entity type based on the provided list of new triggers.
 	 * Called when an entity schema's reference definitions change.
 	 *

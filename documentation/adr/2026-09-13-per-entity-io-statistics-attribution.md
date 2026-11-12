@@ -1,7 +1,7 @@
 ---
 title: Define the per-entity I/O statistic as standalone cost and attribute it at the read, not by walking the returned object graph
 date: 2026-09-13
-updated: 2026-09-14 20:35
+updated: 2026-11-11 23:23
 status: accepted
 kind: refactor
 issues: [1547, 1561, 1562, 1563, 1564, 1565, 1566, 1567]
@@ -179,8 +179,9 @@ That is the trigger for an ADR superseding this one.
   read, as `(containerType, storagePartPk, size)`. It deliberately **names** the record rather than
   holding it: a storage part is the bulk of what an entity is made of, and a decorator outlives the
   response, so holding the part would pin every byte the query read for as long. Reads that carry no
-  key of their own — binary fetches, parts not yet assigned one — take a descending negative
-  sequence and therefore de-duplicate against nothing, which is the honest answer for them.
+  key of their own — parts not yet assigned one, and binary fetches until binary entity support was
+  removed (#1934) — take a descending negative sequence and therefore de-duplicate against nothing,
+  which is the honest answer for them.
 - `ServerEntityDecorator#reachableBodies()` — de-duplicates by the **entity** a body describes, its
   type and primary key, never by the object carrying it, and does so over the whole **reachable**
   graph rather than the immediate children. `BodyCost#combine` then takes the **union** of what two
@@ -273,7 +274,7 @@ Acceptance criteria for the whole line of work, and where each one stands.
 | a descendant reachable through two bodies contributes once, not once per path | **met** | `EntityReferenceFetchFunctionalTest#shouldCountABodyTwoReferencedBodiesShareExactlyOnce` (#1567) |
 | an over-fetching reference fetch reports all N candidates, not the K it exposes | **met** | `EntityReferenceFetchFunctionalTest#shouldCountBodiesTheRequestedPageDropped` (#1561) |
 | two disjoint views of one entity report their union | **met** | `EntityReferenceFetchFunctionalTest#shouldCountTheUnionOfTwoDisjointViewsOfOneReferencedEntity` (#1566) |
-| a body-only binary query reports a non-zero count | **met** | `EntityBasicFetchFunctionalTest#shouldCountTheBinaryEntityBodyRead` (#1562) |
+| a body-only binary query reports a non-zero count | **obsolete** | binary entity support was removed (#1934), and `EntityBasicFetchFunctionalTest#shouldCountTheBinaryEntityBodyRead` (#1562) with it |
 | an in-transaction read-after-write reports no physical reads for trapped parts | **met** | `EntityIoStatisticsFunctionalTest#shouldNotBillAReadAfterWriteAsPhysicalIo` (#1563) |
 | resolving the statistic on an entity with no attached bodies does not call `getReferences()` | **met** | `EntityDecorator#areReferenceBodiesAttached()` short-circuits the walk (#1564) |
 
@@ -337,10 +338,11 @@ reads were never identified.
   one key at two different versions can legitimately differ in size and will count twice. That is
   correct — a version change means the record changed — but it is worth knowing before reading a
   cross-version number as a discrepancy.
-- The binary read path still bypasses `StorageAccessScope`'s de-duplication entirely (it is counted,
-  but not cached or keyed). Adding it to the scope needs a discriminator in `RecordKey`: a binary
-  and a deserialized read of the same part share every other component, and serving one where the
-  other is expected is a `ClassCastException` rather than a wrong number.
+- **Obsolete:** binary entity support was removed (#1934), and with it the binary read path that
+  bypassed `StorageAccessScope`'s de-duplication entirely (it was counted, but not cached or keyed).
+  Should a raw read ever return, adding it to the scope needs a discriminator in `RecordKey`: a
+  binary and a deserialized read of the same part share every other component, and serving one
+  where the other is expected is a `ClassCastException` rather than a wrong number.
 
 **What made this line of work hard is worth keeping.** Five independent shapes broke the previous
 design — over-fetch (#1561), binary reads (#1562), disjoint views (#1566), shared descendants

@@ -74,10 +74,6 @@ public class SessionInitializer {
 				.setCatalogName(TEST_CATALOG)
 				.setDryRun(dryRun)
 				.build());
-		} else if (sessionType == GrpcSessionType.BINARY_READ_ONLY) {
-			response = evitaBlockingStub.createBinaryReadOnlySession(GrpcEvitaSessionRequest.newBuilder()
-				.setCatalogName(TEST_CATALOG)
-				.build());
 		} else {
 			response = evitaBlockingStub.createReadOnlySession(GrpcEvitaSessionRequest.newBuilder()
 				.setCatalogName(TEST_CATALOG)

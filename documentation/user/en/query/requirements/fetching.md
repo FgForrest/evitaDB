@@ -2119,11 +2119,12 @@ The filter may combine the [`and`](../filtering/logical.md#and), [`or`](../filte
 [`not`](../filtering/logical.md#not) containers, the `inScope` container, the attribute constraints,
 [`entityPrimaryKeyInSet`](../filtering/constant.md#entity-primary-key-in-set),
 [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals), [`entityHaving`](../filtering/references.md#entity-having),
-`groupHaving` and the [`scope`](../filtering/constant.md#scope) constraint directly in the `filterBy` container. Any
-other constraint has no meaning on a single reference and the query is refused with an `EvitaInvalidUsageException`
-naming the constraint and the reference - so is a `scope` constraint nested in another constraint, an attribute that the
-reference doesn't define, and a range where the lower bound of an `attributeBetween` is greater than the upper bound. All
-of that is refused whether or not the returned entities hold any reference to filter.
+`groupHaving` and one [`scope`](../filtering/constant.md#scope) constraint, at the root of the `filterBy` container or
+in `and` there. Any other constraint has no meaning on a single reference and the query is refused with an
+`EvitaInvalidUsageException` naming the constraint and the reference - so is a `scope` constraint nested in any other
+container, a second `scope` constraint, an attribute that the reference doesn't define, and a range where the lower
+bound of an `attributeBetween` is greater than the upper bound. All of that is refused whether or not the returned
+entities hold any reference to filter.
 
 The `entityHaving` and `groupHaving` constraints read the referenced entity and the group entity, so the entity types
 must be managed by evitaDB, otherwise the query is refused. A filter outside of any `inScope` container is applied to

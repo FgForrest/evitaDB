@@ -480,15 +480,38 @@ assigned to a particular attribute. There is no other situation where the defaul
 
 #### Allowed decimal places
 
-The allowed decimal places setting is an optimization that allows rich numeric types (such
+The allowed decimal places setting (`indexedDecimalPlaces` in the attribute schema) is an optimization that allows rich
+numeric types (such
 as <LS to="j,e,r,g">[BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)</LS><LS to="c">[decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal)</LS> for precise
 number representation) to be converted to the primitive <LS to="j,e,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS> type, which is much more
 compact and can be used for fast binary searches in array/bitset representation. The original rich format is still
 present in an attribute container, but internally the database uses the primitive form when an attribute is part of
 filter or sort conditions.
 
-If a number cannot be converted to a compact form (for example, it has more digits in the fractional part than expected),
-an exception is thrown and the entity update is refused.
+To get the primitive form, the number is multiplied by ten to the power of the allowed decimal places and rounded to the
+nearest whole number, a tie away from zero: with two allowed decimal places, `1.234` is indexed as `123` and `1.235` as
+`124`. Digits beyond the allowed decimal places are not refused - the entity keeps the number exactly as it was written
+and returns it unchanged, only the indexes don't see those digits. Two numbers that round to the same whole number -
+with two allowed decimal places, `1.2251` and `1.2349` are both indexed as `123` - are therefore one value for
+filtering, sorting and uniqueness: they match the same filter constraints, a unique attribute accepts only one of them,
+and sorting by the attribute treats them as equal and orders them by primary key. A number in a filter constraint is
+rounded the same way before it is compared. A [sortable attribute compound](#sortable-attribute-compounds) is the
+exception - it orders by the exact number.
+
+The default is zero allowed decimal places, so an attribute that doesn't set them is filtered and sorted by whole
+numbers. An average rating needs at least one: with zero, `4.5` and `4.8` are both indexed as `5`, and sorting by the
+rating cannot tell them apart.
+
+The rounding keeps the index small: an attribute may hold large whole numbers in some entities and many decimal places
+in others, and every one of them must fit into the primitive form. Choose the allowed decimal places so that each
+number multiplied by ten to their power still fits the int range. A number that doesn't fit cannot be indexed - writing
+it into a filterable, sortable or unique attribute fails with an exception, and a query that filters entities by such
+a number is refused.
+
+Set the allowed decimal places before the first entity is inserted. evitaDB doesn't re-encode the values that are
+already indexed when the setting changes. For a catalog that already holds the data, create a new catalog with the
+changed setting, load the data into it, and replace the original catalog with it. Re-indexing the stored data on a
+schema change is tracked in [issue #409](https://github.com/FgForrest/evitaDB/issues/409).
 
 #### Filter accelerators
 

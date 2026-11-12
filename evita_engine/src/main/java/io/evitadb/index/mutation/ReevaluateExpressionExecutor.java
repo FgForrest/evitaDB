@@ -2467,12 +2467,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
-	 * Resolves affected owner PKs when the mutated entity is the **parent** entity. Retrieves all
-	 * hierarchy descendants and dispatches to grouped/ungrouped variant.
+	 * Resolves affected owner PKs when the mutated entity is the **parent** entity. A condition reads the attributes
+	 * of the direct parent only, so the direct children of the parent are retrieved and dispatched to the
+	 * grouped/ungrouped variant.
 	 *
 	 * @param target   access to entity collection indexes and schema
 	 * @param mutation carries the mutated parent entity PK, reference name, and scope
-	 * @return structured resolution restricted to the parent's children; never null
+	 * @return structured resolution restricted to the parent's direct children - empty when the scope has no global
+	 * index or the parent is not a node of the scope's hierarchy index; never null
 	 */
 	@Nonnull
 	private static AffectedEntityResolution resolveForParentEntityAttribute(
@@ -2488,7 +2490,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		if (globalIndex == null) {
 			return AffectedEntityResolution.EMPTY;
 		}
-		// Depth 0 means "all descendants at any level under parentPK".
+		// A parent the scope's hierarchy holds no node for has no children to re-evaluate: a new entity seen by the
+		// pre-mutation pre-pass, an entity in a scope without hierarchy indexing, or one stored there before the
+		// hierarchy was indexed in it.
+		if (!globalIndex.containsHierarchyNode(parentPK)) {
+			return AffectedEntityResolution.EMPTY;
+		}
+		// depth 0 lists the direct children only, matching the `directRelation()` a parent condition translates to
 		final Bitmap childrenPKs = globalIndex.listHierarchyNodesFromParentDownTo(
 			parentPK, 0, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE
 		);
@@ -2509,7 +2517,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * @param target          access to entity collection indexes
 	 * @param referenceName   name of the reference
-	 * @param childrenPKs     bitmap of all hierarchy descendants of the mutated parent
+	 * @param childrenPKs     bitmap of the direct children of the mutated parent
 	 * @param scope           scope of the entity collection
 	 * @return structured resolution restricted to children of the parent; never null
 	 */
@@ -2566,7 +2574,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * @param target          access to entity collection indexes
 	 * @param referenceName   name of the reference
-	 * @param childrenPKs     bitmap of all hierarchy descendants of the mutated parent
+	 * @param childrenPKs     bitmap of the direct children of the mutated parent
 	 * @param scope           scope of the entity collection
 	 * @return structured resolution restricted to children of the parent; never null
 	 */

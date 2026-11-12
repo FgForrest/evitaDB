@@ -109,16 +109,13 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		if (rollbackTransactions) {
 			flags.add(SessionFlags.DRY_RUN);
 		}
-		if (sessionType == GrpcSessionType.READ_WRITE || sessionType == GrpcSessionType.BINARY_READ_WRITE) {
+		if (sessionType == GrpcSessionType.READ_WRITE) {
 			flags.add(SessionFlags.READ_WRITE);
 			// the transaction of a remote read-write session is driven by the client: an individual mutation that
 			// fails must not poison the whole transaction (the savepoint reverts just that entity). The client decides
 			// at close time whether to commit the surviving mutations or discard the transaction — see the `rollback`
 			// flag honored by the close handler. This makes remote sessions behave 1:1 with embedded ones.
 			flags.add(SessionFlags.TRANSACTION_CONTROLLED_EXTERNALLY);
-		}
-		if (sessionType == GrpcSessionType.BINARY_READ_ONLY || sessionType == GrpcSessionType.BINARY_READ_WRITE) {
-			flags.add(SessionFlags.BINARY);
 		}
 		return flags.isEmpty() ? null : flags.toArray(new SessionFlags[0]);
 	}
@@ -206,28 +203,6 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	@Override
 	public void createReadWriteSession(GrpcEvitaSessionRequest request, StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
 		createSessionAndBuildResponse(responseObserver, request.getCatalogName(), GrpcSessionType.READ_WRITE, request.getDryRun());
-	}
-
-	/**
-	 * Method is used to create read-only session which will return data in binary format by calling {@link Evita#createSession(SessionTraits)}.
-	 *
-	 * @param request          request containing session type and session id
-	 * @param responseObserver observer on which errors might be thrown and result returned
-	 */
-	@Override
-	public void createBinaryReadOnlySession(GrpcEvitaSessionRequest request, StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
-		createSessionAndBuildResponse(responseObserver, request.getCatalogName(), GrpcSessionType.BINARY_READ_ONLY, request.getDryRun());
-	}
-
-	/**
-	 * Method is used to create read-write session which will return data in binary format by calling {@link Evita#createSession(SessionTraits)}.
-	 *
-	 * @param request          request containing session type and session id
-	 * @param responseObserver observer on which errors might be thrown and result returned
-	 */
-	@Override
-	public void createBinaryReadWriteSession(GrpcEvitaSessionRequest request, StreamObserver<GrpcEvitaSessionResponse> responseObserver) {
-		createSessionAndBuildResponse(responseObserver, request.getCatalogName(), GrpcSessionType.BINARY_READ_WRITE, request.getDryRun());
 	}
 
 	/**
