@@ -727,9 +727,10 @@ class EntityPrimaryKeyRangeFormulaTest {
 		@Test
 		@DisplayName("should recompute an equal but fresh bitmap instance after clearMemory")
 		void shouldRecomputeEqualResultAfterClearMemory() {
-			// clearMemory is called by the cache policy when evicting a formula — it must drop the
-			// memoised bitmap so the next compute() actually re-runs; equal content confirms the
-			// recomputation is deterministic, assertNotSame confirms the cache was truly cleared
+			// clearMemory resets a formula whose inner formula was swapped (the facet summary does that) —
+			// it must drop the memoised bitmap so the next compute() actually re-runs; equal content
+			// confirms the recomputation is deterministic, assertNotSame confirms the memoised result was
+			// truly cleared
 			final EntityPrimaryKeyRangeFormula formula = createFormula(
 				1, 10,
 				2, 5, 8
@@ -746,9 +747,8 @@ class EntityPrimaryKeyRangeFormulaTest {
 		@Test
 		@DisplayName("should preserve hash across compute + clearMemory cycle")
 		void shouldPreserveHashAfterClearMemory() {
-			// the hash identifies the formula in the cache; if clearMemory accidentally invalidated
-			// the memoised hash as well, the same formula would get different cache keys before and
-			// after eviction — catastrophic for cache correctness
+			// the hash is the formula's identity; if clearMemory accidentally invalidated the memoised
+			// hash as well, the same formula would carry a different identity before and after the reset
 			final EntityPrimaryKeyRangeFormula formula = createFormula(
 				5, 15,
 				1, 5, 10, 15, 20
@@ -771,8 +771,7 @@ class EntityPrimaryKeyRangeFormulaTest {
 		@DisplayName("should keep estimated cost as a non-negative upper bound of the actual post-compute cost")
 		void shouldHaveNonNegativeCostsWithEstimatedAsUpperBound() {
 			// the planner picks plans assuming `estimatedCost >= actualCost`; any violation would let
-			// a plan beat its own worst-case estimate, which breaks the admission invariant used by
-			// the cache decision logic (`CacheableFormula#shouldBeCached`)
+			// a plan beat its own worst-case estimate
 			final EntityPrimaryKeyRangeFormula formula = createFormula(
 				1, 10,
 				1, 3, 5, 7, 9
@@ -804,8 +803,8 @@ class EntityPrimaryKeyRangeFormulaTest {
 		@Test
 		@DisplayName("should be a CacheableFormula so the planner is free to memoise its result")
 		void shouldImplementCacheableFormula() {
-			// explicit marker test — CacheableFormula is what lets the plan cache store the filtered
-			// bitmap; losing the interface would silently demote the formula to a never-cached path
+			// explicit marker test — CacheableFormula is the contract that marks a formula eligible for
+			// caching through the CacheSupervisor; losing the interface would silently exclude it
 			final EntityPrimaryKeyRangeFormula formula = createFormula(
 				1, 10,
 				1, 5, 10

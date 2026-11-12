@@ -414,7 +414,7 @@ public class QueryPlan {
 	 * it rather than with the tree root - see `EntityCollection#createQueryContext(QueryPlanningContext, ...)`. What
 	 * keeps query level metrics on the real root is that nested queries are planned through
 	 * {@link QueryPlanner#planNestedQuery} and never reach this method: the only contexts that get here come from
-	 * the root-seeding `createQueryContext(EvitaRequest, EvitaSessionContract)`. The two debug-mode
+	 * the root-seeding `createQueryContext(EvitaRequest, EvitaSessionContract)`. The debug-mode
 	 * {@link QueryPlanner#verifyConsistentResultsInAllPlans} executions do reach it, but they are dry runs and the
 	 * guard above rejects them. `QueryTelemetryRootFunctionalTest` pins all of this against a query that really does
 	 * run a nested one.

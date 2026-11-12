@@ -85,7 +85,8 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 	 * short-circuited branches are legitimately never computed.
 	 *
 	 * Read the return value as "a result is available for free", **not** as "this formula ran during this query":
-	 * a formula may carry a result supplied at construction and report it here without computing it.
+	 * a shared instance such as {@link io.evitadb.core.query.algebra.base.EmptyFormula#INSTANCE} reports the result
+	 * an earlier query memoized and computes nothing in this one.
 	 *
 	 * Note there is no supported way to derive this from the cost accessors. `getCost() != Long.MAX_VALUE` happens
 	 * to correlate today, but {@link #getEstimatedCost()} returns the very same sentinel on arithmetic overflow,

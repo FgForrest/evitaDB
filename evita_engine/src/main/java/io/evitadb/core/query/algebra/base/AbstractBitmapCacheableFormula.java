@@ -114,10 +114,10 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 				// view, and a live one for the sorted-array bucket tier, whose record sets are read-only views
 				// created per read and therefore cannot carry an identity of their own.
 				//
-				// A content hash is a legitimate member of this set: the cache validates a hit by comparing the
-				// HASH of the whole set (`getTransactionalIdHash()`), never by resolving an
-				// individual id back to an object. It is also strictly stronger than an object id for this purpose,
-				// because it changes when the data changes even where the holder was mutated in place.
+				// A content hash is a legitimate member of this set: identity compares the HASH of the whole set
+				// (`getTransactionalIdHash()`) rather than resolving an individual id back to an object. It is also
+				// strictly stronger than an object id for this purpose, because it changes when the data changes
+				// even where the holder was mutated in place.
 				result[pos++] = bitmapIdentityToken(bitmap, HASH_FUNCTION);
 			}
 		}

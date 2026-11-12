@@ -582,8 +582,13 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("A query verified against every alternative plan is still one request")
 		void shouldCountOnceUnderTheAlternativeIndexVerification() {
-			assertCountedOnceWithExpectedPlanBuilds(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS);
+			assertCountedOnceUnder(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS);
 
+			assertTrue(
+				reducedIndexOfCategory(QUERIED_CATEGORY).getActivity().getQueryCount() > 1L,
+				"`VERIFY_ALTERNATIVE_INDEX_RESULTS` did not build the winning plan more than once, so this case " +
+					"proves nothing about a double flush"
+			);
 			// the same query leaves the global index at zero without this mode - see `RequestedIsNotChosen` - so a
 			// reading above zero is proof the losing candidate really was built and executed here
 			assertTrue(
@@ -595,7 +600,12 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("A bitmap-favouring query builds only the preferred plan and counts one request")
 		void shouldCountOnceUnderBitmapFavouringPlanning() {
-			assertCountedOnceWithExpectedPlanBuilds(DebugMode.VERIFY_POSSIBLE_CACHING_TREES);
+			assertCountedOnceUnder(DebugMode.VERIFY_POSSIBLE_CACHING_TREES);
+
+			assertEquals(
+				1L, reducedIndexOfCategory(QUERIED_CATEGORY).getActivity().getQueryCount(),
+				"The preferred plan must be built exactly once"
+			);
 			assertEquals(0L, globalIndex().getActivity().getQueryCount(), "The losing candidate must not be built");
 		}
 
@@ -1236,9 +1246,13 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		/**
-		 * Runs a multi-candidate query and verifies one capability request alongside the plan builds the mode requires.
+		 * Runs a multi-candidate query under a debug mode and asserts each capability it names is requested once. The
+		 * callers assert how many times the mode built the winning plan, which is what keeps each case from passing
+		 * vacuously.
+		 *
+		 * @param debugMode the debug mode to enable
 		 */
-		private void assertCountedOnceWithExpectedPlanBuilds(@Nonnull DebugMode debugMode) {
+		private void assertCountedOnceUnder(@Nonnull DebugMode debugMode) {
 			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByExecuting(
 				Query.query(
 					collection(ENTITY_PRODUCT),
@@ -1253,11 +1267,6 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				)
 			);
 
-			if (debugMode == DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) {
-				assertTrue(reducedIndexOfCategory(QUERIED_CATEGORY).getActivity().getQueryCount() > 1L);
-			} else {
-				assertEquals(1L, reducedIndexOfCategory(QUERIED_CATEGORY).getActivity().getQueryCount());
-			}
 			assertRequested(requested, CODE_FILTER);
 			assertRequested(requested, PRIORITY_SORT);
 		}

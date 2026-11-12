@@ -24,7 +24,6 @@
 package io.evitadb.core;
 
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;

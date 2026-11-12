@@ -897,7 +897,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * has not counted it yet. The record of counted capabilities discards repeated requests without discarding
 	 * newly requested capabilities.
 	 *
-
 	 * @return the distinct holders this query requested, in registration order; empty when it requested none
 	 */
 	@Nonnull

@@ -51,8 +51,8 @@ import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link LowestPriceTerminationFormula} verifying construction, hashing, cloning,
- * cardinality estimation, and cache behavior.
+ * Tests for {@link LowestPriceTerminationFormula} verifying construction, hashing, cloning
+ * and cardinality estimation.
  *
  * Note: full computation tests for `compute()` require a subtree containing
  * {@link io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor} implementations
@@ -224,8 +224,7 @@ class LowestPriceTerminationFormulaTest {
 			);
 
 			final ConstantFormula newInner = new ConstantFormula(new ArrayBitmap(5, 6));
-			final Formula clone = original.getCloneWithInnerFormulas(newInner
-			);
+			final Formula clone = original.getCloneWithInnerFormulas(newInner);
 
 			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
 			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;
@@ -238,7 +237,6 @@ class LowestPriceTerminationFormulaTest {
 			assertEquals(QueryPriceMode.WITH_TAX, typedClone.getQueryPriceMode());
 			assertSame(predicate, typedClone.getSellingPricePredicate());
 		}
-
 	}
 
 	@Nested
@@ -469,8 +467,7 @@ class LowestPriceTerminationFormulaTest {
 				true
 			);
 
-			final Formula clone = withHistogram.getCloneWithInnerFormulas(new ConstantFormula(new ArrayBitmap(5, 6))
-			);
+			final Formula clone = withHistogram.getCloneWithInnerFormulas(new ConstantFormula(new ArrayBitmap(5, 6)));
 
 			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
 			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;

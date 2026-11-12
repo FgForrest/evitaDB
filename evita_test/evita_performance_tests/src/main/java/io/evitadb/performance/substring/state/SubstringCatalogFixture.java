@@ -23,9 +23,8 @@
 
 package io.evitadb.performance.substring.state;
 
-import io.evitadb.api.configuration.CacheOptions;
-
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
@@ -93,7 +92,7 @@ import static io.evitadb.performance.substring.state.SubstringCorpus.PRODUCT;
  * # Cost control
  *
  * Building a hundred-thousand-entity catalog costs tens of seconds and JMH instantiates a fresh `@State` per
- * parameter combination, so the booted instances live in a **static** holder keyed by arm, size and cache mode. Under
+ * parameter combination, so the booted instances live in a **static** holder keyed by arm and size. Under
  * JMH's default forking every parameter combination gets its own JVM and the holder amortises only within it (which
  * is still worth having, since a benchmark class with several `@Benchmark` methods shares one fixture); under `-f 0`
  * the whole matrix runs in one JVM and the holder is what makes that affordable.

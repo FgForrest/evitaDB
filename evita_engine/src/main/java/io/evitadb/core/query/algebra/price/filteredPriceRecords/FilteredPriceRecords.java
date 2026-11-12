@@ -485,8 +485,6 @@ public interface FilteredPriceRecords extends Serializable {
 	@Nonnull
 	PriceRecordLookup getPriceRecordsLookup();
 
-
-
 	/**
 	 * Enumeration that describes ordering of the internal price record array.
 	 */

@@ -66,8 +66,7 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	 * For a super {@link #priceIndex} this is that very index; for a reduced (ref) one it is the super index of the same
 	 * price-list / currency combination, resolved by the caller that built this formula from the GLOBAL entity index it
 	 * is already pinned to. Keeping it as a separate field is what lets a reduced index stop holding a super-index
-	 * pointer of its own - and it matches what the formula cache has always done, since restoring a flattened price
-	 * formula resolves its price indexes straight from the current GLOBAL entity index.
+	 * pointer of its own.
 	 */
 	@Getter private final PriceListAndCurrencyPriceIndex<?> lowestPriceRecordsSource;
 

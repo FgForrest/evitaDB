@@ -26,7 +26,9 @@ package io.evitadb.core.query.algebra.price.termination;
 import io.evitadb.core.query.algebra.Formula;
 
 /**
- * Marks formulas that wrap price-list combinations or terminate price evaluation.
+ * Marks the formulas that terminate price evaluation. Filter post-processors look for it to learn that a price
+ * constraint in conjunctive scope already queries the targeted index - see `AbstractHierarchyTranslator` and
+ * `EntityPrimaryKeyInSetTranslator`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

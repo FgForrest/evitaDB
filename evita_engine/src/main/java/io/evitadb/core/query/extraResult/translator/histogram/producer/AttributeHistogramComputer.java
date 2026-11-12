@@ -52,7 +52,6 @@ import java.util.Objects;
 import java.util.function.ToIntFunction;
 import java.util.stream.LongStream;
 
-
 /**
  * DTO that aggregates all data necessary for computing histogram for single attribute.
  */
@@ -416,7 +415,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 					);
 				}
 			}
-
 		}
 		return this.memoizedResult;
 	}

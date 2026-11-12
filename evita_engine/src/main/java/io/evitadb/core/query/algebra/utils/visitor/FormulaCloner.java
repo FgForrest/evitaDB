@@ -223,18 +223,22 @@ public class FormulaCloner implements FormulaVisitor {
 	}
 
 	/**
-	 * Creates new level in the stack.
-	 * The method is created just for the purpose of overloading it by descendants.
+	 * Opens a new level of the clone stack, sized for the inner formulas of the given formula. Subclasses that
+	 * override {@link #visit(Formula)} call it to keep the stack in step with their own traversal.
 	 *
+	 * @param stack   the clone stack
+	 * @param formula the formula whose inner formulas the new level collects
 	 */
 	protected void pushContext(@Nonnull Deque<SubTree> stack, @Nonnull Formula formula) {
 		stack.push(new DefaultSubTree(formula.getInnerFormulas().length));
 	}
 
 	/**
-	 * Removes topmost level from the stack.
-	 * The method is created just for the purpose of overloading it by descendants.
+	 * Closes the topmost level of the clone stack. Subclasses that override {@link #visit(Formula)} call it to keep
+	 * the stack in step with their own traversal.
 	 *
+	 * @param stack the clone stack
+	 * @return the closed level with the formulas stored into it
 	 */
 	protected SubTree popContext(@Nonnull Deque<SubTree> stack) {
 		return stack.pop();

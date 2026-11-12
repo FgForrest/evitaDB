@@ -34,8 +34,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * This implementation of {@link CacheSupervisor} is used when caching is disabled entirely. It fulfills the interface
- * by doing nothing (easy life, isn't it?).
+ * The {@link CacheSupervisor} the engine installs: it returns every formula and extra-result computer unchanged, so
+ * each query computes its results in full.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

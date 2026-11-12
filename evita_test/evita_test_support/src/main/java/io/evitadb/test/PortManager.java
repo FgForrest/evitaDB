@@ -52,6 +52,9 @@ public class PortManager {
 	 */
 	public static final String PORT_BASE_PROPERTY = "evita.test.portBase";
 
+	/**
+	 * First port this manager hands out, read from {@link #PORT_BASE_PROPERTY} once at construction.
+	 */
 	private final int portBase;
 	private final Random random = new Random(1L);
 	private final ReentrantLock lock = new ReentrantLock();

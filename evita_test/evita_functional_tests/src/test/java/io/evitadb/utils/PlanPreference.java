@@ -55,8 +55,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public enum PlanPreference {
 
 	/**
-	 * `PREFER_INDEX_SCAN` together with `VERIFY_POSSIBLE_CACHING_TREES`: the prefetch is denied, so the query
-	 * resolves the indexes, and every cacheable variant of the formula tree is checked against the main plan.
+	 * `PREFER_INDEX_SCAN` together with `VERIFY_POSSIBLE_CACHING_TREES`: both select the bitmap-favouring planning
+	 * policy, which denies the prefetch, so the query resolves the indexes.
 	 */
 	INDEX_SCAN,
 	/**

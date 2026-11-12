@@ -430,7 +430,6 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 		//
 		// Verify histogram parity across alternative indexes with bitmap-favouring planning. Granularity is
 		// determined per accessor, with uncovered entities supplied by the per-entity collector.
-
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {

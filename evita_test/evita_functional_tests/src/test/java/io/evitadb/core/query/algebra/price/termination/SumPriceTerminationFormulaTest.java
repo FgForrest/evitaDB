@@ -46,8 +46,8 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
 
 /**
- * Tests for {@link SumPriceTerminationFormula} verifying construction, hashing, cloning,
- * cardinality estimation, and cache behavior.
+ * Tests for {@link SumPriceTerminationFormula} verifying construction, hashing, cloning
+ * and cardinality estimation.
  *
  * Note: full computation tests for `compute()` require a subtree containing
  * {@link io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor} implementations
@@ -217,8 +217,7 @@ class SumPriceTerminationFormulaTest {
 			);
 
 			final ConstantFormula newInner = new ConstantFormula(new ArrayBitmap(5, 6));
-			final Formula clone = original.getCloneWithInnerFormulas(newInner
-			);
+			final Formula clone = original.getCloneWithInnerFormulas(newInner);
 
 			assertInstanceOf(SumPriceTerminationFormula.class, clone);
 			final SumPriceTerminationFormula typedClone = (SumPriceTerminationFormula) clone;
@@ -230,7 +229,6 @@ class SumPriceTerminationFormulaTest {
 			);
 			assertSame(predicate, typedClone.getSellingPricePredicate());
 		}
-
 	}
 
 	@Nested

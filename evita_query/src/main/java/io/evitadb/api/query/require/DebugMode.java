@@ -92,9 +92,8 @@ public enum DebugMode {
 	 * - It cannot suppress the prefetch a query *requires*. When the filter addresses entities by reference (an
 	 *   `MultipleEntityFormula` contributing direct entity references), prefetching is the only way to answer it and
 	 *   happens regardless of this option.
-	 * - It does not preserve the formula cache. The option resolves to the same planning policy as
-	 *   {@link #VERIFY_POSSIBLE_CACHING_TREES}, which bypasses the cache, so the index path is exercised end to end
-	 *   rather than answered from a memoized formula result.
+	 * - It does not select a planning policy of its own. The option resolves to the same bitmap-favouring policy as
+	 *   {@link #VERIFY_POSSIBLE_CACHING_TREES}, so enabling both behaves like enabling either.
 	 *
 	 * When combined with {@link #PREFER_PREFETCHING} this option wins: the planning policy denies prefetch both when
 	 * the planner asks whether prefetch is possible at all and when it prices the prefetch, and neither decision

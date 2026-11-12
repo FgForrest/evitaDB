@@ -47,7 +47,7 @@ import static io.evitadb.test.TestTags.PRICE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link PriceIndexContainerFormula} verifying delegation, caching, hashing,
+ * Tests for {@link PriceIndexContainerFormula} verifying delegation, hashing
  * and price index association.
  *
  * @author evitaDB
@@ -152,7 +152,6 @@ class PriceIndexContainerFormulaTest {
 				(PriceIndexContainerFormula) original.getCloneWithInnerFormulas(createConstantFormula(3, 4));
 			assertSame(index, innerClone.getPriceIndex());
 			assertSame(lowestPriceRecordsSource, innerClone.getLowestPriceRecordsSource());
-
 		}
 
 		@Test

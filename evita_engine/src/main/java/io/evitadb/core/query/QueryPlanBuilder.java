@@ -211,14 +211,13 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 *
 	 * **Under alternative-index verification one query counts an index repeatedly, and counts losing candidates
 	 * too.** With {@link io.evitadb.api.query.require.DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} enabled,
-	 * {@link QueryPlanner#verifyConsistentResultsInAllPlans} builds and executes the preferred plan, every alternative
-	 * after which the preferred plan is built once more to be returned. Those plans
-	 * genuinely execute against the indexes they name, so the extra increments are work performed rather than a
-	 * miscount, and are left standing; exact arithmetic on these readings simply requires a session with no
-	 * verification debug mode enabled.
+	 * {@link QueryPlanner#verifyConsistentResultsInAllPlans} builds and executes the preferred plan and every
+	 * alternative, after which the preferred plan is built once more to be returned. Those plans genuinely execute
+	 * against the indexes they name, so the extra increments are work performed rather than a miscount, and are left
+	 * standing; exact arithmetic on these readings simply requires a query without alternative-index verification.
 	 *
 	 * This is also where the schema capabilities the query asked for are counted as **requested**
-	 * ({@link SchemaCapabilityUsage}), and the two readings deliberately behave differently under those debug modes.
+	 * ({@link SchemaCapabilityUsage}), and the two readings deliberately behave differently under that debug mode.
 	 * The capability side counts **once per logical query regardless**, because
 	 * {@link QueryPlanningContext#drainRequestedCapabilitiesToCount()} hands the accumulator over and leaves the
 	 * context holding nothing - every further build of that same query finds an empty list - and leaves out what

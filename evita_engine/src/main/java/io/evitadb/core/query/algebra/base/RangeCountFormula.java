@@ -89,7 +89,6 @@ public class RangeCountFormula extends AbstractCacheableFormula implements Cache
 		@Nonnull Bitmap[] plus,
 		@Nonnull Bitmap[] minus
 	) {
-
 		Assert.isTrue(
 			plus.length > 0,
 			"Range count formula with an empty plus family computes nothing - use EmptyFormula.INSTANCE instead!"
@@ -108,8 +107,8 @@ public class RangeCountFormula extends AbstractCacheableFormula implements Cache
 
 	@Override
 	public long getOperationCost() {
-		// Derived from the A/B, not guessed - this constant drives the planner's cost model and the cache
-		// admission threshold, so a made-up value silently mis-ranks plans and mis-admits cache entries.
+		// Derived from the A/B, not guessed - this constant drives the planner's cost model, so a made-up value
+		// silently mis-ranks plans.
 		//
 		// On the measured production shape (29,159 endpoints each side) the pair this replaces estimates
 		// 2560 * (Np + Nm) + 2130 * Np = 211,402,750 units and takes 7,840.5 us; this formula takes 3,161.9 us.
@@ -204,11 +203,10 @@ public class RangeCountFormula extends AbstractCacheableFormula implements Cache
 	 * Actual cost of this formula, priced the way {@link #getEstimatedCostInternal()} prices the same work: every
 	 * endpoint this formula scatters, scaled by {@link #getOperationCost()}.
 	 *
-	 * The multiplier is not decoration. `AbstractFormula#getCostToPerformanceInternal()` divides this by the result
-	 * size and that ratio is what the formula cache admits and ranks entries by, so dropping the factor would price a
-	 * range result three orders of magnitude below every other formula type and effectively bar it from the cache.
-	 * The sibling bitmap-carrying formula - `OrFormula#getCostInternal()` - applies it for the same reason. Overflow
-	 * is capped rather than thrown, matching {@link #getEstimatedCostInternal()}.
+	 * The multiplier is not decoration: dropping it would price a range result three orders of magnitude below every
+	 * other formula type, in this cost and in the ratio `AbstractFormula#getCostToPerformanceInternal()` derives from
+	 * it by dividing by the result size. The sibling bitmap-carrying formula - `OrFormula#getCostInternal()` - applies
+	 * it for the same reason. Overflow is capped rather than thrown, matching {@link #getEstimatedCostInternal()}.
 	 *
 	 * @return the actual cost, or {@link Long#MAX_VALUE} when the product overflows
 	 */

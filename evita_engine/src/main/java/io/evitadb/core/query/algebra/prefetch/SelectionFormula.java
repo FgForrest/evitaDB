@@ -232,19 +232,15 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 	 * mixing {@link io.evitadb.api.requestResponse.data.PriceInnerRecordHandling} values its inner accessor
 	 * set legitimately contains both the flagged `LOWEST_PRICE` termination formula and the non-exposing
 	 * `NONE`/`SUM` branches. Under the previous "all-true" rule that mix silently dropped the histogram back
-	 * to per-entity granularity (issue #1433). {@link #getFilteredPriceRecordsForHistogram} therefore returns
+	 * to per-entity granularity. {@link #getFilteredPriceRecordsForHistogram} therefore returns
 	 * only the *exposing* inners' contribution, and the histogram producer routes every entity not covered by
 	 * it through the per-entity collector.
 	 *
-	 * **Prefetch parity**: the probe ignores `isPrefetchExecution()` — both alternative plans (index and
-	 * prefetch) must return the same histogram. `QueryPlanner.verifyConsistentResultsInAllPlans` executes
-	 * the query under the bitmap-favouring *and* the prefetch-favouring policy and compares the whole
-	 * `EvitaResponse`, extra results included, so a divergence raises `InconsistentResultsException` — but
-	 * only when a query enables `VERIFY_ALTERNATIVE_INDEX_RESULTS` **and** `PREFER_PREFETCHING` together.
-	 * The cost of
-	 * running the inner LP's `computeInternal()` on the prefetch path to populate the side-output is
-	 * accepted because histogram queries are inherently expensive; the alternative is silently wrong
-	 * histograms whenever prefetch is enabled.
+	 * **Prefetch parity**: the probe ignores `isPrefetchExecution()` — the index plan and the prefetch plan
+	 * must return the same histogram, because which of them answers a query is a cost decision of the
+	 * planner. The cost of running the inner LP's `computeInternal()` on the prefetch path to populate the
+	 * side-output is accepted because histogram queries are inherently expensive; the alternative is silently
+	 * wrong histograms whenever prefetch is enabled.
 	 */
 	@Override
 	public boolean exposesPerInnerRecordHistogramRecords() {

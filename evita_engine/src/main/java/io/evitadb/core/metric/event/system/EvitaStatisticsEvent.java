@@ -39,7 +39,6 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
-
 /**
  * Event that is fired when evitaDB instance is started.
  */
@@ -219,8 +218,6 @@ public class EvitaStatisticsEvent extends AbstractSystemCatalogEvent {
 		this.walMaxFileSizeBytes = transactionConfiguration.walFileSizeBytes();
 		this.walMaxFileCountKept = transactionConfiguration.walFileCountKept();
 		this.transactionFlushFrequencyInMillis = transactionConfiguration.flushFrequencyInMillis();
-
-
 	}
 
 }

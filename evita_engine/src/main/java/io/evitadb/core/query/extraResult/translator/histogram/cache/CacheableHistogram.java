@@ -43,8 +43,8 @@ import java.util.function.Predicate;
  * Default (non-empty) implementation of {@link CacheableHistogramContract}. Holds the full set of
  * pre-computed {@link CacheableBucket}s together with the inclusive right bound of the last bucket.
  * Instances are produced by the histogram computer pipeline and converted to the query-time
- * {@link HistogramContract} DTO
- * via {@link #convertToHistogram(java.util.function.Predicate)} or the overload that accepts boundary entities.
+ * {@link HistogramContract} DTO via {@link #convertToHistogram(java.util.function.Predicate)} or the overload that
+ * accepts boundary entities.
  *
  * The constructor enforces three structural invariants at creation time:
  *
@@ -188,8 +188,8 @@ public class CacheableHistogram implements CacheableHistogramContract {
 	 * Returns the number of entities represented by this histogram. For point and price histograms, and for range
 	 * histograms under the frequency-equalised behaviors (`EQUALIZED` / `EQUALIZED_OPTIMIZED`), this equals the sum of
 	 * bucket occurrences; for range histograms under the overlap behaviors (`STANDARD` / `OPTIMIZED`) it is the
-	 * distinct-record count carried over from the producer. This count includes all represented entities regardless of the
-	 * query-time predicate.
+	 * distinct-record count carried over from the producer. This count includes all represented entities regardless of
+	 * the query-time predicate.
 	 */
 	@Override
 	public int getOverallCount() {

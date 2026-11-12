@@ -41,9 +41,9 @@ import javax.annotation.Nonnull;
 public interface TransactionalDataRelatedStructure {
 	/**
 	 * Defines threshold that should trigger returning entire "index" transactional id instead of exact bitmap
-	 * transactional ids in method {@link #gatherTransactionalIds()}. Storing excessive amount of long ids would allocate
-	 * too much memory, so it is better to invalidate less precisely on each index
-	 * change than to allocate a lot of memory for precise invalidation.
+	 * transactional ids in method {@link #gatherTransactionalIds()}. Storing an excessive amount of long ids would
+	 * allocate too much memory in any structure that retains them, so it is better to invalidate less precisely on
+	 * each index change than to allocate a lot of memory for precise invalidation.
 	 */
 	int EXCESSIVE_HIGH_CARDINALITY = 100;
 	/**

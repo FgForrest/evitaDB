@@ -47,8 +47,8 @@ import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.FILTER;
 
 /**
- * Tests for {@link PlainPriceTerminationFormulaWithPriceFilter} verifying construction, hashing, cloning,
- * cardinality estimation, and cache behavior.
+ * Tests for {@link PlainPriceTerminationFormulaWithPriceFilter} verifying construction, hashing, cloning
+ * and cardinality estimation.
  *
  * Note: full computation tests for `compute()` require a subtree containing
  * {@link io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor} implementations,
@@ -201,8 +201,7 @@ class PlainPriceTerminationFormulaWithPriceFilterTest {
 				);
 
 			final ConstantFormula newInner = new ConstantFormula(new ArrayBitmap(5, 6));
-			final Formula clone = original.getCloneWithInnerFormulas(newInner
-			);
+			final Formula clone = original.getCloneWithInnerFormulas(newInner);
 
 			assertInstanceOf(PlainPriceTerminationFormulaWithPriceFilter.class, clone);
 			final PlainPriceTerminationFormulaWithPriceFilter typedClone =

@@ -53,12 +53,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies the contract of {@link RangeCountFormula} itself — its identity, its declared premises and the staleness
- * token it hands the formula cache. {@link RangeCountKernelTest} covers the arithmetic; everything here is about the
- * formula wrapper around it.
+ * token it reports. {@link RangeCountKernelTest} covers the arithmetic; everything here is about the formula wrapper
+ * around it.
  *
- * The identity half matters more than it looks. This formula is cacheable, so two formulas that hash the same are
- * served each other's answer; the operands are carried as two ORDERED families, and their concatenation alone does
- * not say where one family ends and the other begins.
+ * The identity half matters more than it looks. Two formulas that hash the same over the same data are served each
+ * other's answer - `FormulaDeduplicator` keeps one instance for both; the operands are carried as two ORDERED
+ * families, and their concatenation alone does not say where one family ends and the other begins.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -125,7 +125,7 @@ class RangeCountFormulaTest {
 
 			assertNotEquals(
 				twoPlusOne.getHash(), onePlusTwo.getHash(),
-				"Two different family splits of one operand sequence must not share a formula-cache key"
+				"Two different family splits of one operand sequence must not share a formula identity"
 			);
 			// and the distinction is not academic - the two genuinely compute different records
 			assertArrayEquals(new int[]{1, 2}, twoPlusOne.compute().getArray());
@@ -291,8 +291,8 @@ class RangeCountFormulaTest {
 			assertEquals(endpoints * tested.getOperationCost(), tested.getCost());
 			assertEquals(tested.getEstimatedCost(), tested.getCost());
 
-			// and that is what reaches the formula cache: `AbstractFormula#getCostToPerformanceInternal` divides the
-			// actual cost by the result size to express the work per result
+			// and that is what the cost-to-performance ratio builds on: `AbstractFormula#getCostToPerformanceInternal`
+			// divides the actual cost by the result size to express the work per result
 			assertEquals(tested.getCost() / 3, tested.getCostToPerformanceRatio());
 		}
 

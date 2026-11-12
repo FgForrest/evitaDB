@@ -44,6 +44,7 @@ import java.io.Serializable;
  * - then lookup for price in PRICE_LIST_C, but only for those entities that weren't resolved on previous two lines
  *
  * This formula captures the negated relation for the negated formulas composition of PRICE_LIST_B and PRICE_LIST_C.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class PriceListCombinationFormula extends NotFormula implements CacheablePriceFormula {

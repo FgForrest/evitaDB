@@ -884,7 +884,15 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 				referenceHaving + " in " + Arrays.toString(scopes)
 			);
 			assertTrue(expected.contains(SingleOwnerPartitionFixture.SHARED_CATEGORY), expected.toString());
-			assertTrue(counterpartCarrierCount(twin.rowCatalog(), category, scopes, referenceHaving) > 0, "The rewrite must answer the categories in " + Arrays.toString(scopes));
+			assertTrue(
+				counterpartCarrierCount(twin.rowCatalog(), category, scopes, referenceHaving) > 0,
+				"The rewrite must answer the categories in " + Arrays.toString(scopes)
+			);
+			assertVerificationEngaged(
+				twin.rowCatalog(), category,
+				() -> queryPrimaryKeys(twin.rowCatalog(), category, scopes, false, referenceHaving),
+				() -> queryPrimaryKeys(twin.rowCatalog(), category, scopes, true, referenceHaving)
+			);
 			// The answer must include a category reached through a single-owner partition.
 			boolean readsRows = false;
 			for (final Scope scope : scopes) {
@@ -926,6 +934,13 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			name, expected, PAGED_SIZE,
 			pageNumber -> queryOrdered(twin.rowCatalog(), referenceHaving, ordering, pageNumber, PAGED_SIZE, false)
 		);
+		if (verified) {
+			assertVerificationEngaged(
+				twin.rowCatalog(), product,
+				() -> queryOrdered(twin.rowCatalog(), referenceHaving, ordering, 1, PAGE_SIZE, false),
+				() -> queryOrdered(twin.rowCatalog(), referenceHaving, ordering, 1, PAGE_SIZE, true)
+			);
+		}
 	}
 
 	@Test
@@ -979,7 +994,8 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 
 	/**
 	 * Asserts a case answers from the rows what it answers from the index objects in each of its scope sets, and -
-	 * when it must - that it selects a single-owner partition and that some scope set matched an owner.
+	 * when it must - that it selects a single-owner partition and that some scope set matched an owner. A verified case
+	 * must also have engaged the debug modes in each scope set (see {@link #assertVerificationEngaged}).
 	 *
 	 * @param parityCase the case
 	 */
@@ -1001,6 +1017,17 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 				parityCase + " in " + Arrays.toString(scopes) + " must answer from the rows what it answers from the " +
 					"index objects"
 			);
+			if (parityCase.isVerified()) {
+				assertVerificationEngaged(
+					twin.rowCatalog(), parityCase.entityType(),
+					() -> queryPrimaryKeys(
+						twin.rowCatalog(), parityCase.entityType(), scopes, false, parityCase.constraints()
+					),
+					() -> queryPrimaryKeys(
+						twin.rowCatalog(), parityCase.entityType(), scopes, true, parityCase.constraints()
+					)
+				);
+			}
 			matchedAny |= !expected.isEmpty();
 			final boolean selectsRow = selection != null && twin.selectsSingleOwnerRow(
 				scopes, selection.referenceName(), selection.rowFilter(), selection.locale()
@@ -1077,6 +1104,74 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	@Nullable
 	private static FilterConstraint bodyOf(@Nonnull FilterConstraint[] children) {
 		return children.length == 0 ? null : children.length == 1 ? children[0] : and(children);
+	}
+
+	/**
+	 * Asserts the verification debug modes engaged on a query rather than letting it run plain. Alternative-index
+	 * verification executes the preferred plan before it builds the plan it returns, so the global indexes of the
+	 * collection count more queries than they count for the same query run without the debug modes. A verified case
+	 * whose query silently ran plain would otherwise pass as verified.
+	 *
+	 * @param catalog       the catalog queried
+	 * @param entityType    the collection queried
+	 * @param plainQuery    runs the query without the debug modes
+	 * @param verifiedQuery runs the same query with the debug modes
+	 */
+	private void assertVerificationEngaged(
+		@Nonnull String catalog,
+		@Nonnull String entityType,
+		@Nonnull Runnable plainQuery,
+		@Nonnull Runnable verifiedQuery
+	) {
+		final long plainQueries = globalIndexQueriesDuring(catalog, entityType, plainQuery);
+		final long verifiedQueries = globalIndexQueriesDuring(catalog, entityType, verifiedQuery);
+		assertTrue(
+			verifiedQueries > plainQueries,
+			"The verified query counted " + verifiedQueries + " global index queries and the plain one " +
+				plainQueries + " - the debug modes did not engage, so the verified query ran plain"
+		);
+	}
+
+	/**
+	 * Counts the queries the global indexes of a collection, in every scope, record while an action runs.
+	 *
+	 * @param catalog    the catalog
+	 * @param entityType the collection
+	 * @param action     the action running the queries
+	 * @return the number of queries counted during the action
+	 */
+	private long globalIndexQueriesDuring(
+		@Nonnull String catalog,
+		@Nonnull String entityType,
+		@Nonnull Runnable action
+	) {
+		final long before = globalIndexQueryCount(catalog, entityType);
+		action.run();
+		return globalIndexQueryCount(catalog, entityType) - before;
+	}
+
+	/**
+	 * Sums the query counts of the global indexes of a collection in every scope.
+	 *
+	 * @param catalog    the catalog
+	 * @param entityType the collection
+	 * @return the summed query count
+	 */
+	private long globalIndexQueryCount(@Nonnull String catalog, @Nonnull String entityType) {
+		final EntityCollection entityCollection = (EntityCollection) this.evita.getCatalogInstance(catalog)
+			.orElseThrow()
+			.getCollectionForEntity(entityType)
+			.orElseThrow();
+		long queryCount = 0L;
+		for (final Scope scope : Scope.values()) {
+			final EntityIndex index = entityCollection.getIndexByKeyIfExists(
+				new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+			);
+			if (index != null) {
+				queryCount += index.getActivity().getQueryCount();
+			}
+		}
+		return queryCount;
 	}
 
 	/**

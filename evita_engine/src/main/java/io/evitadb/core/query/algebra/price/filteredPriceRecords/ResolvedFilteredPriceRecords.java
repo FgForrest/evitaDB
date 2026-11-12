@@ -73,8 +73,6 @@ public class ResolvedFilteredPriceRecords implements FilteredPriceRecords {
 		return new PriceRecordIterator(getPriceRecords());
 	}
 
-
-
 	/**
 	 * Method returns the array of {@link PriceRecordContract} that were provided/filtered by appropriate
 	 * {@link Formula}. The price records are always sorted by {@link PriceRecordContract#entityPrimaryKey()} in

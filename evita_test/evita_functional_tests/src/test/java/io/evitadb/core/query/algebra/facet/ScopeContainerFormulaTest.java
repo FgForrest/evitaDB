@@ -40,7 +40,7 @@ import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link ScopeContainerFormula} verifying AND-like computation, scope metadata,
- * memoization, cloning, caching, hashing and edge case behavior.
+ * memoization, cloning, hashing and edge case behavior.
  *
  * @author evitaDB
  */
@@ -242,7 +242,6 @@ class ScopeContainerFormulaTest {
 				new int[]{1, 2, 3, 4, 5},
 				withOtherChild.getCloneWithInnerFormulas().compute().getArray()
 			);
-
 		}
 
 		@Test
@@ -259,7 +258,6 @@ class ScopeContainerFormulaTest {
 
 			assertNotSame(original, clone);
 		}
-
 	}
 
 	@Nested

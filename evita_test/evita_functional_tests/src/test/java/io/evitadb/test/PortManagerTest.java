@@ -217,7 +217,6 @@ class PortManagerTest {
 		}
 	}
 
-
 	/**
 	 * Verifies that exhaustion never changes allocation state or returns a port above `65535`.
 	 */
