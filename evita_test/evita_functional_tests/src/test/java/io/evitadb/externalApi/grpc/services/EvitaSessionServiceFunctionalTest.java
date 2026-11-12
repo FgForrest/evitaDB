@@ -29,8 +29,6 @@ import com.google.protobuf.Int64Value;
 import com.google.protobuf.StringValue;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.SessionTraits;
-import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
@@ -48,7 +46,6 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
@@ -2616,65 +2613,6 @@ class EvitaSessionServiceFunctionalTest {
 
 		if (existingReferenceAfterUpdate.isPresent() && existingReferenceAfterUpdate.get().getGlobalAttributesMap().size() > 0) {
 			assertNotEquals(attributeValue, existingReferenceAfterUpdate.get().getGlobalAttributesMap().get(attributeName).getLongValue());
-		}
-	}
-
-	@Test
-	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
-	@DisplayName("Should return query record page in binary data format")
-	void shouldReturnQueryRecordPageInBinaryDataFormat(Evita evita, GrpcClientBuilder clientBuilder) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
-		SessionInitializer.setSession(clientBuilder, GrpcSessionType.BINARY_READ_ONLY);
-
-		final List<GrpcQueryParam> params = new ArrayList<>(8);
-		params.add(convertQueryParam(Entities.PRODUCT));
-		params.add(convertQueryParam(1));
-		params.add(convertQueryParam(2));
-		params.add(convertQueryParam(3));
-		params.add(convertQueryParam(4));
-		params.add(convertQueryParam(5));
-		params.add(convertQueryParam(1));
-		params.add(convertQueryParam(Integer.MAX_VALUE));
-
-		final String stringQuery = """
-			query(
-				collection(?),
-				filterBy(
-					entityPrimaryKeyInSet(?, ?, ?, ?, ?)
-				),
-				require(
-					page(?, ?),
-					entityFetch(
-						attributeContentAll(),
-						priceContentRespectingFilter(),
-						referenceContentAll(),
-						associatedDataContentAll()
-					)
-				)
-			)
-			""";
-
-		final AtomicReference<GrpcQueryResponse> response = new AtomicReference<>();
-
-		final Executable executable = () ->
-			response.set(evitaSessionBlockingStub.query(GrpcQueryRequest.newBuilder()
-				.setQuery(stringQuery)
-				.addAllPositionalQueryParams(params)
-				.build()
-			));
-
-		assertDoesNotThrow(executable);
-
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
-
-		assertNotNull(query);
-
-		final List<BinaryEntity> entityResponse = evita.createSession(new SessionTraits(TEST_CATALOG, SessionFlags.BINARY)).queryList(query.parsedQuery(), BinaryEntity.class);
-
-		for (int i = 0; i < entityResponse.size(); i++) {
-			final GrpcBinaryEntity grpcBinaryEntity = response.get().getRecordPage().getBinaryEntitiesList().get(i);
-			final BinaryEntity binaryEntity = entityResponse.get(i);
-			assertBinaryEntity(binaryEntity, grpcBinaryEntity);
 		}
 	}
 

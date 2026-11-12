@@ -34,8 +34,7 @@ message GrpcEvitaSessionRequest {
 message GrpcEvitaSessionResponse {
   // UUID of the created session.
   string sessionId = 1;
-  // Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
-  // form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
+  // Type of the created session - read-only vs. read-write. See `GrpcSessionType`.
   GrpcSessionType sessionType = 2;
   // Effective commit behaviour of the created session, applied when the session is closed implicitly via
   // `close()`. See `GrpcCommitBehavior` for the available durability/performance trade-offs.
@@ -308,10 +307,6 @@ service EvitaService {
   rpc CreateReadOnlySession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
   // Procedure used to create read write sessions.
   rpc CreateReadWriteSession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
-  // Procedure used to create read-only session which will return data in binary format. Part of the Private API.
-  rpc CreateBinaryReadOnlySession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
-  // Procedure used to create read-write session which will return data in binary format. Part of the Private API.
-  rpc CreateBinaryReadWriteSession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
   // Procedure used to terminate existing session.
   rpc TerminateSession(GrpcEvitaSessionTerminationRequest) returns (GrpcEvitaSessionTerminationResponse);
   // Procedure used to get names of all existing catalogs.

@@ -23,10 +23,8 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.data;
 
-import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import io.evitadb.api.EntityCollectionContract;
-import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
@@ -102,10 +100,8 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toS
 import static java.util.Optional.ofNullable;
 
 /**
- * Class used for building suitable form of entity based on {@link SealedEntity}. The main methods here are
- * {@link #toGrpcSealedEntity(SealedEntity, SemVer)} and {@link #toGrpcBinaryEntity(BinaryEntity)}, which are used for building
- * {@link GrpcSealedEntity} and {@link GrpcBinaryEntity} respectively.
- * Decision factor of which is going to be used is whether {@link SessionFlags#BINARY} was passed when creating a session.
+ * Class used for building {@link GrpcSealedEntity} from {@link SealedEntity} via
+ * {@link #toGrpcSealedEntity(SealedEntity, SemVer)}.
  *
  * @author Tomáš Pozler, 2022
  */
@@ -556,42 +552,6 @@ public class EntityConverter {
 	}
 
 	/**
-	 * This method converts {@link BinaryEntity} to {@link GrpcBinaryEntity}.
-	 *
-	 * @param binaryEntity Evita's entity in with binary storage parts
-	 * @return built {@link GrpcBinaryEntity}
-	 */
-	@Nonnull
-	public static GrpcBinaryEntity toGrpcBinaryEntity(@Nonnull BinaryEntity binaryEntity) {
-		int attributeSize = binaryEntity.getAttributeStorageParts().length;
-		final List<ByteString> attributes = new ArrayList<>(attributeSize);
-		for (int i = 0; i < attributeSize; i++) {
-			attributes.add(ByteString.copyFrom(binaryEntity.getAttributeStorageParts()[i]));
-		}
-		int associatedDataSize = binaryEntity.getAssociatedDataStorageParts().length;
-		final List<ByteString> associatedData = new ArrayList<>(associatedDataSize);
-		for (int i = 0; i < associatedDataSize; i++) {
-			associatedData.add(ByteString.copyFrom(binaryEntity.getAssociatedDataStorageParts()[i]));
-		}
-		final GrpcBinaryEntity.Builder binaryEntityBuilder = GrpcBinaryEntity.newBuilder()
-			.setEntityType(binaryEntity.getType())
-			.setPrimaryKey(binaryEntity.getPrimaryKey())
-			.setSchemaVersion(binaryEntity.getSchema().version())
-			.setEntityStoragePart(ByteString.copyFrom(binaryEntity.getEntityStoragePart()))
-			.addAllAttributeStorageParts(attributes)
-			.addAllAssociatedDataStorageParts(associatedData);
-
-		if (binaryEntity.getPriceStoragePart() != null) {
-			binaryEntityBuilder.setPriceStoragePart(ByteString.copyFrom(binaryEntity.getPriceStoragePart()));
-		}
-		if (binaryEntity.getReferenceStoragePart() != null) {
-			binaryEntityBuilder.setReferenceStoragePart(ByteString.copyFrom(binaryEntity.getReferenceStoragePart()));
-		}
-
-		return binaryEntityBuilder.build();
-	}
-
-	/**
 	 * Converts {@link PriceContract} to {@link GrpcPrice}.
 	 *
 	 * @param price {@link PriceContract} to convert
@@ -733,14 +693,6 @@ public class EntityConverter {
 				)
 			)
 			.toList();
-	}
-
-	@Nonnull
-	public static <T> T parseBinaryEntity(@Nonnull GrpcBinaryEntity binaryEntity) {
-		/* TOBEDONE JNO https://github.com/FgForrest/evitaDB/issues/13 */
-		throw new UnsupportedOperationException(
-			"Parsing of binary entities is not yet supported in gRPC API! Please use the sealed entity form instead."
-		);
 	}
 
 	/**

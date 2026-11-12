@@ -610,28 +610,7 @@ class ReferencePartitionsTest {
 
 		@Nullable
 		@Override
-		public <T extends StoragePart> byte[] fetchBinary(
-			long catalogVersion,
-			long primaryKey,
-			@Nonnull Class<T> containerType
-		) {
-			throw new UnsupportedOperationException("Not supported in the test.");
-		}
-
-		@Nullable
-		@Override
 		public <T extends StoragePart, U extends Comparable<U>> T fetch(
-			long catalogVersion,
-			@Nonnull U originalKey,
-			@Nonnull Class<T> containerType,
-			@Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer
-		) {
-			throw new UnsupportedOperationException("Not supported in the test.");
-		}
-
-		@Nullable
-		@Override
-		public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(
 			long catalogVersion,
 			@Nonnull U originalKey,
 			@Nonnull Class<T> containerType,

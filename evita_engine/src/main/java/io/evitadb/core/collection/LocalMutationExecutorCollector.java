@@ -45,7 +45,6 @@ import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContract
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithAssignedPrimaryKeys;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreReader;
-import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
 import io.evitadb.core.transaction.Transaction;
@@ -83,7 +82,6 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -187,11 +185,6 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	 * {@link PartitionReservations}. {@link #finish()} drops the reservations after the commit or the rollback.
 	 */
 	@Getter @Nonnull private final PartitionReservations partitionReservations = new PartitionReservations();
-	/**
-	 * Reference to the fully fetched entity that is being mutated. This entity is needed for removal / archive / restore
-	 * mutations to generate local mutations for all necessary parts of the entity.
-	 */
-	private EntityWithFetchCount fullEntityBody;
 	/**
 	 * The current nesting level of the collector.
 	 */
@@ -368,62 +361,72 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	}
 
 	/**
-	 * Method fetches the full contents of the entity by its primary key from the I/O storage (taking advantage of
-	 * modified parts in the {@link TransactionalDataStoreMemoryBuffer}.
+	 * Reads the full contents of the entity mutated by `changeCollector` from the I/O storage, overlaid with every
+	 * storage part the executor has changed so far
+	 * (see {@link ContainerizedLocalMutationExecutor#getAllEntityStorageParts()}).
+	 *
+	 * **Every call reads afresh, and that is deliberate - do not memoize the result.** The image describes the entity
+	 * as of the moment it is read, and each reader needs exactly that moment: an entity removal decomposes the entity
+	 * before any of its local mutations is applied, and a scope change reindexes the entity off the state that every
+	 * earlier local mutation of the same upsert left behind. An image remembered across local mutations goes stale with
+	 * the first one that changes the storage parts: a second scope change in one upsert then found the entity still in
+	 * the scope it started in, took a move back there for a no-op and left every index in the intermediate scope, or
+	 * failed outright when it moved the entity on. Only an upsert with several scope changes reads more than once, and
+	 * each such read follows a local mutation that may have changed the storage parts, so a correct cache would have to
+	 * be dropped before every read it could serve.
+	 *
+	 * @param changeCollector the storage-part executor of the entity
+	 * @return the full entity as of now, with the count of storage parts fetched to build it
 	 */
 	@Nonnull
 	public EntityWithFetchCount getFullEntityContents(@Nonnull ContainerizedLocalMutationExecutor changeCollector) {
 		final int entityPrimaryKey = changeCollector.getEntityPrimaryKey();
 		final String entityType = changeCollector.getEntityType();
-		if (
-			this.fullEntityBody == null ||
-				!Objects.equals(this.fullEntityBody.entity().getPrimaryKey(), entityPrimaryKey) ||
-				!this.fullEntityBody.entity().getType().equals(entityType)
-		) {
-			final EvitaRequest evitaRequest = new EvitaRequest(
-				Query.query(
-					collection(entityType),
-					filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
-					require(entityFetchAll())
-				),
-				OffsetDateTime.now(),
-				Entity.class,
-				null
-			);
-			// this entity drives destructive work - entity removal decomposes into one RemoveReferenceMutation per
-			// reference it reports, and a scope change reindexes off it - so it must be the entity's whole truth.
-			// An `Entity` carries no marker saying how much of it was decoded, which is why the demand is stated
-			// against the request here instead of being caught downstream: a silently under-read entity would leave
-			// the reflected counterparts of the references nobody decoded dangling, with no guard firing anywhere.
-			Assert.isPremiseValid(
-				ReferenceDecodeCoverage.isComplete(new ReferenceContractSerializablePredicate(evitaRequest).getDecodeCoverage()),
-				() -> new GenericEvitaInternalError(
-					"Write path read of entity " + entityType + " with primary key " + entityPrimaryKey +
-						" must not narrow its references!"
-				)
-			);
-			// and bound explicitly, so a coverage left on the thread by an enclosing read cannot narrow this one
-			this.fullEntityBody = ReferenceDecodeCoverageContext.executeWithCoverage(
-				null,
-				() -> this.persistenceService.toEntity(
-					this.catalog.getVersion(),
-					entityPrimaryKey,
-					evitaRequest,
-					changeCollector.getEntitySchema(),
-					this.dataStoreReader,
-					changeCollector.getAllEntityStorageParts()
-				)
-			);
-			Assert.notNull(
-				this.fullEntityBody,
-				() -> new InvalidMutationException(
-					"There is no entity " + entityType + " with primary key " +
-						entityPrimaryKey + " present! This means, that you're probably trying to update " +
-						"entity that has been already removed!"
-				)
-			);
-		}
-		return this.fullEntityBody;
+		final EvitaRequest evitaRequest = new EvitaRequest(
+			Query.query(
+				collection(entityType),
+				filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+				require(entityFetchAll())
+			),
+			OffsetDateTime.now(),
+			Entity.class,
+			null
+		);
+		// this entity drives destructive work - entity removal decomposes into one RemoveReferenceMutation per
+		// reference it reports, and a scope change reindexes off it - so it must be the entity's whole truth.
+		// An `Entity` carries no marker saying how much of it was decoded, which is why the demand is stated
+		// against the request here instead of being caught downstream: a silently under-read entity would leave
+		// the reflected counterparts of the references nobody decoded dangling, with no guard firing anywhere.
+		Assert.isPremiseValid(
+			ReferenceDecodeCoverage.isComplete(
+				new ReferenceContractSerializablePredicate(evitaRequest).getDecodeCoverage()
+			),
+			() -> new GenericEvitaInternalError(
+				"Write path read of entity " + entityType + " with primary key " + entityPrimaryKey +
+					" must not narrow its references!"
+			)
+		);
+		// and bound explicitly, so a coverage left on the thread by an enclosing read cannot narrow this one
+		final EntityWithFetchCount fullEntity = ReferenceDecodeCoverageContext.executeWithCoverage(
+			null,
+			() -> this.persistenceService.toEntity(
+				this.catalog.getVersion(),
+				entityPrimaryKey,
+				evitaRequest,
+				changeCollector.getEntitySchema(),
+				this.dataStoreReader,
+				changeCollector.getAllEntityStorageParts()
+			)
+		);
+		Assert.notNull(
+			fullEntity,
+			() -> new InvalidMutationException(
+				"There is no entity " + entityType + " with primary key " +
+					entityPrimaryKey + " present! This means, that you're probably trying to update " +
+					"entity that has been already removed!"
+			)
+		);
+		return fullEntity;
 	}
 
 	/**

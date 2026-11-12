@@ -71,7 +71,7 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage_;
   /**
    * <pre>
-   * The fetched page or strip of entities (in whichever of the three representations the query's
+   * The fetched page or strip of entities (in whichever of the two representations the query's
    * `require` block asked for - see `GrpcDataChunk`).
    * </pre>
    *
@@ -84,7 +84,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The fetched page or strip of entities (in whichever of the three representations the query's
+   * The fetched page or strip of entities (in whichever of the two representations the query's
    * `require` block asked for - see `GrpcDataChunk`).
    * </pre>
    *
@@ -97,7 +97,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The fetched page or strip of entities (in whichever of the three representations the query's
+   * The fetched page or strip of entities (in whichever of the two representations the query's
    * `require` block asked for - see `GrpcDataChunk`).
    * </pre>
    *
@@ -546,7 +546,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcDataChunk, io.evitadb.externalApi.grpc.generated.GrpcDataChunk.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataChunkOrBuilder> recordPageBuilder_;
     /**
      * <pre>
-     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * The fetched page or strip of entities (in whichever of the two representations the query's
      * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
@@ -558,7 +558,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * The fetched page or strip of entities (in whichever of the two representations the query's
      * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
@@ -574,7 +574,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * The fetched page or strip of entities (in whichever of the two representations the query's
      * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
@@ -595,7 +595,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * The fetched page or strip of entities (in whichever of the two representations the query's
      * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
@@ -614,7 +614,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * The fetched page or strip of entities (in whichever of the two representations the query's
      * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
@@ -640,7 +640,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * The fetched page or strip of entities (in whichever of the two representations the query's
      * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
@@ -658,7 +658,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * The fetched page or strip of entities (in whichever of the two representations the query's
      * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
@@ -671,7 +671,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * The fetched page or strip of entities (in whichever of the two representations the query's
      * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
@@ -687,7 +687,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * The fetched page or strip of entities (in whichever of the two representations the query's
      * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *

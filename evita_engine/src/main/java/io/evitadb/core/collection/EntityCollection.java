@@ -40,7 +40,6 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
@@ -58,7 +57,6 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExisten
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -113,7 +111,6 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
@@ -162,7 +159,6 @@ import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CollectionStorageFootprint;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.BinaryEntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.EntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
@@ -1658,86 +1654,6 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Fetches a list of BinaryEntity objects based on the provided primary keys, EvitaRequest, and session.
-	 * For each primary key, the method attempts to fetch the corresponding {@link BinaryEntity}.
-	 * Only the entities that are successfully fetched and present are returned in the list. Method is part of the
-	 * internal API and is used to fetch entities from the underlying storage as a part of the larger query - thus it
-	 * doesn't record data into {@link TrafficRecorder}.
-	 *
-	 * @param primaryKeys an array of primary keys used to identify the BinaryEntity objects
-	 * @param evitaRequest the request context in which the fetching process is executed
-	 * @param session the session contract containing session-related information and configurations
-	 * @return a list of successfully retrieved BinaryEntity objects
-	 */
-	@Nonnull
-	public List<BinaryEntity> fetchBinaryEntities(@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		return Arrays.stream(primaryKeys)
-			.mapToObj(it -> fetchBinaryEntity(it, evitaRequest, session))
-			.filter(Optional::isPresent)
-			.map(Optional::get)
-			.toList();
-	}
-
-	/**
-	 * Retrieves a binary entity based on the provided primary key, evita request, and session contract.
-	 * Uses caching mechanism to analyze and potentially enrich the entity's data based on
-	 * entity requirements specified in the request. Method is part of the internal API and is used to fetch entities
-	 * from the underlying storage as a part of the larger query - thus it doesn't record data into {@link TrafficRecorder}.
-	 *
-	 * @param primaryKey the unique identifier of the binary entity to be fetched
-	 * @param evitaRequest the request containing specifications and requirements for entity retrieval
-	 * @param session the session contract representing the current session for database operations
-	 *
-	 * @return an Optional containing the fetched BinaryEntity if found, otherwise an empty Optional
-	 */
-	@Nonnull
-	public Optional<BinaryEntity> fetchBinaryEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final long catalogVersion = this.catalog.getVersion();
-		final Optional<BinaryEntity> entity = this.cacheSupervisor.analyse(
-				session,
-				primaryKey,
-				getSchema().getName(),
-				evitaRequest.getEntityRequirement(),
-				() -> {
-					final BinaryEntityWithFetchCount binaryEntityWithFetchCount = this.persistenceService.readBinaryEntity(
-						catalogVersion,
-						primaryKey,
-						evitaRequest,
-						getInternalSchema(),
-						session,
-						entityType -> entityType.equals(getEntityType()) ?
-							this : this.catalog.getCollectionForEntityOrThrowException(entityType),
-						this.dataStoreReader
-					);
-
-					return binaryEntityWithFetchCount == null ?
-						null :
-						new ServerBinaryEntityDecorator(
-							binaryEntityWithFetchCount.entity(),
-							binaryEntityWithFetchCount.ioFetchCount(),
-							binaryEntityWithFetchCount.ioFetchedBytes()
-						);
-				},
-				binaryEntity -> {
-					final BinaryEntityWithFetchCount binaryEntityWithFetchCount = this.persistenceService.enrichEntity(
-						catalogVersion,
-						getInternalSchema(),
-						binaryEntity,
-						evitaRequest,
-						this.dataStoreReader
-					);
-					return new ServerBinaryEntityDecorator(
-						binaryEntityWithFetchCount.entity(),
-						binaryEntity.getIoFetchCount() + binaryEntityWithFetchCount.ioFetchCount(),
-						binaryEntity.getIoFetchedBytes() + binaryEntityWithFetchCount.ioFetchedBytes()
-					);
-				}
-			)
-			.map(it -> it);
-		return entity.map(it -> limitEntity(it, Objects.requireNonNull(evitaRequest.getEntityRequirement())));
-	}
-
-	/**
 	 * Retrieves a list of `SealedEntity` objects based on the given primary keys, request parameters,
 	 * session context, and reference fetcher. This method ensures that each entity is retrieved
 	 * in its current version and applies any necessary limitations and reference fetching specified
@@ -2323,7 +2239,8 @@ public final class EntityCollection implements
 
 	/**
 	 * Refuses a request using scopes in a way the engine cannot honour, before the request looks for an entity or
-	 * changes it - see {@link QueryUtils#assertNoNestedScopeContainers} and
+	 * changes it - see {@link QueryUtils#assertNoNestedScopeContainers},
+	 * {@link QueryUtils#assertScopePlacementValid} and
 	 * {@link QueryUtils#assertFilterScopesApplicable}.
 	 *
 	 * @param evitaRequest the request of the client
@@ -2331,6 +2248,8 @@ public final class EntityCollection implements
 	private static void assertScopeUsageValid(@Nonnull EvitaRequest evitaRequest) {
 		final Query query = evitaRequest.getQuery();
 		QueryUtils.assertNoNestedScopeContainers(query);
+		// before scope lookup, which reads through forbidden containers and fails on duplicate selections
+		QueryUtils.assertScopePlacementValid(query);
 		QueryUtils.assertFilterScopesApplicable(query, evitaRequest.getRequestedScopes());
 	}
 
@@ -4273,17 +4192,6 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Method will check whether the entity contains only the content required by `fetchRequirements` and if it contains
-	 * more data than requested, new instance of {@link BinaryEntity} is created referencing only the requested set
-	 * of data containers.
-	 */
-	@Nonnull
-	private BinaryEntity limitEntity(@Nonnull BinaryEntity entity, @Nonnull EntityFetch fetchRequirements) {
-		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
-		return entity;
-	}
-
-	/**
 	 * Casts an {@link EntityIndex} to its {@link TransactionalStateProducer} facet — every concrete entity index is one
 	 * (via {@code VoidTransactionMemoryProducer}) — and returns its committed copy. This is the type reconciliation the
 	 * merging {@code TransactionalMap} performs internally; the pruned merge needs it because it resolves individual
@@ -4659,15 +4567,6 @@ public final class EntityCollection implements
 
 		@Nullable
 		@Override
-		public <T extends StoragePart> byte[] fetchBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-			return EntitySchemaContext.executeWithSchemaContext(
-				this.schemaSupplier.get(),
-				() -> this.dataStoreReader.fetchBinary(catalogVersion, primaryKey, containerType)
-			);
-		}
-
-		@Nullable
-		@Override
 		public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
 			final StorageAccessScope cache = StorageAccessScope.getIfActive();
 			return cache == null ?
@@ -4697,15 +4596,6 @@ public final class EntityCollection implements
 			return EntitySchemaContext.executeWithSchemaContext(
 				this.schemaSupplier.get(),
 				() -> this.dataStoreReader.fetch(catalogVersion, originalKey, containerType, compressedKeyComputer)
-			);
-		}
-
-		@Nullable
-		@Override
-		public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
-			return EntitySchemaContext.executeWithSchemaContext(
-				this.schemaSupplier.get(),
-				() -> this.dataStoreReader.fetchBinary(catalogVersion, originalKey, containerType, compressedKeyComputer)
 			);
 		}
 

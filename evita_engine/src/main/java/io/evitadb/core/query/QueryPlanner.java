@@ -156,6 +156,8 @@ public class QueryPlanner {
 		// that a stored query of the refused shape stays readable and a copied container cannot slip past them
 		final EvitaRequest evitaRequest = context.getEvitaRequest();
 		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		// before scope lookup, which reads through forbidden containers and fails on duplicate selections
+		QueryUtils.assertScopePlacementValid(evitaRequest.getQuery());
 		QueryUtils.assertFilterScopesApplicable(evitaRequest.getQuery(), evitaRequest.getRequestedScopes());
 		context.pushStep(QueryPhase.PLANNING);
 		try {

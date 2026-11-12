@@ -1577,11 +1577,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Override
-	public boolean isBinaryFormat() {
-		return this.sessionTraits.isBinary();
-	}
-
-	@Override
 	public boolean isDryRun() {
 		return this.sessionTraits.isDryRun();
 	}

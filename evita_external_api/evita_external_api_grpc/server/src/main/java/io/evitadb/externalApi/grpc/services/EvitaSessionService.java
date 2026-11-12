@@ -52,7 +52,6 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithAssignedPrimaryKeys;
 import io.evitadb.api.requestResponse.mutation.StreamDirection;
@@ -257,8 +256,6 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 								clientVersion
 							)
 						);
-					} else if (responseEntity instanceof final BinaryEntity binaryEntity) {
-						responseBuilder.setBinaryEntity(EntityConverter.toGrpcBinaryEntity(binaryEntity));
 					} else {
 						throw new GenericEvitaInternalError(
 							"Unsupported entity class `" + responseEntity.getClass().getName() + "`.");
@@ -294,21 +291,15 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			final GrpcQueryListResponse.Builder responseBuilder = GrpcQueryListResponse.newBuilder();
 			final EntityFetch entityFetchRequirement = evitaRequest.getEntityRequirement();
 			if (entityFetchRequirement != null) {
-				if (session.isBinaryFormat()) {
-					responseEntities.forEach(e -> responseBuilder.addBinaryEntities(
-						EntityConverter.toGrpcBinaryEntity((BinaryEntity) e))
-					);
-				} else {
-					final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
-					responseEntities.forEach(
-						entity -> responseBuilder.addSealedEntities(
-							EntityConverter.toGrpcSealedEntity(
-								(SealedEntity) entity,
-								clientVersion
-							)
+				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+				responseEntities.forEach(
+					entity -> responseBuilder.addSealedEntities(
+						EntityConverter.toGrpcSealedEntity(
+							(SealedEntity) entity,
+							clientVersion
 						)
-					);
-				}
+					)
+				);
 			} else {
 				responseEntities.forEach(e -> responseBuilder
 					.addEntityReferences(
@@ -379,36 +370,20 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 			final EntityFetch entityRequirement = evitaRequest.getEntityRequirement();
 			if (entityRequirement != null) {
-				if (session.isBinaryFormat()) {
-					final List<GrpcBinaryEntity> binaryEntities = new ArrayList<>(recordPage.getData().size());
-					for (EntityClassifier ec : recordPage.getData()) {
-						if (ec instanceof BinaryEntity binaryEntity) {
-							binaryEntities.add(
-								EntityConverter.toGrpcBinaryEntity(binaryEntity)
-							);
-						}
+				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+				final List<GrpcSealedEntity> sealedEntities = new ArrayList<>(recordPage.getData().size());
+				for (EntityClassifier ec : recordPage.getData()) {
+					if (ec instanceof SealedEntity sealedEntity) {
+						sealedEntities.add(
+							EntityConverter.toGrpcSealedEntity(sealedEntity, clientVersion)
+						);
 					}
-					entityBuilder.setRecordPage(
-						dataChunkBuilder
-							.addAllBinaryEntities(binaryEntities)
-							.build()
-					);
-				} else {
-					final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
-					final List<GrpcSealedEntity> sealedEntities = new ArrayList<>(recordPage.getData().size());
-					for (EntityClassifier ec : recordPage.getData()) {
-						if (ec instanceof SealedEntity sealedEntity) {
-							sealedEntities.add(
-								EntityConverter.toGrpcSealedEntity(sealedEntity, clientVersion)
-							);
-						}
-					}
-					entityBuilder.setRecordPage(
-						dataChunkBuilder
-							.addAllSealedEntities(sealedEntities)
-							.build()
-					);
 				}
+				entityBuilder.setRecordPage(
+					dataChunkBuilder
+						.addAllSealedEntities(sealedEntities)
+						.build()
+				);
 			} else {
 				final List<GrpcEntityReference> entityReferences = new ArrayList<>(recordPage.getData().size());
 				recordPage.stream().forEach(e -> entityReferences.add(

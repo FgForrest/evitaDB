@@ -805,6 +805,9 @@ public class OffsetIndex {
 	 * Like {@link #get(long, long, Class)}, the value is resolved against the per-version root, so the returned
 	 * entry already conforms to `catalogVersion` — no per-key historical reconstruction and no generation filter.
 	 *
+	 * The engine decodes its records through `get`. This variant serves callers that compare stored bytes instead of
+	 * decoding them, which reach it through `StoragePartPersistenceService#getStoragePartAsBinary`.
+	 *
 	 * Beware method may not return previously written record via {@link #put(long, StoragePart)} until method
 	 * {@link #flush(long)} is called. In this situation {@link RecordNotYetWrittenException} is thrown.
 	 *
@@ -1160,17 +1163,6 @@ public class OffsetIndex {
 	@Nonnull
 	public FileLocation getFileOffsetIndexLocation() {
 		return this.fileOffsetDescriptor.fileLocation();
-	}
-
-	/**
-	 * Method allows to execute custom "(de)serialization" function in the context of current OffsetIndex Kryo read
-	 * instance. The serialization MUST NOT attempt to produce new keys via. {@link KeyCompressor} otherwise the
-	 * exception will be thrown.
-	 */
-	public <T> T executeWithKryo(@Nonnull Function<Kryo, T> logic) {
-		return this.readKryoPool.borrowAndExecute(
-			logic::apply
-		);
 	}
 
 	/**
