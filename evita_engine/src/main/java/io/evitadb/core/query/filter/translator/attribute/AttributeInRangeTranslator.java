@@ -46,6 +46,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.function.Supplier;
@@ -60,10 +61,16 @@ import static java.util.Optional.ofNullable;
 public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 	implements FilteringConstraintTranslator<AttributeInRange>, AttributeValueMatchingTranslator<AttributeInRange> {
 
-	/** A range without an explicit probe uses the query's implicit moment. */
+	/**
+	 * A date-time range uses the query moment whenever its temporal argument is absent, including a numeric probe.
+	 * An unresolved schema may still resolve to a date-time range when the entities are examined.
+	 */
 	@Override
-	public boolean readsQueryMoment(@Nonnull AttributeInRange constraint) {
-		return constraint.getUnknownArgument() == null;
+	public boolean readsQueryMoment(
+		@Nonnull AttributeInRange constraint, @Nullable AttributeSchemaContract attributeSchema
+	) {
+		return constraint.getTheMoment() == null &&
+			(attributeSchema == null || DateTimeRange.class.isAssignableFrom(attributeSchema.getPlainType()));
 	}
 
 	/**

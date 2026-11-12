@@ -440,7 +440,9 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> optionalStream -> optionalStream.noneMatch(Optional::isPresent),
-			filterByVisitor.getLocale(), true, null, AttributeTrait.FILTERABLE
+			filterByVisitor.getLocale(), true, null,
+			AttributeBitmapFilter.captureExecutionContext(filterByVisitor, attributeName, java.util.List.of()),
+			AttributeTrait.FILTERABLE
 		);
 	}
 
@@ -464,7 +466,9 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> optionalStream -> optionalStream.anyMatch(Optional::isPresent),
-			filterByVisitor.getLocale(), true, null, AttributeTrait.FILTERABLE
+			filterByVisitor.getLocale(), true, null,
+			AttributeBitmapFilter.captureExecutionContext(filterByVisitor, attributeName, java.util.List.of()),
+			AttributeTrait.FILTERABLE
 		);
 	}
 

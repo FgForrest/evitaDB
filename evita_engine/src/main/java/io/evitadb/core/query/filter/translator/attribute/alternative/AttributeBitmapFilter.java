@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.identity.IdentityExempt;
@@ -39,17 +40,23 @@ import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -68,8 +75,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
 
@@ -184,7 +189,7 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	) {
 		this(attributeName, requirements, attributeSchemaAccessor, attributeValueAccessor, filterFactory,
 			new Identity(List.of(), requirements.toString(), null, traitsMask(requiredAttributeTraits),
-				false, null, IdentityToken.OPAQUE), requiredAttributeTraits);
+				false, null, List.of(), IdentityToken.OPAQUE), requiredAttributeTraits);
 	}
 
 	@Nonnull
@@ -264,7 +269,8 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	 * @param filterFactory matcher implementing the constraint
 	 * @param locale locale used by the value accessor
 	 * @param matcherPerEntityType whether each entity type supplies its own matcher
-	 * @param moment implicit query moment, absent when the constraint carries its own value
+	 * @param moment implicit query moment, absent when the resolved matcher does not use it
+	 * @param executionContext detached schema and scope inputs, null for an undeclared matcher
 	 * @param requiredAttributeTraits required schema traits
 	 * @return filter holding detached constraint arguments
 	 */
@@ -279,6 +285,7 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 		@Nullable Locale locale,
 		boolean matcherPerEntityType,
 		@Nullable OffsetDateTime moment,
+		@Nullable List<String> executionContext,
 		@Nonnull AttributeTrait... requiredAttributeTraits
 	) {
 		final List<String> arguments = captureConstraint(constraint);
@@ -286,8 +293,98 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 			attributeName, requirements, attributeSchemaAccessor, attributeValueAccessor, filterFactory,
 			new Identity(arguments == null ? List.of() : arguments, requirements.toString(), locale,
 				traitsMask(requiredAttributeTraits), matcherPerEntityType, moment,
-				arguments == null ? IdentityToken.OPAQUE : null), requiredAttributeTraits
+				executionContext == null ? List.of() : executionContext,
+				arguments == null || executionContext == null ? IdentityToken.OPAQUE : null), requiredAttributeTraits
 		);
+	}
+
+	/**
+	 * Captures every schema trait read by matcher construction and schema validation. The declared and plain types
+	 * retain array semantics separately from the decimal encoding and localization policy.
+	 *
+	 * @param schema resolved attribute schema
+	 * @return immutable scalar schema inputs
+	 */
+	@Nonnull
+	public static List<String> captureMatcherSchema(@Nonnull AttributeSchemaContract schema) {
+		final List<String> result = new ArrayList<>(5 + 5 * Scope.values().length);
+		result.add(schema.getType().getName());
+		result.add(schema.getPlainType().getName());
+		result.add(Integer.toString(schema.getIndexedDecimalPlaces()));
+		result.add(Boolean.toString(schema.isLocalized()));
+		result.add(Boolean.toString(schema.getType().isArray()));
+		for (final Scope scope : Scope.values()) {
+			result.add(Boolean.toString(schema.hasFilterIndexInScope(scope)));
+			result.add(Boolean.toString(schema.isFilterableInScope(scope)));
+			result.add(Boolean.toString(schema.isUniqueInScope(scope)));
+			result.add(Boolean.toString(schema.isUniqueWithinLocaleInScope(scope)));
+			result.add(Boolean.toString(schema.isSortableInScope(scope)));
+		}
+		return List.copyOf(result);
+	}
+
+	/**
+	 * Resolves the query-owned schema override used by deferred schema lookup. In its absence the entity supplies
+	 * its own schema at match time; its type cannot be assumed while the alternative is constructed.
+	 *
+	 * @param visitor query whose processing scope owns the accessors
+	 * @param attributeName attribute being matched
+	 * @return catalog or reference override, or null for a schema supplied by each examined entity
+	 */
+	@Nullable
+	public static AttributeSchemaContract resolveSchemaOverride(
+		@Nonnull FilterByVisitor visitor, @Nonnull String attributeName
+	) {
+		final AttributeSchemaContract globalSchema = visitor.getCatalogSchema().getAttribute(attributeName).orElse(null);
+		if (globalSchema != null) {
+			return globalSchema;
+		}
+		final ReferenceSchemaContract referenceSchema =
+			visitor.getProcessingScope().getAttributeSchemaAccessor().getReferenceSchema();
+		return referenceSchema == null ? null : referenceSchema.getAttribute(attributeName).orElse(null);
+	}
+
+	/**
+	 * Captures the query-owned choices of the schema and value accessors. Scopes are recorded by membership, including
+	 * the request scopes to which a temporary processing scope returns. A deferred entity-local schema is an input
+	 * of the examined entity; catalog and reference overrides instead belong to the query and are recorded here.
+	 *
+	 * @param visitor query whose processing scope owns the accessors
+	 * @param attributeName attribute being matched
+	 * @param matcherSchemaInputs schema inputs captured with a fixed matcher, empty for a deferred matcher
+	 * @return immutable execution inputs without retaining the visitor, scopes or schemas
+	 */
+	@Nonnull
+	public static List<String> captureExecutionContext(
+		@Nonnull FilterByVisitor visitor,
+		@Nonnull String attributeName,
+		@Nonnull List<String> matcherSchemaInputs
+	) {
+		final ProcessingScope<?> processingScope = visitor.getProcessingScope();
+		final EntitySchemaContract entitySchema = processingScope.getEntitySchema();
+		final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema();
+		final ReferenceSchemaContract accessorReferenceSchema =
+			processingScope.getAttributeSchemaAccessor().getReferenceSchema();
+		final List<String> result = new ArrayList<>(32 + matcherSchemaInputs.size());
+		result.add(entitySchema == null ? "" : entitySchema.getName());
+		result.add(referenceSchema == null ? "" : referenceSchema.getName());
+		result.add(accessorReferenceSchema == null ? "" : accessorReferenceSchema.getName());
+		for (final Scope scope : Scope.values()) {
+			result.add(Boolean.toString(processingScope.getScopes().contains(scope)));
+			result.add(Boolean.toString(visitor.getScopes().contains(scope)));
+			result.add(Boolean.toString(referenceSchema != null && referenceSchema.isIndexedInScope(scope)));
+			result.add(Boolean.toString(
+				accessorReferenceSchema != null && accessorReferenceSchema.isIndexedInScope(scope)
+			));
+		}
+		result.add(Integer.toString(matcherSchemaInputs.size()));
+		result.addAll(matcherSchemaInputs);
+		final AttributeSchemaContract schemaOverride = resolveSchemaOverride(visitor, attributeName);
+		result.add(schemaOverride == null ? "entity schema" : "schema override");
+		if (schemaOverride != null) {
+			result.addAll(captureMatcherSchema(schemaOverride));
+		}
+		return List.copyOf(result);
 	}
 
 	/** Converts trait membership to a primitive mask without retaining the caller's array. */
@@ -378,6 +475,7 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	 * @param requiredTraits primitive trait membership mask
 	 * @param matcherPerEntityType whether matcher creation depends on each entity type
 	 * @param moment implicit query moment
+	 * @param executionContext detached schema, entity type, reference and scope inputs
 	 * @param matcher opaque marker for an uncontrolled or unsupported matcher, null for declared value inputs
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
@@ -388,11 +486,13 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 		int requiredTraits,
 		boolean matcherPerEntityType,
 		@Nullable OffsetDateTime moment,
+		@Nonnull List<String> executionContext,
 		@Nullable IdentityToken matcher
 	) implements IdentityRecord {
 		/** Detaches the argument sequence from the factory's temporary storage. */
 		public Identity {
 			constraint = List.copyOf(constraint);
+			executionContext = List.copyOf(executionContext);
 		}
 
 		/** Returns the owning holder identifier. */
@@ -410,6 +510,7 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 			accumulator.add(this.requiredTraits);
 			accumulator.add(this.matcherPerEntityType);
 			accumulator.add(this.moment);
+			accumulator.addStrings(this.executionContext);
 			accumulator.add(this.matcher);
 		}
 	}

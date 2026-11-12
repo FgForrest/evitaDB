@@ -33,6 +33,7 @@ import io.evitadb.test.identity.*;
 
 import java.io.Serializable;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -102,6 +103,8 @@ public class AttributeBitmapFilterIdentityFixture implements IdentityFixture<Att
 					perEntityType, null, AttributeTrait.SORTABLE),
 				"matcher mode", () -> create(attributeEquals("a", 1), attributeContent("a"), null,
 					!perEntityType, null, AttributeTrait.FILTERABLE),
+				"execution context", () -> create(attributeEquals("a", 1), attributeContent("a"), null,
+					perEntityType, null, List.of("different context"), AttributeTrait.FILTERABLE),
 				"implicit moment", () -> create(attributeEquals("a", 1), attributeContent("a"), null,
 					perEntityType, OffsetDateTime.parse("2026-01-01T00:00:00Z"), AttributeTrait.FILTERABLE)
 			),
@@ -119,6 +122,20 @@ public class AttributeBitmapFilterIdentityFixture implements IdentityFixture<Att
 		@Nullable Locale locale,
 		boolean perEntityType,
 		@Nullable OffsetDateTime moment,
+		@Nonnull AttributeTrait... traits
+	) {
+		return create(constraint, requirements, locale, perEntityType, moment, List.of("controlled"), traits);
+	}
+
+	/** Builds a controlled matcher with explicit execution inputs. */
+	@Nonnull
+	static AttributeBitmapFilter create(
+		@Nonnull FilterConstraint constraint,
+		@Nonnull EntityContentRequire requirements,
+		@Nullable Locale locale,
+		boolean perEntityType,
+		@Nullable OffsetDateTime moment,
+		@Nonnull List<String> executionContext,
 		@Nonnull AttributeTrait... traits
 	) {
 		final String name = (String) constraint.getArguments()[0];
@@ -140,7 +157,7 @@ public class AttributeBitmapFilterIdentityFixture implements IdentityFixture<Att
 				}
 				return values -> values.anyMatch(attribute -> attribute.isPresent() && matcher.matches(attribute.get().value()));
 			},
-			locale, perEntityType, moment, traits
+			locale, perEntityType, moment, executionContext, traits
 		);
 	}
 
