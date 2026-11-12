@@ -1,0 +1,218 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.api.proxy;
+
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.InstanceEditor;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
+import io.evitadb.api.requestResponse.data.annotation.EntityRef;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
+import io.evitadb.core.Evita;
+import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.data.ComplexDataObjectConverter;
+import io.evitadb.test.extension.EvitaParameterResolver;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Consumer;
+
+import static io.evitadb.api.query.QueryConstraints.associatedDataContentAll;
+import static io.evitadb.api.query.QueryConstraints.dataInLocalesAll;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PROXY;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+
+/**
+ * Verifies how the setters of an entity editor proxy hand an array or a collection over to associated data: a
+ * collection of simple values becomes the typed array the schema declares, and an array or a collection of complex
+ * objects becomes one {@link ComplexDataObject} whose root holds the whole array - never an array of complex data
+ * objects.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+@DisplayName("Entity editor proxy setting array associated data")
+@ExtendWith(EvitaParameterResolver.class)
+@Tag(CONTRACT)
+@Tag(PROXY)
+class AssociatedDataCollectionProxyingFunctionalTest {
+	private static final String PRODUCT = "product";
+	private static final String LOCALIZED_TAGS = "localizedTags";
+	private static final String DIMENSIONS = "dimensions";
+	private static final String DIMENSION_ARRAY = "dimensionArray";
+	private static final String LOCALIZED_DIMENSIONS = "localizedDimensions";
+	private static final int PK = 1;
+
+	/**
+	 * Defines the product schema, creates the product through the editor proxy and returns the stored product.
+	 *
+	 * @param evita  the evitaDB instance
+	 * @param setter the logic setting associated data through the proxy
+	 * @return the stored product with all associated data in all locales
+	 */
+	@Nonnull
+	private static SealedEntity storeThroughProxy(
+		@Nonnull Evita evita,
+		@Nonnull Consumer<ProductWithArraysEditor> setter
+	) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// every associated data is optional so that each test sets only those it verifies
+				session.defineEntitySchema(PRODUCT)
+					.withLocale(Locale.ENGLISH)
+					.withAssociatedData(LOCALIZED_TAGS, String[].class, whichIs -> whichIs.localized().nullable())
+					.withAssociatedData(DIMENSIONS, Dimension[].class, AssociatedDataSchemaEditor::nullable)
+					.withAssociatedData(DIMENSION_ARRAY, Dimension[].class, AssociatedDataSchemaEditor::nullable)
+					.withAssociatedData(
+						LOCALIZED_DIMENSIONS, Dimension[].class, whichIs -> whichIs.localized().nullable()
+					)
+					.updateVia(session);
+				final ProductWithArraysEditor product = session.createNewEntity(ProductWithArraysEditor.class, PK);
+				setter.accept(product);
+				product.upsertVia(session);
+			}
+		);
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(PRODUCT, PK, associatedDataContentAll(), dataInLocalesAll()).orElseThrow();
+			}
+		);
+	}
+
+	@Test
+	@DisplayName("should store a localized collection of simple values as the array the schema declares")
+	void shouldStoreLocalizedCollectionOfSimpleValuesAsDeclaredArray(Evita evita) {
+		final SealedEntity product = storeThroughProxy(
+			evita, editor -> editor.setLocalizedTags(List.of("red", "blue"), Locale.ENGLISH)
+		);
+
+		final Serializable[] tags = product.getAssociatedDataArray(LOCALIZED_TAGS, Locale.ENGLISH);
+		assertAll(
+			() -> assertArrayEquals(new String[]{"red", "blue"}, tags),
+			() -> assertEquals(String[].class, tags.getClass())
+		);
+	}
+
+	@Test
+	@DisplayName("should store an array or a collection of complex objects as one complex data object")
+	void shouldStoreArrayOrCollectionOfComplexObjectsAsOneComplexDataObject(Evita evita) {
+		final Dimension[] dimensions = {new Dimension("width", 10), new Dimension("height", 20)};
+		final SealedEntity product = storeThroughProxy(
+			evita,
+			editor -> editor
+				.setDimensions(Arrays.asList(dimensions))
+				.setDimensionArray(dimensions)
+				.setLocalizedDimensions(Arrays.asList(dimensions), Locale.ENGLISH)
+		);
+
+		final Serializable expected = ComplexDataObjectConverter.getSerializableForm(dimensions);
+		assertAll(
+			() -> assertInstanceOf(ComplexDataObject.class, expected),
+			() -> assertEquals(expected, product.getAssociatedData(DIMENSIONS)),
+			() -> assertEquals(expected, product.getAssociatedData(DIMENSION_ARRAY)),
+			() -> assertEquals(expected, product.getAssociatedData(LOCALIZED_DIMENSIONS, Locale.ENGLISH))
+		);
+	}
+
+	/**
+	 * Product entity mapped by the editor proxy.
+	 */
+	@EntityRef(PRODUCT)
+	public interface ProductWithArrays extends EntityClassifier {
+	}
+
+	/**
+	 * Editor of the product setting array associated data from arrays and collections.
+	 */
+	public interface ProductWithArraysEditor extends ProductWithArrays, InstanceEditor<ProductWithArrays> {
+
+		/**
+		 * Sets the localized array of tags from a collection.
+		 *
+		 * @param tags   the tags
+		 * @param locale the locale of the tags
+		 * @return this editor
+		 */
+		@AssociatedDataRef(LOCALIZED_TAGS)
+		@Nonnull
+		ProductWithArraysEditor setLocalizedTags(@Nonnull List<String> tags, @Nonnull Locale locale);
+
+		/**
+		 * Sets the dimensions from a collection.
+		 *
+		 * @param dimensions the dimensions
+		 * @return this editor
+		 */
+		@AssociatedDataRef(DIMENSIONS)
+		@Nonnull
+		ProductWithArraysEditor setDimensions(@Nonnull List<Dimension> dimensions);
+
+		/**
+		 * Sets the dimensions from an array.
+		 *
+		 * @param dimensions the dimensions
+		 * @return this editor
+		 */
+		@AssociatedDataRef(DIMENSION_ARRAY)
+		@Nonnull
+		ProductWithArraysEditor setDimensionArray(@Nonnull Dimension[] dimensions);
+
+		/**
+		 * Sets the localized dimensions from a collection.
+		 *
+		 * @param dimensions the dimensions
+		 * @param locale     the locale of the dimensions
+		 * @return this editor
+		 */
+		@AssociatedDataRef(LOCALIZED_DIMENSIONS)
+		@Nonnull
+		ProductWithArraysEditor setLocalizedDimensions(@Nonnull List<Dimension> dimensions, @Nonnull Locale locale);
+	}
+
+	/**
+	 * Complex object stored as an item of an array associated data.
+	 *
+	 * @param name  name of the dimension
+	 * @param value size of the dimension
+	 */
+	public record Dimension(
+		@Nonnull String name,
+		@Nonnull Integer value
+	) implements Serializable {
+	}
+
+}

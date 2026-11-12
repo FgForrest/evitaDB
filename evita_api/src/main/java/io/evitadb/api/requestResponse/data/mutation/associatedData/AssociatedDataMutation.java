@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,7 +36,10 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.dataType.data.DataItemArray;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -121,12 +124,39 @@ public abstract sealed class AssociatedDataMutation implements NamedLocalMutatio
 			Stream.empty();
 	}
 
+	/**
+	 * Verifies the associated data value against the associated data schema, or evolves the schema when it does not
+	 * declare the associated data yet and the entity schema allows adding it.
+	 *
+	 * An array of complex objects is one {@link ComplexDataObject} whose root is a {@link DataItemArray}. A raw array
+	 * of complex data objects is refused regardless of the schema: no associated data schema declares that type, so
+	 * once stored it would make every later upsert of the same value fail. For the same reason a value that evolves the
+	 * schema must be an instance of the type the schema then declares - the schema normalizes the type of the value
+	 * (it wraps primitive types and declares any unknown type as a complex data object).
+	 *
+	 * @param entitySchemaBuilder       the builder of the entity schema to verify against or evolve
+	 * @param associatedDataValue       the value the mutation upserts
+	 * @param schemaEvolutionApplicator the logic adding the associated data to the entity schema
+	 * @throws InvalidMutationException when the value does not match the schema, or the schema cannot be evolved
+	 */
 	protected void verifyOrEvolveSchema(
 		@Nonnull EntitySchemaBuilder entitySchemaBuilder,
 		@Nonnull Serializable associatedDataValue,
 		@Nonnull Consumer<EntitySchemaBuilder> schemaEvolutionApplicator
 	) throws InvalidMutationException {
-		final Optional<AssociatedDataSchemaContract> associatedDataOpt = entitySchemaBuilder.getAssociatedData(this.associatedDataKey.associatedDataName());
+		final String associatedDataName = this.associatedDataKey.associatedDataName();
+		// refuse the raw array before the schema is consulted or evolved, so that the refusal is the same either way
+		Assert.isTrue(
+			!(associatedDataValue instanceof ComplexDataObject[]),
+			() -> new InvalidMutationException(
+				"Invalid type: `" + associatedDataValue.getClass() + "`! " +
+					"Associated data `" + associatedDataName + "` in schema `" + entitySchemaBuilder.getName() + "` " +
+					"cannot store an array of complex data objects - an array of complex objects must be passed as " +
+					"one `ComplexDataObject` whose root is a `DataItemArray`!"
+			)
+		);
+		final Optional<AssociatedDataSchemaContract> associatedDataOpt =
+			entitySchemaBuilder.getAssociatedData(associatedDataName);
 		associatedDataOpt
 			.ifPresent(associatedDataSchema -> {
 				// when associated data definition is known execute first encounter formal verification
@@ -164,6 +194,27 @@ public abstract sealed class AssociatedDataMutation implements NamedLocalMutatio
 			if (entitySchemaBuilder.allows(EvolutionMode.ADDING_ASSOCIATED_DATA)) {
 				// evolve schema automatically
 				schemaEvolutionApplicator.accept(entitySchemaBuilder);
+				// the schema normalizes the type of the value - the value must match the type it declares in the end,
+				// otherwise it would be stored under a type that refuses every later upsert of the same value
+				final Class<? extends Serializable> declaredType = entitySchemaBuilder
+					.getAssociatedData(associatedDataName)
+					.map(AssociatedDataSchemaContract::getType)
+					.orElseThrow(
+						() -> new GenericEvitaInternalError(
+							"Associated data `" + associatedDataName + "` was not added to schema `" +
+								entitySchemaBuilder.getName() + "` by its evolution!"
+						)
+					);
+				Assert.isTrue(
+					declaredType.isInstance(associatedDataValue),
+					() -> new InvalidMutationException(
+						"Invalid type: `" + associatedDataValue.getClass() + "`! " +
+							"Associated data `" + associatedDataName + "` in schema `" +
+							entitySchemaBuilder.getName() + "` would be declared as type `" + declaredType + "`, " +
+							"which the value is not an instance of. " +
+							"Pass the value in the declared type!"
+					)
+				);
 			} else {
 				throw new InvalidMutationException(
 					"Unknown associated data `" + this.associatedDataKey.associatedDataName() + "` in entity `" + entitySchemaBuilder.getName() + "`!" +

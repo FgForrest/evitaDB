@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,22 +27,31 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.data.DataItemMap;
+import io.evitadb.dataType.data.DataItemValue;
+import io.evitadb.dataType.exception.SerializationFailedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -1017,6 +1026,178 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 				newAssociatedData.getAssociatedData("int")
 			);
 		}
+	}
+
+	@Nested
+	@DisplayName("Array associated data")
+	class ArrayAssociatedDataTest {
+
+		@Test
+		@DisplayName("should replace an array declared by the schema")
+		void shouldReplaceArrayDeclaredBySchema() {
+			final EntitySchemaContract schema = createSchemaDeclaringArrays();
+			final AssociatedData associatedData = new InitialAssociatedDataBuilder(schema)
+				.setAssociatedData("intArray", new Integer[]{1, 2})
+				.build();
+
+			final AssociatedData newVersion = new ExistingAssociatedDataBuilder(schema, associatedData)
+				.setAssociatedData("intArray", new Integer[]{3})
+				.build();
+
+			final Serializable[] value = newVersion.getAssociatedDataArray("intArray");
+			assertArrayEquals(new Integer[]{3}, value);
+			assertSame(Integer[].class, value.getClass());
+			assertEquals(
+				2,
+				newVersion.getAssociatedDataValue(new AssociatedDataKey("intArray")).orElseThrow().version()
+			);
+		}
+
+		@Test
+		@DisplayName("should replace a localized array declared by the schema")
+		void shouldReplaceLocalizedArrayDeclaredBySchema() {
+			final EntitySchemaContract schema = createSchemaDeclaringArrays();
+			final AssociatedData associatedData = new InitialAssociatedDataBuilder(schema)
+				.setAssociatedData("localizedIntArray", Locale.ENGLISH, new Integer[]{1, 2})
+				.build();
+
+			final AssociatedData newVersion = new ExistingAssociatedDataBuilder(schema, associatedData)
+				.setAssociatedData("localizedIntArray", Locale.ENGLISH, new Integer[]{3})
+				.build();
+
+			final Serializable[] value = newVersion.getAssociatedDataArray("localizedIntArray", Locale.ENGLISH);
+			assertArrayEquals(new Integer[]{3}, value);
+			assertSame(Integer[].class, value.getClass());
+			assertEquals(
+				2,
+				newVersion.getAssociatedDataValue(new AssociatedDataKey("localizedIntArray", Locale.ENGLISH))
+					.orElseThrow()
+					.version()
+			);
+		}
+
+		@Test
+		@DisplayName("should upsert the typed array when the schema does not declare it")
+		void shouldUpsertTypedArrayWhenSchemaDoesNotDeclareIt() {
+			final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(
+				PRODUCT_SCHEMA,
+				ExistingAssociatedDataBuilderTest.this.initialAssociatedData
+			)
+				.setAssociatedData("intArray", new Integer[]{1, 2, 3})
+				.setAssociatedData("stringArray", Locale.ENGLISH, new String[]{"Hello"});
+
+			final Map<AssociatedDataKey, Serializable> upsertedValues = builder.buildChangeSet()
+				.map(UpsertAssociatedDataMutation.class::cast)
+				.collect(
+					Collectors.toMap(
+						AssociatedDataMutation::getAssociatedDataKey,
+						UpsertAssociatedDataMutation::getAssociatedDataValue
+					)
+				);
+			assertSame(Integer[].class, upsertedValues.get(new AssociatedDataKey("intArray")).getClass());
+			assertSame(
+				String[].class,
+				upsertedValues.get(new AssociatedDataKey("stringArray", Locale.ENGLISH)).getClass()
+			);
+		}
+
+		@Test
+		@DisplayName("should convert an array of complex objects the way the initial builder does")
+		void shouldConvertArrayOfComplexObjectsTheWayInitialBuilderDoes() {
+			final EntitySchemaContract schema = new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+				.withAssociatedData("dimensions", Dimension[].class)
+				.toInstance();
+			final Dimension[] dimensions = new Dimension[]{new Dimension("width", 10), new Dimension("height", 20)};
+			final Serializable initiallySet = new InitialAssociatedDataBuilder(schema)
+				.setAssociatedData("dimensions", dimensions)
+				.build()
+				.getAssociatedData("dimensions");
+
+			final Serializable value = new ExistingAssociatedDataBuilder(
+				schema, new InitialAssociatedDataBuilder(schema).build()
+			)
+				.setAssociatedData("dimensions", dimensions)
+				.build()
+				.getAssociatedData("dimensions");
+
+			assertInstanceOf(ComplexDataObject.class, value);
+			assertEquals(initiallySet, value);
+		}
+
+		@Test
+		@DisplayName("should convert a localized array of complex objects the way the initial builder does")
+		void shouldConvertLocalizedArrayOfComplexObjectsTheWayInitialBuilderDoes() {
+			final EntitySchemaContract schema = new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+				.withLocale(Locale.ENGLISH)
+				.withAssociatedData("dimensions", Dimension[].class, AssociatedDataSchemaEditor::localized)
+				.toInstance();
+			final Dimension[] dimensions = new Dimension[]{new Dimension("width", 10), new Dimension("height", 20)};
+			final Serializable initiallySet = new InitialAssociatedDataBuilder(schema)
+				.setAssociatedData("dimensions", Locale.ENGLISH, dimensions)
+				.build()
+				.getAssociatedData("dimensions", Locale.ENGLISH);
+
+			final Serializable value = new ExistingAssociatedDataBuilder(
+				schema, new InitialAssociatedDataBuilder(schema).build()
+			)
+				.setAssociatedData("dimensions", Locale.ENGLISH, dimensions)
+				.build()
+				.getAssociatedData("dimensions", Locale.ENGLISH);
+
+			assertInstanceOf(ComplexDataObject.class, value);
+			assertEquals(initiallySet, value);
+		}
+
+		@Test
+		@DisplayName("should refuse an array of complex data objects")
+		void shouldRefuseArrayOfComplexDataObjects() {
+			final EntitySchemaContract schema = new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+				.withLocale(Locale.ENGLISH)
+				.toInstance();
+			final ExistingAssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(
+				schema, new InitialAssociatedDataBuilder(schema).build()
+			);
+			final ComplexDataObject[] objects = {
+				new ComplexDataObject(new DataItemMap(Map.of("name", new DataItemValue("width"))))
+			};
+
+			assertAll(
+				() -> assertThrows(
+					SerializationFailedException.class,
+					() -> builder.setAssociatedData("objects", objects)
+				),
+				() -> assertThrows(
+					SerializationFailedException.class,
+					() -> builder.setAssociatedData("objects", Locale.ENGLISH, objects)
+				)
+			);
+		}
+
+		/**
+		 * Creates a product schema declaring a non-localized and a localized integer array associated data.
+		 *
+		 * @return the schema
+		 */
+		@Nonnull
+		private static EntitySchemaContract createSchemaDeclaringArrays() {
+			return new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+				.withLocale(Locale.ENGLISH)
+				.withAssociatedData("intArray", Integer[].class)
+				.withAssociatedData("localizedIntArray", Integer[].class, AssociatedDataSchemaEditor::localized)
+				.toInstance();
+		}
+	}
+
+	/**
+	 * Complex object stored as an item of an array associated data.
+	 *
+	 * @param name  name of the dimension
+	 * @param value size of the dimension
+	 */
+	public record Dimension(
+		@Nonnull String name,
+		@Nonnull Integer value
+	) implements Serializable {
 	}
 
 }

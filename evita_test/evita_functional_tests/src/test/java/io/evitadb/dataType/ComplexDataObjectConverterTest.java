@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -104,13 +104,17 @@ class ComplexDataObjectConverterTest {
 		}
 
 		@Test
-		@DisplayName("should return same ComplexDataObject[] instance from static getSerializableForm")
-		void shouldReturnSameInstanceWhenStaticGetSerializableFormReceivesCdoArray() {
+		@DisplayName("should refuse an array of complex data objects in static getSerializableForm")
+		void shouldRefuseArrayOfComplexDataObjectsWhenStaticGetSerializableFormReceivesIt() {
 			final ComplexDataObject[] cdoArray = new ComplexDataObject[]{
 				new ComplexDataObject(new DataItemMap(Collections.emptyMap()))
 			};
-			final Serializable result = ComplexDataObjectConverter.getSerializableForm(cdoArray);
-			assertSame(cdoArray, result);
+
+			final SerializationFailedException exception = assertThrows(
+				SerializationFailedException.class,
+				() -> ComplexDataObjectConverter.getSerializableForm(cdoArray)
+			);
+			assertTrue(exception.getMessage().contains("one `ComplexDataObject`"), exception.getMessage());
 		}
 
 		@Test
@@ -187,14 +191,17 @@ class ComplexDataObjectConverterTest {
 		}
 
 		@Test
-		@DisplayName("should return same CDO[] instance from instance getSerializableForm")
-		void shouldReturnSameInstanceWhenInstanceGetSerializableFormReceivesCdoArray() {
+		@DisplayName("should refuse an array of complex data objects in instance getSerializableForm")
+		void shouldRefuseArrayOfComplexDataObjectsWhenInstanceGetSerializableFormReceivesIt() {
 			final ComplexDataObject[] cdoArray = new ComplexDataObject[]{
 				new ComplexDataObject(new DataItemMap(Collections.emptyMap()))
 			};
 			final ComplexDataObjectConverter<ComplexDataObject[]> converter = new ComplexDataObjectConverter<>(cdoArray);
-			final Serializable result = converter.getSerializableForm();
-			assertSame(cdoArray, result);
+
+			final SerializationFailedException exception = assertThrows(
+				SerializationFailedException.class, converter::getSerializableForm
+			);
+			assertTrue(exception.getMessage().contains("one `ComplexDataObject`"), exception.getMessage());
 		}
 	}
 
