@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ComplexDataObject;
@@ -100,6 +101,41 @@ class ArrayAssociatedDataFunctionalTest {
 	@Nonnull
 	private static ComplexDataObject createComplexDataObject(@Nonnull String name) {
 		return new ComplexDataObject(new DataItemMap(Map.of("name", new DataItemValue(name))));
+	}
+
+	@Test
+	@DisplayName("should verify every associated data value when upserts share a key")
+	void shouldVerifyEveryAssociatedDataValueWhenUpsertsShareKey(Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(PRODUCT).updateVia(session);
+			final InvalidMutationException exception = assertThrows(
+				InvalidMutationException.class,
+				() -> session.upsertEntity(new EntityUpsertMutation(
+					PRODUCT, PK, EntityExistence.MAY_EXIST,
+					new UpsertAssociatedDataMutation(OBJECTS, createComplexDataObject("first")),
+					new UpsertAssociatedDataMutation(OBJECTS, new ComplexDataObject[]{createComplexDataObject("second")})
+				))
+			);
+			assertTrue(exception.getMessage().contains("one `ComplexDataObject`"), exception.getMessage());
+			assertTrue(session.getEntity(PRODUCT, PK, associatedDataContentAll()).isEmpty());
+		});
+	}
+
+	@Test
+	@DisplayName("should verify every attribute value when upserts share a key")
+	void shouldVerifyEveryAttributeValueWhenUpsertsShareKey(Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(PRODUCT).withAttribute(NUMBERS, String.class).updateVia(session);
+			final InvalidMutationException exception = assertThrows(
+				InvalidMutationException.class,
+				() -> session.upsertEntity(new EntityUpsertMutation(
+					PRODUCT, PK, EntityExistence.MAY_EXIST,
+					new UpsertAttributeMutation(NUMBERS, "first"),
+					new UpsertAttributeMutation(NUMBERS, 42)
+				))
+			);
+			assertTrue(exception.getMessage().contains("must respect this data type"), exception.getMessage());
+		});
 	}
 
 	@Test

@@ -302,7 +302,7 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		Assert.notNull(locale, "Locale must not be null!");
 		final EntityBuilder entityBuilder = theState.entityBuilder();
 		if (value == null) {
-			entityBuilder.removeAssociatedData(associatedDataName);
+			entityBuilder.removeAssociatedData(associatedDataName, locale);
 		} else {
 			entityBuilder.setAssociatedData(
 				associatedDataName, locale,
@@ -450,24 +450,22 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	}
 
 	/**
-	 * Provides implementation for removing localized associated data value returning the proxy object return type allowing
-	 * to create a builder pattern in the model objects.
+	 * Removes complex associated data and returns its deserialized collection, or null when absent.
 	 *
-	 * @param associatedDataName name of the associated data to be set
-	 * @return implementation of the method call
+	 * @param associatedDataName name of the associated data to remove
+	 * @param converter          deserializes the stored complex data object
+	 * @return implementation of the removal method
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeLocalizedAssociatedDataWithComplexDataObjectCollectionResult(
 		@Nonnull String associatedDataName,
-		@Nonnull Class<?> schemaType,
 		@Nonnull BiFunction<Serializable, ReflectionLookup, Serializable> converter
 	) {
-		Assert.isTrue(
-			schemaType.isArray(),
-			"Localized associatedData `" + associatedDataName + "` must be an array in order collection could be returned!"
-		);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final ComplexDataObject removedValue = (ComplexDataObject) removeLocalizedAssociatedDataAndReturnIt(associatedDataName, args, theState);
+			if (removedValue == null) {
+				return null;
+			}
 			final Serializable result = converter.apply(removedValue, theState.getReflectionLookup());
 			return result.getClass().isArray() ? Arrays.stream((Object[]) result).toList() : List.of(result);
 		};
@@ -591,11 +589,11 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	}
 
 	/**
-	 * Provides implementation for removing associated data value returning the proxy object return type allowing to create
-	 * a builder pattern in the model objects.
+	 * Removes complex associated data and returns its deserialized collection, or null when absent.
 	 *
-	 * @param associatedDataName name of the associated data to be set
-	 * @return implementation of the method call
+	 * @param associatedDataName name of the associated data to remove
+	 * @param converter          deserializes the stored complex data object
+	 * @return implementation of the removal method
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeAssociatedDataWithComplexDataObjectCollectionResult(
@@ -603,7 +601,11 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull BiFunction<Serializable, ReflectionLookup, Serializable> converter
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ComplexDataObject removedValue = (ComplexDataObject) removeLocalizedAssociatedDataAndReturnIt(associatedDataName, args, theState);
+			final ComplexDataObject removedValue =
+				(ComplexDataObject) removeAssociatedDataAndReturnIt(associatedDataName, theState);
+			if (removedValue == null) {
+				return null;
+			}
 			final Serializable result = converter.apply(removedValue, theState.getReflectionLookup());
 			return result.getClass().isArray() ? Arrays.stream((Object[]) result).toList() : List.of(result);
 		};
@@ -698,10 +700,15 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 										//noinspection rawtypes
 										final Class expectedType = GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method);
 										if (ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
+											final Class<?> arrayType = GenericsUtils.getGenericTypeFromCollection(
+												proxyState.getProxyClass(), method.getGenericReturnType()
+											).arrayType();
 											//noinspection unchecked
 											return removeLocalizedAssociatedDataWithComplexDataObjectCollectionResult(
-												associatedDataName, associatedDataSchema.getType(),
-												(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup)
+												associatedDataName,
+												(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(
+													value, (Class) arrayType, reflectionLookup
+												)
 											);
 										} else {
 											//noinspection unchecked
@@ -778,10 +785,15 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 										//noinspection rawtypes
 										final Class expectedType = GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method);
 										if (ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
+											final Class<?> arrayType = GenericsUtils.getGenericTypeFromCollection(
+												proxyState.getProxyClass(), method.getGenericReturnType()
+											).arrayType();
 											//noinspection unchecked
 											return removeAssociatedDataWithComplexDataObjectCollectionResult(
 												associatedDataName,
-												(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup)
+												(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(
+													value, (Class) arrayType, reflectionLookup
+												)
 											);
 										} else {
 											//noinspection unchecked

@@ -100,6 +100,34 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 	@Test
 	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
+	@DisplayName("Should upsert complex associated data with populated and empty JSON array roots")
+	void shouldUpsertComplexAssociatedDataWithArrayRoot(RestTester tester, List<SealedEntity> originalProductEntities) {
+		final int primaryKey = originalProductEntities.get(0).getPrimaryKey();
+		for (String value : List.of("[{\"name\":\"width\"}]", "[]")) {
+			tester.test(TEST_CATALOG)
+				.httpMethod(Request.METHOD_PUT)
+				.urlPathSuffix("/PRODUCT/" + primaryKey)
+				.requestBody("""
+					{
+						"entityExistence": "MUST_EXIST",
+						"mutations": [{"upsertAssociatedDataMutation": {
+							"name": "labels", "locale": "cs-CZ",
+							"valueType": "ComplexDataObject", "value": %s
+						}}],
+						"require": {"entityFetch": {
+							"associatedDataContent": ["labels"], "dataInLocales": ["cs-CZ"]
+						}}
+					}
+					""", value)
+				.executeAndThen()
+				.statusCode(200)
+				.body("associatedData.localized.'cs-CZ'.labels",
+					equalTo(value.equals("[]") ? List.of() : List.of(Map.of("name", "width"))));
+		}
+	}
+
+	@Test
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should insert single empty entity without PK")
 	void shouldInsertSingleEmptyEntityWithoutPK(RestTester tester) {
 		tester.test(TEST_CATALOG)

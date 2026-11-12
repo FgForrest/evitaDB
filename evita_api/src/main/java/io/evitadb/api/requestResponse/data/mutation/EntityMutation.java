@@ -24,6 +24,8 @@
 package io.evitadb.api.requestResponse.data.mutation;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
@@ -69,7 +71,8 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 	 * {@link SchemaEvolvingLocalMutation#verifyOrEvolveSchema(CatalogSchemaContract, EntitySchemaBuilder)}.
 	 *
 	 * Because there may be multiple mutations that target the same schema settings, concept of skipToken is introduced
-	 * that allows to perform only first verification / evolution of the entity schema and skip others very quickly.
+	 * that allows repeated schema checks to be skipped. Attribute and associated data upserts verify every value,
+	 * including mutations that share the same token.
 	 *
 	 * @param catalogSchema to check entity against
 	 */
@@ -84,10 +87,9 @@ public non-sealed interface EntityMutation extends CatalogBoundMutation {
 		for (LocalMutation<?, ?> localMutation : localMutations) {
 			if (localMutation instanceof final SchemaEvolvingLocalMutation<?, ?> evolvingMutation) {
 				final Serializable skipToken = evolvingMutation.getSkipToken(catalogSchema, entitySchemaBuilder);
-				// grouping token allows us to skip duplicate schema verifications / evolutions
-				// there may be several mutations that targets same entity "field"
-				// so there is no sense to verify them repeatedly
-				if (!skipList.contains(skipToken)) {
+				// Every upsert value must match the schema even when mutations target the same field.
+				if (evolvingMutation instanceof UpsertAssociatedDataMutation ||
+					evolvingMutation instanceof UpsertAttributeMutation || !skipList.contains(skipToken)) {
 					evolvingMutation.verifyOrEvolveSchema(catalogSchema, entitySchemaBuilder);
 					skipList.add(skipToken);
 				}

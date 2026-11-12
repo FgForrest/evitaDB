@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ComplexDataObject;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
@@ -54,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Verifies how the setters of an entity editor proxy hand an array or a collection over to associated data: a
@@ -93,6 +96,9 @@ class AssociatedDataCollectionProxyingFunctionalTest {
 				// every associated data is optional so that each test sets only those it verifies
 				session.defineEntitySchema(PRODUCT)
 					.withLocale(Locale.ENGLISH)
+					.withLocale(Locale.GERMAN)
+					.withAssociatedData("title", String.class, whichIs -> whichIs.localized().nullable())
+					.withAssociatedData("localizedDimensionArray", Dimension[].class, whichIs -> whichIs.localized().nullable())
 					.withAssociatedData(LOCALIZED_TAGS, String[].class, whichIs -> whichIs.localized().nullable())
 					.withAssociatedData(DIMENSIONS, Dimension[].class, AssociatedDataSchemaEditor::nullable)
 					.withAssociatedData(DIMENSION_ARRAY, Dimension[].class, AssociatedDataSchemaEditor::nullable)
@@ -148,6 +154,64 @@ class AssociatedDataCollectionProxyingFunctionalTest {
 		);
 	}
 
+	@Test
+	@DisplayName("should remove only the requested locale when associated data setters receive null")
+	void shouldRemoveOnlyRequestedLocaleWhenSettersReceiveNull(Evita evita) {
+		final Dimension[] dimensions = {new Dimension("width", 10)};
+		final SealedEntity product = storeThroughProxy(evita, editor -> {
+			editor.setDimensions(Arrays.asList(dimensions));
+			editor.setTitle("English", Locale.ENGLISH);
+			editor.setTitle("German", Locale.GERMAN);
+			editor.setLocalizedDimensionArray(dimensions, Locale.ENGLISH);
+			editor.setLocalizedDimensionArray(dimensions, Locale.GERMAN);
+			editor.setLocalizedDimensions(Arrays.asList(dimensions), Locale.ENGLISH);
+			editor.setLocalizedDimensions(Arrays.asList(dimensions), Locale.GERMAN);
+			editor.setTitle(null, Locale.ENGLISH);
+			editor.setLocalizedDimensionArray(null, Locale.ENGLISH);
+			editor.setLocalizedDimensions(null, Locale.ENGLISH);
+		});
+		assertAll(
+			() -> assertNull(product.getAssociatedData("title", Locale.ENGLISH)),
+			() -> assertNull(product.getAssociatedData("localizedDimensionArray", Locale.ENGLISH)),
+			() -> assertNull(product.getAssociatedData(LOCALIZED_DIMENSIONS, Locale.ENGLISH)),
+			() -> assertEquals("German", product.getAssociatedData("title", Locale.GERMAN)),
+			() -> assertEquals(product.<ComplexDataObject>getAssociatedData(DIMENSIONS),
+				product.getAssociatedData("localizedDimensionArray", Locale.GERMAN)),
+			() -> assertEquals(product.<ComplexDataObject>getAssociatedData(DIMENSIONS),
+				product.getAssociatedData(LOCALIZED_DIMENSIONS, Locale.GERMAN))
+		);
+	}
+
+	@Test
+	@DisplayName("should return the localized complex collection on removal and null when absent")
+	void shouldReturnLocalizedComplexCollectionOnRemoval(Evita evita) {
+		final List<Dimension> dimensions = List.of(new Dimension("width", 10), new Dimension("height", 20));
+		final SealedEntity product = storeThroughProxy(evita, editor -> {
+			editor.setDimensions(dimensions);
+			assertNull(editor.removeLocalizedDimensions(Locale.ENGLISH));
+			editor.setLocalizedDimensions(dimensions, Locale.ENGLISH);
+			editor.setLocalizedDimensions(dimensions, Locale.GERMAN);
+			assertEquals(dimensions, editor.removeLocalizedDimensions(Locale.ENGLISH));
+			assertNull(editor.removeLocalizedDimensions(Locale.ENGLISH));
+		});
+		assertNull(product.getAssociatedData(LOCALIZED_DIMENSIONS, Locale.ENGLISH));
+		assertEquals(product.<ComplexDataObject>getAssociatedData(DIMENSIONS),
+			product.getAssociatedData(LOCALIZED_DIMENSIONS, Locale.GERMAN));
+	}
+
+	@Test
+	@DisplayName("should return the complex collection on removal and null when absent")
+	void shouldReturnComplexCollectionOnRemoval(Evita evita) {
+		final List<Dimension> dimensions = List.of(new Dimension("width", 10), new Dimension("height", 20));
+		final SealedEntity product = storeThroughProxy(evita, editor -> {
+			assertNull(editor.removeDimensions());
+			editor.setDimensions(dimensions);
+			assertEquals(dimensions, editor.removeDimensions());
+			assertNull(editor.removeDimensions());
+		});
+		assertNull(product.getAssociatedData(DIMENSIONS));
+	}
+
 	/**
 	 * Product entity mapped by the editor proxy.
 	 */
@@ -159,6 +223,34 @@ class AssociatedDataCollectionProxyingFunctionalTest {
 	 * Editor of the product setting array associated data from arrays and collections.
 	 */
 	public interface ProductWithArraysEditor extends ProductWithArrays, InstanceEditor<ProductWithArrays> {
+
+		/**
+		 * Sets or removes the title in the requested locale.
+		 */
+		@AssociatedDataRef("title")
+		void setTitle(@Nullable String title, @Nonnull Locale locale);
+
+		/**
+		 * Sets or removes the dimension array in the requested locale.
+		 */
+		@AssociatedDataRef("localizedDimensionArray")
+		void setLocalizedDimensionArray(@Nullable Dimension[] dimensions, @Nonnull Locale locale);
+
+		/**
+		 * Removes and returns the dimensions, or null when absent.
+		 */
+		@AssociatedDataRef(DIMENSIONS)
+		@RemoveWhenExists
+		@Nullable
+		List<Dimension> removeDimensions();
+
+		/**
+		 * Removes and returns the dimensions in the requested locale, or null when absent.
+		 */
+		@AssociatedDataRef(LOCALIZED_DIMENSIONS)
+		@RemoveWhenExists
+		@Nullable
+		List<Dimension> removeLocalizedDimensions(@Nonnull Locale locale);
 
 		/**
 		 * Sets the localized array of tags from a collection.
@@ -200,7 +292,7 @@ class AssociatedDataCollectionProxyingFunctionalTest {
 		 */
 		@AssociatedDataRef(LOCALIZED_DIMENSIONS)
 		@Nonnull
-		ProductWithArraysEditor setLocalizedDimensions(@Nonnull List<Dimension> dimensions, @Nonnull Locale locale);
+		ProductWithArraysEditor setLocalizedDimensions(@Nullable List<Dimension> dimensions, @Nonnull Locale locale);
 	}
 
 	/**
