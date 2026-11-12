@@ -178,12 +178,8 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 		@Nonnull AttributeSchemaContract attributeSchema
 	) {
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		return new MainQueryMatcher(
-			createMainQueryMatcher(
-				constraint, filterByVisitor, processingScope, processingScope.getScopes(), attributeSchema
-			),
-			AttributeBitmapFilter.captureMatcherSchema(attributeSchema),
-			readsQueryMoment(constraint, attributeSchema) ? filterByVisitor.getNow() : null
+		return createMainQueryMatcher(
+			constraint, filterByVisitor, processingScope, processingScope.getScopes(), attributeSchema
 		);
 	}
 
@@ -227,6 +223,7 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	 *
 	 * @param constraint      the constraint
 	 * @param filterByVisitor the visitor translating the query
+	 * @param matcherSchema   the schema used to construct the matcher
 	 * @param matcher         the matcher of the constraint over the attribute
 	 * @param traits          the traits the attribute schema must have
 	 * @return the filter
@@ -235,12 +232,18 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	default AttributeBitmapFilter createAlternativeBitmapFilter(
 		@Nonnull T constraint,
 		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull AttributeSchemaContract matcherSchema,
 		@Nonnull AttributeValueMatcher matcher,
 		@Nonnull AttributeTrait... traits
 	) {
+		final MainQueryMatcher declaredMatcher = new MainQueryMatcher(
+			matcher, AttributeBitmapFilter.captureMatcherSchema(
+				matcherSchema, filterByVisitor.getProcessingScope().getScopes()
+			),
+			readsQueryMoment(constraint, matcherSchema) ? filterByVisitor.getNow() : null
+		);
 		return createBitmapFilter(
-			constraint, filterByVisitor, attributeSchema -> matcher, false,
-			matcher instanceof MainQueryMatcher declaredMatcher ? declaredMatcher : null, traits
+			constraint, filterByVisitor, attributeSchema -> declaredMatcher, false, declaredMatcher, traits
 		);
 	}
 
@@ -320,7 +323,7 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 			matcherPerEntityType || declaredMatcher != null ?
 				AttributeBitmapFilter.captureExecutionContext(
 					filterByVisitor, constraint.getAttributeName(),
-					declaredMatcher == null ? List.of() : declaredMatcher.schemaInputs()
+					declaredMatcher == null ? List.of() : declaredMatcher.schemaInputs(), matcherPerEntityType, traits
 				) : null,
 			traits
 		);

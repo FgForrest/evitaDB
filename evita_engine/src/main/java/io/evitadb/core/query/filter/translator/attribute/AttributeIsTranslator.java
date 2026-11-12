@@ -428,7 +428,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 * @return an AttributeBitmapFilter instance configured to check for attribute absence
 	 */
 	@Nonnull
-	private static AttributeBitmapFilter createAlternativeNullBitmapFilter(
+	static AttributeBitmapFilter createAlternativeNullBitmapFilter(
 		@Nonnull AttributeIs constraint,
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
@@ -441,7 +441,9 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> optionalStream -> optionalStream.noneMatch(Optional::isPresent),
 			filterByVisitor.getLocale(), true, null,
-			AttributeBitmapFilter.captureExecutionContext(filterByVisitor, attributeName, java.util.List.of()),
+			AttributeBitmapFilter.captureExecutionContext(
+				filterByVisitor, attributeName, java.util.List.of(), false, AttributeTrait.FILTERABLE
+			),
 			AttributeTrait.FILTERABLE
 		);
 	}
@@ -454,7 +456,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 * @return an AttributeBitmapFilter instance configured to check for non-null attribute values
 	 */
 	@Nonnull
-	private static AttributeBitmapFilter createAlternativeNotNullBitmapFilter(
+	static AttributeBitmapFilter createAlternativeNotNullBitmapFilter(
 		@Nonnull AttributeIs constraint,
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
@@ -467,7 +469,9 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> optionalStream -> optionalStream.anyMatch(Optional::isPresent),
 			filterByVisitor.getLocale(), true, null,
-			AttributeBitmapFilter.captureExecutionContext(filterByVisitor, attributeName, java.util.List.of()),
+			AttributeBitmapFilter.captureExecutionContext(
+				filterByVisitor, attributeName, java.util.List.of(), false, AttributeTrait.FILTERABLE
+			),
 			AttributeTrait.FILTERABLE
 		);
 	}

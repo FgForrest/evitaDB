@@ -148,7 +148,7 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
 					filteringFormula,
-					createAlternativeBitmapFilter(attributeInRange, filterByVisitor, matcher)
+					createAlternativeBitmapFilter(attributeInRange, filterByVisitor, attributeSchema, matcher)
 				);
 			} else {
 				return filteringFormula;

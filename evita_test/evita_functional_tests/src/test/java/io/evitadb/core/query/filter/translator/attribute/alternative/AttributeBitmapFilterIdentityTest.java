@@ -28,6 +28,12 @@ import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.AttributeInRange;
 import io.evitadb.api.query.filter.AttributeIs;
 import io.evitadb.api.query.filter.AttributeLessThan;
+import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.data.structure.predicate.*;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
@@ -36,20 +42,23 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
+import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.query.AttributeSchemaAccessor;
-import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.identity.FormulaKey;
-import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.attribute.AttributeInRangeTranslator;
-import io.evitadb.core.query.filter.translator.attribute.AttributeIsTranslator;
+import io.evitadb.core.query.filter.translator.attribute.AttributeIsTranslatorTestFixture;
 import io.evitadb.core.query.filter.translator.attribute.AttributeLessThanTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
@@ -65,7 +74,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import java.io.Serializable;
-import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Collection;
@@ -76,6 +84,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilterIdentityFixture.*;
 import static io.evitadb.test.TestTags.CACHE;
@@ -99,6 +108,22 @@ class AttributeBitmapFilterIdentityTest {
 	@DisplayName("Verifies controlled and opaque construction modes")
 	void shouldVerifyIdentityContract() {
 		IdentityContractVerifier.verify(AttributeBitmapFilter.class, new AttributeBitmapFilterIdentityFixture());
+	}
+
+	/** Plain matcher construction must retain only the executable comparison. */
+	@Test
+	@DisplayName("Builds the plain matcher without capturing alternative identity metadata")
+	void shouldConstructPlainMatcherWithoutIdentityMetadata() {
+		final AttributeLessThanTranslator translator = new AttributeLessThanTranslator();
+		final AttributeSchemaContract schema = schema(BigDecimal.class, 2);
+		final TestVisitor visitor = new TestVisitor(schema, OffsetDateTime.parse("2026-01-01T00:00:00Z"));
+		final AttributeValueMatcher matcher = translator.createMainQueryMatcher(
+			attributeLessThan("a", new BigDecimal("1.14")), visitor, schema
+		);
+		assertInstanceOf(AttributeValueMatcher.Comparing.class, matcher);
+		assertTrue(matcher.matches(new BigDecimal("1.12")));
+		assertThrows(io.evitadb.exception.EvitaInvalidUsageException.class, () ->
+			translator.createMainQueryMatcher(attributeLessThan("a", "not a decimal"), visitor, schema));
 	}
 
 	/** Equal EvitaQL literals must not erase their runtime argument types. */
@@ -199,8 +224,8 @@ class AttributeBitmapFilterIdentityTest {
 		assertTrue(firstMatcher.matches(validity));
 		assertFalse(secondMatcher.matches(validity));
 		assertNotEquals(
-			key(translator.createAlternativeBitmapFilter(constraint, firstVisitor, firstMatcher)),
-			key(translator.createAlternativeBitmapFilter(constraint, secondVisitor, secondMatcher))
+			key(translator.createAlternativeBitmapFilter(constraint, firstVisitor, schema, firstMatcher)),
+			key(translator.createAlternativeBitmapFilter(constraint, secondVisitor, schema, secondMatcher))
 		);
 		assertNotEquals(
 			key(translator.createEntityFilteringBitmapFilter(constraint, firstVisitor)),
@@ -245,36 +270,83 @@ class AttributeBitmapFilterIdentityTest {
 		assertFalse(first.matches(new BigDecimal("1.12")));
 		assertTrue(second.matches(new BigDecimal("1.12")));
 		assertNotEquals(
-			key(translator.createAlternativeBitmapFilter(constraint, firstVisitor, first)),
-			key(translator.createAlternativeBitmapFilter(constraint, secondVisitor, second))
+			key(translator.createAlternativeBitmapFilter(constraint, firstVisitor, coarse, first)),
+			key(translator.createAlternativeBitmapFilter(constraint, secondVisitor, precise, second))
 		);
 	}
 
-	/** Execution scopes and entity types select the schema and attribute accessors. */
+	/** Sortability is unrelated to comparison construction and its default validation. */
 	@Test
-	@DisplayName("Separates alternatives in different execution scopes and entity types")
-	void shouldCaptureExecutionContext() {
+	@DisplayName("Ignores sortability that a comparison alternative never reads")
+	void shouldIgnoreUnrelatedSortability() {
+		final AttributeSchemaContract sortable = AttributeSchema._internalBuild(
+			"a", null, null, (ScopedAttributeUniquenessType[]) null, null, null,
+			new Scope[]{Scope.LIVE}, false, false, false, Integer.class, null, 0,
+			ConflictResolutionOverride.INHERITED
+		);
+		final OffsetDateTime now = OffsetDateTime.parse("2026-01-01T00:00:00Z");
+		final GlobalAttributeSchemaContract sortableOverride = GlobalAttributeSchema._internalBuild(
+			"a", null, null, null, null, new Scope[]{Scope.LIVE}, false, false, false,
+			Integer.class, null, ConflictResolutionOverride.INHERITED
+		);
+		final TestVisitor plainCatalog = new TestVisitor(schema(Integer.class), now, null, Set.of(Scope.LIVE),
+			catalogSchema(Map.of("a", globalSchema(Integer.class))));
+		final TestVisitor sortableCatalog = new TestVisitor(schema(Integer.class), now, null, Set.of(Scope.LIVE),
+			catalogSchema(Map.of("a", sortableOverride)));
+		final AttributeLessThanTranslator translator = new AttributeLessThanTranslator();
+		final AttributeLessThan constraint = attributeLessThan("a", 2);
+		final FormulaKey original = comparisonKey(schema(Integer.class));
+		assertAll(
+			() -> assertEquals(original, comparisonKey(sortable)),
+			() -> assertEquals(original, comparisonKey(schema(Integer.class, 2))),
+			() -> assertEquals(original, comparisonKey(schema(Integer[].class))),
+			() -> assertEquals(
+				key(translator.createEntityFilteringBitmapFilter(constraint, plainCatalog)),
+				key(translator.createEntityFilteringBitmapFilter(constraint, sortableCatalog))),
+			() -> assertNotEquals(
+				key(translator.createEntityFilteringBitmapFilter(constraint, plainCatalog, AttributeTrait.SORTABLE)),
+				key(translator.createEntityFilteringBitmapFilter(constraint, sortableCatalog, AttributeTrait.SORTABLE))),
+			() -> assertEquals(original, comparisonKey(AttributeSchema._internalBuild(
+				"a", null, null, (ScopedAttributeUniquenessType[]) null, new Scope[]{Scope.LIVE}, null, null,
+				false, false, false, Integer.class, null, 0, ConflictResolutionOverride.INHERITED)))
+		);
+	}
+
+	/** Builds a default comparison alternative against the supplied resolved schema. */
+	@Nonnull
+	private static FormulaKey comparisonKey(@Nonnull AttributeSchemaContract schema) {
+		final AttributeLessThanTranslator translator = new AttributeLessThanTranslator();
+		final AttributeLessThan constraint = attributeLessThan("a", 2);
+		final TestVisitor visitor = new TestVisitor(schema, OffsetDateTime.parse("2026-01-01T00:00:00Z"));
+		return key(translator.createAlternativeBitmapFilter(
+			constraint, visitor, schema, translator.createMainQueryMatcher(constraint, visitor, schema)));
+	}
+
+	/** Fixed range matching reads neither the collection name nor the translation scopes. */
+	@Test
+	@DisplayName("Ignores collection names and scopes unused by a fixed range matcher")
+	void shouldIgnoreUnusedExecutionContext() {
 		final AttributeInRangeTranslator translator = new AttributeInRangeTranslator();
 		final AttributeInRange constraint = attributeInRange("a", 1);
 		final AttributeSchemaContract schema = schema(io.evitadb.dataType.IntegerNumberRange.class);
 		final OffsetDateTime now = OffsetDateTime.parse("2026-01-01T00:00:00Z");
 		final TestVisitor baseline = new TestVisitor(schema, now);
 		final AttributeValueMatcher matcher = translator.createMainQueryMatcher(constraint, baseline, schema);
-		final FormulaKey original = key(translator.createAlternativeBitmapFilter(constraint, baseline, matcher));
+		final FormulaKey original = key(translator.createAlternativeBitmapFilter(constraint, baseline, schema, matcher));
 		assertAll(
-			() -> assertNotEquals(original, key(translator.createAlternativeBitmapFilter(
-				constraint, new TestVisitor(schema, now, "product", Set.of(Scope.ARCHIVED)), matcher
+			() -> assertEquals(original, key(translator.createAlternativeBitmapFilter(
+				constraint, new TestVisitor(schema, now, "product", Set.of(Scope.ARCHIVED)), schema, matcher
 			))),
-			() -> assertNotEquals(original, key(translator.createAlternativeBitmapFilter(
-				constraint, new TestVisitor(schema, now, "category", Set.of(Scope.LIVE)), matcher
+			() -> assertEquals(original, key(translator.createAlternativeBitmapFilter(
+				constraint, new TestVisitor(schema, now, "category", Set.of(Scope.LIVE)), schema, matcher
 			)))
 		);
 	}
 
-	/** Temporary processing scopes can be identical while the scopes restored for deferred lookup differ. */
+	/** A fixed matcher with no required traits does not validate against restored request scopes. */
 	@Test
-	@DisplayName("Captures request scopes beneath the temporary processing scope")
-	void shouldCaptureRestoredRequestScopes() {
+	@DisplayName("Ignores restored request scopes when no traits require validation")
+	void shouldIgnoreRequestScopesWithoutRequiredTraits() {
 		final AttributeInRangeTranslator translator = new AttributeInRangeTranslator();
 		final AttributeInRange constraint = attributeInRange("a", 1);
 		final AttributeSchemaContract schema = schema(io.evitadb.dataType.IntegerNumberRange.class);
@@ -283,11 +355,11 @@ class AttributeBitmapFilterIdentityTest {
 		final TestVisitor both = new TestVisitor(schema, now, "product", Set.of(Scope.LIVE, Scope.ARCHIVED));
 		final FormulaKey first = live.getProcessingScope().doWithScope(Set.of(Scope.LIVE), () -> key(
 			translator.createAlternativeBitmapFilter(
-				constraint, live, translator.createMainQueryMatcher(constraint, live, schema))));
+				constraint, live, schema, translator.createMainQueryMatcher(constraint, live, schema))));
 		final FormulaKey second = both.getProcessingScope().doWithScope(Set.of(Scope.LIVE), () -> key(
 			translator.createAlternativeBitmapFilter(
-				constraint, both, translator.createMainQueryMatcher(constraint, both, schema))));
-		assertNotEquals(first, second);
+				constraint, both, schema, translator.createMainQueryMatcher(constraint, both, schema))));
+		assertEquals(first, second);
 	}
 
 	/** Both presence operators construct their alternatives independently of the value-matcher interface. */
@@ -306,24 +378,20 @@ class AttributeBitmapFilterIdentityTest {
 		);
 	}
 
-	/** Reads the actual alternative installed by translation; reflection is confined to this identity test. */
+	/** Calls the same presence factories as translation through a fixture in the translator package. */
 	@Nonnull
-	private static FormulaKey presenceKey(@Nonnull AttributeIs constraint, @Nonnull TestVisitor visitor)
-		throws ReflectiveOperationException {
-		final Formula formula = new AttributeIsTranslator().translate(constraint, visitor);
-		final Field field = EntityFilteringFormula.class.getDeclaredField("alternative");
-		field.setAccessible(true);
-		return key(assertInstanceOf(AttributeBitmapFilter.class, field.get(formula)));
+	private static FormulaKey presenceKey(@Nonnull AttributeIs constraint, @Nonnull TestVisitor visitor) {
+		return key(AttributeIsTranslatorTestFixture.createAlternative(constraint, visitor));
 	}
 
-	/** Schema traits are implicit conversion and value-access inputs rather than constraint arguments. */
+	/** Plain type and localization are construction inputs; the entity value supplies its array shape. */
 	@Test
-	@DisplayName("Separates attribute type, localization and array schema traits")
+	@DisplayName("Captures plain type and localization without redundant array schema traits")
 	void shouldCaptureSchemaTraits() {
 		final FormulaKey original = betweenKey(schema(Integer.class));
 		assertAll(
 			() -> assertNotEquals(original, betweenKey(schema(Long.class))),
-			() -> assertNotEquals(original, betweenKey(schema(Integer[].class))),
+			() -> assertEquals(original, betweenKey(schema(Integer[].class))),
 			() -> assertNotEquals(original, betweenKey(schema(Integer.class, 0, true)))
 		);
 	}
@@ -336,7 +404,7 @@ class AttributeBitmapFilterIdentityTest {
 		final io.evitadb.api.query.filter.AttributeBetween constraint = attributeBetween("a", 1, 2);
 		final TestVisitor visitor = new TestVisitor(schema, OffsetDateTime.parse("2026-01-01T00:00:00Z"));
 		return key(translator.createAlternativeBitmapFilter(
-			constraint, visitor, translator.createMainQueryMatcher(constraint, visitor, schema)
+			constraint, visitor, schema, translator.createMainQueryMatcher(constraint, visitor, schema)
 		));
 	}
 
@@ -349,37 +417,75 @@ class AttributeBitmapFilterIdentityTest {
 		final OffsetDateTime now = OffsetDateTime.parse("2026-01-01T00:00:00Z");
 		final SealedCatalogSchema integerCatalog = catalogSchema(Map.of("a", globalSchema(
 			io.evitadb.dataType.IntegerNumberRange.class)));
-		final SealedCatalogSchema longCatalog = catalogSchema(Map.of("a", globalSchema(
-			io.evitadb.dataType.LongNumberRange.class)));
+		final SealedCatalogSchema temporalCatalog = catalogSchema(Map.of("a", globalSchema(DateTimeRange.class)));
 		final AttributeSchemaContract localSchema = schema(DateTimeRange.class);
-		final TestVisitor firstVisitor = new TestVisitor(localSchema, now) {
-			/** Supplies the catalog override used by deferred schema resolution. */
-			@Nonnull
-			@Override
-			public SealedCatalogSchema getCatalogSchema() {
-				return integerCatalog;
-			}
-		};
-		final TestVisitor secondVisitor = new TestVisitor(localSchema, now.plusDays(2)) {
-			/** Supplies the same numeric override at a different query moment. */
-			@Nonnull
-			@Override
-			public SealedCatalogSchema getCatalogSchema() {
-				return integerCatalog;
-			}
-		};
-		final TestVisitor differentSchema = new TestVisitor(localSchema, now) {
-			/** Supplies a different numeric conversion schema. */
-			@Nonnull
-			@Override
-			public SealedCatalogSchema getCatalogSchema() {
-				return longCatalog;
-			}
-		};
+		final TestVisitor firstVisitor = new TestVisitor(
+			localSchema, now, "product", Set.of(Scope.LIVE), integerCatalog);
+		final TestVisitor secondVisitor = new TestVisitor(
+			localSchema, now.plusDays(2), "product", Set.of(Scope.LIVE), integerCatalog);
+		final TestVisitor differentSchema = new TestVisitor(
+			localSchema, now, "product", Set.of(Scope.LIVE), temporalCatalog);
+		final TestVisitor differentMoment = new TestVisitor(
+			localSchema, now.plusDays(2), "product", Set.of(Scope.LIVE), temporalCatalog);
 		final AttributeBitmapFilter first = translator.createEntityFilteringBitmapFilter(constraint, firstVisitor);
 		assertNull(((AttributeBitmapFilter.Identity) first.identity()).moment());
-		assertEquals(key(first), key(translator.createEntityFilteringBitmapFilter(constraint, secondVisitor)));
-		assertNotEquals(key(first), key(translator.createEntityFilteringBitmapFilter(constraint, differentSchema)));
+		final AttributeBitmapFilter second = translator.createEntityFilteringBitmapFilter(constraint, secondVisitor);
+		final AttributeBitmapFilter temporal = translator.createEntityFilteringBitmapFilter(constraint, differentSchema);
+		final AttributeBitmapFilter expired = translator.createEntityFilteringBitmapFilter(constraint, differentMoment);
+		assertEquals(key(first), key(second));
+		assertNotEquals(key(first), key(temporal));
+		assertNotEquals(key(temporal), key(expired));
+		final EntitySchema entitySchema = EntitySchema._internalBuildWithAttributes(
+			EntitySchema._internalBuild("product"), 1, Map.of("a", EntityAttributeSchema._internalBuild(
+				"a", DateTimeRange.class, false, ConflictResolutionOverride.INHERITED)));
+		final InitialEntityBuilder builder = new InitialEntityBuilder(entitySchema, 1);
+		builder.setAttribute("a", DateTimeRange.between(now.minusDays(1), now.plusDays(1)));
+		final Entity entity = builder.toInstance();
+		assertNull(((AttributeBitmapFilter.Identity) second.identity()).moment());
+		assertEquals(now, ((AttributeBitmapFilter.Identity) temporal.identity()).moment());
+		assertEquals(now.plusDays(2), ((AttributeBitmapFilter.Identity) expired.identity()).moment());
+		assertArrayEquals(new int[0], execute(first, entity, now));
+		assertArrayEquals(new int[0], execute(second, entity, now));
+		assertArrayEquals(new int[]{1}, execute(temporal, entity, now));
+		assertArrayEquals(new int[0], execute(expired, entity, now));
+	}
+
+	/** Executes deferred schema resolution and value matching over the same prefetched entity body. */
+	@Nonnull
+	private static int[] execute(
+		@Nonnull AttributeBitmapFilter filter, @Nonnull Entity entity, @Nonnull OffsetDateTime now
+	) {
+		final ServerEntityDecorator decorated = ServerEntityDecorator.decorate(
+			entity, entity.getSchema(), null,
+			LocaleSerializablePredicate.DEFAULT_INSTANCE, HierarchySerializablePredicate.DEFAULT_INSTANCE,
+			AttributeValueSerializablePredicate.DEFAULT_INSTANCE, AssociatedDataValueSerializablePredicate.DEFAULT_INSTANCE,
+			ReferenceContractSerializablePredicate.DEFAULT_INSTANCE, PriceContractSerializablePredicate.DEFAULT_INSTANCE,
+			now, null, ServerEntityDecorator.UNKNOWN_CATALOG_VERSION, 0, 0
+		);
+		// This request-only context never accesses a catalog, a session or an index.
+		final QueryPlanningContext planningContext = new QueryPlanningContext(
+			null, null, null,
+			new EvitaRequest(query(collection("product")), now, EntityReference.class, null),
+			Map.of(), Map.of(), NoCacheSupervisor.INSTANCE
+		);
+		try (final QueryExecutionContext context = new QueryExecutionContext(
+			planningContext, true, null, (type, value) -> value
+		) {
+			/** Supplies the real prefetched entity without accessing a catalog. */
+			@Nonnull
+			@Override
+			public List<ServerEntityDecorator> getPrefetchedEntities() {
+				return List.of(decorated);
+			}
+
+			/** Uses primary keys as the bitmap identifiers of this single-collection fixture. */
+			@Override
+			public int translateEntity(@Nonnull EntityContract value) {
+				return value.getPrimaryKeyOrThrowException();
+			}
+		}) {
+			return filter.filter(context).getArray();
+		}
 	}
 
 	/** The resolved schema decides whether the temporal fallback can be used. */
@@ -427,14 +533,14 @@ class AttributeBitmapFilterIdentityTest {
 		final AttributeValueMatcher second = translator.createMainQueryMatcher(constraint, swedish, schema);
 		assertTrue(first.matches("ä"));
 		assertFalse(second.matches("ä"));
-		assertNotEquals(key(translator.createAlternativeBitmapFilter(constraint, english, first)),
-			key(translator.createAlternativeBitmapFilter(constraint, swedish, second)));
+		assertNotEquals(key(translator.createAlternativeBitmapFilter(constraint, english, schema, first)),
+			key(translator.createAlternativeBitmapFilter(constraint, swedish, schema, second)));
 	}
 
-	/** A raw matcher cannot claim value identity without the schema inputs of its construction. */
+	/** The fixed alternative explicitly declares the schema that constructed its matcher. */
 	@Test
-	@DisplayName("Keeps alternatives over undeclared fixed matchers opaque")
-	void shouldKeepUndeclaredFixedMatcherOpaque() {
+	@DisplayName("Captures the explicitly supplied fixed matcher schema")
+	void shouldCaptureExplicitFixedMatcherSchema() {
 		final AttributeInRangeTranslator translator = new AttributeInRangeTranslator();
 		final AttributeInRange constraint = attributeInRange("a", 1);
 		final AttributeSchemaContract schema = schema(io.evitadb.dataType.IntegerNumberRange.class);
@@ -442,9 +548,10 @@ class AttributeBitmapFilterIdentityTest {
 		final AttributeValueMatcher matcher = translator.createMatcher(
 			constraint, schema, new io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey(
 				null, "a", null), visitor::getNow);
-		final AttributeBitmapFilter filter = translator.createAlternativeBitmapFilter(constraint, visitor, matcher);
-		assertTrue(key(filter).isOpaque());
-		assertNotEquals(key(filter), key(translator.createAlternativeBitmapFilter(constraint, visitor, matcher)));
+		final AttributeBitmapFilter filter = translator.createAlternativeBitmapFilter(constraint, visitor, schema, matcher);
+		assertFalse(key(filter).isOpaque());
+		assertEquals(key(filter), key(translator.createAlternativeBitmapFilter(
+			constraint, visitor, schema, translator.createMainQueryMatcher(constraint, visitor, schema))));
 	}
 
 	/** Creates a global range schema without requiring an index. */
@@ -512,6 +619,8 @@ class AttributeBitmapFilterIdentityTest {
 		private final OffsetDateTime now;
 		/** Request scopes remain fixed when a temporary processing scope is active. */
 		private final Set<Scope> requestedScopes;
+		/** Catalog shared by identity capture and the processing scope's schema accessor. */
+		private final SealedCatalogSchema catalogSchema;
 
 		/** Creates the processing scope over the supplied attribute schema. */
 		private TestVisitor(@Nonnull AttributeSchemaContract schema, @Nonnull OffsetDateTime now) {
@@ -523,11 +632,19 @@ class AttributeBitmapFilterIdentityTest {
 			@Nonnull AttributeSchemaContract schema, @Nonnull OffsetDateTime now,
 			@Nullable String entityType, @Nonnull Set<Scope> scopes
 		) {
+			this(schema, now, entityType, scopes, EMPTY_CATALOG);
+		}
+
+		/** Gives identity capture and actual deferred lookup the same catalog overrides. */
+		private TestVisitor(
+			@Nonnull AttributeSchemaContract schema, @Nonnull OffsetDateTime now,
+			@Nullable String entityType, @Nonnull Set<Scope> scopes, @Nonnull SealedCatalogSchema catalogSchema
+		) {
 			super(
 				new ProcessingScope<>(
 					GlobalEntityIndex.class, List.of(), scopes, attributeContentAll(),
 					entityType == null ? null : EntitySchema._internalBuild(entityType), null,
-					new AttributeSchemaAccessor(EMPTY_CATALOG, null) {
+					new AttributeSchemaAccessor(catalogSchema, null) {
 						/** Resolves the schema without accessing a catalog or an index. */
 						@Nonnull
 						@Override
@@ -542,6 +659,7 @@ class AttributeBitmapFilterIdentityTest {
 			);
 			this.now = now;
 			this.requestedScopes = Set.copyOf(scopes);
+			this.catalogSchema = catalogSchema;
 		}
 
 		/** Returns the explicit query moment. */
@@ -564,11 +682,11 @@ class AttributeBitmapFilterIdentityTest {
 			return getProcessingScope().getEntitySchema() != null;
 		}
 
-		/** Supplies a real catalog with no global attribute overrides. */
+		/** Supplies the same catalog that the processing scope uses for deferred schema lookup. */
 		@Nonnull
 		@Override
 		public SealedCatalogSchema getCatalogSchema() {
-			return EMPTY_CATALOG;
+			return this.catalogSchema;
 		}
 
 		/** Uses the non-localized attribute accessor. */

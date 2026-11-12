@@ -532,7 +532,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
 					filteringFormula,
-					translator.createAlternativeBitmapFilter(attributeConstraint, filterByVisitor, matcher)
+					translator.createAlternativeBitmapFilter(attributeConstraint, filterByVisitor, attributeDefinition, matcher)
 				);
 			} else {
 				return filteringFormula;

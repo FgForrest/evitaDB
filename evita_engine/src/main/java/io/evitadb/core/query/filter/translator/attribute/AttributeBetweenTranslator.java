@@ -267,7 +267,9 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
 					filteringFormula,
-					createAlternativeBitmapFilter(filterConstraint, filterByVisitor, matcher, AttributeTrait.FILTERABLE)
+					createAlternativeBitmapFilter(
+						filterConstraint, filterByVisitor, attributeSchema, matcher, AttributeTrait.FILTERABLE
+					)
 				);
 			} else {
 				return filteringFormula;

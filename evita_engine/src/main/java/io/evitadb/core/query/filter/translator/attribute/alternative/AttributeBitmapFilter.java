@@ -70,6 +70,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -299,26 +300,34 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	}
 
 	/**
-	 * Captures every schema trait read by matcher construction and schema validation. The declared and plain types
-	 * retain array semantics separately from the decimal encoding and localization policy.
+	 * Captures the plain type and localization read when a main-query matcher is constructed. Only decimal
+	 * normalization reads precision, and only a scalar decimal probe is checked against the filter-index domain.
+	 * Array handling instead follows each examined value and does not read the declared array shape.
 	 *
 	 * @param schema resolved attribute schema
-	 * @return immutable scalar schema inputs
+	 * @param requestedScopes scopes used by decimal probe validation
+	 * @return immutable scalar matcher inputs
 	 */
 	@Nonnull
-	public static List<String> captureMatcherSchema(@Nonnull AttributeSchemaContract schema) {
-		final List<String> result = new ArrayList<>(5 + 5 * Scope.values().length);
-		result.add(schema.getType().getName());
-		result.add(schema.getPlainType().getName());
-		result.add(Integer.toString(schema.getIndexedDecimalPlaces()));
+	public static List<String> captureMatcherSchema(
+		@Nonnull AttributeSchemaContract schema, @Nonnull Set<Scope> requestedScopes
+	) {
+		final Class<? extends Serializable> plainType = schema.getPlainType();
+		final List<String> result = new ArrayList<>(4);
+		result.add(plainType.getName());
 		result.add(Boolean.toString(schema.isLocalized()));
-		result.add(Boolean.toString(schema.getType().isArray()));
-		for (final Scope scope : Scope.values()) {
-			result.add(Boolean.toString(schema.hasFilterIndexInScope(scope)));
-			result.add(Boolean.toString(schema.isFilterableInScope(scope)));
-			result.add(Boolean.toString(schema.isUniqueInScope(scope)));
-			result.add(Boolean.toString(schema.isUniqueWithinLocaleInScope(scope)));
-			result.add(Boolean.toString(schema.isSortableInScope(scope)));
+		if (BigDecimal.class.isAssignableFrom(plainType) || BigDecimalNumberRange.class.isAssignableFrom(plainType)) {
+			result.add(Integer.toString(schema.getIndexedDecimalPlaces()));
+		}
+		if (BigDecimal.class.equals(plainType)) {
+			boolean hasFilterIndex = false;
+			for (final Scope scope : requestedScopes) {
+				if (schema.hasFilterIndexInScope(scope)) {
+					hasFilterIndex = true;
+					break;
+				}
+			}
+			result.add(Boolean.toString(hasFilterIndex));
 		}
 		return List.copyOf(result);
 	}
@@ -345,44 +354,72 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	}
 
 	/**
-	 * Captures the query-owned choices of the schema and value accessors. Scopes are recorded by membership, including
-	 * the request scopes to which a temporary processing scope returns. A deferred entity-local schema is an input
-	 * of the examined entity; catalog and reference overrides instead belong to the query and are recorded here.
+	 * Captures the query-owned inputs read by the schema and value accessors. A fixed matcher supplies its own
+	 * detached construction inputs; deferred construction also depends on any catalog or reference override.
+	 * Trait validation reads the request scopes restored after translation and only the flags of those traits.
 	 *
 	 * @param visitor query whose processing scope owns the accessors
 	 * @param attributeName attribute being matched
-	 * @param matcherSchemaInputs schema inputs captured with a fixed matcher, empty for a deferred matcher
+	 * @param matcherSchemaInputs schema inputs captured with a fixed matcher, empty otherwise
+	 * @param deferredMatcher whether the alternative constructs a matcher from each resolved schema
+	 * @param requiredTraits traits checked by schema validation
 	 * @return immutable execution inputs without retaining the visitor, scopes or schemas
 	 */
 	@Nonnull
 	public static List<String> captureExecutionContext(
 		@Nonnull FilterByVisitor visitor,
 		@Nonnull String attributeName,
-		@Nonnull List<String> matcherSchemaInputs
+		@Nonnull List<String> matcherSchemaInputs,
+		boolean deferredMatcher,
+		@Nonnull AttributeTrait... requiredTraits
 	) {
 		final ProcessingScope<?> processingScope = visitor.getProcessingScope();
-		final EntitySchemaContract entitySchema = processingScope.getEntitySchema();
 		final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema();
 		final ReferenceSchemaContract accessorReferenceSchema =
 			processingScope.getAttributeSchemaAccessor().getReferenceSchema();
-		final List<String> result = new ArrayList<>(32 + matcherSchemaInputs.size());
-		result.add(entitySchema == null ? "" : entitySchema.getName());
+		final int requiredTraitsMask = traitsMask(requiredTraits);
+		final AttributeSchemaContract schemaOverride = deferredMatcher || requiredTraitsMask != 0 ?
+			resolveSchemaOverride(visitor, attributeName) : null;
+		final List<String> result = new ArrayList<>(16 + matcherSchemaInputs.size());
+		// The value accessor selects reference rows, while the schema accessor selects their attribute definitions.
 		result.add(referenceSchema == null ? "" : referenceSchema.getName());
 		result.add(accessorReferenceSchema == null ? "" : accessorReferenceSchema.getName());
-		for (final Scope scope : Scope.values()) {
-			result.add(Boolean.toString(processingScope.getScopes().contains(scope)));
-			result.add(Boolean.toString(visitor.getScopes().contains(scope)));
-			result.add(Boolean.toString(referenceSchema != null && referenceSchema.isIndexedInScope(scope)));
-			result.add(Boolean.toString(
-				accessorReferenceSchema != null && accessorReferenceSchema.isIndexedInScope(scope)
-			));
+		if (deferredMatcher && (schemaOverride == null || BigDecimal.class.equals(schemaOverride.getPlainType()))) {
+			for (final Scope scope : Scope.values()) {
+				result.add(Boolean.toString(processingScope.getScopes().contains(scope)));
+			}
+		}
+		if (requiredTraitsMask != 0) {
+			for (final Scope scope : Scope.values()) {
+				result.add(Boolean.toString(visitor.getScopes().contains(scope)));
+				if (visitor.getScopes().contains(scope) && accessorReferenceSchema != null) {
+					result.add(Boolean.toString(accessorReferenceSchema.isIndexedInScope(scope)));
+				}
+			}
 		}
 		result.add(Integer.toString(matcherSchemaInputs.size()));
 		result.addAll(matcherSchemaInputs);
-		final AttributeSchemaContract schemaOverride = resolveSchemaOverride(visitor, attributeName);
-		result.add(schemaOverride == null ? "entity schema" : "schema override");
-		if (schemaOverride != null) {
-			result.addAll(captureMatcherSchema(schemaOverride));
+		if (deferredMatcher || requiredTraitsMask != 0) {
+			result.add(schemaOverride == null ? "entity schema" : "schema override");
+			if (schemaOverride != null) {
+				if (deferredMatcher) {
+					result.addAll(captureMatcherSchema(schemaOverride, processingScope.getScopes()));
+				}
+				for (final Scope scope : Scope.values()) {
+					if (visitor.getScopes().contains(scope)) {
+						if ((requiredTraitsMask & (1 << AttributeTrait.FILTERABLE.ordinal())) != 0) {
+							result.add(Boolean.toString(schemaOverride.isFilterableInScope(scope)));
+						}
+						if ((requiredTraitsMask & ((1 << AttributeTrait.FILTERABLE.ordinal()) |
+							(1 << AttributeTrait.UNIQUE.ordinal()))) != 0) {
+							result.add(Boolean.toString(schemaOverride.isUniqueInScope(scope)));
+						}
+						if ((requiredTraitsMask & (1 << AttributeTrait.SORTABLE.ordinal())) != 0) {
+							result.add(Boolean.toString(schemaOverride.isSortableInScope(scope)));
+						}
+					}
+				}
+			}
 		}
 		return List.copyOf(result);
 	}

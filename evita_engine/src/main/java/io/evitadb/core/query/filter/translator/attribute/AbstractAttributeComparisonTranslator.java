@@ -148,7 +148,7 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
 					filteringFormula,
-					translator.createAlternativeBitmapFilter(attributeConstraint, filterByVisitor, matcher)
+					translator.createAlternativeBitmapFilter(attributeConstraint, filterByVisitor, attributeSchema, matcher)
 				);
 			} else {
 				return filteringFormula;
