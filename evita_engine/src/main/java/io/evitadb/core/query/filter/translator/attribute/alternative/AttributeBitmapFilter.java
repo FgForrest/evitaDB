@@ -48,6 +48,7 @@ import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.NumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.function.TriFunction;
@@ -300,8 +301,8 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	}
 
 	/**
-	 * Captures the plain type and localization read when a main-query matcher is constructed. Only decimal
-	 * normalization reads precision, and only a scalar decimal probe is checked against the filter-index domain.
+	 * Captures the plain type and localization read when a main-query matcher is constructed. Decimal normalization
+	 * and number-range probe encoding read precision; only a scalar decimal probe checks the filter-index domain.
 	 * Array handling instead follows each examined value and does not read the declared array shape.
 	 *
 	 * @param schema resolved attribute schema
@@ -316,7 +317,7 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 		final List<String> result = new ArrayList<>(4);
 		result.add(plainType.getName());
 		result.add(Boolean.toString(schema.isLocalized()));
-		if (BigDecimal.class.isAssignableFrom(plainType) || BigDecimalNumberRange.class.isAssignableFrom(plainType)) {
+		if (BigDecimal.class.isAssignableFrom(plainType) || NumberRange.class.isAssignableFrom(plainType)) {
 			result.add(Integer.toString(schema.getIndexedDecimalPlaces()));
 		}
 		if (BigDecimal.class.equals(plainType)) {

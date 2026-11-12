@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.filter.translator.attribute.alternative;
 
+import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.AttributeInRange;
@@ -54,13 +55,16 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.translator.attribute.AttributeBetweenTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeInRangeTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeIsTranslatorTestFixture;
 import io.evitadb.core.query.filter.translator.attribute.AttributeLessThanTranslator;
+import io.evitadb.core.query.filter.translator.attribute.AttributeValueMatchingTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.test.identity.*;
@@ -69,6 +73,8 @@ import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -273,6 +279,50 @@ class AttributeBitmapFilterIdentityTest {
 			key(translator.createAlternativeBitmapFilter(constraint, firstVisitor, coarse, first)),
 			key(translator.createAlternativeBitmapFilter(constraint, secondVisitor, precise, second))
 		);
+	}
+
+	/** Number-range probes use indexed precision even when the stored bounds are integers. */
+	@ParameterizedTest(name = "deferred matcher: {0}")
+	@ValueSource(booleans = {false, true})
+	@DisplayName("Separates integer range containment results and keys by indexed precision")
+	void shouldCaptureIntegerRangeProbePrecision(boolean deferred) {
+		assertIntegerRangePrecision(new AttributeInRangeTranslator(), attributeInRange("a", 1), deferred);
+	}
+
+	/** Number-range overlap bounds use the same precision as the range index probes. */
+	@ParameterizedTest(name = "deferred matcher: {0}")
+	@ValueSource(booleans = {false, true})
+	@DisplayName("Separates integer range overlap results and keys by indexed precision")
+	void shouldCaptureIntegerRangeBoundPrecision(boolean deferred) {
+		assertIntegerRangePrecision(new AttributeBetweenTranslator(), attributeBetween("a", 1, 2), deferred);
+	}
+
+	/** Executes alternatives with precision-only schema differences against one unchanged integer-range entity. */
+	private static <T extends FilterConstraint & AttributeConstraint<FilterConstraint>> void assertIntegerRangePrecision(
+		@Nonnull AttributeValueMatchingTranslator<T> translator, @Nonnull T constraint, boolean deferred
+	) {
+		final OffsetDateTime now = OffsetDateTime.parse("2026-01-01T00:00:00Z");
+		final EntitySchema entitySchema = EntitySchema._internalBuildWithAttributes(
+			EntitySchema._internalBuild("product"), 1, Map.of("a", EntityAttributeSchema._internalBuild(
+				"a", IntegerNumberRange.class, false, ConflictResolutionOverride.INHERITED)));
+		final InitialEntityBuilder builder = new InitialEntityBuilder(entitySchema, 7);
+		builder.setAttribute("a", IntegerNumberRange.between(1, 2));
+		final Entity entity = builder.toInstance();
+		final AttributeBitmapFilter[] alternatives = new AttributeBitmapFilter[2];
+		for (int precision = 0; precision < alternatives.length; precision++) {
+			final GlobalAttributeSchemaContract schema = GlobalAttributeSchema._internalBuild(
+				"a", NamingConvention.generate("a"), null, null, null, null, Set.of(), null, Set.of(), false, false, false,
+				IntegerNumberRange.class, null, precision, ConflictResolutionOverride.INHERITED);
+			final TestVisitor visitor = new TestVisitor(
+				schema, now, deferred ? null : "product", Set.of(Scope.LIVE), catalogSchema(Map.of("a", schema)));
+			alternatives[precision] = deferred ?
+				translator.createEntityFilteringBitmapFilter(constraint, visitor) :
+				translator.createAlternativeBitmapFilter(
+					constraint, visitor, schema, translator.createMainQueryMatcher(constraint, visitor, schema));
+		}
+		assertArrayEquals(new int[]{7}, execute(alternatives[0], entity, now));
+		assertArrayEquals(new int[0], execute(alternatives[1], entity, now));
+		assertNotEquals(key(alternatives[0]), key(alternatives[1]));
 	}
 
 	/** Sortability is unrelated to comparison construction and its default validation. */
