@@ -38,6 +38,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -2040,6 +2041,216 @@ class PricesContractTest extends AbstractBuilderTest {
 		// (a single representative candidate is chosen deterministically for the upper bound as well)
 		assertEquals(combineIntoId(5, 1), rangeNatural.highestPrice().priceId());
 		assertEquals(combineIntoId(5, 1), rangeReversed.highestPrice().priceId());
+	}
+
+	/**
+	 * Several prices of one inner record in one price list are all candidates when no moment is given, because their
+	 * validity is ignored then. Every selection among them picks the cheapest price without tax, a tie going to the
+	 * lower price id - the rule the price index applies when it pre-selects a price per inner record. Each test reaches
+	 * a different place of the selection through a different public method.
+	 */
+	@Nested
+	@DisplayName("Selection among several prices of one inner record in one price list")
+	class SelectionWithinPriceList {
+		private static final DateTimeRange FIRST_HALF_OF_2010 = DateTimeRange.between(
+			LocalDateTime.of(2010, 1, 1, 0, 0, 0, 0),
+			LocalDateTime.of(2010, 6, 30, 23, 59, 59, 0),
+			ZoneOffset.UTC
+		);
+		private static final DateTimeRange SECOND_HALF_OF_2010 = DateTimeRange.between(
+			LocalDateTime.of(2010, 7, 1, 0, 0, 0, 0),
+			LocalDateTime.of(2010, 12, 31, 23, 59, 59, 0),
+			ZoneOffset.UTC
+		);
+
+		/**
+		 * Creates a price without tax, so its amount with tax equals its amount without tax.
+		 *
+		 * @param priceId       id of the price
+		 * @param priceList     price list of the price
+		 * @param innerRecordId inner record of the price, `null` for none
+		 * @param amount        amount of the price
+		 * @param validity      validity of the price, `null` for a price valid at any moment
+		 * @param indexed       whether the price is indexed
+		 * @return the price
+		 */
+		@Nonnull
+		private static PriceContract price(
+			int priceId,
+			@Nonnull String priceList,
+			@Nullable Integer innerRecordId,
+			@Nonnull String amount,
+			@Nullable DateTimeRange validity,
+			boolean indexed
+		) {
+			final BigDecimal value = new BigDecimal(amount);
+			return new Price(
+				new PriceKey(priceId, priceList, CZK), innerRecordId, value, BigDecimal.ZERO, value, validity, indexed
+			);
+		}
+
+		/**
+		 * Returns prices of inner record 1 selling for 200 (price 1) and for 100 (price 2) in different halves of
+		 * the year 2010, and of inner record 2 selling for 150 (price 3).
+		 *
+		 * @return the prices
+		 */
+		@Nonnull
+		private static List<PriceContract> innerRecordWithTwoSellingPrices() {
+			return Arrays.asList(
+				price(1, BASIC, 1, "200", FIRST_HALF_OF_2010, true),
+				price(2, BASIC, 1, "100", SECOND_HALF_OF_2010, true),
+				price(3, BASIC, 2, "150", null, true)
+			);
+		}
+
+		/**
+		 * Returns prices of inner record 1 selling for 100 and of inner record 2 selling for 50, with two reference
+		 * prices of inner record 1 - 300 (price 11) and 250 (price 12) - in different halves of the year 2010 and a
+		 * reference price of inner record 2 of 60.
+		 *
+		 * @return the prices
+		 */
+		@Nonnull
+		private static List<PriceContract> innerRecordWithTwoReferencePrices() {
+			return Arrays.asList(
+				price(1, BASIC, 1, "100", null, true),
+				price(3, BASIC, 2, "50", null, true),
+				price(11, REFERENCE, 1, "300", FIRST_HALF_OF_2010, false),
+				price(12, REFERENCE, 1, "250", SECOND_HALF_OF_2010, false),
+				price(13, REFERENCE, 2, "60", null, false)
+			);
+		}
+
+		@Test
+		@DisplayName("should sell the cheapest price of an inner record under the lowest price handling")
+		void shouldSellCheapestPriceOfInnerRecordUnderLowestPriceHandling() {
+			final PricesContract prices = new Prices(
+				PRODUCT_SCHEMA, 1, innerRecordWithTwoSellingPrices(), PriceInnerRecordHandling.LOWEST_PRICE, true
+			);
+			assertEquals(2, prices.getPriceForSale(CZK, null, BASIC).orElseThrow().priceId());
+		}
+
+		@Test
+		@DisplayName("should sell the cheapest price of a price list without inner record handling")
+		void shouldSellCheapestPriceOfPriceListWithoutInnerRecordHandling() {
+			final PricesContract prices = new Prices(
+				PRODUCT_SCHEMA, 1,
+				Arrays.asList(
+					price(1, BASIC, null, "200", FIRST_HALF_OF_2010, true),
+					price(2, BASIC, null, "100", SECOND_HALF_OF_2010, true)
+				),
+				PriceInnerRecordHandling.NONE, true
+			);
+			assertEquals(2, prices.getPriceForSale(CZK, null, BASIC).orElseThrow().priceId());
+		}
+
+		@Test
+		@DisplayName("should sum the cheapest price of each inner record under the sum handling")
+		void shouldSumCheapestPriceOfEachInnerRecordUnderSumHandling() {
+			final PricesContract prices = new Prices(
+				PRODUCT_SCHEMA, 1,
+				Arrays.asList(
+					price(1, BASIC, 1, "200", FIRST_HALF_OF_2010, true),
+					price(2, BASIC, 1, "100", SECOND_HALF_OF_2010, true),
+					price(3, BASIC, 2, "50", null, true)
+				),
+				PriceInnerRecordHandling.SUM, true
+			);
+			assertEquals(
+				0,
+				new BigDecimal("150").compareTo(
+					prices.getPriceForSale(CZK, null, BASIC).orElseThrow().priceWithoutTax()
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should sum the cheapest accompanying price of each inner record computed with the price for sale")
+		void shouldSumCheapestAccompanyingPriceOfEachInnerRecordComputedWithPriceForSale() {
+			final PriceForSaleWithAccompanyingPrices result = PricesContract.computePriceForSale(
+				innerRecordWithTwoReferencePrices(), PriceInnerRecordHandling.SUM,
+				CZK, null, new String[]{BASIC}, Objects::nonNull,
+				new AccompanyingPrice[]{new AccompanyingPrice("ref", REFERENCE)}
+			).orElseThrow();
+			assertEquals(
+				0,
+				new BigDecimal("310").compareTo(result.getAccompanyingPrice("ref").orElseThrow().priceWithoutTax())
+			);
+		}
+
+		@Test
+		@DisplayName("should sum the cheapest accompanying price of each inner record computed separately")
+		void shouldSumCheapestAccompanyingPriceOfEachInnerRecordComputedSeparately() {
+			final List<PriceContract> entityPrices = innerRecordWithTwoReferencePrices();
+			final PriceContract priceForSale = PricesContract.computePriceForSale(
+				entityPrices, PriceInnerRecordHandling.SUM, CZK, null, new String[]{BASIC}, Objects::nonNull
+			).orElseThrow();
+			final Map<String, Optional<PriceContract>> accompanyingPrices = PricesContract.calculateAccompanyingPrices(
+				priceForSale, entityPrices, PriceInnerRecordHandling.SUM, CZK, null,
+				new AccompanyingPrice[]{new AccompanyingPrice("ref", REFERENCE)}
+			);
+			assertEquals(
+				0,
+				new BigDecimal("310").compareTo(accompanyingPrices.get("ref").orElseThrow().priceWithoutTax())
+			);
+		}
+
+		@Test
+		@DisplayName("should accompany the price for sale by the cheapest price of its inner record")
+		void shouldAccompanyPriceForSaleByCheapestPriceOfItsInnerRecord() {
+			final PricesContract prices = new Prices(
+				PRODUCT_SCHEMA, 1,
+				Arrays.asList(
+					price(1, BASIC, 1, "100", null, true),
+					price(11, REFERENCE, 1, "300", FIRST_HALF_OF_2010, false),
+					price(12, REFERENCE, 1, "250", SECOND_HALF_OF_2010, false)
+				),
+				PriceInnerRecordHandling.LOWEST_PRICE, true
+			);
+			final PriceForSaleWithAccompanyingPrices result = prices.getPriceForSaleWithAccompanyingPrices(
+				CZK, null, new String[]{BASIC}, new AccompanyingPrice[]{new AccompanyingPrice("ref", REFERENCE)}
+			).orElseThrow();
+			assertEquals(12, result.getAccompanyingPrice("ref").orElseThrow().priceId());
+		}
+
+		@Test
+		@DisplayName("should list the cheapest price of each inner record among all prices for sale")
+		void shouldListCheapestPriceOfEachInnerRecordAmongAllPricesForSale() {
+			final PricesContract prices = new Prices(
+				PRODUCT_SCHEMA, 1, innerRecordWithTwoSellingPrices(), PriceInnerRecordHandling.LOWEST_PRICE, true
+			);
+			final List<PriceContract> allPricesForSale = prices.getAllPricesForSale(CZK, null, BASIC);
+			assertEquals(List.of(2, 3), allPricesForSale.stream().map(PriceContract::priceId).toList());
+		}
+
+		@Test
+		@DisplayName("should test the cheapest price of an inner record against the interval")
+		void shouldTestCheapestPriceOfInnerRecordAgainstInterval() {
+			final PricesContract prices = new Prices(
+				PRODUCT_SCHEMA, 1, innerRecordWithTwoSellingPrices(), PriceInnerRecordHandling.LOWEST_PRICE, true
+			);
+			assertTrue(
+				prices.hasPriceInInterval(
+					new BigDecimal("90"), new BigDecimal("110"), QueryPriceMode.WITH_TAX, CZK, null, BASIC
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should take the first position of a price list named twice")
+		void shouldTakeFirstPositionOfPriceListNamedTwice() {
+			final PricesContract prices = new Prices(
+				PRODUCT_SCHEMA, 1,
+				Arrays.asList(
+					price(1, VIP, null, "100", null, true),
+					price(2, BASIC, null, "200", null, true)
+				),
+				PriceInnerRecordHandling.NONE, true
+			);
+			assertEquals(1, prices.getPriceForSale(CZK, null, VIP, BASIC, VIP).orElseThrow().priceId());
+		}
+
 	}
 
 	/**

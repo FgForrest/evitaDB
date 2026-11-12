@@ -103,6 +103,13 @@ import static io.evitadb.test.TestTags.PRICE;
 @Tag(PRICE)
 class PriceListAndCurrencyPriceSuperIndexTest {
 	private static final PriceIndexKey PRICE_INDEX_KEY = new PriceIndexKey("basic", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE);
+	/**
+	 * Index of entities with variants: only such an index keeps one lowest price per inner record - an index of
+	 * entities without inner record handling keeps a single lowest price of the entity whatever inner records its
+	 * prices carry.
+	 */
+	private static final PriceIndexKey VARIANT_PRICE_INDEX_KEY =
+		new PriceIndexKey("basic", Currency.getInstance("CZK"), PriceInnerRecordHandling.LOWEST_PRICE);
 	private static final IntConsumer NOOP_NOT_FOUND_CALLBACK = notFound -> {};
 	private static PriceRecordContract[] PRICE_RECORDS;
 
@@ -1070,7 +1077,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 		@DisplayName("forEachLowestPriceRecordOfEntity() streams what the array form returns")
 		void shouldStreamWhatTheArrayFormReturns() {
 			final PriceListAndCurrencyPriceSuperIndex tested =
-				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+				new PriceListAndCurrencyPriceSuperIndex(VARIANT_PRICE_INDEX_KEY);
 			tested.addPrice(createInnerRecordSpecificPriceRecord(10, 10, 42, 1), null);
 			tested.addPrice(createInnerRecordSpecificPriceRecord(20, 20, 42, 2), null);
 

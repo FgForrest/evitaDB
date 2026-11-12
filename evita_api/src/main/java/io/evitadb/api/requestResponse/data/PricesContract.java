@@ -77,7 +77,38 @@ public interface PricesContract extends Versioned, Serializable {
 	) {
 		return computePriceForSale(
 			entityPrices, innerRecordHandling, currency, atTheMoment, priceListPriority,
-			filterPredicate, NO_ACCOMPANYING_PRICES
+			filterPredicate, QueryPriceMode.WITH_TAX
+		);
+	}
+
+	/**
+	 * Computes a price for which the entity should be sold, comparing the amounts in the passed price mode. Only
+	 * indexed prices in requested currency, valid at the passed moment are taken into an account. Prices are also
+	 * limited by the passed set of price lists and the first price found in the order of the requested price list ids
+	 * will be returned.
+	 *
+	 * @param entityPrices        all prices of the entity
+	 * @param innerRecordHandling the inner record handling of the entity
+	 * @param currency            currency of the price for sale
+	 * @param atTheMoment         moment the prices must be valid at, `null` ignores the validity
+	 * @param priceListPriority   price lists in the order of their priority
+	 * @param filterPredicate     predicate the price for sale must satisfy
+	 * @param queryPriceMode      price mode whose amounts decide which inner record sells the entity
+	 * @return the price for sale or empty when the entity cannot be sold
+	 */
+	@Nonnull
+	static Optional<PriceContract> computePriceForSale(
+		@Nonnull Collection<PriceContract> entityPrices,
+		@Nonnull PriceInnerRecordHandling innerRecordHandling,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull String[] priceListPriority,
+		@Nonnull Predicate<PriceContract> filterPredicate,
+		@Nonnull QueryPriceMode queryPriceMode
+	) {
+		return computePriceForSale(
+			entityPrices, innerRecordHandling, currency, atTheMoment, priceListPriority,
+			filterPredicate, NO_ACCOMPANYING_PRICES, queryPriceMode
 		)
 			.map(PriceForSaleWithAccompanyingPrices::priceForSale);
 	}
@@ -99,9 +130,41 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull Predicate<PriceContract> filterPredicate,
 		@Nonnull AccompanyingPrice[] accompanyingPrices
 	) {
+		return computePriceForSale(
+			entityPrices, innerRecordHandling, currency, atTheMoment, priceListPriority,
+			filterPredicate, accompanyingPrices, QueryPriceMode.WITH_TAX
+		);
+	}
+
+	/**
+	 * Computes a price for which the entity should be sold together with the accompanying prices, comparing the
+	 * amounts in the passed price mode. Accompanying prices follow the same currency / valid-in / inner-record rules
+	 * as the selling price itself.
+	 *
+	 * @param entityPrices        all prices of the entity
+	 * @param innerRecordHandling the inner record handling of the entity
+	 * @param currency            currency of the price for sale
+	 * @param atTheMoment         moment the prices must be valid at, `null` ignores the validity
+	 * @param priceListPriority   price lists in the order of their priority
+	 * @param filterPredicate     predicate the price for sale must satisfy
+	 * @param accompanyingPrices  requirements for the accompanying prices
+	 * @param queryPriceMode      price mode whose amounts decide which inner record sells the entity
+	 * @return the price for sale with the accompanying prices or empty when the entity cannot be sold
+	 */
+	@Nonnull
+	static Optional<PriceForSaleWithAccompanyingPrices> computePriceForSale(
+		@Nonnull Collection<PriceContract> entityPrices,
+		@Nonnull PriceInnerRecordHandling innerRecordHandling,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull String[] priceListPriority,
+		@Nonnull Predicate<PriceContract> filterPredicate,
+		@Nonnull AccompanyingPrice[] accompanyingPrices,
+		@Nonnull QueryPriceMode queryPriceMode
+	) {
 		final PriceForSaleComputationResult computation = computeInternal(
 			entityPrices, innerRecordHandling, currency, atTheMoment,
-			getPriceListPriorityIndex(priceListPriority), filterPredicate
+			getPriceListPriorityIndex(priceListPriority), filterPredicate, queryPriceMode
 		);
 		if (computation == null) {
 			return empty();
@@ -136,7 +199,39 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull Map<String, Integer> priorityIndex,
 		@Nonnull Predicate<PriceContract> filterPredicate
 	) {
-		return computeInternal(entityPrices, innerRecordHandling, currency, atTheMoment, priorityIndex, filterPredicate);
+		return computePriceForSaleResult(
+			entityPrices, innerRecordHandling, currency, atTheMoment, priorityIndex, filterPredicate,
+			QueryPriceMode.WITH_TAX
+		);
+	}
+
+	/**
+	 * Internal entry point equal to {@link #computePriceForSaleResult(Collection, PriceInnerRecordHandling, Currency,
+	 * OffsetDateTime, Map, Predicate)} that compares the amounts in the passed price mode.
+	 *
+	 * @param entityPrices        all prices of the entity
+	 * @param innerRecordHandling the inner record handling of the entity
+	 * @param currency            currency of the price for sale
+	 * @param atTheMoment         moment the prices must be valid at, `null` ignores the validity
+	 * @param priorityIndex       price list to its priority, built by {@link #getPriceListPriorityIndex}
+	 * @param filterPredicate     predicate the price for sale must satisfy
+	 * @param queryPriceMode      price mode whose amounts decide which inner record sells the entity
+	 * @return the computation result or `null` when the entity cannot be sold
+	 * @apiNote internal — not part of the public API; subject to change without notice.
+	 */
+	@Nullable
+	static PriceForSaleComputationResult computePriceForSaleResult(
+		@Nonnull Collection<PriceContract> entityPrices,
+		@Nonnull PriceInnerRecordHandling innerRecordHandling,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull Map<String, Integer> priorityIndex,
+		@Nonnull Predicate<PriceContract> filterPredicate,
+		@Nonnull QueryPriceMode queryPriceMode
+	) {
+		return computeInternal(
+			entityPrices, innerRecordHandling, currency, atTheMoment, priorityIndex, filterPredicate, queryPriceMode
+		);
 	}
 
 	/**
@@ -157,7 +252,38 @@ public interface PricesContract extends Versioned, Serializable {
 	) {
 		return computePriceRangeForSale(
 			entityPrices, innerRecordHandling, currency, atTheMoment, priceListPriority,
-			filterPredicate, NO_ACCOMPANYING_PRICES
+			filterPredicate, QueryPriceMode.WITH_TAX
+		);
+	}
+
+	/**
+	 * Computes the full price range for the entity together with the resolved selling price, comparing the amounts
+	 * in the passed price mode - both the selection of the selling price and the range bounds follow it.
+	 *
+	 * Strategy semantics — see {@link PriceRangeForSale}.
+	 *
+	 * @param entityPrices        all prices of the entity
+	 * @param innerRecordHandling the inner record handling of the entity
+	 * @param currency            currency of the price for sale
+	 * @param atTheMoment         moment the prices must be valid at, `null` ignores the validity
+	 * @param priceListPriority   price lists in the order of their priority
+	 * @param filterPredicate     predicate the price for sale must satisfy
+	 * @param queryPriceMode      price mode whose amounts decide the selling price and the range bounds
+	 * @return the price range or empty when the entity cannot be sold
+	 */
+	@Nonnull
+	static Optional<PriceRangeForSale> computePriceRangeForSale(
+		@Nonnull Collection<PriceContract> entityPrices,
+		@Nonnull PriceInnerRecordHandling innerRecordHandling,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull String[] priceListPriority,
+		@Nonnull Predicate<PriceContract> filterPredicate,
+		@Nonnull QueryPriceMode queryPriceMode
+	) {
+		return computePriceRangeForSale(
+			entityPrices, innerRecordHandling, currency, atTheMoment, priceListPriority,
+			filterPredicate, NO_ACCOMPANYING_PRICES, queryPriceMode
 		)
 			.map(PriceRangeForSaleWithAccompanyingPrices::priceRange);
 	}
@@ -178,9 +304,42 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull Predicate<PriceContract> filterPredicate,
 		@Nonnull AccompanyingPrice[] accompanyingPrices
 	) {
+		return computePriceRangeForSale(
+			entityPrices, innerRecordHandling, currency, atTheMoment, priceListPriority,
+			filterPredicate, accompanyingPrices, QueryPriceMode.WITH_TAX
+		);
+	}
+
+	/**
+	 * Computes the full price range for the entity together with the resolved selling price and accompanying
+	 * prices, comparing the amounts in the passed price mode.
+	 *
+	 * Strategy semantics — see {@link PriceRangeForSale}.
+	 *
+	 * @param entityPrices        all prices of the entity
+	 * @param innerRecordHandling the inner record handling of the entity
+	 * @param currency            currency of the price for sale
+	 * @param atTheMoment         moment the prices must be valid at, `null` ignores the validity
+	 * @param priceListPriority   price lists in the order of their priority
+	 * @param filterPredicate     predicate the price for sale must satisfy
+	 * @param accompanyingPrices  requirements for the accompanying prices
+	 * @param queryPriceMode      price mode whose amounts decide the selling price and the range bounds
+	 * @return the price range with the accompanying prices or empty when the entity cannot be sold
+	 */
+	@Nonnull
+	static Optional<PriceRangeForSaleWithAccompanyingPrices> computePriceRangeForSale(
+		@Nonnull Collection<PriceContract> entityPrices,
+		@Nonnull PriceInnerRecordHandling innerRecordHandling,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull String[] priceListPriority,
+		@Nonnull Predicate<PriceContract> filterPredicate,
+		@Nonnull AccompanyingPrice[] accompanyingPrices,
+		@Nonnull QueryPriceMode queryPriceMode
+	) {
 		final PriceForSaleComputationResult computation = computeInternal(
 			entityPrices, innerRecordHandling, currency, atTheMoment,
-			getPriceListPriorityIndex(priceListPriority), filterPredicate
+			getPriceListPriorityIndex(priceListPriority), filterPredicate, queryPriceMode
 		);
 		if (computation == null) {
 			return empty();
@@ -281,6 +440,10 @@ public interface PricesContract extends Versioned, Serializable {
 	 *
 	 * Returns `null` when no selling price exists for the given filter (e.g. predicate eliminated everything,
 	 * currency / validity rejected all candidates, or no inner record yielded a valid candidate).
+	 *
+	 * The `queryPriceMode` decides which amount the inner records are compared by under `LOWEST_PRICE` and which
+	 * amount the range bounds are chosen by under `LOWEST_PRICE` and `SUM` - the engine filters and sorts by the amount
+	 * of the same mode.
 	 */
 	@Nullable
 	private static PriceForSaleComputationResult computeInternal(
@@ -289,7 +452,8 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull Currency currency,
 		@Nullable OffsetDateTime atTheMoment,
 		@Nonnull Map<String, Integer> priorityIndex,
-		@Nonnull Predicate<PriceContract> filterPredicate
+		@Nonnull Predicate<PriceContract> filterPredicate,
+		@Nonnull QueryPriceMode queryPriceMode
 	) {
 		if (entityPrices.isEmpty()) {
 			return null;
@@ -326,8 +490,11 @@ public interface PricesContract extends Versioned, Serializable {
 						continue;
 					}
 					final int priority = priorityBoxed;
+					// the inner record id has no meaning here: all prices of a price list compete for the one place
 					if (priority < bestPriority) {
 						bestPriority = priority;
+						bestForSale = price;
+					} else if (priority == bestPriority && winsWithinPriceList(price, bestForSale)) {
 						bestForSale = price;
 					}
 				}
@@ -357,22 +524,22 @@ public interface PricesContract extends Versioned, Serializable {
 				if (bestPerInner.isEmpty()) {
 					yield null;
 				}
-				// pick lowest and highest by priceWithTax in a single pass.
+				// pick lowest and highest by the amount of the query price mode in a single pass.
 				// `lowest` (== selling price under LOWEST_PRICE) must satisfy `filterPredicate` — the predicate
 				// is a selling-price scoped filter inherited from the legacy `getPriceForSale*` API.
 				// `highest` is the most expensive per-inner-record candidate regardless of `filterPredicate`,
 				// because the range bounds describe the real indexed catalogue spread for the resolved currency
 				// / valid-in / price-list filters and must NOT be clipped by the selling-price predicate.
-				// Tie-break is deterministic: lower priceWithTax wins, then lower priceId, then lower
+				// Tie-break is deterministic: lower amount wins, then lower priceId, then lower
 				// innerRecordId (null sorts before non-null).
 				PriceContract lowest = null;
 				PriceContract highest = null;
 				for (final PriceContract candidate : bestPerInner.values()) {
-					if (isBetterPriceForSaleCandidate(highest, candidate, false)) {
+					if (isBetterPriceForSaleCandidate(highest, candidate, false, queryPriceMode)) {
 						highest = candidate;
 					}
 					if (filterPredicate.test(candidate)
-						&& isBetterPriceForSaleCandidate(lowest, candidate, true)) {
+						&& isBetterPriceForSaleCandidate(lowest, candidate, true, queryPriceMode)) {
 						lowest = candidate;
 					}
 				}
@@ -403,16 +570,15 @@ public interface PricesContract extends Versioned, Serializable {
 						continue;
 					}
 					final int innerKey = innerRecordKey(price);
-					// merge with deterministic tie-break: when two prices share `(innerRecord, priceList)` —
-					// possible when `atTheMoment == null` and several prices have non-overlapping but currently
-					// valid validity ranges — the winner is decided by `isBetterByPriceIdThenInner` (lower
-					// priceId then lower innerRecordId), matching the per-bucket selection used everywhere else.
+					// when two prices share `(innerRecord, priceList)` — possible when `atTheMoment == null` and
+					// several prices have non-overlapping validity ranges — the winner is decided by
+					// `winsWithinPriceList`, the per-bucket selection used everywhere else.
 					byInnerByListAll
 						.computeIfAbsent(innerKey, k -> CollectionUtils.createHashMap(innerBucketEstimate))
 						.merge(
 							price.priceList(),
 							price,
-							(existing, candidate) -> isBetterByPriceIdThenInner(candidate, existing) ? candidate : existing
+							(existing, candidate) -> winsWithinPriceList(candidate, existing) ? candidate : existing
 						);
 					updateBestPerInner(price, innerKey, priorityIndex, bestPerInner, bestPriorityPerInner);
 				}
@@ -423,16 +589,16 @@ public interface PricesContract extends Versioned, Serializable {
 				final List<PriceContract> components = new ArrayList<>(bestPerInner.size());
 				PriceContract lowest = null;
 				PriceContract highest = null;
-				// share the deterministic tie-break with LOWEST_PRICE so that ties on `priceWithTax` resolve by
+				// share the deterministic tie-break with LOWEST_PRICE so that ties on the amount resolve by
 				// `priceId` (then `innerRecordId`) instead of leaving the running incumbent untouched. Keeps the
 				// SUM range bounds independent of input iteration order — same invariant as the LOWEST_PRICE
 				// branch above.
 				for (final PriceContract candidate : bestPerInner.values()) {
 					components.add(candidate);
-					if (isBetterPriceForSaleCandidate(lowest, candidate, true)) {
+					if (isBetterPriceForSaleCandidate(lowest, candidate, true, queryPriceMode)) {
 						lowest = candidate;
 					}
-					if (isBetterPriceForSaleCandidate(highest, candidate, false)) {
+					if (isBetterPriceForSaleCandidate(highest, candidate, false, queryPriceMode)) {
 						highest = candidate;
 					}
 				}
@@ -581,7 +747,7 @@ public interface PricesContract extends Versioned, Serializable {
 				continue;
 			}
 			final int innerKey = innerRecordKey(price);
-			// see byInnerByListAll merge comment in computeInternal — same deterministic tie-break for
+			// see byInnerByListAll merge comment in computeInternal — the same per-bucket selection for
 			// `(innerRecord, priceList)` collisions that arise from multiple non-overlapping validities
 			// when `atTheMoment` is `null`.
 			byInnerByList
@@ -589,7 +755,7 @@ public interface PricesContract extends Versioned, Serializable {
 				.merge(
 					price.priceList(),
 					price,
-					(existing, candidate) -> isBetterByPriceIdThenInner(candidate, existing) ? candidate : existing
+					(existing, candidate) -> winsWithinPriceList(candidate, existing) ? candidate : existing
 				);
 		}
 		return resolveSumAccompanyingPrices(priceForSale, byInnerByList, accompanyingPrices);
@@ -685,30 +851,33 @@ public interface PricesContract extends Versioned, Serializable {
 	 * under LOWEST_PRICE strategy. The comparison is total and deterministic, independent of input
 	 * iteration order:
 	 *
-	 * 1. lower (or higher, depending on `preferLower`) `priceWithTax` wins,
+	 * 1. lower (or higher, depending on `preferLower`) amount in the `queryPriceMode` wins,
 	 * 2. on ties, lower `priceId` wins,
 	 * 3. on further ties, lower `innerRecordId` wins (`null` sorts before any non-null id).
 	 *
-	 * Steps 2 and 3 are the deterministic tie-break — they fire only on exact `priceWithTax` equality,
-	 * so they have zero behavioural impact when prices differ. The pre-existing `< 0` / `> 0` semantics
-	 * for `priceWithTax` is preserved (no `<=` flip) — the tie-break only takes effect when the previous
-	 * implementation would have left `current` untouched.
+	 * Steps 2 and 3 are the deterministic tie-break — they fire only on exact equality of the amounts,
+	 * so they have zero behavioural impact when prices differ. The `< 0` / `> 0` semantics for the amount
+	 * is strict (no `<=` flip) — the tie-break only takes effect when the amounts leave `current` untouched.
 	 *
-	 * @param current     running best candidate, or `null` before the first comparison
-	 * @param candidate   prospective candidate
-	 * @param preferLower `true` when picking the cheapest (lowest selling price), `false` when picking
-	 *                    the most expensive (highest range bound)
+	 * @param current        running best candidate, or `null` before the first comparison
+	 * @param candidate      prospective candidate
+	 * @param preferLower    `true` when picking the cheapest (lowest selling price), `false` when picking
+	 *                       the most expensive (highest range bound)
+	 * @param queryPriceMode price mode whose amount is compared - the one the engine filters and sorts by
 	 * @return `true` when `candidate` strictly beats `current`
 	 */
 	private static boolean isBetterPriceForSaleCandidate(
 		@Nullable PriceContract current,
 		@Nonnull PriceContract candidate,
-		boolean preferLower
+		boolean preferLower,
+		@Nonnull QueryPriceMode queryPriceMode
 	) {
 		if (current == null) {
 			return true;
 		}
-		final int byAmount = candidate.priceWithTax().compareTo(current.priceWithTax());
+		final int byAmount = queryPriceMode == QueryPriceMode.WITHOUT_TAX ?
+			candidate.priceWithoutTax().compareTo(current.priceWithoutTax()) :
+			candidate.priceWithTax().compareTo(current.priceWithTax());
 		if (byAmount != 0) {
 			return preferLower ? byAmount < 0 : byAmount > 0;
 		}
@@ -717,10 +886,9 @@ public interface PricesContract extends Versioned, Serializable {
 	}
 
 	/**
-	 * Deterministic tie-break helper used when two candidates already share the same effective priority
-	 * (e.g. price-list priority): lower `priceId` wins, then lower `innerRecordId` (`null` sorts before
-	 * any non-null id). Returns `true` when `candidate` strictly beats `current` under this rule, and
-	 * also when `current` is `null` (no incumbent).
+	 * Deterministic tie-break helper used when two candidates tie on everything compared before it: lower `priceId`
+	 * wins, then lower `innerRecordId` (`null` sorts before any non-null id). Returns `true` when `candidate` strictly
+	 * beats `current` under this rule, and also when `current` is `null` (no incumbent).
 	 */
 	private static boolean isBetterByPriceIdThenInner(
 		@Nonnull PriceContract candidate,
@@ -748,11 +916,34 @@ public interface PricesContract extends Versioned, Serializable {
 	}
 
 	/**
+	 * Decides whether `candidate` replaces `current` as the price that stands for its group: the prices of one inner
+	 * record in one price list and currency, or - for an entity without inner record handling - all prices of one
+	 * price list and currency. A group holds several candidates only when no moment is given, because the validity
+	 * of the prices is ignored then, and the documented rule picks the price cheapest without tax, a tie going to the
+	 * lower price id. The price index pre-selects a price per group by the very same rule, whatever the price mode of
+	 * the query, so the entity and the engine agree on it.
+	 *
+	 * @param candidate the price examined now
+	 * @param current   the price selected so far, or `null` before the first one
+	 * @return `true` when `candidate` takes the place of `current`
+	 */
+	private static boolean winsWithinPriceList(@Nonnull PriceContract candidate, @Nullable PriceContract current) {
+		if (current == null) {
+			return true;
+		}
+		final int byAmount = candidate.priceWithoutTax().compareTo(current.priceWithoutTax());
+		if (byAmount != 0) {
+			return byAmount < 0;
+		}
+		return isBetterByPriceIdThenInner(candidate, current);
+	}
+
+	/**
 	 * Updates the running per-inner-record best-selling-price maps for `price`, skipping non-indexed
-	 * prices and price lists missing from `priorityIndex`. On equal priority a deterministic tie-break is
-	 * applied (lower {@code priceId}, then lower {@code innerRecordId} with {@code null} first) so the
-	 * winner is independent of input iteration order. Shared by the per-inner-record loops of the
-	 * `LOWEST_PRICE` and `SUM` strategies in {@link #computeInternal}.
+	 * prices and price lists missing from `priorityIndex`. On equal priority - several prices of the inner record
+	 * in one price list - {@link #winsWithinPriceList} decides, so the winner is independent of input iteration
+	 * order. Shared by the per-inner-record loops of the `LOWEST_PRICE` and `SUM` strategies in
+	 * {@link #computeInternal} and by {@link #hasPriceInInterval}.
 	 *
 	 * @param price                 candidate price under consideration
 	 * @param innerKey              inner-record bucket key for {@code price} (already resolved by the caller)
@@ -780,17 +971,16 @@ public interface PricesContract extends Versioned, Serializable {
 			bestPriorityPerInner.put(innerKey, priority);
 			bestPerInner.put(innerKey, price);
 		} else if (priority == existing
-			&& isBetterByPriceIdThenInner(price, bestPerInner.get(innerKey))) {
+			&& winsWithinPriceList(price, bestPerInner.get(innerKey))) {
 			bestPerInner.put(innerKey, price);
 		}
 	}
 
 	/**
 	 * Picks the candidate whose price list has the lowest priority in {@code priorityIndex} — i.e. the
-	 * winner of the standard "first matching price list wins" rule. On equal priority a deterministic
-	 * tie-break is applied (lower {@code priceId}, then lower {@code innerRecordId} with {@code null}
-	 * first) so the result is independent of input iteration order. Returns {@code null} when no
-	 * candidate matches the priority index.
+	 * winner of the standard "first matching price list wins" rule. On equal priority - several candidates in
+	 * one price list - {@link #winsWithinPriceList} decides, so the result is independent of input iteration
+	 * order. Returns {@code null} when no candidate matches the priority index.
 	 *
 	 * @param candidates    candidates to consider; iteration order need not be deterministic
 	 * @param priorityIndex price-list to priority-rank lookup; lower rank wins
@@ -817,7 +1007,7 @@ public interface PricesContract extends Versioned, Serializable {
 			if (priority < bestPriority) {
 				bestPriority = priority;
 				best = candidate;
-			} else if (priority == bestPriority && isBetterByPriceIdThenInner(candidate, best)) {
+			} else if (priority == bestPriority && winsWithinPriceList(candidate, best)) {
 				best = candidate;
 			}
 		}
@@ -858,6 +1048,7 @@ public interface PricesContract extends Versioned, Serializable {
 
 	/**
 	 * Creates a map of price list priorities where the key is the price list and the value is the priority.
+	 * A price list named more than once keeps the priority of its first position, as it does in the engine.
 	 * The result is a pure function of the input array — the same input always yields an equivalent map.
 	 * Long-lived cache instances (e.g. {@link PriceForSaleContextWithCachedResult}) build the index once and
 	 * reuse it across calls; callers without their own cache can hand the array directly to the public
@@ -873,8 +1064,7 @@ public interface PricesContract extends Versioned, Serializable {
 	static Map<String, Integer> getPriceListPriorityIndex(@Nonnull String[] priceListPriority) {
 		final Map<String, Integer> pLists = createHashMap(priceListPriority.length);
 		for (int i = 0; i < priceListPriority.length; i++) {
-			final String pList = priceListPriority[i];
-			pLists.put(pList, i);
+			pLists.putIfAbsent(priceListPriority[i], i);
 		}
 		return pLists;
 	}
@@ -920,8 +1110,7 @@ public interface PricesContract extends Versioned, Serializable {
 		}
 		// pick the best indexed candidate per inner record (lowest priority wins). On equal priority — which
 		// can happen if the same price-list contains multiple matching prices for the same inner record — the
-		// deterministic tie-break inside pickBestByPriority ensures the winner is independent of input
-		// iteration order.
+		// per-bucket rule inside pickBestByPriority picks the cheapest without tax.
 		final List<PriceContract> winners = new ArrayList<>(pricesByInnerId.size());
 		for (final List<PriceContract> innerGroup : pricesByInnerId.values()) {
 			final PriceContract best = pickBestByPriority(innerGroup, priorityIndex, PriceContract::indexed);
@@ -1059,7 +1248,10 @@ public interface PricesContract extends Versioned, Serializable {
 		if (context instanceof PriceForSaleContextWithCachedResult pfscwcr && pfscwcr.matches(currency, atTheMoment, priceListPriority)) {
 			return pfscwcr.computePriceForSale(getPrices(), getPriceInnerRecordHandling());
 		}
-		return computePriceForSale(getPrices(), getPriceInnerRecordHandling(), currency, atTheMoment, priceListPriority, Objects::nonNull);
+		return computePriceForSale(
+			getPrices(), getPriceInnerRecordHandling(), currency, atTheMoment, priceListPriority, Objects::nonNull,
+			getQueryPriceMode()
+		);
 	}
 
 	/**
@@ -1258,7 +1450,7 @@ public interface PricesContract extends Versioned, Serializable {
 		} else {
 			return computePriceForSale(
 				getPrices(), getPriceInnerRecordHandling(), currency, atTheMoment, priceListPriority, Objects::nonNull,
-				accompanyingPrices
+				accompanyingPrices, getQueryPriceMode()
 			);
 		}
 	}
@@ -1307,7 +1499,8 @@ public interface PricesContract extends Versioned, Serializable {
 				context.atTheMoment().orElse(null),
 				context.priceListPriority().orElseThrow(ContextMissingException::new),
 				Objects::nonNull,
-				accompanyingPricesRequest
+				accompanyingPricesRequest,
+				context.queryPriceMode()
 			);
 		}
 	}
@@ -1355,7 +1548,8 @@ public interface PricesContract extends Versioned, Serializable {
 			return pfscwcr.computeRange(getPrices(), getPriceInnerRecordHandling());
 		}
 		return computePriceRangeForSale(
-			getPrices(), getPriceInnerRecordHandling(), currency, atTheMoment, priceListPriority, Objects::nonNull
+			getPrices(), getPriceInnerRecordHandling(), currency, atTheMoment, priceListPriority, Objects::nonNull,
+			getQueryPriceMode()
 		);
 	}
 
@@ -1387,7 +1581,8 @@ public interface PricesContract extends Versioned, Serializable {
 			context.atTheMoment().orElse(null),
 			context.priceListPriority().orElseThrow(ContextMissingException::new),
 			Objects::nonNull,
-			accompanyingPricesRequest
+			accompanyingPricesRequest,
+			context.queryPriceMode()
 		);
 	}
 
@@ -1417,7 +1612,7 @@ public interface PricesContract extends Versioned, Serializable {
 		}
 		return computePriceRangeForSale(
 			getPrices(), getPriceInnerRecordHandling(), currency, atTheMoment, priceListPriority, Objects::nonNull,
-			accompanyingPrices
+			accompanyingPrices, getQueryPriceMode()
 		);
 	}
 
@@ -1439,6 +1634,23 @@ public interface PricesContract extends Versioned, Serializable {
 	 */
 	@Nonnull
 	Optional<PriceForSaleContext> getPriceForSaleContext();
+
+	/**
+	 * Returns the price mode the price for sale, its range and the accompanying prices of this entity are computed in:
+	 * the amounts of this mode decide which inner record sells an entity with
+	 * {@link PriceInnerRecordHandling#LOWEST_PRICE} and which prices bound its range. It is the
+	 * {@link io.evitadb.api.query.require.PriceType price type} of the query the entity was fetched by, and it applies
+	 * also to the methods that take the currency, the moment and the price lists as arguments. An entity that was not
+	 * fetched by a query, or whose query carried no price constraint, uses {@link QueryPriceMode#WITH_TAX}.
+	 *
+	 * @return the price mode of the price for sale computation
+	 */
+	@Nonnull
+	default QueryPriceMode getQueryPriceMode() {
+		return getPriceForSaleContext()
+			.map(PriceForSaleContext::queryPriceMode)
+			.orElse(QueryPriceMode.WITH_TAX);
+	}
 
 	/**
 	 * Returns a price for which the entity should be sold. This method can be used only in context of a {@link Query}
@@ -1622,26 +1834,27 @@ public interface PricesContract extends Versioned, Serializable {
 					.orElse(false);
 			}
 			case LOWEST_PRICE -> {
-				final Map<String, Integer> pLists = getPriceListPriorityIndex(priceListPriority);
-				final Map<Integer, List<PriceContract>> pricesByInnerRecordId = entityPrices
-					.stream()
-					.filter(PriceContract::exists)
-					.filter(PriceContract::indexed)
-					.filter(it -> currency.equals(it.currency()))
-					.filter(it -> isValidAtTheMoment(atTheMoment, it))
-					.filter(it -> pLists.containsKey(it.priceList()))
-					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
-				return pricesByInnerRecordId
-					.values()
-					.stream()
-					.anyMatch(prices -> {
-						final Optional<PriceContract> minPrice = prices.stream()
-							.min(Comparator.comparing(o -> pLists.get(o.priceList())));
-						return minPrice
-							.map(it -> queryPriceMode == QueryPriceMode.WITHOUT_TAX ? it.priceWithoutTax() : it.priceWithTax())
-							.map(it -> from.compareTo(it) <= 0 && to.compareTo(it) >= 0)
-							.orElse(null);
-					});
+				// every inner record is represented by the very price the price for sale computation selects for it
+				final Map<String, Integer> priorityIndex = getPriceListPriorityIndex(priceListPriority);
+				final int distinctInnerEstimate = Math.max(
+					2, entityPrices.size() / Math.max(1, priceListPriority.length) + 2
+				);
+				final Map<Integer, PriceContract> bestPerInner = CollectionUtils.createHashMap(distinctInnerEstimate);
+				final Map<Integer, Integer> bestPriorityPerInner = CollectionUtils.createHashMap(distinctInnerEstimate);
+				for (final PriceContract price : entityPrices) {
+					if (isNotCandidate(price, currency, atTheMoment)) {
+						continue;
+					}
+					updateBestPerInner(price, innerRecordKey(price), priorityIndex, bestPerInner, bestPriorityPerInner);
+				}
+				for (final PriceContract representative : bestPerInner.values()) {
+					final BigDecimal amount = queryPriceMode == QueryPriceMode.WITHOUT_TAX ?
+						representative.priceWithoutTax() : representative.priceWithTax();
+					if (from.compareTo(amount) <= 0 && to.compareTo(amount) >= 0) {
+						return true;
+					}
+				}
+				return false;
 			}
 			default ->
 				throw new GenericEvitaInternalError("Unknown price inner record handling mode: " + getPriceInnerRecordHandling());
@@ -1736,6 +1949,17 @@ public interface PricesContract extends Versioned, Serializable {
 		 */
 		@Nonnull
 		Optional<AccompanyingPrice[]> accompanyingPrices();
+
+		/**
+		 * Returns the price mode whose amounts decide which inner record sells the entity and which prices bound
+		 * its price range.
+		 *
+		 * @return the price mode of the price for sale computation, {@link QueryPriceMode#WITH_TAX} by default
+		 */
+		@Nonnull
+		default QueryPriceMode queryPriceMode() {
+			return QueryPriceMode.WITH_TAX;
+		}
 	}
 
 	/**

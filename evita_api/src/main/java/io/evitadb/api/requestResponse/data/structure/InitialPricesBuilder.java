@@ -50,13 +50,16 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Currency;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
@@ -73,6 +76,17 @@ import static java.util.Optional.ofNullable;
 @RequiredArgsConstructor
 public class InitialPricesBuilder implements PricesBuilder {
 	@Serial private static final long serialVersionUID = 4752434728077797252L;
+	/**
+	 * Orders prices by price list and currency - the group in which the prices of an entity without inner record
+	 * handling compete for the price for sale, the inner record id having no meaning there.
+	 */
+	private static final Comparator<PriceContract> PRICE_LIST_AND_CURRENCY_COMPARATOR = (first, second) -> {
+		final int byPriceList = first.priceList().compareTo(second.priceList());
+		if (byPriceList != 0) {
+			return byPriceList;
+		}
+		return first.currency().getCurrencyCode().compareTo(second.currency().getCurrencyCode());
+	};
 
 	/**
 	 * Entity schema if available.
@@ -384,9 +398,24 @@ public class InitialPricesBuilder implements PricesBuilder {
 		);
 	}
 
+	/**
+	 * Builds the mutations creating the prices and the price inner record handling of the new entity.
+	 *
+	 * When the entity ends up without inner record handling, every price is first checked against the other prices of
+	 * its price list and currency, whatever their inner record ids - see
+	 * {@link #assertPricesNotAmbiguousWithoutInnerRecordHandling(PriceContract[], int, Set)}. The check runs here
+	 * rather than when a price is set, because the handling may still change after the prices are set.
+	 *
+	 * @throws AmbiguousPriceException when two prices of one price list and currency of an entity without inner
+	 *                                 record handling are valid at a common moment
+	 */
 	@Nonnull
 	@Override
 	public Stream<? extends LocalMutation<?, ?>> buildChangeSet() {
+		if (this.priceInnerRecordHandling == PriceInnerRecordHandling.NONE && this.prices.size() > 1) {
+			final PriceContract[] builtPrices = this.prices.values().toArray(new PriceContract[0]);
+			assertPricesNotAmbiguousWithoutInnerRecordHandling(builtPrices, builtPrices.length, null);
+		}
 		return Stream.concat(
 			this.priceInnerRecordHandling == null || this.priceInnerRecordHandling == PriceInnerRecordHandling.UNKNOWN ?
 				Stream.empty() :
@@ -462,12 +491,63 @@ public class InitialPricesBuilder implements PricesBuilder {
 	}
 
 	/**
+	 * Verifies that no touched price of an entity without inner record handling competes with another of its prices
+	 * for the price for sale. Such an entity selects one price per price list and currency, the inner record id having
+	 * no meaning there, so two prices of one price list and currency must not be valid at a common moment
+	 * ({@link PriceContract#validitiesOverlap}), whatever their inner record ids are. The server applies the same rule
+	 * to the end state of every entity upsert; the builders apply it to the prices they know when they build the change
+	 * set.
+	 *
+	 * Only pairs with at least one touched price are checked, so an entity that already holds an ambiguous pair stays
+	 * updatable as long as the pair is left alone. The cost is one sort of the prices plus one comparison per touched
+	 * price and other price of its price list and currency.
+	 *
+	 * @param prices           the existing prices of the entity in the state the change set leads to; the first `count`
+	 *                         slots are reordered
+	 * @param count            number of the prices in the array
+	 * @param touchedPriceKeys keys of the prices the change set adds or moves to another validity or inner record,
+	 *                         `null` when every price is touched
+	 * @throws AmbiguousPriceException when a touched price competes with another price of the entity
+	 */
+	static void assertPricesNotAmbiguousWithoutInnerRecordHandling(
+		@Nonnull PriceContract[] prices,
+		int count,
+		@Nullable Set<PriceKey> touchedPriceKeys
+	) {
+		Arrays.sort(prices, 0, count, PRICE_LIST_AND_CURRENCY_COMPARATOR);
+		int groupStart = 0;
+		while (groupStart < count) {
+			// find the end of the group of prices sharing the price list and currency
+			int groupEnd = groupStart + 1;
+			while (groupEnd < count &&
+				PRICE_LIST_AND_CURRENCY_COMPARATOR.compare(prices[groupStart], prices[groupEnd]) == 0) {
+				groupEnd++;
+			}
+			// and compare every touched price of the group with all other prices of the group
+			for (int i = groupStart; i < groupEnd; i++) {
+				final PriceContract touchedPrice = prices[i];
+				if (touchedPriceKeys == null || touchedPriceKeys.contains(touchedPrice.priceKey())) {
+					for (int j = groupStart; j < groupEnd; j++) {
+						final PriceContract otherPrice = prices[j];
+						if (j != i && PriceContract.validitiesOverlap(otherPrice.validity(), touchedPrice.validity())) {
+							throw new AmbiguousPriceException(otherPrice, touchedPrice);
+						}
+					}
+				}
+			}
+			groupStart = groupEnd;
+		}
+	}
+
+	/**
 	 * Verifies there is no ambiguity with already added prices.
 	 *
 	 * Two prices are considered ambiguous if they share the same price list and currency, have different
 	 * {@code priceId}, the same {@code innerRecordId} (including both being {@code null}), and their validity
 	 * intervals overlap (or the new price has no validity defined). In such a case, an
-	 * {@link AmbiguousPriceException} is thrown to prevent creating an inconsistent price set.
+	 * {@link AmbiguousPriceException} is thrown to prevent creating an inconsistent price set. Prices of different
+	 * inner records of an entity without inner record handling are checked when the change set is built, because the
+	 * handling may still change.
 	 *
 	 * @param price the price that is about to be added; checked against already present prices
 	 * @throws AmbiguousPriceException when an ambiguous price is detected
@@ -482,13 +562,7 @@ public class InitialPricesBuilder implements PricesBuilder {
 				it.innerRecordId(),
 				price.innerRecordId()
 			))
-			.filter(it ->
-				        price.validity() == null ||
-					        ofNullable(it.validity()).map(
-						                                 existingValidity -> existingValidity.overlaps(
-							                                 price.validity()))
-					                                 .orElse(true)
-			)
+			.filter(it -> PriceContract.validitiesOverlap(it.validity(), price.validity()))
 			.findFirst()
 			.orElse(null);
 		if (conflictingPrice != null) {

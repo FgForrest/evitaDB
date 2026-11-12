@@ -34,8 +34,10 @@ import javax.annotation.concurrent.ThreadSafe;
  * This internal data structure aggregates prices for single entity. We need to answer the question of which prices
  * (with or without tax) are assigned to which entity.
  *
- * This implementation of {@link EntityPrices} maintains more than a single price but none of them
- * is {@link PriceRecordContract#isInnerRecordSpecific()}.
+ * This implementation of {@link EntityPrices} maintains more than a single price whose inner record ids play no role:
+ * either none of them is {@link PriceRecordContract#isInnerRecordSpecific()}, or they belong to an index of entities
+ * without inner record handling, where all prices of the entity compete for the single lowest price whatever inner
+ * record id they carry.
  */
 @ThreadSafe
 class MultiplePriceEntityPrices extends EntityPrices {

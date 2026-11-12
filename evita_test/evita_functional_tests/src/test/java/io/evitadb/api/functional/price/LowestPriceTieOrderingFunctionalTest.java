@@ -23,7 +23,9 @@
 
 package io.evitadb.api.functional.price;
 
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -58,6 +60,7 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.ORDER;
 import static io.evitadb.test.TestTags.PRICE;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -68,7 +71,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * price, so the selection among the tied inner records decides the discount and, through it, the order - which
  * makes the order the observable both of the stability of the selection and of its agreement with the price for sale
  * the fetched entity reports. The same agreement is verified for an inner record with several prices tied in a single
- * price list, where the selection within the inner record decides the price the entity sells for.
+ * price list, where the selection within the inner record decides the price the entity sells for, and for the price
+ * mode of the query, which decides the inner record the entity sells through on the index path, on the prefetch path
+ * and in the price for sale, the price range and the accompanying prices the entity reports.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -174,12 +179,169 @@ class LowestPriceTieOrderingFunctionalTest {
 		);
 	}
 
+	@Test
+	@DisplayName("should order by the discount of the price for sale the entity reports when queried without tax")
+	void shouldOrderByDiscountOfEntityPriceForSaleWhenQueriedWithoutTax(Evita evita) {
+		createProductsTiedInSinglePriceMode(evita);
+
+		final SealedEntity firstProduct = queryFirstProduct(
+			evita,
+			entityFetch(priceContentRespectingFilter())
+		);
+		assertAll(
+			// inner record 2 of the first product sells for 100.00 without tax, inner record 1 for 110.00
+			() -> assertEquals(
+				new BigDecimal("100.00"), firstProduct.getPriceForSale().orElseThrow().priceWithoutTax()
+			),
+			() -> assertEquals(
+				computeOrderByEntityPriceForSale(evita, QueryPriceMode.WITHOUT_TAX),
+				queryOrderByDiscount(evita, QueryPriceMode.WITHOUT_TAX)
+			)
+		);
+	}
+
+	/**
+	 * The price for sale range and the accompanying prices are computed by the same comparison as the price for sale.
+	 * Queried without tax, the first product's cheapest inner record is inner record 2 (`100.00` against `110.00`), so
+	 * the lowest price of the range is `100.00` and the reference price accompanying the price for sale is the one of
+	 * inner record 2 (`1101.00` without tax).
+	 */
+	@Test
+	@DisplayName("should compute the price range and the accompanying prices by the price without tax when queried so")
+	void shouldComputePriceRangeAndAccompanyingPricesByPriceWithoutTaxWhenQueriedSo(Evita evita) {
+		createProductsTiedInSinglePriceMode(evita);
+
+		final SealedEntity firstProduct = queryFirstProduct(
+			evita,
+			entityFetch(
+				priceContentRespectingFilter(PRICE_LIST_REFERENCE),
+				accompanyingPriceContent(PRICE_LIST_REFERENCE, PRICE_LIST_REFERENCE)
+			)
+		);
+		assertAll(
+			() -> assertEquals(
+				new BigDecimal("100.00"),
+				firstProduct.getPriceRangeForSale().orElseThrow().lowestPrice().priceWithoutTax()
+			),
+			() -> assertEquals(
+				new BigDecimal("1101.00"),
+				firstProduct.getPriceForSaleWithAccompanyingPrices().orElseThrow()
+					.accompanyingPrices().get(PRICE_LIST_REFERENCE).orElseThrow().priceWithoutTax()
+			)
+		);
+	}
+
+	/**
+	 * An entity fetched without any price constraint in the filter has no price for sale context, so its price for sale
+	 * is computed from the arguments of the call. The price mode is not one of them: it is the mode of the query the
+	 * entity was fetched by, also for the builder opened on the entity.
+	 */
+	@Test
+	@DisplayName("should compute the price for sale by the price mode of the query when called with explicit arguments")
+	void shouldComputePriceForSaleByQueryPriceModeWhenCalledWithExplicitArguments(Evita evita) {
+		createProductsTiedInSinglePriceMode(evita);
+
+		final SealedEntity firstProduct = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					query(
+						collection(PRODUCT),
+						filterBy(entityPrimaryKeyInSet(1)),
+						require(
+							priceType(QueryPriceMode.WITHOUT_TAX),
+							entityFetch(priceContentAll())
+						)
+					)
+				).orElseThrow();
+			}
+		);
+		assertAll(
+			() -> assertEquals(
+				new BigDecimal("100.00"),
+				firstProduct.getPriceForSale(CZK, null, PRICE_LIST_BASIC).orElseThrow().priceWithoutTax()
+			),
+			() -> assertEquals(
+				new BigDecimal("100.00"),
+				firstProduct.getPriceRangeForSale(CZK, null, PRICE_LIST_BASIC).orElseThrow().lowestPrice()
+					.priceWithoutTax()
+			),
+			() -> assertEquals(
+				new BigDecimal("100.00"),
+				firstProduct.openForWrite().getPriceForSale(CZK, null, PRICE_LIST_BASIC).orElseThrow()
+					.priceWithoutTax()
+			)
+		);
+	}
+
+	/**
+	 * A limited view of a fetched entity is built by a request that carries only the content requirements, so the
+	 * price mode of that request is the default one. The view keeps the price context of the entity it limits and
+	 * must keep its price mode as well.
+	 */
+	@Test
+	@DisplayName("should keep the price mode of the fetched entity in its limited view")
+	void shouldKeepPriceModeOfFetchedEntityInItsLimitedView(Evita evita) {
+		createProductsTiedInSinglePriceMode(evita);
+
+		final BigDecimal priceForSale = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity firstProduct = session.queryOneSealedEntity(
+					query(
+						collection(PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(1),
+								priceInCurrency(CZK),
+								priceInPriceLists(PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							priceType(QueryPriceMode.WITHOUT_TAX),
+							entityFetch(priceContentAll())
+						)
+					)
+				).orElseThrow();
+				final SealedEntity limitedView = session.enrichOrLimitEntity(
+					firstProduct, priceContentRespectingFilter()
+				);
+				return limitedView.getPriceForSale().orElseThrow().priceWithoutTax();
+			}
+		);
+		assertEquals(new BigDecimal("100.00"), priceForSale);
+	}
+
+	@Test
+	@DisplayName("should order by the discount on the prefetch path as on the index path when queried without tax")
+	void shouldOrderByDiscountOnPrefetchPathAsOnIndexPathWhenQueriedWithoutTax(Evita evita) {
+		createProductsTiedInSinglePriceMode(evita);
+
+		final OrderConstraint byDiscount = priceDiscount(DESC, PRICE_LIST_REFERENCE);
+		assertEquals(
+			queryOrder(evita, QueryPriceMode.WITHOUT_TAX, byDiscount, DebugMode.PREFER_INDEX_SCAN),
+			queryOrder(evita, QueryPriceMode.WITHOUT_TAX, byDiscount, DebugMode.PREFER_PREFETCHING)
+		);
+	}
+
+	@Test
+	@DisplayName("should order by the price on the prefetch path as on the index path when queried without tax")
+	void shouldOrderByPriceOnPrefetchPathAsOnIndexPathWhenQueriedWithoutTax(Evita evita) {
+		createProductsTiedInSinglePriceMode(evita);
+
+		final OrderConstraint byPrice = priceNatural();
+		assertEquals(
+			queryOrder(evita, QueryPriceMode.WITHOUT_TAX, byPrice, DebugMode.PREFER_INDEX_SCAN),
+			queryOrder(evita, QueryPriceMode.WITHOUT_TAX, byPrice, DebugMode.PREFER_PREFETCHING)
+		);
+	}
+
 	/**
 	 * Inner record 1 of the first product has two prices in the selling price list. Their validities do not overlap
 	 * and the query names no moment, so both of them stand for the inner record, and every selling price of the
-	 * product is the same amount in both price modes. The entity side represents inner record 1 by its lower price id
-	 * and lets it win the tie against inner record 2 by that very price id, which discounts the product less than the
-	 * second product.
+	 * product is the same amount in both price modes. Tied on the amount, inner record 1 is represented by its lower
+	 * price id and wins the tie against inner record 2 by that very price id, which discounts the product less than
+	 * the second product.
 	 */
 	@Test
 	@DisplayName("should order by the discount of the entity price for sale when an inner record has tied prices")
@@ -196,10 +358,10 @@ class LowestPriceTieOrderingFunctionalTest {
 	/**
 	 * The first product has a single inner record with two prices in the selling price list. Their validities do not
 	 * overlap and the query names no moment, so both of them stand for the inner record. The prices tie without tax
-	 * and differ with tax; the price indexed first holds the higher price id and the lower amount with tax. The entity
-	 * side represents the inner record by the lower price id, so its price for sale with tax is the higher amount, and
-	 * ordering by the price with tax must place the product after the second product, which sells for an amount in
-	 * between.
+	 * and differ with tax; the price indexed first holds the higher price id and the lower amount with tax. Tied
+	 * without tax, the inner record is represented by the lower price id, so its price for sale with tax is the higher
+	 * amount, and ordering by the price with tax must place the product after the second product, which sells for an
+	 * amount in between.
 	 */
 	@Test
 	@DisplayName("should order by the entity price for sale when prices of an inner record tie without tax")
@@ -241,8 +403,8 @@ class LowestPriceTieOrderingFunctionalTest {
 	 * The same tie as in {@link #shouldOrderByEntityPriceForSaleWhenPricesOfInnerRecordTieWithoutTax(Evita)} for an
 	 * entity with {@link PriceInnerRecordHandling#NONE}: two prices in the selling price list valid in different years,
 	 * tied without tax and differing with tax, the one indexed first holding the higher price id and the lower amount
-	 * with tax. The entity side takes the first of its prices in the most prioritized price list, which come ordered
-	 * by price id, so its price for sale with tax is the higher amount.
+	 * with tax. Tied without tax, the price with the lower price id is the price for sale, so its price for sale with
+	 * tax is the higher amount.
 	 */
 	@Test
 	@DisplayName("should order by the entity price for sale when prices of an entity without inner records tie")
@@ -589,6 +751,92 @@ class LowestPriceTieOrderingFunctionalTest {
 		final List<Integer> primaryKeys = new ArrayList<>(discounts.keySet());
 		primaryKeys.sort(Comparator.comparing(discounts::get, Comparator.reverseOrder()));
 		return primaryKeys;
+	}
+
+	/**
+	 * Fetches the first product of {@link #createProductsTiedInSinglePriceMode(Evita)} by a query in the basic price
+	 * list priced without tax.
+	 *
+	 * @param evita       the evitaDB instance to query
+	 * @param entityFetch the content of the product to fetch
+	 * @return the fetched product
+	 */
+	@Nonnull
+	private static SealedEntity queryFirstProduct(@Nonnull Evita evita, @Nonnull EntityFetch entityFetch) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					query(
+						collection(PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(1),
+								priceInCurrency(CZK),
+								priceInPriceLists(PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							priceType(QueryPriceMode.WITHOUT_TAX),
+							entityFetch
+						)
+					)
+				).orElseThrow();
+			}
+		);
+	}
+
+	/**
+	 * Returns primary keys of all products of {@link #createProductsTiedInSinglePriceMode(Evita)} in the order the
+	 * engine sorts them by. The filter names the primary keys, so the planner may answer the query by prefetching the
+	 * entities, and the passed debug mode decides which of the two paths it takes.
+	 *
+	 * @param evita          the evitaDB instance to query
+	 * @param queryPriceMode price mode of the query
+	 * @param orderBy        the ordering constraint
+	 * @param debugMode      {@link DebugMode#PREFER_INDEX_SCAN} or {@link DebugMode#PREFER_PREFETCHING}
+	 * @return primary keys in the order returned by the engine
+	 */
+	@Nonnull
+	private static List<Integer> queryOrder(
+		@Nonnull Evita evita,
+		@Nonnull QueryPriceMode queryPriceMode,
+		@Nonnull OrderConstraint orderBy,
+		@Nonnull DebugMode debugMode
+	) {
+		final int productCount = 2 * GROUP_SIZE + 1;
+		final Integer[] allPrimaryKeys = new Integer[productCount];
+		for (int i = 0; i < productCount; i++) {
+			allPrimaryKeys[i] = i + 1;
+		}
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<EntityReferenceContract> references = session.queryListOfEntityReferences(
+					query(
+						collection(PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(allPrimaryKeys),
+								priceInCurrency(CZK),
+								priceInPriceLists(PRICE_LIST_BASIC)
+							)
+						),
+						orderBy(orderBy),
+						require(
+							page(1, productCount),
+							priceType(queryPriceMode),
+							debug(debugMode)
+						)
+					)
+				);
+				final List<Integer> primaryKeys = new ArrayList<>(references.size());
+				for (final EntityReferenceContract reference : references) {
+					primaryKeys.add(reference.getPrimaryKey());
+				}
+				return primaryKeys;
+			}
+		);
 	}
 
 	/**

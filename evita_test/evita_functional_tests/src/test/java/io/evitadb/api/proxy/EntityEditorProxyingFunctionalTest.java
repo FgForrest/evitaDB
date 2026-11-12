@@ -31,6 +31,7 @@ import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.proxy.mock.*;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -1075,6 +1076,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
+					.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 					.setPrice(
 						new Price(
 							1, "reference", CURRENCY_CZK, null,
@@ -1189,6 +1191,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						Arrays.asList("market-1", "market-2"))
 					.setMarketsAsList(
 						Arrays.asList("market-3", "market-4"))
+					.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 					.setAllPricesAsList(
 						Arrays.asList(
 							new Price(
@@ -1314,6 +1317,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttributeAsVarArg(
 						"market-1", "market-2")
 					.setMarketsAsVarArg("market-3", "market-4")
+					.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 					.setAllPricesAsArray(
 						new Price(
 							1, "reference", CURRENCY_CZK, null,
@@ -1705,6 +1709,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttributeAsVarArg(
 						"market-1", "market-2")
 					.setMarketsAsVarArg("market-3", "market-4")
+					.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 					.setAllPricesAsArray(
 						new Price(
 							1, "reference", CURRENCY_CZK, null,

@@ -32,11 +32,15 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.dataType.DateTimeRange;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
@@ -613,6 +617,111 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 			// NONE handling still produces a
 			// SetPriceInnerRecordHandlingMutation
 			assertEquals(1, count);
+		}
+	}
+
+	@Nested
+	@DisplayName("Ambiguity of an entity without inner record handling")
+	class AmbiguityWithoutInnerRecordHandlingTest {
+
+		/**
+		 * Returns the validity spanning the passed year.
+		 *
+		 * @param year the year
+		 * @return the validity
+		 */
+		@Nonnull
+		private static DateTimeRange wholeYear(int year) {
+			return DateTimeRange.between(
+				OffsetDateTime.of(year, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+				OffsetDateTime.of(year, 12, 31, 23, 59, 59, 0, ZoneOffset.UTC)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject prices of different inner records valid at a common moment")
+		void shouldRejectOverlappingPricesOfDifferentInnerRecordsWhenBuildingChangeSet() {
+			InitialPricesBuilderTest.this.builder
+				.setPrice(
+					1, "basic", CZK, 1,
+					BigDecimal.ONE, BigDecimal.ZERO,
+					BigDecimal.ONE, true
+				)
+				.setPrice(
+					2, "basic", CZK, 2,
+					BigDecimal.TEN, BigDecimal.ZERO,
+					BigDecimal.TEN, wholeYear(2020), true
+				);
+
+			assertThrows(
+				AmbiguousPriceException.class,
+				InitialPricesBuilderTest.this.builder::buildChangeSet
+			);
+		}
+
+		@Test
+		@DisplayName("should reject overlapping prices when the handling is removed after the prices are set")
+		void shouldRejectOverlappingPricesWhenInnerRecordHandlingIsRemovedAfterPricesAreSet() {
+			InitialPricesBuilderTest.this.builder
+				.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
+				.setPrice(
+					1, "basic", CZK, 1,
+					BigDecimal.ONE, BigDecimal.ZERO,
+					BigDecimal.ONE, true
+				)
+				.setPrice(
+					2, "basic", CZK, 2,
+					BigDecimal.TEN, BigDecimal.ZERO,
+					BigDecimal.TEN, true
+				)
+				.removePriceInnerRecordHandling();
+
+			assertThrows(
+				AmbiguousPriceException.class,
+				InitialPricesBuilderTest.this.builder::buildChangeSet
+			);
+		}
+
+		@Test
+		@DisplayName("should accept overlapping prices of different inner records when the handling is set after them")
+		void shouldAcceptOverlappingPricesOfDifferentInnerRecordsWhenHandlingIsSetAfterPrices() {
+			InitialPricesBuilderTest.this.builder
+				.setPrice(
+					1, "basic", CZK, 1,
+					BigDecimal.ONE, BigDecimal.ZERO,
+					BigDecimal.ONE, true
+				)
+				.setPrice(
+					2, "basic", CZK, 2,
+					BigDecimal.TEN, BigDecimal.ZERO,
+					BigDecimal.TEN, true
+				)
+				.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
+
+			assertEquals(3, InitialPricesBuilderTest.this.builder.buildChangeSet().count());
+		}
+
+		@Test
+		@DisplayName("should accept prices of one price list valid at different moments or in another currency")
+		void shouldAcceptPricesOfOnePriceListValidAtDifferentMomentsOrInAnotherCurrency() {
+			InitialPricesBuilderTest.this.builder
+				.setPrice(
+					1, "basic", CZK, 1,
+					BigDecimal.ONE, BigDecimal.ZERO,
+					BigDecimal.ONE, wholeYear(2020), true
+				)
+				.setPrice(
+					2, "basic", CZK, 2,
+					BigDecimal.TEN, BigDecimal.ZERO,
+					BigDecimal.TEN, wholeYear(2021), true
+				)
+				.setPrice(
+					3, "basic", EUR, 3,
+					BigDecimal.TEN, BigDecimal.ZERO,
+					BigDecimal.TEN, true
+				);
+
+			assertEquals(4, InitialPricesBuilderTest.this.builder.buildChangeSet().count());
 		}
 	}
 

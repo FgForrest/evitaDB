@@ -487,6 +487,16 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	}
 
 	/**
+	 * Returns the price mode of the query the base entity was fetched by, which the predicate carries even when no
+	 * price for sale context exists.
+	 */
+	@Nonnull
+	@Override
+	public QueryPriceMode getQueryPriceMode() {
+		return this.pricePredicate.getQueryPriceMode();
+	}
+
+	/**
 	 * Computes the single price-for-sale according to the predicate (currency, lists, validity).
 	 *
 	 * @return optionally the price-for-sale
@@ -650,10 +660,18 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * - Emits {@link SetPriceInnerRecordHandlingMutation} when changed
 	 * - Emits effective {@link UpsertPriceMutation} and {@link RemovePriceMutation}
 	 * - When {@link #removeAllNonTouchedPrices()} was requested, removes all non-touched existing prices
+	 *
+	 * When the entity ends up without inner record handling, the prices this builder adds or moves are first checked
+	 * against the other prices of their price list and currency, whatever their inner record ids - see
+	 * {@link #assertPricesNotAmbiguousWithoutInnerRecordHandling()}.
+	 *
+	 * @throws AmbiguousPriceException when two prices of one price list and currency of an entity without inner
+	 *                                 record handling are valid at a common moment
 	 */
 	@Nonnull
 	@Override
 	public Stream<? extends LocalMutation<?, ?>> buildChangeSet() {
+		assertPricesNotAmbiguousWithoutInnerRecordHandling();
 		final Collection<PriceContract> originalPrices = this.basePrices.pricesAvailable() ?
 			this.basePrices.getPrices() :
 			Collections.emptyList();
@@ -794,6 +812,79 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	}
 
 	/**
+	 * Verifies the state the change set leads to when the entity ends up without inner record handling: no price this
+	 * builder adds, revives, or moves to another validity or inner record may be valid at a common moment with another
+	 * price of its price list and currency, whatever their inner record ids are. When this builder switches the
+	 * entity to that handling, every price counts as moved. These are the pairs the server checks, so an entity that
+	 * already holds an ambiguous pair stays updatable as long as the pair is left alone. The check runs when the change
+	 * set is built, because the handling may still change after a price is set, and it sees only the prices the base
+	 * entity was fetched with - the server checks the rest.
+	 *
+	 * Costs nothing when the builder changes no price and no handling, or when the entity keeps an inner record
+	 * handling.
+	 *
+	 * @throws AmbiguousPriceException when a touched price competes with another price of the entity
+	 */
+	private void assertPricesNotAmbiguousWithoutInnerRecordHandling() {
+		if (this.priceMutations.isEmpty() && this.priceInnerRecordHandlingEntityMutation == null) {
+			return;
+		}
+		final PriceInnerRecordHandling handling = this.priceInnerRecordHandlingEntityMutation == null ?
+			this.basePrices.getPriceInnerRecordHandling() :
+			this.priceInnerRecordHandlingEntityMutation.getPriceInnerRecordHandling();
+		if (handling != PriceInnerRecordHandling.NONE) {
+			return;
+		}
+		// the mutation is kept only when it changes the handling, and a change of the handling touches every price
+		Set<PriceKey> touchedPriceKeys = null;
+		if (this.priceInnerRecordHandlingEntityMutation == null) {
+			for (final PriceMutation mutation : this.priceMutations.values()) {
+				if (mutation instanceof UpsertPriceMutation upsertPriceMutation) {
+					final PriceContract basePrice = this.basePrices
+						.getPriceWithoutSchemaCheck(upsertPriceMutation.getPriceKey())
+						.orElse(null);
+					if (basePrice == null || !basePrice.exists() ||
+						!Objects.equals(basePrice.validity(), upsertPriceMutation.getValidity()) ||
+						!Objects.equals(basePrice.innerRecordId(), upsertPriceMutation.getInnerRecordId())) {
+						if (touchedPriceKeys == null) {
+							touchedPriceKeys = CollectionUtils.createHashSet(this.priceMutations.size());
+						}
+						touchedPriceKeys.add(upsertPriceMutation.getPriceKey());
+					}
+				}
+			}
+			if (touchedPriceKeys == null) {
+				return;
+			}
+		}
+		// collect the existing prices of the state the change set leads to
+		final Collection<PriceContract> originalPrices = this.basePrices.pricesAvailable() ?
+			this.basePrices.getPrices() : Collections.emptyList();
+		final PriceContract[] builtPrices = new PriceContract[originalPrices.size() + this.priceMutations.size()];
+		int builtPriceCount = 0;
+		for (final PriceContract originalPrice : originalPrices) {
+			final PriceMutation mutation = this.priceMutations.get(originalPrice.priceKey());
+			if (mutation == null) {
+				if (originalPrice.exists() &&
+					!(this.removeAllNonModifiedPrices && !this.touchedPrices.contains(originalPrice.priceKey()))) {
+					builtPrices[builtPriceCount++] = originalPrice;
+				}
+			} else if (mutation instanceof UpsertPriceMutation) {
+				builtPrices[builtPriceCount++] = mutation.mutateLocal(this.entitySchema, originalPrice);
+			}
+		}
+		for (final PriceMutation mutation : this.priceMutations.values()) {
+			if (mutation instanceof UpsertPriceMutation &&
+				this.basePrices.getPriceWithoutSchemaCheck(mutation.getPriceKey()).isEmpty()) {
+				builtPrices[builtPriceCount++] = mutation.mutateLocal(this.entitySchema, null);
+			}
+		}
+		InitialPricesBuilder.assertPricesNotAmbiguousWithoutInnerRecordHandling(
+			builtPrices, builtPriceCount, touchedPriceKeys
+		);
+	}
+
+	/**
 	 * Verifies that adding/upserting the provided price does not lead to an ambiguous state.
 	 *
 	 * Ambiguity rules:
@@ -801,6 +892,8 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * must not have overlapping validity intervals
 	 * - Conflicts are checked against both existing prices and pending upsert mutations
 	 * - Conflicts scheduled for removal within this builder are ignored
+	 * - Prices of different inner records of an entity without inner record handling are checked when the change set
+	 * is built, because the handling may still change
 	 *
 	 * @param price transient price being considered
 	 * @throws AmbiguousPriceException when a conflict is detected
@@ -817,16 +910,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 				it.innerRecordId(),
 				price.innerRecordId()
 			))
-			.filter(it ->
-				        price.validity() == null ||
-					        ofNullable(it.validity())
-						        // price.validity() cannot be null, but IntelliJ doesn't know that there :(
-						        .map(
-							        existingValidity -> existingValidity.overlaps(
-								        Objects.requireNonNull(
-									        price.validity())))
-						        .orElse(true)
-			)
+			.filter(it -> PriceContract.validitiesOverlap(it.validity(), price.validity()))
 			// the conflicting prices don't play role if they're going to be removed in the same update
 			.filter(it -> !(this.priceMutations.get(
 				it.priceKey()) instanceof RemovePriceMutation))
@@ -846,16 +930,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 			.filter(it -> it.getPriceKey().currency().equals(price.currency()))
 			.filter(it -> it.getPriceKey().priceId() != price.priceId())
 			.filter(it -> Objects.equals(it.getInnerRecordId(), price.innerRecordId()))
-			.filter(it ->
-				        price.validity() == null ||
-					        ofNullable(it.getValidity())
-						        // price.validity() cannot be null, but IntelliJ doesn't know that there :(
-						        .map(
-							        existingValidity -> existingValidity.overlaps(
-								        Objects.requireNonNull(
-									        price.validity())))
-						        .orElse(true)
-			)
+			.filter(it -> PriceContract.validitiesOverlap(it.getValidity(), price.validity()))
 			.findFirst()
 			.orElse(null);
 		if (conflictingMutation != null) {

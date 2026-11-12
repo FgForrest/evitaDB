@@ -611,13 +611,10 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * result.
 	 *
 	 * The rule is the one `PricesContract#isBetterByPriceIdThenInner` applies on the entity side to candidates tied on
-	 * the amount it compares, and it is all this method promises: the entity side's rule for exact ties. It does not
-	 * make the selection agree with the price for sale the entity reports where the two compare different things - the
-	 * entity side compares the price with tax in every query price mode, and it represents an inner record by the
-	 * price with the lowest price id among those of its most prioritized price list, whereas this formula receives one
-	 * price per inner record and price list as its lookups deliver it: pre-selected by the index as the cheapest
-	 * without tax, a tie going to the lower price id (see `EntityPrices`), or, for a query naming a validity moment,
-	 * the first one valid at it.
+	 * the amount of the query price mode. The entity side also represents an inner record by the same price this
+	 * formula receives from its lookups: the cheapest without tax, a tie going to the lower price id (see
+	 * `EntityPrices`), or, for a query naming a validity moment, the one valid at it. The two still compare different
+	 * numbers for amounts with more decimal places than the schema indexes, which this formula sees rounded.
 	 *
 	 * @param candidate the record examined now
 	 * @param incumbent the record selected so far, selling for the same amount as `candidate`

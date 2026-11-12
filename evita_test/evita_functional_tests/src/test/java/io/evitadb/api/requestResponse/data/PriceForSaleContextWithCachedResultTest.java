@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data;
 
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.structure.AbstractBuilderTest;
@@ -110,7 +111,8 @@ class PriceForSaleContextWithCachedResultTest extends AbstractBuilderTest {
 					ArgumentMatchers.eq(CZK),
 					ArgumentMatchers.isNull(),
 					ArgumentMatchers.eq(expectedPriorityIndex),
-					ArgumentMatchers.any()
+					ArgumentMatchers.any(),
+					ArgumentMatchers.eq(QueryPriceMode.WITH_TAX)
 				),
 				Mockito.times(1)
 			);

@@ -202,6 +202,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 			evitaRequest.getRequiresCurrency(),
 			evitaRequest.getRequiresPriceValidIn(),
 			evitaRequest.getAccompanyingPrices(),
+			this.queryPriceMode,
 			priceForSaleWithAccompanyingPrices
 		);
 	}
@@ -239,7 +240,9 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		}
 		this.underlyingPredicate = underlyingPredicate;
 		this.contextAvailable = this.currency != null && !ArrayUtils.isEmpty(this.priceLists);
-		this.queryPriceMode = evitaRequest.getQueryPriceMode();
+		// the price mode decides the price for sale like the price lists do, so the limited view keeps the one the
+		// entity was fetched with - the limiting request carries only content requirements and the default mode
+		this.queryPriceMode = underlyingPredicate.queryPriceMode;
 	}
 
 	PriceContractSerializablePredicate(
@@ -294,7 +297,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		if (this.contextAvailable) {
 			if (this.priceForSaleContext == null) {
 				this.priceForSaleContext = new PriceForSaleContextWithCachedResult(
-					this.priceLists, this.currency, this.validIn, this.accompanyingPrices
+					this.priceLists, this.currency, this.validIn, this.accompanyingPrices, this.queryPriceMode
 				);
 			}
 			return Optional.of(this.priceForSaleContext);

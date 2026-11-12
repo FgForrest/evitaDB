@@ -77,14 +77,30 @@ selling price for the product.
 
 <Note type="warning">
 
-To avoid price ambiguity, evitaDB builders force entities to have only one valid price per different price list.
-However, ambiguity can still occur if the entity has two prices with non-overlapping validity spans and the evitaDB
+To avoid price ambiguity, evitaDB allows an entity only one valid price at any moment per price list, currency and
+inner record. The entity builders reject a price whose validity overlaps the validity of another price of the same
+price list, currency and inner record - a price without validity overlaps every other one - and the server rejects it
+too when the entity is stored, whatever way the change arrives. For an entity without inner record handling, the
+builders and the server also reject overlapping prices of one price list and currency that differ only in their inner
+record ids, because the inner record id has no meaning for such an entity. The builders check this when they produce
+the entity mutation, so the inner record handling may still be set after the prices.
+
+An entity may still have several prices in one price list with non-overlapping validity spans. When the evitaDB
 [query](../query/basics.md) is missing the [`priceValidIn`](../query/filtering/price.md#price-valid-in) constraint that
-defines the exact time for the correct price evaluation. In such situations, the "undefined" price will be selected.
-That's why you should always specify the correct date and time for a correct price for the sales resolution (unless you
-know that there are no time-dependent prices in the database).
+defines the exact time for the price evaluation, all of them are candidates, and the one with the lowest price without
+tax is selected (on a tie, the one with the lower price id), whatever [price type](../query/requirements/price.md#price-type)
+the query uses. That's why you should always specify the correct date and time for a correct price for the sales
+resolution (unless you know that there are no time-dependent prices in the database).
 
 </Note>
+
+A price list named more than once in the [`priceInPriceLists`](../query/filtering/price.md#price-in-price-lists)
+constraint keeps the priority of its first position.
+
+The amounts are compared in the [price type](../query/requirements/price.md#price-type) of the query (with tax by
+default) wherever the price for sale is chosen by amount - the lowest price of product variants and the bounds of the
+price range. The price for sale and the price range that a fetched entity reports are computed in the same price type
+as the one the query filters and sorts by.
 
 You need to think carefully about how to model price lists and priorities in evitaDB. One of the more intuitive
 approaches is to convert price lists from <Term>ERP</Term> (in a 1:1 ratio) to evitaDB. That's usually fine - but
@@ -219,12 +235,14 @@ with variants must have a price inner entity reference handling mode
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceInnerRecordHandling.java</SourceClass>
 set to `LOWEST_PRICE`.
 
-In this product setup, the selling price is selected as the lowest selling price of all variants. This price is used to
-filter products by price.
+In this product setup, the selling price is selected as the lowest selling price of all variants, compared in the price
+type of the query. When two variants sell for the same amount, the price with the lower price id wins, then the variant
+with the lower inner entity id. This price is used to filter products by price.
 
 The entity will also provide calculated prices for each of the product variants, selecting the first price ranked by
 priority for each inner entity identifier. This information can be used to display the price range for the product with
-variants (i.e. price from €5 to €6.5) or to calculate an average price for sale of all product variants.
+variants (i.e. price from €5 to €6.5) or to calculate an average price for sale of all product variants. The lowest and
+the highest price of the range are chosen in the price type of the query as well.
 
 ### Model example
 

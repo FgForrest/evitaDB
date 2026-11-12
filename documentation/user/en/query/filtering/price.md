@@ -87,7 +87,12 @@ mode the [entity has set](../../use/data-model.md#entity), but for all of the mo
 the price for sale is selected from [prices](../../use/data-model.md#prices) marked as `indexed` that conform to
 the selected [currency](#price-in-currency) and [price lists](#price-in-price-lists) and are valid at the specified
 [time](#price-valid-in). The first price that matches all of these criteria in the order of the price lists in the
-[price list constraint argument](#price-in-price-lists) is selected as the price for sale.
+[price list constraint argument](#price-in-price-lists) is selected as the price for sale. A price list named more than
+once in the argument keeps the priority of its first position. When the query names no [time](#price-valid-in) and an
+entity has several prices in the first matching price list (with non-overlapping validity), the one with the lowest
+price without tax is selected, on a tie the one with the lower price id. For an entity without inner record handling,
+the inner record id of a price has no meaning: all its prices in a price list compete for the single price for sale,
+and the [price between](#price-between) constraint tests that one price.
 
 For non-default price inner record handling modes, the price is calculated this way:
 
@@ -95,8 +100,9 @@ For non-default price inner record handling modes, the price is calculated this 
    <dt>LOWEST_PRICE</dt>
    <dd>
       The sales price is selected as the lowest sales price calculated separately for blocks of prices with the same
-      inner record id. If the [price between](#price-between) constraint is specified, the price is the lowest selling
-      price valid for the specified price range.
+      inner record id, compared in the [price type](../requirements/price.md#price-type) of the query. If the
+      [price between](#price-between) constraint is specified, the price is the lowest selling price valid for the
+      specified price range.
    </dd>
    <dt>SUM</dt>
    <dd>
