@@ -121,7 +121,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * | 12 | ARCHIVED | 11: false | 101 |
  * | 13 | ARCHIVED | 15: false - single-owner, a registry row | 103 |
  *
- * Every query runs on both plans of {@link PlanPreference} and proves from its telemetry that it ran on that plan. On
+ * Every query runs on both plans of {@link PlanPreference} - except an outer `not(referenceHaving(...))`, which does
+ * not take the PREFETCH plan and runs on INDEX_SCAN only - and proves from its telemetry that it ran on that plan. On
  * the index-scan plan it also verifies its caching trees and the alternative index plans, where index selection
  * offers any.
  *
@@ -417,6 +418,62 @@ public class ReferenceHavingInScopeAcrossScopesFunctionalTest {
 		);
 	}
 
+	/**
+	 * Runs on INDEX_SCAN because an outer `not(referenceHaving(...))` does not take the PREFETCH plan.
+	 * The expected complement includes every requested owner without a matching row, including owners without rows.
+	 */
+	@ParameterizedTest(name = "{0} of {1} on {2}")
+	@MethodSource("negatedBodies")
+	@UseDataSet(DATA_SET)
+	@DisplayName("negated referenceHaving complements the owners its body admits")
+	void shouldComplementAdmittedOwnersWhenReferenceHavingIsNegated(
+		@Nonnull BodyCase theCase,
+		@Nonnull String referenceName,
+		@Nonnull PlanPreference plan,
+		@Nonnull Evita evita
+	) {
+		final List<Integer> matchingOwners = expectedOwners(evita, referenceName, BOTH, theCase.matches());
+		final List<Integer> expected = Arrays.stream(ALL_PRODUCTS)
+			.filter(primaryKey -> !matchingOwners.contains(primaryKey))
+			.boxed()
+			.toList();
+		assertEquals(
+			expected,
+			queryProducts(evita, BOTH, plan, not(referenceHaving(referenceName, theCase.body())))
+		);
+	}
+
+	/**
+	 * Exercises candidate discovery below `or` on both plans and unions the row oracle's owners with product 6.
+	 */
+	@ParameterizedTest(name = "{0} on {1}")
+	@MethodSource("referenceNamesAndPlans")
+	@UseDataSet(DATA_SET)
+	@DisplayName("a referenceHaving disjunction unions scoped matching owners with the requested primary key")
+	void shouldUnionOwnersWhenReferenceBodyRestrictsLiveScopeInDisjunction(
+		@Nonnull String referenceName,
+		@Nonnull PlanPreference plan,
+		@Nonnull Evita evita
+	) {
+		final List<Integer> matchingOwners = expectedOwners(
+			evita, referenceName, BOTH, (scope, primary, rank) -> scope != Scope.LIVE || primary
+		);
+		final List<Integer> expected = Arrays.stream(ALL_PRODUCTS)
+			.filter(primaryKey -> matchingOwners.contains(primaryKey) || primaryKey == 6)
+			.boxed()
+			.toList();
+		assertEquals(
+			expected,
+			queryProducts(
+				evita, BOTH, plan,
+				or(
+					referenceHaving(referenceName, inScope(Scope.LIVE, attributeEquals(ATTRIBUTE_PRIMARY, true))),
+					entityPrimaryKeyInSet(6)
+				)
+			)
+		);
+	}
+
 	@ParameterizedTest(name = "{0} on {1}")
 	@MethodSource("referenceNamesAndPlans")
 	@UseDataSet(DATA_SET)
@@ -515,6 +572,43 @@ public class ReferenceHavingInScopeAcrossScopesFunctionalTest {
 		for (final String referenceName : new String[]{REFERENCE_TAGS, REFERENCE_PARTITIONED_TAGS}) {
 			for (final PlanPreference plan : PlanPreference.values()) {
 				arguments.add(Arguments.of(referenceName, plan));
+			}
+		}
+		return arguments.stream();
+	}
+
+	/**
+	 * Returns the bodies the outer negation is tested with, each with every reference, in a query over both scopes and
+	 * on INDEX_SCAN only, which outer negations are restricted to because they do not take the PREFETCH plan.
+	 *
+	 * @return the arguments: the case, the reference name and INDEX_SCAN
+	 */
+	@Nonnull
+	static Stream<Arguments> negatedBodies() {
+		final List<BodyCase> cases = List.of(
+			new BodyCase(
+				"inScope(LIVE, primary)",
+				inScope(Scope.LIVE, attributeEquals(ATTRIBUTE_PRIMARY, true)),
+				(scope, primary, rank) -> scope != Scope.LIVE || primary,
+				new Scope[][]{BOTH}
+			),
+			new BodyCase(
+				"inScope(ARCHIVED, primary)",
+				inScope(Scope.ARCHIVED, attributeEquals(ATTRIBUTE_PRIMARY, true)),
+				(scope, primary, rank) -> scope != Scope.ARCHIVED || primary,
+				new Scope[][]{BOTH}
+			),
+			new BodyCase(
+				"inScope(LIVE, not(primary))",
+				inScope(Scope.LIVE, not(attributeEquals(ATTRIBUTE_PRIMARY, true))),
+				(scope, primary, rank) -> scope != Scope.LIVE || !primary,
+				new Scope[][]{BOTH}
+			)
+		);
+		final List<Arguments> arguments = new ArrayList<>(cases.size() * 2);
+		for (final BodyCase theCase : cases) {
+			for (final String referenceName : new String[]{REFERENCE_TAGS, REFERENCE_PARTITIONED_TAGS}) {
+				arguments.add(Arguments.of(theCase, referenceName, PlanPreference.INDEX_SCAN));
 			}
 		}
 		return arguments.stream();
