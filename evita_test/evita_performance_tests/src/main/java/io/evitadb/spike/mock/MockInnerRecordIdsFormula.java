@@ -23,6 +23,9 @@
 
 package io.evitadb.spike.mock;
 
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -31,7 +34,6 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexProvidingFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
-import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -42,7 +44,6 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@RequiredArgsConstructor
 public class MockInnerRecordIdsFormula extends AbstractFormula implements PriceIndexProvidingFormula, FilteredPriceRecordAccessor {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
@@ -57,6 +58,13 @@ public class MockInnerRecordIdsFormula extends AbstractFormula implements PriceI
 	 */
 	private final FilteredPriceRecords allPriceRecords;
 
+	/** Captures benchmark output data and initializes the formula and its cost estimates. */
+	public MockInnerRecordIdsFormula(@Nonnull Bitmap innerRecordIds, @Nonnull FilteredPriceRecords allPriceRecords) {
+		this.innerRecordIds = innerRecordIds;
+		this.allPriceRecords = allPriceRecords;
+		this.initFields();
+	}
+
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
@@ -65,7 +73,7 @@ public class MockInnerRecordIdsFormula extends AbstractFormula implements PriceI
 
 	@Override
 	public long getOperationCost() {
-		throw new UnsupportedOperationException();
+		return 1;
 	}
 
 	@Nonnull
@@ -106,4 +114,35 @@ public class MockInnerRecordIdsFormula extends AbstractFormula implements PriceI
 	public int getEstimatedCardinality() {
 		return this.innerRecordIds.size();
 	}
+	/** Returns the bitmap operand token and an opaque price-record input. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(IdentityToken.of(this.innerRecordIds),
+			IdentityToken.OPAQUE);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param innerRecordIds inner-record bitmap operand token
+	 * @param allPriceRecords opaque marker for the supplied price records
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull IdentityToken innerRecordIds,
+		@Nonnull IdentityToken allPriceRecords) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.innerRecordIds);
+			accumulator.add(this.allPriceRecords);
+		}
+	}
+
 }

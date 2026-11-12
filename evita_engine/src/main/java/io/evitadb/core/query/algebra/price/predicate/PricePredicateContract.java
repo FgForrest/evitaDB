@@ -34,6 +34,10 @@ import javax.annotation.Nonnull;
  */
 public interface PricePredicateContract {
 
+	/** Returns the detached value inputs that determine price filtering. */
+	@Nonnull
+	PricePredicate.Identity identity();
+
 	/**
 	 * Returns predicate that can be used to filter out price records that are not in the filter range.
 	 *

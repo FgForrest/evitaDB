@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -118,6 +120,33 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
+	}
+
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.priceEvaluationContext);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param priceEvaluationContext validity and ordered target price indexes
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull PriceEvaluationContext priceEvaluationContext) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.priceEvaluationContext);
+		}
 	}
 
 }

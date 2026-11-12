@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra.price.termination;
 
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.dataType.array.CompositeIntArray;
@@ -175,9 +176,55 @@ class PriceFilteringEnvelopeContainerTest {
 		}
 	}
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism")
-	class HashDeterminismTest {
+	@DisplayName("Key determinism")
+	class KeyDeterminismTest {
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce identical key for identical construction")
+		void shouldProduceIdenticalKeyForIdenticalConstruction() {
+			final PriceFilteringEnvelopeContainer a = new PriceFilteringEnvelopeContainer(
+				null, null, null,
+				createConstantFormula(1, 2, 3)
+			);
+			final PriceFilteringEnvelopeContainer b = new PriceFilteringEnvelopeContainer(
+				null, null, null,
+				createConstantFormula(1, 2, 3)
+			);
+
+			assertEquals(a.getKey(), b.getKey());
+		}
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should distinguish metadata differences")
+		void shouldDistinguishMetadataDifferences() {
+			final ConstantFormula innerFormula = createConstantFormula(1, 2, 3);
+			final FormulaKey keyA = new PriceFilteringEnvelopeContainer(
+				new String[]{"basic"}, CZK, VALID_IN, innerFormula
+			).getKey();
+			final FormulaKey keyB = new PriceFilteringEnvelopeContainer(
+				new String[]{"vip"}, Currency.getInstance("EUR"), null, innerFormula
+			).getKey();
+
+			assertNotEquals(keyA, keyB);
+		}
+	}
+
+	/**
+	 * Preserves the hash contract used by the formula deduplicator.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Legacy hash determinism")
+	class LegacyHashDeterminismTest {
 
 		@Test
 		@DisplayName("should produce identical hash for identical construction")
@@ -211,9 +258,38 @@ class PriceFilteringEnvelopeContainerTest {
 		}
 	}
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash sensitivity")
-	class HashSensitivityTest {
+	@DisplayName("Key sensitivity")
+	class KeySensitivityTest {
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce different key for different inner data")
+		void shouldProduceDifferentKeyForDifferentInnerData() {
+			final FormulaKey keyA = new PriceFilteringEnvelopeContainer(
+				null, null, null, createConstantFormula(1, 2, 3)
+			).getKey();
+			final FormulaKey keyB = new PriceFilteringEnvelopeContainer(
+				null, null, null, createConstantFormula(4, 5, 6)
+			).getKey();
+
+			assertNotEquals(keyA, keyB);
+		}
+	}
+
+	/**
+	 * Preserves the hash contract used by the formula deduplicator.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Legacy hash sensitivity")
+	class LegacyHashSensitivityTest {
 
 		@Test
 		@DisplayName("should produce different hash for different inner data")

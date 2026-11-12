@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra.price.filteredPriceRecords;
 
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -223,9 +224,59 @@ class PriceBetweenFormulaTest {
 		}
 	}
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash stability")
-	class HashStabilityTest {
+	@DisplayName("Key stability")
+	class KeyStabilityTest {
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce identical key for two wrappers around identical children")
+		void shouldProduceIdenticalKeyForTwoWrappersAroundIdenticalChildren() {
+			// stable keying is what lets the formula cache recognise "two priceBetween wrappers around
+			// the same subtree" as equivalent — a drift here silently misses cache hits
+			final PriceBetweenFormula a = new PriceBetweenFormula(newInnerFormula());
+			final PriceBetweenFormula b = new PriceBetweenFormula(newInnerFormula());
+
+			assertEquals(a.getKey(), b.getKey());
+		}
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce different key for wrappers around different children")
+		void shouldProduceDifferentKeyForWrappersAroundDifferentChildren() {
+			// key must change when the child changes — otherwise sibling price-range picks would collide
+			final PriceBetweenFormula a = new PriceBetweenFormula(new ConstantFormula(new ArrayBitmap(1)));
+			final PriceBetweenFormula b = new PriceBetweenFormula(new ConstantFormula(new ArrayBitmap(2)));
+
+			assertNotEquals(a.getKey(), b.getKey());
+		}
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce a key distinct from the bare inner formula")
+		void shouldProduceKeyDistinctFromBareInnerFormula() {
+			// the wrapper's own class ID must enter the key — otherwise `priceBetween(x)` and `x` would
+			// cache-collide and the relaxer's type-based lookup would see a false carrier
+			final Formula inner = newInnerFormula();
+			final PriceBetweenFormula wrapper = new PriceBetweenFormula(inner);
+
+			assertNotEquals(inner.getKey(), wrapper.getKey());
+		}
+	}
+
+	/**
+	 * Preserves the hash contract used by the formula deduplicator.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Legacy hash stability")
+	class LegacyHashStabilityTest {
 
 		@Test
 		@DisplayName("should produce identical hash for two wrappers around identical children")

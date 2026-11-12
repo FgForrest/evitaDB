@@ -23,6 +23,9 @@
 
 package io.evitadb.core.query.filter.translator.price.alternative;
 
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.require.EntityFetch;
@@ -75,16 +78,23 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, FilteredPriceRecordAccessor, FilteredOutPriceRecordAccessor {
+	/** Identifier of the selling-price alternative. */
+	private static final long CLASS_ID = -8990446315162675198L;
+	/** Immutable ordered additional price lists, normalized to an empty list when absent. */
+	private final List<String> additionalPriceLists;
+
 	private static final EntityFetch ENTITY_REQUIRE = new EntityFetch(new PriceContent(PriceContentMode.RESPECTING_FILTER));
 
 	/**
 	 * Internal function that converts {@link PriceContract} from the entity to the {@link PriceRecordContract} that is
 	 * used in filtration logic.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private final QuadriFunction<Integer, Integer, QueryPriceMode, PriceContract, PriceRecordContract> converter;
 	/**
 	 * The entity fetch to ask for.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DERIVED)
 	private final EntityFetch entityFetch;
 	/**
 	 * Contains the predicate that must be fulfilled in order selling price is accepted by the filter.
@@ -94,16 +104,19 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	 * Contains array of price records that links to the price ids produced by {@link EntityToBitmapFilter#filter(QueryExecutionContext)}
 	 * method. This object is available once the {@link EntityToBitmapFilter#filter(QueryExecutionContext)}  method has been called.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private FilteredPriceRecords filteredPriceRecords;
 	/**
 	 * Memoized result of the filter.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Bitmap memoizedResult;
 
 	public SellingPriceAvailableBitmapFilter(
 		@Nullable String[] additionalPriceLists,
 		@Nonnull PriceContractPredicate filter
 	) {
+		this.additionalPriceLists = ArrayUtils.isEmpty(additionalPriceLists) ? List.of() : List.of(additionalPriceLists);
 		this.entityFetch = ArrayUtils.isEmpty(additionalPriceLists) ? ENTITY_REQUIRE : new EntityFetch(PriceContent.respectingFilter(additionalPriceLists));
 		this.converter = (entityPrimaryKey, indexedPricePlaces, priceQueryMode, priceContract) -> {
 			if (priceContract instanceof CumulatedPrice cumulatedPrice) {
@@ -233,6 +246,48 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 			}
 		}
 		return this.memoizedResult;
+	}
+
+	/** Returns ordered additional price lists and the detached selling-price predicate. */
+	@Nonnull
+	@Override
+	public IdentityRecord identity() {
+		return new Identity(this.additionalPriceLists,
+			this.filter.identity());
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param additionalPriceLists ordered additional fetched price lists, empty when absent
+	 * @param filter detached selling-price predicate
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull List<String> additionalPriceLists,
+		@Nonnull PricePredicate.Identity filter) implements IdentityRecord {
+		/** Copies the additional lists so every identity remains detached and immutable. */
+		public Identity {
+			additionalPriceLists = List.copyOf(additionalPriceLists);
+		}
+
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.addStrings(this.additionalPriceLists);
+			accumulator.add(this.filter);
+		}
+	}
+
+	/** Returns the declaring alternative identifier. */
+	@Override
+	public long getClassId() {
+		return CLASS_ID;
 	}
 
 }

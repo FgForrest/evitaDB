@@ -23,6 +23,11 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
@@ -53,7 +58,6 @@ import io.evitadb.index.iterator.RoaringBitmapBatchArrayIterator;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.Functions;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
@@ -65,6 +69,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * LowestPriceTerminationFormula picks lowest filtered price for each entity id as a representative price for it.
@@ -107,10 +112,18 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	/**
 	 * Predicate that filters out individual prices from being calculated in selling price.
 	 */
+	@Nullable
 	private final Predicate<PriceRecordContract> individualPricePredicate;
+	/**
+	 * Construction state that supplies an independent predicate to each clone. The resolved predicate above is
+	 * this instance's computation input; a factory is retained only when its caller requires fresh cursor state.
+	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	@Nullable private final Supplier<? extends Predicate<PriceRecordContract>> individualPricePredicateFactory;
 	/**
 	 * Comparator used for selecting the lowest price for each entity id among all prices for different inner record ids.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DERIVED)
 	private final Comparator<PriceRecordContract> priceRecordComparator;
 	/**
 	 * When `true`, {@link #computeInternal()} additionally collects the winning price record for every
@@ -127,6 +140,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * Contains array of price records that links to the price ids produced by {@link Formula#compute()} method. This array
 	 * is available once the {@link Formula#compute()} method has been called.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private FilteredPriceRecords filteredPriceRecords;
 	/**
 	 * Per-inner-record winning price records collected during {@link #computeInternal()} when
@@ -135,6 +149,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * report `LOWEST_PRICE` distributions per inner record without re-running the formula. Stays
 	 * `null` on the non-histogram path.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private FilteredPriceRecords perInnerRecordPriceRecords;
 
 	/**
@@ -157,7 +172,8 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 		boolean collectPerInnerRecordPrices
 	) {
 		this.sellingPricePredicate = sellingPricePredicate;
-		this.individualPricePredicate = Functions.alwaysTrue();
+		this.individualPricePredicate = null;
+		this.individualPricePredicateFactory = null;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
 		this.priceRecordComparator = queryPriceMode == QueryPriceMode.WITH_TAX ?
@@ -178,11 +194,13 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate sellingPricePredicate,
-		@Nonnull Predicate<PriceRecordContract> individualPricePredicate,
+		@Nullable Predicate<PriceRecordContract> individualPricePredicate,
+		@Nullable Supplier<? extends Predicate<PriceRecordContract>> individualPricePredicateFactory,
 		boolean collectPerInnerRecordPrices
 	) {
 		this.sellingPricePredicate = sellingPricePredicate;
 		this.individualPricePredicate = individualPricePredicate;
+		this.individualPricePredicateFactory = individualPricePredicateFactory;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
 		this.priceRecordComparator = queryPriceMode == QueryPriceMode.WITH_TAX ?
@@ -210,7 +228,25 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 			this.queryPriceMode,
 			this.sellingPricePredicate,
 			individualPricePredicate,
+			null,
 			this.collectPerInnerRecordPrices
+		);
+	}
+
+	/**
+	 * Creates a termination with an independent individual-price predicate for this computation and each clone.
+	 * The factory must restart mutable computation state and preserve filtering behavior on every invocation.
+	 *
+	 * @param predicateFactory factory restarting any cursor state used to filter individual price records
+	 * @return a new termination with an opaque individual-price input
+	 */
+	@Nonnull
+	public LowestPriceTerminationFormula withIndividualPricePredicateFactory(
+		@Nonnull Supplier<? extends Predicate<PriceRecordContract>> predicateFactory
+	) {
+		return new LowestPriceTerminationFormula(
+			getDelegate(), this.priceEvaluationContext, this.queryPriceMode, this.sellingPricePredicate,
+			Objects.requireNonNull(predicateFactory.get()), predicateFactory, this.collectPerInnerRecordPrices
 		);
 	}
 
@@ -259,7 +295,10 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new LowestPriceTerminationFormula(
 			innerFormulas[0],
-			this.priceEvaluationContext, this.queryPriceMode, this.sellingPricePredicate, this.individualPricePredicate,
+			this.priceEvaluationContext, this.queryPriceMode, this.sellingPricePredicate,
+			this.individualPricePredicateFactory == null ? this.individualPricePredicate :
+				Objects.requireNonNull(this.individualPricePredicateFactory.get()),
+			this.individualPricePredicateFactory,
 			this.collectPerInnerRecordPrices
 		);
 	}
@@ -374,7 +413,8 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 									// we need to filter the price using individual price predicate
 									// this handles the situation when we want to consider only prices that relate
 									// for previously selected selling price (e.g. when we calculate the discount)
-									if (innerRecordPrice == null && this.individualPricePredicate.test(foundPrice)) {
+									if (innerRecordPrice == null &&
+										(this.individualPricePredicate == null || this.individualPricePredicate.test(foundPrice))) {
 										entityInnerRecordPrice.put(innerRecordId, foundPrice);
 									}
 								}
@@ -382,7 +422,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 						}
 
 						Assert.isPremiseValid(
-							this.individualPricePredicate != Functions.<PriceRecordContract>alwaysTrue() || !entityInnerRecordPrice.isEmpty(),
+							this.individualPricePredicate != null || !entityInnerRecordPrice.isEmpty(),
 							"Price for entity with PK " + entityId + " unexpectedly not found!"
 						);
 
@@ -474,6 +514,49 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
+	}
+
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.priceEvaluationContext,
+			this.queryPriceMode,
+			this.sellingPricePredicate.identity(),
+			this.individualPricePredicate == null ? null : IdentityToken.OPAQUE,
+			this.collectPerInnerRecordPrices);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param priceEvaluationContext validity and ordered target price indexes
+	 * @param queryPriceMode tax mode used to evaluate prices
+	 * @param sellingPricePredicate detached selling-price range predicate
+	 * @param individualPricePredicate opaque marker for a supplied predicate, absent for unrestricted prices
+	 * @param collectPerInnerRecordPrices whether computation also produces per-inner-record histogram prices
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull PriceEvaluationContext priceEvaluationContext,
+		@Nonnull QueryPriceMode queryPriceMode,
+		@Nonnull PricePredicate.Identity sellingPricePredicate,
+		@Nullable IdentityToken individualPricePredicate,
+		boolean collectPerInnerRecordPrices) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.priceEvaluationContext);
+			accumulator.add(this.queryPriceMode);
+			accumulator.add(this.sellingPricePredicate);
+			accumulator.add(this.individualPricePredicate);
+			accumulator.add(this.collectPerInnerRecordPrices);
+		}
 	}
 
 }

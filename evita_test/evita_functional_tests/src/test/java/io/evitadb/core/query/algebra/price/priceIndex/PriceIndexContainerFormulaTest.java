@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.price.priceIndex;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.dataType.array.CompositeIntArray;
@@ -172,9 +173,34 @@ class PriceIndexContainerFormulaTest {
 		}
 	}
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism")
-	class HashDeterminismTest {
+	@DisplayName("Key determinism")
+	class KeyDeterminismTest {
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce different keys for distinct index versions")
+		void shouldDistinguishIndexVersions() {
+			final PriceIndexContainerFormula a = createFormula("basic", CZK, 1, 2, 3);
+			final PriceIndexContainerFormula b = createFormula("basic", CZK, 1, 2, 3);
+
+			assertNotEquals(a.getKey(), b.getKey());
+		}
+	}
+
+	/**
+	 * Preserves the hash contract used by the formula deduplicator.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Legacy hash determinism")
+	class LegacyHashDeterminismTest {
 
 		@Test
 		@DisplayName("should produce identical hash for identical construction")
@@ -186,9 +212,34 @@ class PriceIndexContainerFormulaTest {
 		}
 	}
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash sensitivity")
-	class HashSensitivityTest {
+	@DisplayName("Key sensitivity")
+	class KeySensitivityTest {
+
+		/** Verifies detached computation identity. */
+		@Test
+		@DisplayName("should produce different key for different inner data")
+		void shouldProduceDifferentKeyForDifferentInnerData() {
+			final FormulaKey keyA = createFormula("basic", CZK, 1, 2, 3).getKey();
+			final FormulaKey keyB = createFormula("basic", CZK, 4, 5, 6).getKey();
+
+			assertNotEquals(keyA, keyB);
+		}
+	}
+
+	/**
+	 * Preserves the hash contract used by the formula deduplicator.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Legacy hash sensitivity")
+	class LegacyHashSensitivityTest {
 
 		@Test
 		@DisplayName("should produce different hash for different inner data")
