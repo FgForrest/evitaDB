@@ -40,7 +40,9 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.ClientTlsOptions;
@@ -61,12 +63,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
@@ -77,13 +82,16 @@ import static io.evitadb.api.query.QueryConstraints.facetHaving;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.referenceContentAllWithAttributes;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.TRANSACTION;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -115,6 +123,22 @@ class EvitaClientSchemaRedefinitionTest implements EvitaTestSupport {
 	private static final String REFERENCE_ARTICLE_BRAND = "brand";
 	private static final String ENTITY_BRAND_GROUP = "RedefinedBrandGroup";
 	private static final String REFERENCE_BRAND_ARTICLES = "articles";
+	private static final String ENTITY_RANGE_HOLDER = "RedefinedRangeHolder";
+	private static final String ATTRIBUTE_ZERO_RANGE = "zeroRange";
+	private static final String ATTRIBUTE_FRACTIONAL_RANGE = "fractionalRange";
+	/**
+	 * Default value without explicit retained decimal places whose bounds encode to the same number at any precision:
+	 * only its effective precision of one decimal place tells it apart from the same range compared at another one.
+	 */
+	private static final BigDecimalNumberRange ZERO_RANGE_DEFAULT = BigDecimalNumberRange.between(
+		new BigDecimal("0.0"), new BigDecimal("0.0")
+	);
+	/**
+	 * Default value without explicit retained decimal places whose bounds encode to other numbers at another precision.
+	 */
+	private static final BigDecimalNumberRange FRACTIONAL_RANGE_DEFAULT = BigDecimalNumberRange.between(
+		new BigDecimal("1.0"), new BigDecimal("2.0")
+	);
 	/**
 	 * Post-processor making a genuine change of the global `code` attribute, which takes a catalog-wide conflict key.
 	 */
@@ -203,6 +227,50 @@ class EvitaClientSchemaRedefinitionTest implements EvitaTestSupport {
 					String.join("\n", Arrays.stream(mutations).map(Object::toString).toList())
 			);
 		}
+	}
+
+	/**
+	 * A decimal range default value created without explicit retained decimal places compares at the scale of its own
+	 * bounds. The schema the client reads back must carry that precision, otherwise the builder finds every unchanged
+	 * re-definition a change of the default value.
+	 *
+	 * @param evitaClient client defining the schema first
+	 * @param evitaServer the running server
+	 */
+	@DisplayName("re-defining unchanged decimal range default values through the schema builder changes nothing")
+	@UseDataSet(DATA_SET)
+	@Tag(ATTRIBUTE)
+	@Test
+	void shouldEmitNoMutationWhenClientsRedefineUnchangedDecimalRangeDefaultsThroughBuilder(
+		@Nonnull EvitaClient evitaClient,
+		@Nonnull EvitaServer evitaServer
+	) {
+		assertRedefinitionOfRangeDefaultsChangesNothing(
+			evitaClient, evitaServer, "redefinitionRangeDefaultsBuilder",
+			EvitaClientSchemaRedefinitionTest::defineRangeHolderThroughBuilder
+		);
+	}
+
+	/**
+	 * The model-class variant of the builder scenario: the analyzer compares the default value a getter returns with
+	 * the one the client reads back, so a precision lost on the way would make every start-up of an application with an
+	 * unchanged model emit a change of the default value.
+	 *
+	 * @param evitaClient client defining the schema first
+	 * @param evitaServer the running server
+	 */
+	@DisplayName("re-defining an unchanged model with decimal range default values changes nothing")
+	@UseDataSet(DATA_SET)
+	@Tag(ATTRIBUTE)
+	@Test
+	void shouldEmitNoMutationWhenClientsRedefineUnchangedModelWithDecimalRangeDefaults(
+		@Nonnull EvitaClient evitaClient,
+		@Nonnull EvitaServer evitaServer
+	) {
+		assertRedefinitionOfRangeDefaultsChangesNothing(
+			evitaClient, evitaServer, "redefinitionRangeDefaultsModel",
+			EvitaClientSchemaRedefinitionTest::defineRangeHolderFromModelClass
+		);
 	}
 
 	@DisplayName("start-up re-definition of an unchanged schema does not conflict with a concurrent entity write")
@@ -566,6 +634,183 @@ class EvitaClientSchemaRedefinitionTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Defines the range holder schema through the given client, switches the catalog to the transactional mode and
+	 * re-defines the unchanged schema through the same client and through a restarted one. Asserts that neither
+	 * re-definition emits a mutation, that the versions of the catalog, of its schema and of the entity schema stay put
+	 * and that the default values a restarted client reads back render and compare like the ones defined.
+	 *
+	 * @param evitaClient client defining the schema first
+	 * @param evitaServer the running server
+	 * @param catalog     name of the catalog to create
+	 * @param definition  defines the range holder schema through the given client in the given catalog and returns the
+	 *                    schema mutations it emitted
+	 */
+	private static void assertRedefinitionOfRangeDefaultsChangesNothing(
+		@Nonnull EvitaClient evitaClient,
+		@Nonnull EvitaServer evitaServer,
+		@Nonnull String catalog,
+		@Nonnull BiFunction<EvitaClient, String, List<String>> definition
+	) {
+		evitaClient.defineCatalog(catalog);
+		definition.apply(evitaClient, catalog);
+		// in the transactional mode every committed schema mutation advances the catalog version and the catalog schema
+		// version, even one that leaves the entity schema as it was
+		evitaClient.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+		final RangeHolderVersions definedVersions = readVersionsOnServer(evitaServer, catalog);
+
+		final List<String> mutationsOfOriginalClient = definition.apply(evitaClient, catalog);
+		final List<String> mutationsOfRestartedClient;
+		final RangeDefaults readBack;
+		try (final EvitaClient restartedClient = newClient(evitaServer)) {
+			mutationsOfRestartedClient = definition.apply(restartedClient, catalog);
+			readBack = readRangeDefaults(restartedClient, catalog);
+		}
+		final RangeHolderVersions redefinedVersions = readVersionsOnServer(evitaServer, catalog);
+
+		assertAll(
+			() -> assertEquals(
+				List.of(), mutationsOfOriginalClient,
+				"Re-defining the unchanged schema through the client that defined it must emit no mutation."
+			),
+			() -> assertEquals(
+				List.of(), mutationsOfRestartedClient,
+				"Re-defining the unchanged schema through a restarted client must emit no mutation."
+			),
+			() -> assertEquals(
+				definedVersions, redefinedVersions,
+				"Re-defining the unchanged schema must advance no version."
+			),
+			() -> assertReadBackAsDefined(ATTRIBUTE_ZERO_RANGE, ZERO_RANGE_DEFAULT, readBack.zeroRange()),
+			() -> assertReadBackAsDefined(
+				ATTRIBUTE_FRACTIONAL_RANGE, FRACTIONAL_RANGE_DEFAULT, readBack.fractionalRange()
+			)
+		);
+	}
+
+	/**
+	 * Defines the range holder schema through the schema builder of the given client.
+	 *
+	 * @param client  client to use
+	 * @param catalog name of the catalog
+	 * @return the schema mutations the builder emitted, empty when it found nothing to change
+	 */
+	@Nonnull
+	private static List<String> defineRangeHolderThroughBuilder(@Nonnull EvitaClient client, @Nonnull String catalog) {
+		return client.updateCatalog(
+			catalog,
+			session -> {
+				final EntitySchemaBuilder builder = session.defineEntitySchema(ENTITY_RANGE_HOLDER)
+					.withAttribute(
+						ATTRIBUTE_ZERO_RANGE, BigDecimalNumberRange.class,
+						whichIs -> whichIs.withDefaultValue(ZERO_RANGE_DEFAULT)
+					)
+					.withAttribute(
+						ATTRIBUTE_FRACTIONAL_RANGE, BigDecimalNumberRange.class,
+						whichIs -> whichIs.withDefaultValue(FRACTIONAL_RANGE_DEFAULT)
+					);
+				final List<String> mutations = builder.toMutation()
+					.map(it -> Arrays.stream(it.getSchemaMutations()).map(Object::toString).toList())
+					.orElse(List.of());
+				builder.updateVia(session);
+				return mutations;
+			}
+		);
+	}
+
+	/**
+	 * Defines the range holder schema from {@link RangeHolderModel} through the given client.
+	 *
+	 * @param client  client to use
+	 * @param catalog name of the catalog
+	 * @return the schema mutations the analysis of the model emitted, empty when it found nothing to change
+	 */
+	@Nonnull
+	private static List<String> defineRangeHolderFromModelClass(@Nonnull EvitaClient client, @Nonnull String catalog) {
+		final AtomicReference<LocalCatalogSchemaMutation[]> captured = new AtomicReference<>();
+		client.updateCatalog(
+			catalog,
+			session -> {
+				session.defineEntitySchemaFromModelClass(RangeHolderModel.class, capturingInto(captured));
+			}
+		);
+		final LocalCatalogSchemaMutation[] mutations = captured.get();
+		assertNotNull(mutations, "The analysis result was not captured.");
+		return Arrays.stream(mutations).map(Object::toString).toList();
+	}
+
+	/**
+	 * Reads the versions of the catalog, of its schema and of the range holder schema directly on the server.
+	 *
+	 * @param evitaServer the running server
+	 * @param catalog     name of the catalog
+	 * @return the versions the server holds
+	 */
+	@Nonnull
+	private static RangeHolderVersions readVersionsOnServer(@Nonnull EvitaServer evitaServer, @Nonnull String catalog) {
+		// block lambda with `return` selects the Function overload of `queryCatalog` unambiguously
+		return evitaServer.getEvita().queryCatalog(
+			catalog,
+			session -> {
+				return new RangeHolderVersions(
+					session.getCatalogVersion(),
+					session.getCatalogSchema().version(),
+					session.getEntitySchemaOrThrowException(ENTITY_RANGE_HOLDER).version()
+				);
+			}
+		);
+	}
+
+	/**
+	 * Reads the default values of both range attributes of the range holder schema through the given client.
+	 *
+	 * @param client  client to use
+	 * @param catalog name of the catalog
+	 * @return the default values the client reads
+	 */
+	@Nonnull
+	private static RangeDefaults readRangeDefaults(@Nonnull EvitaClient client, @Nonnull String catalog) {
+		return client.queryCatalog(
+			catalog,
+			session -> {
+				final SealedEntitySchema schema = session.getEntitySchemaOrThrowException(ENTITY_RANGE_HOLDER);
+				return new RangeDefaults(
+					schema.getAttribute(ATTRIBUTE_ZERO_RANGE).orElseThrow().getDefaultValue(),
+					schema.getAttribute(ATTRIBUTE_FRACTIONAL_RANGE).orElseThrow().getDefaultValue()
+				);
+			}
+		);
+	}
+
+	/**
+	 * Asserts that the default value read back is a decimal range rendering like the one defined and comparing at the
+	 * same effective precision.
+	 *
+	 * @param attributeName name of the attribute, for the failure messages
+	 * @param defined       the default value defined
+	 * @param readBack      the default value read back
+	 */
+	private static void assertReadBackAsDefined(
+		@Nonnull String attributeName,
+		@Nonnull BigDecimalNumberRange defined,
+		@Nullable Serializable readBack
+	) {
+		final BigDecimalNumberRange readBackRange = assertInstanceOf(
+			BigDecimalNumberRange.class, readBack,
+			"The default value of `" + attributeName + "` must be read back as a decimal range."
+		);
+		assertAll(
+			() -> assertEquals(
+				defined.toString(), readBackRange.toString(),
+				"Rendering of the default value of `" + attributeName + "`."
+			),
+			() -> assertEquals(
+				defined.getEffectiveRetainedDecimalPlaces(), readBackRange.getEffectiveRetainedDecimalPlaces(),
+				"Effective retained decimal places of the default value of `" + attributeName + "`."
+			)
+		);
+	}
+
+	/**
 	 * Creates a post-processor that changes nothing and stores the resulting mutations into the given reference.
 	 *
 	 * @param captured reference receiving the mutations
@@ -682,6 +927,57 @@ class EvitaClientSchemaRedefinitionTest implements EvitaTestSupport {
 		@Nullable
 		String getTitle();
 
+	}
+
+	/**
+	 * Entity with two decimal range attributes whose default values carry no explicit retained decimal places.
+	 */
+	@Entity(name = ENTITY_RANGE_HOLDER)
+	public interface RangeHolderModel {
+
+		/**
+		 * Returns the primary key.
+		 */
+		@PrimaryKey(autoGenerate = false)
+		int getId();
+
+		/**
+		 * Returns the range whose default value encodes to the same bounds at any precision.
+		 */
+		@Attribute(name = ATTRIBUTE_ZERO_RANGE)
+		@Nonnull
+		default BigDecimalNumberRange getZeroRange() {
+			return ZERO_RANGE_DEFAULT;
+		}
+
+		/**
+		 * Returns the range whose default value encodes to other bounds at another precision.
+		 */
+		@Attribute(name = ATTRIBUTE_FRACTIONAL_RANGE)
+		@Nonnull
+		default BigDecimalNumberRange getFractionalRange() {
+			return FRACTIONAL_RANGE_DEFAULT;
+		}
+
+	}
+
+	/**
+	 * Versions the server holds for a catalog with the range holder schema.
+	 *
+	 * @param catalogVersion       version of the catalog, advanced by every committed transaction with a mutation
+	 * @param catalogSchemaVersion version of the catalog schema
+	 * @param entitySchemaVersion  version of the range holder schema
+	 */
+	private record RangeHolderVersions(long catalogVersion, int catalogSchemaVersion, int entitySchemaVersion) {
+	}
+
+	/**
+	 * Default values of the two range attributes of the range holder schema as a client reads them.
+	 *
+	 * @param zeroRange       default value of the `zeroRange` attribute
+	 * @param fractionalRange default value of the `fractionalRange` attribute
+	 */
+	private record RangeDefaults(@Nullable Serializable zeroRange, @Nullable Serializable fractionalRange) {
 	}
 
 }
