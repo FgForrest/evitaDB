@@ -29,6 +29,8 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import io.evitadb.core.query.algebra.identity.*;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -74,6 +76,38 @@ class HierarchyFilteringPredicateKeyTest {
 		assertFalse(having.getKey().isOpaque());
 		assertTrue(anyHaving.getKey().isOpaque());
 		assertNotEquals(having.getKey(), anyHaving.getKey());
+	}
+
+	/** A planned opaque constant propagates locality through its superset intersection and telemetry wrapper. */
+	@ParameterizedTest
+	@ValueSource(strings = {"node filter", "hierarchy requirements",
+		"referenced node filter", "referenced hierarchy requirements"})
+	@DisplayName("Propagates large primary-key filter locality through filter-only planning")
+	void shouldPropagatePlannedFilterLocality(@Nonnull String modeName) {
+		final io.evitadb.test.identity.ConstructionMode<FilteringFormulaHierarchyEntityPredicate> mode =
+			new FilteringFormulaHierarchyEntityPredicateIdentityFixture().modes().get(modeName);
+		assertFalse(mode.base().get().getKey().isQueryLocal(), modeName);
+		final FilteringFormulaHierarchyEntityPredicate large =
+			mode.variants().get("large primary key filter").get();
+		assertFalse(large.getKey().isOpaque(), modeName);
+		assertTrue(large.getKey().isQueryLocal(), modeName);
+	}
+
+	/** Referenced any-child planning binds each predicate to its own ancestor-expanding computation. */
+	@ParameterizedTest
+	@ValueSource(strings = {"referenced any child", "referenced node and any child"})
+	@DisplayName("Keeps referenced any-child planning opaque with and without a node filter")
+	void shouldKeepReferencedAnyChildPlanningOpaque(@Nonnull String modeName) {
+		final java.util.Map<String,
+			io.evitadb.test.identity.ConstructionMode<FilteringFormulaHierarchyEntityPredicate>> modes =
+			new FilteringFormulaHierarchyEntityPredicateIdentityFixture().modes();
+		final java.util.function.Supplier<FilteringFormulaHierarchyEntityPredicate> factory =
+			modes.get(modeName).opaqueVariants().get("child filter");
+		final FormulaKey first = factory.get().getKey();
+		assertTrue(first.isOpaque(), modeName);
+		assertTrue(first.isQueryLocal(), modeName);
+		assertNotEquals(first, factory.get().getKey(), modeName);
+		assertNotEquals(modes.get("referenced node filter").base().get().getKey(), first, modeName);
 	}
 
 	/** Equal leaves preserve operation discrimination between locale and general filtering predicates. */

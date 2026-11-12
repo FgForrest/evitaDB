@@ -37,6 +37,7 @@ import io.evitadb.core.query.algebra.identity.TokenRole;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 
 /**
@@ -86,13 +87,12 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private FormulaKey memoizedKey;
 
-	/** Detached token memo for the current hierarchy owner. */
+	/** Detached token memo for the current hierarchy owner, created only when identity is requested. */
 	@IdentityExempt(IdentityExempt.Reason.STATE)
-	private IdentityToken.ProducerId memoizedHierarchyIndexIdentity;
+	@Nullable private IdentityToken.ProducerId memoizedHierarchyIndexIdentity;
 
 	public AbstractHierarchyBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex, long[] transactionalIds) {
 		this.hierarchyIndex = hierarchyIndex;
-		this.memoizedHierarchyIndexIdentity = new IdentityToken.ProducerId(hierarchyIndex.getId(), TokenRole.DIRECT);
 		this.transactionalIds = transactionalIds;
 	}
 
@@ -201,7 +201,7 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	@Nonnull
 	protected IdentityToken getHierarchyIndexIdentityToken() {
 		final long ownerId = this.hierarchyIndex.getId();
-		if (this.memoizedHierarchyIndexIdentity.id() != ownerId) {
+		if (this.memoizedHierarchyIndexIdentity == null || this.memoizedHierarchyIndexIdentity.id() != ownerId) {
 			this.memoizedHierarchyIndexIdentity = new IdentityToken.ProducerId(ownerId, TokenRole.DIRECT);
 		}
 		return this.memoizedHierarchyIndexIdentity;

@@ -75,6 +75,37 @@ class HierarchyByParentBitmapSupplierTest {
 		assertEquals(Long.MAX_VALUE, supplier.getCost());
 	}
 
+	/** Every supplier hands out one memoized owner token, also after the legacy computations and the key ran. */
+	@Test
+	@DisplayName("Memoizes the owner token of every hierarchy supplier")
+	void shouldMemoizeOwnerTokenOfEverySupplier() {
+		final HierarchyIndex index = new HierarchyIndex();
+		index.addNode(PARENT_NODE, null);
+		final long[] transactionalIds = {1L};
+		final HierarchyFilteringPredicate predicate = HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE;
+		final AbstractHierarchyBitmapSupplier[] suppliers = {
+			new HierarchyByParentBitmapSupplier(index, transactionalIds, PARENT_NODE, predicate),
+			new HierarchyByParentIncludingSelfBitmapSupplier(index, transactionalIds, PARENT_NODE, predicate),
+			new HierarchyForParentBitmapSupplier(index, transactionalIds, PARENT_NODE, predicate),
+			new HierarchyByParentDownToLevelBitmapSupplier(index, transactionalIds, PARENT_NODE, 2, predicate),
+			new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(
+				index, transactionalIds, PARENT_NODE, 2, predicate),
+			new HierarchyRootsBitmapSupplier(index, transactionalIds, predicate),
+			new HierarchyRootsDownBitmapSupplier(index, transactionalIds, predicate),
+			new HierarchyRootsDownToLevelBitmapSupplier(index, transactionalIds, 2, predicate)
+		};
+		for (final AbstractHierarchyBitmapSupplier supplier : suppliers) {
+			supplier.getHash();
+			supplier.getTransactionalIdHash();
+			supplier.get();
+			supplier.getCost();
+			final Object token = supplier.getHierarchyIndexIdentityToken();
+			assertSame(token, supplier.getHierarchyIndexIdentityToken(), supplier.getClass().getSimpleName());
+			supplier.getKey();
+			assertSame(token, supplier.getHierarchyIndexIdentityToken(), supplier.getClass().getSimpleName());
+		}
+	}
+
 	/** An item-index-only commit must refresh the supplier identity. */
 	@Test
 	@DisplayName("Includes the hierarchy owner version after an orphan-only write")

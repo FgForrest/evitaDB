@@ -24,41 +24,50 @@
 package io.evitadb.index.hierarchy.predicate;
 
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.*;
-import io.evitadb.core.query.algebra.identity.*;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.test.identity.*;
+import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.identity.ConstructionMode;
+import io.evitadb.test.identity.IdentityFixture;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-
-import javax.annotation.Nonnull;
-
-import java.util.Map;
-import java.util.Set;
-
 import static io.evitadb.core.query.algebra.deferred.DeferredFormulaIdentityFixture.*;
-import static io.evitadb.test.identity.CloneOutcome.*;
 
 /**
  * Real construction inputs and operations for {@link FilteringFormulaHierarchyEntityPredicate}.
  *
+ * Planning modes use primary-key filters. Their constants above {@link IdentityToken#CONTENT_LIMIT} are opaque,
+ * but the superset intersection contains them as formula children: the predicate stays non-opaque and becomes
+ * query-local. These are ordinary filter variants, with locality checked separately. Primary-key translation
+ * cannot produce exact oversized token lists, so planning modes have no oversized variants. Any-child planning
+ * always uses a custom computation and is opaque, so it has neither a value base nor exact oversized variants.
+ * Only the precomputed constructor accepts arbitrary opaque and exact oversized formulas directly.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class FilteringFormulaHierarchyEntityPredicateIdentityFixture
-	implements IdentityFixture<FilteringFormulaHierarchyEntityPredicate>, io.evitadb.test.EvitaTestSupport {
-	/** Covers the value, opaque and oversized forms admitted by construction. */
+	implements IdentityFixture<FilteringFormulaHierarchyEntityPredicate>, EvitaTestSupport {
+	/** Covers each constructor with both self-hierarchy and referenced-hierarchy planning. */
 	@Nonnull
 	@Override
 	public Map<String, ConstructionMode<FilteringFormulaHierarchyEntityPredicate>> modes() {
@@ -68,64 +77,89 @@ public class FilteringFormulaHierarchyEntityPredicateIdentityFixture
 			1, "category", new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE));
 		index.insertPrimaryKeyIfMissing(1);
 		index.insertPrimaryKeyIfMissing(2);
-		return Map.of("precomputed formula", new ConstructionMode<>(
-			() -> new FilteringFormulaHierarchyEntityPredicate("category", Set.of(Scope.LIVE), leaf(1)),
-			Map.of("formula", () -> new FilteringFormulaHierarchyEntityPredicate("category", Set.of(Scope.LIVE),
-				leaf(2))),
-			Map.of("opaque formula", () -> new FilteringFormulaHierarchyEntityPredicate("category",
-				Set.of(Scope.LIVE), opaque)),
-			Map.of("oversized formula", () -> new FilteringFormulaHierarchyEntityPredicate("category",
-				Set.of(Scope.LIVE), oversized)),
-			Map.of(), Set.of(), Set.of(), Set.of()),
-			"node filter", new ConstructionMode<>(
-				() -> this.planned(index, false, filterBy(entityPrimaryKeyInSet(1)), null),
-				Map.of("filter", () -> this.planned(index, false, filterBy(entityPrimaryKeyInSet(2)), null)),
-				Map.of("opaque formula", () -> new FilteringFormulaHierarchyEntityPredicate("category",
-					Set.of(Scope.LIVE), opaque)),
-				Map.of("oversized formula", () -> new FilteringFormulaHierarchyEntityPredicate("category",
-					Set.of(Scope.LIVE), oversized)),
+		return Map.of(
+			"precomputed formula", new ConstructionMode<>(
+				() -> new FilteringFormulaHierarchyEntityPredicate("category", Set.of(Scope.LIVE), leaf(1)),
+				Map.of("formula", () -> new FilteringFormulaHierarchyEntityPredicate(
+					"category", Set.of(Scope.LIVE), leaf(2))),
+				Map.of("opaque formula", () -> new FilteringFormulaHierarchyEntityPredicate(
+					"category", Set.of(Scope.LIVE), opaque)),
+				Map.of("oversized formula", () -> new FilteringFormulaHierarchyEntityPredicate(
+					"category", Set.of(Scope.LIVE), oversized)),
 				Map.of(), Set.of(), Set.of(), Set.of()),
-			"hierarchy requirements", new ConstructionMode<>(
-				() -> this.planned(index, true, filterBy(entityPrimaryKeyInSet(1)), null),
-				Map.of("filter", () -> this.planned(index, true, filterBy(entityPrimaryKeyInSet(2)), null)),
-				Map.of("opaque formula", () -> new FilteringFormulaHierarchyEntityPredicate("category",
-					Set.of(Scope.LIVE), opaque)),
-				Map.of("oversized formula", () -> new FilteringFormulaHierarchyEntityPredicate("category",
-					Set.of(Scope.LIVE), oversized)),
-				Map.of(), Set.of(), Set.of(), Set.of()),
-			"any child", new ConstructionMode<>(null, Map.of(),
-				Map.of("child filter", () -> this.planned(index, false, null, filterBy(entityPrimaryKeyInSet(1)))),
-				Map.of(), Map.of(), Set.of(), Set.of(), Set.of()),
-			"node and any child", new ConstructionMode<>(null, Map.of(),
-				Map.of("filters", () -> this.planned(index, false, filterBy(entityPrimaryKeyInSet(1)),
-					filterBy(entityPrimaryKeyInSet(2)))),
-				Map.of(), Map.of(), Set.of(), Set.of(), Set.of()));
+			"node filter", plannedMode(index, false, false),
+			"hierarchy requirements", plannedMode(index, true, false),
+			"referenced node filter", plannedMode(index, false, true),
+			"referenced hierarchy requirements", plannedMode(index, true, true),
+			"any child", anyChildMode(index, false, false),
+			"node and any child", anyChildMode(index, true, false),
+			"referenced any child", anyChildMode(index, false, true),
+			"referenced node and any child", anyChildMode(index, true, true)
+		);
 	}
 
-	/** Builds each planning-constructor sample while a real catalog and collection are open. */
+	/** Builds filter-only variants through the declared planning constructor. */
+	@Nonnull
+	private ConstructionMode<FilteringFormulaHierarchyEntityPredicate> plannedMode(
+		@Nonnull GlobalEntityIndex index, boolean requirements, boolean referenced
+	) {
+		final int[] primaryKeys = new int[IdentityToken.CONTENT_LIMIT + 1];
+		for (int i = 0; i < primaryKeys.length; i++) {
+			primaryKeys[i] = i + 1;
+		}
+		final FilterBy largeFilter = filterBy(entityPrimaryKeyInSet(primaryKeys));
+		return new ConstructionMode<>(
+			() -> planned(index, requirements, referenced, filterBy(entityPrimaryKeyInSet(1)), null),
+			Map.of(
+				"filter", () -> planned(index, requirements, referenced, filterBy(entityPrimaryKeyInSet(2)), null),
+				"large primary key filter", () -> planned(index, requirements, referenced, largeFilter, null)
+			),
+			Map.of(), Map.of(), Map.of(), Set.of(), Set.of(), Set.of()
+		);
+	}
+
+	/** Builds fresh opaque holders through the any-child planning path. */
+	@Nonnull
+	private ConstructionMode<FilteringFormulaHierarchyEntityPredicate> anyChildMode(
+		@Nonnull GlobalEntityIndex index, boolean nodeFilter, boolean referenced
+	) {
+		return new ConstructionMode<>(null, Map.of(),
+			Map.of("child filter", () -> planned(index, false, referenced,
+				nodeFilter ? filterBy(entityPrimaryKeyInSet(1)) : null, filterBy(entityPrimaryKeyInSet(2)))),
+			Map.of(), Map.of(), Set.of(), Set.of(), Set.of());
+	}
+
+	/** Builds each planning-constructor sample while a real catalog and both collections are open. */
 	@Nonnull
 	private FilteringFormulaHierarchyEntityPredicate planned(
-		@Nonnull GlobalEntityIndex index, boolean requirements,
-		@javax.annotation.Nullable io.evitadb.api.query.filter.FilterBy filter,
-		@javax.annotation.Nullable io.evitadb.api.query.filter.FilterBy childFilter
+		@Nonnull GlobalEntityIndex index, boolean requirements, boolean referenced,
+		@Nullable FilterBy filter, @Nullable FilterBy childFilter
 	) {
 		final TestPaths paths = createTestPaths("HierarchyPredicateIdentity");
 		try (final Evita engine = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
 			engine.defineCatalog("identity");
 			engine.updateCatalog("identity", session -> {
 				session.defineEntitySchema("category").withHierarchy().updateVia(session);
+				session.defineEntitySchema("product")
+					.withReferenceToEntity("categories", "category", Cardinality.ZERO_OR_MORE)
+					.updateVia(session);
 			});
 			final Catalog catalog = (Catalog) engine.getCatalogInstanceOrThrowException("identity");
+			catalog.getCollectionForEntityOrThrowException("category").addIndex(index);
+			final String entityType = referenced ? "product" : "category";
 			final QueryPlanningContext context = new QueryPlanningContext(
-				catalog, catalog.getCollectionForEntityOrThrowException("category"), null,
-				new EvitaRequest(query(collection("category")), OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+				catalog, catalog.getCollectionForEntityOrThrowException(entityType), null,
+				new EvitaRequest(query(collection(entityType)), OffsetDateTime.parse("2026-01-01T00:00:00Z"),
 					EntityReference.class, null),
-				Map.of(index.getIndexKey(), index), Map.of(1, index), NoCacheSupervisor.INSTANCE);
+				referenced ? Map.of() : Map.of(index.getIndexKey(), index),
+				referenced ? Map.of() : Map.of(1, index), NoCacheSupervisor.INSTANCE);
+			final ReferenceSchemaContract referenceSchema = referenced ?
+				context.getSchema().getReferenceOrThrowException("categories") : null;
 			return requirements ?
-				new FilteringFormulaHierarchyEntityPredicate(context, index, java.util.Objects.requireNonNull(filter),
-					context.getSchema(), null) :
+				new FilteringFormulaHierarchyEntityPredicate(context, index, Objects.requireNonNull(filter),
+					context.getSchema("category"), referenceSchema) :
 				new FilteringFormulaHierarchyEntityPredicate(null, context, Set.of(Scope.LIVE), filter,
-					childFilter, null);
+					childFilter, referenceSchema);
 		} finally {
 			cleanupTestPaths(paths);
 		}
