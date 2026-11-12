@@ -107,9 +107,6 @@ Additionally, implement marker interfaces as needed:
 
 | Interface                   | Effect                                                                   |
 |-----------------------------|--------------------------------------------------------------------------|
-| `CacheableFormula`          | Enables cache promotion (automatically satisfied when extending `AbstractCacheableFormula`). |
-| `NonCacheableFormula`       | Prevents this formula **and all ancestors** from being cached (upward poisoning). |
-| `NonCacheableFormulaScope`  | Prevents **all children** from being cached (downward blocking); formula itself may still be cached. |
 | `ChildrenDependentFormula`  | Formula is meaningless without children — optimizer drops it when all children are pruned. |
 
 ### Lifecycle
@@ -244,7 +241,7 @@ Each formula exposes three cost levels:
 | Method               | When available        | Purpose                                            |
 |----------------------|-----------------------|----------------------------------------------------|
 | `getEstimatedCost()` | After `initFields()`  | Cheap upfront estimate for index selection ranking. |
-| `getCost()`          | After `compute()`     | Exact cost for cache ROI calculation.              |
+| `getCost()`          | After `compute()`     | Exact cost, summed by parents and reported by query telemetry. |
 | `getOperationCost()` | Always                | Per-element multiplier, constant per formula type. |
 
 #### `getOperationCost()`
@@ -446,10 +443,7 @@ Formula tree
     ▼
 FormulaCacheVisitor traverses tree
     │
-    ├─ Is formula CacheableFormula?
     ├─ Is estimatedCost ≥ minimalComplexityThreshold?
-    ├─ Not inside NonCacheableFormulaScope?
-    ├─ No NonCacheableFormula descendant?
     │
     ▼
 CacheAnteroom.register()
@@ -464,7 +458,7 @@ CacheAnteroom.register()
     Query executes, formula.compute() fires
          │
          ▼
-    Callback records costToPerformanceRatio + sizeEstimate
+    Callback records sizeEstimate
     as CacheRecordAdept in CacheAnteroom
          │
          ▼
@@ -512,19 +506,6 @@ Invalidation is **automatic and transactional**:
 There is no explicit invalidation API. `clearMemory()` on a formula resets its memoized result but does not
 interact with the cache system.
 
-### NonCacheableFormula vs NonCacheableFormulaScope
-
-These two marker interfaces control caching in opposite directions:
-
-| Interface                  | Direction  | Effect                                                                    |
-|----------------------------|------------|---------------------------------------------------------------------------|
-| `NonCacheableFormula`      | ↑ Upward   | Prevents this formula **and all ancestors** from being cached.            |
-| `NonCacheableFormulaScope` | ↓ Downward | Prevents **all descendants** from being cached; formula itself may still be cached. |
-
-**Example**: `UserFilterFormula` implements **both**. The facet-summary extra-result producer needs to locate
-and inspect the user-filter sub-tree in its original form. Replacing any part of it with a flattened cached
-payload would break that traversal.
-
 ### toSerializableFormula()
 
 When a formula is promoted, `toSerializableFormula(formulaHash, hashFunction)` is called to materialize the
@@ -547,7 +528,7 @@ Specialized variants exist for price-filtered queries that must preserve side-da
 - `FlattenedFormulaWithFilteredPricesAndFilteredOutRecords` — combined.
 
 If your formula carries side-data that downstream consumers need (sorters, extra-result producers), you must
-either override `toSerializableFormula()` to include that data, or mark the formula as `NonCacheableFormula`.
+override `toSerializableFormula()` to include that data.
 
 ### Cache configuration
 
@@ -688,8 +669,7 @@ For simple computation-only tests, `compute()` works without initialization — 
 ## Summary checklist for a new formula
 
 - [ ] Extends `AbstractFormula` or `AbstractCacheableFormula`
-- [ ] Implements marker interfaces as appropriate (`CacheableFormula`, `NonCacheableFormula`,
-  `ChildrenDependentFormula`, …)
+- [ ] Implements marker interfaces as appropriate (`ChildrenDependentFormula`, …)
 - [ ] Unique `CLASS_ID` constant returned from `getClassId()`
 - [ ] Constructor validates preconditions and calls `initFields()` last
 - [ ] `computeInternal()` returns correct bitmap, uses `EmptyBitmap.INSTANCE` for empty results

@@ -180,9 +180,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull @Getter
 	private FetchRequirementCollector fetchRequirementCollector = new DefaultPrefetchRequirementCollector();
 	/**
-	 * Contains reference to the policy that controls the interaction with cache and drives the query planning strategy.
-	 * It is picked once for the outer query (debug modes may force a non-caching variant) and inherited unchanged by
-	 * every nested context, so a single query never mixes two policies.
+	 * Contains reference to the policy that decides about entity prefetch - whether the planner may prefetch at all
+	 * and what a prefetch is estimated to cost. It is picked once for the outer query (debug modes may force the
+	 * variant that denies prefetch) and inherited unchanged by every nested context, so a single query never mixes
+	 * two policies.
 	 */
 	@Nonnull private final PlanningPolicy planningPolicy;
 	/**
@@ -1852,19 +1853,19 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Delegates extra result computer analysis to the cache supervisor.
+	 * Lets the cache supervisor replace the extra result computer with an equivalent one.
 	 *
-	 * The computer is returned unchanged when there is no session or no target entity type, or when the inherited
-	 * planning policy favours bitmap indexes for a debug run.
+	 * The computer is returned untouched when there is no session or the query targets no particular entity type,
+	 * for the same reason as in {@link #analyse(Formula)}. Otherwise the supervisor decides regardless of the planning
+	 * policy, and it may return the input itself.
 	 *
 	 * @param computer extra result computer to be analysed
-	 * @return the same computer, or its cacheable / cached counterpart
+	 * @return the same computer, or an equivalent one the supervisor substituted
 	 */
 	@Nonnull
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
 		final String theEntityType = this.evitaRequest.getEntityType();
-		if (this.evitaSession != null && theEntityType != null
-			&& this.planningPolicy != BitmapFavouringNoCachePolicy.INSTANCE) {
+		if (this.evitaSession != null && theEntityType != null) {
 			return this.cacheSupervisor.analyse(this.evitaSession, theEntityType, computer);
 		} else {
 			return computer;

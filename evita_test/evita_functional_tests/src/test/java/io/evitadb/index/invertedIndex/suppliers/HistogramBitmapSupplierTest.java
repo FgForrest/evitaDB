@@ -290,7 +290,7 @@ class HistogramBitmapSupplierTest {
 		}
 
 		@Test
-		@DisplayName("An empty slice has a computed cost")
+		@DisplayName("An empty slice is priced at zero")
 		void shouldPriceAnEmptySlice() {
 			// A bucket that holds no record id is the reachable shape - the tree deletes drained buckets, but a
 			// caller may hand this supplier a freshly built, still-empty one
@@ -298,7 +298,9 @@ class HistogramBitmapSupplierTest {
 				() -> new HistogramBitmapSupplier(1L, new ValueToRecord[]{new ValueToRecordBitmap(5)})
 			);
 			assertTrue(supplier.get().isEmpty());
-			assertDoesNotThrow(supplier::getCost);
+			assertEquals(0, supplier.getEstimatedCardinality());
+			assertEquals(0L, supplier.getEstimatedCost());
+			assertEquals(0L, supplier.getCost());
 		}
 
 		@Test

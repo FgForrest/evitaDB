@@ -32,6 +32,8 @@ import javax.annotation.Nonnull;
  * Planning policy allows us to guide the query planner in the direction we want. This is particularly used for handling
  * {@link DebugMode} requirements and verify all possible query paths in our automated tests.
  *
+ * The policy governs entity prefetch only - whether it is allowed and what it is estimated to cost.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface PlanningPolicy {

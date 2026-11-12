@@ -24,7 +24,8 @@
 package io.evitadb.core.query.algebra;
 
 /**
- * Base class for formulas eligible for result caching.
+ * Base class of formulas whose result a cache supervisor may consider for memoization. Extending it promises no
+ * caching: the installed {@link io.evitadb.core.cache.CacheSupervisor} decides what, if anything, is cached.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

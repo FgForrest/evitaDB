@@ -23,13 +23,15 @@
 
 package io.evitadb.core.query.policy;
 
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 /**
- * Denies prefetch so query planning uses bitmap indexes.
+ * Denies prefetch so query planning uses bitmap indexes. The planning context selects it for the whole query when
+ * the request enables {@link DebugMode#VERIFY_POSSIBLE_CACHING_TREES} or {@link DebugMode#PREFER_INDEX_SCAN}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
