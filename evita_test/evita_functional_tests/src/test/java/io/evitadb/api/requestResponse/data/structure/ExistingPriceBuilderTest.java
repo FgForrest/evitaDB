@@ -436,25 +436,30 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 	@DisplayName("Ambiguous price validation")
 	class AmbiguousPriceValidationTest {
 
+		/**
+		 * The conflict is decided on the state the change set leads to, so setting the price and building the prices
+		 * container are lenient and only building the change set refuses it.
+		 */
 		@Test
 		@DisplayName(
-			"should refuse conflicting with existing"
+			"should refuse conflicting with existing when building the change set"
 		)
 		void shouldRefuseAddingConflictingPriceWithExistingPrice() {
+			ExistingPriceBuilderTest.this.builder
+				.setPrice(
+					10, "basic", CZK,
+					BigDecimal.ONE,
+					BigDecimal.ZERO,
+					BigDecimal.ONE, true
+				);
+
+			assertEquals(
+				2,
+				ExistingPriceBuilderTest.this.builder.build().getPrices(CZK, "basic").size()
+			);
 			assertThrows(
 				AmbiguousPriceException.class,
-				() -> {
-					final PricesContract prices =
-						ExistingPriceBuilderTest.this
-							.builder
-							.setPrice(
-								10, "basic", CZK,
-								BigDecimal.ONE,
-								BigDecimal.ZERO,
-								BigDecimal.ONE, true
-							)
-							.build();
-				}
+				ExistingPriceBuilderTest.this.builder::buildChangeSet
 			);
 		}
 
@@ -488,43 +493,40 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 
 		@Test
 		@DisplayName(
-			"should refuse conflicting with upserted"
+			"should refuse conflicting with upserted when building the change set"
 		)
 		void shouldRefuseAddingConflictingPriceWithUpsertedPrice() {
+			ExistingPriceBuilderTest.this.builder
+				.setPrice(
+					10, "vip", CZK,
+					BigDecimal.ONE,
+					BigDecimal.ZERO,
+					BigDecimal.ONE,
+					DateTimeRange.since(
+						OffsetDateTime.of(
+							2021, 1, 1, 0, 0,
+							0, 0, ZoneOffset.UTC
+						)
+					),
+					true
+				)
+				.setPrice(
+					11, "vip", CZK,
+					BigDecimal.ONE,
+					BigDecimal.ZERO,
+					BigDecimal.ONE,
+					DateTimeRange.until(
+						OffsetDateTime.of(
+							2022, 1, 1, 0, 0,
+							0, 0, ZoneOffset.UTC
+						)
+					),
+					true
+				);
+
 			assertThrows(
 				AmbiguousPriceException.class,
-				() -> {
-					final PricesContract prices =
-						ExistingPriceBuilderTest.this
-							.builder
-							.setPrice(
-								10, "vip", CZK,
-								BigDecimal.ONE,
-								BigDecimal.ZERO,
-								BigDecimal.ONE,
-								DateTimeRange.since(
-									OffsetDateTime.of(
-										2021, 1, 1, 0, 0,
-										0, 0, ZoneOffset.UTC
-									)
-								),
-								true
-							)
-							.setPrice(
-								11, "vip", CZK,
-								BigDecimal.ONE,
-								BigDecimal.ZERO,
-								BigDecimal.ONE,
-								DateTimeRange.until(
-									OffsetDateTime.of(
-										2022, 1, 1, 0, 0,
-										0, 0, ZoneOffset.UTC
-									)
-								),
-								true
-							)
-							.build();
-				}
+				ExistingPriceBuilderTest.this.builder::buildChangeSet
 			);
 		}
 
@@ -624,9 +626,15 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 		}
 	}
 
+	/**
+	 * The builder decides the ambiguity on the state its change set leads to, by the rule the server applies: only
+	 * pairs with a price the change set adds or moves to another validity or inner record are checked, and the group of
+	 * prices that compete is one price list, currency and inner record - one price list and currency for an entity
+	 * without inner record handling.
+	 */
 	@Nested
-	@DisplayName("Ambiguity of an entity without inner record handling")
-	class AmbiguityWithoutInnerRecordHandlingTest {
+	@DisplayName("Ambiguity of the state the change set leads to")
+	class EndStateAmbiguityTest {
 
 		/**
 		 * Returns the validity spanning the passed year.
@@ -680,6 +688,69 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 			return new ExistingPricesBuilder(
 				PRODUCT_SCHEMA, new Prices(PRODUCT_SCHEMA, 1, List.of(prices), handling, true)
 			);
+		}
+
+		@Test
+		@DisplayName("should accept an amount change of a stored ambiguous pair of one inner record")
+		void shouldAcceptAmountChangeOfStoredAmbiguousPairOfOneInnerRecord() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE,
+				price(1, "basic", 1, null),
+				price(2, "basic", 1, wholeYear(2020))
+			);
+			builder.setPrice(
+				1, "basic", CZK, 1,
+				BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
+			);
+
+			assertEquals(1, builder.buildChangeSet().count());
+		}
+
+		@Test
+		@DisplayName("should accept a price added where the same builder moved a stored price away from")
+		void shouldAcceptPriceAddedWhereSameBuilderMovedStoredPriceAwayFrom() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE, price(1, "basic", 1, wholeYear(2020))
+			);
+			builder
+				.setPrice(
+					1, "basic", CZK, 1,
+					BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, wholeYear(2021), true
+				)
+				.setPrice(
+					2, "basic", CZK, 1,
+					BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, wholeYear(2020), true
+				);
+
+			assertEquals(2, builder.buildChangeSet().count());
+		}
+
+		@Test
+		@DisplayName("should reject a price of one inner record valid at a moment a stored price is")
+		void shouldRejectPriceOfOneInnerRecordOverlappingStoredPrice() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE, price(1, "basic", 1, wholeYear(2020))
+			);
+			builder.setPrice(
+				2, "basic", CZK, 1,
+				BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
+			);
+
+			assertNotNull(builder.build());
+			assertThrows(AmbiguousPriceException.class, builder::buildChangeSet);
+		}
+
+		@Test
+		@DisplayName("should reject a change between two inner record handlings that keeps stored prices overlapping")
+		void shouldRejectHandlingChangeThatKeepsStoredPricesOfOneInnerRecordOverlapping() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE,
+				price(1, "basic", 1, null),
+				price(2, "basic", 1, wholeYear(2020))
+			);
+			builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.SUM);
+
+			assertThrows(AmbiguousPriceException.class, builder::buildChangeSet);
 		}
 
 		@Test

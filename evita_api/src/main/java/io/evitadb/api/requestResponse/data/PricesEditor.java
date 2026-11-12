@@ -47,6 +47,12 @@ import java.util.stream.Stream;
  * Interface follows the <a href="https://en.wikipedia.org/wiki/Builder_pattern">builder pattern</a> allowing to alter
  * the data that are available on the read-only {@link PricesContract} interface.
  *
+ * An entity may hold at most one price valid at any moment per price list, currency and inner record - per price list
+ * and currency when it has no inner record handling. Setting a price does not check this: the builder decides it on
+ * the prices and the handling it ends up with when it produces the mutations of the entity - by `toMutation()` or by
+ * the upsert of the builder - and refuses a price it adds or moves that breaks it with {@link AmbiguousPriceException}.
+ * Building the entity instance (`toInstance()`) does not check it.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract {
@@ -55,6 +61,8 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * Creates or updates price with key properties: priceId, priceList, currency.
 	 * Beware! If priceId and currency stays the same, but only price list changes (although it's unlikely), you need
 	 * to {@link #removePrice(int, String, Currency)} first and set it with new price list.
+	 * The price is not checked against the other prices of the entity here - the interface documentation says when
+	 * two prices valid at a common moment are refused.
 	 *
 	 * @param priceId         - identification of the price in the external systems
 	 * @param priceList       - identification of the price list (either external or internal {@link Entity#getPrimaryKey()}
@@ -64,7 +72,6 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @param priceWithTax    - price with tax
 	 * @param indexed        - controls whether price is subject to filtering / sorting logic ({@see Price#sellable})
 	 * @return builder instance to allow command chaining
-	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
     @Nonnull
 	W setPrice(
@@ -75,12 +82,14 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 		@Nonnull BigDecimal taxRate,
 		@Nonnull BigDecimal priceWithTax,
 		boolean indexed
-	) throws AmbiguousPriceException;
+	);
 
 	/**
 	 * Creates or updates price with key properties: priceId, priceList, currency.
 	 * Beware! If priceId and currency stays the same, but only price list changes (although it's unlikely), you need
 	 * to {@link #removePrice(int, String, Currency)} first and set it with new price list.
+	 * The price is not checked against the other prices of the entity here - the interface documentation says when
+	 * two prices valid at a common moment are refused.
 	 *
 	 * @param priceId         - identification of the price in the external systems
 	 * @param priceList       - identification of the price list (either external or internal {@link Entity#getPrimaryKey()}
@@ -91,7 +100,6 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @param priceWithTax    - price with tax
 	 * @param indexed        - controls whether price is subject to filtering / sorting logic ({@see Price#sellable})
 	 * @return builder instance to allow command chaining
-	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
     @Nonnull
 	W setPrice(
@@ -103,12 +111,14 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 		@Nonnull BigDecimal taxRate,
 		@Nonnull BigDecimal priceWithTax,
 		boolean indexed
-	) throws AmbiguousPriceException;
+	);
 
 	/**
 	 * Creates or updates price with key properties: priceId, priceList, currency.
 	 * Beware! If priceId and currency stays the same, but only price list changes (although it's unlikely), you need
 	 * to {@link #removePrice(int, String, Currency)} first and set it with new price list.
+	 * The price is not checked against the other prices of the entity here - the interface documentation says when
+	 * two prices valid at a common moment are refused.
 	 *
 	 * @param priceId         - identification of the price in the external systems
 	 * @param priceList       - identification of the price list (either external or internal {@link Entity#getPrimaryKey()}
@@ -119,7 +129,6 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @param validity        - date and time interval for which the price is valid (inclusive)
 	 * @param indexed        - controls whether price is subject to filtering / sorting logic ({@see Price#sellable})
 	 * @return builder instance to allow command chaining
-	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
     @Nonnull
 	W setPrice(
@@ -131,12 +140,14 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 		@Nonnull BigDecimal priceWithTax,
 		@Nullable DateTimeRange validity,
 		boolean indexed
-	) throws AmbiguousPriceException;
+	);
 
 	/**
 	 * Creates or updates price with key properties: priceId, priceList, currency.
 	 * Beware! If priceId and currency stays the same, but only price list changes (although it's unlikely), you need
 	 * to {@link #removePrice(int, String, Currency)} first and set it with new price list.
+	 * The price is not checked against the other prices of the entity here - the interface documentation says when
+	 * two prices valid at a common moment are refused.
 	 *
 	 * @param priceId         - identification of the price in the external systems
 	 * @param priceList       - identification of the price list (either external or internal {@link Entity#getPrimaryKey()}
@@ -148,7 +159,6 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @param validity        - date and time interval for which the price is valid (inclusive)
 	 * @param indexed         - controls whether price is subject to filtering / sorting logic ({@see Price#indexed})
 	 * @return builder instance to allow command chaining
-	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
     @Nonnull
 	W setPrice(
@@ -161,21 +171,22 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 		@Nonnull BigDecimal priceWithTax,
 		@Nullable DateTimeRange validity,
 		boolean indexed
-	) throws AmbiguousPriceException;
+	);
 
 	/**
 	 * Creates or updates price with key properties: priceId, priceList, currency.
 	 * Beware! If priceId and currency stays the same, but only price list changes (although it's unlikely), you need
 	 * to {@link #removePrice(int, String, Currency)} first and set it with new price list.
+	 * The price is not checked against the other prices of the entity here - the interface documentation says when
+	 * two prices valid at a common moment are refused.
 	 *
 	 * @param price - the price to set
 	 * @return builder instance to allow command chaining
-	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
     @Nonnull
 	default W setPrice(
 		@Nonnull PriceContract price
-	) throws AmbiguousPriceException {
+	) {
 		return setPrice(
 			price.priceId(), price.priceList(), price.currency(), price.innerRecordId(),
 			price.priceWithoutTax(), price.taxRate(), price.priceWithTax(), price.validity(), price.indexed()
@@ -273,13 +284,13 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
      * Adds a price mutation to the builder.
      *
      * Supported mutation types:
-     * - {@link UpsertPriceMutation}: validates schema and ambiguity, stores only effective changes
+     * - {@link UpsertPriceMutation}: validates schema, stores only effective changes
      * - {@link RemovePriceMutation}: validates existence, stores only effective removal
      *
-     * Also marks the price as touched to cooperate with {@link #removeAllNonTouchedPrices()}.
+     * Also marks the price as touched to cooperate with {@link #removeAllNonTouchedPrices()}. Ambiguous prices are
+     * refused when the mutations of the entity are produced, as described on this interface.
      *
      * @param priceMutation mutation to apply (upsert/remove)
-     * @throws AmbiguousPriceException  when the resulting combination would be ambiguous
      * @throws InvalidMutationException when removing a non-existing price
      */
     @Nonnull

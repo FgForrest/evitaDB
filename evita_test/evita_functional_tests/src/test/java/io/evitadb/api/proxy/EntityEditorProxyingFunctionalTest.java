@@ -26,6 +26,7 @@ package io.evitadb.api.proxy;
 import io.evitadb.api.AbstractEntityProxyingFunctionalTest;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.proxy.mock.*;
@@ -1133,16 +1134,19 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.addStore(2)
 					.addStore(3);
 
-				assertThrows(
-					EvitaInvalidUsageException.class,
-					() -> newProduct.setBasicPrice(
-						new Price(
-							5, "reference", CURRENCY_CZK, null,
-							BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
-						)
-					),
-					"Should refuse to set different price via basic price setter."
+				// the setter accepts a price that collides with the price 1, the collision is refused with the mutation
+				newProduct.setBasicPrice(
+					new Price(
+						5, "reference", CURRENCY_CZK, null,
+						BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
+					)
 				);
+				assertThrows(
+					AmbiguousPriceException.class,
+					newProduct::toMutation,
+					"Should refuse to build a mutation with two ambiguous prices."
+				);
+				assertTrue(newProduct.removePriceByIdAndReturnTrueIfRemoved(5, "reference", CURRENCY_CZK));
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -1259,16 +1263,19 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							entityFetchAllContent()
 						).orElseThrow()));
 
-				assertThrows(
-					EvitaInvalidUsageException.class,
-					() -> newProduct.setBasicPrice(
-						new Price(
-							5, "reference", CURRENCY_CZK, null,
-							BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
-						)
-					),
-					"Should refuse to set different price via basic price setter."
+				// the setter accepts a price that collides with the price 1, the collision is refused with the mutation
+				newProduct.setBasicPrice(
+					new Price(
+						5, "reference", CURRENCY_CZK, null,
+						BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
+					)
 				);
+				assertThrows(
+					AmbiguousPriceException.class,
+					newProduct::toMutation,
+					"Should refuse to build a mutation with two ambiguous prices."
+				);
+				assertTrue(newProduct.removePriceByIdAndReturnTrueIfRemoved(5, "reference", CURRENCY_CZK));
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -1382,16 +1389,19 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							entityFetchAllContent()
 						).orElseThrow());
 
-				assertThrows(
-					EvitaInvalidUsageException.class,
-					() -> newProduct.setBasicPrice(
-						new Price(
-							5, "reference", CURRENCY_CZK, null,
-							BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
-						)
-					),
-					"Should refuse to set different price via basic price setter."
+				// the setter accepts a price that collides with the price 1, the collision is refused with the mutation
+				newProduct.setBasicPrice(
+					new Price(
+						5, "reference", CURRENCY_CZK, null,
+						BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
+					)
 				);
+				assertThrows(
+					AmbiguousPriceException.class,
+					newProduct::toMutation,
+					"Should refuse to build a mutation with two ambiguous prices."
+				);
+				assertTrue(newProduct.removePriceByIdAndReturnTrueIfRemoved(5, "reference", CURRENCY_CZK));
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());

@@ -32,18 +32,19 @@ import java.io.Serial;
 
 /**
  * Thrown when attempting to add a price that would create ambiguity in price selection due to overlapping
- * validity periods with an existing price that shares the same price list and currency.
+ * validity periods with an existing price that shares the same price list, currency and inner record.
  *
- * evitaDB requires that at any given point in time, there is at most one valid price for a given price list
- * and currency combination. When two prices with the same price list and currency have overlapping validity
- * periods, the system cannot deterministically choose which price to use as the selling price. This exception
- * is thrown during price mutations (both initial entity creation and updates) to prevent such ambiguous
- * configurations from being persisted.
+ * evitaDB requires that at any given point in time, there is at most one valid price for a given price list,
+ * currency and inner record combination - for a given price list and currency when the entity has no inner record
+ * handling. When two such prices have overlapping validity periods, the system cannot deterministically choose which
+ * price to use as the selling price. This exception prevents such ambiguous configurations from being persisted.
+ * Only a price that is added, or moved to another validity or inner record, is checked against the others, so an
+ * entity that already holds an ambiguous pair stays updatable as long as the pair is left alone.
  *
  * **When this is thrown:**
- * - During entity creation when multiple prices share price list + currency with overlapping validity
- * - During entity update when adding/modifying a price that would overlap with an existing price
- * - Thrown by `InitialPricesBuilder` and `ExistingPricesBuilder`
+ * - When an entity builder (`InitialPricesBuilder`, `ExistingPricesBuilder`) produces the mutations of the entity -
+ *   by `toMutation()` or by the upsert of the builder - never when a price is set on it
+ * - When the server stores an entity upsert, whichever way its mutations arrived
  *
  * **Resolution:**
  * - Adjust validity periods so they don't overlap

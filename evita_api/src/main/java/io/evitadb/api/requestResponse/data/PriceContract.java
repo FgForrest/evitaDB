@@ -132,20 +132,6 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	DateTimeRange validity();
 
 	/**
-	 * Tells whether two prices with the passed validities are valid at a common moment, so that two such prices of one
-	 * price list, currency and inner record would compete for the price for sale. The bounds are inclusive and a price
-	 * without validity is valid at every moment. The entity builders and the server reject an ambiguous price by this
-	 * very rule.
-	 *
-	 * @param first  validity of the first price, `null` for a price valid at every moment
-	 * @param second validity of the second price, `null` for a price valid at every moment
-	 * @return true when the validities share at least one moment
-	 */
-	static boolean validitiesOverlap(@Nullable DateTimeRange first, @Nullable DateTimeRange second) {
-		return first == null || second == null || first.overlaps(second);
-	}
-
-	/**
 	 * Returns true if price is valid at the passed date and time.
 	 */
 	default boolean validAt(@Nonnull OffsetDateTime theMoment) {

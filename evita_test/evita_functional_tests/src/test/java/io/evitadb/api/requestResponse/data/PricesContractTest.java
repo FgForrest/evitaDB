@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
@@ -2041,6 +2042,49 @@ class PricesContractTest extends AbstractBuilderTest {
 		// (a single representative candidate is chosen deterministically for the upper bound as well)
 		assertEquals(combineIntoId(5, 1), rangeNatural.highestPrice().priceId());
 		assertEquals(combineIntoId(5, 1), rangeReversed.highestPrice().priceId());
+	}
+
+	/**
+	 * Two inner records tie on the amount without tax and on the price id: price 1 of the basic price list has no
+	 * inner record (100 without tax, 121 with tax), price 1 of the VIP price list belongs to inner record 1 (100
+	 * without tax, 110 with tax). The price index represents a missing inner record id by `0` and lets the lower inner
+	 * record id win such a tie, so the price without inner record sells the entity, whatever order its prices come in.
+	 * The entity puts a missing inner record id before every other one, which is the same order because a price
+	 * accepts no inner record id below `1`.
+	 */
+	@Test
+	@DisplayName("LOWEST_PRICE breaks a tie of a missing and a present inner record id as the price index does")
+	void shouldBreakTieOfMissingAndPresentInnerRecordIdAsPriceIndexDoes() {
+		final Price withoutInnerRecord = new Price(
+			new PriceKey(1, BASIC, EUR), null,
+			new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), null, true
+		);
+		final Price ofInnerRecord = new Price(
+			new PriceKey(1, VIP, EUR), 1,
+			new BigDecimal("100"), new BigDecimal("10"), new BigDecimal("110"), null, true
+		);
+
+		assertAll(
+			() -> assertNull(
+				PricesContract.computePriceForSale(
+					List.of(withoutInnerRecord, ofInnerRecord), PriceInnerRecordHandling.LOWEST_PRICE,
+					EUR, null, new String[]{BASIC, VIP}, Objects::nonNull, QueryPriceMode.WITHOUT_TAX
+				).orElseThrow().innerRecordId()
+			),
+			() -> assertNull(
+				PricesContract.computePriceForSale(
+					List.of(ofInnerRecord, withoutInnerRecord), PriceInnerRecordHandling.LOWEST_PRICE,
+					EUR, null, new String[]{BASIC, VIP}, Objects::nonNull, QueryPriceMode.WITHOUT_TAX
+				).orElseThrow().innerRecordId()
+			),
+			() -> assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> new Price(
+					new PriceKey(2, VIP, EUR), -1,
+					new BigDecimal("100"), new BigDecimal("10"), new BigDecimal("110"), null, true
+				)
+			)
+		);
 	}
 
 	/**

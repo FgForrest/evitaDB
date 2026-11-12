@@ -38,7 +38,6 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor;
@@ -61,6 +60,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMut
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.data.structure.PriceAmbiguityVerifier;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
@@ -163,37 +163,6 @@ public final class ContainerizedLocalMutationExecutor
 	implements ConsistencyCheckingLocalMutationExecutor,
 	WritableEntityStorageContainerAccessor, EntityStoragePartAccessor {
 	private static final String ERROR_SAME_KEY_EXPECTED = "Expected same primary key here!";
-	/**
-	 * Orders prices by the group they compete in for the price for sale - price list, currency and inner record, a
-	 * missing inner record counting as inner record `0` as in the price for sale computation.
-	 */
-	private static final Comparator<PriceContract> PRICE_GROUP_COMPARATOR = (first, second) -> {
-		final int byPriceList = first.priceList().compareTo(second.priceList());
-		if (byPriceList != 0) {
-			return byPriceList;
-		}
-		final int byCurrency = first.currency().getCurrencyCode().compareTo(second.currency().getCurrencyCode());
-		if (byCurrency != 0) {
-			return byCurrency;
-		}
-		final Integer firstInnerRecordId = first.innerRecordId();
-		final Integer secondInnerRecordId = second.innerRecordId();
-		return Integer.compare(
-			firstInnerRecordId == null ? 0 : firstInnerRecordId,
-			secondInnerRecordId == null ? 0 : secondInnerRecordId
-		);
-	};
-	/**
-	 * Orders prices by the group they compete in for the price for sale of an entity without inner record handling -
-	 * price list and currency, the inner record id having no meaning there.
-	 */
-	private static final Comparator<PriceContract> PRICE_GROUP_WITHOUT_INNER_RECORD_COMPARATOR = (first, second) -> {
-		final int byPriceList = first.priceList().compareTo(second.priceList());
-		if (byPriceList != 0) {
-			return byPriceList;
-		}
-		return first.currency().getCurrencyCode().compareTo(second.currency().getCurrencyCode());
-	};
 	private static final LocaleWithScope[] EMPTY_LOCALE_WITH_SCOPES = new LocaleWithScope[0];
 	/**
 	 * Represents the catalog version the storage container accessor is related to.
@@ -231,8 +200,9 @@ public final class ContainerizedLocalMutationExecutor
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
 	/**
 	 * Keys of the prices this mutation set added, revived, or moved to another validity or inner record - the only
-	 * prices that can make the entity's prices ambiguous. `null` until the first such price; an entity whose prices
-	 * were not touched pays nothing in {@link #verifyConsistency()}.
+	 * prices that can make the entity's prices ambiguous. A price moved more than once is named more than once, which
+	 * the check tolerates. `null` until the first such price; an entity whose prices were not touched pays nothing in
+	 * {@link #verifyConsistency()}.
 	 */
 	@Nullable private List<PriceKey> touchedPriceKeys;
 	/**
@@ -1600,16 +1570,19 @@ public final class ContainerizedLocalMutationExecutor
 	/**
 	 * Verifies that no price this mutation set touched competes with another price of the entity for the price for
 	 * sale: two existing prices of one group - one inner record (any inner record when the entity has no inner record
-	 * handling) in one price list and currency - must not be valid at a common moment, by the rule the entity builders
-	 * apply ({@link PriceContract#validitiesOverlap}). The raw mutations of the external APIs and of the Java client
-	 * reach the server without passing a builder, so the server repeats the check on the end state of the mutation set,
-	 * where a removal and an upsert of the same set are already combined.
+	 * handling) in one price list and currency - must not be valid at a common moment. The raw mutations of the
+	 * external APIs and of the Java client reach the server without passing a builder, so the server applies the check
+	 * the entity builders apply ({@link PriceAmbiguityVerifier}) to the end state of the mutation set, where a removal
+	 * and an upsert of the same set are already combined.
 	 *
 	 * Only pairs with a touched price are checked, so an entity that already holds an ambiguous pair stays updatable
 	 * as long as the pair is left alone. A change of the inner record handling touches every price. The prices are
 	 * taken from the prices part this executor already holds - the part was loaded by the first price mutation - so
-	 * the check reads nothing from the storage. Its cost is `O(k log k + n log k)` comparisons for `k` touched prices
-	 * of an entity with `n` prices, and an array of `k` references.
+	 * the check reads nothing from the storage. For `k` touched prices of an entity with `n` prices it costs
+	 * `O(k log k)` comparisons to sort the touched prices and `O(n log k)` comparisons to look up the touched
+	 * neighbour of every price, whatever the number of prices in one group - `O(n log n)` when all prices are touched,
+	 * as in a bulk insert or a change of the inner record handling. It allocates an array of `k` references and the
+	 * temporary array the sort may need.
 	 *
 	 * @throws AmbiguousPriceException when a touched price competes with another price of the entity
 	 */
@@ -1619,10 +1592,7 @@ public final class ContainerizedLocalMutationExecutor
 			return;
 		}
 		final PriceWithInternalIds[] prices = pricesPart.getPrices();
-		final Comparator<PriceContract> groupComparator =
-			pricesPart.getPriceInnerRecordHandling() == PriceInnerRecordHandling.NONE ?
-				PRICE_GROUP_WITHOUT_INNER_RECORD_COMPARATOR : PRICE_GROUP_COMPARATOR;
-		// collect the touched prices that exist in the end state, ordered by their group
+		// collect the touched prices that exist in the end state
 		final PriceContract[] touched;
 		int touchedCount = 0;
 		if (this.priceInnerRecordHandlingChanged) {
@@ -1642,53 +1612,9 @@ public final class ContainerizedLocalMutationExecutor
 				}
 			}
 		}
-		Arrays.sort(touched, 0, touchedCount, groupComparator);
-		verifyPricesNotAmbiguous(prices, touched, touchedCount, groupComparator);
-	}
-
-	/**
-	 * Compares every existing price of the entity with the touched prices of its group and throws on the first pair
-	 * valid at a common moment.
-	 *
-	 * @param prices          all prices of the entity in its end state
-	 * @param touched         the touched prices, ordered by `groupComparator` in their first `touchedCount` slots
-	 * @param touchedCount    number of the touched prices
-	 * @param groupComparator orders prices by their group and returns zero for prices of one group
-	 * @throws AmbiguousPriceException when a touched price competes with another price of the entity
-	 */
-	private static void verifyPricesNotAmbiguous(
-		@Nonnull PriceWithInternalIds[] prices,
-		@Nonnull PriceContract[] touched,
-		int touchedCount,
-		@Nonnull Comparator<PriceContract> groupComparator
-	) {
-		if (touchedCount == 0) {
-			return;
-		}
-		for (final PriceWithInternalIds price : prices) {
-			if (!price.exists()) {
-				continue;
-			}
-			// locate the first touched price of the group of the examined price
-			int low = 0;
-			int high = touchedCount;
-			while (low < high) {
-				final int middle = (low + high) >>> 1;
-				if (groupComparator.compare(touched[middle], price) < 0) {
-					low = middle + 1;
-				} else {
-					high = middle;
-				}
-			}
-			// and compare it with every touched price of the group but itself
-			for (int i = low; i < touchedCount && groupComparator.compare(touched[i], price) == 0; i++) {
-				final PriceContract touchedPrice = touched[i];
-				if (touchedPrice.priceId() != price.priceId() &&
-					PriceContract.validitiesOverlap(touchedPrice.validity(), price.validity())) {
-					throw new AmbiguousPriceException(price, touchedPrice);
-				}
-			}
-		}
+		PriceAmbiguityVerifier.verifyPricesNotAmbiguous(
+			prices, prices.length, touched, touchedCount, pricesPart.getPriceInnerRecordHandling()
+		);
 	}
 
 	@Nonnull

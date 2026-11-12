@@ -888,7 +888,9 @@ public interface PricesContract extends Versioned, Serializable {
 	/**
 	 * Deterministic tie-break helper used when two candidates tie on everything compared before it: lower `priceId`
 	 * wins, then lower `innerRecordId` (`null` sorts before any non-null id). Returns `true` when `candidate` strictly
-	 * beats `current` under this rule, and also when `current` is `null` (no incumbent).
+	 * beats `current` under this rule, and also when `current` is `null` (no incumbent). The price index represents a
+	 * missing inner record id by `0` and compares the ids as numbers; the two orders agree because a price accepts
+	 * positive inner record ids only.
 	 */
 	private static boolean isBetterByPriceIdThenInner(
 		@Nonnull PriceContract candidate,

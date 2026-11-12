@@ -159,28 +159,55 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 			);
 		}
 
+		/**
+		 * The conflict is decided on the state the change set leads to, so setting the prices and building the
+		 * prices container are lenient and only building the change set refuses them.
+		 */
 		@Test
-		@DisplayName("should refuse adding conflicting price")
+		@DisplayName("should refuse adding conflicting price when building the change set")
 		void shouldRefuseAddingConflictingPrice() {
+			InitialPricesBuilderTest.this.builder
+				.setPrice(
+					1, "basic", CZK,
+					BigDecimal.ONE,
+					BigDecimal.ZERO,
+					BigDecimal.ONE, true
+				)
+				.setPrice(
+					2, "basic", CZK,
+					BigDecimal.TEN,
+					BigDecimal.ZERO,
+					BigDecimal.TEN, true
+				);
+
+			assertEquals(2, InitialPricesBuilderTest.this.builder.build().getPrices().size());
 			assertThrows(
 				AmbiguousPriceException.class,
-				() -> {
-					final PricesContract prices =
-						InitialPricesBuilderTest.this.builder
-							.setPrice(
-								1, "basic", CZK,
-								BigDecimal.ONE,
-								BigDecimal.ZERO,
-								BigDecimal.ONE, true
-							)
-							.setPrice(
-								2, "basic", CZK,
-								BigDecimal.TEN,
-								BigDecimal.ZERO,
-								BigDecimal.TEN, true
-							)
-							.build();
-				}
+				InitialPricesBuilderTest.this.builder::buildChangeSet
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse conflicting prices of one inner record when building the change set")
+		void shouldRefuseConflictingPricesOfOneInnerRecordWhenBuildingChangeSet() {
+			InitialPricesBuilderTest.this.builder
+				.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
+				.setPrice(
+					1, "basic", CZK, 1,
+					BigDecimal.ONE,
+					BigDecimal.ZERO,
+					BigDecimal.ONE, true
+				)
+				.setPrice(
+					2, "basic", CZK, 1,
+					BigDecimal.TEN,
+					BigDecimal.ZERO,
+					BigDecimal.TEN, true
+				);
+
+			assertThrows(
+				AmbiguousPriceException.class,
+				InitialPricesBuilderTest.this.builder::buildChangeSet
 			);
 		}
 
@@ -651,6 +678,33 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 					2, "basic", CZK, 2,
 					BigDecimal.TEN, BigDecimal.ZERO,
 					BigDecimal.TEN, wholeYear(2020), true
+				);
+
+			assertThrows(
+				AmbiguousPriceException.class,
+				InitialPricesBuilderTest.this.builder::buildChangeSet
+			);
+		}
+
+		/**
+		 * A builder whose handling is unknown produces no handling mutation, so the new entity keeps the handling it
+		 * starts with on the server - none - and its prices are checked as the prices of an entity without inner
+		 * record handling.
+		 */
+		@Test
+		@DisplayName("should reject overlapping prices of different inner records when the handling is unknown")
+		void shouldRejectOverlappingPricesOfDifferentInnerRecordsWhenHandlingIsUnknown() {
+			InitialPricesBuilderTest.this.builder
+				.setPriceInnerRecordHandling(PriceInnerRecordHandling.UNKNOWN)
+				.setPrice(
+					1, "basic", CZK, 1,
+					BigDecimal.ONE, BigDecimal.ZERO,
+					BigDecimal.ONE, true
+				)
+				.setPrice(
+					2, "basic", CZK, 2,
+					BigDecimal.TEN, BigDecimal.ZERO,
+					BigDecimal.TEN, true
 				);
 
 			assertThrows(

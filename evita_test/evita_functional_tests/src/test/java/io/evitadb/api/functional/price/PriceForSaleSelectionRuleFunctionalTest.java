@@ -31,9 +31,14 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -60,6 +65,8 @@ import static io.evitadb.test.TestTags.ORDER;
 import static io.evitadb.test.TestTags.PRICE;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies that the engine filters and orders entities by the very price for sale the fetched entity reports, on the
@@ -575,6 +582,162 @@ class PriceForSaleSelectionRuleFunctionalTest {
 					),
 					QueryPriceMode.WITH_TAX
 				).priceId()
+			);
+		}
+
+	}
+
+	/**
+	 * Two inner records of product 1 sell for 100 without tax through prices of the same id: price 1 of price list A
+	 * has no inner record (121 with tax), price 1 of price list B belongs to inner record 1 (110 with tax). The
+	 * reference price of the price without inner record is 1000, the one of inner record 1 is 150. Product 2 sells for
+	 * 100 with a reference price of 600. Queried without tax in price lists A and B, the tie is decided by the inner
+	 * record id: the index counts a missing one as `0`, the entity puts it before every other one, and both orders
+	 * agree because no price may carry an inner record id below `1`. So the price without inner record sells product
+	 * 1: it is discounted by 900 and comes before product 2, discounted by 500.
+	 */
+	@Nested
+	@DisplayName("Inner records tied on the amount and the price id")
+	class InnerRecordsTiedOnAmountAndPriceId {
+
+		/**
+		 * Creates the two products described on the class.
+		 *
+		 * @param evita the evitaDB instance the products are created in
+		 */
+		private void createProducts(@Nonnull Evita evita) {
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(PRODUCT).withPrice().updateVia(session);
+					final EntityBuilder product = session.createNewEntity(PRODUCT, 1)
+						.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
+					setPrice(product, 1, PRICE_LIST_A, null, 100, 21, 0, null);
+					setPrice(product, 1, PRICE_LIST_B, 1, 100, 10, 0, null);
+					setPrice(product, 2, PRICE_LIST_REFERENCE, null, 1000, null);
+					setPrice(product, 3, PRICE_LIST_REFERENCE, 1, 150, null);
+					session.upsertEntity(product);
+					final EntityBuilder other = session.createNewEntity(PRODUCT, 2)
+						.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
+					setPrice(other, 5, PRICE_LIST_A, 1, 100, null);
+					setPrice(other, 6, PRICE_LIST_REFERENCE, 1, 600, null);
+					session.upsertEntity(other);
+				}
+			);
+		}
+
+		/**
+		 * Returns the filter of both products in price lists A and B.
+		 *
+		 * @return the filter constraint
+		 */
+		@Nonnull
+		private FilterConstraint bothProducts() {
+			return and(
+				entityPrimaryKeyInSet(1, 2),
+				priceInCurrency(CZK),
+				priceInPriceLists(PRICE_LIST_A, PRICE_LIST_B)
+			);
+		}
+
+		@Test
+		@DisplayName("should sell through the inner record the index selects and order by its discount on prefetch")
+		void shouldSellThroughInnerRecordIndexSelectsAndOrderByItsDiscountWhenPrefetching(Evita evita) {
+			createProducts(evita);
+
+			final PriceForSaleWithAccompanyingPrices priceForSale = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOneSealedEntity(
+						query(
+							collection(PRODUCT),
+							filterBy(
+								and(
+									entityPrimaryKeyInSet(1),
+									priceInCurrency(CZK),
+									priceInPriceLists(PRICE_LIST_A, PRICE_LIST_B)
+								)
+							),
+							require(
+								priceType(QueryPriceMode.WITHOUT_TAX),
+								entityFetch(
+									priceContentRespectingFilter(PRICE_LIST_REFERENCE),
+									accompanyingPriceContent(PRICE_LIST_REFERENCE, PRICE_LIST_REFERENCE)
+								)
+							)
+						)
+					).orElseThrow().getPriceForSaleWithAccompanyingPrices().orElseThrow();
+				}
+			);
+			assertAll(
+				() -> assertNull(priceForSale.priceForSale().innerRecordId()),
+				() -> assertEquals(
+					2, priceForSale.getAccompanyingPrice(PRICE_LIST_REFERENCE).orElseThrow().priceId()
+				),
+				() -> assertEquals(
+					List.of(1, 2),
+					queryProducts(
+						evita, bothProducts(), priceDiscount(DESC, PRICE_LIST_REFERENCE),
+						QueryPriceMode.WITHOUT_TAX, DebugMode.PREFER_PREFETCHING
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should order by the discount of the price without inner record on the index path")
+		void shouldOrderByDiscountOfPriceWithoutInnerRecordOnIndexPath(Evita evita) {
+			createProducts(evita);
+
+			assertEquals(
+				List.of(1, 2),
+				queryProducts(
+					evita, bothProducts(), priceDiscount(DESC, PRICE_LIST_REFERENCE),
+					QueryPriceMode.WITHOUT_TAX, DebugMode.PREFER_INDEX_SCAN
+				)
+			);
+		}
+
+		/**
+		 * The only inner record ids that would order differently - a negative one against a missing one - cannot be
+		 * stored: neither a builder nor a raw mutation gets a price of inner record `-1` into the entity.
+		 */
+		@Test
+		@DisplayName("should refuse a negative inner record id from a builder and from a raw mutation")
+		void shouldRefuseNegativeInnerRecordIdFromBuilderAndFromRawMutation(Evita evita) {
+			createProducts(evita);
+
+			final BigDecimal amount = new BigDecimal("100.00");
+			assertAll(
+				() -> assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> evita.updateCatalog(
+						TEST_CATALOG,
+						session -> {
+							session.getEntity(PRODUCT, 1, priceContentAll())
+								.orElseThrow()
+								.openForWrite()
+								.setPrice(4, PRICE_LIST_B, CZK, -1, amount, BigDecimal.ZERO, amount, null, true)
+								.upsertVia(session);
+						}
+					)
+				),
+				() -> assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> evita.updateCatalog(
+						TEST_CATALOG,
+						session -> {
+							session.upsertEntity(
+								new EntityUpsertMutation(
+									PRODUCT, 1, EntityExistence.MUST_EXIST,
+									new UpsertPriceMutation(
+										4, PRICE_LIST_B, CZK, -1, amount, BigDecimal.ZERO, amount, null, true
+									)
+								)
+							);
+						}
+					)
+				)
 			);
 		}
 
