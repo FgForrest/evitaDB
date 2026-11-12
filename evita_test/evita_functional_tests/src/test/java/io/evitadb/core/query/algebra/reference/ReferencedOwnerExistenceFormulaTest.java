@@ -29,6 +29,10 @@ import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -219,13 +223,19 @@ class ReferencedOwnerExistenceFormulaTest {
 		}
 	}
 
+	/**
+	 * Equal detached keys for equal semantic inputs.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism")
-	class HashDeterminismTest {
+	@DisplayName("Key determinism")
+	class KeyDeterminismTest {
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticallyConstructedFormulas() {
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedFormulas() {
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1, 2), constant(3)},
@@ -239,8 +249,8 @@ class ReferencedOwnerExistenceFormulaTest {
 				COUNTERPART_TYPE_INDEX_ID
 			);
 
-			assertEquals(formulaA.getHash(), formulaB.getHash());
-			assertEquals(formulaA.getTransactionalIdHash(), formulaB.getTransactionalIdHash());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
+			assertEquals(formulaA.getKey().getHash64(), formulaB.getKey().getHash64());
 		}
 	}
 
@@ -250,13 +260,19 @@ class ReferencedOwnerExistenceFormulaTest {
 	 * on {@link Formula#getHash()} would happily serve one query's answer to another unless every one of those
 	 * components reaches `includeAdditionalHash`. Each test below varies exactly one component.
 	 */
+	/**
+	 * Sensitivity to every semantic input outside the formula children.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash sensitivity")
-	class HashSensitivityTest {
+	@DisplayName("Key sensitivity")
+	class KeySensitivityTest {
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should change hash when the owner key set changes")
-		void shouldChangeHashWhenOwnerKeySetChanges() {
+		@DisplayName("should change key when the owner key set changes")
+		void shouldChangeKeyWhenOwnerKeySetChanges() {
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1), constant(2)},
@@ -270,12 +286,13 @@ class ReferencedOwnerExistenceFormulaTest {
 				COUNTERPART_TYPE_INDEX_ID
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should change hash when any per-owner formula changes")
-		void shouldChangeHashWhenAnyPerOwnerFormulaChanges() {
+		@DisplayName("should change key when any per-owner formula changes")
+		void shouldChangeKeyWhenAnyPerOwnerFormulaChanges() {
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1), constant(2)},
@@ -289,50 +306,154 @@ class ReferencedOwnerExistenceFormulaTest {
 				COUNTERPART_TYPE_INDEX_ID
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies that the legacy index-id fold does not distinguish identical computations. */
 		@Test
-		@DisplayName("should change hash when the counterpart type index id changes")
-		void shouldChangeHashWhenCounterpartTypeIndexIdChanges() {
+		@DisplayName("should keep equal keys when only the counterpart type index fold changes")
+		void shouldKeepEqualKeysWhenOnlyCounterpartTypeIndexFoldChanges() {
+			final int[] owners = {10, 20};
+			final Formula[] perOwnerFormulas = {constant(1), constant(2)};
+			final Formula referencedEntityFormula = constant(2);
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
-				new int[]{10, 20},
-				new Formula[]{constant(1), constant(2)},
-				constant(2),
-				100L
+				owners, perOwnerFormulas, referencedEntityFormula, 31L * 100L + 200L
 			);
 			final ReferencedOwnerExistenceFormula formulaB = createFormula(
-				new int[]{10, 20},
-				new Formula[]{constant(1), constant(2)},
-				constant(2),
-				200L
+				owners, perOwnerFormulas, referencedEntityFormula, 31L * 101L + 200L
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
+			assertEquals(formulaA.getKey().getHash64(), formulaB.getKey().getHash64());
+			assertArrayEquals(new int[]{20}, formulaA.compute().getArray());
+			assertArrayEquals(formulaA.compute().getArray(), formulaB.compute().getArray());
 		}
 	}
 
+	/**
+	 * Legacy structural hashes and transactional dependencies.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Transactional ids")
-	class TransactionalIdsTest {
+	@DisplayName("Legacy hash API")
+	class LegacyHashTest {
+		@Nested
+		@DisplayName("Hash determinism")
+		class HashDeterminismTest {
 
-		@Test
-		@DisplayName("should gather transactional ids from per-owner formulas as well as inner ones")
-		void shouldGatherTransactionalIdsFromPerOwnerFormulasAsWellAsInnerOnes() {
-			final RecordingFormula innerFormula = recordingFormula(new int[]{2}, new long[]{1L}, 1L, 0L, 0L);
-			final RecordingFormula firstOwner = recordingFormula(new int[]{2}, new long[]{2L}, 2L, 0L, 0L);
-			final RecordingFormula secondOwner = recordingFormula(new int[]{3}, new long[]{3L, 4L}, 3L, 0L, 0L);
+			@Test
+			@DisplayName("should produce identical hash for identically constructed formulas")
+			void shouldProduceIdenticalHashForIdenticallyConstructedFormulas() {
+				final ReferencedOwnerExistenceFormula formulaA = createFormula(
+					new int[]{10, 20},
+					new Formula[]{constant(1, 2), constant(3)},
+					constant(2, 7),
+					COUNTERPART_TYPE_INDEX_ID
+				);
+				final ReferencedOwnerExistenceFormula formulaB = createFormula(
+					new int[]{10, 20},
+					new Formula[]{constant(1, 2), constant(3)},
+					constant(2, 7),
+					COUNTERPART_TYPE_INDEX_ID
+				);
 
-			final ReferencedOwnerExistenceFormula formula = createFormula(
-				new int[]{10, 20},
-				new Formula[]{firstOwner, secondOwner},
-				innerFormula,
-				COUNTERPART_TYPE_INDEX_ID
-			);
+				assertEquals(formulaA.getHash(), formulaB.getHash());
+				assertEquals(formulaA.getTransactionalIdHash(), formulaB.getTransactionalIdHash());
+			}
+		}
 
-			// the same invariant as the hash rows, seen from the other side: a formula either declares
-			// a transactional id for every bitmap it depends on, or it hashes that bitmap's contents
-			assertArrayEquals(new long[]{1L, 2L, 3L, 4L}, formula.gatherTransactionalIds());
+		/**
+		 * The cache-correctness invariant, from three sides. The candidate owner set and the per-owner formulas
+		 * are baked into the formula at planning time and are invisible through {@link Formula#getInnerFormulas()},
+		 * so a cache keyed
+		 * on {@link Formula#getHash()} would happily serve one query's answer to another unless every one of those
+		 * components reaches `includeAdditionalHash`. Each test below varies exactly one component.
+		 */
+		@Nested
+		@DisplayName("Hash sensitivity")
+		class HashSensitivityTest {
+
+			@Test
+			@DisplayName("should change hash when the owner key set changes")
+			void shouldChangeHashWhenOwnerKeySetChanges() {
+				final ReferencedOwnerExistenceFormula formulaA = createFormula(
+					new int[]{10, 20},
+					new Formula[]{constant(1), constant(2)},
+					constant(2),
+					COUNTERPART_TYPE_INDEX_ID
+				);
+				final ReferencedOwnerExistenceFormula formulaB = createFormula(
+					new int[]{10, 21},
+					new Formula[]{constant(1), constant(2)},
+					constant(2),
+					COUNTERPART_TYPE_INDEX_ID
+				);
+
+				assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			}
+
+			@Test
+			@DisplayName("should change hash when any per-owner formula changes")
+			void shouldChangeHashWhenAnyPerOwnerFormulaChanges() {
+				final ReferencedOwnerExistenceFormula formulaA = createFormula(
+					new int[]{10, 20},
+					new Formula[]{constant(1), constant(2)},
+					constant(2),
+					COUNTERPART_TYPE_INDEX_ID
+				);
+				final ReferencedOwnerExistenceFormula formulaB = createFormula(
+					new int[]{10, 20},
+					new Formula[]{constant(1), constant(3)},
+					constant(2),
+					COUNTERPART_TYPE_INDEX_ID
+				);
+
+				assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			}
+
+			@Test
+			@DisplayName("should change hash when the counterpart type index id changes")
+			void shouldChangeHashWhenCounterpartTypeIndexIdChanges() {
+				final ReferencedOwnerExistenceFormula formulaA = createFormula(
+					new int[]{10, 20},
+					new Formula[]{constant(1), constant(2)},
+					constant(2),
+					100L
+				);
+				final ReferencedOwnerExistenceFormula formulaB = createFormula(
+					new int[]{10, 20},
+					new Formula[]{constant(1), constant(2)},
+					constant(2),
+					200L
+				);
+
+				assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			}
+		}
+
+		@Nested
+		@DisplayName("Transactional ids")
+		class TransactionalIdsTest {
+
+			@Test
+			@DisplayName("should gather transactional ids from per-owner formulas as well as inner ones")
+			void shouldGatherTransactionalIdsFromPerOwnerFormulasAsWellAsInnerOnes() {
+				final RecordingFormula innerFormula = recordingFormula(new int[]{2}, new long[]{1L}, 1L, 0L, 0L);
+				final RecordingFormula firstOwner = recordingFormula(new int[]{2}, new long[]{2L}, 2L, 0L, 0L);
+				final RecordingFormula secondOwner = recordingFormula(new int[]{3}, new long[]{3L, 4L}, 3L, 0L, 0L);
+
+				final ReferencedOwnerExistenceFormula formula = createFormula(
+					new int[]{10, 20},
+					new Formula[]{firstOwner, secondOwner},
+					innerFormula,
+					COUNTERPART_TYPE_INDEX_ID
+				);
+
+				// the same invariant as the hash rows, seen from the other side: a formula either declares
+				// a transactional id for every bitmap it depends on, or it hashes that bitmap's contents
+				assertArrayEquals(new long[]{1L, 2L, 3L, 4L}, formula.gatherTransactionalIds());
+			}
 		}
 	}
 
@@ -575,7 +696,7 @@ class ReferencedOwnerExistenceFormulaTest {
 	 * cost - is supplied at construction time, and the stub additionally records whether it was computed and which
 	 * {@link QueryExecutionContext} (if any) reached it.
 	 */
-	private static class RecordingFormula extends AbstractFormula {
+	static class RecordingFormula extends AbstractFormula {
 		/**
 		 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 		 */
@@ -583,34 +704,42 @@ class ReferencedOwnerExistenceFormulaTest {
 		/**
 		 * Bitmap this stub answers with from {@link #computeInternal()}.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		private final Bitmap result;
 		/**
 		 * Transactional ids this stub declares from {@link #gatherBitmapIdsInternal()}.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 		private final long[] declaredTransactionalIds;
 		/**
 		 * This stub's contribution to its own hash.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 		private final long additionalHash;
 		/**
 		 * Value answered from {@link #getEstimatedCostInternal()}.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
 		private final long estimatedCost;
 		/**
 		 * Value answered from {@link #getCostInternal()}.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
 		private final long computedCost;
 		/**
 		 * Number of times {@link #initialize(QueryExecutionContext)} has been called on this stub.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
 		private int initializationCount;
 		/**
 		 * The execution context handed to {@link #initialize(QueryExecutionContext)}, `null` until that happens.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
 		private QueryExecutionContext capturedExecutionContext;
 		/**
 		 * TRUE once {@link #computeInternal()} has been entered.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
 		private boolean computed;
 
 		RecordingFormula(
@@ -684,6 +813,13 @@ class ReferencedOwnerExistenceFormulaTest {
 			return this.additionalHash;
 		}
 
+		/** Captures the detached semantic inputs without evaluating the holder. */
+		@Nonnull
+		@Override
+		protected IdentityRecord identity() {
+			return new Identity(IdentityToken.of(this.result));
+		}
+
 		@Override
 		protected long getClassId() {
 			return CLASS_ID;
@@ -716,6 +852,27 @@ class ReferencedOwnerExistenceFormulaTest {
 		public String toString() {
 			return "RECORDING STUB (" + this.result.size() + " primary keys)";
 		}
+
+		/**
+		 * Detached semantic inputs of the holder.
+		 *
+		 * @param result detached result bitmap
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		public record Identity(@Nonnull IdentityToken result) implements IdentityRecord {
+			/** Returns the holder's class identifier. */
+			@Override
+			public long classId() {
+				return CLASS_ID;
+			}
+
+			/** Includes every semantic input in the structural hash and retained weight. */
+			@Override
+			public void describeTo(@Nonnull KeyAccumulator accumulator) {
+				accumulator.add(this.result);
+			}
+		}
+
 	}
 
 }

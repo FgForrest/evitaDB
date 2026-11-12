@@ -23,10 +23,15 @@
 
 package io.evitadb.core.query.algebra.reference;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -36,6 +41,8 @@ import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+
+import java.util.List;
 
 /**
  * Emits the primary keys of *owner* entities whose reference rows contain at least one referenced entity that survives
@@ -77,17 +84,19 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	/**
 	 * Primary keys of the candidate owner entities, ascending, positionally paired with {@link #perOwnerFormulas}.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final int[] ownerPrimaryKeys;
 	/**
 	 * One formula per candidate owner, producing the referenced entity primary keys that owner holds and that satisfy
 	 * the reference-attribute constraints.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final Formula[] perOwnerFormulas;
 	/**
-	 * Transactional id of the counterpart type-level index the candidate owners were read from. The candidate set is
-	 * baked into this formula at planning time, so the formula becomes obsolete whenever anything in that index
-	 * changes, including changes to owners absent from the candidate set when the formula was planned.
+	 * Fold of counterpart type-level index transactional ids across scopes, retained for the legacy structural hash.
+	 * The computation uses only the captured owner keys, per-owner formulas and shared inner formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 	private final long counterpartTypeIndexTransactionalId;
 
 	public ReferencedOwnerExistenceFormula(
@@ -168,6 +177,17 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 			cost += perOwnerFormula.getCost();
 		}
 		return cost;
+	}
+
+	/** Captures the detached semantic inputs without evaluating the holder. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		final FormulaKey[] ownerKeys = new FormulaKey[this.perOwnerFormulas.length];
+		for (int i = 0; i < ownerKeys.length; i++) {
+			ownerKeys[i] = this.perOwnerFormulas[i].getKey();
+		}
+		return new Identity(IdentityToken.ofContent(this.ownerPrimaryKeys), List.of(ownerKeys));
 	}
 
 	@Override
@@ -251,6 +271,36 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	@Override
 	public String toString() {
 		return "OWNERS REFERENCING MATCHED ENTITIES (candidates: " + this.ownerPrimaryKeys.length + ")";
+	}
+
+	/**
+	 * Detached semantic inputs of the holder.
+	 *
+	 * @param ownerPrimaryKeys ordered candidate owner keys
+	 * @param perOwnerFormulas ordered keys paired with the owners
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		@Nonnull IdentityToken ownerPrimaryKeys,
+		@Nonnull List<FormulaKey> perOwnerFormulas
+	) implements IdentityRecord {
+		/** Captures an immutable ordered association with candidate owners. */
+		public Identity {
+			perOwnerFormulas = List.copyOf(perOwnerFormulas);
+		}
+
+		/** Returns the holder's class identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every semantic input in the structural hash and retained weight. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.ownerPrimaryKeys);
+			accumulator.addKeys(this.perOwnerFormulas);
+		}
 	}
 
 }

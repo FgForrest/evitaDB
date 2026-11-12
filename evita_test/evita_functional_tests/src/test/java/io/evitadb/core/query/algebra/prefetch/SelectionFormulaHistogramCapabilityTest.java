@@ -32,6 +32,8 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
@@ -51,6 +53,7 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.Currency;
 import java.util.List;
 
@@ -402,7 +405,9 @@ class SelectionFormulaHistogramCapabilityTest {
 	 * branch. None of the histogram-side tests exercise the prefetch path, so this filter is never invoked
 	 * — `filter` returns an empty bitmap and `getEntityRequire` returns `null`.
 	 */
-	private static final class NoopBitmapFilter implements EntityToBitmapFilter {
+	static final class NoopBitmapFilter implements EntityToBitmapFilter {
+		/** Unique identifier of the test alternative. */
+		private static final long CLASS_ID = 3076531143703379468L;
 
 		@Nullable
 		@Override
@@ -415,5 +420,37 @@ class SelectionFormulaHistogramCapabilityTest {
 		public Bitmap filter(@Nonnull QueryExecutionContext context) {
 			return EmptyBitmap.INSTANCE;
 		}
+
+		/** Returns the declared identity of the constant result and requirements. */
+		@Nonnull
+		@Override
+		public IdentityRecord identity() {
+			return new Identity();
+		}
+
+		/** Returns the test alternative's class identifier. */
+		@Override
+		public long getClassId() {
+			return CLASS_ID;
+		}
+
+		/**
+		 * Identity of the constant empty alternative.
+		 *
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		public record Identity() implements IdentityRecord {
+			/** Returns the declaring alternative's identifier. */
+			@Override
+			public long classId() {
+				return CLASS_ID;
+			}
+
+			/** The result and requirement are constants without additional components. */
+			@Override
+			public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			}
+		}
 	}
+
 }

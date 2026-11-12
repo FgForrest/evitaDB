@@ -28,15 +28,19 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
-import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramComputer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
@@ -45,6 +49,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -75,30 +80,36 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 	/**
 	 * Contains the alternative computation based on entity contents filtering.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final EntityToBitmapFilter alternative;
 	/**
 	 * Memoized predicate stored upon first calculation to lower computational resources.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private PriceAmountPredicate memoizedPredicate;
 	/**
 	 * Memoized SHALLOW probe over the delegate sub-tree for inner {@link FilteredPriceRecordAccessor}
 	 * instances. The tree shape is fixed at construction so the result is stable for the lifetime of
 	 * this formula and can be safely cached after the first walk.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private Collection<FilteredPriceRecordAccessor> memoizedInnerAccessors;
 	/**
 	 * Memoized result of {@link #exposesPerInnerRecordHistogramRecords()}. Both inputs to the answer —
 	 * the delegate tree shape and each inner LP's final `collectPerInnerRecordPrices` flag — are
 	 * immutable after construction, so the boolean is computed at most once per instance.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private Boolean memoizedExposesPerInnerRecordHistogramRecords;
 	/**
 	 * Updated cardinality based on current execution context.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private Integer prefetchEstimatedCardinality;
 	/**
 	 * Updated cost based on current execution context.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private Long prefetchEstimatedCost;
 
 	public SelectionFormula(@Nonnull Formula delegate, @Nonnull EntityToBitmapFilter alternative) {
@@ -333,6 +344,15 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 		return 0L;
 	}
 
+	/** Captures the detached semantic inputs without evaluating the holder. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(FormulaKey.of(
+			this.alternative.identity(), this.alternative.getClassId(), FormulaKey.NO_CHILDREN, this.alternative
+		));
+	}
+
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
@@ -367,6 +387,26 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 			return this.alternative.filter(this.executionContext);
 		} else {
 			return getDelegate().compute();
+		}
+	}
+
+	/**
+	 * Detached semantic inputs of the holder.
+	 *
+	 * @param alternative identity of the prefetch alternative
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull FormulaKey alternative) implements IdentityRecord {
+		/** Returns the holder's class identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every semantic input in the structural hash and retained weight. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.alternative);
 		}
 	}
 

@@ -30,6 +30,10 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
@@ -39,6 +43,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -64,10 +69,12 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	 * of the result is executed. In such case, the target entity collection needs to be known and in case of this
 	 * formula it's never known.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private final String reason;
 	/**
 	 * Contains the alternative computation based on entity contents filtering.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final EntityToBitmapFilter alternative;
 	/**
 	 * Distinguishes this formula from every other one. The formula has no inner formulas and its alternative exposes
@@ -75,6 +82,7 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	 * {@link io.evitadb.core.query.filter.FormulaDeduplicator} would replace the second of them in a plan with the
 	 * first one, silently dropping the filter it stands for.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 	private final long instanceId = INSTANCE_SEQUENCE.incrementAndGet();
 
 	public EntityFilteringFormula(@Nonnull String reason, @Nonnull EntityToBitmapFilter alternative) {
@@ -86,6 +94,13 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLong(this.instanceId);
+	}
+
+	/** Captures the detached semantic inputs without evaluating the holder. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(IdentityToken.OPAQUE);
 	}
 
 	@Override
@@ -151,4 +166,24 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	public long getOperationCost() {
 		return 1;
 	}
+	/**
+	 * Detached semantic inputs of the holder.
+	 *
+	 * @param alternative query-bound input marker
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull IdentityToken alternative) implements IdentityRecord {
+		/** Returns the holder's class identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every semantic input in the structural hash and retained weight. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.alternative);
+		}
+	}
+
 }
