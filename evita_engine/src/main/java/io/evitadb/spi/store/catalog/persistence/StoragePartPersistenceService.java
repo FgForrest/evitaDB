@@ -105,7 +105,11 @@ public interface StoragePartPersistenceService<S extends StorageDescriptor> exte
 	 * @param containerType type of the storage part container
 	 * @param <T>           type of the storage part container
 	 * @return stored bytes of the container, unparsed, or NULL when no such container is stored
+	 * @deprecated no read path of the engine needs a stored part undecoded; the method is kept only for the tests of
+	 * the 2026.3 storage migration, which prove that a part the migration must not touch keeps its stored bytes, and is
+	 * removed together with that migration
 	 */
+	@Deprecated(since = "2026.3", forRemoval = true)
 	@Nullable
 	<T extends StoragePart> byte[] getStoragePartAsBinary(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType);
 
