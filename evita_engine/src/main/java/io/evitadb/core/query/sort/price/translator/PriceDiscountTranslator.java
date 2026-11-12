@@ -551,7 +551,9 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		 *
 		 * This predicate uses optimized way for searching the selling price records. It builds on the fact that the
 		 * selling price records are sorted by entity primary key and inner record id and that examined records will
-		 * be in the same order.
+		 * be in the same order. The records of a single entity may come in any order - all of them are compared with
+		 * the very same selling price record - which is what lets {@link SumPriceTerminationFormula} examine them in
+		 * the iteration order of its hash map.
 		 */
 		private static class InnerRecordInSellingPricesMatchingPredicate implements SumPredicate<PriceRecordContract> {
 			/**
@@ -583,8 +585,9 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 
 			@Override
 			public boolean test(PriceRecordContract examinedRecord) {
-				// if we can progress in the selling price records, we do so
-				if (this.lastIndex + 1 < this.sellingPriceRecordsLength) {
+				// the last selling price record must be reachable too - it is compared with every record of its entity,
+				// not only with the first one examined
+				if (this.lastIndex < this.sellingPriceRecordsLength) {
 					// use the last index to locate the selling price record for comparison
 					PriceRecordContract priceRecord = this.sellingPriceRecords[this.lastIndex];
 					// progress until we find the record with matching entity primary key or reach the end
