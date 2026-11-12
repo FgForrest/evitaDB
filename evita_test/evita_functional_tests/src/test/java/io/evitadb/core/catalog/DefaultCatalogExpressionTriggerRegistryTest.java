@@ -68,6 +68,7 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -1310,6 +1311,180 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 		) {
 			return new DefaultHistogramExpressionTrigger(
 				owner, reference, scope, Set.of(attribute), Set.of(), Set.of(), false, null, null, histogram,
+				new HistogramValueDescriptor(
+					HistogramValueSource.REFERENCE_ATTRIBUTE, null, "weight", Integer.class,
+					false, false, null, null, 0
+				)
+			);
+		}
+	}
+
+	/**
+	 * Verifies that the relevance of the owner's parent and associated data is local and scoped, includes cross-entity
+	 * triggers and is rebuilt without mutating readers.
+	 */
+	@Nested
+	@DisplayName("Local histogram parent and associated data relevance")
+	class LocalHistogramParentAndAssociatedDataTest {
+
+		/**
+		 * The references whose histograms read the parent are listed by owner and scope, and a trigger reading another
+		 * input does not appear among them.
+		 */
+		@Test
+		@DisplayName("Should isolate reference names reading the parent by owner and scope")
+		void shouldIsolateReferenceNamesReadingParentByOwnerAndScope() {
+			final CatalogExpressionTriggerRegistry registry =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(
+					PRODUCT,
+					List.of(
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "first", Set.of(), true),
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "second", Set.of(), true),
+						trigger(PRODUCT, BRAND_REF, Scope.ARCHIVED, "brand", Set.of(), true),
+						trigger(PRODUCT, ALT_PARAMETER_REF, Scope.LIVE, "label", Set.of("label"), false)
+					)
+				);
+
+			assertEquals(Set.of(PARAMETER_REF), registry.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE));
+			assertEquals(Set.of(BRAND_REF), registry.getLocalHistogramReferencesForParent(PRODUCT, Scope.ARCHIVED));
+			assertTrue(registry.getLocalHistogramReferencesForParent(BRAND, Scope.LIVE).isEmpty());
+			assertTrue(
+				registry.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "status").isEmpty()
+			);
+			assertTrue(
+				registry.getLocalHistogramReferencesForEntityAttribute(PRODUCT, Scope.LIVE, "label").isEmpty()
+			);
+			assertThrows(UnsupportedOperationException.class,
+				() -> registry.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE).clear());
+		}
+
+		/**
+		 * The references whose histograms read an associated data are listed by owner, scope and associated data name,
+		 * and a trigger reading the parent only does not appear among them.
+		 */
+		@Test
+		@DisplayName("Should isolate reference names by owner, scope and associated data")
+		void shouldIsolateReferenceNamesByOwnerScopeAndAssociatedData() {
+			final CatalogExpressionTriggerRegistry registry =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(
+					PRODUCT,
+					List.of(
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "first", Set.of("label"), false),
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "second", Set.of("label", "note"), false),
+						trigger(PRODUCT, BRAND_REF, Scope.LIVE, "brand", Set.of("label"), false),
+						trigger(PRODUCT, ALT_PARAMETER_REF, Scope.ARCHIVED, "archived", Set.of("note"), false),
+						trigger(PRODUCT, ALT_PARAMETER_REF, Scope.LIVE, "parent", Set.of(), true)
+					)
+				);
+
+			assertEquals(Set.of(PARAMETER_REF, BRAND_REF),
+				registry.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "label"));
+			assertEquals(Set.of(PARAMETER_REF),
+				registry.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "note"));
+			assertEquals(Set.of(ALT_PARAMETER_REF),
+				registry.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.ARCHIVED, "note"));
+			assertTrue(
+				registry.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.ARCHIVED, "label").isEmpty()
+			);
+			assertTrue(registry.getLocalHistogramReferencesForAssociatedData(BRAND, Scope.LIVE, "label").isEmpty());
+			assertEquals(Set.of(ALT_PARAMETER_REF), registry.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE));
+			assertThrows(UnsupportedOperationException.class,
+				() -> registry.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "label").clear());
+		}
+
+		/**
+		 * Rebuilding one owner's definitions replaces its relevance and preserves another owner's lookup.
+		 */
+		@Test
+		@DisplayName("Should rebuild parent and associated data relevance without changing existing registry readers")
+		void shouldRebuildRelevanceWithoutChangingExistingRegistryReaders() {
+			final CatalogExpressionTriggerRegistry original =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(
+					PRODUCT, List.of(
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "parent", Set.of(), true),
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "label", Set.of("label"), false)
+					)
+				).rebuildForEntityType(
+					BRAND, List.of(trigger(BRAND, BRAND_REF, Scope.ARCHIVED, "brand", Set.of("note"), true))
+				);
+
+			final CatalogExpressionTriggerRegistry rebuilt = original.rebuildForEntityType(
+				PRODUCT, List.of(trigger(PRODUCT, ALT_PARAMETER_REF, Scope.ARCHIVED, "new", Set.of("label"), true))
+			);
+
+			assertEquals(Set.of(PARAMETER_REF), original.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE));
+			assertEquals(Set.of(PARAMETER_REF),
+				original.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "label"));
+			assertTrue(rebuilt.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE).isEmpty());
+			assertTrue(rebuilt.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "label").isEmpty());
+			assertEquals(Set.of(ALT_PARAMETER_REF),
+				rebuilt.getLocalHistogramReferencesForParent(PRODUCT, Scope.ARCHIVED));
+			assertEquals(Set.of(ALT_PARAMETER_REF),
+				rebuilt.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.ARCHIVED, "label"));
+			assertEquals(Set.of(BRAND_REF), rebuilt.getLocalHistogramReferencesForParent(BRAND, Scope.ARCHIVED));
+			assertEquals(Set.of(BRAND_REF),
+				rebuilt.getLocalHistogramReferencesForAssociatedData(BRAND, Scope.ARCHIVED, "note"));
+
+			final CatalogExpressionTriggerRegistry emptied = rebuilt.rebuildForEntityType(PRODUCT, List.of());
+
+			assertTrue(emptied.getLocalHistogramReferencesForParent(PRODUCT, Scope.ARCHIVED).isEmpty());
+			assertTrue(
+				emptied.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.ARCHIVED, "label").isEmpty()
+			);
+		}
+
+		/**
+		 * A condition reading an attribute of the parent is a cross-entity trigger that also reads the parent locally;
+		 * building the registry from the schema must list its reference among those reading the parent.
+		 */
+		@Test
+		@DisplayName("Should list the reference of a cross-entity condition reading the parent")
+		void shouldListReferenceOfCrossEntityConditionReadingParent() {
+			final EntitySchemaContract schema = buildEntitySchema(PRODUCT, builder -> builder
+				.withHierarchy()
+				.withAttribute("status", String.class, whichIs -> whichIs.filterable().nullable())
+				.withReferenceTo(BRAND_REF, BRAND, Cardinality.ZERO_OR_MORE, whichIs -> whichIs
+					.indexedForFiltering()
+					.withAttribute("share", Integer.class, thatIs -> thatIs.filterable().nullable())
+					.bucketed("shares", ExpressionFactory.parse("$reference.attributes['share']"))
+					.bucketedPartially(
+						ExpressionFactory.parse("($entity.parentEntity?.attributes['status'] ?? '') == 'ACTIVE'")
+					)
+				)
+			);
+
+			final CatalogExpressionTriggerRegistry registry = buildRegistryFromSchemas(schema);
+			final List<ExpressionIndexTrigger> crossEntityTriggers =
+				registry.getTriggersFor(PRODUCT, DependencyType.PARENT_ENTITY_ATTRIBUTE);
+
+			assertFalse(crossEntityTriggers.isEmpty());
+			for (final ExpressionIndexTrigger trigger : crossEntityTriggers) {
+				assertInstanceOf(HistogramExpressionTrigger.class, trigger);
+				assertTrue(trigger.usesParent());
+			}
+			assertEquals(Set.of(BRAND_REF), registry.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE));
+			assertTrue(registry.getLocalHistogramReferencesForParent(PRODUCT, Scope.ARCHIVED).isEmpty());
+		}
+
+		/**
+		 * Creates a local histogram trigger whose condition reads the given associated data and, optionally, the
+		 * parent of the owner.
+		 *
+		 * @param owner          the owner entity type
+		 * @param reference      the reference name
+		 * @param scope          the scope of the trigger
+		 * @param histogram      the histogram name
+		 * @param associatedData the associated data names the condition reads
+		 * @param usesParent     TRUE when the condition reads the parent
+		 * @return the trigger
+		 */
+		@Nonnull
+		private static HistogramExpressionTrigger trigger(
+			@Nonnull String owner, @Nonnull String reference, @Nonnull Scope scope,
+			@Nonnull String histogram, @Nonnull Set<String> associatedData, boolean usesParent
+		) {
+			return new DefaultHistogramExpressionTrigger(
+				owner, reference, scope, Set.of(), Set.of(), associatedData, usesParent, null, null, histogram,
 				new HistogramValueDescriptor(
 					HistogramValueSource.REFERENCE_ATTRIBUTE, null, "weight", Integer.class,
 					false, false, null, null, 0

@@ -47,10 +47,10 @@ flowchart TD
     APPLY --> DISPATCH{"LocalMutationHandlerRegistry\nresolves a handler"}
     DISPATCH -->|SetPriceInnerRecordHandling| PIRH[updatePriceHandlingForEntity]
     DISPATCH -->|PriceMutation| PRICE[updatePriceIndex\n+ cross-ref fan-out]
-    DISPATCH -->|ParentMutation| HIER[updateHierarchyPlacement]
+    DISPATCH -->|ParentMutation| HIER["histogram withdrawal\n+ updateHierarchyPlacement"]
     DISPATCH -->|ReferenceMutation| REF["updateReferences\n+ cross-ref fan-out"]
     DISPATCH -->|AttributeMutation| ATTR["updateAttribute\n+ cross-ref fan-out"]
-    DISPATCH -->|AssociatedDataMutation| NOP[no-op]
+    DISPATCH -->|AssociatedDataMutation| ADATA[histogram withdrawal]
     SCOPE["executeDeferredReEvaluations\n+ removeEntityFromIndexes\n+ addEntityToIndexes"]
     DISPATCH -->|SetEntityScopeMutation| SCOPE
     PIRH --> LOOP
@@ -58,7 +58,7 @@ flowchart TD
     HIER --> LOOP
     REF --> LOOP
     ATTR --> LOOP
-    NOP --> LOOP
+    ADATA --> LOOP
     SCOPE --> LOOP
     LOOP -->|done| FINISH
     FINISH["finishLocalMutationExecutionPhase()"]
@@ -95,8 +95,8 @@ then calls into the per-domain mutators:
 | `SetPriceInnerRecordHandlingMut.`   | `updatePriceHandlingForEntity`    |          Yes           |
 | `UpsertPriceMutation` (indexed)     | `updatePriceIndex` on global      |      Yes (upsert)      |
 | `RemovePriceMutation` / non-indexed | `updatePriceIndex` on reduced 1st |     Yes (removal)      |
-| `SetParentMutation`                 | `setParent`                       |           No           |
-| `RemoveParentMutation`              | `removeParent`                    |           No           |
+| `SetParentMutation`                 | withdrawal + `setParent`          |           No           |
+| `RemoveParentMutation`              | withdrawal + `removeParent`       |           No           |
 | `InsertReferenceMutation`           | `referenceInsert*` + facets       |          Yes           |
 | `RemoveReferenceMutation`           | `referenceRemoval*` + facets      |          Yes           |
 | `SetReferenceGroupMutation`         | facet group swap + group indexes  |          Yes           |
@@ -106,7 +106,7 @@ then calls into the per-domain mutators:
 | `UpsertAttributeMutation`           | `executeAttributeUpsert`          |          Yes           |
 | `RemoveAttributeMutation`           | `executeAttributeRemoval`         |          Yes           |
 | `ApplyDeltaAttributeMutation`       | `executeAttributeDelta`           |          Yes           |
-| `AssociatedDataMutation`            | *(no-op)*                         |           No           |
+| `AssociatedDataMutation`            | histogram withdrawal              |           No           |
 | `SetEntityScopeMutation`            | drain + full remove + full add    |          N/A           |
 
 <Term location="/documentation/developer/indexes/overview.md" name="cross-reference propagation">**Cross-reference
@@ -1002,6 +1002,16 @@ histogram values or condition inputs. On a grouped reference allowing duplicates
 start representative-key migration and therefore requires withdrawal. Entity attribute changes call the same
 withdrawal method for stored references whose histogram conditions read the changed attribute.
 
+Parent and associated-data changes withdraw the same way. `ParentMutationFanOut` and
+`AssociatedDataMutationFanOut` look up the reference names through
+`CatalogExpressionTriggerRegistry#getLocalHistogramReferencesForParent` and
+`#getLocalHistogramReferencesForAssociatedData`, which list cross-entity triggers too, and pass them to
+`OwnerInputHistogramWithdrawal`. Before the input changes, it calls `withdrawHistogramValuesAndScheduleFinalAdd`
+for every stored existing reference of those names; an input no histogram reads costs the registry lookup alone.
+The parent fan-out does nothing while the entity is removed entirely, because the parent removal precedes the
+reference removals, which remove the values without a condition and assert that no reference awaits a final add.
+The associated-data removals of an entity removal follow the reference removals and find no existing reference.
+
 Withdrawal asserts that the reference exists in storage. Its recorded identity includes the reference name,
 referenced primary key and internal primary key, keeping positive, temporary negative and unknown `0` keys
 distinct. `scheduleFinalHistogramAddOfInsertedReference` records an insert without removing values and asserts
@@ -1017,8 +1027,7 @@ still has key `0` when the add resolves it.
 `indexAllReferences` asserts that no reference awaits a final add. It adds synchronously from the full entity
 body during a scope change and records nothing, including values for a locale added by the same upsert. A later
 mutation starts another withdrawal and final add in the new scope. Whole-entity unindexing likewise asserts that
-no reference awaits a final add before removing histograms. Parent and associated-data fan-outs retain their
-existing behavior.
+no reference awaits a final add before removing histograms.
 
 ### Cross-Entity Triggers (ReevaluateExpressionMutation)
 

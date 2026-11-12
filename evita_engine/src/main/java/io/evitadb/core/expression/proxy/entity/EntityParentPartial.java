@@ -37,8 +37,10 @@ import java.util.Optional;
  *
  * Contains classifications for:
  * - `parentAvailable()` from {@link EntityContract} - returns `true`
- * - `getParentEntity()` from {@link EntityClassifierWithParent} - returns an {@link EntityReferenceWithParent}
- *   when the entity has a parent, or `Optional.empty()` otherwise
+ * - `getParentEntity()` from {@link EntityClassifierWithParent} - returns the nested parent entity proxy when the
+ *   expression reads data of the parent and the parent is visible in the evaluated scope, an
+ *   {@link EntityReferenceWithParent} when the expression only checks the parent's existence and the entity has a
+ *   parent, or `Optional.empty()` otherwise
  */
 public final class EntityParentPartial {
 
@@ -60,7 +62,10 @@ public final class EntityParentPartial {
 	 * Matches `getParentEntity()` declared on {@link EntityClassifierWithParent}. Returns the
 	 * nested parent entity proxy when available (for expressions that access parent attributes),
 	 * or falls back to a lightweight {@link EntityReferenceWithParent} for expressions that only
-	 * check parent existence.
+	 * check parent existence. An expression that reads data of the parent gets no parent when the
+	 * proxy was not built: the entity has no parent, or the parent sits in another scope than the
+	 * evaluated one - the fallback would hand it a reference without data, and `?.` would not
+	 * short-circuit on it.
 	 */
 	public static final PredicateMethodClassification<Object, Void, EntityProxyState> GET_PARENT_ENTITY =
 		new PredicateMethodClassification<>(
@@ -73,6 +78,10 @@ public final class EntityParentPartial {
 				// prefer nested parent entity proxy when available (supports attribute access)
 				if (proxyState.parentEntity() != null) {
 					return Optional.of(proxyState.parentEntity());
+				}
+				// the expression reads data of the parent, which is absent or invisible in the evaluated scope
+				if (proxyState.parentEntityRequested()) {
+					return Optional.empty();
 				}
 				// fallback: lightweight reference for existence-only checks
 				final EntityBodyStoragePart body = proxyState.bodyPartOrThrowException();

@@ -1,12 +1,13 @@
 ---
 title: A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue
 date: 2026-11-11
-updated: 2026-11-11 18:12
+updated: 2026-11-12 18:43
 status: accepted
 kind: fix
-issues: [1911, 1916, 1918]
+issues: [1911, 1916, 1918, 1923]
 prs: []
-areas: [evita_engine/src/main/java/io/evitadb/index/mutation/local, evita_engine/src/main/java/io/evitadb/core/catalog]
+areas: [evita_engine/src/main/java/io/evitadb/index/mutation/local, evita_engine/src/main/java/io/evitadb/core/catalog,
+  evita_engine/src/main/java/io/evitadb/core/expression/proxy]
 supersedes: []
 superseded-by: []
 relates: [2026-04-23-bucketed-histogram-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass,
@@ -188,9 +189,14 @@ storage that pays for a rebuild anyway.
   than insertion requires withdrawal. An attribute change does when it is a histogram value source or condition
   input. Any attribute change on a grouped reference allowing duplicates requires withdrawal because it can
   start representative-key migration, including when the attribute itself is unrelated to the histogram.
-- **Entity attribute changes** withdraw values for stored references whose histogram condition reads the attribute:
-  `handler/AttributeMutationFanOut.java`, using `LocalTriggerIndex#getHistogramReferencesForEntityAttribute`.
-  An attribute no histogram reads costs one map lookup.
+- **Entity attribute, parent and associated-data changes** withdraw values for stored references whose histogram
+  condition reads the changed input, before it changes in storage. Attributes go through
+  `handler/AttributeMutationFanOut.java`, using `LocalTriggerIndex#getHistogramReferencesForEntityAttribute`; the
+  parent and associated data through `handler/ParentMutationFanOut.java` and
+  `handler/AssociatedDataMutationFanOut.java`, which share `handler/OwnerInputHistogramWithdrawal.java` and use
+  `#getHistogramReferencesForParent` and `#getHistogramReferencesForAssociatedData`. All three lookups list
+  cross-entity triggers too: a condition reading an attribute of the parent is one. An input no histogram reads
+  costs one registry lookup. The parent fan-out does nothing while the entity is removed entirely, see the last item.
 - **Reference identity** uses `HistogramReferenceIdentity`: reference name, referenced primary key and internal
   primary key. Positive, temporary negative and unknown `0` keys remain distinct. Unlike `ReferenceKey#equals`,
   this prevents a removed reference and a new reference to the same target from sharing one scheduled add.
@@ -241,10 +247,13 @@ into the range of anchor products, in memory and after a restart; only the secon
   inserted reference for each internal key form and check that the histogram holds nothing afterwards; three controls
   show that the same sequence without the removal adds the value.
 - `ParentHistogramConditionLifecycleFunctionalTest` — 24 cases, 0 failures. Six of them remove an entity whose
-  histogram condition reads its parent, in both catalog states: an archive-and-return round trip after a parent
-  change left a value whose condition no longer holds, a direct deletion in the same state (it left the value
-  behind before deletion stopped evaluating conditions: `1:20` instead of `10:20`), and the deletion of an entity
-  whose condition holds only without a parent (it failed with `Cannot withdraw histogram value`).
+  histogram condition reads its parent, in both catalog states: an archive-and-return round trip with a value
+  whose condition does not hold, a direct deletion in the same state (it left the value behind before deletion
+  stopped evaluating conditions: `1:20` instead of `10:20`), and the deletion of an entity whose condition holds
+  only without a parent (it failed with `Cannot withdraw histogram value`). The value whose condition does not
+  hold is stored before the condition is attached, which is not recomputed (#409). The cases reached it by a
+  parent change until #1923 made a parent change re-evaluate the condition; on that old route the four cases fail
+  with `1:20` expected and `10:20` found.
 - `ReferenceHistogramPathParityFunctionalTest` — 12 cases, 0 failures. It reaches one final state through the
   local path and through the cross-entity path and compares every bucket of the two histograms, after the change,
   after a follow-up removal and after a restart. The same 12 pass on the code before this change.
@@ -278,11 +287,29 @@ condition pays one more condition evaluation per affected reference and histogra
   side correct for that shape: the replication itself is the defect. Withdrawal now fails loudly when a reduced
   index created later lacks the group's values. The fix is planned as one histogram store per group and will
   carry its own record.
-- **Conditions reading the parent or associated data are never re-evaluated locally.** *Open: #1923.* Histogram
-  triggers may carry both dependencies, but only the facet side reacts to them. Until that is closed, a parent
-  change followed by a reference mutation in one upsert makes the withdrawal evaluate against the new parent.
-  Where that makes the condition hold for a value that was never added, the withdrawal fails loudly. Entity
-  deletion is not affected: it evaluates no condition.
+- **Conditions reading the parent or associated data are re-evaluated locally.** *Fixed: #1923.*
+  `ParentMutationFanOut` and `AssociatedDataMutationFanOut` withdraw the histogram values of every stored
+  reference whose condition reads the parent or the changed associated data before the input changes; the final
+  add of the run evaluates the condition again. The references come from
+  `LocalTriggerIndex#getHistogramReferencesForParent` and `#getHistogramReferencesForAssociatedData`. An input no
+  histogram reads costs one registry lookup. The parent fan-out does nothing while the entity is removed entirely:
+  entity removal drops the parent before the references and removes their values without a condition.
+  A withdrawal evaluates the condition against the stored parent, which may sit in another scope than the evaluated
+  one. Such a condition failed to evaluate - `EntityParentPartial` handed it a reference without data, on which `?.`
+  does not short-circuit - so the withdrawal would have refused parent and label writes that were accepted before.
+  An expression reading data of the parent now sees no parent in another scope, as `ExpressionProxyInstantiator`
+  documents (`EntityProxyState#parentEntityRequested`); a bare `$entity.parentEntity != null` still answers from the
+  entity body and sees such a parent as present. Facet conditions take the same path and failed the same way.
+  `ParentAndAssociatedDataHistogramConditionFunctionalTest` — 86 cases, 0 failures; 58 failed without the
+  withdrawals, 30 of them with a refused write. It changes either input alone, with the share rewritten before or
+  after, with the reference removed before or after or inserted before, before and after a scope change into a
+  scope with the histogram in both scopes or in that scope only, on a reference with a histogram per input, and
+  removes a product whose condition holds. `CrossScopeParentConditionFunctionalTest` — 24 cases, 0 failures; 20
+  failed before with `Property accessor for class EntityReferenceWithParent not found`. *Open:* a parent changing
+  scope does not re-evaluate its children's parent-reading conditions - archiving it leaves a live child's value,
+  restoring it does not add the value back. A later touch of such a child keeps the stale value silently (it was
+  refused while a parent in another scope failed the condition), and a later parent change adds it a second time,
+  as an entity attribute change already does for any value its current condition denies.
 - **A changed histogram definition or condition is not followed by any recomputation.** *Open, covered by the
   general rebuild work in #409.* The index keeps contributions computed under the old definition.
 - **Catalogs written by the previous release may hold doubled or stale values.** *Not repaired by this change.*
