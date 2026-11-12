@@ -173,7 +173,7 @@ class LowestPriceTieOrderingFunctionalTest {
 			),
 			() -> assertEquals(
 				computeOrderByEntityPriceForSale(evita, QueryPriceMode.WITHOUT_TAX),
-				queryOrderByDiscount(evita, QueryPriceMode.WITHOUT_TAX)
+				queryOrderByDiscount(evita, QueryPriceMode.WITHOUT_TAX, PRICE_LIST_REFERENCE)
 			)
 		);
 	}
