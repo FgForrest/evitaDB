@@ -34,6 +34,7 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramComputer;
@@ -168,7 +169,7 @@ class QueryPlanningContextCacheAnalysisTest {
 	private static PriceHistogramComputer priceHistogramComputer(int bucketCount) {
 		return new PriceHistogramComputer(
 			bucketCount, HistogramBehavior.STANDARD, 0, QueryPriceMode.WITH_TAX,
-			new ConstantFormula(new BaseBitmap(1, 2)), null, List.of(), null
+			new ConstantFormula(new BaseBitmap(1, 2)), EmptyFormula.INSTANCE, null
 		);
 	}
 

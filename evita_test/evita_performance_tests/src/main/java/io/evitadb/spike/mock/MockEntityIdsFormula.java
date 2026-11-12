@@ -29,7 +29,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.index.bitmap.Bitmap;
-import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -40,7 +39,6 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@RequiredArgsConstructor
 public class MockEntityIdsFormula extends AbstractFormula implements FilteredPriceRecordAccessor {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
@@ -55,15 +53,28 @@ public class MockEntityIdsFormula extends AbstractFormula implements FilteredPri
 	 */
 	private final FilteredPriceRecords priceRecords;
 
+	/**
+	 * Creates an initialized leaf exposing pre-built entity IDs and their price records.
+	 *
+	 * @param entityIds pre-built bitmap returned by computation
+	 * @param priceRecords pre-built filtered price records
+	 */
+	public MockEntityIdsFormula(@Nonnull Bitmap entityIds, @Nonnull FilteredPriceRecords priceRecords) {
+		this.entityIds = entityIds;
+		this.priceRecords = priceRecords;
+		initFields();
+	}
+
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		throw new UnsupportedOperationException();
 	}
 
+	/** Returns the same unit cost as a constant formula exposing a pre-built bitmap. */
 	@Override
 	public long getOperationCost() {
-		throw new UnsupportedOperationException();
+		return 1L;
 	}
 
 	@Nonnull

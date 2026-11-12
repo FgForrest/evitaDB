@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.dataType.IntegerNumberRange;
@@ -423,9 +424,10 @@ class InvertedIndexPrimitiveBucketTest {
 			assertEquals(primitive.recordSetHashCode(), singletonBitmap.recordSetHashCode());
 		}
 
+		/** Equal supplier inputs retain their detached key. */
 		@Test
-		@DisplayName("The supplier hash is stable while the bucket values are unchanged")
-		void shouldKeepSupplierHashStableForUnchangedBuckets() {
+		@DisplayName("The supplier key is stable while the bucket values are unchanged")
+		void shouldKeepSupplierKeyStableForUnchangedBuckets() {
 			final ValueToRecord[] buckets = {
 				new ValueToRecordPrimitive(5, 1),
 				new ValueToRecordBitmap(10, 2, 3)
@@ -434,14 +436,15 @@ class InvertedIndexPrimitiveBucketTest {
 			final HistogramBitmapSupplier first = new HistogramBitmapSupplier(1L, buckets);
 			final HistogramBitmapSupplier second = new HistogramBitmapSupplier(1L, buckets);
 
-			// same field id + same bucket values -> identical lookup hash and transactional id hash (warm cache)
-			assertEquals(first.getHash(), second.getHash());
-			assertEquals(first.getTransactionalIdHash(), second.getTransactionalIdHash());
+			// Equal bucket values and leaf versions describe the same computation.
+			assertEquals(first.getKey(), second.getKey());
+			assertEquals(first.getKey().getHash64(), second.getKey().getHash64());
 		}
 
+		/** Different bucket values change the detached key. */
 		@Test
-		@DisplayName("A structurally different bucket set yields a different supplier hash")
-		void shouldChangeSupplierHashWhenBucketsDiffer() {
+		@DisplayName("A structurally different bucket set yields a different supplier key")
+		void shouldChangeSupplierKeyWhenBucketsDiffer() {
 			final HistogramBitmapSupplier original = new HistogramBitmapSupplier(
 				1L, new ValueToRecord[]{new ValueToRecordPrimitive(5, 1)}
 			);
@@ -449,9 +452,50 @@ class InvertedIndexPrimitiveBucketTest {
 				1L, new ValueToRecord[]{new ValueToRecordPrimitive(7, 1)}
 			);
 
-			// the lookup hash now keys on the bucket VALUES, so a different value range yields a different hash
-			assertNotEquals(original.getHash(), other.getHash());
+			// A different ordered value slice describes a different computation.
+			assertNotEquals(original.getKey(), other.getKey());
+			assertNotEquals(original.getKey().getHash64(), other.getKey().getHash64());
 		}
+
+		/**
+		 * Pins the supplier hashes consumed by the formula deduplicator.
+		 *
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		@Nested
+		@DisplayName("Legacy supplier hashes")
+		class LegacySupplierHashTest {
+			@Test
+			@DisplayName("The supplier hash is stable while the bucket values are unchanged")
+			void shouldKeepSupplierHashStableForUnchangedBuckets() {
+				final ValueToRecord[] buckets = {
+					new ValueToRecordPrimitive(5, 1),
+					new ValueToRecordBitmap(10, 2, 3)
+				};
+
+				final HistogramBitmapSupplier first = new HistogramBitmapSupplier(1L, buckets);
+				final HistogramBitmapSupplier second = new HistogramBitmapSupplier(1L, buckets);
+
+				// same field id + same bucket values -> identical lookup hash and transactional id hash (warm cache)
+				assertEquals(first.getHash(), second.getHash());
+				assertEquals(first.getTransactionalIdHash(), second.getTransactionalIdHash());
+			}
+
+			@Test
+			@DisplayName("A structurally different bucket set yields a different supplier hash")
+			void shouldChangeSupplierHashWhenBucketsDiffer() {
+				final HistogramBitmapSupplier original = new HistogramBitmapSupplier(
+					1L, new ValueToRecord[]{new ValueToRecordPrimitive(5, 1)}
+				);
+				final HistogramBitmapSupplier other = new HistogramBitmapSupplier(
+					1L, new ValueToRecord[]{new ValueToRecordPrimitive(7, 1)}
+				);
+
+				// the lookup hash now keys on the bucket VALUES, so a different value range yields a different hash
+				assertNotEquals(original.getHash(), other.getHash());
+			}
+		}
+
 
 		@Test
 		@DisplayName("Committing a read-only transaction reuses the same index instance (cache stays warm)")
@@ -710,47 +754,98 @@ class InvertedIndexPrimitiveBucketTest {
 			assertSame(EmptyFormula.INSTANCE, slice.getFormula());
 		}
 
+		/** Unrelated committed writes retain equal keys; crossed writes change them. */
 		@Test
-		@DisplayName("The predicate-matching formula token is leaf-granular across a commit")
-		void matchingFormulaTokenIsLeafGranularAcrossCommit() {
+		@DisplayName("The predicate-matching formula key is leaf-granular across a commit")
+		void shouldKeepMatchingFormulaKeyLeafGranularAcrossCommit() {
 			final Predicate<Serializable> lowSlice = value -> ((Integer) value) <= 150;
 
-			// an uncrossed-leaf write leaves the matched slice's leaf-version token - and its hash - unchanged
+			// An uncrossed-leaf write preserves the operands of the matched slice.
 			final InvertedIndex uncrossed = denseIndex(MULTI_LEAF_BUCKET_COUNT);
 			final Formula uncrossedMatch = uncrossed.getRecordsMatchingFormula(lowSlice);
-			// precondition: the predicate matches more than the high-cardinality threshold of buckets. Each bucket holds
-			// one record, so the record count equals the matched-bucket count; above the threshold the folded OR keys on
-			// the leaf-version token set rather than the per-bucket bitmap ids
+			// Exercise the multi-bucket bitmap operands rather than the single-bucket shortcut.
 			assertTrue(
 				uncrossedMatch.compute().size() > TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY,
 				"Predicate must match more than the high-cardinality threshold of buckets!"
 			);
-			final long beforeUncrossed = uncrossedMatch.getTransactionalIdHash();
+			final FormulaKey beforeUncrossed = uncrossedMatch.getKey();
 			assertStateAfterCommit(
 				uncrossed,
 				// value MULTI_LEAF_BUCKET_COUNT lives in a leaf the [1, 150] match never crosses
 				tested -> tested.addRecord(MULTI_LEAF_BUCKET_COUNT, 999_999),
 				(original, committed) -> assertEquals(
 					beforeUncrossed,
-					committed.getRecordsMatchingFormula(lowSlice).getTransactionalIdHash(),
-					"An uncrossed-leaf write must not change the matched slice's leaf-version token!"
+					committed.getRecordsMatchingFormula(lowSlice).getKey(),
+					"An uncrossed-leaf write must not change the matched slice's key!"
 				)
 			);
 
-			// a crossed-leaf write re-mints the leaf the match read, so its token - and its hash - must change
+			// A crossed-leaf write changes the bitmap operands of the matched slice.
 			final InvertedIndex crossed = denseIndex(MULTI_LEAF_BUCKET_COUNT);
-			final long beforeCrossed = crossed.getRecordsMatchingFormula(lowSlice).getTransactionalIdHash();
+			final FormulaKey beforeCrossed = crossed.getRecordsMatchingFormula(lowSlice).getKey();
 			assertStateAfterCommit(
 				crossed,
 				// value 50 is inside the [1, 150] match, so its leaf is one the match crosses
 				tested -> tested.addRecord(50, 999_999),
 				(original, committed) -> assertNotEquals(
 					beforeCrossed,
-					committed.getRecordsMatchingFormula(lowSlice).getTransactionalIdHash(),
-					"A crossed-leaf write must change the matched slice's leaf-version token!"
+					committed.getRecordsMatchingFormula(lowSlice).getKey(),
+					"A crossed-leaf write must change the matched slice's key!"
 				)
 			);
 		}
+
+		/**
+		 * Pins the legacy transactional hash across committed writes.
+		 *
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		@Nested
+		@DisplayName("Legacy predicate-matching transactional hashes")
+		class LegacyMatchingHashTest {
+			@Test
+			@DisplayName("The predicate-matching formula token is leaf-granular across a commit")
+			void matchingFormulaTokenIsLeafGranularAcrossCommit() {
+				final Predicate<Serializable> lowSlice = value -> ((Integer) value) <= 150;
+
+				// an uncrossed-leaf write leaves the matched slice's leaf-version token - and its hash - unchanged
+				final InvertedIndex uncrossed = denseIndex(MULTI_LEAF_BUCKET_COUNT);
+				final Formula uncrossedMatch = uncrossed.getRecordsMatchingFormula(lowSlice);
+				// precondition: the predicate matches more than the high-cardinality threshold of buckets. Each bucket holds
+				// one record, so the record count equals the matched-bucket count; above the threshold the folded OR keys on
+				// the leaf-version token set rather than the per-bucket bitmap ids
+				assertTrue(
+					uncrossedMatch.compute().size() > TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY,
+					"Predicate must match more than the high-cardinality threshold of buckets!"
+				);
+				final long beforeUncrossed = uncrossedMatch.getTransactionalIdHash();
+				assertStateAfterCommit(
+					uncrossed,
+					// value MULTI_LEAF_BUCKET_COUNT lives in a leaf the [1, 150] match never crosses
+					tested -> tested.addRecord(MULTI_LEAF_BUCKET_COUNT, 999_999),
+					(original, committed) -> assertEquals(
+						beforeUncrossed,
+						committed.getRecordsMatchingFormula(lowSlice).getTransactionalIdHash(),
+						"An uncrossed-leaf write must not change the matched slice's leaf-version token!"
+					)
+				);
+
+				// a crossed-leaf write re-mints the leaf the match read, so its token - and its hash - must change
+				final InvertedIndex crossed = denseIndex(MULTI_LEAF_BUCKET_COUNT);
+				final long beforeCrossed = crossed.getRecordsMatchingFormula(lowSlice).getTransactionalIdHash();
+				assertStateAfterCommit(
+					crossed,
+					// value 50 is inside the [1, 150] match, so its leaf is one the match crosses
+					tested -> tested.addRecord(50, 999_999),
+					(original, committed) -> assertNotEquals(
+						beforeCrossed,
+						committed.getRecordsMatchingFormula(lowSlice).getTransactionalIdHash(),
+						"A crossed-leaf write must change the matched slice's leaf-version token!"
+					)
+				);
+			}
+		}
+
 	}
 
 	/**

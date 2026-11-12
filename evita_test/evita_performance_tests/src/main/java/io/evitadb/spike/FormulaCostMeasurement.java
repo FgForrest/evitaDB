@@ -26,6 +26,7 @@ package io.evitadb.spike;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.entity.EntityPrimaryKeyRangeFormula;
@@ -331,8 +332,10 @@ public class FormulaCostMeasurement {
 			40, HistogramBehavior.STANDARD,
 			2, QueryPriceMode.WITH_TAX,
 			bucketDataSet.getFormulaA(),
-			bucketDataSet.getFormulaB(),
-			bucketDataSet.getFilteredPriceRecordAccessors(),
+			new OrFormula(
+				(Formula) bucketDataSet.getFilteredPriceRecordAccessors().get(0),
+				(Formula) bucketDataSet.getFilteredPriceRecordAccessors().get(1)
+			),
 			null
 		);
 		blackhole.consume(testedFormula.compute());

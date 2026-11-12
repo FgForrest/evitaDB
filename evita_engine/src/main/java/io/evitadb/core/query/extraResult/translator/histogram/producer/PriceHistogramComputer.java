@@ -28,12 +28,19 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogram;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
@@ -81,9 +88,20 @@ import java.util.function.ToIntFunction;
  * {@link #memoizedPriceRecords}. Both fields are `null` until {@link #compute()} is first invoked.
  */
 public class PriceHistogramComputer implements CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> {
+	/** Stable identifier of this histogram computation. */
+	private static final long CLASS_ID = 1174746219749624374L;
+	/** Detached key, built once on first demand. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	@Nullable private FormulaKey memoizedKey;
+
+	/** Baseline with the requested price range relaxed, used to derive supplementation and accessors. */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
+	@Nonnull private final Formula relaxedBaseline;
+
 	/**
 	 * Execution context from initialization phase.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	protected QueryExecutionContext context;
 	/**
 	 * Bucket count contains desired count of histogram columns=buckets. Output histogram bucket count must never exceed
@@ -108,6 +126,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Nonnull private final Formula filteringFormula;
 	/**
 	 * Contains clone of the {@link #filteringFormula} in a such way that all price termination formulas within user
@@ -115,47 +134,82 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 * the excluded records - this way we can compute remainder to the current filtering result and get all data
 	 * for price histogram ignoring the price between filtering query.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DERIVED)
 	@Nullable private final Formula filteringFormulaWithFilteredOutRecords;
 	/**
 	 * Contains list of all {@link FilteredPriceRecordAccessor} formulas that allow access to the {@link PriceRecord}
 	 * used in filtering formula processing.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DERIVED)
 	@Nonnull private final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors;
 	/**
 	 * Contains existing {@link FilteredPriceRecordsLookupResult} if it was already produced by filtering or sorter logic.
 	 * We can reuse already computed data in this producer and save precious ticks.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Nullable private final FilteredPriceRecordsLookupResult priceRecordsLookupResult;
 	/**
 	 * Contains memoized value of {@link #getHash()} method.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 	private final Long hash;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 	private final long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()} ()}  of this formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private final Long estimatedCost;
 	/**
 	 * Contains memoized value of {@link #getCost()}  of this formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Long cost;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 	private final Long transactionalIdHash;
 	/**
 	 * Contains price record array that all price records that represents source records for price histogram computation.
 	 * It is initialized during {@link #compute()} method and result is memoized, so it's ensured it's computed only once.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private PriceRecordContract[] memoizedPriceRecords;
 	/**
 	 * Contains result - computed histogram. The value is initialized during {@link #compute()} method, and it is
 	 * memoized, so it's ensured it's computed only once.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private CacheableHistogramContract memoizedResult;
+
+	/** Returns the memoized detached computation key. */
+	@Nonnull
+	@Override
+	public FormulaKey getKey() {
+		if (this.memoizedKey == null) {
+			this.memoizedKey = FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+		}
+		return this.memoizedKey;
+	}
+
+	/** Returns this holder's stable class identifier. */
+	public long getClassId() {
+		return CLASS_ID;
+	}
+
+	/** Captures filtering and baseline provenance without retaining a sorter lookup in the key. */
+	@Nonnull
+	protected IdentityRecord identity() {
+		return new Identity(
+			this.bucketCount, this.behavior, this.indexedPricePlaces, this.queryPriceMode,
+			this.filteringFormula.getKey(), this.relaxedBaseline.getKey(),
+			this.priceRecordsLookupResult == null ? null : IdentityToken.OPAQUE
+		);
+	}
 
 	/**
 	 * Method creates instance of histogram data cruncher that computes optimal histogram for prices.
@@ -215,8 +269,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		int indexedPricePlaces,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull Formula filteringFormula,
-		@Nullable Formula filteringFormulaWithFilteredOutRecords,
-		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
+		@Nonnull Formula relaxedBaseline,
 		@Nullable FilteredPriceRecordsLookupResult priceRecordsLookupResult
 	) {
 		this.bucketCount = bucketCount;
@@ -224,8 +277,12 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		this.indexedPricePlaces = indexedPricePlaces;
 		this.queryPriceMode = queryPriceMode;
 		this.filteringFormula = filteringFormula;
-		this.filteringFormulaWithFilteredOutRecords = filteringFormulaWithFilteredOutRecords;
-		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
+		this.relaxedBaseline = relaxedBaseline;
+		this.filteringFormulaWithFilteredOutRecords =
+			relaxedBaseline == filteringFormula || relaxedBaseline == EmptyFormula.INSTANCE ? null : relaxedBaseline;
+		this.filteredPriceRecordAccessors = FormulaFinder.find(
+			relaxedBaseline, FilteredPriceRecordAccessor.class, FormulaFinder.LookUp.SHALLOW
+		);
 		this.priceRecordsLookupResult = priceRecordsLookupResult;
 
 		this.hash = HASH_FUNCTION.hashLongs(
@@ -248,7 +305,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		// previous formulation `size / 2` collapsed to 0 for the common single-accessor case, hiding the
 		// per-record operation cost contribution from the planner's cost estimate.
 		this.estimatedCost = filteringFormula.getEstimatedCardinality() *
-			Math.max(1, (filteredPriceRecordAccessors.size() + 1) / 2) *
+			Math.max(1, (this.filteredPriceRecordAccessors.size() + 1) / 2) *
 			getOperationCost();
 	}
 
@@ -366,8 +423,8 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 *   side-output prepared at construction time by {@link LowestPriceTerminationFormula}, those accessors
 	 *   contribute one bucket data point per inner record id and every entity they do not cover is topped
 	 *   up from the {@link FilteredPriceRecordsCollector} — see
-	 *   {@link #collectPerInnerRecordHistogramRecords(List)}. The {@code PriceHistogramTranslator} collects
-	 *   this accessor list from a {@code withoutUserFilter} view of the filtering tree so the inner
+	 *   {@link #collectPerInnerRecordHistogramRecords(List)}. The computer collects
+	 *   this accessor list from the relaxed baseline so the inner
 	 *   {@link LowestPriceTerminationFormula} produced by {@code priceBetween} (which would otherwise
 	 *   double-count the same entities) does not show up here.
 	 * - Otherwise (pure `NONE`/`SUM` handling, or no LOWEST_PRICE LP at all) the existing collector path
@@ -534,5 +591,45 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		return priceRecordsCollector.combineResultWithAndReturnPriceRecords(
 			RoaringBitmapBackedBitmap.getRoaringBitmap(pricePredicateFilteredOutEntities)
 		);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param bucketCount maximum requested bucket count
+	 * @param behavior histogram behavior
+	 * @param indexedPricePlaces indexed price precision
+	 * @param queryPriceMode price mode
+	 * @param filteringFormula original filtering key
+	 * @param relaxedBaseline price-range-relaxed baseline key
+	 * @param priceRecordsLookupResult opaque marker when a sorter lookup was captured
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
+		int indexedPricePlaces,
+		@Nonnull QueryPriceMode queryPriceMode,
+		@Nonnull FormulaKey filteringFormula,
+		@Nonnull FormulaKey relaxedBaseline,
+		@Nullable IdentityToken priceRecordsLookupResult
+	) implements IdentityRecord {
+		/** Returns the owning holder's identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.bucketCount);
+			accumulator.add(this.behavior);
+			accumulator.add(this.indexedPricePlaces);
+			accumulator.add(this.queryPriceMode);
+			accumulator.add(this.filteringFormula);
+			accumulator.add(this.relaxedBaseline);
+			accumulator.add(this.priceRecordsLookupResult);
+		}
 	}
 }
