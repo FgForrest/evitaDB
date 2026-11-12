@@ -39,6 +39,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,6 +61,7 @@ import java.util.Set;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -691,6 +693,74 @@ class EntityIndexManifestInvariantTest {
 			this.index.insertPrimaryKeyIfMissing(10, REFERENCED_PK);
 
 			assertManifestMatches(this.index, Collections.emptySet());
+		}
+	}
+
+	/**
+	 * Manifest invariant checks for `GroupHistogramEntityIndex`. A store holds histograms and nothing else, so its
+	 * manifest must mirror the live histogram sub-indexes exactly - one key per (histogram, locale) - and name no
+	 * attribute, price, facet or hierarchy sub-index at all.
+	 */
+	@Nested
+	@DisplayName("GroupHistogramEntityIndex")
+	class GroupHistogramEntityIndexManifestTest {
+
+		/**
+		 * The store under test, created empty for every test.
+		 */
+		private GroupHistogramEntityIndex index;
+
+		/**
+		 * Creates an empty store of one group.
+		 */
+		@BeforeEach
+		void setUp() {
+			this.index = new GroupHistogramEntityIndex(
+				INDEX_PK, ENTITY_TYPE, GroupHistogramEntityIndex.keyOf(REFERENCE_NAME, GROUP_PK, Scope.LIVE), true
+			);
+		}
+
+		/**
+		 * Verifies that an empty store nothing wrote to emits no manifest.
+		 */
+		@Test
+		@DisplayName("should not emit any manifest when index is empty")
+		void shouldNotEmitManifestWhenEmpty() {
+			assertNoManifestEmittedForEmpty(this.index);
+		}
+
+		/**
+		 * Verifies that the manifest lists exactly one key per live histogram and locale - none for a histogram emptied
+		 * before the flush - and no attribute, price, facet or hierarchy sub-index.
+		 */
+		@Test
+		@DisplayName("should list one histogram key per live histogram and locale, and no other sub-index")
+		void shouldListEveryLiveHistogramAndNothingElseInManifest() {
+			this.index.insertHistogramValue("price", null, 10, 1_001, Integer.class, 0);
+			this.index.insertHistogramValue("width", Locale.ENGLISH, 20, 1_002, Integer.class, 0);
+			this.index.insertHistogramValue("width", Locale.GERMAN, 30, 1_003, Integer.class, 0);
+			// a histogram emptied before the flush leaves the map and must not be listed
+			this.index.insertHistogramValue("height", null, 40, 1_004, Integer.class, 0);
+			this.index.removeHistogramValue("height", null, 40, 1_004, 0);
+
+			final TrappedChanges trapped = new TrappedChanges();
+			this.index.getModifiedStorageParts(trapped);
+			final EntityIndexStoragePart manifest = findEntityIndexStoragePart(trapped)
+				.orElseThrow(() -> new AssertionError("A store holding histograms must emit its manifest"));
+
+			final EntityIndexKey indexKey = this.index.getIndexKey();
+			assertEquals(
+				Set.of(
+					new HistogramIndexStorageKey(indexKey, "price", null),
+					new HistogramIndexStorageKey(indexKey, "width", Locale.ENGLISH),
+					new HistogramIndexStorageKey(indexKey, "width", Locale.GERMAN)
+				),
+				manifest.getHistogramIndexes()
+			);
+			assertEquals(Set.of(), manifest.getAttributeIndexes());
+			assertEquals(Set.of(), manifest.getPriceIndexes());
+			assertEquals(Set.of(), manifest.getFacetIndexes());
+			assertFalse(manifest.isHierarchyIndex());
 		}
 	}
 

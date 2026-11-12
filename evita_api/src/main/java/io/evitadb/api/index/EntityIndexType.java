@@ -103,5 +103,16 @@ public enum EntityIndexType {
 	 * {@link #REFERENCED_GROUP_ENTITY_TYPE} type-level index, which maps group PKs to storage PKs of individual
 	 * group indexes.
 	 */
-	REFERENCED_GROUP_ENTITY
+	REFERENCED_GROUP_ENTITY,
+	/**
+	 * Index that holds nothing but the bucketed reference histograms of one referenced group: one per reference name,
+	 * scope and group entity primary key, whichever {@link #REFERENCED_GROUP_ENTITY} indexes the group's references
+	 * are spread over. It carries no entity primary keys, languages, attributes, prices, facets or hierarchy - its
+	 * histograms count the owner entities themselves, once per (value, owner) - and it is never listed by the
+	 * {@link #REFERENCED_GROUP_ENTITY_TYPE} index, which keeps tracking the group itself.
+	 *
+	 * Discriminator is a {@link RepresentativeReferenceKey} combining the {@link ReferenceSchemaContract#getName()}
+	 * with the **group entity** primary key, and carrying no representative attribute values.
+	 */
+	REFERENCED_GROUP_HISTOGRAM
 }

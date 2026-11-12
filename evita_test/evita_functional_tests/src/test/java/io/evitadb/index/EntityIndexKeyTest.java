@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -238,6 +239,72 @@ class EntityIndexKeyTest {
 				)
 			);
 		}
+
+		/**
+		 * Verifies that a group histogram store key accepts the representative reference key of its group.
+		 */
+		@Test
+		@DisplayName("should accept REFERENCED_GROUP_HISTOGRAM with a RepresentativeReferenceKey of the group")
+		void shouldAcceptReferencedGroupHistogramWithRrk() {
+			final RepresentativeReferenceKey refKey = rrk(BRAND, 5);
+			final EntityIndexKey key = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_HISTOGRAM, Scope.LIVE, refKey
+			);
+
+			assertEquals(EntityIndexType.REFERENCED_GROUP_HISTOGRAM, key.type());
+			assertEquals(refKey, key.discriminator());
+		}
+
+		/**
+		 * Verifies that a group histogram store key refuses a representative key carrying attribute values, which the
+		 * reduced group index of the same group accepts.
+		 */
+		@Test
+		@DisplayName("should reject REFERENCED_GROUP_HISTOGRAM whose key carries representative attribute values")
+		void shouldRejectReferencedGroupHistogramWithRepresentativeValues() {
+			final RepresentativeReferenceKey tupleKey = new RepresentativeReferenceKey(
+				new ReferenceKey(BRAND, 5), new Serializable[]{"red"}
+			);
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_HISTOGRAM, Scope.LIVE, tupleKey)
+			);
+			assertTrue(error.getMessage().contains("representative attribute values"), error.getMessage());
+			// the same tuple is legitimate on a reduced group index, which is partitioned by it
+			assertEquals(
+				tupleKey,
+				new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, tupleKey).discriminator()
+			);
+		}
+
+		/**
+		 * Verifies that a group histogram store key refuses a bare reference name as its discriminator.
+		 */
+		@Test
+		@DisplayName("should reject REFERENCED_GROUP_HISTOGRAM with String discriminator")
+		void shouldRejectReferencedGroupHistogramWithString() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new EntityIndexKey(
+					EntityIndexType.REFERENCED_GROUP_HISTOGRAM, Scope.LIVE, BRAND
+				)
+			);
+		}
+
+		/**
+		 * Verifies that a group histogram store key refuses a missing discriminator.
+		 */
+		@Test
+		@DisplayName("should reject REFERENCED_GROUP_HISTOGRAM with null discriminator")
+		void shouldRejectReferencedGroupHistogramWithNull() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new EntityIndexKey(
+					EntityIndexType.REFERENCED_GROUP_HISTOGRAM, Scope.LIVE, null
+				)
+			);
+		}
 	}
 
 	@Nested
@@ -287,6 +354,19 @@ class EntityIndexKeyTest {
 		void shouldDeriveRrkReferenceNameForReferencedGroupEntity() {
 			final EntityIndexKey key = new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, rrk(BRAND, 3)
+			);
+
+			assertEquals(BRAND, key.referenceName());
+		}
+
+		/**
+		 * Verifies that a group histogram store key derives its reference name from its representative key.
+		 */
+		@Test
+		@DisplayName("should derive the RRK reference name for REFERENCED_GROUP_HISTOGRAM")
+		void shouldDeriveRrkReferenceNameForReferencedGroupHistogram() {
+			final EntityIndexKey key = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_HISTOGRAM, Scope.LIVE, rrk(BRAND, 3)
 			);
 
 			assertEquals(BRAND, key.referenceName());
@@ -601,6 +681,31 @@ class EntityIndexKeyTest {
 
 			assertTrue(catKey.compareTo(brandKey) < 0);
 			assertTrue(brandKey.compareTo(catKey) > 0);
+		}
+
+		/**
+		 * Verifies that store keys order by their group primary key and never compare equal to the reduced group index
+		 * key of the same discriminator.
+		 */
+		@Test
+		@DisplayName("should order REFERENCED_GROUP_HISTOGRAM keys by group primary key, apart from the group index")
+		void shouldOrderReferencedGroupHistogramKeysByGroup() {
+			final EntityIndexKey group1 = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_HISTOGRAM, Scope.LIVE, rrk(BRAND, 1)
+			);
+			final EntityIndexKey group2 = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_HISTOGRAM, Scope.LIVE, rrk(BRAND, 2)
+			);
+			final EntityIndexKey groupIndex = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, rrk(BRAND, 1)
+			);
+
+			assertTrue(group1.compareTo(group2) < 0);
+			assertTrue(group2.compareTo(group1) > 0);
+			// the same discriminator under another kind is another index
+			assertNotEquals(0, group1.compareTo(groupIndex));
+			assertNotEquals(group1, groupIndex);
+			assertEquals(-Integer.signum(groupIndex.compareTo(group1)), Integer.signum(group1.compareTo(groupIndex)));
 		}
 
 		@Test

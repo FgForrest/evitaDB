@@ -1058,6 +1058,10 @@ enum GrpcEntityIndexType {
   INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE = 4;
   // Index covering entities that reference one particular group entity.
   INDEX_TYPE_REFERENCED_GROUP_ENTITY = 5;
+  // Index holding nothing but the bucketed reference histograms of one particular group entity, for one reference and
+  // scope. It covers no entities directly: its entity count is always zero and it has no attributes, prices, facets or
+  // hierarchy - its histograms count the owner entities of the group's references.
+  INDEX_TYPE_REFERENCED_GROUP_HISTOGRAM = 6;
 
 }
 

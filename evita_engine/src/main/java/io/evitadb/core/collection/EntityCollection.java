@@ -4734,6 +4734,19 @@ public final class EntityCollection implements
 									eikAgain,
 									tracked
 								);
+							} else if (eikAgain.type() == EntityIndexType.REFERENCED_GROUP_HISTOGRAM) {
+								assertReferenceIndexPrerequisites(
+									((RepresentativeReferenceKey) Objects.requireNonNull(eikAgain.discriminator()))
+										.referenceName()
+								);
+								// the histogram-only store of one group: no partition object, never advertised in the
+								// group-type index, so no prerequisite beyond the reference itself
+								entityIndex = new GroupHistogramEntityIndex(
+									EntityCollection.this.getNextIndexPrimaryKey(),
+									EntityCollection.this.getEntityType(),
+									eikAgain,
+									tracked
+								);
 							} else {
 								throw new GenericEvitaInternalError("Unsupported entity index type: " + eikAgain.type());
 							}

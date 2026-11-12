@@ -1036,6 +1036,47 @@ class CatalogStatisticsConverterTest {
 		}
 	}
 
+	/**
+	 * Verifies that every entity index type survives the gRPC converter in both directions, alone and inside a browse
+	 * request, and that no two types share one wire value.
+	 */
+	@Test
+	@DisplayName("every entity index type survives the wire, none collapsing onto another")
+	void shouldRoundTripEveryEntityIndexType() {
+		// the switches are exhaustive, so a missing type fails to compile; a type mapped onto a neighbour's wire value
+		// does not, and would report one kind of index as another on every client. The type also travels inside a
+		// browse request, so it is carried that way too rather than only through the converter in isolation
+		for (final EntityIndexType type : EntityIndexType.values()) {
+			assertEquals(
+				type,
+				EvitaEnumConverter.toEntityIndexType(EvitaEnumConverter.toGrpcEntityIndexType(type)),
+				"Entity index type " + type + " did not survive the round trip intact"
+			);
+			final IndexBrowseCriteria criteria = new IndexBrowseCriteria(
+				1, 10, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC, EnumSet.of(type), Set.of(), Set.of()
+			);
+			try {
+				assertEquals(
+					criteria,
+					CatalogStatisticsConverter.toIndexBrowseCriteria(
+						GrpcIndexBrowseRequest.parseFrom(
+							CatalogStatisticsConverter.toGrpcIndexBrowseRequest("catalog", "product", criteria)
+								.toByteArray()
+						)
+					),
+					"A browse restricted to " + type + " must arrive restricted to the same type"
+				);
+			} catch (InvalidProtocolBufferException e) {
+				throw new AssertionError("The browse request for " + type + " could not be parsed back", e);
+			}
+		}
+		assertEquals(
+			EntityIndexType.values().length,
+			Arrays.stream(EntityIndexType.values()).map(EvitaEnumConverter::toGrpcEntityIndexType).distinct().count(),
+			"Two entity index types share one gRPC constant"
+		);
+	}
+
 	@Test
 	@DisplayName("every capability and element kind survives the wire, none collapsing onto another")
 	void shouldRoundTripEverySchemaCapabilityAndElementKind() {

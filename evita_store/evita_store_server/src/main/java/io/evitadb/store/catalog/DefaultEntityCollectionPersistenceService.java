@@ -58,6 +58,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
@@ -987,10 +988,12 @@ public class DefaultEntityCollectionPersistenceService
 	/**
 	 * Picks the read-side reload plan for the given {@link EntityIndexType}: `GLOBAL` resolves
 	 * to `GlobalEntityIndex`, `REFERENCED_*_TYPE` to `ReferencedTypeEntityIndex`,
-	 * `REFERENCED_GROUP_ENTITY` to `ReducedGroupEntityIndex`, and `REFERENCED_ENTITY` to
-	 * `ReducedEntityIndex`. A manifest written before 2024.12 under the retired
-	 * `REFERENCED_HIERARCHY_NODE` type arrives here already folded into `REFERENCED_ENTITY` by
-	 * `EntityIndexTypeSerializer`, which is the subclass it had always been reloaded as.
+	 * `REFERENCED_GROUP_ENTITY` to `ReducedGroupEntityIndex`, `REFERENCED_ENTITY` to
+	 * `ReducedEntityIndex`, and `REFERENCED_GROUP_HISTOGRAM` to `GroupHistogramEntityIndex`, whose
+	 * plan refuses the persisted membership {@link #readEntityIndex} resolved unless it is empty. A
+	 * manifest written before 2024.12 under the retired `REFERENCED_HIERARCHY_NODE` type arrives here
+	 * already folded into `REFERENCED_ENTITY` by `EntityIndexTypeSerializer`, which is the subclass it
+	 * had always been reloaded as.
 	 *
 	 * @param type the `EntityIndexType` of the manifest being reloaded
 	 * @return the immutable reload plan for the matching subclass
@@ -1003,6 +1006,7 @@ public class DefaultEntityCollectionPersistenceService
 				ReferencedTypeEntityIndex.reloadPlan();
 			case REFERENCED_GROUP_ENTITY -> ReducedGroupEntityIndex.reloadPlan();
 			case REFERENCED_ENTITY -> ReducedEntityIndex.reloadPlan();
+			case REFERENCED_GROUP_HISTOGRAM -> GroupHistogramEntityIndex.reloadPlan();
 		};
 	}
 
