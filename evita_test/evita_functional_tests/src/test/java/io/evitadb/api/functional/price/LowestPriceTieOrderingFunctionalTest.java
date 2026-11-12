@@ -55,6 +55,7 @@ import java.util.Objects;
 import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.CZK;
 import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.PRICE_LIST_BASIC;
 import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.PRICE_LIST_REFERENCE;
+import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.PRODUCT;
 import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.queryOrderByDiscount;
 import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.setIndexedPrice;
