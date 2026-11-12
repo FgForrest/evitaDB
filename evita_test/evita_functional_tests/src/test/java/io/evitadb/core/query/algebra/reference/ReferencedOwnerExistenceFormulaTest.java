@@ -29,6 +29,8 @@ import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.deferred.DeferredFormula;
+import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.IdentityToken;
@@ -327,6 +329,28 @@ class ReferencedOwnerExistenceFormulaTest {
 			assertEquals(formulaA.getKey().getHash64(), formulaB.getKey().getHash64());
 			assertArrayEquals(new int[]{20}, formulaA.compute().getArray());
 			assertArrayEquals(formulaA.compute().getArray(), formulaB.compute().getArray());
+		}
+
+		/** Verifies that a deferred referenced entity formula contributes its detached key without being computed. */
+		@Test
+		@DisplayName("should build key over a deferred referenced entity formula")
+		void shouldBuildKeyOverDeferredReferencedEntityFormula() {
+			final int[] owners = {10, 20};
+			final Formula[] perOwnerFormulas = {constant(1), constant(2)};
+			final ReferencedOwnerExistenceFormula formulaA = createFormula(
+				owners, perOwnerFormulas, deferred(2), COUNTERPART_TYPE_INDEX_ID
+			);
+			final ReferencedOwnerExistenceFormula formulaB = createFormula(
+				owners, perOwnerFormulas, deferred(2), COUNTERPART_TYPE_INDEX_ID
+			);
+			final ReferencedOwnerExistenceFormula formulaC = createFormula(
+				owners, perOwnerFormulas, deferred(3), COUNTERPART_TYPE_INDEX_ID
+			);
+
+			assertFalse(formulaA.getKey().isOpaque());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
+			assertEquals(formulaA.getKey().getHash64(), formulaB.getKey().getHash64());
+			assertNotEquals(formulaA.getKey(), formulaC.getKey());
 		}
 	}
 
@@ -660,6 +684,17 @@ class ReferencedOwnerExistenceFormulaTest {
 	@Nonnull
 	private static Formula constant(@Nonnull int... primaryKeys) {
 		return new ConstantFormula(new BaseBitmap(primaryKeys));
+	}
+
+	/**
+	 * Creates a {@link DeferredFormula} whose supplier wraps a {@link ConstantFormula} over the passed primary keys.
+	 *
+	 * @param primaryKeys primary keys the deferred computation returns, must not be empty
+	 * @return deferred formula over the passed primary keys
+	 */
+	@Nonnull
+	private static Formula deferred(@Nonnull int... primaryKeys) {
+		return new DeferredFormula(new FormulaWrapper(constant(primaryKeys), () -> "deferred constant"));
 	}
 
 	/**
