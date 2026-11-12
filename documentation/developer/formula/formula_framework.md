@@ -532,13 +532,14 @@ override `toSerializableFormula()` to include that data.
 
 ### Cache configuration
 
-| Parameter                       | Purpose                                                    |
-|---------------------------------|------------------------------------------------------------|
-| `cacheSizeInBytes`              | Total cache memory budget (default ~1 GB).                 |
-| `anteroomRecordCount`           | Buffer size before triggering evaluation.                  |
-| `minimalComplexityThreshold`    | Minimum `getEstimatedCost()` for cache candidacy.          |
-| `minimalUsageThreshold`         | Minimum usage count before promotion is considered.        |
-| `reevaluateEachSeconds`         | Evaluation interval (default 60 s).                        |
+| Parameter                            | Purpose                                                        |
+|--------------------------------------|----------------------------------------------------------------|
+| `reflection`                         | Reflection metadata caching mode (default `CACHE`).             |
+| `enabled`                            | Cross-query formula result caching switch (default `false`).    |
+| `minimalComplexityThreshold`         | Minimal estimated computation cost for admission (default 10K). |
+| `cacheSizeInBytes`                    | Estimated retained size budget; 0 selects 25% of free heap at class initialization. |
+| `dropEntriesAfterSecondsOfInactivity` | Idle expiry and maintenance period (default 600 s; 0 disables both). |
+| `verifyOneHitIn`                     | Hit verification sampling rate (default 1000; 0 disables it).     |
 
 Single records larger than 1 MB (`MAX_BUFFER_SIZE`) are rejected.
 

@@ -126,6 +126,7 @@ module evita.engine {
 	requires evita.query;
 
 	requires jdk.jfr;
+	requires com.github.benmanes.caffeine;
 	requires com.carrotsearch.hppc;
 	requires com.esotericsoftware.kryo;
 	requires net.bytebuddy;
