@@ -679,18 +679,17 @@ class LowestPriceTerminationFormulaTest {
 		private static final int REPETITIONS = 200;
 
 		/**
-		 * The two inner records of the entity cost the same with tax but differ without tax, so the price mode alone
-		 * does not decide which of them is the lowest. A computation of the very same input must nevertheless select
-		 * the very same price record every time - the record selected here is what the discount sorting pairs the
-		 * reference price with.
+		 * The two inner records of the entity cost the same with tax, the price mode of the computation. Every
+		 * computation of the very same input must select the record with the lower price id - the record selected here
+		 * is what the discount sorting pairs the reference price with.
 		 */
 		@Test
-		@DisplayName("should select the same price record every time when inner records tie on the selling price")
-		void shouldSelectSamePriceRecordEveryTimeWhenInnerRecordsTieOnSellingPrice() {
+		@DisplayName("should select the lower price id every time when inner records tie on the selling price")
+		void shouldSelectLowerPriceIdEveryTimeWhenInnerRecordsTieOnSellingPrice() {
 			final Map<Integer, Integer> selectionCounts = computeSelectedPriceIds(12100);
 
 			assertEquals(
-				1, selectionCounts.size(),
+				Map.of(1, REPETITIONS), selectionCounts,
 				"Computations of the same input selected different price records (price id -> times selected): " +
 					selectionCounts
 			);

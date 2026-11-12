@@ -614,10 +614,10 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * the amount it compares, and it is all this method promises: the entity side's rule for exact ties. It does not
 	 * make the selection agree with the price for sale the entity reports where the two compare different things - the
 	 * entity side compares the price with tax in every query price mode, and it represents an inner record by the
-	 * price with the lowest price id among those of its most prioritized price list, whereas this formula receives one
-	 * price per inner record and price list as its lookups deliver it: pre-selected by the index as the cheapest
-	 * without tax, a tie going to the lower price id (see `EntityPrices`), or, for a query naming a validity moment,
-	 * the first one valid at it.
+	 * price with the lowest price id among those of its most prioritized price list, whereas this formula keeps one
+	 * price per inner record - the first one the individual price predicate accepts, taken from the most prioritized
+	 * price list that delivers one; where the lookup reads the lowest prices the index keeps, that is the cheapest
+	 * without tax, a tie going to the lower price id (see `EntityPrices`).
 	 *
 	 * @param candidate the record examined now
 	 * @param incumbent the record selected so far, selling for the same amount as `candidate`

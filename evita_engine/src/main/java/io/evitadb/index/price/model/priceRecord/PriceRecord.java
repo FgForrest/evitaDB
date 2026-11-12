@@ -70,7 +70,8 @@ public record PriceRecord(
 
 	@Override
 	public boolean relatesTo(@Nonnull PriceRecordContract anotherPriceRecord) {
-		throw new UnsupportedOperationException("PriceRecord does not represent inner record id");
+		// this record has no inner record id, which every record reports as zero
+		return anotherPriceRecord.innerRecordId() == 0;
 	}
 
 	@Override

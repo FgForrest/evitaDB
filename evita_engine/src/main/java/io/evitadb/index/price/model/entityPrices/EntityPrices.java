@@ -78,7 +78,8 @@ public abstract class EntityPrices {
 	protected static final Comparator<PriceRecordContract> PRICE_ID_COMPARATOR =
 		Comparator.comparingInt(PriceRecordContract::internalPriceId);
 	/**
-	 * Comparator that picks the lowest price of an inner record group: it orders {@link PriceRecordContract} by
+	 * Comparator that picks the lowest price among the prices of one inner record, or among all prices of an entity
+	 * none of whose prices is inner record specific: it orders {@link PriceRecordContract} by
 	 * {@link PriceRecordContract#priceWithoutTax()} first, then by {@link PriceRecordContract#priceId()} to break ties.
 	 *
 	 * The tie-break reads the price id the entity knows the price by, never the internal price id, which merely

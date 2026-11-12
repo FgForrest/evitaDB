@@ -23,9 +23,8 @@
 
 package io.evitadb.api.functional.price;
 
-import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.Evita;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -37,14 +36,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.CZK;
+import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.PRICE_LIST_BASIC;
+import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.PRICE_LIST_REFERENCE;
+import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.PRODUCT;
+import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.queryOrderByDiscount;
+import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.setIndexedPrice;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.ORDER;
@@ -64,23 +64,23 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag(PRICE)
 @Tag(ORDER)
 class PriceDiscountReferenceMatchingFunctionalTest {
-	private static final String PRODUCT = "product";
-	private static final String PRICE_LIST_BASIC = "basic";
-	private static final String PRICE_LIST_REFERENCE = "reference";
 	private static final String PRICE_LIST_SECONDARY_REFERENCE = "secondaryReference";
-	private static final Currency CZK = Currency.getInstance("CZK");
 	/**
-	 * Number of identical queries whose orders are compared.
+	 * Number of identical queries whose orders are compared. A single query fails already when the last selling price
+	 * record is not compared with every reference price of its entity; the repetitions are there for an order that
+	 * depends on the iteration order of the hash map the SUM termination examines the reference prices of an entity
+	 * in, which is seeded per instance and so differs between the queries.
 	 */
-	private static final int QUERY_REPETITIONS = 20;
+	private static final int QUERY_REPETITIONS = 10;
 	/**
-	 * Upper bound of the number of products a test creates, used as the page size.
+	 * Number of products of the SUM fixture.
 	 */
 	private static final int PRODUCT_COUNT = 20;
 
 	/**
 	 * The SUM termination examines the reference prices of one entity in the iteration order of a hash map, seeded per
-	 * instance. The discount of every product - the last one included - must not depend on it.
+	 * instance. The discount of every product - the last one included - must be computed from all its reference
+	 * prices, and the order of the products must not depend on that iteration order.
 	 */
 	@Test
 	@DisplayName("should return the same order by discount of SUM entities for repeated identical queries")
@@ -104,7 +104,9 @@ class PriceDiscountReferenceMatchingFunctionalTest {
 		);
 		final Map<List<Integer>, Integer> orderCounts = CollectionUtils.createLinkedHashMap(QUERY_REPETITIONS);
 		for (int i = 0; i < QUERY_REPETITIONS; i++) {
-			orderCounts.merge(queryOrderByDiscount(evita, PRICE_LIST_REFERENCE), 1, Integer::sum);
+			orderCounts.merge(
+				queryOrderByDiscount(evita, QueryPriceMode.WITH_TAX, PRICE_LIST_REFERENCE), 1, Integer::sum
+			);
 		}
 		// the discount of a product is `pk + 3 * (pk % 7)`
 		assertEquals(
@@ -142,60 +144,83 @@ class PriceDiscountReferenceMatchingFunctionalTest {
 		);
 		assertEquals(
 			List.of(3, 2, 1),
-			queryOrderByDiscount(evita, PRICE_LIST_REFERENCE, PRICE_LIST_SECONDARY_REFERENCE)
+			queryOrderByDiscount(evita, QueryPriceMode.WITH_TAX, PRICE_LIST_REFERENCE, PRICE_LIST_SECONDARY_REFERENCE)
 		);
 	}
 
 	/**
-	 * Returns primary keys of the products ordered by their discount, highest first, fetching references only.
-	 *
-	 * @param evita                   the evitaDB instance to query
-	 * @param referencePriceListNames price lists of the reference price in the order of their priority
-	 * @return primary keys in the order returned by the engine
+	 * Every product sells through inner record 1. The reference price of inner record 2 is in the more prioritized
+	 * reference price list, so it is examined before the reference price of inner record 1 - also for the product just
+	 * before the last selling price record. Pairing that product with any other record than its own selling record
+	 * would either drop its discount or replace it with the far larger discount of inner record 2.
 	 */
-	@Nonnull
-	private static List<Integer> queryOrderByDiscount(
-		@Nonnull Evita evita,
-		@Nonnull String... referencePriceListNames
-	) {
-		return evita.queryCatalog(
+	@Test
+	@DisplayName("should pair the reference price of the selling inner record examined after another inner record")
+	void shouldPairReferencePriceOfSellingInnerRecordExaminedAfterAnotherInnerRecord(Evita evita) {
+		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				final List<EntityReferenceContract> references = session.queryListOfEntityReferences(
-					query(
-						collection(PRODUCT),
-						filterBy(and(priceInCurrency(CZK), priceInPriceLists(PRICE_LIST_BASIC))),
-						orderBy(priceDiscount(DESC, referencePriceListNames)),
-						// a cheap prefetch would sort by the fetched entities and never reach the index route
-						require(page(1, PRODUCT_COUNT), debug(DebugMode.PREFER_INDEX_SCAN))
-					)
-				);
-				final List<Integer> primaryKeys = new ArrayList<>(references.size());
-				for (final EntityReferenceContract reference : references) {
-					primaryKeys.add(reference.getPrimaryKey());
+				session.defineEntitySchema(PRODUCT).withPrice().updateVia(session);
+				for (int pk = 1; pk <= 3; pk++) {
+					final EntityBuilder product = session.createNewEntity(PRODUCT, pk)
+						.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
+					// inner record 1 is the cheaper one and so the selling price, its discount grows with the pk
+					setIndexedPrice(product, pk * 10 + 1, PRICE_LIST_BASIC, 1, 100);
+					setIndexedPrice(product, pk * 10 + 2, PRICE_LIST_BASIC, 2, 200);
+					setIndexedPrice(product, pk * 10 + 3, PRICE_LIST_REFERENCE, 2, 1100);
+					setIndexedPrice(product, pk * 10 + 4, PRICE_LIST_SECONDARY_REFERENCE, 1, 100 + 10 * pk);
+					session.upsertEntity(product);
 				}
-				return primaryKeys;
 			}
+		);
+		assertEquals(
+			List.of(3, 2, 1),
+			queryOrderByDiscount(evita, QueryPriceMode.WITH_TAX, PRICE_LIST_REFERENCE, PRICE_LIST_SECONDARY_REFERENCE)
 		);
 	}
 
 	/**
-	 * Sets an indexed price in CZK with no tax.
-	 *
-	 * @param product       builder of the product the price is set on
-	 * @param priceId       id of the price
-	 * @param priceList     price list of the price
-	 * @param innerRecordId inner record the price belongs to
-	 * @param amount        whole amount of the price
+	 * Prices of a {@link PriceInnerRecordHandling#LOWEST_PRICE} entity may omit the inner record id, and the selling
+	 * price record of such an entity represents no inner record. Its reference price represents none either, so the
+	 * two belong together.
 	 */
-	private static void setIndexedPrice(
+	@Test
+	@DisplayName("should order entities whose prices have no inner record by their discount")
+	void shouldOrderLowestPriceEntitiesWithoutInnerRecordByDiscount(Evita evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(PRODUCT).withPrice().updateVia(session);
+				final EntityBuilder smallDiscount = session.createNewEntity(PRODUCT, 1)
+					.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
+				setIndexedPriceWithoutInnerRecord(smallDiscount, 11, PRICE_LIST_BASIC, 80);
+				setIndexedPriceWithoutInnerRecord(smallDiscount, 12, PRICE_LIST_REFERENCE, 90);
+				session.upsertEntity(smallDiscount);
+				final EntityBuilder largeDiscount = session.createNewEntity(PRODUCT, 2)
+					.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
+				setIndexedPriceWithoutInnerRecord(largeDiscount, 21, PRICE_LIST_BASIC, 100);
+				setIndexedPriceWithoutInnerRecord(largeDiscount, 22, PRICE_LIST_REFERENCE, 150);
+				session.upsertEntity(largeDiscount);
+			}
+		);
+		assertEquals(List.of(2, 1), queryOrderByDiscount(evita, QueryPriceMode.WITH_TAX, PRICE_LIST_REFERENCE));
+	}
+
+	/**
+	 * Sets an indexed price in CZK with no tax and no inner record.
+	 *
+	 * @param product   builder of the product the price is set on
+	 * @param priceId   id of the price
+	 * @param priceList price list of the price
+	 * @param amount    whole amount of the price
+	 */
+	private static void setIndexedPriceWithoutInnerRecord(
 		@Nonnull EntityBuilder product,
 		int priceId,
 		@Nonnull String priceList,
-		int innerRecordId,
 		int amount
 	) {
 		final BigDecimal price = new BigDecimal(amount).setScale(2);
-		product.setPrice(priceId, priceList, CZK, innerRecordId, price, BigDecimal.ZERO, price, true);
+		product.setPrice(priceId, priceList, CZK, price, BigDecimal.ZERO, price, true);
 	}
 }

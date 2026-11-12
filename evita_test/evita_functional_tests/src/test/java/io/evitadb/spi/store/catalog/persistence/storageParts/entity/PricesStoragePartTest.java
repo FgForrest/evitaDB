@@ -26,13 +26,17 @@ package io.evitadb.spi.store.catalog.persistence.storageParts.entity;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.spi.store.catalog.shared.model.PriceWithInternalIds;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Currency;
 import java.util.OptionalInt;
 import org.junit.jupiter.api.Tag;
@@ -103,6 +107,26 @@ class PricesStoragePartTest {
 			new BigDecimal("21.00"),
 			priceWithoutTax.multiply(new BigDecimal("1.21")),
 			null,
+			true
+		);
+	}
+
+	/**
+	 * Creates the {@link Price} of {@link #createPrice(int, String, Currency)} with price id 1 in the `basic` price
+	 * list in USD, valid within the passed validity.
+	 *
+	 * @param validity the validity of the price, `null` for a price valid at any moment
+	 * @return new price instance
+	 */
+	@Nonnull
+	private static Price createPriceValidIn(@Nullable DateTimeRange validity) {
+		return new Price(
+			new PriceKey(1, "basic", USD),
+			null,
+			new BigDecimal("100.00"),
+			new BigDecimal("21.00"),
+			new BigDecimal("121.00"),
+			validity,
 			true
 		);
 	}
@@ -326,6 +350,49 @@ class PricesStoragePartTest {
 			);
 
 			assertFalse(part.isDirty());
+		}
+
+		/**
+		 * Two validities naming the same instants at different zone offsets compare equal, yet a reader gets other
+		 * bounds back. The part must take the new price and become dirty, and stay clean when the very same validity
+		 * arrives again.
+		 */
+		@Test
+		@DisplayName("should mark dirty when the validity names the same instants at another zone offset")
+		void shouldMarkDirtyWhenValidityNamesSameInstantsAtAnotherZoneOffset() {
+			final LocalDateTime noon = LocalDateTime.of(2024, 1, 1, 12, 0);
+			final DateTimeRange atTwo = DateTimeRange.between(
+				noon.atOffset(ZoneOffset.ofHours(2)), noon.plusHours(1).atOffset(ZoneOffset.ofHours(2))
+			);
+			final DateTimeRange atOne = DateTimeRange.between(
+				noon.minusHours(1).atOffset(ZoneOffset.ofHours(1)), noon.atOffset(ZoneOffset.ofHours(1))
+			);
+			final PricesStoragePart changed = new PricesStoragePart(
+				ENTITY_PK, 1, PriceInnerRecordHandling.NONE,
+				new PriceWithInternalIds[]{wrapPrice(createPriceValidIn(atTwo), 100)}, 128
+			);
+
+			changed.replaceOrAddPrice(
+				new PriceKey(1, "basic", USD), existing -> createPriceValidIn(atOne), pk -> 999
+			);
+
+			assertTrue(changed.isDirty());
+			assertEquals(atOne.toString(), String.valueOf(changed.getPrices()[0].validity()));
+
+			final PricesStoragePart unchanged = new PricesStoragePart(
+				ENTITY_PK, 1, PriceInnerRecordHandling.NONE,
+				new PriceWithInternalIds[]{wrapPrice(createPriceValidIn(atTwo), 100)}, 128
+			);
+			unchanged.replaceOrAddPrice(
+				new PriceKey(1, "basic", USD),
+				existing -> createPriceValidIn(
+					DateTimeRange.between(
+						noon.atOffset(ZoneOffset.ofHours(2)), noon.plusHours(1).atOffset(ZoneOffset.ofHours(2))
+					)
+				),
+				pk -> 999
+			);
+			assertFalse(unchanged.isDirty());
 		}
 
 		@Test

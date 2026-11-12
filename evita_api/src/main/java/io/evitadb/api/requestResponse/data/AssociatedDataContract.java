@@ -55,7 +55,10 @@ import static io.evitadb.utils.ComparatorUtils.compareLocale;
 public interface AssociatedDataContract extends Serializable, AssociatedDataAvailabilityChecker {
 
 	/**
-	 * Returns true if single associated data differs between first and second instance.
+	 * Returns true if single associated data differs between first and second instance. Values are compared by
+	 * {@link QueryUtils#valueDiffers(Serializable, Serializable)} refined by
+	 * {@link EvitaDataTypes#rangeRepresentationDiffers(Serializable, Serializable)}, so a range of another
+	 * representation is a difference while a `BigDecimal` rescaled to the same number is not.
 	 */
 	static boolean anyAssociatedDataDifferBetween(AssociatedDataContract first, AssociatedDataContract second) {
 		final Collection<AssociatedDataValue> thisValues = first.associatedDataAvailable() ? first.getAssociatedDataValues() : Collections.emptyList();
@@ -365,7 +368,10 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 		}
 
 		/**
-		 * Returns true if this associatedData differs in key factors from the passed associatedData.
+		 * Returns true if this associatedData differs in key factors from the passed associatedData. Values are
+		 * compared by {@link QueryUtils#valueDiffers(Serializable, Serializable)} refined by
+		 * {@link EvitaDataTypes#rangeRepresentationDiffers(Serializable, Serializable)}, so a range of another
+		 * representation is a difference while a `BigDecimal` rescaled to the same number is not.
 		 */
 		@Override
 		public boolean differsFrom(@Nullable AssociatedDataValue otherAssociatedDataValue) {

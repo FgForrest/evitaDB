@@ -46,14 +46,18 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.CZK;
+import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.PRICE_LIST_BASIC;
+import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.PRICE_LIST_REFERENCE;
+import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.PRODUCT;
+import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.queryOrderByDiscount;
+import static io.evitadb.api.functional.price.PriceDiscountOrderingTestSupport.setIndexedPrice;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.ORDER;
@@ -67,8 +71,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * different reference prices. The discount pairs the reference price with the inner record of the selected selling
  * price, so the selection among the tied inner records decides the discount and, through it, the order - which
  * makes the order the observable both of the stability of the selection and of its agreement with the price for sale
- * the fetched entity reports. The same agreement is verified for an inner record with several prices tied in a single
- * price list, where the selection within the inner record decides the price the entity sells for.
+ * the fetched entity reports, in the cases where both sides compare the same amount. The same agreement is verified
+ * for an inner record with several prices tied in a single price list, where the selection within the inner record
+ * decides the price the entity sells for.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -78,10 +83,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @Tag(PRICE)
 @Tag(ORDER)
 class LowestPriceTieOrderingFunctionalTest {
-	private static final String PRODUCT = "product";
-	private static final String PRICE_LIST_BASIC = "basic";
-	private static final String PRICE_LIST_REFERENCE = "reference";
-	private static final Currency CZK = Currency.getInstance("CZK");
 	/**
 	 * Number of products whose two inner records tie on the selling price.
 	 */
@@ -96,8 +97,8 @@ class LowestPriceTieOrderingFunctionalTest {
 	private static final int GROUP_SIZE = 10;
 
 	@Test
-	@DisplayName("should return the same order for repeated identical queries")
-	void shouldReturnSameOrderForRepeatedIdenticalQueries(Evita evita) {
+	@DisplayName("should order tied products by the discount of the lower price id for repeated identical queries")
+	void shouldOrderTiedProductsByDiscountOfLowerPriceIdForRepeatedQueries(Evita evita) {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -124,42 +125,19 @@ class LowestPriceTieOrderingFunctionalTest {
 
 		final Map<List<Integer>, Integer> orderCounts = CollectionUtils.createLinkedHashMap(REPETITIONS);
 		for (int i = 0; i < REPETITIONS; i++) {
-			final List<Integer> order = evita.queryCatalog(
-				TEST_CATALOG,
-				session -> {
-					final List<EntityReferenceContract> references = session.queryListOfEntityReferences(
-						query(
-							collection(PRODUCT),
-							filterBy(
-								and(
-									priceInCurrency(CZK),
-									priceInPriceLists(PRICE_LIST_BASIC)
-								)
-							),
-							orderBy(
-								priceDiscount(DESC, PRICE_LIST_REFERENCE)
-							),
-							require(
-								page(1, TIED_PRODUCT_COUNT + 1),
-								// a cheap prefetch would sort by the fetched entities and never reach the index route
-								debug(DebugMode.PREFER_INDEX_SCAN)
-							)
-						)
-					);
-					final List<Integer> primaryKeys = new ArrayList<>(references.size());
-					for (final EntityReferenceContract reference : references) {
-						primaryKeys.add(reference.getPrimaryKey());
-					}
-					return primaryKeys;
-				}
+			orderCounts.merge(
+				queryOrderByDiscount(evita, QueryPriceMode.WITH_TAX, PRICE_LIST_REFERENCE), 1, Integer::sum
 			);
-			orderCounts.merge(order, 1, Integer::sum);
 		}
 
+		// the lower price id wins the tie, so every tied product sells through inner record 1 and its discount is its
+		// primary key, below the discount of the product with a single inner record
 		assertEquals(
-			1, orderCounts.size(),
-			REPETITIONS + " identical queries returned " + orderCounts.size() +
-				" different orders (order -> times returned): " + orderCounts
+			Map.of(
+				List.of(21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1), REPETITIONS
+			),
+			orderCounts,
+			"orders (order -> times returned): " + orderCounts
 		);
 	}
 
@@ -170,7 +148,7 @@ class LowestPriceTieOrderingFunctionalTest {
 
 		assertEquals(
 			computeOrderByEntityPriceForSale(evita, QueryPriceMode.WITH_TAX),
-			queryOrderByDiscount(evita, QueryPriceMode.WITH_TAX)
+			queryOrderByDiscount(evita, QueryPriceMode.WITH_TAX, PRICE_LIST_REFERENCE)
 		);
 	}
 
@@ -189,7 +167,7 @@ class LowestPriceTieOrderingFunctionalTest {
 		assertEquals(10, queryPriceForSale(evita, 1, QueryPriceMode.WITH_TAX).priceId());
 		assertEquals(
 			computeOrderByEntityPriceForSale(evita, QueryPriceMode.WITH_TAX),
-			queryOrderByDiscount(evita, QueryPriceMode.WITH_TAX)
+			queryOrderByDiscount(evita, QueryPriceMode.WITH_TAX, PRICE_LIST_REFERENCE)
 		);
 	}
 
@@ -492,49 +470,6 @@ class LowestPriceTieOrderingFunctionalTest {
 	}
 
 	/**
-	 * Returns primary keys of all products in the order of their discount against the reference price list, highest
-	 * discount first, as the engine sorts them. Only entity references are fetched, so the order is computed from the
-	 * price records the engine selected in its indexes, never from fetched entity bodies.
-	 *
-	 * @param evita          the evitaDB instance to query
-	 * @param queryPriceMode price mode of the query
-	 * @return primary keys in the order returned by the engine
-	 */
-	@Nonnull
-	private static List<Integer> queryOrderByDiscount(@Nonnull Evita evita, @Nonnull QueryPriceMode queryPriceMode) {
-		return evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final List<EntityReferenceContract> references = session.queryListOfEntityReferences(
-					query(
-						collection(PRODUCT),
-						filterBy(
-							and(
-								priceInCurrency(CZK),
-								priceInPriceLists(PRICE_LIST_BASIC)
-							)
-						),
-						orderBy(
-							priceDiscount(DESC, PRICE_LIST_REFERENCE)
-						),
-						require(
-							page(1, 2 * GROUP_SIZE + 1),
-							priceType(queryPriceMode),
-							// a cheap prefetch would sort by the fetched entities and never reach the index route
-							debug(DebugMode.PREFER_INDEX_SCAN)
-						)
-					)
-				);
-				final List<Integer> primaryKeys = new ArrayList<>(references.size());
-				for (final EntityReferenceContract reference : references) {
-					primaryKeys.add(reference.getPrimaryKey());
-				}
-				return primaryKeys;
-			}
-		);
-	}
-
-	/**
 	 * Fetches all products with their prices and orders their primary keys by the discount computed from the price for
 	 * sale each entity reports and from the reference price of the same inner record, highest discount first. The
 	 * amounts are taken in the passed price mode, as the engine takes them.
@@ -658,47 +593,6 @@ class LowestPriceTieOrderingFunctionalTest {
 		product.setPrice(
 			priceId, priceList, CZK, innerRecordId, base.add(raise), rate, withTax.add(raise), validity, true
 		);
-	}
-
-	/**
-	 * Sets an indexed price in CZK with no tax, so the price with tax equals the price without tax.
-	 *
-	 * @param product       builder of the product the price is set on
-	 * @param priceId       id of the price
-	 * @param priceList     price list of the price
-	 * @param innerRecordId inner record the price belongs to
-	 * @param amount        whole amount of the price
-	 */
-	private static void setIndexedPrice(
-		@Nonnull EntityBuilder product,
-		int priceId,
-		@Nonnull String priceList,
-		int innerRecordId,
-		int amount
-	) {
-		setIndexedPrice(product, priceId, priceList, innerRecordId, amount, null);
-	}
-
-	/**
-	 * Sets an indexed price in CZK with no tax, valid within the passed validity.
-	 *
-	 * @param product       builder of the product the price is set on
-	 * @param priceId       id of the price
-	 * @param priceList     price list of the price
-	 * @param innerRecordId inner record the price belongs to
-	 * @param amount        whole amount of the price
-	 * @param validity      validity of the price, `null` for a price valid at any moment
-	 */
-	private static void setIndexedPrice(
-		@Nonnull EntityBuilder product,
-		int priceId,
-		@Nonnull String priceList,
-		int innerRecordId,
-		int amount,
-		@Nullable DateTimeRange validity
-	) {
-		final BigDecimal price = new BigDecimal(amount).setScale(2);
-		product.setPrice(priceId, priceList, CZK, innerRecordId, price, BigDecimal.ZERO, price, validity, true);
 	}
 
 }

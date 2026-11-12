@@ -1261,8 +1261,8 @@ public class EvitaDataTypes {
 
 	/**
 	 * Returns `true` when a reader of the stored data can tell the two stored values apart - the question the
-	 * "did the value change" checks of the attribute write paths ask before they bump a version or rewrite a stored
-	 * part. It is `equals` with two refinements:
+	 * "did the value change" checks of the write paths of stored values - attributes, associated data and price
+	 * validities - ask before they bump a version or rewrite a stored part. It is `equals` with two refinements:
 	 *
 	 * - two values `equals` finds the same are told apart by {@link #rangeRepresentationDiffers(Serializable,
 	 *   Serializable)} when they are ranges, whose `equals` compares the encoded bounds only, or complex data holding
@@ -1270,9 +1270,12 @@ public class EvitaDataTypes {
 	 * - arrays are compared element by element under the same rule rather than by identity, so an array holding the
 	 *   very same values is no change.
 	 *
-	 * The method runs on every attribute upsert: a value that is neither an object array, a range nor complex data
-	 * costs one type check and the `equals` call when the values differ, and three more type checks when they are the
-	 * same. Nothing is allocated on that path; complex data `equals` finds the same are walked a second time.
+	 * Being `equals`, it is strict about the scale of a decimal number: `1.0` replaced by `1.00` is a change, unlike
+	 * for `QueryUtils#valueDiffers`, which compares by `compareTo`.
+	 *
+	 * The method runs on every upsert of a stored value: a value that is neither an object array, a range nor complex
+	 * data costs one type check and the `equals` call when the values differ, and three more type checks when they are
+	 * the same. Nothing is allocated on that path; complex data `equals` finds the same are walked a second time.
 	 *
 	 * @param existing  the value stored so far, may be `null`
 	 * @param candidate the value about to be stored, may be `null`
@@ -1319,10 +1322,13 @@ public class EvitaDataTypes {
 	 * covers like any other tree.
 	 *
 	 * The method refines a base comparison that has already found the two values the same and is meant to be
-	 * combined with it - `!equals(a, b) || rangeRepresentationDiffers(a, b)`. For any value that is neither a range,
-	 * complex data nor an array of ranges it returns `false` and leaves the decision to the base comparison, at the
-	 * cost of three type checks and no allocation. Complex data are walked a second time - after `equals` - and the
-	 * walk allocates the iterators of the maps it passes through.
+	 * combined with it - `!equals(a, b) || rangeRepresentationDiffers(a, b)`, or
+	 * `QueryUtils#valueDiffers(a, b) || rangeRepresentationDiffers(a, b)` where a `BigDecimal` rescaled to the same
+	 * number is to be no change. For a stored value that is neither a range, complex data nor an array of ranges it
+	 * returns `false` and leaves the decision to the base comparison whatever the candidate is, at the cost of three
+	 * type checks and no allocation. A stored range, array of ranges or complex data is told apart from a candidate
+	 * of any other type, `null` included. Complex data are walked a second time - after `equals` - and the walk
+	 * allocates the iterators of the maps it passes through.
 	 *
 	 * @param existing  the value stored so far, may be `null`
 	 * @param candidate the value about to be stored, may be `null`

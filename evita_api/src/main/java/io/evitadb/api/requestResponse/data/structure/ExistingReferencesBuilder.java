@@ -341,7 +341,8 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 						// O(1) lookup against the prebuilt projection (null = absent).
 						effective = projectedState.get(aKey);
 					}
-					if (effective != null && !EvitaDataTypes.storedValueDiffers(effective, upsert.getAttributeValue())) {
+					if (effective != null &&
+						!EvitaDataTypes.storedValueDiffers(effective, upsert.getAttributeValue())) {
 						continue;
 					}
 				}
