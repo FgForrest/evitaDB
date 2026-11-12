@@ -25,16 +25,20 @@ package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.identity.TokenList;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Or formula will perform boolean disjunction (OR) on multiple bitmaps at once.
@@ -110,6 +114,13 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 			}
 		}
 		return sum;
+	}
+
+	/** Returns the computation inputs independently of execution state. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.bitmaps == null ? null : TokenList.canonical(this.bitmaps));
 	}
 
 	@Override
@@ -239,4 +250,23 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 		return result;
 	}
 
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param bitmaps canonical raw operands, absent when children supply the operands
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nullable TokenList bitmaps) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every operand in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.bitmaps);
+		}
+	}
 }

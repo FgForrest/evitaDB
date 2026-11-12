@@ -25,15 +25,19 @@ package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 
 /**
@@ -190,6 +194,25 @@ public class NotFormula extends AbstractCacheableFormula {
 		return hashFunction.hashLongs(idx == hashes.length ? hashes : Arrays.copyOf(hashes, idx));
 	}
 
+	/** Returns the detached raw subtracted operand, absent in formula mode. */
+	@Nullable
+	protected IdentityToken getSubtractedBitmapIdentityToken() {
+		return this.subtractedBitmap == null ? null : IdentityToken.of(this.subtractedBitmap);
+	}
+
+	/** Returns the detached raw superset operand, absent in formula mode. */
+	@Nullable
+	protected IdentityToken getSupersetBitmapIdentityToken() {
+		return this.supersetBitmap == null ? null : IdentityToken.of(this.supersetBitmap);
+	}
+
+	/** Returns the computation inputs independently of execution state. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(getSubtractedBitmapIdentityToken(), getSupersetBitmapIdentityToken());
+	}
+
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
@@ -244,4 +267,27 @@ public class NotFormula extends AbstractCacheableFormula {
 		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
 	}
 
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param subtractedBitmap raw operand to subtract, absent in formula mode
+	 * @param supersetBitmap raw universe operand, absent in formula mode
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		@Nullable IdentityToken subtractedBitmap, @Nullable IdentityToken supersetBitmap
+	) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every operand in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.subtractedBitmap);
+			accumulator.add(this.supersetBitmap);
+		}
+	}
 }

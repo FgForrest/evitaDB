@@ -25,6 +25,10 @@ package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -33,6 +37,7 @@ import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Constant formula that simply returns delegate bitmap.
@@ -47,7 +52,14 @@ public class ConstantFormula extends AbstractFormula {
 	/**
 	 * Bitmap of entity primary keys that this constant formula directly returns as its result.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Getter private final Bitmap delegate;
+	/**
+	 * Identity of the delegate supplied by the caller of the two-argument constructor, `null` when the identity is
+	 * derived from the bitmap. It reaches the key through the `delegateIdentity` component.
+	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
+	@Nullable private final IdentityToken suppliedIdentity;
 	/**
 	 * Memoized {@link #getEstimatedCardinality()} - `-1` until the first call, a value no real cardinality can take
 	 * because the constructor rejects an empty delegate.
@@ -62,11 +74,28 @@ public class ConstantFormula extends AbstractFormula {
 	 * on every call before it ever reaches its own cached cardinality, and a filter over a reference fans out to one
 	 * constant formula per reduced index - hundreds of thousands of them.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private int memoizedCardinality = -1;
 
+	/** Captures a nonempty bitmap whose identity is derived when requested. */
 	public ConstantFormula(@Nonnull Bitmap delegate) {
 		Assert.isPremiseValid(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
 		this.delegate = delegate;
+		this.suppliedIdentity = null;
+		this.initFields();
+	}
+
+	/**
+	 * Captures a nonempty bitmap with a caller-attested identity. The caller attests that the bitmap is a
+	 * deterministic function of the versioned owner named by the token and checks freshness of the memo itself.
+	 *
+	 * @param delegate bitmap returned as the result
+	 * @param delegateIdentity token identifying the versioned owner and the bitmap's derivation
+	 */
+	public ConstantFormula(@Nonnull Bitmap delegate, @Nonnull IdentityToken delegateIdentity) {
+		Assert.isPremiseValid(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
+		this.delegate = delegate;
+		this.suppliedIdentity = delegateIdentity;
 		this.initFields();
 	}
 
@@ -108,6 +137,19 @@ public class ConstantFormula extends AbstractFormula {
 		return bitmapIdentityToken(this.delegate, hashFunction);
 	}
 
+	/** Returns the detached identity of the bitmap operand. */
+	@Nonnull
+	protected IdentityToken getDelegateIdentityToken() {
+		return this.suppliedIdentity == null ? IdentityToken.of(this.delegate) : this.suppliedIdentity;
+	}
+
+	/** Returns the computation inputs independently of execution state. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(getDelegateIdentityToken());
+	}
+
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
@@ -139,5 +181,25 @@ public class ConstantFormula extends AbstractFormula {
 	@Override
 	public String toStringVerbose() {
 		return this.delegate.toString();
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param delegateIdentity detached bitmap operand
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull IdentityToken delegateIdentity) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every operand in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.delegateIdentity);
+		}
 	}
 }

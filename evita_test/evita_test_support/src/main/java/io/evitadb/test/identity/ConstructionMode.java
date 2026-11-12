@@ -40,6 +40,8 @@ import java.util.function.Supplier;
  * @param clonePaths applicable clone operations
  * @param pinned components fixed by this construction mode
  * @param alwaysExact token, list or key components that cannot become query-local in this mode
+ * @param attested DECOMPOSED fields that the construction contract of this mode fixes or lets another component
+ *                 determine, so their transplant is exercised by another mode
  * @param <T> holder type
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -50,7 +52,8 @@ public record ConstructionMode<T>(
 	@Nonnull Map<String, Supplier<T>> oversizedVariants,
 	@Nonnull Map<String, ClonePath<T>> clonePaths,
 	@Nonnull Set<String> pinned,
-	@Nonnull Set<String> alwaysExact
+	@Nonnull Set<String> alwaysExact,
+	@Nonnull Set<String> attested
 ) {
 	/** Copies all fixture declarations so checks cannot mutate them. */
 	public ConstructionMode {
@@ -60,5 +63,6 @@ public record ConstructionMode<T>(
 		clonePaths = Map.copyOf(clonePaths);
 		pinned = Set.copyOf(pinned);
 		alwaysExact = Set.copyOf(alwaysExact);
+		attested = Set.copyOf(attested);
 	}
 }

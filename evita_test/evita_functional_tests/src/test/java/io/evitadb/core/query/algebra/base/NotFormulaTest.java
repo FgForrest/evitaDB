@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.algebra.base;
 
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.bitmap.ArrayBitmap;
@@ -32,16 +34,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
 import org.junit.jupiter.api.Tag;
+import javax.annotation.Nonnull;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link NotFormula} verifying boolean negation (NOT) computation, memoization,
- * cloning, hashing and cost estimation.
+ * cloning, identity and cost estimation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -49,6 +51,22 @@ import static io.evitadb.test.TestTags.QUERY;
 @Tag(ENGINE)
 @Tag(QUERY)
 class NotFormulaTest {
+
+	/** Verifies both raw positions contribute independently to equality and the structural prefilter. */
+	@Test
+	@DisplayName("Includes each ordered raw operand in the key and its structural hash")
+	void shouldIncludeEachRawOperand() {
+		final Bitmap subtracted = new BaseBitmap(1);
+		final Bitmap superset = new BaseBitmap(2);
+		final FormulaKey key = new NotFormula(subtracted, superset).getKey();
+		final FormulaKey differentSubtracted = new NotFormula(new BaseBitmap(3), superset).getKey();
+		final FormulaKey differentSuperset = new NotFormula(subtracted, new BaseBitmap(3)).getKey();
+		assertNotEquals(key, differentSubtracted);
+		assertNotEquals(key, differentSuperset);
+		assertNotEquals(key, new NotFormula(superset, subtracted).getKey());
+		assertNotEquals(key.getHash64(), differentSubtracted.getHash64());
+		assertNotEquals(key.getHash64(), differentSuperset.getHash64());
+	}
 
 	@Nested
 	@DisplayName("Computation correctness")
@@ -182,39 +200,43 @@ class NotFormulaTest {
 		}
 	}
 
+	/** Verifies detached identity equality and operand sensitivity. */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
 
+		/** Equal computation inputs produce equal detached keys. */
 		@Test
-		@DisplayName("should produce identical hash for identically-constructed formulas")
-		void shouldProduceIdenticalHashForIdenticalFormulas() {
-			final long hashA = createNotFormula(new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}).getHash();
-			final long hashB = createNotFormula(new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}).getHash();
+		@DisplayName("should produce identical keys for identically-constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticalFormulas() {
+			final FormulaKey keyA = createNotFormula(new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}).getKey();
+			final FormulaKey keyB = createNotFormula(new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}).getKey();
 
-			assertEquals(hashA, hashB);
+			assertEquals(keyA, keyB);
 		}
 
+		/** Different computation inputs produce unequal detached keys. */
 		@Test
-		@DisplayName("should produce different hash for different children")
-		void shouldProduceDifferentHashForDifferentChildren() {
-			final long hashA = createNotFormula(new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}).getHash();
-			final long hashB = createNotFormula(new int[]{1, 3}, new int[]{1, 2, 3, 4, 5}).getHash();
+		@DisplayName("should produce different keys for different children")
+		void shouldProduceDifferentKeyForDifferentChildren() {
+			final FormulaKey keyA = createNotFormula(new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}).getKey();
+			final FormulaKey keyB = createNotFormula(new int[]{1, 3}, new int[]{1, 2, 3, 4, 5}).getKey();
 
-			assertNotEquals(hashA, hashB);
+			assertNotEquals(keyA, keyB);
 		}
 
+		/** Different computation inputs produce unequal detached keys. */
 		@Test
-		@DisplayName("should produce different hash when subtracted and superset are swapped (order-significant)")
-		void shouldProduceDifferentHashWhenArgumentsSwapped() {
+		@DisplayName("should produce different keys when subtracted and superset are swapped (order-significant)")
+		void shouldProduceDifferentKeyWhenArgumentsSwapped() {
 			final ConstantFormula childA = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 2, 3)));
 			final ConstantFormula childB = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(2, 3, 4, 5)));
 
 			// NOT(A, B) vs NOT(B, A) — order matters
-			final long hashAB = new NotFormula(childA, childB).getHash();
-			final long hashBA = new NotFormula(childB, childA).getHash();
+			final FormulaKey keyAB = new NotFormula(childA, childB).getKey();
+			final FormulaKey keyBA = new NotFormula(childB, childA).getKey();
 
-			assertNotEquals(hashAB, hashBA);
+			assertNotEquals(keyAB, keyBA);
 		}
 	}
 
@@ -299,7 +321,7 @@ class NotFormulaTest {
 	}
 
 	/**
-	 * Creates a {@link NotFormula} from formula-based children for hash testing.
+	 * Creates a {@link NotFormula} from formula-based children for identity testing.
 	 */
 	@Nonnull
 	private static NotFormula createNotFormula(@Nonnull int[] subtracted, @Nonnull int[] superset) {

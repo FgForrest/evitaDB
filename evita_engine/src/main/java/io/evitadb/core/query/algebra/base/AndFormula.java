@@ -25,13 +25,18 @@ package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.identity.TokenList;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 
 /**
@@ -57,6 +62,7 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 	 * Lazily initialized list of inner formulas sorted by their estimated cost (cheapest first) to allow
 	 * short-circuit evaluation during AND computation.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private List<Formula> sortedFormulasByComplexity;
 
 	public AndFormula(@Nonnull Formula... innerFormulas) {
@@ -129,6 +135,13 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		return sum * getOperationCost();
 	}
 
+	/** Returns the computation inputs independently of execution state. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.bitmaps == null ? null : TokenList.canonical(this.bitmaps));
+	}
+
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
@@ -198,4 +211,23 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		}
 	}
 
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param bitmaps canonical raw operands, absent when children supply the operands
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nullable TokenList bitmaps) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every operand in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.bitmaps);
+		}
+	}
 }

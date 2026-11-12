@@ -93,13 +93,46 @@ public final class IdentityContractVerifier {
 
 	/** Verifies all declared construction modes of one concrete holder. */
 	public static <T> void verify(@Nonnull Class<T> holderType, @Nonnull IdentityFixture<T> fixture) {
-		assertFalse(fixture.modes().isEmpty(), "Fixture has no construction modes: " + holderType.getName());
-		for (final Map.Entry<String, ConstructionMode<T>> entry : fixture.modes().entrySet()) {
+		final Map<String, ConstructionMode<T>> modes = fixture.modes();
+		assertFalse(modes.isEmpty(), "Fixture has no construction modes: " + holderType.getName());
+		for (final Map.Entry<String, ConstructionMode<T>> entry : modes.entrySet()) {
 			try {
+				verifyAttestations(holderType, entry.getKey(), modes);
 				verifyMode(holderType, entry.getValue());
 			} catch (AssertionError ex) {
 				throw new AssertionError(holderType.getName() + " [" + entry.getKey() + "]: " + ex.getMessage(), ex);
 			}
+		}
+	}
+
+	/**
+	 * Requires attested fields to be decomposed and exercised without attestation in another mode that has a base. A field inherited
+	 * from a superclass needs no such mode here: the fixture of the declaring class owns that obligation.
+	 */
+	private static <T> void verifyAttestations(
+		@Nonnull Class<T> holderType, @Nonnull String modeName, @Nonnull Map<String, ConstructionMode<T>> modes
+	) {
+		for (final String name : modes.get(modeName).attested()) {
+			boolean decomposed = false;
+			boolean inherited = false;
+			for (Class<?> current = holderType; current != Object.class; current = current.getSuperclass()) {
+				for (final Field field : current.getDeclaredFields()) {
+					if (field.getName().equals(name) &&
+						!Modifier.isStatic(field.getModifiers()) && !field.isSynthetic()) {
+						final IdentityExempt exemption = field.getAnnotation(IdentityExempt.class);
+						decomposed |= exemption != null && exemption.value() == IdentityExempt.Reason.DECOMPOSED;
+						inherited |= current != holderType;
+					}
+				}
+			}
+			assertTrue(decomposed, "check 4: attested field is not DECOMPOSED: " + name);
+			boolean checkedElsewhere = inherited;
+			for (final Map.Entry<String, ConstructionMode<T>> other : modes.entrySet()) {
+				// a mode without a base runs no transplant, so it cannot witness the field
+				checkedElsewhere |= !other.getKey().equals(modeName) && other.getValue().base() != null &&
+					!other.getValue().attested().contains(name);
+			}
+			assertTrue(checkedElsewhere, "check 4: attested field lacks a non-attesting mode: " + name);
 		}
 	}
 
@@ -596,7 +629,8 @@ public final class IdentityContractVerifier {
 				if (exemption != null && exemption.value() == IdentityExempt.Reason.DERIVED) {
 					verifyDerived(field, samples);
 				}
-				if (base == null || (exemption != null && exemption.value() != IdentityExempt.Reason.DECOMPOSED) ||
+				if (base == null || mode.attested().contains(field.getName()) ||
+					(exemption != null && exemption.value() != IdentityExempt.Reason.DECOMPOSED) ||
 					(mode.pinned().contains(field.getName()) && exemption == null)) {
 					continue;
 				}

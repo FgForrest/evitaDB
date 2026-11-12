@@ -63,7 +63,19 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 		"io.evitadb.core.query.extraResult.translator.reference.producer.MutableFormula";
 	/** Named exceptions to the declared identity pair, each with its reason. */
 	private static final Map<String, String> EXEMPTIONS = Map.of(
-		MUTABLE_FORMULA, "Mutable wrapper forwards its current delegate's key instead of declaring an identity."
+		MUTABLE_FORMULA, "Mutable wrapper forwards its current delegate's key instead of declaring an identity.",
+		"io.evitadb.core.query.algebra.identity.LoudFailureTest$InheritedComputationFormula",
+		"Deliberately inherits the identity pair to prove reflective rejection.",
+		"io.evitadb.core.query.algebra.identity.LoudFailureTest$MismatchedClassFormula",
+		"Deliberately mismatches its class identifier and inherited identity.",
+		"io.evitadb.core.query.algebra.identity.LoudFailureTest$UndeclaredIdentityFormula",
+		"Deliberately retains the throwing identity default.",
+		"io.evitadb.core.query.algebra.identity.FormulaKeyTest$UndeclaredFormula",
+		"Keeps the formula identity default observable.",
+		"io.evitadb.core.query.algebra.identity.FormulaKeyTest$UndeclaredHierarchyPredicate",
+		"Keeps the hierarchy predicate identity defaults observable.",
+		"io.evitadb.core.query.algebra.identity.FormulaKeyTest$UndeclaredEntityFilter",
+		"Keeps the entity filter identity defaults observable."
 	);
 
 	/** Verifies the engine and test inventories independently against their floors. */

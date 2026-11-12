@@ -26,6 +26,9 @@ package io.evitadb.core.query.algebra.locale;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.filter.translator.entity.EntityLocaleEqualsTranslator;
 import io.evitadb.index.bitmap.Bitmap;
 
@@ -48,6 +51,13 @@ public class LocaleFormula extends ConstantFormula {
 		super(delegate);
 	}
 
+	/** Returns the computation inputs independently of execution state. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(getDelegateIdentityToken());
+	}
+
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
@@ -62,5 +72,25 @@ public class LocaleFormula extends ConstantFormula {
 	@Override
 	public String toStringVerbose() {
 		return "LOCALE: " + super.toStringVerbose();
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param delegateIdentity detached bitmap operand
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull IdentityToken delegateIdentity) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every operand in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.delegateIdentity);
+		}
 	}
 }

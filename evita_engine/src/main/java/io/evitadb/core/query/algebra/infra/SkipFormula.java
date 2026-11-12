@@ -26,6 +26,7 @@ package io.evitadb.core.query.algebra.infra;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.index.bitmap.Bitmap;
 import net.openhft.hashing.LongHashFunction;
 
@@ -102,9 +103,28 @@ public class SkipFormula extends AbstractFormula {
 		return 0L;
 	}
 
+	/** Returns the computation inputs independently of execution state. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity();
+	}
+
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
 	}
 
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity() implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+	}
 }

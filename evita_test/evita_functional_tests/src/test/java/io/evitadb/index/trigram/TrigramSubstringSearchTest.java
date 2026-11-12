@@ -28,10 +28,10 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -49,8 +49,8 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex.MatchedBuckets;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
@@ -1161,82 +1161,66 @@ class TrigramSubstringSearchTest {
 	@DisplayName("the eager assembly keys on everything its answer depends on")
 	class CacheKey {
 
+		/** Verifies eager scan and accelerated folds identify the same matched operands. */
 		@Test
 		@DisplayName("the accelerated formula and the scan's share one cache entry")
-		void shouldHashIdenticallyToTheScan() {
+		void shouldHaveEqualKeysToTheScan() {
 			// A far stronger statement than "different results hash differently": the two paths agree on the answer
 			// AND land on the same cache entry, so accelerating a query cannot fragment the formula cache. It holds
 			// because both fold the very same bucket record sets, and `AbstractBitmapCacheableFormula` sorts the
-			// bitmap ids before hashing - so the candidate order the trigram path produces (ascending VALUE id) and
-			// the bucket order the scan produces (ascending KEY) are indistinguishable to the hash.
+			// bitmap tokens for the key - so the candidate order the trigram path produces (ascending VALUE id) and
+			// the bucket order the scan produces (ascending KEY) are indistinguishable to the key.
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			final FilterIndex filterIndex = filterIndexOf(index, ATTRIBUTE_TITLE, null);
 			for (final String pattern : new String[]{"zebra", "omega", "abcd", NFC_CAFE}) {
 				assertEquals(
-					filterIndex.getRecordsWhoseValuesContains(pattern).getHash(),
-					accelerated(index, ATTRIBUTE_TITLE, null, pattern, CONTAINS).getHash(),
-					"contains `" + pattern + "` must hash the same on both paths"
+					filterIndex.getRecordsWhoseValuesContains(pattern).getKey(),
+					accelerated(index, ATTRIBUTE_TITLE, null, pattern, CONTAINS).getKey(),
+					"contains `" + pattern + "` must have equal keys on both paths"
 				);
 				assertEquals(
-					filterIndex.getRecordsWhoseValuesEndsWith(pattern).getHash(),
-					accelerated(index, ATTRIBUTE_TITLE, null, pattern, ENDS_WITH).getHash(),
-					"endsWith `" + pattern + "` must hash the same on both paths"
+					filterIndex.getRecordsWhoseValuesEndsWith(pattern).getKey(),
+					accelerated(index, ATTRIBUTE_TITLE, null, pattern, ENDS_WITH).getKey(),
+					"endsWith `" + pattern + "` must have equal keys on both paths"
 				);
 			}
 		}
 
+		/** Verifies the coarse invalidation threshold never changes the operand identity. */
 		@Test
-		@DisplayName("only the high-cardinality answer diverges from the scan in its staleness ids")
-		void shouldDivergeFromTheScanOnlyAboveTheCardinalityCap() {
-			// the two axes come apart exactly where `AbstractBitmapCacheableFormula` stops keying on individual
-			// bitmaps: below the cap both paths gather the same per-bucket ids, above it the trigram path's extra
-			// token appears - which is the whole point of carrying it
+		@DisplayName("scan and acceleration share keys below and above the legacy cardinality threshold")
+		void shouldShareKeysAtEveryCardinality() {
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			final FilterIndex filterIndex = filterIndexOf(index, ATTRIBUTE_TITLE, null);
-			assertArrayEquals(
-				filterIndex.getRecordsWhoseValuesContains("omega").gatherTransactionalIds(),
-				accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS).gatherTransactionalIds(),
-				"below the cap the two paths must gather identical transactional ids"
-			);
-			final long[] scanned = filterIndex.getRecordsWhoseValuesContains("zebra").gatherTransactionalIds();
-			final long[] acceleratedIds =
-				accelerated(index, ATTRIBUTE_TITLE, null, "zebra", CONTAINS).gatherTransactionalIds();
-			assertEquals(
-				scanned.length + 1, acceleratedIds.length,
-				"above the cap the accelerated answer adds exactly the trigram index id"
-			);
-			assertTrue(
-				Arrays.stream(acceleratedIds)
-					.anyMatch(id -> id == trigramIndexOf(index, ATTRIBUTE_TITLE, null).getId())
-			);
+			for (final String term : new String[]{"omega", "zebra"}) {
+				assertEquals(filterIndex.getRecordsWhoseValuesContains(term).getKey(),
+					accelerated(index, ATTRIBUTE_TITLE, null, term, CONTAINS).getKey());
+			}
 		}
 
+		/** Verifies adding a selected bucket changes the raw operand identity. */
 		@Test
-		@DisplayName("a high-cardinality match keys on the trigram index's own identity")
-		void shouldFoldInTheTrigramIndexIdentity() {
-			// above EXCESSIVE_HIGH_CARDINALITY bitmaps the folded formula stops keying on its individual buckets and
-			// falls back to the token set handed to it - which is where the trigram index's identity has to be, since
-			// no leaf token can express a change to the postings that decided WHICH buckets were verified
+		@DisplayName("changing the selected high-cardinality buckets changes the key")
+		void shouldChangeKeyWhenHighCardinalitySelectionChanges() {
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
-			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
-			final Formula formula = accelerated(index, ATTRIBUTE_TITLE, null, "zebra", CONTAINS);
-			assertEquals(2 * ZEBRA_VALUES, formula.compute().size());
-			assertTrue(
-				Arrays.stream(formula.gatherTransactionalIds()).anyMatch(id -> id == trigramIndex.getId()),
-				"the trigram index id must be among " + Arrays.toString(formula.gatherTransactionalIds())
-			);
+			final Formula before = accelerated(index, ATTRIBUTE_TITLE, null, "zebra", CONTAINS);
+			final io.evitadb.core.query.algebra.identity.FormulaKey key = before.getKey();
+			index.upsertAttribute(null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES,
+				Scope.LIVE, null, "another zebra", 100_001);
+			final Formula after = accelerated(index, ATTRIBUTE_TITLE, null, "zebra", CONTAINS);
+			assertEquals(before.compute().size() + 1, after.compute().size());
+			assertNotEquals(key, after.getKey());
 		}
 
+		/** Verifies a small selection is represented by its verified bucket contents. */
 		@Test
-		@DisplayName("a low-cardinality match keys on the buckets it actually read")
-		void shouldFoldInTheVerifiedLeaves() {
+		@DisplayName("a low-cardinality match keys on the verified bucket contents")
+		void shouldKeyOnVerifiedLeaves() {
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			final Formula formula = accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
 			assertEquals(2 * OMEGA_VALUES, formula.compute().size());
-			assertEquals(
-				OMEGA_VALUES, formula.gatherTransactionalIds().length,
-				"below the high-cardinality threshold the formula keys on the record set of each verified bucket"
-			);
+			assertEquals(filterIndexOf(index, ATTRIBUTE_TITLE, null)
+				.getRecordsWhoseValuesContains("omega").getKey(), formula.getKey());
 		}
 
 		@Test
@@ -1246,7 +1230,7 @@ class TrigramSubstringSearchTest {
 			final Formula contains = accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
 			final Formula endsWith = accelerated(index, ATTRIBUTE_TITLE, null, "omega", ENDS_WITH);
 			assertNotEquals(contains.compute().size(), endsWith.compute().size());
-			assertNotEquals(contains.getHash(), endsWith.getHash());
+			assertNotEquals(contains.getKey(), endsWith.getKey());
 		}
 
 		@Test
@@ -1254,22 +1238,29 @@ class TrigramSubstringSearchTest {
 		void shouldNotCollideAcrossSearchTerms() {
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			assertNotEquals(
-				accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS).getHash(),
-				accelerated(index, ATTRIBUTE_TITLE, null, "zebra", CONTAINS).getHash()
+				accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS).getKey(),
+				accelerated(index, ATTRIBUTE_TITLE, null, "zebra", CONTAINS).getKey()
 			);
 		}
 
 		@Test
-		@DisplayName("two indexes holding identical values do not share a key")
-		void shouldNotCollideAcrossIndexes() {
-			// the two trees hold exactly the same strings, so nothing but the identity of the record sets they were
-			// folded over can tell the two formulas apart - which is precisely what a cache key over index state
-			// has to do, since the two indexes can be written to independently
+		@DisplayName("equal bucket content shares a key across indexes until an independent write changes it")
+		void shouldShareKeysAcrossIndexesUntilMatchingContentChanges() {
+			// Bounded bucket views are identified by content. Equal content shares a key across indexes;
+			// an independent write changing a matching bucket changes the key.
 			final GlobalEntityIndex first = populatedIndex(ATTRIBUTE_TITLE, null);
 			final GlobalEntityIndex second = populatedIndex(ATTRIBUTE_TITLE, null);
+			final Formula firstSearch = accelerated(first, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
+			final Formula secondSearch = accelerated(second, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
+			assertEquals(firstSearch.getKey(), secondSearch.getKey());
+			assertNotEquals(firstSearch.getHash(), secondSearch.getHash());
+
+			second.upsertAttribute(
+				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "one more omega", 100_001);
+			final Formula afterWrite = accelerated(second, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
+			assertEquals(firstSearch.compute().size() + 1, afterWrite.compute().size());
 			assertNotEquals(
-				accelerated(first, ATTRIBUTE_TITLE, null, "omega", CONTAINS).getHash(),
-				accelerated(second, ATTRIBUTE_TITLE, null, "omega", CONTAINS).getHash()
+				accelerated(first, ATTRIBUTE_TITLE, null, "omega", CONTAINS).getKey(), afterWrite.getKey()
 			);
 		}
 
@@ -1288,12 +1279,11 @@ class TrigramSubstringSearchTest {
 		}
 
 		@Test
-		@DisplayName("a write that adds a match changes the gathered transactional ids")
+		@DisplayName("a write that adds a match changes the key")
 		void shouldInvalidateWhenTheDataChanges() {
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			final Formula before = accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
-			final long[] idsBefore = before.gatherTransactionalIds();
-			final long hashBefore = before.getHash();
+			final io.evitadb.core.query.algebra.identity.FormulaKey keyBefore = before.getKey();
 
 			// two records again, so the new bucket is a TransactionalBitmap with an identity of its own rather than a
 			// SingleRecordBitmap, which owns none and would leave the gathered id set unchanged
@@ -1304,8 +1294,7 @@ class TrigramSubstringSearchTest {
 
 			final Formula after = accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
 			assertEquals(before.compute().size() + 2, after.compute().size());
-			assertNotEquals(hashBefore, after.getHash());
-			assertFalse(Arrays.equals(idsBefore, after.gatherTransactionalIds()));
+			assertNotEquals(keyBefore, after.getKey());
 		}
 	}
 

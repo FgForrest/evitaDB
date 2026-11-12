@@ -23,7 +23,11 @@
 
 package io.evitadb.core.query.algebra.identity;
 
+import io.evitadb.core.query.algebra.AbstractFormula;
+import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.ConstantFormulaIdentityFixture;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.identity.CloneOutcome;
@@ -42,6 +46,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -66,6 +71,35 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(TEST_HARNESS)
 @Tag(CACHE)
 class IdentityContractVerifierTest implements EvitaTestSupport {
+	/** Proves the children check rejects a real formula whose memo was seeded without its declared children. */
+	@Test
+	@DisplayName("Detects a formula key omitting its children through check 6")
+	void shouldDetectOmittedChildren() {
+		final IdentityFixture<AndFormula> fixture = () -> Map.of(
+			"omitted children", new ConstructionMode<>(IdentityContractVerifierTest::withoutChildren,
+				Map.of(), Map.of(), Map.of(), Map.of(), Set.of("bitmaps"), Set.of("bitmaps"), Set.of()));
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			AndFormula.class, fixture));
+		assertTrue(error.getMessage().contains("check 6:"), error.getMessage());
+	}
+
+	/** Seeds a defective childless key on an otherwise valid holder, using test-only reflection. */
+	@Nonnull
+	private static AndFormula withoutChildren() {
+		final AndFormula formula = new AndFormula(
+				new ConstantFormula(new BaseBitmap(1)),
+				new ConstantFormula(new BaseBitmap(2)));
+		try {
+			final Field memo = AbstractFormula.class.getDeclaredField("memoizedKey");
+			memo.setAccessible(true);
+			final IdentityRecord identity = new AndFormula.Identity(null);
+			memo.set(formula, FormulaKey.of(identity, identity.classId(), FormulaKey.NO_CHILDREN, formula));
+			return formula;
+		} catch (ReflectiveOperationException ex) {
+			throw new AssertionError(ex);
+		}
+	}
+
 	/** Correct-holder variant whose operand list exceeds the cross-query admission limit. */
 	private static final Map<String, Supplier<CorrectIdentityHolder>> OVERSIZED = Map.of(
 		"oversized", () -> new CorrectIdentityHolder(1, TokenList.ofProducerIds(new long[TokenList.CAP + 1], false))
@@ -154,6 +188,59 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 		assertTrue(error.getMessage().contains("check 4: transplanted field did not move key"), error::getMessage);
 	}
 
+	/** Seeds an invalid attestation on a DERIVED field while retaining a mode that checks it normally. */
+	@Test
+	@DisplayName("Rejects an attested field without a DECOMPOSED annotation")
+	void shouldDetectAttestedFieldWithoutDecomposedAnnotation() {
+		final ConstructionMode<CorrectIdentityHolder> valid = correctHolderFixture(OVERSIZED, Map.of(), Set.of())
+			.modes().get("value");
+		final IdentityFixture<CorrectIdentityHolder> fixture = () -> Map.of(
+			"ordinary", valid,
+			"invalid attestation", new ConstructionMode<>(valid.base(), valid.variants(), valid.opaqueVariants(),
+				valid.oversizedVariants(), valid.clonePaths(), valid.pinned(), valid.alwaysExact(), Set.of("doubled"))
+		);
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			CorrectIdentityHolder.class, fixture));
+		assertTrue(error.getMessage().contains("check 4: attested field is not DECOMPOSED: doubled"),
+			error::getMessage);
+	}
+
+	/** Removes every non-attesting mode from an otherwise valid real constant-formula fixture. */
+	@Test
+	@DisplayName("Rejects an attested field without another mode exercising its transplant")
+	void shouldDetectAttestedFieldWithoutNonAttestingMode() {
+		final ConstructionMode<ConstantFormula> derived = new ConstantFormulaIdentityFixture().modes()
+			.get("derived token");
+		final IdentityFixture<ConstantFormula> fixture = () -> Map.of("only attesting mode", derived);
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			ConstantFormula.class, fixture));
+		assertTrue(error.getMessage().contains("check 4: attested field lacks a non-attesting mode: delegate"),
+			error::getMessage);
+	}
+
+	/** Verifies a mode without a base, which runs no transplant, cannot witness an attested field. */
+	@Test
+	@DisplayName("Detects an attested field whose only other mode has no base through check 4")
+	void shouldDetectAttestedFieldWitnessedOnlyByModeWithoutBase() {
+		final ConstructionMode<ConstantFormula> derived = new ConstantFormulaIdentityFixture().modes()
+			.get("derived token");
+		final int[] values = new int[IdentityToken.CONTENT_LIMIT + 1];
+		for (int i = 0; i < values.length; i++) {
+			values[i] = i;
+		}
+		final ConstructionMode<ConstantFormula> opaqueOnly = new ConstructionMode<>(
+			null, Map.of(), Map.of("large content", () -> new ConstantFormula(new BaseBitmap(values))), Map.of(),
+			derived.clonePaths(), Set.of(), Set.of(), Set.of("suppliedIdentity")
+		);
+		final IdentityFixture<ConstantFormula> fixture = () -> Map.of(
+			"derived token", derived, "opaque only", opaqueOnly
+		);
+		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
+			ConstantFormula.class, fixture));
+		assertTrue(error.getMessage().contains("check 4: attested field lacks a non-attesting mode: delegate"),
+			error::getMessage);
+	}
+
 	/** Verifies a field declared derived must be equal whenever the keys are. */
 	@Test
 	@DisplayName("Detects a derived field that differs between equal keys through check 5")
@@ -191,7 +278,8 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 	void shouldDetectUncoveredComponent() {
 		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
 			CorrectIdentityHolder.class, () -> Map.of("value", new ConstructionMode<>(
-				() -> new CorrectIdentityHolder(1), Map.of(), Map.of(), Map.of(), Map.of(), Set.of(), Set.of()))));
+				() -> new CorrectIdentityHolder(1), Map.of(), Map.of(), Map.of(), Map.of(), Set.of(), Set.of(),
+					Set.of()))));
 		assertTrue(error.getMessage().contains("check 2"), error::getMessage);
 	}
 
@@ -202,7 +290,7 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 		final AssertionError error = assertThrows(AssertionError.class, () -> IdentityContractVerifier.verify(
 			CorrectIdentityHolder.class, () -> Map.of("value", new ConstructionMode<>(
 				() -> new CorrectIdentityHolder(1), Map.of("value", () -> new CorrectIdentityHolder(2)),
-				Map.of(), Map.of(), Map.of(), Set.of("value", "tokens"), Set.of("tokens")))));
+				Map.of(), Map.of(), Map.of(), Set.of("value", "tokens"), Set.of("tokens"), Set.of()))));
 		assertTrue(error.getMessage().contains("check 2"), error::getMessage);
 	}
 
@@ -379,7 +467,7 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 			class IdentityContractVerifierTest {
 				Object seed() {
 					return new io.evitadb.core.query.algebra.base.ConstantFormula(
-						new io.evitadb.index.bitmap.BaseBitmap(1)) {};
+						new BaseBitmap(1)) {};
 				}
 			}
 			""");
@@ -397,7 +485,7 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 			class IdentityContractVerifierTest {
 				Object seed() {
 					class Local extends io.evitadb.core.query.algebra.base.ConstantFormula {
-						Local() { super(new io.evitadb.index.bitmap.BaseBitmap(1)); }
+						Local() { super(new BaseBitmap(1)); }
 					}
 					return new Local();
 				}
@@ -419,7 +507,7 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 			() -> new CorrectIdentityHolder(1), Map.of(
 				"value", () -> new CorrectIdentityHolder(2),
 				"tokens", () -> new CorrectIdentityHolder(1, TokenList.ofProducerIds(new long[]{2}, false))
-			), Map.of(), oversizedVariants, clonePaths, Set.of(), alwaysExact
+			), Map.of(), oversizedVariants, clonePaths, Set.of(), alwaysExact, Set.of()
 		));
 	}
 
@@ -427,14 +515,14 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 	@Nonnull
 	private static <T> IdentityFixture<T> valueFixture(@Nonnull Supplier<T> base, @Nonnull Supplier<T> variant) {
 		return () -> Map.of("value", new ConstructionMode<>(base, Map.of("value", variant), Map.of(), Map.of(),
-			Map.of(), Set.of(), Set.of()));
+			Map.of(), Set.of(), Set.of(), Set.of()));
 	}
 
 	/** Builds an always opaque construction mode with a declared clone path. */
 	@Nonnull
 	private static <T> IdentityFixture<T> opaqueFixture(@Nonnull Supplier<T> supplier, @Nonnull ClonePath<T> path) {
 		return () -> Map.of("opaque", new ConstructionMode<>(null, Map.of(), Map.of("opaque", supplier), Map.of(),
-			Map.of("clone", path), Set.of(), Set.of()));
+			Map.of("clone", path), Set.of(), Set.of(), Set.of()));
 	}
 
 	/**

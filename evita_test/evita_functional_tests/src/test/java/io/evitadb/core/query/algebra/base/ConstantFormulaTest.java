@@ -23,6 +23,9 @@
 
 package io.evitadb.core.query.algebra.base;
 
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.TokenRole;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import org.junit.jupiter.api.DisplayName;
@@ -30,14 +33,14 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import java.util.Arrays;
-
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -57,6 +60,44 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(ENGINE)
 @Tag(QUERY)
 class ConstantFormulaTest {
+
+	/** Pins the boundary between bounded value content and instance-bound opaque content. */
+	@Test
+	@DisplayName("Binds large unowned content to its holder and propagates query locality through children")
+	void shouldBindLargeContentToItsHolder() {
+		final int[] values = new int[io.evitadb.core.query.algebra.identity.IdentityToken.CONTENT_LIMIT + 1];
+		for (int i = 0; i < values.length; i++) {
+			values[i] = i;
+		}
+		final BaseBitmap bitmap = new BaseBitmap(values);
+		final ConstantFormula first = new ConstantFormula(bitmap);
+		final ConstantFormula second = new ConstantFormula(bitmap);
+		assertTrue(first.getKey().isOpaque());
+		assertTrue(first.getKey().isQueryLocal());
+		assertSame(first.getKey(), first.getKey());
+		assertNotEquals(first.getKey(), second.getKey());
+		final AndFormula parent = new AndFormula(first, new ConstantFormula(new BaseBitmap(1)));
+		assertFalse(parent.getKey().isOpaque());
+		assertTrue(parent.getKey().isQueryLocal());
+		assertEquals(parent.getKey(),
+			new AndFormula(first, new ConstantFormula(new BaseBitmap(1))).getKey());
+	}
+
+	/** Pins the semantic class discriminator used to recognize locale formulas. */
+	@Test
+	@DisplayName("Distinguishes constant, locale, empty and skip formula identities")
+	void shouldDistinguishFormulaClasses() {
+		final FormulaKey constant = new ConstantFormula(new BaseBitmap(1)).getKey();
+		final FormulaKey locale =
+			new io.evitadb.core.query.algebra.locale.LocaleFormula(new BaseBitmap(1)).getKey();
+		final FormulaKey differentLocale =
+			new io.evitadb.core.query.algebra.locale.LocaleFormula(new BaseBitmap(2)).getKey();
+		assertNotEquals(constant, locale);
+		assertNotEquals(locale, differentLocale);
+		assertNotEquals(locale.getHash64(), differentLocale.getHash64());
+		assertNotEquals(EmptyFormula.INSTANCE.getKey(),
+			io.evitadb.core.query.algebra.infra.SkipFormula.INSTANCE.getKey());
+	}
 
 	@Nested
 	@DisplayName("Cardinality memoization")
@@ -157,39 +198,61 @@ class ConstantFormulaTest {
 			assertThrows(UnsupportedOperationException.class, formula::getCloneWithInnerFormulas);
 		}
 
+		/** Verifies supplied owner identity stays exact even when bitmap content exceeds the content limit. */
 		@Test
-		@DisplayName("should gather one content-derived staleness token for a plain bitmap")
-		void shouldGatherOneStalenessTokenForPlainBitmap() {
-			// a plain bitmap carries no transactional id, but it must still contribute a staleness dependency:
-			// an empty set would make a cached answer that no write could ever invalidate, so the content hash
-			// stands in for an id. Pinning the count alone would be satisfied by a constant, which is the one
-			// value that would reintroduce exactly the defect the token exists to prevent - hence both directions
-			final long[] token = new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).gatherTransactionalIds();
-
-			assertEquals(1, token.length);
-			assertArrayEquals(
-				token,
-				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).gatherTransactionalIds(),
-				"Equal contents must derive the same token - an unchanged bitmap must not invalidate its own answer."
-			);
-			assertFalse(
-				Arrays.equals(token, new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 9)).gatherTransactionalIds()),
-				"Differing contents must derive differing tokens - otherwise no write could ever invalidate the answer."
-			);
+		@DisplayName("should retain the supplied token and return the attested bitmap")
+		void shouldRetainSuppliedIdentityForLargeBitmap() {
+			final int[] values = new int[IdentityToken.CONTENT_LIMIT + 1];
+			for (int i = 0; i < values.length; i++) {
+				values[i] = i;
+			}
+			final BaseBitmap bitmap = new BaseBitmap(values);
+			final IdentityToken token = IdentityToken.derived(1, TokenRole.FILTER_INDEX_ALL_RECORDS);
+			final ConstantFormula formula = new ConstantFormula(bitmap, token);
+			assertSame(bitmap, formula.compute());
+			assertSame(token, ((ConstantFormula.Identity) formula.identity()).delegateIdentity());
+			assertSame(token, ((ConstantFormula.Identity) formula.identity()).delegateIdentity());
+			assertFalse(formula.getKey().isOpaque());
+			assertFalse(formula.getKey().isQueryLocal());
+			assertEquals(new ConstantFormula(bitmap).getHash(), formula.getHash());
 		}
 
+		/** Verifies ordinary bitmap identity is recomputed rather than retained by the formula. */
 		@Test
-		@DisplayName("should hash equal contents alike and differing contents apart")
-		void shouldHashByDelegateContents() {
-			// a plain bitmap has no transactional id, so its contents are the only cache discriminator - the same
-			// token the staleness set above is built from
+		@DisplayName("should derive ordinary bitmap identity on demand without caching its token")
+		void shouldDeriveBitmapIdentityWithoutCachingToken() {
+			final ConstantFormula formula = new ConstantFormula(new BaseBitmap(1, 2));
+			final IdentityToken first = ((ConstantFormula.Identity) formula.identity()).delegateIdentity();
+			final IdentityToken second = ((ConstantFormula.Identity) formula.identity()).delegateIdentity();
+			assertEquals(first, second);
+			assertNotSame(first, second);
+		}
+
+		/** Verifies a plain bitmap contributes detached exact content rather than an object identity. */
+		@Test
+		@DisplayName("should represent a bounded plain bitmap by copied content")
+		void shouldRepresentPlainBitmapByCopiedContent() {
+			final ConstantFormula.Identity identity = (ConstantFormula.Identity)
+				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).identity();
+			assertInstanceOf(IdentityToken.Exact.class, identity.delegateIdentity());
+			assertEquals(identity,
+				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).identity());
+			assertNotEquals(identity,
+				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 9)).identity());
+		}
+
+		/** Verifies bounded delegate content determines value identity. */
+		@Test
+		@DisplayName("should key equal contents alike and differing contents apart")
+		void shouldKeyByDelegateContents() {
+			// A plain bitmap has no producer id, so bounded copied content determines its identity.
 			assertEquals(
-				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getHash(),
-				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getHash()
+				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getKey(),
+				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getKey()
 			);
 			assertNotEquals(
-				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getHash(),
-				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 9)).getHash()
+				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getKey(),
+				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 9)).getKey()
 			);
 		}
 	}

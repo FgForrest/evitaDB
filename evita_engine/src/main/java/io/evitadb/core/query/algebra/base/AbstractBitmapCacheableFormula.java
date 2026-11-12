@@ -25,8 +25,9 @@ package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.utils.Assert;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -55,6 +56,7 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 	 * Pre-computed transactional IDs for the {@link #bitmaps} array, used as a fast-path substitute when the number
 	 * of bitmaps exceeds {@link #EXCESSIVE_HIGH_CARDINALITY} to avoid iterating all bitmaps one-by-one.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
 	protected final long[] indexTransactionId;
 
 	protected AbstractBitmapCacheableFormula(
