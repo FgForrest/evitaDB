@@ -107,11 +107,6 @@ public class FormulaWrapper implements BitmapSupplier {
 	}
 
 	@Override
-	public long getCostToPerformanceRatio() {
-		return this.formula.getCostToPerformanceRatio();
-	}
-
-	@Override
 	public Bitmap get() {
 		if (this.computed == null) {
 			Assert.isPremiseValid(this.executionContext != null, "FormulaWrapper must be initialized prior to calling get().");

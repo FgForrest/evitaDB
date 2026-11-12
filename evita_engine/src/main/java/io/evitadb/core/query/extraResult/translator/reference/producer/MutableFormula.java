@@ -135,11 +135,6 @@ class MutableFormula implements Formula {
 	}
 
 	@Override
-	public long getCostToPerformanceRatio() {
-		return getInnerFormula().getCostToPerformanceRatio();
-	}
-
-	@Override
 	@Nonnull
 	public String prettyPrint() {
 		return getInnerFormula().prettyPrint();

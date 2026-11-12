@@ -209,20 +209,6 @@ public class NotFormula extends AbstractCacheableFormula {
 		}
 	}
 
-	@Override
-	protected long getCostToPerformanceInternal() {
-		if (this.supersetBitmap != null && this.subtractedBitmap != null) {
-			return getCost() / Math.max(1, compute().size());
-		} else {
-			final Bitmap supersetBitmap = getSupersetFormula().compute();
-			if (supersetBitmap.isEmpty()) {
-				return getCost() / Math.max(1, compute().size());
-			} else {
-				return super.getCostToPerformanceInternal();
-			}
-		}
-	}
-
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {

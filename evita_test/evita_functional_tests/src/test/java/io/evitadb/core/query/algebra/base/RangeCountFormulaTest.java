@@ -290,10 +290,6 @@ class RangeCountFormulaTest {
 			// under-report the cost by a factor of getOperationCost().
 			assertEquals(endpoints * tested.getOperationCost(), tested.getCost());
 			assertEquals(tested.getEstimatedCost(), tested.getCost());
-
-			// and that is what the cost-to-performance ratio builds on: `AbstractFormula#getCostToPerformanceInternal`
-			// divides the actual cost by the result size to express the work per result
-			assertEquals(tested.getCost() / 3, tested.getCostToPerformanceRatio());
 		}
 
 		@Test

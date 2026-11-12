@@ -90,15 +90,6 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 		return computeSortedConjunctionCost(this.sortedFormulasByComplexity, getOperationCost());
 	}
 
-	@Override
-	protected long getCostToPerformanceInternal() {
-		if (this.sortedFormulasByComplexity == null) {
-			this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
-		}
-		return computeSortedConjunctionCostToPerformance(this.sortedFormulasByComplexity)
-			+ getCost() / Math.max(1, compute().size());
-	}
-
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {

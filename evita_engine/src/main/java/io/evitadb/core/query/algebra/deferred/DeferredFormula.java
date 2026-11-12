@@ -77,11 +77,6 @@ public class DeferredFormula extends AbstractFormula {
 	}
 
 	@Override
-	protected long getCostToPerformanceInternal() {
-		return this.retrieveLambda.getCost() / Math.max(1, this.retrieveLambda.get().size());
-	}
-
-	@Override
 	public long getOperationCost() {
 		return 60;
 	}

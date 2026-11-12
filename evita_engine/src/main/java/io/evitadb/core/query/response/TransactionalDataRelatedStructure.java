@@ -59,7 +59,6 @@ public interface TransactionalDataRelatedStructure {
 	 * - {@link #getTransactionalIdHash()}
 	 * - {@link #getEstimatedCost()}
 	 * - {@link #getCost()}
-	 * - {@link #getCostToPerformanceRatio()}
 	 *
 	 * @param queryExecutionContext context of the query execution
 	 */
@@ -115,13 +114,5 @@ public interface TransactionalDataRelatedStructure {
 	 * compared to simple no operation formula that just rewrites all number to a new bitmap.
 	 */
 	long getOperationCost();
-
-	/**
-	 * Returns cost to performance ratio. Default implementation is sums cost to performance ratio of all inner formulas
-	 * and adds ratio of this operation that is computed as ratio of its cost to output bitmap size. I.e. when large
-	 * bitmap is greatly reduced to a small one, this ratio gets bigger and thus caching output of this formula saves
-	 * more resources than caching outputs of formulas with lesser ratio.
-	 */
-	long getCostToPerformanceRatio();
 
 }

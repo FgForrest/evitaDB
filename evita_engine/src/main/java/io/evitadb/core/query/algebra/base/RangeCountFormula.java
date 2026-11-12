@@ -203,10 +203,8 @@ public class RangeCountFormula extends AbstractCacheableFormula implements Cache
 	 * Actual cost of this formula, priced the way {@link #getEstimatedCostInternal()} prices the same work: every
 	 * endpoint this formula scatters, scaled by {@link #getOperationCost()}.
 	 *
-	 * The multiplier is not decoration: dropping it would price a range result three orders of magnitude below every
-	 * other formula type, in this cost and in the ratio `AbstractFormula#getCostToPerformanceInternal()` derives from
-	 * it by dividing by the result size. The sibling bitmap-carrying formula - `OrFormula#getCostInternal()` - applies
-	 * it for the same reason. Overflow is capped rather than thrown, matching {@link #getEstimatedCostInternal()}.
+	 * The per-element multiplier keeps the cost on the same scale as other bitmap-carrying formulas, including
+	 * `OrFormula#getCostInternal()`. Overflow is capped rather than thrown, matching {@link #getEstimatedCostInternal()}.
 	 *
 	 * @return the actual cost, or {@link Long#MAX_VALUE} when the product overflows
 	 */

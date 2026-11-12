@@ -358,14 +358,6 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 			.orElseGet(() -> getDelegate().getCost());
 	}
 
-	@Override
-	protected long getCostToPerformanceInternal() {
-		Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
-		return Optional.ofNullable(this.executionContext.getPrefetchedEntities())
-			.map(it -> getCost() / Math.max(1, compute().size()))
-			.orElseGet(() -> getDelegate().getCostToPerformanceRatio());
-	}
-
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {

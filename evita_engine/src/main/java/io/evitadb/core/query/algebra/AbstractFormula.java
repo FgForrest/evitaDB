@@ -84,16 +84,6 @@ public abstract class AbstractFormula implements Formula {
 	 */
 	private boolean costComputed;
 	/**
-	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula. Valid only when
-	 * {@link #costToPerformanceComputed} is TRUE.
-	 */
-	private long costToPerformance;
-	/**
-	 * TRUE once {@link #costToPerformance} holds a computed value - see {@link #costComputed} for why this is a flag
-	 * and not a sentinel value.
-	 */
-	private boolean costToPerformanceComputed;
-	/**
 	 * Contains memoized value of {@link #getHash()} method.
 	 */
 	private long hash;
@@ -232,19 +222,6 @@ public abstract class AbstractFormula implements Formula {
 	}
 
 	@Override
-	public final long getCostToPerformanceRatio() {
-		if (!this.costToPerformanceComputed) {
-			if (this.memoizedResult == null) {
-				return Long.MAX_VALUE;
-			} else {
-				this.costToPerformance = getCostToPerformanceInternal();
-				this.costToPerformanceComputed = true;
-			}
-		}
-		return this.costToPerformance;
-	}
-
-	@Override
 	public void accept(@Nonnull FormulaVisitor visitor) {
 		visitor.visit(this);
 	}
@@ -270,7 +247,6 @@ public abstract class AbstractFormula implements Formula {
 	public void clearMemory() {
 		this.memoizedResult = null;
 		this.costComputed = false;
-		this.costToPerformanceComputed = false;
 	}
 
 	@Nonnull
@@ -395,22 +371,6 @@ public abstract class AbstractFormula implements Formula {
 	}
 
 	/**
-	 * Returns cost-to-performance ratio. Default implementation sums the cost-to-performance ratio of all inner
-	 * formulas and adds the ratio of this operation computed as `getCost() / compute().size()`. When a large bitmap
-	 * is greatly reduced to a small one, this ratio grows — caching such a formula saves more resources than caching
-	 * formulas with a lower ratio.
-	 *
-	 * @return accumulated cost-to-performance ratio for this formula and its children
-	 */
-	protected long getCostToPerformanceInternal() {
-		long sum = 0;
-		for (final Formula innerFormula : this.innerFormulas) {
-			sum += innerFormula.getCostToPerformanceRatio();
-		}
-		return sum + (getCost() / Math.max(1, compute().size()));
-	}
-
-	/**
 	 * Sorts the given long array in place and removes duplicate values, returning the deduplicated result.
 	 * The input array is sorted as a side effect. Callers that need the original order must clone before calling.
 	 *
@@ -512,26 +472,6 @@ public abstract class AbstractFormula implements Formula {
 			}
 		}
 		return cost;
-	}
-
-	/**
-	 * Computes the accumulated cost-to-performance ratio of a conjunction operation over pre-sorted formulas,
-	 * short-circuiting on empty results. Callers should add their own
-	 * `getCost() / Math.max(1, compute().size())` tail term.
-	 *
-	 * @param sortedFormulas formulas sorted by ascending estimated cost
-	 * @return accumulated cost-to-performance ratio from inner formulas
-	 */
-	protected static long computeSortedConjunctionCostToPerformance(@Nonnull List<Formula> sortedFormulas) {
-		long costToPerformance = 0L;
-		for (final Formula innerFormula : sortedFormulas) {
-			final Bitmap innerResult = innerFormula.compute();
-			if (innerResult.isEmpty()) {
-				break;
-			}
-			costToPerformance += innerFormula.getCostToPerformanceRatio();
-		}
-		return costToPerformance;
 	}
 
 	/**

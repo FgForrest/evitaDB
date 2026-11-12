@@ -106,10 +106,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 */
 	private Long cost;
 	/**
-	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
-	 */
-	private Long costToPerformance;
-	/**
 	 * Contains bucket array that contains only entity primary keys that match the {@link #filterFormula}. The array
 	 * is initialized during {@link #compute()} method and result is memoized, so it's ensured it's computed only once.
 	 */
@@ -346,18 +342,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			case STANDARD, EQUALIZED, EQUALIZED_OPTIMIZED -> 2213;
 			case OPTIMIZED -> 3320;
 		};
-	}
-
-	@Override
-	public long getCostToPerformanceRatio() {
-		if (this.costToPerformance == null) {
-			if (this.memoizedResult == null) {
-				return Long.MAX_VALUE;
-			} else {
-				this.costToPerformance = getCost() / (getOperationCost() * this.bucketCount);
-			}
-		}
-		return this.costToPerformance;
 	}
 
 	@Nonnull

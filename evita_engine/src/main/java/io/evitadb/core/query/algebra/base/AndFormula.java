@@ -155,19 +155,6 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		}
 	}
 
-	@Override
-	protected long getCostToPerformanceInternal() {
-		if (this.bitmaps != null) {
-			return getCost() / Math.max(1, compute().size());
-		} else {
-			if (this.sortedFormulasByComplexity == null) {
-				this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
-			}
-			return computeSortedConjunctionCostToPerformance(this.sortedFormulasByComplexity)
-				+ getCost() / Math.max(1, compute().size());
-		}
-	}
-
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {

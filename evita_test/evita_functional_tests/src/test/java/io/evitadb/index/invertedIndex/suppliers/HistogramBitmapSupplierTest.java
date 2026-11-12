@@ -290,16 +290,14 @@ class HistogramBitmapSupplierTest {
 		}
 
 		@Test
-		@DisplayName("An empty slice neither throws nor reports a nonsensical ratio")
-		void shouldNotDivideByZeroOnAnEmptySlice() {
-			// `costToPerformance = cost / (size * operationCost)` divides by zero when the slice unions to nothing.
+		@DisplayName("An empty slice has a computed cost")
+		void shouldPriceAnEmptySlice() {
 			// A bucket that holds no record id is the reachable shape - the tree deletes drained buckets, but a
 			// caller may hand this supplier a freshly built, still-empty one
 			final HistogramBitmapSupplier supplier = assertDoesNotThrow(
 				() -> new HistogramBitmapSupplier(1L, new ValueToRecord[]{new ValueToRecordBitmap(5)})
 			);
 			assertTrue(supplier.get().isEmpty());
-			assertDoesNotThrow(supplier::getCostToPerformanceRatio);
 			assertDoesNotThrow(supplier::getCost);
 		}
 

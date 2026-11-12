@@ -143,10 +143,6 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 */
 	private Long cost;
 	/**
-	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
-	 */
-	private Long costToPerformance;
-	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
 	private final Long transactionalIdHash;
@@ -317,18 +313,6 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 			case STANDARD, EQUALIZED, EQUALIZED_OPTIMIZED -> 7511;
 			case OPTIMIZED -> 11267;
 		};
-	}
-
-	@Override
-	public long getCostToPerformanceRatio() {
-		if (this.costToPerformance == null) {
-			if (this.memoizedResult == null) {
-				return Long.MAX_VALUE;
-			} else {
-				this.costToPerformance = getCost() / (getOperationCost() * this.bucketCount);
-			}
-		}
-		return this.costToPerformance;
 	}
 
 	@Nonnull

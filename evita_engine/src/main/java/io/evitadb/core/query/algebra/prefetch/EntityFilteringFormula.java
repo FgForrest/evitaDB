@@ -148,11 +148,6 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	}
 
 	@Override
-	protected long getCostToPerformanceInternal() {
-		return getCost() / Math.max(1, compute().size());
-	}
-
-	@Override
 	public long getOperationCost() {
 		return 1;
 	}

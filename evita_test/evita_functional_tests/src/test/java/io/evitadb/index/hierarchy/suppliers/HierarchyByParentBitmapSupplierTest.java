@@ -34,16 +34,11 @@ import javax.annotation.Nonnull;
 import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.INDEXING;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins the cost-metric contract of {@link HierarchyByParentBitmapSupplier}: that nothing is computed before the
- * subtree listing has actually been paid for, and that an EMPTY listing is priced rather than fatal.
- *
- * An empty listing is ordinary, not exceptional — a leaf parent has no children, and a parent all of whose children
- * are excluded lists none — so a cost metric that divides by the result size has to survive it.
+ * subtree listing has actually been paid for.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -70,20 +65,9 @@ class HierarchyByParentBitmapSupplierTest {
 	}
 
 	@Test
-	@DisplayName("An empty subtree listing is priced instead of throwing")
-	void shouldNotDivideByZeroOnAnEmptyListing() {
-		final HierarchyByParentBitmapSupplier supplier = supplierOverEmptyHierarchy();
-		assertTrue(supplier.get().isEmpty());
-		// `cost / (size * operationCost)` divides by zero here: the memoized-result guard establishes only that the
-		// listing HAS been computed, never that it came back non-empty
-		assertDoesNotThrow(supplier::getCostToPerformanceRatio);
-	}
-
-	@Test
-	@DisplayName("The ratio reports the not-yet-computed sentinel until the listing is paid for")
+	@DisplayName("The cost reports the not-yet-computed sentinel until the listing is paid for")
 	void shouldReportSentinelBeforeComputation() {
 		final HierarchyByParentBitmapSupplier supplier = supplierOverEmptyHierarchy();
-		assertEquals(Long.MAX_VALUE, supplier.getCostToPerformanceRatio());
 		assertEquals(Long.MAX_VALUE, supplier.getCost());
 	}
 
