@@ -78,13 +78,22 @@ public abstract class EntityPrices {
 	protected static final Comparator<PriceRecordContract> PRICE_ID_COMPARATOR =
 		Comparator.comparingInt(PriceRecordContract::internalPriceId);
 	/**
-	 * Comparator that orders {@link PriceRecordContract} by
-	 * {@link PriceRecordContract#priceWithoutTax()} first, then by
-	 * {@link PriceRecordContract#internalPriceId()} to break ties.
+	 * Comparator that picks the lowest price of an inner record group: it orders {@link PriceRecordContract} by
+	 * {@link PriceRecordContract#priceWithoutTax()} first, then by {@link PriceRecordContract#priceId()} to break ties.
+	 *
+	 * The tie-break reads the price id the entity knows the price by, never the internal price id, which merely
+	 * follows the order the prices happened to be indexed in. Among prices of one inner record in one price list the
+	 * entity side (`PricesContract`) prefers the lower price id, so a tie keeps the price the entity reports. Within
+	 * the prices of one entity in one price list and currency the price id is unique, so the order is total.
+	 *
+	 * The comparator only picks a winner - no array is sorted or searched by it; {@link #PRICE_ID_COMPARATOR} is the
+	 * order the holders keep and search. It compares the price without tax whatever the query price mode, and the
+	 * entity side does not compare the amounts of one price list at all, so the two pick the same price only when the
+	 * prices tie without tax or the one with the lowest price id is also the cheapest without tax.
 	 */
 	protected static final Comparator<PriceRecordContract> WITHOUT_TAX_COMPARATOR =
 		Comparator.comparingInt(PriceRecordContract::priceWithoutTax)
-			.thenComparing(PriceRecordContract::internalPriceId);
+			.thenComparingInt(PriceRecordContract::priceId);
 
 	/**
 	 * Creates duplicate of the `original` DTO adding new `priceRecord` to it in the process.
