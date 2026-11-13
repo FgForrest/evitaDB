@@ -135,7 +135,7 @@ public final class FormulaKey {
 		return this.weight;
 	}
 
-	/** Compares values with a thread-confined scope only when side keys are present. */
+	/** Opens a scope for side keys and shares it with every nested value comparison. */
 	@Override
 	public boolean equals(@Nullable Object other) {
 		if (this == other) {
@@ -151,10 +151,15 @@ public final class FormulaKey {
 			this.children.length != that.children.length) {
 			return false;
 		}
+		final ComparisonScope scope;
 		if (!this.sideKeys && !that.sideKeys) {
-			return compareValues(that);
+			scope = ComparisonScope.active();
+			if (scope == null) {
+				return compareValues(that);
+			}
+		} else {
+			scope = ComparisonScope.current();
 		}
-		final ComparisonScope scope = ComparisonScope.current();
 		scope.enter();
 		try {
 			if (scope.contains(this, that)) {
@@ -200,8 +205,8 @@ public final class FormulaKey {
  */
 @NotThreadSafe
 final class ComparisonScope {
-	/** Lazily allocated per-thread scope; keys without side keys never consult it. */
-	private static final ThreadLocal<ComparisonScope> SCOPES = ThreadLocal.withInitial(ComparisonScope::new);
+	/** Per-thread scope, allocated only when a comparison involving side keys needs it. */
+	private static final ThreadLocal<ComparisonScope> SCOPES = new ThreadLocal<>();
 	/** Initial reference-pair table capacity. */
 	private static final int INITIAL_CAPACITY = 64;
 	/** Retains at most 1,024 slots per array between comparisons; larger tables return to the initial capacity. */
@@ -222,7 +227,20 @@ final class ComparisonScope {
 	/** Returns the comparing thread's scope. */
 	@Nonnull
 	static ComparisonScope current() {
-		return SCOPES.get();
+		final ComparisonScope scope = SCOPES.get();
+		if (scope != null) {
+			return scope;
+		}
+		final ComparisonScope newScope = new ComparisonScope();
+		SCOPES.set(newScope);
+		return newScope;
+	}
+
+	/** Returns an open scope without allocating one for an ordinary top-level comparison. */
+	@Nullable
+	static ComparisonScope active() {
+		final ComparisonScope scope = SCOPES.get();
+		return scope != null && scope.depth > 0 ? scope : null;
 	}
 
 	/** Opens one nested comparison. */

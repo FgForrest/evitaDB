@@ -39,12 +39,10 @@ import java.util.Map;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class FormulaDeduplicator extends FormulaCloner implements FormulaPostProcessor {
-	/** Original tree, returned unchanged when no formula was replaced. */
+	/** Original tree, also returned when the cloner has not been visited yet. */
 	private final Formula originalFormula;
 	/** Canonical instances, indexed by their detached computation keys. */
 	private final Map<FormulaKey, Formula> formulaCache = CollectionUtils.createHashMap(64);
-	/** Whether any formula was replaced with its canonical instance. */
-	private boolean deduplicationHappened;
 
 	/**
 	 * Creates a deduplicator that visits every child before interning its parent.
@@ -59,10 +57,9 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 	@Nonnull
 	@Override
 	public Formula getPostProcessedFormula() {
-		final Formula result = this.deduplicationHappened ? getResultClone() : this.originalFormula;
+		final Formula result = getResultClone();
 		this.formulaCache.clear();
-		this.deduplicationHappened = false;
-		return result;
+		return result == null ? this.originalFormula : result;
 	}
 
 	/**
@@ -74,7 +71,6 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 	protected Formula postProcess(@Nonnull Formula formula) {
 		final Formula existingFormula = this.formulaCache.putIfAbsent(formula.getKey(), formula);
 		if (existingFormula != null) {
-			this.deduplicationHappened |= existingFormula != formula;
 			return existingFormula;
 		}
 		return formula;
