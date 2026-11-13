@@ -129,7 +129,12 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 	 * @param currency           currency of the price for sale
 	 * @param atTheMoment        moment the prices must be valid at, `null` ignores the validity
 	 * @param accompanyingPrices accompanying prices computed together with the price for sale
+	 * @deprecated a context computes in the price mode of the query it serves, so evitaDB itself never calls this
+	 * constructor; it is retained only because it shipped in `2026.2`. Use
+	 * {@link #PriceForSaleContextWithCachedResult(String[], Currency, OffsetDateTime, AccompanyingPrice[],
+	 * QueryPriceMode)} and pass the price mode explicitly.
 	 */
+	@Deprecated(since = "2026.3")
 	public PriceForSaleContextWithCachedResult(
 		@Nullable String[] priceListPriority,
 		@Nullable Currency currency,
@@ -170,7 +175,12 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 	 * @param atTheMoment                        moment the prices must be valid at, `null` ignores the validity
 	 * @param accompanyingPrices                 accompanying prices computed together with the price for sale
 	 * @param priceForSaleWithAccompanyingPrices the already computed price for sale with its accompanying prices
+	 * @deprecated a context computes in the price mode of the query it serves, so evitaDB itself never calls this
+	 * constructor; it is retained only because it shipped in `2026.2`. Use
+	 * {@link #PriceForSaleContextWithCachedResult(String[], Currency, OffsetDateTime, AccompanyingPrice[],
+	 * QueryPriceMode, PriceForSaleWithAccompanyingPrices)} and pass the price mode explicitly.
 	 */
+	@Deprecated(since = "2026.3")
 	public PriceForSaleContextWithCachedResult(
 		@Nullable String[] priceListPriority,
 		@Nullable Currency currency,

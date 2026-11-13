@@ -29,8 +29,10 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.dataType.DateTimeRange;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Objects;
 
 /**
  * The one check of the rule that an entity has at most one valid price at any moment per group of prices that compete
@@ -40,9 +42,16 @@ import java.util.Comparator;
  * share at least one moment, the bounds included, and a price without validity is valid at every moment.
  *
  * Only pairs with at least one touched price - one that the change of the entity adds, revives, or moves to another
- * validity or inner record - are checked, so an entity that already holds an ambiguous pair stays updatable as long
- * as the pair is left alone. Both entity builders apply the check to the state their change set leads to and the
- * server applies it to the state an entity upsert leads to, so a change gets the same verdict whichever way it arrives.
+ * validity or inner record ({@link #isAddedOrMoved}), or every price when the change switches the inner record
+ * handling - are checked, so an entity that already holds an ambiguous pair stays updatable as long as the pair is
+ * left alone.
+ *
+ * Both entity builders apply the check to the state their change set leads to - `ExistingPricesBuilder` only when it
+ * holds all prices of the entity - and judge a price against the entity they were opened on, so a price removed and
+ * set again unchanged, or a handling changed and restored, cancels out before the change set is sent. The server
+ * applies the check to the state an entity upsert leads to, but judges each mutation against the state the previous
+ * mutation of the same upsert left, so the same removal and re-addition sent as raw mutations revives the price, and
+ * the same change and restoration of the handling touches every price.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -73,8 +82,8 @@ public final class PriceAmbiguityVerifier {
 		return byGroup == 0 ? compareByValidFromAndPriceId(first, second) : byGroup;
 	};
 	/**
-	 * Orders prices by {@link #GROUP_WITHOUT_INNER_RECORD_COMPARATOR}, then by the first moment of their validity and
-	 * then by price id, so that a price named twice ends up next to itself.
+	 * Orders prices by their price list and currency - the group of an entity without inner record handling - then by
+	 * the first moment of their validity and then by price id, so that a price named twice ends up next to itself.
 	 */
 	private static final Comparator<PriceContract> SWEEP_WITHOUT_INNER_RECORD_COMPARATOR = (first, second) -> {
 		final int byGroup = compareByPriceListAndCurrency(first, second);
@@ -83,6 +92,27 @@ public final class PriceAmbiguityVerifier {
 
 	private PriceAmbiguityVerifier() {
 		// utility class
+	}
+
+	/**
+	 * Tells whether a change touches a price that exists after it: the price starts to exist - it is added or
+	 * revived - or it moves to another validity or inner record. A change of the amounts alone touches nothing,
+	 * because it cannot make two prices of a group valid at a common moment.
+	 *
+	 * @param before        the price before the change, `null` when there was none
+	 * @param validity      validity of the price after the change
+	 * @param innerRecordId inner record id of the price after the change
+	 * @return `true` when the change touches the price
+	 */
+	public static boolean isAddedOrMoved(
+		@Nullable PriceContract before,
+		@Nullable DateTimeRange validity,
+		@Nullable Integer innerRecordId
+	) {
+		return before == null ||
+			!before.exists() ||
+			!Objects.equals(before.validity(), validity) ||
+			!Objects.equals(before.innerRecordId(), innerRecordId);
 	}
 
 	/**
@@ -101,7 +131,8 @@ public final class PriceAmbiguityVerifier {
 	 *                            skipped - in the first `priceCount` slots; left unchanged
 	 * @param priceCount          number of the prices
 	 * @param touched             the touched prices that exist in that state in the first `touchedCount` slots, a
-	 *                            price possibly named more than once; the slots are reordered
+	 *                            price possibly named more than once; the slots are reordered and the repeated
+	 *                            entries overwritten, so the caller must not read them afterwards
 	 * @param touchedCount        number of the touched prices
 	 * @param innerRecordHandling inner record handling of the entity in that state
 	 * @throws AmbiguousPriceException when a touched price competes with another price of its group

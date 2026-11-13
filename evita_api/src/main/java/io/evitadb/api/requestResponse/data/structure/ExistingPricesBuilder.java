@@ -80,14 +80,14 @@ import static java.util.Optional.ofNullable;
  *
  * This builder keeps track of price mutations to be applied on top of immutable {@link Prices}.
  * It validates schema constraints, ensures price content has been fetched with required
- * {@link PriceContentMode}, prevents ambiguous price combinations and can optionally remove
+ * {@link PriceContentMode}, refuses ambiguous prices when the change set is built and can optionally remove
  * all non‑touched prices.
  *
  * When all base prices were fetched with {@link PriceContentMode#ALL}, ambiguous prices are refused when the change
  * set is built ({@link #buildChangeSet()}, which the entity builder calls to produce its mutation), never when a
  * price is set: the decision is made on the state the change set leads to, by the rule the server applies
- * ({@link PriceAmbiguityVerifier}). With partially fetched prices, verification is left entirely to the server.
- * {@link #build()} does not check it.
+ * ({@link PriceAmbiguityVerifier}), judging each price against the base entity. With partially fetched prices,
+ * verification is left entirely to the server. {@link #build()} does not check it.
  */
 public class ExistingPricesBuilder implements PricesBuilder {
 	@Serial private static final long serialVersionUID = 5366182867172493114L;
@@ -305,8 +305,8 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * Upserts a price with optional inner record id and validity.
 	 *
 	 * The price is not checked against the other prices here: a price valid at a common moment with another price of
-	 * its price list, currency and inner record is refused when the change set is built - see
-	 * {@link #buildChangeSet()}.
+	 * its price list, currency and inner record is refused when the change set is built, provided all prices were
+	 * fetched - see {@link #buildChangeSet()} and the class documentation.
 	 *
 	 * @param priceId         technical price id
 	 * @param priceList       price list identifier
@@ -775,8 +775,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 							     final PriceContract mutatedValue = mut.mutateLocal(this.entitySchema, it);
 							     return mutatedValue.differsFrom(it) ? mutatedValue : it;
 						     })
-						     .orElseGet(() -> this.removeAllNonModifiedPrices && !this.touchedPrices.contains(
-							     it.priceKey()) ? null : it)
+						     .orElseGet(() -> isRemovedAsNotTouched(it.priceKey()) ? null : it)
 				)
 				.filter(Objects::nonNull),
 			this.priceMutations
@@ -826,15 +825,12 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * @throws AmbiguousPriceException when a touched price competes with another price of the entity
 	 */
 	private void assertPricesNotAmbiguous() {
-		if (this.pricePredicate.getPriceContentMode() != PriceContentMode.ALL) {
+		if (!isVerificationNeeded()) {
 			return;
 		}
 		// the mutation is kept only when it changes the handling, and a change of the handling touches every price
 		final SetPriceInnerRecordHandlingMutation handlingMutation = this.priceInnerRecordHandlingEntityMutation;
 		final boolean handlingChanged = handlingMutation != null;
-		if (!handlingChanged && !isAnyPriceAddedOrMoved()) {
-			return;
-		}
 		// collect the existing prices of the state the change set leads to and those added or moved among them
 		final Collection<PriceContract> originalPrices = this.basePrices.pricesAvailable() ?
 			this.basePrices.getPrices() : Collections.emptyList();
@@ -845,8 +841,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		for (final PriceContract originalPrice : originalPrices) {
 			final PriceMutation mutation = this.priceMutations.get(originalPrice.priceKey());
 			if (mutation == null) {
-				if (originalPrice.exists() &&
-					!(this.removeAllNonModifiedPrices && !this.touchedPrices.contains(originalPrice.priceKey()))) {
+				if (originalPrice.exists() && !isRemovedAsNotTouched(originalPrice.priceKey())) {
 					builtPrices[builtPriceCount++] = originalPrice;
 					if (handlingChanged) {
 						addedOrMovedPrices[addedOrMovedPriceCount++] = originalPrice;
@@ -855,8 +850,9 @@ public class ExistingPricesBuilder implements PricesBuilder {
 			} else if (mutation instanceof UpsertPriceMutation) {
 				final PriceContract builtPrice = mutation.mutateLocal(this.entitySchema, originalPrice);
 				builtPrices[builtPriceCount++] = builtPrice;
-				if (handlingChanged ||
-					isAddedOrMoved(originalPrice, builtPrice.validity(), builtPrice.innerRecordId())) {
+				if (handlingChanged || PriceAmbiguityVerifier.isAddedOrMoved(
+					originalPrice, builtPrice.validity(), builtPrice.innerRecordId()
+				)) {
 					addedOrMovedPrices[addedOrMovedPriceCount++] = builtPrice;
 				}
 			}
@@ -877,8 +873,20 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	}
 
 	/**
-	 * Tells whether a pending upsert adds, revives, or moves a price to another validity or inner record - the
-	 * qualification of a touched price the server applies.
+	 * Tells whether the change set needs the ambiguity check: only when all base prices were fetched - a partial
+	 * snapshot cannot tell an unfetched stored price from a new one and leaves the decision to the server - and only
+	 * when this builder changes the inner record handling or adds, revives or moves a price.
+	 *
+	 * @return `true` when {@link #assertPricesNotAmbiguous()} has to verify the state the change set leads to
+	 */
+	private boolean isVerificationNeeded() {
+		return this.pricePredicate.getPriceContentMode() == PriceContentMode.ALL &&
+			(this.priceInnerRecordHandlingEntityMutation != null || isAnyPriceAddedOrMoved());
+	}
+
+	/**
+	 * Tells whether a pending upsert adds, revives, or moves a price to another validity or inner record, judged
+	 * against the price the base entity holds - see {@link PriceAmbiguityVerifier#isAddedOrMoved}.
 	 *
 	 * @return `true` when at least one pending upsert touches a price
 	 */
@@ -888,7 +896,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 				final PriceContract basePrice = this.basePrices
 					.getPriceWithoutSchemaCheck(upsertPriceMutation.getPriceKey())
 					.orElse(null);
-				if (basePrice == null || isAddedOrMoved(
+				if (PriceAmbiguityVerifier.isAddedOrMoved(
 					basePrice, upsertPriceMutation.getValidity(), upsertPriceMutation.getInnerRecordId()
 				)) {
 					return true;
@@ -899,22 +907,14 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	}
 
 	/**
-	 * Tells whether the upsert of a price the base entity holds revives it or moves it to another validity or inner
-	 * record.
+	 * Tells whether a stored price leaves the state this builder leads to because {@link #removeAllNonTouchedPrices()}
+	 * was requested and this builder did not touch the price.
 	 *
-	 * @param basePrice     the price the base entity holds
-	 * @param validity      validity of the price after the upsert
-	 * @param innerRecordId inner record id of the price after the upsert
-	 * @return `true` when the upsert touches the price
+	 * @param priceKey key of the stored price
+	 * @return `true` when the price is removed as not touched
 	 */
-	private static boolean isAddedOrMoved(
-		@Nonnull PriceContract basePrice,
-		@Nullable DateTimeRange validity,
-		@Nullable Integer innerRecordId
-	) {
-		return !basePrice.exists() ||
-			!Objects.equals(basePrice.validity(), validity) ||
-			!Objects.equals(basePrice.innerRecordId(), innerRecordId);
+	private boolean isRemovedAsNotTouched(@Nonnull PriceKey priceKey) {
+		return this.removeAllNonModifiedPrices && !this.touchedPrices.contains(priceKey);
 	}
 
 	/**

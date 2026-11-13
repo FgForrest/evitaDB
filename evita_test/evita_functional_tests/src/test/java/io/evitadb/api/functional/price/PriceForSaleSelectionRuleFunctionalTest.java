@@ -70,9 +70,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies that the engine filters and orders entities by the very price for sale the fetched entity reports, on the
- * index path as well as on the prefetch path, for the shapes of data where the two used to follow different rules:
- * several prices of one inner record in one price list, an entity without inner record handling whose prices carry
- * inner record ids, a price filter combined with the lowest price handling, and a price list named twice in the query.
+ * index path as well as on the prefetch path, for the shapes of data where separate rules on the two would give
+ * different results: several prices of one inner record in one price list, an entity without inner record handling
+ * whose prices carry inner record ids, a price filter combined with the lowest price handling, and a price list
+ * named twice in the query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -488,8 +489,8 @@ class PriceForSaleSelectionRuleFunctionalTest {
 
 	/**
 	 * With the lowest price handling and a price filter, the index path and the prefetch path represent the entity
-	 * in ordering and in the discount by the same variant, and the price for sale the entity reports stays the
-	 * cheapest of all its variants whatever the filter.
+	 * in ordering and in the discount by its cheapest variant overall, even when that variant lies outside the range
+	 * of the filter, and the price for sale the entity reports is that same variant whatever the filter.
 	 *
 	 * Product 1 has inner record 1 selling for 100 with a reference price of 150 and inner record 2 selling for 200
 	 * with a reference price of 1200. Product 2 has a single inner record selling for 180 with a reference price of
@@ -544,12 +545,18 @@ class PriceForSaleSelectionRuleFunctionalTest {
 		void shouldOrderByPriceAlikeOnBothPaths(Evita evita) {
 			createProducts(evita);
 
-			assertEquals(
-				queryProducts(
-					evita, rangeFilter(), priceNatural(), QueryPriceMode.WITH_TAX, DebugMode.PREFER_INDEX_SCAN
-				),
-				queryProducts(
-					evita, rangeFilter(), priceNatural(), QueryPriceMode.WITH_TAX, DebugMode.PREFER_PREFETCHING
+			final List<Integer> byIndex = queryProducts(
+				evita, rangeFilter(), priceNatural(), QueryPriceMode.WITH_TAX, DebugMode.PREFER_INDEX_SCAN
+			);
+			assertAll(
+				// product 1 is represented by its cheapest variant at 100 although it lies outside the range,
+				// product 2 by its only variant at 180
+				() -> assertEquals(List.of(1, 2), byIndex),
+				() -> assertEquals(
+					byIndex,
+					queryProducts(
+						evita, rangeFilter(), priceNatural(), QueryPriceMode.WITH_TAX, DebugMode.PREFER_PREFETCHING
+					)
 				)
 			);
 		}
@@ -560,9 +567,19 @@ class PriceForSaleSelectionRuleFunctionalTest {
 			createProducts(evita);
 
 			final OrderConstraint byDiscount = priceDiscount(DESC, PRICE_LIST_REFERENCE);
-			assertEquals(
-				queryProducts(evita, rangeFilter(), byDiscount, QueryPriceMode.WITH_TAX, DebugMode.PREFER_INDEX_SCAN),
-				queryProducts(evita, rangeFilter(), byDiscount, QueryPriceMode.WITH_TAX, DebugMode.PREFER_PREFETCHING)
+			final List<Integer> byIndex = queryProducts(
+				evita, rangeFilter(), byDiscount, QueryPriceMode.WITH_TAX, DebugMode.PREFER_INDEX_SCAN
+			);
+			assertAll(
+				// product 2 is discounted by 680 - 180 = 500, product 1 by the reference price of its cheapest
+				// variant: 150 - 100 = 50
+				() -> assertEquals(List.of(2, 1), byIndex),
+				() -> assertEquals(
+					byIndex,
+					queryProducts(
+						evita, rangeFilter(), byDiscount, QueryPriceMode.WITH_TAX, DebugMode.PREFER_PREFETCHING
+					)
+				)
 			);
 		}
 

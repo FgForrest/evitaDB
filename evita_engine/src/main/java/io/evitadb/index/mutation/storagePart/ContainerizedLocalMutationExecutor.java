@@ -200,14 +200,16 @@ public final class ContainerizedLocalMutationExecutor
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
 	/**
 	 * Keys of the prices this mutation set added, revived, or moved to another validity or inner record - the only
-	 * prices that can make the entity's prices ambiguous. A price moved more than once is named more than once, which
-	 * the check tolerates. `null` until the first such price; an entity whose prices were not touched pays nothing in
-	 * {@link #verifyConsistency()}.
+	 * prices that can make the entity's prices ambiguous. Each upsert is judged against the price the previous
+	 * mutation of the set left, so a price removed and set again unchanged within the set counts as revived. A price
+	 * moved more than once is named more than once, which the check tolerates. `null` until the first such price; an
+	 * entity whose prices were not touched pays nothing in {@link #verifyConsistency()}.
 	 */
 	@Nullable private List<PriceKey> touchedPriceKeys;
 	/**
-	 * True when this mutation set changed the price inner record handling of the entity, which changes the group every
-	 * price competes in and so touches all of them.
+	 * True when a mutation of this set changed the price inner record handling of the entity from the one the previous
+	 * mutation left - which changes the group every price competes in and so touches all of them. It stays set even
+	 * when a later mutation of the set restores the original handling.
 	 */
 	private boolean priceInnerRecordHandlingChanged;
 	private ReferenceKeyManager referenceKeyManager;
@@ -1576,13 +1578,16 @@ public final class ContainerizedLocalMutationExecutor
 	 * and an upsert of the same set are already combined.
 	 *
 	 * Only pairs with a touched price are checked, so an entity that already holds an ambiguous pair stays updatable
-	 * as long as the pair is left alone. A change of the inner record handling touches every price. The prices are
-	 * taken from the prices part this executor already holds - the part was loaded by the first price mutation - so
-	 * the check reads nothing from the storage. For `k` touched prices of an entity with `n` prices it costs
-	 * `O(k log k)` comparisons to sort the touched prices and `O(n log k)` comparisons to look up the touched
-	 * neighbour of every price, whatever the number of prices in one group - `O(n log n)` when all prices are touched,
-	 * as in a bulk insert or a change of the inner record handling. It allocates an array of `k` references and the
-	 * temporary array the sort may need.
+	 * as long as the pair is left alone. A change of the inner record handling touches every price. Which prices are
+	 * touched is decided mutation by mutation ({@link #touchedPriceKeys}, {@link #priceInnerRecordHandlingChanged}),
+	 * not against the state before the set: a price removed and set again unchanged, or a handling changed and
+	 * restored, within one set still counts, whereas an entity builder cancels such a pair out before it sends its
+	 * mutations. The prices are taken from the prices part this executor already holds - the part was loaded by the
+	 * first price mutation - so the check reads nothing from the storage. For `k` touched prices of an entity with
+	 * `n` prices it costs `O(k log k)` comparisons to sort the touched prices and `O(n log k)` comparisons to look up
+	 * the touched neighbour of every price, whatever the number of prices in one group - `O(n log n)` when all prices
+	 * are touched, as in a bulk insert or a change of the inner record handling. It allocates an array of `k`
+	 * references - of `n` when the handling changed - and the temporary array the sort may need.
 	 *
 	 * @throws AmbiguousPriceException when a touched price competes with another price of the entity
 	 */
@@ -3983,9 +3988,9 @@ public final class ContainerizedLocalMutationExecutor
 				// a price that starts to exist or moves to another validity or inner record may compete with another
 				// price - see verifyPricesNotAmbiguous; an upsert that changes the amounts only cannot
 				if (mutatedPrice.exists() &&
-					(priceContract == null || !priceContract.exists() ||
-						!Objects.equals(priceContract.validity(), mutatedPrice.validity()) ||
-						!Objects.equals(priceContract.innerRecordId(), mutatedPrice.innerRecordId()))) {
+					PriceAmbiguityVerifier.isAddedOrMoved(
+						priceContract, mutatedPrice.validity(), mutatedPrice.innerRecordId()
+					)) {
 					if (this.touchedPriceKeys == null) {
 						this.touchedPriceKeys = new ArrayList<>(4);
 					}

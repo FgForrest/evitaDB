@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.price;
 
 import io.evitadb.api.exception.AmbiguousPriceException;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -70,14 +71,16 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that the server refuses an upsert that would leave an entity with two prices that compete for the same
  * place - one inner record (for an entity without inner record handling: any inner record) in one price list and
- * currency, valid at a common moment - whatever way the mutations arrive, and that the refusal leaves the entity and
- * its indexes as they were. Prices an entity already holds are checked only against a price the upsert adds or moves,
- * so an entity that holds an ambiguous pair stays updatable. Every test runs in a catalog in the transactional state
- * and in a freshly defined catalog that is still bulk-loading.
+ * currency, valid at a common moment - whether a builder produced its mutations or they were sent raw, and that the
+ * refusal leaves the entity and its indexes as they were. Prices an entity already holds are checked only against a
+ * price the upsert adds, revives or moves, so an entity that holds an ambiguous pair stays updatable. The server
+ * decides what an upsert touches mutation by mutation, a builder against the entity it was opened on. Every test runs
+ * in a catalog in the transactional state and in a freshly defined catalog that is still bulk-loading.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -89,7 +92,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class AmbiguousPriceUpsertFunctionalTest {
 	private static final String PRODUCT = "product";
 	private static final String PRICE_LIST_BASIC = "basic";
-	private static final String PRICE_LIST_REFERENCE = "reference";
 	private static final Currency CZK = Currency.getInstance("CZK");
 	/**
 	 * Name of the catalog defined by the test, which stays in the bulk-loading state.
@@ -130,6 +132,20 @@ class AmbiguousPriceUpsertFunctionalTest {
 		return DateTimeRange.between(
 			OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
 			OffsetDateTime.of(2021, 12, 31, 23, 59, 59, 0, ZoneOffset.UTC)
+		);
+	}
+
+	/**
+	 * Returns the validity spanning the year 2022, which overlaps neither {@link #firstYear()} nor
+	 * {@link #secondYear()}.
+	 *
+	 * @return the validity
+	 */
+	@Nonnull
+	private static DateTimeRange thirdYear() {
+		return DateTimeRange.between(
+			OffsetDateTime.of(2022, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+			OffsetDateTime.of(2022, 12, 31, 23, 59, 59, 0, ZoneOffset.UTC)
 		);
 	}
 
@@ -263,13 +279,23 @@ class AmbiguousPriceUpsertFunctionalTest {
 		evita.updateCatalog(
 			catalog,
 			session -> {
-				final BigDecimal hundred = new BigDecimal("100.00");
 				final EntityBuilder twin = session.createNewEntity(PRODUCT, 3)
 					.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
-				twin.setPrice(30, PRICE_LIST_BASIC, CZK, 1, hundred, BigDecimal.ZERO, hundred, firstYear(), true);
+				setPriceOfFirstProduct(twin);
 				session.upsertEntity(twin);
 			}
 		);
+	}
+
+	/**
+	 * Sets the price product 1 is created with: price 30 of inner record 1 in the basic price list, selling for 100
+	 * in 2020.
+	 *
+	 * @param product the builder of the product
+	 */
+	private static void setPriceOfFirstProduct(@Nonnull EntityBuilder product) {
+		final BigDecimal hundred = new BigDecimal("100.00");
+		product.setPrice(30, PRICE_LIST_BASIC, CZK, 1, hundred, BigDecimal.ZERO, hundred, firstYear(), true);
 	}
 
 	/**
@@ -345,10 +371,9 @@ class AmbiguousPriceUpsertFunctionalTest {
 			catalog,
 			session -> {
 				session.defineEntitySchema(PRODUCT).withPrice().updateVia(session);
-				final BigDecimal hundred = new BigDecimal("100.00");
 				final EntityBuilder product = session.createNewEntity(PRODUCT, 1)
 					.setPriceInnerRecordHandling(handling);
-				product.setPrice(30, PRICE_LIST_BASIC, CZK, 1, hundred, BigDecimal.ZERO, hundred, firstYear(), true);
+				setPriceOfFirstProduct(product);
 				session.upsertEntity(product);
 				final BigDecimal hundredFifty = new BigDecimal("150.00");
 				final EntityBuilder other = session.createNewEntity(PRODUCT, 2)
@@ -397,18 +422,56 @@ class AmbiguousPriceUpsertFunctionalTest {
 		@Nonnull Evita evita,
 		@Nonnull String catalog
 	) {
+		return queryProductsFromIndexes(
+			evita, catalog,
+			priceInCurrency(CZK),
+			priceInPriceLists(PRICE_LIST_BASIC),
+			priceValidIn(OffsetDateTime.of(2020, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC)),
+			priceBetween(new BigDecimal("90"), new BigDecimal("110"))
+		);
+	}
+
+	/**
+	 * Returns primary keys of the products with a price in the basic price list valid at the moment, resolved from the
+	 * indexes.
+	 *
+	 * @param evita   the evitaDB instance
+	 * @param catalog name of the catalog
+	 * @param moment  the moment the price must be valid at
+	 * @return primary keys of the matching products
+	 */
+	@Nonnull
+	private static List<Integer> queryProductsWithBasicPriceValidAt(
+		@Nonnull Evita evita,
+		@Nonnull String catalog,
+		@Nonnull OffsetDateTime moment
+	) {
+		return queryProductsFromIndexes(
+			evita, catalog, priceInCurrency(CZK), priceInPriceLists(PRICE_LIST_BASIC), priceValidIn(moment)
+		);
+	}
+
+	/**
+	 * Returns primary keys of the products matching the filter, resolved from the indexes.
+	 *
+	 * @param evita   the evitaDB instance
+	 * @param catalog name of the catalog
+	 * @param filter  the filter constraints
+	 * @return primary keys of the matching products
+	 */
+	@Nonnull
+	private static List<Integer> queryProductsFromIndexes(
+		@Nonnull Evita evita,
+		@Nonnull String catalog,
+		@Nonnull FilterConstraint... filter
+	) {
 		return evita.queryCatalog(
 			catalog,
 			session -> {
 				final List<EntityReferenceContract> references = session.queryListOfEntityReferences(
 					query(
 						collection(PRODUCT),
-						filterBy(
-							priceInCurrency(CZK),
-							priceInPriceLists(PRICE_LIST_BASIC),
-							priceValidIn(OffsetDateTime.of(2020, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC)),
-							priceBetween(new BigDecimal("90"), new BigDecimal("110"))
-						),
+						filterBy(filter),
 						require(debug(DebugMode.PREFER_INDEX_SCAN))
 					)
 				);
@@ -426,13 +489,21 @@ class AmbiguousPriceUpsertFunctionalTest {
 	@DisplayName("should reject an overlapping price of one inner record and keep the entity unchanged")
 	void shouldRejectOverlappingPriceOfOneInnerRecordAndKeepEntityUnchanged(boolean alive, Evita evita) {
 		final String catalog = createProducts(evita, PriceInnerRecordHandling.LOWEST_PRICE, alive);
+		// the refused price overlaps price 30 and reaches into 2021, when no other price of product 1 is valid
+		final DateTimeRange fromMid2020ToMid2021 = DateTimeRange.between(
+			OffsetDateTime.of(2020, 7, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+			OffsetDateTime.of(2021, 6, 30, 23, 59, 59, 0, ZoneOffset.UTC)
+		);
 
 		assertThrows(
 			AmbiguousPriceException.class,
-			() -> upsertProduct(evita, catalog, upsertPrice(10, PRICE_LIST_BASIC, 1, 105, firstYear()))
+			() -> upsertProduct(evita, catalog, upsertPrice(10, PRICE_LIST_BASIC, 1, 105, fromMid2020ToMid2021))
 		);
 		assertEquals(List.of(30), queryPriceIdsOfProduct(evita, catalog));
 		assertEquals(List.of(1), queryProductsSellingAroundHundredIn2020(evita, catalog));
+		// a refused price left in the price index would make product 1 match in 2021
+		final OffsetDateTime spring2021 = OffsetDateTime.of(2021, 3, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+		assertEquals(List.of(2), queryProductsWithBasicPriceValidAt(evita, catalog, spring2021));
 
 		// the same price valid in another year competes with nothing
 		assertDoesNotThrow(
@@ -494,16 +565,11 @@ class AmbiguousPriceUpsertFunctionalTest {
 		assertEquals(List.of(30), queryPriceIdsOfProduct(evita, catalog));
 
 		// the same price is legal once the same builder gives the entity the lowest price handling
-		evita.updateCatalog(
-			catalog,
-			session -> {
-				final EntityBuilder product = session.getEntity(PRODUCT, 1, priceContentAll())
-					.orElseThrow()
-					.openForWrite();
-				product.setPrice(10, PRICE_LIST_BASIC, CZK, 2, amount, BigDecimal.ZERO, amount, null, true);
-				product.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
-				session.upsertEntity(product);
-			}
+		upsertProductThroughBuilder(
+			evita, catalog, 1,
+			product -> product
+				.setPrice(10, PRICE_LIST_BASIC, CZK, 2, amount, BigDecimal.ZERO, amount, null, true)
+				.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 		);
 		assertEquals(List.of(10, 30), queryPriceIdsOfProduct(evita, catalog));
 	}
@@ -552,35 +618,30 @@ class AmbiguousPriceUpsertFunctionalTest {
 	/**
 	 * An ambiguous pair stored before the server checked prices - planted here by an upsert that skips the consistency
 	 * check, as the replay of such a write-ahead log does - stays: upserts that leave the validity and the inner record
-	 * of both prices as they are, or that touch other prices, are accepted. Only an upsert that moves one of the pair
-	 * is checked against the other.
+	 * of both prices as they are, that send the handling the entity already has, or that touch other prices - even of
+	 * the group of the pair - are accepted. Only an upsert that moves one of the pair is checked against the other.
 	 */
 	@ParameterizedTest(name = "alive: {0}")
 	@ValueSource(booleans = {false, true})
 	@DisplayName("should keep an entity holding an ambiguous pair updatable")
 	void shouldKeepEntityHoldingAmbiguousPairUpdatable(boolean alive, Evita evita) {
 		final String catalog = createProducts(evita, PriceInnerRecordHandling.LOWEST_PRICE, alive);
-		evita.updateCatalog(
-			catalog,
-			session -> {
-				session.upsertEntity(
-					new ServerEntityUpsertMutation(
-						PRODUCT, 1, EntityExistence.MUST_EXIST,
-						EnumSet.allOf(ImplicitMutationBehavior.class), true, false,
-						upsertPrice(10, PRICE_LIST_BASIC, 1, 105, firstYear())
-					)
-				);
-			}
-		);
+		plantPrice(evita, catalog, 1, upsertPrice(10, PRICE_LIST_BASIC, 1, 105, firstYear()));
 		assertEquals(List.of(10, 30), queryPriceIdsOfProduct(evita, catalog));
 
 		// the amount of one of the pair changes
 		assertDoesNotThrow(
 			() -> upsertProduct(evita, catalog, upsertPrice(30, PRICE_LIST_BASIC, 1, 95, firstYear()))
 		);
-		// another price is added
+		// the handling the entity already has is sent again
 		assertDoesNotThrow(
-			() -> upsertProduct(evita, catalog, upsertPrice(31, PRICE_LIST_REFERENCE, 1, 200, null))
+			() -> upsertProduct(
+				evita, catalog, new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.LOWEST_PRICE)
+			)
+		);
+		// another price of the group of the pair is added, valid when neither of the pair is
+		assertDoesNotThrow(
+			() -> upsertProduct(evita, catalog, upsertPrice(31, PRICE_LIST_BASIC, 1, 200, thirdYear()))
 		);
 		// one of the pair moves to a validity that still overlaps the other
 		assertThrows(
@@ -612,6 +673,122 @@ class AmbiguousPriceUpsertFunctionalTest {
 			)
 		);
 		assertEquals(List.of(10, 30), queryPriceIdsOfProduct(evita, catalog));
+	}
+
+	/**
+	 * A removed price stays in the entity as a dropped price. An upsert that sets it again with the very data it had
+	 * revives it, and a revived price is checked against the other prices of its group as an added one is.
+	 */
+	@ParameterizedTest(name = "alive: {0}")
+	@ValueSource(booleans = {false, true})
+	@DisplayName("should reject a removed price revived with its former data when it overlaps another price")
+	void shouldRejectRemovedPriceRevivedWithFormerDataWhenItOverlapsAnotherPrice(boolean alive, Evita evita) {
+		final String catalog = createProducts(evita, PriceInnerRecordHandling.LOWEST_PRICE, alive);
+		plantPrice(evita, catalog, 1, upsertPrice(10, PRICE_LIST_BASIC, 1, 105, firstYear()));
+		upsertProduct(evita, catalog, new RemovePriceMutation(10, PRICE_LIST_BASIC, CZK));
+		assertEquals(List.of(30), queryPriceIdsOfProduct(evita, catalog));
+
+		assertThrows(
+			AmbiguousPriceException.class,
+			() -> upsertProduct(evita, catalog, upsertPrice(10, PRICE_LIST_BASIC, 1, 105, firstYear()))
+		);
+		assertEquals(List.of(30), queryPriceIdsOfProduct(evita, catalog));
+	}
+
+	@ParameterizedTest(name = "alive: {0}")
+	@ValueSource(booleans = {false, true})
+	@DisplayName("should reject a price moved to the inner record of a price it overlaps")
+	void shouldRejectPriceMovedToInnerRecordOfPriceItOverlaps(boolean alive, Evita evita) {
+		final String catalog = createProducts(evita, PriceInnerRecordHandling.LOWEST_PRICE, alive);
+		upsertProduct(evita, catalog, upsertPrice(10, PRICE_LIST_BASIC, 2, 105, firstYear()));
+
+		assertThrows(
+			AmbiguousPriceException.class,
+			() -> upsertProduct(evita, catalog, upsertPrice(10, PRICE_LIST_BASIC, 1, 105, firstYear()))
+		);
+		assertEquals(
+			List.of("10/2/105.00/" + firstYear(), "30/1/100.00/" + firstYear()),
+			describePricesOfProduct(evita, catalog, 1)
+		);
+	}
+
+	/**
+	 * The server judges each mutation of an upsert against the state the previous mutation of the same upsert left,
+	 * not against the state before the upsert. Removing one price of a stored ambiguous pair and setting it again with
+	 * unchanged data in one upsert therefore revives it, and the revived price is checked against its stored partner.
+	 * A builder judges its changes against the entity it was opened on, so the same removal and re-addition cancel out
+	 * before its change set is sent.
+	 */
+	@ParameterizedTest(name = "alive: {0}")
+	@ValueSource(booleans = {false, true})
+	@DisplayName("should check a price removed and set again unchanged in one upsert, which a builder cancels out")
+	void shouldCheckPriceRemovedAndSetAgainUnchangedInOneUpsertWhichBuilderCancelsOut(boolean alive, Evita evita) {
+		final String catalog = createProducts(evita, PriceInnerRecordHandling.LOWEST_PRICE, alive);
+		createTwinOfFirstProduct(evita, catalog);
+		plantPrice(evita, catalog, 1, upsertPrice(10, PRICE_LIST_BASIC, 1, 105, firstYear()));
+		plantPrice(evita, catalog, 3, upsertPrice(10, PRICE_LIST_BASIC, 1, 105, firstYear()));
+		final BigDecimal hundred = new BigDecimal("100.00");
+
+		final Class<? extends Throwable> throughMutations = verdictOf(
+			() -> upsertProduct(
+				evita, catalog, 1,
+				new RemovePriceMutation(30, PRICE_LIST_BASIC, CZK),
+				upsertPrice(30, PRICE_LIST_BASIC, 1, 100, firstYear())
+			)
+		);
+		final Class<? extends Throwable> throughBuilder = verdictOf(
+			() -> upsertProductThroughBuilder(
+				evita, catalog, 3,
+				product -> product
+					.removePrice(30, PRICE_LIST_BASIC, CZK)
+					.setPrice(30, PRICE_LIST_BASIC, CZK, 1, hundred, BigDecimal.ZERO, hundred, firstYear(), true)
+			)
+		);
+		assertAll(
+			() -> assertEquals(AmbiguousPriceException.class, throughMutations),
+			() -> assertNull(throughBuilder),
+			() -> assertEquals(List.of(10, 30), queryPriceIdsOfProduct(evita, catalog)),
+			() -> assertEquals(
+				describePricesOfProduct(evita, catalog, 1), describePricesOfProduct(evita, catalog, 3)
+			)
+		);
+	}
+
+	/**
+	 * A new entity sent as raw mutations without a handling mutation has no inner record handling, so its prices of
+	 * different inner records compete for one place - the handling an entity builder assumes when it sends none.
+	 */
+	@ParameterizedTest(name = "alive: {0}")
+	@ValueSource(booleans = {false, true})
+	@DisplayName("should reject overlapping prices of different inner records of a new entity sent without handling")
+	void shouldRejectOverlappingPricesOfDifferentInnerRecordsOfNewEntitySentWithoutHandling(
+		boolean alive,
+		Evita evita
+	) {
+		final String catalog = createProducts(evita, PriceInnerRecordHandling.LOWEST_PRICE, alive);
+
+		assertThrows(
+			AmbiguousPriceException.class,
+			() -> evita.updateCatalog(
+				catalog,
+				session -> {
+					session.upsertEntity(
+						new EntityUpsertMutation(
+							PRODUCT, 5, EntityExistence.MUST_NOT_EXIST,
+							upsertPrice(50, PRICE_LIST_BASIC, 1, 100, null),
+							upsertPrice(51, PRICE_LIST_BASIC, 2, 100, null)
+						)
+					);
+				}
+			)
+		);
+		final boolean absent = evita.queryCatalog(
+			catalog,
+			session -> {
+				return session.getEntity(PRODUCT, 5, priceContentAll()).isEmpty();
+			}
+		);
+		assertTrue(absent);
 	}
 
 	/**

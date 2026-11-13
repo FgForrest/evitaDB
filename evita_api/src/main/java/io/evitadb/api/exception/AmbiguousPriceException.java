@@ -31,20 +31,24 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Thrown when attempting to add a price that would create ambiguity in price selection due to overlapping
- * validity periods with an existing price that shares the same price list, currency and inner record.
+ * Thrown when a change of an entity would leave it with a price whose validity period overlaps that of another price
+ * sharing its price list, currency and inner record, which makes the price selection ambiguous.
  *
  * evitaDB requires that at any given point in time, there is at most one valid price for a given price list,
  * currency and inner record combination - for a given price list and currency when the entity has no inner record
  * handling. When two such prices have overlapping validity periods, the system cannot deterministically choose which
  * price to use as the selling price. This exception prevents such ambiguous configurations from being persisted.
- * Only a price that is added, or moved to another validity or inner record, is checked against the others, so an
- * entity that already holds an ambiguous pair stays updatable as long as the pair is left alone.
+ * Only a price the change touches - one it adds, revives, or moves to another validity or inner record, and every
+ * price when it changes the inner record handling - is checked against the others, so an entity that already holds
+ * an ambiguous pair stays updatable as long as the pair is left alone.
  *
  * **When this is thrown:**
  * - When an entity builder (`InitialPricesBuilder`, `ExistingPricesBuilder`) produces the mutations of the entity -
- *   by `toMutation()` or by the upsert of the builder - never when a price is set on it
- * - When the server stores an entity upsert, whichever way its mutations arrived
+ *   by `toMutation()` or by the upsert of the builder - never when a price is set on it. The builder of an existing
+ *   entity checks only when the entity was fetched with all its prices and otherwise leaves the check to the server.
+ * - When the server stores an entity upsert. It judges each mutation against the state the previous mutation of the
+ *   upsert left, so a price removed and set again unchanged within one upsert counts as revived, whereas a builder
+ *   cancels such a removal out before it produces its mutations.
  *
  * **Resolution:**
  * - Adjust validity periods so they don't overlap
@@ -56,11 +60,12 @@ import java.io.Serial;
 public class AmbiguousPriceException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 4405640415224088617L;
 	/**
-	 * The price already present in the entity that conflicts with the newly added price.
+	 * The price {@link #ambiguousPrice} competes with - a price the entity already holds, or another price the same
+	 * change touches.
 	 */
 	@Nonnull @Getter private final PriceContract existingPrice;
 	/**
-	 * The price being added that would create the ambiguity.
+	 * The price the change touches that would create the ambiguity.
 	 */
 	@Nonnull @Getter private final PriceContract ambiguousPrice;
 

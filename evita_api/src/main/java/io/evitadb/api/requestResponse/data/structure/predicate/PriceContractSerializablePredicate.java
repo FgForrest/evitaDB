@@ -113,7 +113,9 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 */
 	@Getter @Nonnull private final Set<String> priceListsAsSet;
 	/**
-	 * Contains information about the type of price that should be used for sorting and filtering.
+	 * Contains information about the type of price that should be used for sorting and filtering. The same mode
+	 * decides the price for sale of the entity, its price range and its accompanying prices - the price for sale
+	 * context is created with it - and a limited view keeps the mode of the underlying predicate.
 	 */
 	@Getter @Nonnull private final QueryPriceMode queryPriceMode;
 	/**

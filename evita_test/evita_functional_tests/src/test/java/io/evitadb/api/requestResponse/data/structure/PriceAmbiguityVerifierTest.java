@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -43,6 +44,7 @@ import java.util.Collections;
 import java.util.Currency;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.PRICE;
@@ -65,6 +67,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(PRICE)
 class PriceAmbiguityVerifierTest {
 	private static final Currency CZK = Currency.getInstance("CZK");
+	private static final Currency EUR = Currency.getInstance("EUR");
 	private static final String BASIC = "basic";
 	private static final String VIP = "vip";
 	private static final OffsetDateTime EPOCH = OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
@@ -241,26 +244,32 @@ class PriceAmbiguityVerifierTest {
 		}
 
 		/**
-		 * Small random price sets - two price lists, prices without inner record and of two inner records, validities
-		 * without bounds, open on one side or closed, many of them sharing a bound, some prices removed and an
-		 * arbitrary subset touched, some touched prices named twice - must be decided exactly as the pairwise rule
-		 * decides them.
+		 * Small random price sets - two price lists and two currencies, price ids recurring across them, prices without
+		 * inner record and of two inner records, validities without bounds, open on one side or closed, many of them
+		 * sharing a bound, some prices removed and an arbitrary subset touched, some touched prices named twice - must
+		 * be decided exactly as the pairwise rule decides them. Each set is decided twice: with all prices of the
+		 * entity, as an existing entity is, and with the touched prices alone, as the builder of a new entity decides
+		 * it - where the pass over the touched prices is the only check and nothing else can make up for a pair it
+		 * misses.
 		 */
 		@Test
 		@DisplayName("should decide every price set as the pairwise rule does")
 		void shouldDecideEveryPriceSetAsPairwiseRuleDoes() {
 			final Random random = new Random(42);
 			final String[] priceLists = {BASIC, VIP};
+			final Currency[] currencies = {CZK, EUR};
 			final Integer[] innerRecordIds = {null, 1, 2};
 			final PriceInnerRecordHandling[] handlings = {
 				PriceInnerRecordHandling.NONE, PriceInnerRecordHandling.LOWEST_PRICE, PriceInnerRecordHandling.SUM
 			};
 			int ambiguousSets = 0;
+			int ambiguousTouchedSets = 0;
 			for (int set = 0; set < 20_000; set++) {
-				final int priceCount = 1 + random.nextInt(7);
+				final int priceCount = 1 + random.nextInt(9);
 				final List<PriceContract> prices = new ArrayList<>(priceCount);
 				final List<PriceContract> touched = new ArrayList<>(priceCount + 2);
-				for (int priceId = 1; priceId <= priceCount; priceId++) {
+				final Set<PriceKey> priceKeys = CollectionUtils.createHashSet(priceCount);
+				for (int i = 0; i < priceCount; i++) {
 					final DateTimeRange validity;
 					final int from = random.nextInt(6);
 					final int to = from + random.nextInt(4);
@@ -270,9 +279,17 @@ class PriceAmbiguityVerifierTest {
 						case 2 -> validity = DateTimeRange.until(EPOCH.plusHours(to));
 						default -> validity = hours(from, to);
 					}
+					// a price id recurs across price lists and currencies, but names one price in each of them
+					PriceKey priceKey;
+					do {
+						priceKey = new PriceKey(
+							1 + random.nextInt(4),
+							priceLists[random.nextInt(priceLists.length)],
+							currencies[random.nextInt(currencies.length)]
+						);
+					} while (!priceKeys.add(priceKey));
 					final Price price = new Price(
-						1, new PriceKey(priceId, priceLists[random.nextInt(priceLists.length)], CZK),
-						innerRecordIds[random.nextInt(innerRecordIds.length)],
+						1, priceKey, innerRecordIds[random.nextInt(innerRecordIds.length)],
 						BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, validity, true, random.nextInt(8) == 0
 					);
 					prices.add(price);
@@ -292,11 +309,24 @@ class PriceAmbiguityVerifierTest {
 				assertEquals(
 					expected,
 					verifierFindsAmbiguousPair(prices, touched, handling),
-					"Prices " + prices + ", touched " + touched + ", handling " + handling
+					"All prices " + prices + ", touched " + touched + ", handling " + handling
+				);
+				final boolean expectedAmongTouched = pairwiseRuleFindsAmbiguousPair(touched, touched, handling);
+				if (expectedAmongTouched) {
+					ambiguousTouchedSets++;
+				}
+				assertEquals(
+					expectedAmongTouched,
+					verifierFindsAmbiguousPair(List.of(), touched, handling),
+					"Touched prices alone " + touched + ", handling " + handling
 				);
 			}
-			// both verdicts are frequent, so the agreement is not a vacuous one
+			// both verdicts are frequent in both shapes, so the agreement is not a vacuous one
 			assertTrue(ambiguousSets > 2_000 && ambiguousSets < 18_000, "Ambiguous sets: " + ambiguousSets);
+			assertTrue(
+				ambiguousTouchedSets > 2_000 && ambiguousTouchedSets < 18_000,
+				"Ambiguous sets of touched prices: " + ambiguousTouchedSets
+			);
 		}
 
 	}

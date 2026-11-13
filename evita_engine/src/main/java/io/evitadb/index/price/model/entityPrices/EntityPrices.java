@@ -118,7 +118,7 @@ public abstract class EntityPrices {
 	) {
 		if (original.isEmpty()) {
 			return new SinglePriceEntityPrices(priceRecord);
-		} else if (groupedByInnerRecord && (priceRecord.isInnerRecordSpecific() || original.isInnerRecordSpecific())) {
+		} else if (needsInnerRecordGrouping(original, priceRecord, groupedByInnerRecord)) {
 			return new FullBlownEntityPrices(
 				original.computePricesAdding(priceRecord)
 			);
@@ -127,6 +127,24 @@ public abstract class EntityPrices {
 				original.computePricesAdding(priceRecord)
 			);
 		}
+	}
+
+	/**
+	 * Tells whether the holder of the entity's prices must keep the lowest price of each inner record: only in an index
+	 * that groups the prices by inner record, and only when the added or removed record or a record held so far is
+	 * {@link PriceRecordContract#isInnerRecordSpecific() inner record specific}.
+	 *
+	 * @param original             the holder of the entity's prices so far
+	 * @param priceRecord          the price record added or removed
+	 * @param groupedByInnerRecord `true` when the index keeps the lowest price of each inner record
+	 * @return `true` when the new holder keeps the lowest price of each inner record
+	 */
+	private static boolean needsInnerRecordGrouping(
+		@Nonnull EntityPrices original,
+		@Nonnull PriceRecordContract priceRecord,
+		boolean groupedByInnerRecord
+	) {
+		return groupedByInnerRecord && (priceRecord.isInnerRecordSpecific() || original.isInnerRecordSpecific());
 	}
 
 	/**
@@ -160,7 +178,7 @@ public abstract class EntityPrices {
 			final PriceRecordContract[] priceRecords = original.computePricesRemoving(priceRecord);
 			Assert.isPremiseValid(priceRecords.length == 1, "Expected single result!");
 			return new SinglePriceEntityPrices(priceRecords[0]);
-		} else if (groupedByInnerRecord && (priceRecord.isInnerRecordSpecific() || original.isInnerRecordSpecific())) {
+		} else if (needsInnerRecordGrouping(original, priceRecord, groupedByInnerRecord)) {
 			return new FullBlownEntityPrices(original.computePricesRemoving(priceRecord));
 		} else {
 			return new MultiplePriceEntityPrices(original.computePricesRemoving(priceRecord));

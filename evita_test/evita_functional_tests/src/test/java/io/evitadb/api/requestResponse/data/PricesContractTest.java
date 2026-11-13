@@ -2127,31 +2127,60 @@ class PricesContractTest extends AbstractBuilderTest {
 			@Nullable DateTimeRange validity,
 			boolean indexed
 		) {
+			return price(priceId, priceList, innerRecordId, amount, "0", validity, indexed);
+		}
+
+		/**
+		 * Creates a price with the passed tax rate. The competing prices of the fixtures order one way without tax and
+		 * the other way with tax, so that a selection comparing the wrong amount picks the other price.
+		 *
+		 * @param priceId       id of the price
+		 * @param priceList     price list of the price
+		 * @param innerRecordId inner record of the price, `null` for none
+		 * @param amount        amount of the price without tax
+		 * @param taxRate       tax rate of the price in percent
+		 * @param validity      validity of the price, `null` for a price valid at any moment
+		 * @param indexed       whether the price is indexed
+		 * @return the price
+		 */
+		@Nonnull
+		private static PriceContract price(
+			int priceId,
+			@Nonnull String priceList,
+			@Nullable Integer innerRecordId,
+			@Nonnull String amount,
+			@Nonnull String taxRate,
+			@Nullable DateTimeRange validity,
+			boolean indexed
+		) {
 			final BigDecimal value = new BigDecimal(amount);
+			final BigDecimal rate = new BigDecimal(taxRate);
+			final BigDecimal valueWithTax = value.add(value.multiply(rate).movePointLeft(2));
 			return new Price(
-				new PriceKey(priceId, priceList, CZK), innerRecordId, value, BigDecimal.ZERO, value, validity, indexed
+				new PriceKey(priceId, priceList, CZK), innerRecordId, value, rate, valueWithTax, validity, indexed
 			);
 		}
 
 		/**
-		 * Returns prices of inner record 1 selling for 200 (price 1) and for 100 (price 2) in different halves of
-		 * the year 2010, and of inner record 2 selling for 150 (price 3).
+		 * Returns prices of inner record 1 selling for 110 at 10 % - 121 with tax - (price 1) and for 100 at 25 % -
+		 * 125 with tax - (price 2) in different halves of the year 2010, and of inner record 2 selling for 150 without
+		 * tax (price 3).
 		 *
 		 * @return the prices
 		 */
 		@Nonnull
 		private static List<PriceContract> innerRecordWithTwoSellingPrices() {
 			return Arrays.asList(
-				price(1, BASIC, 1, "200", FIRST_HALF_OF_2010, true),
-				price(2, BASIC, 1, "100", SECOND_HALF_OF_2010, true),
+				price(1, BASIC, 1, "110", "10", FIRST_HALF_OF_2010, true),
+				price(2, BASIC, 1, "100", "25", SECOND_HALF_OF_2010, true),
 				price(3, BASIC, 2, "150", null, true)
 			);
 		}
 
 		/**
-		 * Returns prices of inner record 1 selling for 100 and of inner record 2 selling for 50, with two reference
-		 * prices of inner record 1 - 300 (price 11) and 250 (price 12) - in different halves of the year 2010 and a
-		 * reference price of inner record 2 of 60.
+		 * Returns prices of inner record 1 selling for 100 and of inner record 2 selling for 50, both without tax, with
+		 * two reference prices of inner record 1 - 300 without tax (price 11) and 250 at 25 %, 312.50 with tax
+		 * (price 12) - in different halves of the year 2010 and a reference price of inner record 2 of 60 at 25 %.
 		 *
 		 * @return the prices
 		 */
@@ -2161,8 +2190,8 @@ class PricesContractTest extends AbstractBuilderTest {
 				price(1, BASIC, 1, "100", null, true),
 				price(3, BASIC, 2, "50", null, true),
 				price(11, REFERENCE, 1, "300", FIRST_HALF_OF_2010, false),
-				price(12, REFERENCE, 1, "250", SECOND_HALF_OF_2010, false),
-				price(13, REFERENCE, 2, "60", null, false)
+				price(12, REFERENCE, 1, "250", "25", SECOND_HALF_OF_2010, false),
+				price(13, REFERENCE, 2, "60", "25", null, false)
 			);
 		}
 
@@ -2195,9 +2224,10 @@ class PricesContractTest extends AbstractBuilderTest {
 			final PricesContract prices = new Prices(
 				PRODUCT_SCHEMA, 1,
 				Arrays.asList(
-					price(1, BASIC, 1, "200", FIRST_HALF_OF_2010, true),
-					price(2, BASIC, 1, "100", SECOND_HALF_OF_2010, true),
-					price(3, BASIC, 2, "50", null, true)
+					price(1, BASIC, 1, "110", "10", FIRST_HALF_OF_2010, true),
+					price(2, BASIC, 1, "100", "25", SECOND_HALF_OF_2010, true),
+					// the parts of a sum must share their tax rate
+					price(3, BASIC, 2, "50", "25", null, true)
 				),
 				PriceInnerRecordHandling.SUM, true
 			);
@@ -2248,7 +2278,7 @@ class PricesContractTest extends AbstractBuilderTest {
 				Arrays.asList(
 					price(1, BASIC, 1, "100", null, true),
 					price(11, REFERENCE, 1, "300", FIRST_HALF_OF_2010, false),
-					price(12, REFERENCE, 1, "250", SECOND_HALF_OF_2010, false)
+					price(12, REFERENCE, 1, "250", "25", SECOND_HALF_OF_2010, false)
 				),
 				PriceInnerRecordHandling.LOWEST_PRICE, true
 			);
@@ -2274,9 +2304,18 @@ class PricesContractTest extends AbstractBuilderTest {
 			final PricesContract prices = new Prices(
 				PRODUCT_SCHEMA, 1, innerRecordWithTwoSellingPrices(), PriceInnerRecordHandling.LOWEST_PRICE, true
 			);
-			assertTrue(
-				prices.hasPriceInInterval(
-					new BigDecimal("90"), new BigDecimal("110"), QueryPriceMode.WITH_TAX, CZK, null, BASIC
+			assertAll(
+				// price 2 stands for inner record 1: 100 without tax, 125 with tax
+				() -> assertTrue(
+					prices.hasPriceInInterval(
+						new BigDecimal("123"), new BigDecimal("127"), QueryPriceMode.WITH_TAX, CZK, null, BASIC
+					)
+				),
+				// only price 1 of inner record 1, which does not stand for it, sells for 110 without tax
+				() -> assertFalse(
+					prices.hasPriceInInterval(
+						new BigDecimal("108"), new BigDecimal("112"), QueryPriceMode.WITHOUT_TAX, CZK, null, BASIC
+					)
 				)
 			);
 		}

@@ -219,6 +219,9 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 		void shouldAllowAddingConflictingPriceForDifferentInnerRecordId() {
 			final PricesContract prices =
 				InitialPricesBuilderTest.this.builder
+					.setPriceInnerRecordHandling(
+						PriceInnerRecordHandling.LOWEST_PRICE
+					)
 					.setPrice(
 						1, "basic", CZK, 1,
 						BigDecimal.ONE, BigDecimal.ZERO,
@@ -243,6 +246,8 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 				basicPrices.stream()
 					.anyMatch(it -> it.priceId() == 2)
 			);
+			// the handling mutation and the upserts of both prices
+			assertEquals(3, InitialPricesBuilderTest.this.builder.buildChangeSet().count());
 		}
 
 		@Test
@@ -316,13 +321,8 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 				);
 
 			assertEquals(1, allPricesForSale.size());
-			// this is ambiguous situation - we can't decide
-			// which price to use
-			assertTrue(
-				Set.of(2, 4).contains(
-					allPricesForSale.getFirst().priceId()
-				)
-			);
+			// the vip prices 2 and 4 tie on the price without tax, and the tie goes to the lower price id
+			assertEquals(2, allPricesForSale.getFirst().priceId());
 		}
 
 		@Test

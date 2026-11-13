@@ -65,6 +65,9 @@ public interface PricesContract extends Versioned, Serializable {
 	 * Computes a price for which the entity should be sold. Only indexed prices in requested currency, valid
 	 * at the passed moment are taken into an account. Prices are also limited by the passed set of price lists and
 	 * the first price found in the order of the requested price list ids will be returned.
+	 *
+	 * The amounts are compared with tax ({@link QueryPriceMode#WITH_TAX}); the overload taking a
+	 * {@link QueryPriceMode} follows the price mode of a query.
 	 */
 	@Nonnull
 	static Optional<PriceContract> computePriceForSale(
@@ -119,6 +122,9 @@ public interface PricesContract extends Versioned, Serializable {
 	 * the first price found in the order of the requested price list ids will be returned. Accompanying prices
 	 * are computed alongside the selling price and follow the same currency / valid-in / inner-record rules as
 	 * the selling price itself.
+	 *
+	 * The amounts are compared with tax ({@link QueryPriceMode#WITH_TAX}); the overload taking a
+	 * {@link QueryPriceMode} follows the price mode of a query.
 	 */
 	@Nonnull
 	static Optional<PriceForSaleWithAccompanyingPrices> computePriceForSale(
@@ -178,18 +184,17 @@ public interface PricesContract extends Versioned, Serializable {
 	}
 
 	/**
-	 * Internal entry point that exposes the rich {@link PriceForSaleComputationResult} produced by
-	 * {@link #computeInternal} so that {@link PriceForSaleContextWithCachedResult} can cache it once and
-	 * derive both the selling-price view and the range view from a single computation pass. External
-	 * callers must use the public {@code computePriceForSale} / {@code computePriceRangeForSale} entry
-	 * points instead — this method is part of the cache plumbing.
-	 *
-	 * The caller passes a pre-computed {@code priorityIndex} (built once via
-	 * {@link #getPriceListPriorityIndex}) so that long-lived cache instances do not rebuild the same
-	 * `priceList -> priority` map on every call.
+	 * Internal entry point equal to {@link #computePriceForSaleResult(Collection, PriceInnerRecordHandling, Currency,
+	 * OffsetDateTime, Map, Predicate, QueryPriceMode)} that compares the amounts with tax
+	 * ({@link QueryPriceMode#WITH_TAX}).
 	 *
 	 * @apiNote internal — not part of the public API; subject to change without notice.
+	 * @deprecated the cache computes in the price mode of the query it serves, so evitaDB itself never calls this
+	 * overload; it is retained only because it shipped in `2026.2`. Use
+	 * {@link #computePriceForSaleResult(Collection, PriceInnerRecordHandling, Currency, OffsetDateTime, Map, Predicate,
+	 * QueryPriceMode)} and pass the price mode explicitly.
 	 */
+	@Deprecated(since = "2026.3")
 	@Nullable
 	static PriceForSaleComputationResult computePriceForSaleResult(
 		@Nonnull Collection<PriceContract> entityPrices,
@@ -206,8 +211,15 @@ public interface PricesContract extends Versioned, Serializable {
 	}
 
 	/**
-	 * Internal entry point equal to {@link #computePriceForSaleResult(Collection, PriceInnerRecordHandling, Currency,
-	 * OffsetDateTime, Map, Predicate)} that compares the amounts in the passed price mode.
+	 * Internal entry point that exposes the rich {@link PriceForSaleComputationResult} produced by
+	 * {@link #computeInternal} so that {@link PriceForSaleContextWithCachedResult} can cache it once and
+	 * derive both the selling-price view and the range view from a single computation pass, comparing the amounts in
+	 * the passed price mode. External callers must use the public {@code computePriceForSale} /
+	 * {@code computePriceRangeForSale} entry points instead — this method is part of the cache plumbing.
+	 *
+	 * The caller passes a pre-computed {@code priorityIndex} (built once via
+	 * {@link #getPriceListPriorityIndex}) so that long-lived cache instances do not rebuild the same
+	 * `priceList -> priority` map on every call.
 	 *
 	 * @param entityPrices        all prices of the entity
 	 * @param innerRecordHandling the inner record handling of the entity
@@ -240,6 +252,9 @@ public interface PricesContract extends Versioned, Serializable {
 	 * considered. Range bounds are real, indexed prices that satisfy the same filter rules as the selling price.
 	 *
 	 * Strategy semantics — see {@link PriceRangeForSale}.
+	 *
+	 * The amounts are compared with tax ({@link QueryPriceMode#WITH_TAX}); the overload taking a
+	 * {@link QueryPriceMode} follows the price mode of a query.
 	 */
 	@Nonnull
 	static Optional<PriceRangeForSale> computePriceRangeForSale(
@@ -293,6 +308,9 @@ public interface PricesContract extends Versioned, Serializable {
 	 * prices.
 	 *
 	 * Strategy semantics — see {@link PriceRangeForSale}.
+	 *
+	 * The amounts are compared with tax ({@link QueryPriceMode#WITH_TAX}); the overload taking a
+	 * {@link QueryPriceMode} follows the price mode of a query.
 	 */
 	@Nonnull
 	static Optional<PriceRangeForSaleWithAccompanyingPrices> computePriceRangeForSale(
@@ -920,10 +938,16 @@ public interface PricesContract extends Versioned, Serializable {
 	/**
 	 * Decides whether `candidate` replaces `current` as the price that stands for its group: the prices of one inner
 	 * record in one price list and currency, or - for an entity without inner record handling - all prices of one
-	 * price list and currency. A group holds several candidates only when no moment is given, because the validity
-	 * of the prices is ignored then, and the documented rule picks the price cheapest without tax, a tie going to the
-	 * lower price id. The price index pre-selects a price per group by the very same rule, whatever the price mode of
-	 * the query, so the entity and the engine agree on it.
+	 * price list and currency. A group holds several candidates when no moment is given, because the validity of the
+	 * prices is ignored then, and the documented rule picks the price cheapest without tax, a tie going to the lower
+	 * price id. The price index pre-selects a price per group by the very same rule, whatever the price mode of the
+	 * query, so the entity and the engine agree on it.
+	 *
+	 * With a moment given, a group holds several candidates only when the entity holds a stored ambiguous pair - two
+	 * prices of the group valid at a common moment, which the ambiguity check
+	 * ({@link io.evitadb.api.requestResponse.data.structure.PriceAmbiguityVerifier}) never lets a change create but
+	 * leaves in place as long as neither price is touched. The entity picks among such a pair by this rule too, but the
+	 * engine may represent the group by another price of the pair.
 	 *
 	 * @param candidate the price examined now
 	 * @param current   the price selected so far, or `null` before the first one
@@ -1642,8 +1666,12 @@ public interface PricesContract extends Versioned, Serializable {
 	 * the amounts of this mode decide which inner record sells an entity with
 	 * {@link PriceInnerRecordHandling#LOWEST_PRICE} and which prices bound its range. It is the
 	 * {@link io.evitadb.api.query.require.PriceType price type} of the query the entity was fetched by, and it applies
-	 * also to the methods that take the currency, the moment and the price lists as arguments. An entity that was not
-	 * fetched by a query, or whose query carried no price constraint, uses {@link QueryPriceMode#WITH_TAX}.
+	 * also to the methods that take the currency, the moment and the price lists as arguments.
+	 *
+	 * This default takes the mode of the price for sale context and uses {@link QueryPriceMode#WITH_TAX} when there is
+	 * none, as for an entity that was not fetched by a query. An entity fetched by a query (`EntityDecorator`) and the
+	 * builder of its prices (`ExistingPricesBuilder`) report the price type of that query even when the query carried
+	 * no price constraint and so no price for sale context exists.
 	 *
 	 * @return the price mode of the price for sale computation
 	 */
@@ -1808,9 +1836,12 @@ public interface PricesContract extends Versioned, Serializable {
 	List<PriceContract> getAllPricesForSale() throws ContextMissingException;
 
 	/**
-	 * Returns a price for which the entity should be sold. Only indexed prices in requested currency, valid
-	 * at the passed moment are taken into an account. Prices are also limited by the passed set of price lists and
-	 * the first price found in the order of the requested price list ids will be returned.
+	 * Tells whether the entity sells for an amount within the interval. For an entity without inner record handling
+	 * or with {@link PriceInnerRecordHandling#SUM} the amount is that of its price for sale; with
+	 * {@link PriceInnerRecordHandling#LOWEST_PRICE} it is the amount of the price that stands for any of its inner
+	 * records - the very price the price for sale computation selects for that inner record. Only indexed prices in
+	 * the currency, valid at the moment and in the passed price lists take part, and the amount of the passed price
+	 * mode is compared.
 	 *
 	 * @param from              - lower bound of the price (inclusive)
 	 * @param to                - upper bound of the price (inclusive)
@@ -1818,6 +1849,7 @@ public interface PricesContract extends Versioned, Serializable {
 	 * @param queryPriceMode    - controls whether price with or without tax is used
 	 * @param atTheMoment       - identification of the moment when the entity is about to be sold
 	 * @param priceListPriority - identification of the price list (either external or internal)
+	 * @return `true` when such an amount lies within the interval
 	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
 	 */
 	default boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode, @Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority)

@@ -47,6 +47,7 @@ import java.util.Optional;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -82,6 +83,16 @@ class PriceForSaleContextWithCachedResultTest extends AbstractBuilderTest {
 			new BigDecimal("200"), new BigDecimal("21"), new BigDecimal("242"), null, true),
 		new Price(new PriceKey(3, BASIC, CZK), 3,
 			new BigDecimal("300"), new BigDecimal("21"), new BigDecimal("363"), null, true)
+	);
+	/**
+	 * Inner record 1 sells for 110 at 10 % - 121 with tax - (price 1) and inner record 2 for 100 at 25 % - 125 with
+	 * tax - (price 2), so the cheaper inner record differs by the price mode.
+	 */
+	private static final List<PriceContract> PRICES_ORDERED_BY_MODE = Arrays.asList(
+		new Price(new PriceKey(1, BASIC, CZK), 1,
+			new BigDecimal("110"), new BigDecimal("10"), new BigDecimal("121"), null, true),
+		new Price(new PriceKey(2, BASIC, CZK), 2,
+			new BigDecimal("100"), new BigDecimal("25"), new BigDecimal("125"), null, true)
 	);
 
 	@Test
@@ -196,5 +207,61 @@ class PriceForSaleContextWithCachedResultTest extends AbstractBuilderTest {
 		assertSame(seed, sellingView.get(), "compute() must return the seed instance untouched");
 		assertTrue(sellingPrice.isPresent());
 		assertSame(seedPrice, sellingPrice.get(), "computePriceForSale() must return the seeded price untouched");
+	}
+
+	@Test
+	@DisplayName("The price mode of the context decides the inner record that sells and the bounds of the range")
+	void shouldSelectPriceForSaleAndRangeInPriceModeOfContext() {
+		final PriceForSaleContextWithCachedResult withoutTax = new PriceForSaleContextWithCachedResult(
+			PRICE_LIST_PRIORITY, CZK, null, null, QueryPriceMode.WITHOUT_TAX
+		);
+		final PriceForSaleContextWithCachedResult withTax = new PriceForSaleContextWithCachedResult(
+			PRICE_LIST_PRIORITY, CZK, null, null, QueryPriceMode.WITH_TAX
+		);
+
+		final PriceRangeForSale rangeWithoutTax = withoutTax
+			.computeRange(PRICES_ORDERED_BY_MODE, PriceInnerRecordHandling.LOWEST_PRICE)
+			.orElseThrow();
+		final PriceRangeForSale rangeWithTax = withTax
+			.computeRange(PRICES_ORDERED_BY_MODE, PriceInnerRecordHandling.LOWEST_PRICE)
+			.orElseThrow();
+		assertAll(
+			() -> assertEquals(
+				2,
+				withoutTax.computePriceForSale(PRICES_ORDERED_BY_MODE, PriceInnerRecordHandling.LOWEST_PRICE)
+					.orElseThrow().priceId()
+			),
+			() -> assertEquals(2, rangeWithoutTax.lowestPrice().priceId()),
+			() -> assertEquals(1, rangeWithoutTax.highestPrice().priceId()),
+			() -> assertEquals(
+				1,
+				withTax.computePriceForSale(PRICES_ORDERED_BY_MODE, PriceInnerRecordHandling.LOWEST_PRICE)
+					.orElseThrow().priceId()
+			),
+			() -> assertEquals(1, rangeWithTax.lowestPrice().priceId()),
+			() -> assertEquals(2, rangeWithTax.highestPrice().priceId())
+		);
+	}
+
+	@Test
+	@DisplayName("The price mode of a pre-seeded context decides the bounds of the range, which is never pre-seeded")
+	void shouldBoundRangeInPriceModeOfPreSeededContext() {
+		final PriceContract secondInnerRecordPrice = PRICES_ORDERED_BY_MODE.get(1);
+		final PriceForSaleContextWithCachedResult cache = new PriceForSaleContextWithCachedResult(
+			PRICE_LIST_PRIORITY, CZK, null, AccompanyingPrice.EMPTY_ARRAY, QueryPriceMode.WITHOUT_TAX,
+			new PriceForSaleWithAccompanyingPrices(secondInnerRecordPrice, Collections.emptyMap())
+		);
+
+		final PriceRangeForSale range = cache
+			.computeRange(PRICES_ORDERED_BY_MODE, PriceInnerRecordHandling.LOWEST_PRICE)
+			.orElseThrow();
+		assertAll(
+			() -> assertEquals(2, range.lowestPrice().priceId()),
+			() -> assertEquals(1, range.highestPrice().priceId()),
+			() -> assertSame(
+				secondInnerRecordPrice,
+				cache.computePriceForSale(PRICES_ORDERED_BY_MODE, PriceInnerRecordHandling.LOWEST_PRICE).orElseThrow()
+			)
+		);
 	}
 }
