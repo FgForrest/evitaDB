@@ -54,6 +54,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
@@ -66,6 +67,7 @@ import static io.evitadb.core.cache.CachedResultEquivalence.equivalent;
 import static io.evitadb.core.cache.CachedResultTestSupport.*;
 import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.PRICE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -140,18 +142,121 @@ class CachedResultEquivalenceTest {
 			prices(new PriceRecordInnerRecordSpecific(1, 2, 10, 4, 120, 100))));
 	}
 
-	/** Preserves duplicate multiplicity while ignoring only record order within an entity. */
+	/** Deterministic selling-price order survives publication and remains part of the verified tuple. */
 	@Test
-	@DisplayName("Compares each entity's records as full-tuple multisets")
-	void shouldComparePriceMultisets() {
+	@Tag(PRICE)
+	@DisplayName("Compares selling-price records in their within-entity order")
+	void shouldCompareOrderedSellingPrices() {
 		final PriceRecord first = new PriceRecord(1, 1, 10, 120, 100);
 		final PriceRecord second = new PriceRecord(2, 2, 10, 240, 200);
 		final PriceRecord third = new PriceRecord(3, 3, 20, 360, 300);
-		assertTrue(equivalent(prices(first, second, third), prices(third, second, first)));
+		assertFalse(equivalent(prices(first, second, third), prices(third, second, first)));
+		assertTrue(equivalent(prices(first, second, third), prices(third, first, second)));
 		assertFalse(equivalent(prices(first, first, second), prices(first, second, second)));
 		assertFalse(equivalent(prices(first), prices(first, second)));
 		assertFalse(equivalent(prices(first, second, third), prices(first, third, third)));
 		assertTrue(equivalent(prices(), prices()));
+	}
+
+	/** Only the histogram side-output may ignore order; every field and duplicate multiplicity still matters. */
+	@Test
+	@Tag(PRICE)
+	@DisplayName("Compares histogram-only records as full-tuple multisets")
+	void shouldCompareHistogramPriceMultisets() {
+		final PriceRecord first = new PriceRecord(1, 1, 10, 120, 100);
+		final PriceRecord second = new PriceRecord(2, 2, 10, 240, 200);
+		final PriceRecord third = new PriceRecord(3, 3, 20, 360, 300);
+		assertTrue(equivalent(histogramPrices(first, second, third), histogramPrices(third, second, first)));
+		assertFalse(equivalent(histogramPrices(first, first, second), histogramPrices(first, second, second)));
+		assertFalse(equivalent(histogramPrices(first), histogramPrices(first, second)));
+		assertFalse(equivalent(histogramPrices(first, second, third), histogramPrices(first, third, third)));
+		assertFalse(equivalent(histogramPrices(first),
+			histogramPrices(new PriceRecord(1, 1, 10, 121, 100))));
+		assertTrue(equivalent(histogramPrices(), histogramPrices()));
+	}
+
+	/** Reordering the histogram-only side-output cannot change any histogram behavior's buckets. */
+	@ParameterizedTest
+	@EnumSource(HistogramBehavior.class)
+	@Tag(PRICE)
+	@DisplayName("Ignores inner-record order only in histogram inputs")
+	void shouldIgnoreHistogramOnlyInnerRecordOrder(@Nonnull HistogramBehavior behavior) {
+		final PriceListAndCurrencyPriceSuperIndex index = priceIndex();
+		final PriceEvaluationContext context = new PriceEvaluationContext(null, index.getPriceIndexKey());
+		final LowestPriceTerminationFormula first = new LowestPriceTerminationFormula(container(index), context,
+			QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, true);
+		final LowestPriceTerminationFormula second = new LowestPriceTerminationFormula(container(index), context,
+			QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, true);
+		final CachedPriceRecordsResult original = (CachedPriceRecordsResult) capture(first);
+		final CachedPriceRecordsResult permuted = (CachedPriceRecordsResult) capture(second);
+		final PriceRecordContract[] originalPrices = original.perInnerRecordPriceRecords().getPriceRecords();
+		final PriceRecordContract[] permutedPrices = permuted.perInnerRecordPriceRecords().getPriceRecords();
+		permutedPrices[0] = originalPrices[1];
+		permutedPrices[1] = originalPrices[0];
+		assertTrue(equivalent(original, permuted));
+		final PriceHistogramComputer originalHistogram = new PriceHistogramComputer(
+			2, behavior, 2, QueryPriceMode.WITH_TAX, first, first, null);
+		final PriceHistogramComputer permutedHistogram = new PriceHistogramComputer(
+			2, behavior, 2, QueryPriceMode.WITH_TAX, second, second, null);
+		assertEquals(originalHistogram.getKey(), permutedHistogram.getKey());
+		assertTrue(equivalent(new CachedHistogramResult(originalHistogram.compute(), 1),
+			new CachedHistogramResult(permutedHistogram.compute(), 1)));
+	}
+
+	/** Independent tied selections must retain the same physical selling record, not only its amount. */
+	@Test
+	@Tag(PRICE)
+	@DisplayName("Produces equivalent lowest-price tuples when inner-record prices tie")
+	void shouldTreatRecomputedLowestPriceEquivalentWhenInnerPricesTie() {
+		final PriceListAndCurrencyPriceSuperIndex index = tiedPriceIndex();
+		final PriceEvaluationContext context = new PriceEvaluationContext(null, index.getPriceIndexKey());
+		final Formula first = new LowestPriceTerminationFormula(container(index), context,
+			QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, true);
+		final Formula second = new LowestPriceTerminationFormula(container(index), context,
+			QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, true);
+		assertEquals(first.getKey(), second.getKey());
+		assertTrue(equivalent(capture(first), capture(second)));
+	}
+
+	/** A translation's order decides which price a containing termination keeps for the same inner record. */
+	@ParameterizedTest
+	@EnumSource(value = PriceInnerRecordHandling.class, names = {"LOWEST_PRICE", "SUM"})
+	@Tag(PRICE)
+	@DisplayName("Rejects a price permutation that changes a first-wins consumer")
+	void shouldRejectTranslatedPricePermutation(@Nonnull PriceInnerRecordHandling handling) {
+		final PriceListAndCurrencyPriceSuperIndex index = new PriceListAndCurrencyPriceSuperIndex(
+			new PriceIndexKey("basic", Currency.getInstance("CZK"), handling));
+		index.addPrice(new PriceRecordInnerRecordSpecific(1, 1, 10, 1, 100, 100), null);
+		index.addPrice(new PriceRecordInnerRecordSpecific(2, 2, 10, 1, 300, 300), null);
+		final Formula first = new PriceIdToEntityIdTranslateFormula(new PriceIdContainerFormula(index,
+			new ConstantFormula(new BaseBitmap(1, 2))));
+		final Formula second = new PriceIdToEntityIdTranslateFormula(new PriceIdContainerFormula(index,
+			new ConstantFormula(new BaseBitmap(1, 2))));
+		assertEquals(first.getKey(), second.getKey());
+		final CachedPriceRecordsResult original = (CachedPriceRecordsResult) capture(first);
+		final CachedPriceRecordsResult permuted = (CachedPriceRecordsResult) capture(second);
+		// Deliberately corrupt the detached translation output while preserving every physical tuple field.
+		final PriceRecordContract[] prices = permuted.priceRecords().getPriceRecords();
+		final PriceRecordContract swap = prices[0];
+		prices[0] = prices[1];
+		prices[1] = swap;
+		final PriceEvaluationContext context = new PriceEvaluationContext(null, index.getPriceIndexKey());
+		final Formula originalConsumer = handling == PriceInnerRecordHandling.SUM
+			? new SumPriceTerminationFormula(first, context, QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER)
+			: new LowestPriceTerminationFormula(first, context, QueryPriceMode.WITH_TAX,
+				PricePredicate.ALL_RECORD_FILTER, true);
+		final Formula permutedConsumer = handling == PriceInnerRecordHandling.SUM
+			? new SumPriceTerminationFormula(second, context, QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER)
+			: new LowestPriceTerminationFormula(second, context, QueryPriceMode.WITH_TAX,
+				PricePredicate.ALL_RECORD_FILTER, true);
+		assertAll(
+			() -> assertEquals(100, ((CachedPriceRecordsResult) capture(originalConsumer))
+				.priceRecords().getPriceRecords()[0].priceWithTax()),
+			() -> assertEquals(300, ((CachedPriceRecordsResult) capture(permutedConsumer))
+				.priceRecords().getPriceRecords()[0].priceWithTax()),
+			() -> assertFalse(equivalent(original, permuted)),
+			() -> assertFalse(equivalent(permuted, original))
+		);
 	}
 
 	/** Checks map key sets, values, totals, entity ids and price mode independently. */
@@ -308,6 +413,12 @@ class CachedResultEquivalenceTest {
 		);
 	}
 
+	/** Builds a tuple whose supplied records belong exclusively to the histogram side-output. */
+	@Nonnull
+	private static CachedPriceRecordsResult histogramPrices(@Nonnull PriceRecordContract... prices) {
+		return new CachedPriceRecordsResult(new BaseBitmap(10), records(), records(prices), 1);
+	}
+
 	/** Captures exactly the outputs assigned to the formula's payload shape. */
 	@Nonnull
 	private static CachedResult capture(@Nonnull Formula formula) {
@@ -321,6 +432,18 @@ class CachedResultEquivalenceTest {
 			return new CachedPriceRecordsResult(result, prices, inner, 1);
 		}
 		return new CachedBitmapResult(result, 1);
+	}
+
+	/** Builds many independent tied variants so a hash-order selection cannot accidentally agree everywhere. */
+	@Nonnull
+	static PriceListAndCurrencyPriceSuperIndex tiedPriceIndex() {
+		final PriceListAndCurrencyPriceSuperIndex index = new PriceListAndCurrencyPriceSuperIndex(
+			new PriceIndexKey("basic", Currency.getInstance("CZK"), PriceInnerRecordHandling.LOWEST_PRICE));
+		for (int entity = 1; entity <= 64; entity++) {
+			index.addPrice(new PriceRecordInnerRecordSpecific(entity * 2, entity * 2, entity, 1, 120, 100), null);
+			index.addPrice(new PriceRecordInnerRecordSpecific(entity * 2 + 1, entity * 2 + 1, entity, 2, 120, 100), null);
+		}
+		return index;
 	}
 
 	/** Builds a real price index with two entities and two inner records on the first entity. */

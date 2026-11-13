@@ -27,6 +27,7 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
@@ -38,8 +39,13 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.*;
 import io.evitadb.core.query.algebra.base.*;
 import io.evitadb.core.query.algebra.identity.*;
+import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
+import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexContainerFormula;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
+import io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.*;
+import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -143,6 +149,66 @@ class FormulaCacheSupervisorTest implements EvitaTestSupport {
 	private void prepare(@Nonnull Formula formula, @Nonnull QueryPlanningContext context) {
 		context.analyse(formula);
 		formula.initialize(context.createExecutionContext());
+	}
+
+	/** Sampled verification must compare the same physical winner when two variants share an amount. */
+	@Test
+	@Tag(PRICE)
+	@DisplayName("Keeps the cache active when a sampled lowest price ties across inner records")
+	void shouldKeepCacheActiveWhenRecomputedLowestPriceTiesAcrossInnerRecords() {
+		this.cache.close();
+		this.cache = new FormulaCacheSupervisor(options(1, 0), this.scheduler, this.clock::get);
+		final PriceListAndCurrencyPriceSuperIndex index = CachedResultEquivalenceTest.tiedPriceIndex();
+		final PriceEvaluationContext priceContext = new PriceEvaluationContext(null, index.getPriceIndexKey());
+		final QueryPlanningContext context = context(null);
+		final Formula first = new LowestPriceTerminationFormula(
+			new PriceIndexContainerFormula(index, index, index.getIndexedPriceEntityIdsFormula()),
+			priceContext, QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, true);
+		prepare(first, context);
+		assertEquals(64, first.compute().size());
+		final Formula second = new LowestPriceTerminationFormula(
+			new PriceIndexContainerFormula(index, index, index.getIndexedPriceEntityIdsFormula()),
+			priceContext, QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, true);
+		prepare(second, context);
+		final long hitsBefore = this.cache.getStatistics().hits();
+		final long verifiedBefore = this.cache.getStatistics().verifiedHits();
+		assertEquals(64, assertDoesNotThrow(second::compute).size());
+		assertTrue(this.cache.getStatistics().hits() > hitsBefore);
+		assertTrue(this.cache.getStatistics().verifiedHits() > verifiedBefore);
+		assertTrue(this.cache.isActive());
+		assertEquals(0, this.cache.getStatistics().mismatches());
+	}
+
+	/** A detector reaching an already closed cache still describes its own mismatch. */
+	@Test
+	@DisplayName("Describes a mismatch detected after the cache was disabled")
+	void shouldDescribeMismatchWhenDetectedAfterCacheWasDisabled() {
+		this.cache.close();
+		final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class, () ->
+			this.cache.verify(context(null).createExecutionContext(),
+				new OrFormula(new BaseBitmap(1), new BaseBitmap(2)).getKey(), "C", "d",
+				new CachedBitmapResult(new BaseBitmap(1), 1), new CachedBitmapResult(new BaseBitmap(2), 1), 0L));
+		assertTrue(error.getPrivateMessage().contains("cached-only:1"), error.getPrivateMessage());
+		assertNull(this.cache.getStatistics().witness());
+	}
+
+	/** The stored first witness and the detecting caller's description have separate lifetimes. */
+	@Test
+	@DisplayName("Keeps the first witness while each mismatch describes its own records")
+	void shouldKeepFirstWitnessWhenAnotherMismatchIsDetected() {
+		final QueryExecutionContext execution = context(null).createExecutionContext();
+		final FormulaKey key = new OrFormula(new BaseBitmap(1), new BaseBitmap(2)).getKey();
+		final GenericEvitaInternalError first = assertThrows(GenericEvitaInternalError.class, () ->
+			this.cache.verify(execution, key, "C", "first", new CachedBitmapResult(new BaseBitmap(1), 1),
+				new CachedBitmapResult(new BaseBitmap(2), 1), 0L));
+		final String witness = this.cache.getStatistics().witness();
+		final GenericEvitaInternalError second = assertThrows(GenericEvitaInternalError.class, () ->
+			this.cache.verify(execution, key, "C", "second", new CachedBitmapResult(new BaseBitmap(3), 1),
+				new CachedBitmapResult(new BaseBitmap(4), 1), 0L));
+		assertEquals(first.getPrivateMessage(), witness);
+		assertEquals(witness, this.cache.getStatistics().witness());
+		assertTrue(second.getPrivateMessage().contains("cached-only:3"), second.getPrivateMessage());
+		assertTrue(second.getPrivateMessage().contains("second"));
 	}
 
 	/** Distinguishes a hit from repeated computation and from recursive cost accounting. */

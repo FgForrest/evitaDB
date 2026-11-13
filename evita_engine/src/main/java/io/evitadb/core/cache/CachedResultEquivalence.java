@@ -35,8 +35,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Compares cached tuples by their semantic contents, independently of bitmap representation and record identity.
- * Price order within one entity is ignored while duplicate tuple multiplicity is preserved.
+ * Compares cached tuples by their semantic contents, independently of bitmap representation and object identity.
+ * Selling-price arrays retain their encounter order within each entity because termination consumers keep the
+ * first price for an inner record. Only the histogram-only side-output ignores within-entity order.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -52,8 +53,8 @@ public final class CachedResultEquivalence {
 		} else if (left instanceof CachedPriceRecordsResult first) {
 			return right instanceof CachedPriceRecordsResult second
 				&& equivalentBitmaps(first.result(), second.result())
-				&& equivalentPrices(first.priceRecords(), second.priceRecords())
-				&& equivalentPrices(first.perInnerRecordPriceRecords(), second.perInnerRecordPriceRecords());
+				&& equivalentOrderedPrices(first.priceRecords(), second.priceRecords())
+				&& equivalentHistogramPrices(first.perInnerRecordPriceRecords(), second.perInnerRecordPriceRecords());
 		} else if (left instanceof CachedHistogramResult first) {
 			return right instanceof CachedHistogramResult second
 				&& (first.histogram() == second.histogram()
@@ -85,8 +86,30 @@ public final class CachedResultEquivalence {
 		return true;
 	}
 
-	/** Compares entity-ordered arrays as a multiset within each entity, including optional array presence. */
-	private static boolean equivalentPrices(
+	/** Compares deterministic selling-price sequences, preserving the order observed by first-wins consumers. */
+	private static boolean equivalentOrderedPrices(
+		@Nonnull ResolvedFilteredPriceRecords left, @Nonnull ResolvedFilteredPriceRecords right
+	) {
+		final PriceRecordContract[] first = left.getPriceRecords();
+		final PriceRecordContract[] second = right.getPriceRecords();
+		if (first.length != second.length) {
+			return false;
+		}
+		for (int i = 0; i < first.length; i++) {
+			if (!equivalentRecord(first[i], second[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Compares the optional histogram-only side-output as a multiset within each entity, preserving duplicates.
+	 * LowestPriceTerminationFormula drains its inner-record hash map in unspecified order. The only consumers are
+	 * the histogram merge (including SelectionFormula's forwarding path) and PriceHistogramComputer, which copies
+	 * all contributions and sorts them by amount before bucketing; none selects a first record from this array.
+	 */
+	private static boolean equivalentHistogramPrices(
 		@Nullable ResolvedFilteredPriceRecords left, @Nullable ResolvedFilteredPriceRecords right
 	) {
 		if (left == null || right == null) {

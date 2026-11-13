@@ -243,21 +243,23 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		this.verificationNanos.add(nanos);
 		if (!CachedResultEquivalence.equivalent(cached, recomputed)) {
 			this.mismatches.increment();
+			final String bounded = description.substring(0, Math.min(description.length(), 2_000));
+			final String detected = Instant.now() + ": " +
+				context.getQueryContext().getCatalogSchema().getName() + "/" +
+				context.getQueryContext().getEvitaRequest().getEntityType() + ", class=" + formulaClass +
+				", classId=" + key.getClassId() +
+				", hash64=" + key.getHash64() + ", " + bounded + ", cached=" + summary(cached) +
+				", recomputed=" + summary(recomputed) + ", differences=" + differences(cached, recomputed);
 			if (this.active.compareAndSet(true, false)) {
-				final String bounded = description.substring(0, Math.min(description.length(), 2_000));
-				this.witness = Instant.now() + ": " + context.getQueryContext().getCatalogSchema().getName() + "/" +
-					context.getQueryContext().getEvitaRequest().getEntityType() + ", class=" + formulaClass +
-					", classId=" + key.getClassId() +
-					", hash64=" + key.getHash64() + ", " + bounded + ", cached=" + summary(cached) +
-					", recomputed=" + summary(recomputed) + ", differences=" + differences(cached, recomputed);
+				this.witness = detected;
 				this.cache.invalidateAll();
 				this.cache.cleanUp();
 				log.error("Formula result cache mismatch: {}", this.witness);
 			}
 			throw new GenericEvitaInternalError(
-				String.valueOf(this.witness),
-				"The formula cache returned a result differing from its recomputation and is disabled for this engine. " +
-					"The request may be repeated."
+				detected,
+				"The formula cache returned a result differing from its recomputation " +
+					"and is disabled for this engine. The request may be repeated."
 			);
 		}
 	}
