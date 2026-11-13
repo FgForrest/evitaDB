@@ -23,7 +23,6 @@
 
 package io.evitadb.index.mutation.local;
 
-import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
