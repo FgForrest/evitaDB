@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
@@ -59,6 +60,7 @@ import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -646,6 +648,14 @@ class InvertedIndexPrimitiveBucketTest {
 			return index.getSortedRecords(from, to).getFormula().getTransactionalIdHash();
 		}
 
+		/** Returns the key of a lazy histogram slice, keeping this coverage on the deferred supplier path. */
+		@Nonnull
+		private static FormulaKey deferredKey(@Nonnull InvertedIndex index, int from, int to) {
+			final Formula formula = index.getRecords(from, to).getFormula();
+			assertInstanceOf(DeferredFormula.class, formula);
+			return formula.getKey();
+		}
+
 		@Test
 		@DisplayName("A wide slice's token survives a commit that mutates a leaf it does not cross")
 		void wideSliceTokenSurvivesUncrossedLeafMutation() {
@@ -657,6 +667,7 @@ class InvertedIndexPrimitiveBucketTest {
 				"Slice must exceed the high-cardinality threshold to exercise the leaf-id fallback!"
 			);
 			final long before = tokenHash(index, 1, 150);
+			final FormulaKey keyBefore = deferredKey(index, 1, 150);
 
 			assertStateAfterCommit(
 				index,
@@ -669,6 +680,7 @@ class InvertedIndexPrimitiveBucketTest {
 					// but the slice only crossed untouched leaves, so its leaf-version token - and its hash - is
 					// unchanged: the cached formula over this range stays valid across the unrelated write
 					assertEquals(before, tokenHash(committed, 1, 150));
+					assertEquals(keyBefore, deferredKey(committed, 1, 150));
 				}
 			);
 		}
@@ -678,14 +690,17 @@ class InvertedIndexPrimitiveBucketTest {
 		void wideSliceTokenChangesOnCrossedLeafMutation() {
 			final InvertedIndex index = denseIndex(800);
 			final long before = tokenHash(index, 1, 150);
+			final FormulaKey keyBefore = deferredKey(index, 1, 150);
 
 			assertStateAfterCommit(
 				index,
 				// mutate value 50 - inside the [1,150] slice, so its leaf is one the slice crosses
 				tested -> tested.addRecord(50, 999_999),
-				(original, committed) ->
-					// the crossed leaf was re-minted on commit, so the slice's token must change (stale read avoided)
-					assertNotEquals(before, tokenHash(committed, 1, 150))
+				(original, committed) -> {
+					// The crossed leaf was re-minted, so both its legacy token and the deferred key must change.
+					assertNotEquals(before, tokenHash(committed, 1, 150));
+					assertNotEquals(keyBefore, deferredKey(committed, 1, 150));
+				}
 			);
 		}
 
@@ -698,6 +713,8 @@ class InvertedIndexPrimitiveBucketTest {
 			// the whole-index slice spans far more than the 100-leaf cap, so the per-leaf accumulator overflows and the
 			// leaf-version token collapses to the single whole-index id: gatherTransactionalIds() is exactly {getId()}
 			assertTrue(slice.getBuckets().length > TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY);
+			final FormulaKey keyBefore = deferredKey(index, 1, OVERFLOW_BUCKET_COUNT);
+			assertEquals(keyBefore, deferredKey(index, 1, OVERFLOW_BUCKET_COUNT));
 			final long[] coarseToken = slice.getFormula().gatherTransactionalIds();
 			assertArrayEquals(new long[]{index.getId()}, coarseToken);
 
@@ -712,6 +729,9 @@ class InvertedIndexPrimitiveBucketTest {
 						committed.getSortedRecords(1, OVERFLOW_BUCKET_COUNT).getFormula().gatherTransactionalIds();
 					assertArrayEquals(new long[]{committed.getId()}, recomputed);
 					assertFalse(Arrays.equals(coarseToken, recomputed));
+					assertNotEquals(
+						keyBefore, deferredKey(committed, 1, OVERFLOW_BUCKET_COUNT)
+					);
 				}
 			);
 		}
@@ -728,6 +748,12 @@ class InvertedIndexPrimitiveBucketTest {
 			// token set rather than on the per-bucket bitmap ids
 			assertTrue(slice.getBuckets().length > TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY);
 
+			assertEquals(
+				deferredKey(index, 1, MULTI_LEAF_BUCKET_COUNT), deferredKey(index, 1, MULTI_LEAF_BUCKET_COUNT)
+			);
+			assertNotEquals(
+				deferredKey(index, 1, MULTI_LEAF_BUCKET_COUNT), deferredKey(index, 2, MULTI_LEAF_BUCKET_COUNT)
+			);
 			final long[] token = slice.getFormula().gatherTransactionalIds();
 			// 800 buckets over a 256-value leaf capacity occupy >= 4 leaves (max fill) and <= 7 leaves (127 min-fill
 			// floor), so the token is a small multi-leaf set - never a single coarse whole-index id

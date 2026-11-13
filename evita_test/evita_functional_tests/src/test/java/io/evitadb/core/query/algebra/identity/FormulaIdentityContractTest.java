@@ -23,9 +23,7 @@
 
 package io.evitadb.core.query.algebra.identity;
 
-import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
-import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.identity.IdentityContractVerifier;
@@ -34,8 +32,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
@@ -45,8 +41,7 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Inventories concrete holders and verifies the declared identity of each, accepting holders without one only as
- * {@link IdentityContractVerifier#ACCEPT_UNDECLARED_IDENTITIES} permits.
+ * Inventories concrete holders and requires a declared identity and a verified fixture for every non-exempt holder.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -100,8 +95,7 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 		final int testsDeclared = verifyInventory(tests);
 		System.out.println("Identity discovery: engine=" + engine.size() + "/floor=" + ENGINE_FLOOR +
 			", functional=" + tests.size() + "/floor=" + TEST_FLOOR + ", declared=" +
-			(engineDeclared + testsDeclared) + ", undeclared=" +
-			(engine.size() + tests.size() - engineDeclared - testsDeclared));
+			(engineDeclared + testsDeclared) + ", exemptions=" + EXEMPTIONS.size());
 	}
 
 	/**
@@ -111,36 +105,16 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 	private static int verifyInventory(@Nonnull Set<Class<?>> inventory) throws ReflectiveOperationException {
 		int declared = IdentityContractVerifier.verifyInventory(inventory, EXEMPTIONS.keySet());
 		for (final Class<?> type : inventory) {
-			if (type.getName().equals(MUTABLE_FORMULA) && verifyMutable(type)) {
+			if (type.getName().equals(MUTABLE_FORMULA)) {
+				IdentityContractVerifier.verifyMutableFormula(
+					type,
+					new FacetGroupAndFormula("reference", 1, new BaseBitmap(1), new BaseBitmap(10)),
+					new FacetGroupAndFormula("reference", 1, new BaseBitmap(2), new BaseBitmap(20))
+				);
 				declared++;
 			}
 		}
 		return declared;
 	}
 
-	/**
-	 * Applies the shared rule while the wrapper declares no key of its own; once it declares one, checks that the key
-	 * follows the current delegate before and after a delegate swap.
-	 */
-	private static boolean verifyMutable(@Nonnull Class<?> type) throws ReflectiveOperationException {
-		try {
-			type.getDeclaredMethod("getKey");
-		} catch (NoSuchMethodException ignored) {
-			return IdentityContractVerifier.verifyDiscovered(type);
-		}
-		final FacetGroupFormula first = new FacetGroupAndFormula("reference", 1,
-			new BaseBitmap(1), new BaseBitmap(10));
-		final FacetGroupFormula second = new FacetGroupAndFormula("reference", 1,
-			new BaseBitmap(2), new BaseBitmap(20));
-		final Constructor<?> constructor = type.getDeclaredConstructor(FacetGroupFormula.class);
-		constructor.setAccessible(true);
-		final Formula mutable = (Formula) constructor.newInstance(first);
-		assertSame(first.getKey(), mutable.getKey(), "Mutable wrapper must forward the delegate key");
-		final Method swap = type.getDeclaredMethod("setDelegate", FacetGroupFormula.class);
-		swap.setAccessible(true);
-		swap.invoke(mutable, second);
-		assertSame(second.getKey(), mutable.getKey(), "Mutable wrapper must follow a delegate swap");
-		assertNotEquals(first.getKey(), mutable.getKey(), "Delegate swap must move the key");
-		return true;
-	}
 }

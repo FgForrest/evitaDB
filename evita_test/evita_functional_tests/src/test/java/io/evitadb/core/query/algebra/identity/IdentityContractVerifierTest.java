@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra.identity;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormulaIdentityFixture;
@@ -75,6 +76,24 @@ class IdentityContractVerifierTest implements EvitaTestSupport {
 	private static final Map<String, Supplier<CorrectIdentityHolder>> OVERSIZED = Map.of(
 		"oversized", () -> new CorrectIdentityHolder(1, TokenList.ofProducerIds(new long[TokenList.CAP + 1], false))
 	);
+
+	/** A missing declaration must fail even when no conventional fixture exists. */
+	@Test
+	@DisplayName("Rejects an inventoried type without a declared identity")
+	void shouldRejectDiscoveredTypeWithoutDeclaredIdentity() {
+		final AssertionError error = assertThrows(AssertionError.class, () ->
+			IdentityContractVerifier.verifyInventory(Set.of(Formula.class), Set.of()));
+		assertTrue(error.getMessage().contains("Undeclared identity"), error::getMessage);
+	}
+
+	/** Declaring an identity is insufficient without its construction fixture. */
+	@Test
+	@DisplayName("Rejects an inventoried holder without its fixture")
+	void shouldRejectDiscoveredHolderWithoutFixture() {
+		final AssertionError error = assertThrows(AssertionError.class, () ->
+			IdentityContractVerifier.verifyInventory(Set.of(CorrectIdentityHolder.class), Set.of()));
+		assertTrue(error.getMessage().contains("Declared identity has no fixture"), error::getMessage);
+	}
 
 	/** Proves the children check rejects a real formula whose memo was seeded without its declared children. */
 	@Test

@@ -107,7 +107,7 @@ public class FormulaPlanVisitor implements FormulaVisitor {
 			// pointer - descending into it once more would triple-count a shared subtree in the reader's head
 			emit(
 				new FormulaPlan(
-					alreadySeenId, alreadySeenId, formula.getHash(),
+					alreadySeenId, alreadySeenId, formula.getKey().getHash64(),
 					null, formula.getEstimatedCost(), null, null, List.of()
 				)
 			);
@@ -134,7 +134,7 @@ public class FormulaPlanVisitor implements FormulaVisitor {
 		final Bitmap memoizedResult = formula.getMemoizedResult();
 		emit(
 			new FormulaPlan(
-				id, null, formula.getHash(),
+				id, null, formula.getKey().getHash64(),
 				formula.toString(),
 				formula.getEstimatedCost(),
 				formula.getMemoizedCost(),

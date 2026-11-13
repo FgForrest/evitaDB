@@ -62,11 +62,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class IdentityContractVerifier {
-	/**
-	 * Accepts discovered holders that have no declared identity yet, provided they have no fixture either. Only this
-	 * class reads the value, so every inventory test applies the same rule however its own module was compiled.
-	 */
-	public static final boolean ACCEPT_UNDECLARED_IDENTITIES = true;
 	/** Entity filter alternatives, the only holder family keyed from `identity()` and `getClassId()` directly. */
 	private static final Class<?> ENTITY_FILTER_TYPE = loadType(
 		"io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter"
@@ -166,14 +161,13 @@ public final class IdentityContractVerifier {
 	}
 
 	/**
-	 * Verifies a discovered holder that declares an identity against its conventional fixture. A holder that has no
-	 * declared identity yet must have no fixture either and passes only while {@link #ACCEPT_UNDECLARED_IDENTITIES}
-	 * permits it. Named exemptions are left to the calling inventory test.
+	 * Requires a discovered holder to declare an identity and verifies its conventional fixture.
+	 * Named exemptions are left to the calling inventory test.
 	 *
 	 * @param holderType discovered concrete holder
-	 * @return true when the holder declares an identity and its fixture passed verification
 	 */
-	public static boolean verifyDiscovered(@Nonnull Class<?> holderType) {
+	public static void verifyDiscovered(@Nonnull Class<?> holderType) {
+		assertTrue(declares(holderType, "identity"), "Undeclared identity: " + holderType.getName());
 		final String fixtureName = holderType.getPackageName() + "." +
 			holderType.getName().substring(holderType.getPackageName().length() + 1).replace("$", "") +
 			"IdentityFixture";
@@ -181,23 +175,16 @@ public final class IdentityContractVerifier {
 		try {
 			fixtureType = Class.forName(fixtureName, false, holderType.getClassLoader());
 		} catch (ClassNotFoundException ignored) {
-			// A holder without a declared identity has no fixture; all other loading failures propagate.
-		}
-		if (!declares(holderType, "identity")) {
-			assertNull(fixtureType, "Holder without a declared identity has a fixture: " + holderType.getName());
-			assertTrue(ACCEPT_UNDECLARED_IDENTITIES, "Undeclared identity: " + holderType.getName());
-			return false;
+			// A missing fixture fails below; all other loading failures propagate.
 		}
 		assertNotNull(fixtureType, "Declared identity has no fixture: " + fixtureName);
 		final Object fixture = construct(fixtureType);
 		assertInstanceOf(IdentityFixture.class, fixture, fixtureName);
 		verifyUnchecked(holderType, (IdentityFixture<?>) fixture);
-		return true;
 	}
 
 	/**
-	 * Verifies every discovered holder except the named exemptions by {@link #verifyDiscovered(Class)}, under the
-	 * shared {@link #ACCEPT_UNDECLARED_IDENTITIES} rule.
+	 * Verifies every discovered holder except the named exemptions by {@link #verifyDiscovered(Class)}.
 	 *
 	 * @param inventory discovered concrete holders
 	 * @param exemptions binary names of holders the calling test verifies by a rule of its own
@@ -206,11 +193,34 @@ public final class IdentityContractVerifier {
 	public static int verifyInventory(@Nonnull Set<Class<?>> inventory, @Nonnull Set<String> exemptions) {
 		int declared = 0;
 		for (final Class<?> type : inventory) {
-			if (!exemptions.contains(type.getName()) && verifyDiscovered(type)) {
+			if (!exemptions.contains(type.getName())) {
+				verifyDiscovered(type);
 				declared++;
 			}
 		}
 		return declared;
+	}
+
+	/**
+	 * Verifies that the mutable wrapper forwards its current delegate's key and follows a delegate swap.
+	 *
+	 * @param type the discovered mutable wrapper class
+	 * @param first the initial delegate
+	 * @param second a delegate with a different key
+	 */
+	public static void verifyMutableFormula(
+		@Nonnull Class<?> type, @Nonnull Formula first, @Nonnull Formula second
+	) throws ReflectiveOperationException {
+		final Class<?> delegateType = loadType("io.evitadb.core.query.algebra.facet.FacetGroupFormula");
+		final Constructor<?> constructor = type.getDeclaredConstructor(delegateType);
+		constructor.setAccessible(true);
+		final Formula mutable = (Formula) constructor.newInstance(first);
+		assertSame(first.getKey(), mutable.getKey(), "Mutable wrapper must forward the delegate key");
+		final Method swap = type.getDeclaredMethod("setDelegate", delegateType);
+		swap.setAccessible(true);
+		swap.invoke(mutable, second);
+		assertSame(second.getKey(), mutable.getKey(), "Mutable wrapper must follow a delegate swap");
+		assertNotEquals(first.getKey(), mutable.getKey(), "Delegate swap must move the key");
 	}
 
 	/** Bridges fixture loading to the type-safe verification entry point. */

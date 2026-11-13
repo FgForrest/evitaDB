@@ -216,10 +216,22 @@ public class FormulaCloner implements FormulaVisitor {
 			}
 
 			if (formulaToStore != null) {
-				this.formulasProcessed.put(formula, formulaToStore);
-				storeFormula(formulaToStore);
+				final Formula processedFormula = postProcess(formulaToStore);
+				this.formulasProcessed.put(formula, processedFormula);
+				storeFormula(processedFormula);
 			}
 		}
+	}
+
+	/**
+	 * Processes a retained formula after its children have been visited and any changed children installed.
+	 *
+	 * @param formula the original formula or its rebuilt replacement
+	 * @return the formula to store in the cloned tree
+	 */
+	@Nonnull
+	protected Formula postProcess(@Nonnull Formula formula) {
+		return formula;
 	}
 
 	/**

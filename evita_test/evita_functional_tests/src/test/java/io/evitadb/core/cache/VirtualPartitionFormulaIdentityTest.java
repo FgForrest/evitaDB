@@ -39,6 +39,7 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.reference.ReferencedOwnerExistenceFormula;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
@@ -237,6 +238,20 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 		assertEquals(ownersOf(IntStream.rangeClosed(4, 7)), registeredOwners(ENTITY_PRODUCT, Scope.LIVE, REFERENCE_CATEGORIES));
 	}
 
+	/** Replanning identical inputs yields equal keys for the complete tree, including its side computations. */
+	@Test
+	@DisplayName("repeated planning preserves the complete formula tree key")
+	void shouldKeepCompleteTreeKeyAcrossRepeatedPlanning() {
+		final Query query = relatedAccessoriesUpTo(RANK_BOUND, Scope.LIVE);
+		final Run first = run(this.catalog, query);
+		final Run second = run(this.catalog, query);
+
+		assertNotSame(first.raw(), second.raw());
+		assertEquals(first.raw().getKey(), second.raw().getKey());
+		assertEquals(expectedRelatedAccessories(RANK_BOUND), first.answer());
+		assertEquals(first.answer(), second.answer());
+	}
+
 	@Test
 	@DisplayName("(i) a write in the matched bucket of the type index that changes no answer preserves the ancestor identity")
 	void shouldKeepTheAncestorUnderAWriteInTheSameTypeIndexBucket() {
@@ -337,6 +352,7 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 		final Query query = relatedAccessoriesUpTo(RANK_BOUND, Scope.LIVE);
 		final AndFormula previous = computeAncestor(query, accessoryOwnersReadVirtually());
 		final long previousHash = previous.getHash();
+		final FormulaKey previousKey = previous.getKey();
 
 		// owner 9 matches only through its single-owner accessory row - which becomes a spare
 		write(session -> session.upsertEntity(
@@ -352,6 +368,7 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 			.filter(pk -> pk != 9).toArray();
 		final AndFormula ancestor = findAncestor(fresh.raw(), remainingVirtualOwners);
 		assertNotEquals(previousHash, ancestor.getHash(), "The changed constant must change the ancestor's key");
+		assertNotEquals(previousKey, ancestor.getKey(), "The changed constant must change the ancestor's key");
 	}
 
 	@Test
@@ -385,6 +402,8 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 		// Compare the row and index-object representations before and after the same writes.
 		final Run objectBefore = run(twin.objectCatalog(), query);
 		final Run virtualBefore = run(this.catalog, query);
+		final FormulaKey objectTreeKey = objectBefore.raw().getKey();
+		final FormulaKey virtualTreeKey = virtualBefore.raw().getKey();
 		assertEquals(expected, objectBefore.answer());
 		assertEquals(expected, virtualBefore.answer());
 		final Set<Long> virtualCarrier = perOwnerIds(run(this.catalog, query).raw());
@@ -401,8 +420,12 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 		writeCategory(
 			CATEGORY_COUNT, category -> category.setAttribute(ATTRIBUTE_CODE, "C" + CATEGORY_COUNT + "x")
 		);
-		assertEquals(expected, run(twin.objectCatalog(), query).answer());
-		assertEquals(expected, run(this.catalog, query).answer());
+		final Run objectAfterCategory = run(twin.objectCatalog(), query);
+		final Run virtualAfterCategory = run(this.catalog, query);
+		assertEquals(expected, objectAfterCategory.answer());
+		assertEquals(expected, virtualAfterCategory.answer());
+		assertEquals(objectTreeKey, objectAfterCategory.raw().getKey());
+		assertEquals(virtualTreeKey, virtualAfterCategory.raw().getKey());
 
 		// a counterpart write that changes no answer: product 30 takes category 7, which no product held, with
 		// priority 1 - a new single-owner partition the body does not match, in a category the code excludes
@@ -421,6 +444,7 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 		final Run virtualAfter = run(this.catalog, query);
 		assertEquals(expected, objectAfter.answer());
 		assertEquals(expected, virtualAfter.answer());
+		// the key of the whole tree is free to change here: the write changed the counterpart bucket the tree reads
 		assertEquals(
 			objectCarrier, perOwnerIds(objectAfter.raw()),
 			"The index objects keep their per-owner tokens - the baseline the rows are compared to"
@@ -440,6 +464,8 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 		final List<Integer> changed = List.of(1, 2, 5, 6);
 		assertEquals(changed, objectChanged.answer());
 		assertEquals(changed, virtualChanged.answer());
+		assertNotEquals(objectTreeKey, objectChanged.raw().getKey());
+		assertNotEquals(virtualTreeKey, virtualChanged.raw().getKey());
 		final Set<Long> changedCarrier = perOwnerIds(virtualChanged.raw());
 		assertTrue(changedCarrier.containsAll(contentTokens(6, 7)), "The unchanged constants keep their content");
 		assertFalse(changedCarrier.containsAll(contentTokens(5)), "The changed constant must lose its content token");
@@ -466,6 +492,7 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 		final Run next = run(this.catalog, query);
 		final AndFormula ancestor = findAncestor(next.raw(), virtualOwners);
 		assertEquals(previous.getHash(), ancestor.getHash(), "The write must not change the ancestor's key");
+		assertEquals(previous.getKey(), ancestor.getKey(), "The write must not change the ancestor's key");
 		assertEquals(idsOf(previous), idsOf(ancestor), "The write must preserve the ancestor's content tokens");
 		assertEquals(expected, next.answer());
 	}
@@ -486,6 +513,12 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 			findAncestor(secondRun.raw(), secondOwners).getHash(),
 			"Discriminated bodies must not share a key"
 		);
+		assertNotEquals(
+			findAncestor(firstRun.raw(), firstOwners).getKey(),
+			findAncestor(secondRun.raw(), secondOwners).getKey(),
+			"Discriminated bodies must not share a key"
+		);
+		assertNotEquals(firstRun.raw().getKey(), secondRun.raw().getKey(), "Discriminated trees must not share a key");
 		assertNotEquals(firstRun.answer(), secondRun.answer(), "The discriminator must matter");
 	}
 
