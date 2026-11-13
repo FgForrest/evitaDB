@@ -50,6 +50,7 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CatalogNotAliveException;
 import io.evitadb.api.exception.CollectionNotFoundException;
@@ -2339,6 +2340,19 @@ public final class Catalog
 	 */
 	public boolean isUsageStatisticsTracked() {
 		return this.evitaConfiguration.server().usageStatisticsTracking();
+	}
+
+	/**
+	 * What a write in this catalog does when it must withdraw a reference-histogram value the index does not hold for
+	 * the entity - the server-wide `server.missingHistogramValueBehavior` switch, answered here so that every site
+	 * withdrawing a histogram value reads the one value rather than each reaching for the configuration. The switch
+	 * cannot change under a running catalog.
+	 *
+	 * @return the behavior on a missing histogram value
+	 */
+	@Nonnull
+	public MissingHistogramValueBehavior getMissingHistogramValueBehavior() {
+		return this.evitaConfiguration.server().missingHistogramValueBehavior();
 	}
 
 	/**

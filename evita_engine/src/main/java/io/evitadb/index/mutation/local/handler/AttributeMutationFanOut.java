@@ -24,6 +24,7 @@
 package io.evitadb.index.mutation.local.handler;
 
 import io.evitadb.api.requestResponse.data.Droppable;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
@@ -42,6 +43,7 @@ import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 
 import javax.annotation.Nonnull;
+import java.util.Set;
 
 /**
  * Shared entity-side fan-out used by all three concrete attribute-mutation handlers
@@ -53,6 +55,9 @@ import javax.annotation.Nonnull;
  */
 final class AttributeMutationFanOut {
 
+	/**
+	 * Prevents instantiation of the shared attribute orchestration.
+	 */
 	private AttributeMutationFanOut() {
 		// no instances
 	}
@@ -62,7 +67,8 @@ final class AttributeMutationFanOut {
 	 * index via `IterationPath.BOTH`. The unique fan-out is required because entity-level
 	 * attribute bookkeeping is indexed once per (entity, reduced-index) pair — a per-reference
 	 * variant would double-decrement the `AttributeCardinalityIndex` whenever N sibling references
-	 * resolve to a single shared `ReducedGroupEntityIndex`.
+	 * resolve to a single shared `ReducedGroupEntityIndex`. References whose histogram condition reads the attribute
+	 * have their histogram values withdrawn before the attribute changes; the current deferred run adds them once.
 	 */
 	static void apply(
 		@Nonnull AttributeMutation mutation,
@@ -83,8 +89,7 @@ final class AttributeMutationFanOut {
 				true
 			);
 		final CatalogExpressionTriggerRegistry triggerRegistry = executor.getCatalogExpressionTriggerRegistry();
-		// capture pre-mutation value and defer histogram re-evaluation for entity attribute changes —
-		// capture must happen before mutation; re-evaluation is deferred so placement is irrelevant
+		// Capture cross-entity inputs and withdraw local histogram contributions before storage changes.
 		if (triggerRegistry != null) {
 			final String mutatedAttrName = mutation.getAttributeKey().attributeName();
 			// capture pre-mutation value only when a cross-entity trigger depends on this specific
@@ -92,14 +97,19 @@ final class AttributeMutationFanOut {
 			if (triggerRegistry.hasEntityAttributeTrigger(executor.getEntityType(), mutatedAttrName)) {
 				executor.captureOldEntityAttributeValue(mutation.getAttributeKey(), entityAttributeValueSupplier);
 			}
-			final int entityPK = executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
-			executor.deferExpressionReEvaluation(
-				() -> ReferenceIndexMutator.reEvaluateHistogramExpressionsInAllIndexes(
-					globalIndex, executor, entityPK,
-					executor.getStoragePartExistingDataFactory(),
-					trigger -> trigger.getLocalEntityAttributes().contains(mutatedAttrName)
-				)
+			final Set<String> referenceNames = triggerRegistry.getLocalHistogramReferencesForEntityAttribute(
+				executor.getEntityType(), executor.getScope(), mutatedAttrName
 			);
+			if (!referenceNames.isEmpty()) {
+				for (final ReferenceContract reference :
+					executor.getReferencesStoragePart().getReferences()) {
+					if (reference.exists() && referenceNames.contains(reference.getReferenceName())) {
+						executor.withdrawHistogramValuesAndScheduleFinalAdd(
+							reference.getReferenceKey(), executor.getScope()
+						);
+					}
+				}
+			}
 		}
 		//noinspection DataFlowIssue
 		applicator.accept(true, globalIndex, globalIndex, null);

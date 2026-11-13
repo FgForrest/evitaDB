@@ -2145,6 +2145,51 @@ class FilterIndexTest {
 			assertEquals(before, thresholdsOf(index), "the removal must retire exactly the thresholds it added");
 		}
 
+		/**
+		 * The removal compares the ranges read back from the index - rebuilt at the index scale - with the ranges the
+		 * caller passes, which keep their own scale (`1.5` against `1.50`). It finds them only because range equality
+		 * compares the encoded bounds, the identity the index relies on.
+		 */
+		@Test
+		@DisplayName("a decimal range delta given at another scale than the index is removed")
+		void shouldRemoveDecimalRangeDeltaGivenAtAnotherScaleThanTheIndex() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "validity", null), BigDecimalNumberRange.class, 2
+			);
+			final BigDecimalNumberRange resident =
+				BigDecimalNumberRange.between(new BigDecimal("8.00"), new BigDecimal("9.00"));
+			final BigDecimalNumberRange[] delta = {
+				BigDecimalNumberRange.between(new BigDecimal("1.5"), new BigDecimal("2.5"))
+			};
+			index.addRecord(9, resident);
+			index.addRecordDelta(1, delta);
+
+			assertDoesNotThrow(() -> index.removeRecordDelta(1, delta));
+			assertTrue(index.getRecordsEqualTo(delta[0]).isEmpty());
+			assertArrayEquals(new int[]{9}, index.getRecordsEqualTo(resident).getArray());
+		}
+
+		/**
+		 * The removal compares the ranges read back from the index - whose open bound comes back materialized as the
+		 * sentinel it was stored as - with the open range the caller passes. It finds them only because range equality
+		 * compares the encoded bounds, the identity the index relies on.
+		 */
+		@Test
+		@DisplayName("an open long range delta is removed")
+		void shouldRemoveOpenLongRangeDelta() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "quantity", null), LongNumberRange.class
+			);
+			final LongNumberRange resident = LongNumberRange.between(100L, 200L);
+			final LongNumberRange[] delta = {LongNumberRange.from(5L)};
+			index.addRecord(9, resident);
+			index.addRecordDelta(1, delta);
+
+			assertDoesNotThrow(() -> index.removeRecordDelta(1, delta));
+			assertTrue(index.getRecordsEqualTo(delta[0]).isEmpty());
+			assertArrayEquals(new int[]{9}, index.getRecordsEqualTo(resident).getArray());
+		}
+
 		@Test
 		@DisplayName("a concrete range attribute really is served by the reconstructing column, not the boxed one")
 		void shouldServeAConcreteRangeAttributeFromTheReconstructingColumn() {

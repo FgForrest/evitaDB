@@ -219,20 +219,12 @@ class PriceRecordTest {
 		class RelatesTo {
 
 			@Test
-			@DisplayName("should throw UnsupportedOperationException")
-			void shouldThrowUnsupportedOperationException() {
+			@DisplayName("should relate to a record without inner record id only")
+			void shouldRelateToRecordWithoutInnerRecordIdOnly() {
 				final PriceRecord record = new PriceRecord(1, 10, 100, 5000, 4200);
-				final PriceRecord other = new PriceRecord(2, 20, 200, 6000, 5100);
 
-				final UnsupportedOperationException ex = assertThrows(
-					UnsupportedOperationException.class,
-					() -> record.relatesTo(other)
-				);
-
-				assertEquals(
-					"PriceRecord does not represent inner record id",
-					ex.getMessage()
-				);
+				assertTrue(record.relatesTo(new PriceRecord(2, 20, 100, 6000, 5100)));
+				assertFalse(record.relatesTo(new PriceRecordInnerRecordSpecific(3, 30, 100, 7, 6000, 5100)));
 			}
 		}
 

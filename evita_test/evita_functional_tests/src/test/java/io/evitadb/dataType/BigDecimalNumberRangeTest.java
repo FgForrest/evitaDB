@@ -27,8 +27,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.DATA_TYPE;
@@ -333,6 +338,49 @@ class BigDecimalNumberRangeTest {
 			assertTrue(range.isWithin(new BigDecimal("118.1")));
 			assertFalse(range.isWithin(new BigDecimal("88.09")));
 			assertFalse(range.isWithin(new BigDecimal("118.11")));
+		}
+	}
+
+	@Nested
+	@DisplayName("Equality")
+	class EqualityTest {
+
+		/**
+		 * Pairs of the ranges `[1,2]` and `[10,20]` whose bounds encode to the same comparable longs, by an explicit
+		 * precision or by the scale of the bounds themselves.
+		 *
+		 * @return description of how the bounds are encoded, the range `[1,2]` and the range `[10,20]`
+		 */
+		@Nonnull
+		static Stream<Arguments> rangesOfOtherBoundsEncodedToSameLongs() {
+			return Stream.of(
+				Arguments.of(
+					"explicit precision",
+					BigDecimalNumberRange.between(new BigDecimal("1"), new BigDecimal("2"), 1),
+					BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"), 0)
+				),
+				Arguments.of(
+					"own scale",
+					BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0")),
+					BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+				)
+			);
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("rangesOfOtherBoundsEncodedToSameLongs")
+		@DisplayName("Should equal a range of other bounds encoded to the same longs")
+		void shouldEqualRangeOfOtherBoundsEncodedToSameLongs(
+			@Nonnull String encoding,
+			@Nonnull BigDecimalNumberRange oneToTwo,
+			@Nonnull BigDecimalNumberRange tenToTwenty
+		) {
+			// the two ranges denote different sets of numbers
+			assertFalse(oneToTwo.isWithin(new BigDecimal("15")), encoding);
+			assertTrue(tenToTwenty.isWithin(new BigDecimal("15")), encoding);
+			// equality is the identity the indexes rely on and compares the encoded bounds only
+			assertEquals(oneToTwo, tenToTwenty, encoding);
+			assertEquals(0, oneToTwo.compareTo(tenToTwenty), encoding);
 		}
 	}
 

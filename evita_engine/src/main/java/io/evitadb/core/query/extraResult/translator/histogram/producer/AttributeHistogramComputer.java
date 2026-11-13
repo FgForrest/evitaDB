@@ -219,10 +219,14 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 * emitted by the range histogram sweep (see {@link FilterIndex#toBucketKey(long, Class, int)}),
 	 * not the `Range` instance itself — so the converter dispatches on
 	 * {@link EvitaDataTypes#resolveRangeInnerNumericType(Class)} when the schema type is a `NumberRange` subtype.
+	 *
+	 * An array-typed schema (`Integer[]`, `BigDecimal[]`) dispatches on its plain component type, because the filter
+	 * index stores and buckets every array element on its own. Range arrays never get here: the range path still
+	 * tells them by the declared type and rejects them, since its sweep keeps a single interval per record.
 	 */
 	@Nonnull
 	private static <T extends Comparable<T>> ToIntFunction<T> createNumberToIntegerConverter(@Nonnull AttributeHistogramRequest histogramRequest) {
-		final Class<? extends Serializable> schemaType = histogramRequest.attributeSchema().getType();
+		final Class<? extends Serializable> schemaType = histogramRequest.attributeSchema().getPlainType();
 		// range histograms emit inner-numeric bucket keys, so the converter must look at the inner type
 		final Class<? extends Number> innerType = EvitaDataTypes.resolveRangeInnerNumericType(schemaType);
 		final Class<?> effectiveType = innerType != null ? innerType : schemaType;

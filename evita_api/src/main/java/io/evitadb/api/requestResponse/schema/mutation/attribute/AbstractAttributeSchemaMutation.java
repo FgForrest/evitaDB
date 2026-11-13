@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -133,6 +134,30 @@ abstract class AbstractAttributeSchemaMutation implements NamedSchemaMutation {
 			return null;
 		}
 		return new ModifyAttributeSchemaTypeMutation(this.name, createdVersion.getType(), indexedDecimalPlaces);
+	}
+
+	/**
+	 * Returns the mutation that changes the default value of this attribute from the existing version to the created
+	 * one, or null when a reader cannot tell the two default values apart. They are compared as stored values by
+	 * {@link EvitaDataTypes#storedValueDiffers(Serializable, Serializable)} rather than by `equals`, because
+	 * `equals` of a range finds `[10,20]` equal to `[1.0,2.0]` - their bounds encode to the same numbers - although
+	 * a reader tells the two apart.
+	 *
+	 * @param createdVersion  the attribute as a creating mutation defines it
+	 * @param existingVersion the attribute as it exists
+	 * @param defaultValue    the default value the default value mutation sets
+	 * @return the default value mutation, or null when the default value stays the same
+	 */
+	@Nullable
+	protected ModifyAttributeSchemaDefaultValueMutation makeDefaultValueMutationIfDifferent(
+		@Nonnull AttributeSchemaContract createdVersion,
+		@Nonnull AttributeSchemaContract existingVersion,
+		@Nullable Serializable defaultValue
+	) {
+		if (!EvitaDataTypes.storedValueDiffers(existingVersion.getDefaultValue(), createdVersion.getDefaultValue())) {
+			return null;
+		}
+		return new ModifyAttributeSchemaDefaultValueMutation(this.name, defaultValue);
 	}
 
 	/**

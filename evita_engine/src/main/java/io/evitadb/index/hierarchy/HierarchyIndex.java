@@ -1124,6 +1124,19 @@ public class HierarchyIndex
 	}
 
 	/**
+	 * Answers from the item index, so an orphan counts as held - the same test {@link #assertNodeInIndex} applies.
+	 *
+	 * @param nodeId the primary key of the entity to look up
+	 * @return true when the item index holds the entity
+	 */
+	@Override
+	public boolean containsHierarchyNode(int nodeId) {
+		final HierarchyNodeStore store = this.nodeStore;
+		// an index that never received a node holds none
+		return store != null && store.itemIndex().containsKey(nodeId);
+	}
+
+	/**
 	 * Returns the heap this hierarchy occupies, in bytes — the node index, the per-parent children index, both id
 	 * arrays and the memoized all-nodes bitmap. The carrier grouping the first four is charged only once it has been
 	 * allocated, so an index that never received a node is priced at its own object and its dirty flag alone.
