@@ -36,6 +36,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.metric.event.cache.FormulaCacheMismatchEvent;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.*;
@@ -60,6 +61,9 @@ import io.evitadb.index.bitmap.*;
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.RandomUtils;
+import jdk.jfr.Recording;
+import jdk.jfr.consumer.RecordedEvent;
+import jdk.jfr.consumer.RecordingFile;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -70,8 +74,11 @@ import org.openjdk.jol.info.GraphLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -767,6 +774,53 @@ class FormulaCacheSupervisorTest implements EvitaTestSupport {
 			assertEquals(witness, statistics().witness());
 			assertTrue(second.getPrivateMessage().contains("cached-only:3"), second.getPrivateMessage());
 			assertTrue(second.getPrivateMessage().contains("second"));
+		}
+
+		/** Every in-flight detector emits once, even when another detector has already disabled the cache. */
+		@Test
+		@Tag(OBSERVABILITY)
+		@DisplayName("Emits only the three mismatch labels once per confirmed defective formula")
+		void shouldEmitEachConfirmedMismatchWithWitnessLabels() throws Exception {
+			replaceCache(options(1, 0));
+			final Path recordingPath = Files.createTempFile("formula-cache-mismatch-", ".jfr");
+			try (final Recording recording = new Recording()) {
+				recording.enable(FormulaCacheMismatchEvent.class);
+				recording.start();
+				final InputBlindCachedFormula original = new InputBlindCachedFormula(71, 1);
+				prepare(original, context(null));
+				original.compute();
+				final InputBlindCachedFormula equal = new InputBlindCachedFormula(71, 1);
+				prepare(equal, context(null));
+				equal.compute();
+				final InputBlindCachedFormula nestedDetector = new InputBlindCachedFormula(71, 3);
+				prepare(nestedDetector, context(null));
+				final InputBlindCachedFormula detector = new InputBlindCachedFormula(71, 2);
+				prepare(detector, context(null));
+				// Both detectors obtained a hit before either compares its recomputation with the cached tuple.
+				detector.duringCompute = () -> assertThrows(GenericEvitaInternalError.class, nestedDetector::compute);
+				assertThrows(GenericEvitaInternalError.class, detector::compute);
+				final InputBlindCachedFormula afterShutdown = new InputBlindCachedFormula(71, 4);
+				prepare(afterShutdown, context(null));
+				afterShutdown.compute();
+				assertEquals(2, statistics().mismatches());
+				recording.stop();
+				recording.dump(recordingPath);
+				final List<RecordedEvent> events = RecordingFile.readAllEvents(recordingPath).stream()
+					.filter(event -> event.getEventType().getName().equals("io.evitadb.cache.FormulaCacheMismatch"))
+					.filter(event -> InputBlindCachedFormula.class.getName().equals(event.getString("formulaClass")))
+					.toList();
+				assertEquals(2, events.size());
+				for (final RecordedEvent event : events) {
+					assertEquals("io.evitadb.cache.FormulaCacheMismatch", event.getEventType().getName());
+					assertEquals("cacheTest", event.getString("catalogName"));
+					assertEquals("product", event.getString("entityType"));
+					assertEquals(InputBlindCachedFormula.class.getName(), event.getString("formulaClass"));
+					assertFalse(event.hasField("witness"));
+					assertFalse(event.hasField("description"));
+				}
+			} finally {
+				Files.deleteIfExists(recordingPath);
+			}
 		}
 
 		/** A sampled hit keeps its freshly computed tuple and normal node cost. */

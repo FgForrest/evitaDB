@@ -88,6 +88,7 @@ import io.evitadb.core.executor.ObservableExecutorServiceWithCancellationSupport
 import io.evitadb.core.executor.ObservableThreadExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.EvitaManagement;
+import io.evitadb.core.metric.event.cache.FormulaCacheStatisticsEvent;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
 import io.evitadb.core.metric.event.system.RequestThreadPoolStatisticsEvent;
@@ -152,6 +153,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -337,6 +339,8 @@ public final class Evita implements EvitaContract {
 	 * Callback that will be called when an old session is closed.
 	 */
 	private final Consumer<EvitaSessionContract> onSessionTerminationCallback;
+	/** Single engine-lifetime delta emitter, absent when the formula cache is disabled in configuration. */
+	@Nullable private final FormulaCacheStatisticsHook formulaCacheStatisticsHook;
 	/**
 	 * Engine-wide JFR periodic hooks this instance registered through {@link #emitStartObservabilityEvents()},
 	 * kept so that {@link #retireStatisticsHooks()} can hand them back.
@@ -540,6 +544,8 @@ public final class Evita implements EvitaContract {
 		this.cacheSupervisor = configuration.cache().enabled() ?
 			new FormulaCacheSupervisor(configuration.cache(), this.serviceExecutor, Ticker.systemTicker()) :
 			NoCacheSupervisor.INSTANCE;
+		this.formulaCacheStatisticsHook = this.cacheSupervisor instanceof FormulaCacheSupervisor cache ?
+			new FormulaCacheStatisticsHook(cache) : null;
 		this.collationKeyCacheSweeper = of(configuration.server().dropCollationKeysAfterSecondsOfInactivity())
 			.filter(it -> it > 0)
 			.map(it -> new CollationKeyCacheSweeper(it, this.serviceExecutor))
@@ -777,6 +783,9 @@ public final class Evita implements EvitaContract {
 	public void emitStartObservabilityEvents() {
 		// emit the statistics event
 		registerEngineStatisticsHook(EvitaStatisticsEvent.class, this::emitEvitaStatistics);
+		if (this.formulaCacheStatisticsHook != null) {
+			this.formulaCacheStatisticsHook.register(this);
+		}
 		registerEngineStatisticsHook(RequestThreadPoolStatisticsEvent.class, this.requestExecutor::emitStatistics);
 		registerEngineStatisticsHook(TransactionThreadPoolStatisticsEvent.class, this.transactionExecutor::emitStatistics);
 		registerEngineStatisticsHook(ScheduledExecutorStatisticsEvent.class, this.serviceExecutor::emitStatistics);
@@ -2432,6 +2441,57 @@ public final class Evita implements EvitaContract {
 			this.session.close();
 		}
 
+	}
+
+	/**
+	 * Engine-lifetime periodic emitter holding the previous cumulative cache statistics. JFR normally calls a
+	 * periodic hook on its single emitting thread; a lock also serializes overlapping invocations, so two callers
+	 * cannot export the same interval. Neither this state nor the lock is accessed on the query path.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private static final class FormulaCacheStatisticsHook implements Runnable {
+		/** Engine-owned source whose counters live as long as this emitter. */
+		private final FormulaCacheSupervisor cache;
+		/** Serializes registration and the read, commit and baseline update if invocations overlap. */
+		private final ReentrantLock emissionLock = new ReentrantLock();
+		/** Last emitted totals; null until the first enabled emission. */
+		@Nullable private FormulaCacheSupervisor.Statistics previous;
+
+		/** Binds this emitter to the engine's actual supervisor. */
+		private FormulaCacheStatisticsHook(@Nonnull FormulaCacheSupervisor cache) {
+			this.cache = cache;
+		}
+
+		/** Registers this single emitter at most once, including concurrent observability startup calls. */
+		private void register(@Nonnull Evita evita) {
+			this.emissionLock.lock();
+			try {
+				if (!evita.engineStatisticsHooks.contains(this)) {
+					evita.registerEngineStatisticsHook(FormulaCacheStatisticsEvent.class, this);
+				}
+			} finally {
+				this.emissionLock.unlock();
+			}
+		}
+
+		/** Emits counter deltas and current gauges without discarding totals while the JFR event is disabled. */
+		@Override
+		public void run() {
+			this.emissionLock.lock();
+			try {
+				final FormulaCacheSupervisor.Statistics current = this.cache.getStatistics();
+				final FormulaCacheStatisticsEvent event = new FormulaCacheStatisticsEvent(current, this.previous);
+				if (event.isEnabled()) {
+					event.commit();
+					this.previous = current;
+				}
+			} catch (Throwable t) {
+				log.error("Emitting observability events failed!", t);
+			} finally {
+				this.emissionLock.unlock();
+			}
+		}
 	}
 
 	/**

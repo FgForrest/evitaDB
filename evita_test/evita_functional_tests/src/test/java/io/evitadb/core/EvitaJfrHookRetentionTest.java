@@ -23,6 +23,7 @@
 
 package io.evitadb.core;
 
+import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.test.EvitaTestSupport;
@@ -167,6 +168,7 @@ class EvitaJfrHookRetentionTest implements EvitaTestSupport {
 	private Evita bootEvita() {
 		return new Evita(
 			newTestEvitaConfigurationBuilder(this.testPaths)
+				.cache(CacheOptions.builder().enabled(true).dropEntriesAfterSecondsOfInactivity(0).build())
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(this.storageDirectory)

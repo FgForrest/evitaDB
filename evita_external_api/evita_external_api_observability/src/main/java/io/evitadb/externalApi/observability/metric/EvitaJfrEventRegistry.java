@@ -25,6 +25,8 @@ package io.evitadb.externalApi.observability.metric;
 
 import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import io.evitadb.core.metric.event.cache.FormulaCacheMismatchEvent;
+import io.evitadb.core.metric.event.cache.FormulaCacheStatisticsEvent;
 import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsEvent;
 import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerAreaEvent;
 import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerEntityTypeEvent;
@@ -124,6 +126,10 @@ public class EvitaJfrEventRegistry {
 		CatalogCheckpointEvent.class,
 		TrafficRecorderStatisticsEvent.class,
 		TrafficRecorderSkippedRecordsEvent.class,
+
+		// formula cache events
+		FormulaCacheStatisticsEvent.class,
+		FormulaCacheMismatchEvent.class,
 
 		// query events
 		FinishedEvent.class,

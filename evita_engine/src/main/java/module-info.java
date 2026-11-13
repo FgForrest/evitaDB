@@ -41,6 +41,7 @@ module evita.engine {
 	exports io.evitadb.core.executor;
 	exports io.evitadb.core.management;
 	exports io.evitadb.core.metric.event;
+	exports io.evitadb.core.metric.event.cache;
 	exports io.evitadb.core.metric.event.cdc;
 	exports io.evitadb.core.metric.event.query;
 	exports io.evitadb.core.metric.event.session;
@@ -135,6 +136,7 @@ module evita.engine {
 	requires zero.allocation.hashing;
 
 	opens io.evitadb.core.metric.event to evita.common;
+	opens io.evitadb.core.metric.event.cache to jdk.jfr;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
 	opens io.evitadb.core.metric.event.storage to jdk.jfr;
 

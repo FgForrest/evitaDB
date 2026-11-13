@@ -33,6 +33,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.metric.event.cache.FormulaCacheMismatchEvent;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -294,6 +295,10 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		this.verificationNanos.add(nanos);
 		if (!CachedResultEquivalence.equivalent(cached, recomputed)) {
 			this.mismatches.increment();
+			new FormulaCacheMismatchEvent(
+				context.getQueryContext().getCatalogSchema().getName(),
+				context.getQueryContext().getEvitaRequest().getEntityType(), formulaClass
+			).commit();
 			final String detected = describeMismatch(context, key, formulaClass, description, cached, recomputed);
 			if (this.active.compareAndSet(true, false)) {
 				this.witness = detected;
