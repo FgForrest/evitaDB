@@ -34,6 +34,7 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
+import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
@@ -249,32 +250,37 @@ class FormulaDeduplicatorTest {
 		assertSameTree(inputFormulas, expected, actual, new IdentityHashMap<>(), new IdentityHashMap<>());
 	}
 
+	/** Ordinary shared child keys have linear comparison work before and after canonicalization. */
 	@Test
-	@Timeout(60)
-	@DisplayName("probe")
-	void probeSharedDagComparisonWork() {
-		for (final int depth : new int[]{10, 16, 20}) {
-			final Formula first = sharedDag(depth);
-			final Formula second = sharedDag(depth);
-			final int[] comparisons = ComparisonCountingLeafFormula.COMPARISONS.get();
-			comparisons[0] = 0;
-			final Formula fullDescent = deduplicateWithFullDescent(new OrFormula(first, second));
-			final int fullDescentComparisons = comparisons[0];
-			comparisons[0] = 0;
-			final Formula deduplicated = deduplicate(new OrFormula(first, second));
-			final int deduplicatedComparisons = comparisons[0];
-			System.out.println("PROBE depth=" + depth + " fullDescent=" + fullDescentComparisons +
-				" production=" + deduplicatedComparisons + " sameRoot=" + (fullDescent == first) + "/" +
-				(deduplicated == first));
-		}
-	}
-
-	private static Formula sharedDag(int depth) {
-		Formula formula = new ComparisonCountingLeafFormula(new BaseBitmap(1000));
+	@Timeout(30)
+	@DisplayName("should bound equality work for ordinary shared formula DAGs")
+	void shouldBoundEqualityWorkForOrdinarySharedDags() {
+		final int depth = 24;
+		final int distinctFormulas = 4 * depth + 3;
+		Formula first = new ComparisonCountingLeafFormula(new BaseBitmap(1));
+		Formula second = new ComparisonCountingLeafFormula(new BaseBitmap(1));
 		for (int i = 0; i < depth; i++) {
-			formula = new AndFormula(formula, new OrFormula(formula, new ComparisonCountingLeafFormula(new BaseBitmap(i))));
+			first = new NotFormula(new UserFilterFormula(first), first);
+			second = new NotFormula(new UserFilterFormula(second), second);
 		}
-		return formula;
+		final Formula root = new OrFormula(first, second);
+		final int[] comparisons = ComparisonCountingLeafFormula.COMPARISONS.get();
+		comparisons[0] = 0;
+		final Formula fullDescent = deduplicateWithFullDescent(root);
+		final int fullDescentComparisons = comparisons[0];
+		comparisons[0] = 0;
+
+		final Formula deduplicated = deduplicate(root);
+		final int deduplicatedComparisons = comparisons[0];
+
+		assertSame(first, fullDescent, "full descent must merge both copies into the first one");
+		assertSame(first, deduplicated, "both copies must merge into the first one");
+		assertTrue(fullDescentComparisons > 0, "full descent must engage the leaf identity counter");
+		assertTrue(deduplicatedComparisons > 0, "pre-descent lookup must engage the leaf identity counter");
+		assertTrue(fullDescentComparisons <= 4 * distinctFormulas,
+			"Full-descent leaf comparisons: " + fullDescentComparisons + ", linear bound: " + 4 * distinctFormulas);
+		assertTrue(deduplicatedComparisons <= 4 * distinctFormulas,
+			"Leaf comparisons: " + deduplicatedComparisons + ", linear bound: " + 4 * distinctFormulas);
 	}
 
 	/** Side formulas remain outside traversal, so nested ordinary child keys must share the comparison memo. */

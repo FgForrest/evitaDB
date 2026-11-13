@@ -135,7 +135,7 @@ public final class FormulaKey {
 		return this.weight;
 	}
 
-	/** Opens a scope for side keys and shares it with every nested value comparison. */
+	/** Memoizes recursive comparisons while comparing canonical children without a scope. */
 	@Override
 	public boolean equals(@Nullable Object other) {
 		if (this == other) {
@@ -151,15 +151,19 @@ public final class FormulaKey {
 			this.children.length != that.children.length) {
 			return false;
 		}
-		final ComparisonScope scope;
-		if (!this.sideKeys && !that.sideKeys) {
-			scope = ComparisonScope.active();
-			if (scope == null) {
-				return compareValues(that);
+		boolean requiresScope = this.sideKeys || that.sideKeys;
+		if (!requiresScope) {
+			for (int i = 0; i < this.children.length; i++) {
+				if (this.children[i] != that.children[i]) {
+					requiresScope = true;
+					break;
+				}
 			}
-		} else {
-			scope = ComparisonScope.current();
 		}
+		if (!requiresScope) {
+			return this.identity.equals(that.identity);
+		}
+		final ComparisonScope scope = ComparisonScope.current();
 		scope.enter();
 		try {
 			if (scope.contains(this, that)) {
@@ -205,7 +209,7 @@ public final class FormulaKey {
  */
 @NotThreadSafe
 final class ComparisonScope {
-	/** Per-thread scope, allocated only when a comparison involving side keys needs it. */
+	/** Per-thread scope, allocated only when side keys or distinct child references require recursion. */
 	private static final ThreadLocal<ComparisonScope> SCOPES = new ThreadLocal<>();
 	/** Initial reference-pair table capacity. */
 	private static final int INITIAL_CAPACITY = 64;
@@ -234,13 +238,6 @@ final class ComparisonScope {
 		final ComparisonScope newScope = new ComparisonScope();
 		SCOPES.set(newScope);
 		return newScope;
-	}
-
-	/** Returns an open scope without allocating one for an ordinary top-level comparison. */
-	@Nullable
-	static ComparisonScope active() {
-		final ComparisonScope scope = SCOPES.get();
-		return scope != null && scope.depth > 0 ? scope : null;
 	}
 
 	/** Opens one nested comparison. */
