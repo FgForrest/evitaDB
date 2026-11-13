@@ -36,9 +36,10 @@ import javax.annotation.Nullable;
 
 /**
  * Tagged {@link AttributeFormula} subclass emitted by `AttributeBetweenTranslator` whenever it translates an
- * `attributeBetween(...)` constraint into a filter index lookup. The subclass behaves identically to its parent
- * at runtime — all algebraic methods (`compute()`, `getOperationCost()`, hashing, cloning) are inherited — and
- * exists solely to tag these formulas with {@link AttributeRangeCarrierFormula}.
+ * `attributeBetween(...)` constraint into a filter index lookup. The subclass computes identically to its parent
+ * — `compute()` and the cost model are inherited — and exists solely to tag these formulas with
+ * {@link AttributeRangeCarrierFormula}. It declares its own identity and class id, so its key never equals the key
+ * of a plain `AttributeFormula` built from the same arguments.
  *
  * The tag is consumed by the histogram baseline relaxer: when an attribute-family histogram computes its own
  * `[min, max]` span over the user's current selection, the relaxer peels every {@link AttributeRangeCarrierFormula}

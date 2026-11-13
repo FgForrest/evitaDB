@@ -57,7 +57,7 @@ import java.util.List;
  * The per-owner formulas are deliberately **not** inner formulas. They are positionally paired with
  * {@link #ownerPrimaryKeys}, and {@link io.evitadb.core.query.algebra.utils.visitor.FormulaCloner} is allowed to drop
  * children its mutator rejects - a dropped child would silently relabel every owner after it. They are kept as internal
- * state instead, and the hash, transactional ids and cost estimates below account for them explicitly.
+ * state instead, and the identity and cost estimates below account for them explicitly.
  *
  * The per-owner test is a short-circuiting {@link PersistentRoaringBitmap#intersects(PersistentRoaringBitmap,
  * PersistentRoaringBitmap)} - no intersection is ever materialised, because only emptiness matters.
@@ -95,7 +95,8 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	public ReferencedOwnerExistenceFormula(
 		@Nonnull int[] ownerPrimaryKeys,
 		@Nonnull Formula[] perOwnerFormulas,
-		@Nonnull Formula referencedEntityFormula) {
+		@Nonnull Formula referencedEntityFormula
+	) {
 		Assert.isPremiseValid(
 			ownerPrimaryKeys.length == perOwnerFormulas.length,
 			"Exactly one formula per owner primary key is expected!"
@@ -201,13 +202,15 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 			return new ReferencedOwnerExistenceFormula(
 				this.ownerPrimaryKeys,
 				this.perOwnerFormulas,
-				EmptyFormula.INSTANCE);
+				EmptyFormula.INSTANCE
+			);
 		}
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
 		return new ReferencedOwnerExistenceFormula(
 			this.ownerPrimaryKeys,
 			this.perOwnerFormulas,
-			innerFormulas[0]);
+			innerFormulas[0]
+		);
 	}
 
 	@Override

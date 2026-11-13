@@ -57,13 +57,11 @@ import java.util.function.ToLongFunction;
 @RequiredArgsConstructor
 public class InvertedIndexSubSet {
 	/**
-	 * Transactional identity of the slice at the time it was taken, propagated into the aggregated {@link Formula} as
-	 * its transactional id set so that formula-level caching can detect staleness across index mutations. This is the
-	 * (canonical, sorted, deduplicated) set of version ids of the leaf pages the slice actually crossed — so a cached
-	 * read over an untouched value range survives writes to other pages — capped to the single whole-index id when the
-	 * slice spans more than 100
-	 * leaves (bounding the footprint). The aggregation lambda consumes it directly (the formula layer already keys on a
-	 * `long[]`).
+	 * Version tokens of the slice at the time it was taken: the (canonical, sorted, deduplicated) set of version ids of
+	 * the leaf pages the slice actually crossed, capped to the single whole-index id when the slice spans more than 100
+	 * leaves (bounding the footprint). The unsorted aggregation keys its
+	 * {@link io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier} on it, so the key of a read over an
+	 * untouched value range survives writes to other pages; the sorted and range-histogram aggregations ignore it.
 	 */
 	private final long[] indexTransactionIds;
 	/**

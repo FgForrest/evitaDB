@@ -58,7 +58,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(QUERY)
 class OrFormulaTest {
 
-
 	@Nested
 	@DisplayName("Computation correctness")
 	class ComputationTest {
@@ -366,8 +365,6 @@ class OrFormulaTest {
 			);
 		}
 	}
-
-
 
 	@Nested
 	@DisplayName("Folding single-record operands")

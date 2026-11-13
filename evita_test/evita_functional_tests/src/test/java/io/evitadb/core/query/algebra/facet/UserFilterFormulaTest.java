@@ -40,7 +40,7 @@ import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Tests for {@link UserFilterFormula} verifying AND-like computation, memoization, cloning,
- * hashing, interface contracts and edge case behavior.
+ * key identity, interface contracts and edge case behavior.
  *
  * @author evitaDB
  */

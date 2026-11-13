@@ -1230,7 +1230,6 @@ public class BidirectionalReferenceRewriter {
 		return FormulaFactory.or(plainFormulas);
 	}
 
-
 	/**
 	 * Result of {@link #splitChildren(ReferenceHaving)} - the `entityHaving` payload separated from the pure
 	 * reference-attribute constraints, along with every attribute name those constraints touch.

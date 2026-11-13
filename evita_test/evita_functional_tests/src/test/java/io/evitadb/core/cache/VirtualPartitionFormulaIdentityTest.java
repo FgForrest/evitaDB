@@ -46,6 +46,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.virtual.MaterializedPartitionTwin;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -59,6 +60,7 @@ import org.junit.jupiter.api.TestInstance.Lifecycle;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -80,6 +82,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 
 /**
@@ -252,10 +255,17 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 		final AndFormula previous = computeAncestor(query, accessoryOwnersReadVirtually());
 
 		// owner 1 already matches through two rows; a third accessory row lands in the same bucket of the type index
+		final int[] bucketBefore = typeIndexBucketRecords(REFERENCE_RELATED, ATTRIBUTE_RELATION_TYPE, TYPE_ACCESSORY);
 		write(session -> session.upsertEntity(
 			session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent()).orElseThrow().openForWrite()
 				.setReference(REFERENCE_RELATED, 45, ref -> ref.setAttribute(ATTRIBUTE_RELATION_TYPE, TYPE_ACCESSORY))
 		));
+		// premise of the injected-dependency counterfactual: the write changes the bucket the query reads
+		assertChanged(
+			bucketBefore,
+			typeIndexBucketRecords(REFERENCE_RELATED, ATTRIBUTE_RELATION_TYPE, TYPE_ACCESSORY),
+			"The write must change the bucket of the type index, or keeping the ancestor proves nothing"
+		);
 
 		assertUnchanged(query, previous, accessoryOwnersReadVirtually(), expectedRelatedAccessories(RANK_BOUND));
 	}
@@ -267,10 +277,16 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 		final AndFormula previous = computeAncestor(query, accessoryOwnersReadVirtually());
 
 		// owner 8 holds only spares and has no German name yet
+		final int[] localeBefore = globalLocaleRecords(LOCALE_DE);
 		write(session -> session.upsertEntity(
 			session.getEntity(ENTITY_PRODUCT, 8, entityFetchAllContent()).orElseThrow().openForWrite()
 				.setAttribute(ATTRIBUTE_NAME, LOCALE_DE, "Produkt 8")
 		));
+		assertChanged(
+			localeBefore,
+			globalLocaleRecords(LOCALE_DE),
+			"The write must change the global locale bitmap of the owners, or keeping the ancestor proves nothing"
+		);
 
 		assertUnchanged(query, previous, accessoryOwnersReadVirtually(), expectedRelatedAccessories(RANK_BOUND));
 	}
@@ -374,7 +390,7 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 
 	@Test
 	@DisplayName("(vi) the bidirectional rewrite preserves answers across unrelated writes and reacts to a matching write")
-	void shouldAddNoInvalidationToTheBidirectionalRewrite() {
+	void shouldPreserveAnswersAcrossUnrelatedWritesAndReactToAMatchingWrite() {
 		final MaterializedPartitionTwin twin = objectTwin();
 		final Query query = categoriesWithPriorityAbove(1);
 		// categories 1, 2 and 4 - 6: category 3 holds only product 4 with priority 1, category 7 holds nothing
@@ -401,11 +417,17 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 
 		// a counterpart write that changes no answer: product 30 takes category 7, which no product held, with
 		// priority 1 - a new single-owner partition the body does not match, in a category the code excludes
+		final int[] bucketBefore = counterpartBucketRecords();
 		writeProduct(
 			30,
 			product -> product.setReference(
 				REFERENCE_CATEGORIES, CATEGORY_COUNT, ref -> ref.setAttribute(ATTRIBUTE_PRIORITY, 1)
 			)
+		);
+		assertChanged(
+			bucketBefore,
+			counterpartBucketRecords(),
+			"The write must change the bucket of the counterpart type index, or keeping the answers proves nothing"
 		);
 		final Run objectAfter = run(twin.objectCatalog(), query);
 		final Run virtualAfter = run(this.catalog, query);
@@ -469,7 +491,6 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 		assertNotEquals(firstRun.raw().getKey(), secondRun.raw().getKey(), "Discriminated trees must not share a key");
 		assertNotEquals(firstRun.answer(), secondRun.answer(), "The discriminator must matter");
 	}
-
 
 	/**
 	 * Returns the nearest {@link AndFormula} above the constant over the given owners of rows - the ancestor
@@ -702,6 +723,68 @@ class VirtualPartitionFormulaIdentityTest implements EvitaTestSupport {
 			.filter(pk -> pk <= 6 || pk % 2 == 1)
 			.boxed()
 			.toList();
+	}
+
+	/**
+	 * Asserts that a write changed the records a query reads, naming both snapshots on failure.
+	 *
+	 * @param before  the records read before the write
+	 * @param after   the records read after the write
+	 * @param message what the case loses when the records did not change
+	 */
+	private static void assertChanged(@Nonnull int[] before, @Nonnull int[] after, @Nonnull String message) {
+		assertFalse(
+			Arrays.equals(before, after),
+			message + ": " + Arrays.toString(before) + " -> " + Arrays.toString(after)
+		);
+	}
+
+	/**
+	 * Returns a copy of the records of the bucket of a value in a filter index of the live product type index of a
+	 * reference. The copy is taken now, so a later write cannot reach it.
+	 *
+	 * @param reference the reference
+	 * @param attribute the attribute of the reference
+	 * @param value     the value
+	 * @return the records
+	 */
+	@Nonnull
+	private int[] typeIndexBucketRecords(
+		@Nonnull String reference, @Nonnull String attribute, @Nonnull Serializable value
+	) {
+		final ReferencedTypeEntityIndex typeIndex = typeIndexOf(ENTITY_PRODUCT, Scope.LIVE, reference);
+		final AttributeIndexKey key = typeIndex.getFilterIndexes()
+			.stream()
+			.filter(it -> attribute.equals(it.attributeName()))
+			.findFirst()
+			.orElseThrow();
+		return typeIndex.getFilterIndex(key).getRecordsEqualTo(value).getArray();
+	}
+
+	/**
+	 * Returns a copy of the records of the bucket of priority `1` in the live type index of `categories` - the
+	 * counterpart of `products`.
+	 *
+	 * @return the records
+	 */
+	@Nonnull
+	private int[] counterpartBucketRecords() {
+		return typeIndexBucketRecords(REFERENCE_CATEGORIES, ATTRIBUTE_PRIORITY, 1);
+	}
+
+	/**
+	 * Returns a copy of the records of the global locale bitmap of the live products.
+	 *
+	 * @param locale the locale
+	 * @return the records
+	 */
+	@Nonnull
+	private int[] globalLocaleRecords(@Nonnull Locale locale) {
+		final EntityIndex globalIndex = collectionOf(this.catalog, ENTITY_PRODUCT).getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE)
+		);
+		assertNotNull(globalIndex);
+		return globalIndex.getRecordsWithLanguageFormula(locale).compute().getArray();
 	}
 
 	/**

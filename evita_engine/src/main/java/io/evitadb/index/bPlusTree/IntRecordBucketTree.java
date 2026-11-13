@@ -128,7 +128,9 @@ public interface IntRecordBucketTree<K extends Comparable<K>> extends BucketBPlu
 	 *
 	 * @param valueId the candidate id to resolve
 	 * @param valuePredicate exact value test, or `null` when every nominated value is known to match
-	 * @param containsPatternUtf8 UTF-8 containment pattern, or `null` to use the predicate
+	 * @param containsPatternUtf8 UTF-8 containment pattern, or `null` to use the predicate; the caller owes the
+	 *                            guarantee that it answers exactly what the predicate would, including that the
+	 *                            pattern survives UTF-8 encoding unchanged
 	 * @return matching record set, or `null` for a missing or rejected candidate
 	 */
 	@Nullable

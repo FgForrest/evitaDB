@@ -58,8 +58,9 @@ import static io.evitadb.test.TestTags.FACET;
  *   to the inner formula so the planner sees no overhead;
  * - re-wrap correctly through `getCloneWithInnerFormulas(...)` as a `FacetHavingFormula` (so the
  *   FACET_IMPACT relaxer's `FacetHavingFormula.class.isInstance(...)` check keeps matching);
- * - produce a deterministic hash that depends only on the inner formula's hash plus the wrapper's own
- *   class identity (so two wrappers around structurally identical subtrees cache-hit).
+ * - produce a deterministic key that depends only on the inner formula's key plus the wrapper's own
+ *   identity - its class and reference name (so two wrappers around structurally identical subtrees compare
+ *   equal by key).
  *
  * These invariants matter because the facet-impact relaxer locates facet carriers **by type** — any
  * semantic change would either hide the wrapper from the relaxer or alter the planner's cost estimate.
@@ -86,7 +87,7 @@ class FacetHavingFormulaTest {
 	private static final String REFERENCE_NAME = "brand";
 
 	/**
-	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Each test that asserts hash equality
+	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Each test that asserts key equality
 	 * or independence uses two freshly constructed wrappers so we avoid sharing memoised state.
 	 *
 	 * @return a {@link ConstantFormula} wrapping the shared reference bitmap

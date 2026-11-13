@@ -45,7 +45,7 @@ import javax.annotation.Nonnull;
  */
 public class MockInnerRecordIdsFormula extends AbstractFormula implements PriceIndexProvidingFormula, FilteredPriceRecordAccessor {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -8740309489269214775L;
 	/**

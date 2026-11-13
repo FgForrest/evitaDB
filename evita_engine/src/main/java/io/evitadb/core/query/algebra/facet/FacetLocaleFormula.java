@@ -49,7 +49,7 @@ import java.util.List;
 /**
  * Intersects one owner-locale branch with its facet selection. The branch stays visible when summary counts discard
  * facet selections and when impact projections rebuild them. Its first child is the owner condition, its second
- * child is the facet selection; both remain formula children so hashes and transactional dependencies include them.
+ * child is the facet selection; both remain formula children so the formula key includes them as child keys.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

@@ -30,6 +30,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.attribute.FilterIndex;
@@ -562,13 +563,17 @@ class InvertedIndexPrimitiveBucketTest {
 	class LeafGranularStalenessTest {
 
 		/**
-		 * Number of distinct single-record buckets whose slice provably overflows the leaf cap. The bucket tree's leaf
-		 * capacity is 256 values, so a slice of `N` buckets spans at least `⌈N/256⌉` leaves; 26 000 buckets therefore
-		 * span at least `⌈26000/256⌉ = 102` leaves — past the
-		 * 100 leaf cap, so the leaf-version token
-		 * collapses to the single whole-index id.
+		 * Number of distinct single-record buckets the overflow fixture holds. The bucket tree's leaf capacity is 256
+		 * values, so a slice of `N` buckets spans at least `⌈N/256⌉` leaves; the slice from
+		 * {@link #OVERFLOW_SLICE_FROM} to 30 000 holds 29 701 buckets and therefore spans at least `⌈29701/256⌉ = 117`
+		 * leaves — past the 100-leaf cap, so the leaf-version token collapses to the single whole-index id.
 		 */
-		private static final int OVERFLOW_BUCKET_COUNT = 26_000;
+		private static final int OVERFLOW_BUCKET_COUNT = 30_000;
+		/**
+		 * First value of the overflowing slice. A leaf holds at most 256 values, so the leaf holding value `1` ends
+		 * below this value and a write to value `1` lands in a leaf the slice never crosses.
+		 */
+		private static final int OVERFLOW_SLICE_FROM = 300;
 		/**
 		 * Number of distinct single-record buckets that span several leaves yet stay well under the leaf cap. 800 buckets
 		 * over a 256-value leaf capacity occupy between `⌈800/256⌉ = 4` (leaves at max fill) and `⌈800/127⌉ = 7` (leaves
@@ -645,45 +650,31 @@ class InvertedIndexPrimitiveBucketTest {
 		void overflowSliceCollapsesToWholeIndexTokenAboveLeafCap() {
 			final InvertedIndex index = denseIndex(OVERFLOW_BUCKET_COUNT);
 
-			// the whole-index slice spans far more than the 100-leaf cap, so the per-leaf accumulator overflows and the
-			// leaf-version sequence collapses to the single whole-index id.
-			final FormulaKey keyBefore = deferredKey(index, 1, OVERFLOW_BUCKET_COUNT);
-			assertEquals(keyBefore, deferredKey(index, 1, OVERFLOW_BUCKET_COUNT));
+			// the slice spans far more than the 100-leaf cap, so the per-leaf accumulator overflows and the
+			// leaf-version sequence collapses to the single whole-index id
+			final FormulaKey overflowBefore = deferredKey(index, OVERFLOW_SLICE_FROM, OVERFLOW_BUCKET_COUNT);
+			assertEquals(overflowBefore, deferredKey(index, OVERFLOW_SLICE_FROM, OVERFLOW_BUCKET_COUNT));
+			// the control: a narrow slice far from the first leaf stays under the cap and keys on its own leaves
+			final FormulaKey narrowBefore = deferredKey(index, 5_000, 5_150);
 
-			// a mutating commit re-mints the whole-index id, so the recomputed coarse token differs: an overflowing
-			// slice is still invalidated across the write, only coarsely (whole-index rather than per-leaf)
 			assertStateAfterCommit(
 				index,
-				// a brand-new bucket far above the slice; the slice still overflows the leaf cap after the commit
-				tested -> tested.addRecord(OVERFLOW_BUCKET_COUNT + 10_000, 999_999),
+				// value 1 lives in the first leaf, which neither slice crosses; adding a record to its existing bucket
+				// adds no value, so no split reaches the leaves the slices read
+				tested -> tested.addRecord(1, 999_999),
 				(original, committed) -> {
+					// per-leaf tokens would keep both keys: only the whole-index id the overflowing slice collapsed to
+					// is re-minted by a commit that never touched the leaves it crosses
 					assertNotEquals(
-						keyBefore, deferredKey(committed, 1, OVERFLOW_BUCKET_COUNT)
+						overflowBefore, deferredKey(committed, OVERFLOW_SLICE_FROM, OVERFLOW_BUCKET_COUNT),
+						"the overflowing slice must key on the whole-index id the commit re-minted"
+					);
+					assertEquals(
+						narrowBefore, deferredKey(committed, 5_000, 5_150),
+						"a slice under the cap must key on its own leaves, which the commit did not touch"
 					);
 				}
 			);
-		}
-
-		@Test
-		@DisplayName("A multi-leaf slice folds many buckets into a handful of leaf-version tokens")
-		void multiLeafSliceCollapsesManyBucketsToFewLeafTokens() {
-			final InvertedIndex index = denseIndex(MULTI_LEAF_BUCKET_COUNT);
-			// the fixture must genuinely span multiple leaves for a per-leaf token to be observable at all
-			assertTrue(index.isPaged(), "Fixture must span more than one leaf!");
-
-			// more than the high-cardinality threshold of buckets, so the folded OR formula keys on the leaf-version
-			// token set rather than on the per-bucket bitmap ids
-
-			assertEquals(
-				deferredKey(index, 1, MULTI_LEAF_BUCKET_COUNT), deferredKey(index, 1, MULTI_LEAF_BUCKET_COUNT)
-			);
-			assertNotEquals(
-				deferredKey(index, 1, MULTI_LEAF_BUCKET_COUNT), deferredKey(index, 2, MULTI_LEAF_BUCKET_COUNT)
-			);
-			// 800 buckets over a 256-value leaf capacity occupy >= 4 leaves (max fill) and <= 7 leaves (127 min-fill
-			// floor), so the token is a small multi-leaf set - never a single coarse whole-index id
-			// hundreds of buckets collapse to a handful of leaf tokens - proof of per-leaf (not per-bucket) folding
-			// and it did NOT collapse all the way to the coarse whole-index id
 		}
 
 		@Test
@@ -713,6 +704,7 @@ class InvertedIndexPrimitiveBucketTest {
 			final InvertedIndex uncrossed = denseIndex(MULTI_LEAF_BUCKET_COUNT);
 			final Formula uncrossedMatch = uncrossed.getRecordsMatchingFormula(lowSlice);
 			// Exercise the multi-bucket bitmap operands rather than the single-bucket shortcut.
+			assertInstanceOf(OrFormula.class, uncrossedMatch);
 			final FormulaKey beforeUncrossed = uncrossedMatch.getKey();
 			assertStateAfterCommit(
 				uncrossed,

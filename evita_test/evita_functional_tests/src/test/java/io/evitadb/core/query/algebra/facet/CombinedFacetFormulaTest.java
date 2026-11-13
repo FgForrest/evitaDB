@@ -41,7 +41,7 @@ import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link CombinedFacetFormula} verifying computation, memoization, cloning,
- * hashing, accessor methods and edge case behavior.
+ * key identity, accessor methods and edge case behavior.
  *
  * @author evitaDB
  */

@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Verifies range formula identity across a transactional overlay. A transactional bitmap retains its identity
- * while the overlay changes its contents, so formulas with the same hash can compute different transaction-local
+ * while the overlay changes its contents, so formulas with equal keys can compute different transaction-local
  * results. Rollback restores the committed result.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026

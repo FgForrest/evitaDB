@@ -759,9 +759,8 @@ public class QueryPlanner {
 		 */
 		private static final String ERROR_TEMPORARY = "FutureNotFormula is only temporary placeholder!";
 		/**
-		 * Stable discriminator of this formula class within the computed formula hash - it is what keeps two
-		 * structurally identical trees of different formula types from hashing alike. It must stay constant,
-		 * otherwise previously cached results become unreachable.
+		 * Stable discriminator of this formula class within its formula key - it is what keeps two structurally
+		 * identical trees of different formula types from comparing equal.
 		 */
 		private static final long CLASS_ID = 497139306778809341L;
 		/**
@@ -939,7 +938,7 @@ public class QueryPlanner {
 		}
 
 		/**
-		 * @return the constant discriminating this formula type inside computed hashes
+		 * @return the constant discriminating this formula type in its formula key
 		 */
 		@Override
 		protected long getClassId() {

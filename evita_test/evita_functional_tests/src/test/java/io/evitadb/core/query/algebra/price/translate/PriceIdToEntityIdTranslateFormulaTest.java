@@ -45,7 +45,7 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
 
 /**
- * Tests for {@link PriceIdToEntityIdTranslateFormula} verifying construction, hashing, cloning
+ * Tests for {@link PriceIdToEntityIdTranslateFormula} verifying construction, key identity, cloning
  * and cardinality estimation.
  *
  * @author evitaDB

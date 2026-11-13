@@ -47,7 +47,7 @@ import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.FILTER;
 
 /**
- * Tests for {@link PlainPriceTerminationFormulaWithPriceFilter} verifying construction, hashing, cloning
+ * Tests for {@link PlainPriceTerminationFormulaWithPriceFilter} verifying construction, key identity, cloning
  * and cardinality estimation.
  *
  * Note: full computation tests for `compute()` require a subtree containing

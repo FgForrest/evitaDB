@@ -195,12 +195,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	public static final int NO_DELETED_BUCKET = -1;
 	/**
-	 * Sentinel {@link #leafVersionOf(int)} returns when a value id names nothing live. `0` is safe as the "no answer"
-	 * value because a leaf's version id comes from {@link TransactionalObjectVersion#SEQUENCE}, which never hands one
-	 * out.
-	 */
-	public static final long NO_LEAF_VERSION = 0L;
-	/**
 	 * The packed `(leafId, slot)` entry of a value id the directory holds nothing for. `0` is safe because
 	 * {@link #FIRST_LEAF_ID} is `1`, so a real entry always carries a non-zero leaf id in its high half.
 	 */
@@ -1455,37 +1449,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * Resolves a stable value id to the version token of the leaf its bucket lives in — the per-page staleness token a
-	 * consumer folds into a formula cache key, exactly as {@link BucketCursor#currentLeafId()} hands it out on the scan
-	 * path.
-	 *
-	 * Answered from the same directory and with the same slot validation as {@link #valueOf(int)}, and carrying the
-	 * same caller obligation about an open transaction.
-	 *
-	 * @param valueId the id whose leaf is wanted
-	 * @return the leaf's version id, or {@link #NO_LEAF_VERSION} when the id resolves to nothing live
-	 */
-	public long leafVersionOf(int valueId) {
-		final ValueIdDirectory<K> directory = this.valueIdDirectory;
-		// the null check lives HERE rather than inside `locationOf` so that it is local to the dereference below:
-		// a check across a call boundary is one static analysis cannot follow, and this method dereferences the
-		// directory directly a few lines on
-		if (directory == null) {
-			return NO_LEAF_VERSION;
-		}
-		final long location = locationOf(directory, valueId);
-		if (location == NO_LOCATION) {
-			return NO_LEAF_VERSION;
-		}
-		final BPlusLeafTreeNode<K> leaf = directory.leafById().get(location >>> 32);
-		if (leaf == null) {
-			return NO_LEAF_VERSION;
-		}
-		final int slot = (int) (location & SLOT_MASK);
-		return slot < leaf.size() && leaf.valueIdAt(slot) == valueId ? leaf.getId() : NO_LEAF_VERSION;
-	}
-
-	/**
 	 * Resolves a candidate value id, tests its stored value and returns the matching bucket's record set.
 	 * The directory lookup and slot validation use the same resolved leaf. An id naming no live bucket returns
 	 * `null`. The operation refuses an open transaction because the directory describes published tree state.
@@ -1496,7 +1459,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * @param valueId the candidate id to resolve
 	 * @param valuePredicate exact value test, or `null` when every nominated value is known to match
-	 * @param containsPatternUtf8 UTF-8 containment pattern, or `null` to use the predicate
+	 * @param containsPatternUtf8 UTF-8 containment pattern, or `null` to use the predicate; the caller owes the
+	 *                            guarantee that it answers exactly what the predicate would, including that the
+	 *                            pattern survives UTF-8 encoding unchanged
 	 * @return matching record set, or `null` for a missing or rejected candidate
 	 */
 	@Nullable
@@ -1537,11 +1502,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// transactional layer again - three lookups per candidate, inside the loop this probe exists to make cheap.
 		// See `BPlusLeafTreeNode#recordsOfValidatedValueIdSlot` for why the order within it is a contract rather than
 		// tidiness
-		final Bitmap records = leaf.recordsOfValidatedValueIdSlot(valueId, slot, valuePredicate, containsPatternUtf8);
-		if (records == null) {
-			return null;
-		}
-		return records;
+		return leaf.recordsOfValidatedValueIdSlot(valueId, slot, valuePredicate, containsPatternUtf8);
 	}
 
 	/**

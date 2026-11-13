@@ -59,8 +59,8 @@ import static io.evitadb.test.TestTags.HISTOGRAM;
  *   to the inner formula so the planner sees no overhead;
  * - re-wrap correctly through `getCloneWithInnerFormulas(...)` while preserving the
  *   {@link AttributeRangeCarrierFormula} marker;
- * - produce a deterministic hash that depends only on the inner formula's hash plus the wrapper's own
- *   class identity (so two wrappers around structurally identical subtrees cache-hit).
+ * - produce a deterministic key that depends only on the inner formula's key plus the wrapper's own
+ *   class identity (so two wrappers around structurally identical subtrees compare equal by key).
  *
  * These invariants matter because the histogram-baseline relaxer locates range carriers **by type** —
  * any semantic change would either hide the wrapper from the relaxer or alter the planner's cost estimate.
@@ -81,7 +81,7 @@ class HistogramHavingFormulaTest {
 	private static final Bitmap REFERENCE_BITMAP = new ArrayBitmap(10, 20, 30);
 
 	/**
-	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Each test that asserts hash equality
+	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Each test that asserts key equality
 	 * or independence uses two freshly constructed wrappers so we avoid sharing memoised state.
 	 *
 	 * @return a {@link ConstantFormula} wrapping the shared reference bitmap

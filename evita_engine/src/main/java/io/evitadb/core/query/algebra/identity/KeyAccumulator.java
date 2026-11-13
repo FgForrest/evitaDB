@@ -52,7 +52,7 @@ import java.util.Locale;
  */
 @NotThreadSafe
 public final class KeyAccumulator {
-	/** Content hash independent of the legacy formula hash machinery. */
+	/** Hashes the content of text and decimal key components. */
 	private static final LongHashFunction CONTENT_HASH = LongHashFunction.xx3();
 	/** Shared character view for allocation-free hashing of any character sequence. */
 	private static final Access<CharSequence> CHAR_ACCESS = Access.toCharSequence(ByteOrder.LITTLE_ENDIAN);

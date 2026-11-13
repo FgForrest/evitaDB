@@ -128,24 +128,25 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	 * Internal constructor used by cloning and tests. The caller guarantees that the superset is a deterministic
 	 * function of the supplied global index versions. The identity records those versions instead of the bitmap.
 	 *
-	 * @param referencedEntitySuperSet                    optional superset of referenced entity primary keys to limit
-	 *                                                    the translation; may be {@code null}
-	 * @param referencedEntityTypeSuperSetTransactionalId transactional ids of contributing
-	 *                                                    {@link GlobalEntityIndex} instances used for cache-key hashing
-	 * @param referencedEntityTypeIndex                   target index for the translation
-	 * @param worstCardinality                            worst-case estimate of the result cardinality
-	 * @param innerFormula                                inner formula producing referenced entity primary keys
+	 * @param referencedEntitySuperSet               optional superset of referenced entity primary keys to limit the
+	 *                                               translation; may be {@code null}
+	 * @param referencedEntityTypeSuperSetIdentityIds versions of the contributing {@link GlobalEntityIndex} instances
+	 *                                               in scope order, recorded in the detached identity; zero marks an
+	 *                                               absent scope index
+	 * @param referencedEntityTypeIndex              target index for the translation
+	 * @param worstCardinality                       worst-case estimate of the result cardinality
+	 * @param innerFormula                           inner formula producing referenced entity primary keys
 	 */
 	ReferencedEntityIndexPrimaryKeyTranslatingFormula(
 		@Nullable Bitmap referencedEntitySuperSet,
-		@Nonnull long[] referencedEntityTypeSuperSetTransactionalId,
+		@Nonnull long[] referencedEntityTypeSuperSetIdentityIds,
 		@Nonnull ReferencedTypeEntityIndex referencedEntityTypeIndex,
 		int worstCardinality,
 		@Nullable UnaryOperator<Bitmap> expansionFunction,
 		@Nonnull Formula innerFormula
 	) {
 		this.referencedEntitySuperSet = referencedEntitySuperSet;
-		this.referencedEntityTypeSuperSetIdentityIds = referencedEntityTypeSuperSetTransactionalId;
+		this.referencedEntityTypeSuperSetIdentityIds = referencedEntityTypeSuperSetIdentityIds;
 		this.referencedEntityTypeIndex = referencedEntityTypeIndex;
 		this.worstCardinality = worstCardinality;
 		this.expansionFunction = expansionFunction;
@@ -186,20 +187,19 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 			final Scope[] allScopes = Scope.values();
 			PersistentRoaringBitmap bitmap = null;
 			final long[] identityIds = new long[allScopes.length];
-			int scopeIndex = 0;
-			for (final Scope theScope : allScopes) {
+			for (int i = 0; i < allScopes.length; i++) {
+				final Scope theScope = allScopes[i];
 				// the scope of the query constrains only the queried entities - a reference may point to an entity
 				// living in a different scope (e.g. an archived product referencing a live category), so the
 				// existence check must span all scopes, not just the scopes the query is evaluated in
 				final Optional<GlobalEntityIndex> globalEntityIndex = referencedEntitySuperSetSupplier
 					.apply(targetEntityType, theScope);
 				if (globalEntityIndex.isEmpty()) {
-					scopeIndex++;
+					// an absent scope index leaves its slot at zero
 					continue;
 				}
 				final Bitmap allPrimaryKeys = globalEntityIndex.get().getAllPrimaryKeys();
-				identityIds[scopeIndex] = globalEntityIndex.get().getId();
-				scopeIndex++;
+				identityIds[i] = globalEntityIndex.get().getId();
 				if (allPrimaryKeys.isEmpty()) {
 					// an empty contribution would not change the union - skipping it keeps the common
 					// single-contributing-scope case zero-copy (no OR with an empty bitmap)

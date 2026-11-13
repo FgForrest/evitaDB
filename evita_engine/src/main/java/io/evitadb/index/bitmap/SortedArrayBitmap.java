@@ -140,9 +140,6 @@ public class SortedArrayBitmap implements Bitmap {
 		this.recordIds = recordIds;
 	}
 
-
-
-
 	@Override
 	public boolean isEmpty() {
 		return this.recordIds.length == 0;

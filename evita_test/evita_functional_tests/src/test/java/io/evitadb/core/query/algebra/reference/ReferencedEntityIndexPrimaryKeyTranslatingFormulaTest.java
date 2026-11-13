@@ -455,7 +455,7 @@ class ReferencedEntityIndexPrimaryKeyTranslatingFormulaTest {
 	 * schema and scope setup.
 	 *
 	 * @param referencedEntitySuperSet optional superset bitmap to restrict the translation
-	 * @param transactionalIds         transactional IDs for cache-key hashing
+	 * @param transactionalIds         global index versions recorded in the detached identity
 	 * @param index                    target index for the translation
 	 * @param worstCardinality         worst-case cardinality estimate
 	 * @param expansionFunction        function applied to inner result before translation

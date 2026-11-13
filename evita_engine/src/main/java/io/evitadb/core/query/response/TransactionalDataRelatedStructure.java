@@ -43,8 +43,9 @@ public interface TransactionalDataRelatedStructure {
 	FormulaKey getKey();
 
 	/**
-	 * Initializes internal ids and cost estimations. This method is necessary to be called prior to calling any of
-	 * these methods:
+	 * Prepares the structure for the given query execution: an implementation binds the execution context and
+	 * initializes the structures it delegates to, where it has any. This method is necessary to be called prior to
+	 * calling any of these methods:
 	 *
 	 * - {@link #getEstimatedCost()}
 	 * - {@link #getCost()}

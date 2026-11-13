@@ -49,7 +49,7 @@ import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link PriceListCombinationFormula} verifying NOT-like subtraction semantics,
- * hashing and price list metadata.
+ * key identity and price list metadata.
  *
  * @author evitaDB
  */

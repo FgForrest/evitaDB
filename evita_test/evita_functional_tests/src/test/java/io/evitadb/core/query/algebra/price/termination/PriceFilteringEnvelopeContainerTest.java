@@ -49,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link PriceFilteringEnvelopeContainer} verifying OR-like union semantics,
- * caching, hashing, and metadata propagation.
+ * caching, key identity, and metadata propagation.
  *
  * @author evitaDB
  */

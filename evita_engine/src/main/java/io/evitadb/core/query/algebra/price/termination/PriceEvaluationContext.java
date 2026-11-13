@@ -97,5 +97,4 @@ public record PriceEvaluationContext(
 				ZoneOffset.UTC
 			));
 	}
-
 }

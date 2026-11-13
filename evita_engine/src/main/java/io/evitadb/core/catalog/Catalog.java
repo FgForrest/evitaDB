@@ -305,7 +305,7 @@ public final class Catalog
 	 */
 	private final AtomicBoolean goingLive = new AtomicBoolean();
 	/**
-	 * Supervisor for query cache lifecycle and memory management.
+	 * Supervisor that analyses the formula trees and extra-result computers of each query for reuse.
 	 */
 	private final CacheSupervisor cacheSupervisor;
 	/**

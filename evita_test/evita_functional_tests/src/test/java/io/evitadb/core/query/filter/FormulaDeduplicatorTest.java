@@ -87,7 +87,8 @@ class FormulaDeduplicatorTest {
 		final Formula liveNodes = liveTree.getListHierarchyNodesFromRootFormula();
 		final Formula archivedNodes = archivedTree.getListHierarchyNodesFromRootFormula();
 		final Formula union = new OrFormula(liveNodes, archivedNodes);
-		// the premise that makes the test non-vacuous: a hash-only identity would merge the two
+		// the premise that makes the test non-vacuous: both formulas have the same structure, and only the identity
+		// of the hierarchy index each supplier reads tells their keys apart
 		assertNotEquals(liveNodes.getKey(), archivedNodes.getKey());
 
 		final Formula deduplicated = deduplicate(union);

@@ -212,7 +212,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	/**
 	 * Clears all data in the bitmap.
 	 * This method resets the internal bitmap structure, effectively removing all stored record IDs,
-	 * and also resets the memoized cardinality to zero and discards the memoized content hash.
+	 * and also resets the memoized cardinality to zero.
 	 */
 	public void clear() {
 		this.roaringBitmap.clear();
@@ -331,5 +331,4 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		// we need to unify the output with ArrayBitmap and other implementations
 		return "[" + this.roaringBitmap.stream().mapToObj(Integer::toString).collect(Collectors.joining(", ")) + "]";
 	}
-
 }

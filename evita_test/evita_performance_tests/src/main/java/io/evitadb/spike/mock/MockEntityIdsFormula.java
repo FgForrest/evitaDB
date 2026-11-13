@@ -43,7 +43,7 @@ import javax.annotation.Nonnull;
  */
 public class MockEntityIdsFormula extends AbstractFormula implements FilteredPriceRecordAccessor {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -8786720221479629134L;
 	/**

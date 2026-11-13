@@ -49,8 +49,8 @@ import javax.annotation.Nonnull;
  * straight delegation, so a tagged formula that somehow escaped would still compute the right answer - but its
  * presence downstream would mean the rebuild missed a branch.
  *
- * The tag also participates in the formula hash, which is not optional: two per-index formulas that differ only
- * in a captured value are indistinguishable to the hash function, and the engine would silently treat them as one
+ * The tag also participates in the formula key, which is not optional: two per-index formulas that differ only
+ * in a captured value would otherwise share one key, and the engine would silently treat them as one
  * computation and drop all but the first.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026

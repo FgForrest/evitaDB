@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
- * Verifies detached virtual reference content independently of bitmap implementation and legacy provenance.
+ * Verifies detached virtual reference content independently of bitmap implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -69,7 +69,7 @@ class MultipleEntityFormulaTest {
 
 	/** Virtual references have content identity even when their bitmap happens to have a producer version. */
 	@Test
-	@DisplayName("Equal virtual reference content ignores producer and legacy transactional ids")
+	@DisplayName("Equal virtual reference content ignores producer ids")
 	void shouldUseExactContentForTransactionalReferenceBitmaps() {
 		final Bitmap first = new TransactionalBitmap(new BaseBitmap(1, 2));
 		final Bitmap second = new TransactionalBitmap(new BaseBitmap(1, 2));

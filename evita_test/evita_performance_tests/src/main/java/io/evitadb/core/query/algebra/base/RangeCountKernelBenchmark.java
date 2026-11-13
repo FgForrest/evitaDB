@@ -310,7 +310,6 @@ public class RangeCountKernelBenchmark {
 				for (final Integer value : values) {
 					array[index++] = value;
 				}
-
 				family[i] = new TransactionalBitmap(array);
 			}
 			return family;

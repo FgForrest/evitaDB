@@ -245,7 +245,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull private final Map<Integer, Index<?>> indexesByPk;
 	/**
-	 * Supervisor for query cache lifecycle and memory management.
+	 * Supervisor that analyses the formula trees and extra-result computers of each query for reuse.
 	 */
 	@Getter
 	@Nonnull private final CacheSupervisor cacheSupervisor;

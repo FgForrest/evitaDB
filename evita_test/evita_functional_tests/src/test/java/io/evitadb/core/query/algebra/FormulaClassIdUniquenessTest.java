@@ -81,10 +81,11 @@ class FormulaClassIdUniquenessTest implements EvitaTestSupport {
 	private static final Set<String> IGNORED_DIRECTORIES = Set.of("target", ".git", ".idea", "node_modules");
 	/**
 	 * Floor on the number of declarations the walk must find. Without it a scan that resolved the wrong root
-	 * would find nothing, report no duplicates and pass - proving the opposite of what it claims. The repository
-	 * contains at least 87 declarations across production holders and test fixtures.
+	 * would find nothing, report no duplicates and pass - proving the opposite of what it claims. The floor sits
+	 * below the repository's count with room for classes to come and go, yet above the count `evita_engine` alone
+	 * holds, so a walk rooted at a single module fails as well as an empty or truncated one.
 	 */
-	private static final int MINIMAL_EXPECTED_DECLARATIONS = 87;
+	private static final int MINIMAL_EXPECTED_DECLARATIONS = 70;
 
 	@DisplayName("No two classes declare the same CLASS_ID")
 	@Test
@@ -109,8 +110,9 @@ class FormulaClassIdUniquenessTest implements EvitaTestSupport {
 		}
 		if (!clashes.isEmpty()) {
 			fail(
-				"CLASS_ID must differ for every class - it is hashArray[0] of the structural hash, so a shared " +
-					"value lets one formula's cached result answer for another. Mint a replacement with " +
+				"CLASS_ID must differ for every class - it discriminates the holder type in the formula key, so a " +
+					"shared value can let formulas of two classes compare equal. " +
+					"Mint a replacement with " +
 					"`tools/generate-class-id.sh <fully.qualified.ClassName>`." + clashes
 			);
 		}

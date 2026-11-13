@@ -122,7 +122,7 @@ class HistogramBitmapSupplierTest {
 	}
 
 	/**
-	 * Verifies deferred bucket access and the execution cost independent of cache lookup hashes.
+	 * Verifies deferred bucket access and the execution cost independent of the key.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */

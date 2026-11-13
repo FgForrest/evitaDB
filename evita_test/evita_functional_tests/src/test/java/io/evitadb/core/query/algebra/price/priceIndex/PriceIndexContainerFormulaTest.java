@@ -48,7 +48,7 @@ import static io.evitadb.test.TestTags.PRICE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link PriceIndexContainerFormula} verifying delegation, hashing
+ * Tests for {@link PriceIndexContainerFormula} verifying delegation, key identity
  * and price index association.
  *
  * @author evitaDB

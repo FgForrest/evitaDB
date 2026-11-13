@@ -43,5 +43,4 @@ public interface PricePredicateContract {
 	 */
 	@Nonnull
 	PriceAmountPredicate getRequestedPredicate();
-
 }

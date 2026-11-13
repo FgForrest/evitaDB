@@ -41,8 +41,10 @@ copy, the `CLASS_ID` is the first line to replace.
 
 ## Changing an existing one
 
-Invariant #2 makes this a last resort. Keys and their hashes are process-local and never persisted or sent to
-another process. Changing a discriminator affects reuse within the running process; it needs no storage migration.
+Invariant #2 makes this a last resort. A formula key never leaves the process: it is never persisted or sent to
+another process. Its 64-bit hash is reported in the query plan telemetry, but only as a process-local diagnostic
+value that means nothing to another process or run. Changing a discriminator affects reuse within the running
+process; it needs no storage migration.
 Fixing a duplicate is worth it; tidying a value is not.
 
 ## The check

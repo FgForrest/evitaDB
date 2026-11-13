@@ -107,14 +107,10 @@ class TrigramSubstringSearchTest {
 	private static final int INDEX_PK = 1;
 
 	/**
-	 * Values planted with the `zebra` pattern. Deliberately above
-	 * {@link io.evitadb.index.invertedIndex.InvertedIndex} (100), which
-	 * is the bitmap count at which the staleness ids of the folded formula stop naming its individual buckets and
-	 * fall back to the index-level token set. The key of the formula names its buckets at every size.
+	 * Values planted with the `zebra` pattern - the widest candidate set any test here searches for, and the wide fold
+	 * the key assertions check next to the narrow `omega` one.
 	 *
-	 * It is also the widest candidate set any test here searches for, so it is what {@link #FILLER_VALUES} has to be
-	 * sized against. This value must NOT be lowered to make that sizing cheaper - the key assertions cover both sides
-	 * of the high-cardinality threshold with it, and the filler is the free side of the ratio.
+	 * It is what {@link #FILLER_VALUES} has to be sized against; the filler is the free side of that ratio.
 	 */
 	private static final int ZEBRA_VALUES = 120;
 
@@ -270,11 +266,9 @@ class TrigramSubstringSearchTest {
 	/**
 	 * Builds a global index holding the whole corpus under one attribute.
 	 *
-	 * Every distinct value carries TWO records rather than one, which is not incidental: a two-record bucket reaches a
-	 * formula as a `SortedArrayBitmap` view stamped with the leaf that owns it. The cache key identifies the bucket by
-	 * its record content, while the legacy hash also folds in the owning leaf, which is what tells two indexes holding
-	 * equal values apart there; a single-record bucket carries no such stamp. Two records are also the shape a
-	 * production corpus of any size has.
+	 * Every distinct value carries TWO records rather than one, so a bucket reaches a formula as a `SortedArrayBitmap`
+	 * view rather than as a single-record bitmap; the formula key identifies it by its record content. Two records are
+	 * also the shape a production corpus of any size has.
 	 *
 	 * @param attributeName the attribute to write to
 	 * @param locale        the locale to write under, or `null`
@@ -1161,8 +1155,8 @@ class TrigramSubstringSearchTest {
 	class CacheKey {
 
 		/**
-		 * Verifies eager scan and accelerated folds identify the same matched operands, both below the legacy
-		 * high-cardinality threshold of 100 bitmaps (`omega`, 5 buckets) and above it (`zebra`, 120 buckets).
+		 * Verifies eager scan and accelerated folds identify the same matched operands, both for a narrow fold
+		 * (`omega`, 5 buckets) and a wide one (`zebra`, 120 buckets).
 		 */
 		@Test
 		@DisplayName("the accelerated formula and the scan's share one cache entry")

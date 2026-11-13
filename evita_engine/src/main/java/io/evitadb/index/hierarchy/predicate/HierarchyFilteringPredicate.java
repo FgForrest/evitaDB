@@ -28,10 +28,9 @@ import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
-
-import javax.annotation.Nonnull;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.function.IntPredicate;

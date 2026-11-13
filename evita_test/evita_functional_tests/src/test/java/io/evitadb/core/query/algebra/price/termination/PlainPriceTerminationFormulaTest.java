@@ -45,7 +45,7 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
 
 /**
- * Tests for {@link PlainPriceTerminationFormula} verifying delegation, hashing, cloning,
+ * Tests for {@link PlainPriceTerminationFormula} verifying delegation, key identity, cloning,
  * and cardinality estimation behavior.
  *
  * @author evitaDB

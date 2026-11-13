@@ -50,8 +50,8 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
  * {@link AttributeRangeCarrierFormula} marker. The subclass must:
  *
  * - behave identically to its parent at runtime (compute, cost delegation, attribute-key routing);
- * - produce a hash distinct from a plain {@link AttributeFormula} built from the same arguments
- *   (so cache entries and dedup tables never conflate the two — the marker is load-bearing);
+ * - produce a key distinct from a plain {@link AttributeFormula} built from the same arguments
+ *   (so deduplication never conflates the two — the marker is load-bearing);
  * - preserve the {@link AttributeRangeCarrierFormula} marker and the optional requested-bucket predicate
  *   through {@link Formula#getCloneWithInnerFormulas(Formula...)}.
  *
@@ -69,7 +69,7 @@ class BetweenAttributeFormulaTest {
 
 	/**
 	 * Shared attribute key used across tests. A locale-agnostic key is sufficient — the locale contribution
-	 * to hashing is already exercised by {@link AttributeFormula}'s own tests.
+	 * to the key is already exercised by {@link AttributeFormula}'s own tests.
 	 */
 	@Nonnull
 	private static final AttributeKey ATTRIBUTE_KEY = new AttributeKey("price");
@@ -82,7 +82,7 @@ class BetweenAttributeFormulaTest {
 	private static final Bitmap REFERENCE_BITMAP = new ArrayBitmap(10, 20, 30);
 
 	/**
-	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Fresh instances let us test hash
+	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Fresh instances let us test key
 	 * stability without sharing memoised state.
 	 *
 	 * @return a {@link ConstantFormula} wrapping the shared reference bitmap

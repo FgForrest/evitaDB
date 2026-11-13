@@ -300,8 +300,6 @@ public final class OverflowRecords {
 		return asBitmap(records);
 	}
 
-
-
 	/**
 	 * Returns the greatest record id of a bucket that is at or below `fromValue` **in signed order** - the array
 	 * tier's equivalent of {@link TransactionalBitmap#signedPreviousValue(int)}.

@@ -204,8 +204,8 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 	 * query, so the difference is the bulk of what computing this formula costs.
 	 *
 	 * **This changes only how the operands are combined, never which operands there are.** The formula's own
-	 * {@link #bitmaps} array is untouched, so its hash, its cached identity and the transactional ids it gathers are
-	 * exactly what they were - the fold happens after all of that, on the way into the union.
+	 * {@link #bitmaps} array is untouched, so its identity and key are exactly what they were - the fold happens after
+	 * all of that, on the way into the union.
 	 *
 	 * Left alone when fewer than two operands are single-record: one such operand costs the same either way, and
 	 * folding it would only move the allocation around.

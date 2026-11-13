@@ -50,11 +50,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the contract of {@link RangeCountFormula} itself — its identity, its declared premises and the staleness
- * token it reports. {@link RangeCountKernelTest} covers the arithmetic; everything here is about the formula wrapper
- * around it.
+ * Verifies the contract of {@link RangeCountFormula} itself — its identity, its declared premises and the inputs
+ * it hands the planner. {@link RangeCountKernelTest} covers the arithmetic; everything here is about the formula
+ * wrapper around it.
  *
- * The identity half matters more than it looks. Two formulas that hash the same over the same data are served each
+ * The identity half matters more than it looks. Two formulas with equal keys over the same data are served each
  * other's answer - `FormulaDeduplicator` keeps one instance for both; the operands are carried as two ORDERED
  * families, and their concatenation alone does not say where one family ends and the other begins.
  *
@@ -63,7 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(INDEXING)
 @Tag(QUERY)
 @Tag(CACHE)
-@DisplayName("RangeCountFormula: identity, premises and staleness token")
+@DisplayName("RangeCountFormula: identity, premises and planner inputs")
 class RangeCountFormulaTest {
 
 	/**
@@ -94,7 +94,7 @@ class RangeCountFormulaTest {
 	}
 
 	/**
-	 * Verifies detached operand families independently of the legacy hash.
+	 * Verifies that both signed operand families are detached inputs of the key.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */

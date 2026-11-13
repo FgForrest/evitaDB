@@ -361,8 +361,10 @@ must be opaque.
 Equal subtrees share computed results within a query. Every formula's children are ordered, including AND and OR
 in formula mode. Canonical raw bitmap operand lists express their own ordering rule inside the identity record.
 
-The installed `CacheSupervisor` controls reuse across queries. `AbstractCacheableFormula` supplies the common
-base for formulas whose results may be considered by that supervisor. Identity declarations must cover every
+The installed `CacheSupervisor` is `NoCacheSupervisor`, which returns every formula and extra-result computer
+unchanged, so reuse happens within one query, where `FormulaDeduplicator` shares the results of equal subtrees.
+`AbstractCacheableFormula` supplies the common base for formulas whose results may be considered by that
+supervisor. Identity declarations must cover every
 side output read by sorters and extra-result producers as well as the computed bitmap.
 
 ## Visitor pattern

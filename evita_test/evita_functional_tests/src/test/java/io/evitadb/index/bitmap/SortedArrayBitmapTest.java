@@ -23,6 +23,8 @@
 
 package io.evitadb.index.bitmap;
 
+import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -427,6 +429,29 @@ class SortedArrayBitmapTest {
 			assertEquals(leftView, rightView);
 			assertEquals(rightView, leftView);
 			assertEquals(leftView.hashCode(), rightView.hashCode());
+		}
+	}
+
+	@Nested
+	@DisplayName("Formula key parity")
+	class FormulaKeyParityTest {
+
+		@Test
+		@DisplayName("A constant formula keys like one over the equivalent BaseBitmap, with and without negative ids")
+		void shouldKeyLikeAnEquivalentBaseBitmap() {
+			// a formula key identifies a bitmap that is not a transactional producer by its content, so two
+			// representations of the same record set must produce the same key. Parity holds only because getArray
+			// performs the signed rotation, so this pins the two halves of that contract together
+			final int[] nonNegative = {0, 5, 9, Integer.MAX_VALUE};
+			assertEquals(
+				new ConstantFormula(new BaseBitmap(nonNegative)).getKey(),
+				new ConstantFormula(new SortedArrayBitmap(nonNegative)).getKey()
+			);
+
+			final FormulaKey baseKey = new ConstantFormula(new BaseBitmap(MIXED_SIGN_IDS)).getKey();
+			final FormulaKey arrayKey = new ConstantFormula(new SortedArrayBitmap(MIXED_SIGN_IDS)).getKey();
+			assertEquals(baseKey, arrayKey);
+			assertEquals(baseKey.getHash64(), arrayKey.getHash64());
 		}
 	}
 

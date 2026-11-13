@@ -513,10 +513,9 @@ public class HierarchyIndex
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromRootFormula(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
-		final HierarchyNodeStore store = this.nodeStore;
-		if (store == null) {
-			// nothing to defer: an absent store provably answers empty, and owns no transactional id to key a memo
-			// on - the equivalence argument is on the nodeStore field
+		if (this.nodeStore == null) {
+			// nothing to defer: an absent store provably answers empty - the equivalence argument is on the nodeStore
+			// field
 			return EmptyFormula.INSTANCE;
 		}
 		return new DeferredFormula(
@@ -596,16 +595,16 @@ public class HierarchyIndex
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromParentIncludingItselfFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		final HierarchyNodeStore store = this.nodeStore;
-		if (store == null) {
-			// nothing to defer: an absent store provably answers empty, and owns no transactional id to key a memo
-			// on - the equivalence argument is on the nodeStore field
+		if (this.nodeStore == null) {
+			// nothing to defer: an absent store provably answers empty - the equivalence argument is on the nodeStore
+			// field
 			return EmptyFormula.INSTANCE;
 		}
 		return new DeferredFormula(
 			new HierarchyByParentIncludingSelfBitmapSupplier(
 				this,
-				parentNode, excludedNodeTrees
+				parentNode,
+				excludedNodeTrees
 			)
 		);
 	}
@@ -689,16 +688,16 @@ public class HierarchyIndex
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromParentFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		final HierarchyNodeStore store = this.nodeStore;
-		if (store == null) {
-			// nothing to defer: an absent store provably answers empty, and owns no transactional id to key a memo
-			// on - the equivalence argument is on the nodeStore field
+		if (this.nodeStore == null) {
+			// nothing to defer: an absent store provably answers empty - the equivalence argument is on the nodeStore
+			// field
 			return EmptyFormula.INSTANCE;
 		}
 		return new DeferredFormula(
 			new HierarchyByParentBitmapSupplier(
 				this,
-				parentNode, excludedNodeTrees
+				parentNode,
+				excludedNodeTrees
 			)
 		);
 	}
@@ -767,10 +766,9 @@ public class HierarchyIndex
 	@Nonnull
 	@Override
 	public Formula getRootHierarchyNodesFormula(@Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		final HierarchyNodeStore store = this.nodeStore;
-		if (store == null) {
-			// nothing to defer: an absent store provably answers empty, and owns no transactional id to key a memo
-			// on - the equivalence argument is on the nodeStore field
+		if (this.nodeStore == null) {
+			// nothing to defer: an absent store provably answers empty - the equivalence argument is on the nodeStore
+			// field
 			return EmptyFormula.INSTANCE;
 		}
 		return new DeferredFormula(
@@ -813,10 +811,9 @@ public class HierarchyIndex
 	@Nonnull
 	@Override
 	public Formula getHierarchyNodesForParentFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		final HierarchyNodeStore store = this.nodeStore;
-		if (store == null) {
-			// nothing to defer: an absent store provably answers empty, and owns no transactional id to key a memo
-			// on - the equivalence argument is on the nodeStore field
+		if (this.nodeStore == null) {
+			// nothing to defer: an absent store provably answers empty - the equivalence argument is on the nodeStore
+			// field
 			return EmptyFormula.INSTANCE;
 		}
 		return new DeferredFormula(

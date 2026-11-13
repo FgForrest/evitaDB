@@ -163,7 +163,8 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 *                                    additionally populates the per-inner-record histogram side-output
 	 *                                    exposed via
 	 *                                    {@link #getFilteredPriceRecordsForHistogram(QueryExecutionContext)}.
-	 *                                    Mixed into the formula hash for cache isolation.
+	 *                                    Part of the formula identity, so formulas differing only in it never
+	 *                                    share a key.
 	 */
 	public LowestPriceTerminationFormula(
 		@Nonnull Formula containerFormula,

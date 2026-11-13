@@ -51,7 +51,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(QUERY)
 class AndFormulaTest {
 
-
 	@Nested
 	@DisplayName("Computation correctness")
 	class ComputationTest {

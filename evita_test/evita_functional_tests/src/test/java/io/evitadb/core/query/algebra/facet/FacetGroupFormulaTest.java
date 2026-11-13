@@ -45,7 +45,7 @@ import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link FacetGroupAndFormula} and {@link FacetGroupOrFormula} verifying
- * computation, memoization, cloning, hashing, merging and edge case behavior.
+ * computation, memoization, cloning, key identity, merging and edge case behavior.
  *
  * @author evitaDB
  */

@@ -87,7 +87,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(REFERENCE)
 class ReferencedOwnerExistenceFormulaTest {
 
-
 	@Nested
 	@DisplayName("Computation")
 	class ComputationTest {
@@ -98,7 +97,8 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20, 30},
 				new Formula[]{constant(1, 2), constant(5), constant(2, 9)},
-				constant(2, 7));
+				constant(2, 7)
+			);
 
 			final Bitmap result = formula.compute();
 
@@ -114,7 +114,8 @@ class ReferencedOwnerExistenceFormulaTest {
 				// `EmptyFormula.INSTANCE` is what `BidirectionalReferenceRewriter#createPerOwnerFormulas` emits for
 				// an owner the counterpart type-level index announced but which carries no reduced index at all
 				new Formula[]{EmptyFormula.INSTANCE, constant(2), constant(2, 4)},
-				constant(2));
+				constant(2)
+			);
 
 			final Bitmap result = formula.compute();
 
@@ -136,7 +137,8 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20},
 				new Formula[]{firstOwner, secondOwner},
-				EmptyFormula.INSTANCE);
+				EmptyFormula.INSTANCE
+			);
 
 			assertSame(EmptyBitmap.INSTANCE, formula.compute());
 			// the short-circuit happens before any per-owner work is paid for
@@ -155,7 +157,8 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1), constant(2)},
-				constant(2));
+				constant(2)
+			);
 
 			final Formula clone = formula.getCloneWithInnerFormulas();
 
@@ -176,7 +179,8 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10},
 				new Formula[]{constant(1)},
-				constant(1));
+				constant(1)
+			);
 
 			final EvitaInvalidUsageException exception = assertThrows(
 				EvitaInvalidUsageException.class,
@@ -192,7 +196,8 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20, 30},
 				new Formula[]{constant(1, 2), constant(5), constant(2, 9)},
-				constant(2, 7));
+				constant(2, 7)
+			);
 
 			final ReferencedOwnerExistenceFormula clone = assertInstanceOf(
 				ReferencedOwnerExistenceFormula.class,
@@ -224,11 +229,13 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1, 2), constant(3)},
-				constant(2, 7));
+				constant(2, 7)
+			);
 			final ReferencedOwnerExistenceFormula formulaB = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1, 2), constant(3)},
-				constant(2, 7));
+				constant(2, 7)
+			);
 
 			assertEquals(formulaA.getKey(), formulaB.getKey());
 			assertEquals(formulaA.getKey().getHash64(), formulaB.getKey().getHash64());
@@ -251,11 +258,13 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1), constant(2)},
-				constant(2));
+				constant(2)
+			);
 			final ReferencedOwnerExistenceFormula formulaB = createFormula(
 				new int[]{10, 21},
 				new Formula[]{constant(1), constant(2)},
-				constant(2));
+				constant(2)
+			);
 
 			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
@@ -267,31 +276,15 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1), constant(2)},
-				constant(2));
+				constant(2)
+			);
 			final ReferencedOwnerExistenceFormula formulaB = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1), constant(3)},
-				constant(2));
+				constant(2)
+			);
 
 			assertNotEquals(formulaA.getKey(), formulaB.getKey());
-		}
-
-		/** Verifies that the legacy index-id fold does not distinguish identical computations. */
-		@Test
-		@DisplayName("should keep equal keys when only the counterpart type index fold changes")
-		void shouldKeepEqualKeysWhenOnlyCounterpartTypeIndexFoldChanges() {
-			final int[] owners = {10, 20};
-			final Formula[] perOwnerFormulas = {constant(1), constant(2)};
-			final Formula referencedEntityFormula = constant(2);
-			final ReferencedOwnerExistenceFormula formulaA = createFormula(
-				owners, perOwnerFormulas, referencedEntityFormula);
-			final ReferencedOwnerExistenceFormula formulaB = createFormula(
-				owners, perOwnerFormulas, referencedEntityFormula);
-
-			assertEquals(formulaA.getKey(), formulaB.getKey());
-			assertEquals(formulaA.getKey().getHash64(), formulaB.getKey().getHash64());
-			assertArrayEquals(new int[]{20}, formulaA.compute().getArray());
-			assertArrayEquals(formulaA.compute().getArray(), formulaB.compute().getArray());
 		}
 
 		/** Verifies that a deferred referenced entity formula contributes its detached key without being computed. */
@@ -301,11 +294,14 @@ class ReferencedOwnerExistenceFormulaTest {
 			final int[] owners = {10, 20};
 			final Formula[] perOwnerFormulas = {constant(1), constant(2)};
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
-				owners, perOwnerFormulas, deferred(2));
+				owners, perOwnerFormulas, deferred(2)
+			);
 			final ReferencedOwnerExistenceFormula formulaB = createFormula(
-				owners, perOwnerFormulas, deferred(2));
+				owners, perOwnerFormulas, deferred(2)
+			);
 			final ReferencedOwnerExistenceFormula formulaC = createFormula(
-				owners, perOwnerFormulas, deferred(3));
+				owners, perOwnerFormulas, deferred(3)
+			);
 
 			assertFalse(formulaA.getKey().isOpaque());
 			assertEquals(formulaA.getKey(), formulaB.getKey());
@@ -324,7 +320,8 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20, 30},
 				new Formula[]{constant(1), constant(2), constant(3)},
-				constant(2));
+				constant(2)
+			);
 
 			// in the worst case every candidate owner survives
 			assertEquals(3, formula.getEstimatedCardinality());
@@ -344,7 +341,8 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20},
 				new Formula[]{firstOwner, secondOwner},
-				constant(2));
+				constant(2)
+			);
 
 			// the per-owner formulas are not reached by the inner formula walk in `getEstimatedCostInternal()`,
 			// so the base cost is the only place they can be accounted for
@@ -369,7 +367,8 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20},
 				new Formula[]{firstOwner, secondOwner},
-				constant(2));
+				constant(2)
+			);
 
 			// a wrapped-around (negative) cost would make this the cheapest plan on offer and the planner would
 			// then always pick it, whatever it actually costs
@@ -386,7 +385,8 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20},
 				new Formula[]{firstOwner, secondOwner},
-				constant(2));
+				constant(2)
+			);
 
 			// `getCost()` answers `Long.MAX_VALUE` until the result has been memoized - see `AbstractFormula#getCost`
 			formula.compute();
@@ -411,7 +411,8 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20},
 				new Formula[]{firstOwner, secondOwner},
-				constant(2));
+				constant(2)
+			);
 			final QueryExecutionContext executionContext = Mockito.mock(QueryExecutionContext.class);
 
 			formula.initialize(executionContext);
@@ -468,7 +469,8 @@ class ReferencedOwnerExistenceFormulaTest {
 				() -> createFormula(
 					new int[]{10, 20},
 					new Formula[]{constant(1)},
-					constant(2))
+					constant(2)
+				)
 			);
 		}
 	}
@@ -477,18 +479,20 @@ class ReferencedOwnerExistenceFormulaTest {
 	 * Creates the formula under test. Present only so the individual tests read as data rather than as constructor
 	 * calls - the constructor is public and takes no collaborators.
 	 *
-	 * @param ownerPrimaryKeys                     candidate owner primary keys, ascending
-	 * @param perOwnerFormulas                     one formula per candidate owner, positionally paired
-	 * @param referencedEntityFormula              the shared narrowing of the referenced entities
+	 * @param ownerPrimaryKeys        candidate owner primary keys, ascending
+	 * @param perOwnerFormulas        one formula per candidate owner, positionally paired
+	 * @param referencedEntityFormula the shared narrowing of the referenced entities
 	 * @return new formula instance
 	 */
 	@Nonnull
 	private static ReferencedOwnerExistenceFormula createFormula(
 		@Nonnull int[] ownerPrimaryKeys,
 		@Nonnull Formula[] perOwnerFormulas,
-		@Nonnull Formula referencedEntityFormula) {
+		@Nonnull Formula referencedEntityFormula
+	) {
 		return new ReferencedOwnerExistenceFormula(
-			ownerPrimaryKeys, perOwnerFormulas, referencedEntityFormula);
+			ownerPrimaryKeys, perOwnerFormulas, referencedEntityFormula
+		);
 	}
 
 	/**
@@ -546,7 +550,8 @@ class ReferencedOwnerExistenceFormulaTest {
 	 */
 	static class RecordingFormula extends AbstractFormula {
 		/**
-		 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+		 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity
+		 * discriminator.
 		 */
 		private static final long CLASS_ID = 4611686018427387903L;
 		/**

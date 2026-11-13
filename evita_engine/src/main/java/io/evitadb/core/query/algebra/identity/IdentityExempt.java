@@ -51,6 +51,6 @@ public @interface IdentityExempt {
 		/** Constructor-derived value determined by identity components. */
 		DERIVED,
 		/** Input whose relevant parts are represented by separate components. */
-		DECOMPOSED,
+		DECOMPOSED
 	}
 }

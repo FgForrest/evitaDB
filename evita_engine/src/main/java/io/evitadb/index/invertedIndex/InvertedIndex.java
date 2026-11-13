@@ -352,10 +352,10 @@ public class InvertedIndex implements
 	 *   {@link SortedArrayBitmap} view of the leaf's sorted ids, which builds no roaring bitmap at all;
 	 * - a large one becomes a {@link ValueToRecordBitmap} sharing the very same {@link TransactionalBitmap} instance.
 	 *
-	 * Sharing is what preserves the record-set hash/equals parity the formula cache relies on. The dispatch is on the
-	 * TYPE the cursor answers with, which is exactly the tier - never on cardinality, since the promote and demote
-	 * thresholds differ and a bucket at a cardinality inside that window legitimately sits in either tier. Valid only
-	 * after a {@link BucketCursor#next()} that returned true.
+	 * Sharing is what preserves the record-set hash/equals parity {@link #equals(Object)} and {@link #hashCode()} rely
+	 * on. The dispatch is on the TYPE the cursor answers with, which is exactly the tier - never on cardinality, since
+	 * the promote and demote thresholds differ and a bucket at a cardinality inside that window legitimately sits in
+	 * either tier. Valid only after a {@link BucketCursor#next()} that returned true.
 	 *
 	 * @param cursor the cursor positioned at the bucket to materialize
 	 * @return the bucket as a {@link ValueToRecord} flyweight
@@ -2906,16 +2906,16 @@ public class InvertedIndex implements
 
 	/**
 	 * Accumulates the distinct version ids of the leaf pages a slice/scan crosses, in ascending traversal order, and
-	 * caps the set at 100 leaves. A forward
-	 * {@link BucketCursor} visits every bucket of a leaf consecutively, so accepting an id only when it differs from the
-	 * previous one (a consecutive-dedup) yields the distinct leaf set without a hash set. {@link #toTokenSet()} folds
+	 * caps the set at 100 leaves. A forward {@link BucketCursor} visits every bucket of a leaf consecutively, so
+	 * accepting an id only when it differs from the previous one (a consecutive-dedup) yields the distinct leaf set
+	 * without a hash set. {@link #toTokenSet()} folds
 	 * the gathered ids into the canonical staleness token, collapsing to the single whole-index id when the cap
 	 * overflowed or no leaf was crossed (an empty slice, whose formula never reads the token).
 	 */
 	private final class LeafVersionAccumulator {
 		/** Maximum number of leaf versions retained by a histogram slice. */
-		private static final int EXCESSIVE_HIGH_CARDINALITY = 100;
-		private final long[] leafIds = new long[EXCESSIVE_HIGH_CARDINALITY];
+		private static final int MAX_LEAF_VERSIONS = 100;
+		private final long[] leafIds = new long[MAX_LEAF_VERSIONS];
 		private int leafCount;
 		private boolean overflow;
 		private long lastLeafId;
@@ -2923,7 +2923,7 @@ public class InvertedIndex implements
 
 		/**
 		 * Records the id of the leaf the cursor is currently positioned in. Cheap to call once per in-range bucket:
-		 * ids repeat within a leaf and are dropped by the consecutive-dedup; the {@code EXCESSIVE_HIGH_CARDINALITY + 1}
+		 * ids repeat within a leaf and are dropped by the consecutive-dedup; the {@code MAX_LEAF_VERSIONS + 1}
 		 * distinct leaf flips this accumulator to overflow and stops further collection.
 		 *
 		 * @param leafId the current bucket's leaf version id ({@link BucketCursor#currentLeafId()})

@@ -486,11 +486,10 @@ public class RangeIndex
 	 * This is the one range query that counts over a SUFFIX rather than a prefix, and it stays that way on purpose.
 	 * The two directions are arithmetically identical - per record `E(>=t) - S(>=t)` equals `S(<t) - E(<t)`, since
 	 * flipping the walk subtracts that record's whole span count from both families - so this could be routed
-	 * through {@link #createPrefixCountFormula(long, boolean, long, boolean)} as `(t, false, t, false)`. Two reasons
-	 * not to: at `Long.MIN_VALUE` the prefix form collects nothing and short-circuits to {@link EmptyFormula},
-	 * where this returns a zero-valued {@link RangeCountFormula} carrying the index id - the same records, but a
-	 * different formula identity, and that identity is read as the index's staleness token. And no caller would
-	 * gain: the suffix walk is already a single counting pass.
+	 * through {@link #createPrefixCountFormula(long, boolean, long, boolean)} as `(t, false, t, false)`. No caller
+	 * would gain: the suffix walk is already a single counting pass. The two forms also differ in shape at
+	 * `Long.MIN_VALUE`: the prefix form collects nothing and short-circuits to {@link EmptyFormula}, where this
+	 * returns a zero-valued {@link RangeCountFormula} over every point - the same records, but a different formula.
 	 */
 	@Nonnull
 	public Formula getRecordsFrom(long threshold) {

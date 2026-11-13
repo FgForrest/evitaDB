@@ -40,7 +40,7 @@ import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link ScopeContainerFormula} verifying AND-like computation, scope metadata,
- * memoization, cloning, hashing and edge case behavior.
+ * memoization, cloning, key identity and edge case behavior.
  *
  * @author evitaDB
  */
