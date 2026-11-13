@@ -23,8 +23,14 @@
 
 package io.evitadb.core.query.filter.translator.price.alternative;
 
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.dataType.Scope;
 import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.core.query.algebra.price.predicate.PriceContractPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import org.junit.jupiter.api.DisplayName;
@@ -33,8 +39,10 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.Currency;
 
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.PRICE;
 import static org.junit.jupiter.api.Assertions.*;
@@ -48,8 +56,35 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(ENGINE)
 @Tag(PRICE)
 class SellingPriceAvailableBitmapFilterIdentityTest {
-	/** Currency of every request of this test. */
+	/** Currency used by the value-identity requests. */
 	private static final Currency CZK = Currency.getInstance("CZK");
+
+	/** Scoped pricing contexts do not have a single request-wide value identity. */
+	@Test
+	@DisplayName("Defers ambiguous scoped price lists and keeps their key opaque")
+	void shouldDeferAmbiguousScopedPriceListsAndKeepKeyOpaque() {
+		final EvitaRequest request = new EvitaRequest(
+			Query.query(
+				collection("product"),
+				filterBy(
+					scope(Scope.LIVE, Scope.ARCHIVED),
+					inScope(Scope.LIVE, priceInPriceLists("basic")),
+					inScope(Scope.ARCHIVED, priceInPriceLists("vip"))
+				)
+			),
+			OffsetDateTime.parse("2026-01-01T00:00:00Z"), EntityReference.class, null
+		);
+		final SellingPriceAvailableBitmapFilter filter = assertDoesNotThrow(
+			() -> SellingPriceAvailableBitmapFilter.forRequest(request, PricePredicate.ALL_CONTRACT_FILTER)
+		);
+
+		final IdentityRecord identity = assertDoesNotThrow(filter::identity);
+		assertSame(identity, filter.identity());
+		assertEquals(IdentityToken.OPAQUE, ((SellingPriceAvailableBitmapFilter.Identity) identity).priceContext());
+		final FormulaKey firstKey = assertDoesNotThrow(() -> key(filter));
+		assertTrue(firstKey.isOpaque());
+		assertEquals(firstKey, key(filter));
+	}
 
 	/** Additional price lists contribute with their order and content. */
 	@Test

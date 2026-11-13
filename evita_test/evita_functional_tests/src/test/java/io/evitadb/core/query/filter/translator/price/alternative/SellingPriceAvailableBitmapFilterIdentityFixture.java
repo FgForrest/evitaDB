@@ -56,7 +56,11 @@ public class SellingPriceAvailableBitmapFilterIdentityFixture
 	/** Czech crown, the currency of the base context. */
 	private static final Currency CZK = Currency.getInstance("CZK");
 
-	/** Covers every captured context input independently, and the opaque constructors. */
+	/**
+	 * Covers pricing inputs through request transplants, additional lists and predicates independently, and opaque
+	 * constructors. Additional-list requests share the same pricing inputs, so request transplants belong to their own
+	 * construction mode.
+	 */
 	@Nonnull
 	@Override
 	public Map<String, ConstructionMode<SellingPriceAvailableBitmapFilter>> modes() {
@@ -67,9 +71,6 @@ public class SellingPriceAvailableBitmapFilterIdentityFixture
 				() -> captured("reference", PricePredicate.ALL_CONTRACT_FILTER, CZK, null, QueryPriceMode.WITH_TAX,
 					"basic"),
 				Map.of(
-					"additional lists", () -> captured("other", PricePredicate.ALL_CONTRACT_FILTER, CZK, null,
-						QueryPriceMode.WITH_TAX, "basic"),
-					"filter", () -> captured("reference", between, CZK, null, QueryPriceMode.WITH_TAX, "basic"),
 					"price lists", () -> captured("reference", PricePredicate.ALL_CONTRACT_FILTER, CZK, null,
 						QueryPriceMode.WITH_TAX, "vip", "basic"),
 					"currency", () -> captured("reference", PricePredicate.ALL_CONTRACT_FILTER,
@@ -79,7 +80,18 @@ public class SellingPriceAvailableBitmapFilterIdentityFixture
 					"price mode", () -> captured("reference", PricePredicate.ALL_CONTRACT_FILTER, CZK, null,
 						QueryPriceMode.WITHOUT_TAX, "basic")
 				),
-				Map.of(), Map.of(), Map.of(), Set.of("priceContext"), Set.of("priceContext"), Set.of()),
+				Map.of(), Map.of(), Map.of(), Set.of("additionalPriceLists", "filter", "priceContext"),
+				Set.of("priceContext"), Set.of()),
+			"additional lists and predicate", new ConstructionMode<>(
+				() -> captured("reference", PricePredicate.ALL_CONTRACT_FILTER, CZK, null, QueryPriceMode.WITH_TAX,
+					"basic"),
+				Map.of(
+					"additional lists", () -> captured("other", PricePredicate.ALL_CONTRACT_FILTER, CZK, null,
+						QueryPriceMode.WITH_TAX, "basic"),
+					"filter", () -> captured("reference", between, CZK, null, QueryPriceMode.WITH_TAX, "basic")
+				),
+				Map.of(), Map.of(), Map.of(), Set.of("priceLists", "currency", "validIn", "queryPriceMode", "priceContext"),
+				Set.of("priceContext"), Set.of("request")),
 			"uncaptured context", new ConstructionMode<>(
 				null, Map.of(),
 				Map.of(
