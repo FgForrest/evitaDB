@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -37,6 +36,7 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaEditor.EntityAttributeSchemaBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.core.cache.FormulaCacheSupervisor;
 import io.evitadb.core.session.EvitaInternalSessionContract;
@@ -66,6 +66,8 @@ abstract class FormulaCacheScenarioSupport implements EvitaTestSupport {
 	protected static final OffsetDateTime MOMENT = OffsetDateTime.parse("2026-01-01T00:00:00Z");
 	/** Currencies of independently indexed prices. */
 	protected static final Currency CZK = Currency.getInstance("CZK");
+	/** Second currency, indexed independently of the first. */
+	protected static final Currency EUR = Currency.getInstance("EUR");
 	/** Engine serving cached queries. */
 	protected Evita enabled;
 	/** Independent engine evaluating without formula result caching. */
@@ -124,13 +126,13 @@ abstract class FormulaCacheScenarioSupport implements EvitaTestSupport {
 	/** Creates five indexed attribute types, grouped facets, hierarchy references and two hundred products. */
 	protected static void products(@Nonnull EvitaSessionContract session, int offset) {
 		final Scope[] scopes = Scope.values();
+		final Consumer<EntityAttributeSchemaBuilder> indexed = a -> a.filterableInScope(scopes).sortableInScope(scopes);
 		session.defineEntitySchema("product").withoutGeneratedPrimaryKey().withPriceIndexedInScope(scopes)
-			.withAttribute("amount", Integer.class, a -> a.filterableInScope(scopes).sortableInScope(scopes))
-			.withAttribute("rank", Long.class, a -> a.filterableInScope(scopes).sortableInScope(scopes))
-			.withAttribute("code", String.class, a -> a.filterableInScope(scopes).sortableInScope(scopes))
-			.withAttribute("decimal", BigDecimal.class, a -> a.filterableInScope(scopes).sortableInScope(scopes)
-				.indexDecimalPlaces(2))
-			.withAttribute("moment", OffsetDateTime.class, a -> a.filterableInScope(scopes).sortableInScope(scopes))
+			.withAttribute("amount", Integer.class, indexed)
+			.withAttribute("rank", Long.class, indexed)
+			.withAttribute("code", String.class, indexed)
+			.withAttribute("decimal", BigDecimal.class, indexed.andThen(a -> a.indexDecimalPlaces(2)))
+			.withAttribute("moment", OffsetDateTime.class, indexed)
 			.withReferenceToEntity("facets", "facet", Cardinality.ZERO_OR_MORE,
 				r -> r.indexedForFilteringAndPartitioning().faceted().withGroupTypeRelatedToEntity("group"))
 			.withReferenceToEntity("categories", "category", Cardinality.ZERO_OR_MORE,
@@ -138,7 +140,7 @@ abstract class FormulaCacheScenarioSupport implements EvitaTestSupport {
 		for (int id = 1; id <= 200; id++) session.upsertEntity(product(session, id, offset));
 	}
 
-	/** Generates all price handlings, tied variants, tax differences, three lists and two currencies. */
+	/** Generates all price handlings, tied variants, three lists and two currencies. */
 	@Nonnull
 	protected static EntityBuilder product(@Nonnull EvitaSessionContract session, int id, int offset) {
 		final EntityBuilder builder = session.getEntity("product", id, attributeContentAll(), priceContentAll(),
@@ -151,12 +153,11 @@ abstract class FormulaCacheScenarioSupport implements EvitaTestSupport {
 			.setReference("categories", id % 6 + 1);
 		final PriceInnerRecordHandling handling = PriceInnerRecordHandling.values()[id % 3];
 		builder.setPriceInnerRecordHandling(handling);
-		for (final Currency currency : List.of(CZK, Currency.getInstance("EUR"))) {
+		for (final Currency currency : List.of(CZK, EUR)) {
 			int priceId = 0;
 			for (final String list : List.of("basic", "vip", "reference")) {
 				for (int inner = 1; inner <= (handling == PriceInnerRecordHandling.NONE ? 1 : 2); inner++) {
-					final int amount = 100 + id + offset + (list.equals("reference") ? id % 17 + inner * 9 :
-						list.equals("vip") ? -20 : 0);
+					final int amount = 100 + id + offset + priceAdjustment(list, id, inner);
 					builder.setPrice(++priceId, list, currency,
 						handling == PriceInnerRecordHandling.NONE ? null : inner,
 						BigDecimal.valueOf(amount), BigDecimal.valueOf(21), BigDecimal.valueOf(amount * 121L, 2),
@@ -167,15 +168,24 @@ abstract class FormulaCacheScenarioSupport implements EvitaTestSupport {
 		return builder;
 	}
 
+	/** Shifts a price list's amount: reference prices vary by product and inner record, vip prices are lower. */
+	private static int priceAdjustment(@Nonnull String list, int id, int inner) {
+		return switch (list) {
+			case "reference" -> id % 17 + inner * 9;
+			case "vip" -> -20;
+			default -> 0;
+		};
+	}
+
 	/** Applies one deterministic mutation independently to both engines. */
 	protected void change(@Nonnull String name, @Nonnull Consumer<EvitaSessionContract> mutation) {
 		this.enabled.updateCatalog(name, mutation);
 		this.disabled.updateCatalog(name, mutation);
 	}
 
-	/** Returns the production statistics surface, requiring the test engine to own an active cache. */
+	/** Returns the production statistics surface of the engine configured with the cache enabled. */
 	@Nonnull
-	protected FormulaCacheSupervisor.Statistics statistics() {
+	protected FormulaCacheSupervisor.Statistics cacheStatistics() {
 		final FormulaCacheSupervisor.Statistics statistics = this.enabled.getFormulaCacheStatistics();
 		assertNotNull(statistics);
 		return statistics;

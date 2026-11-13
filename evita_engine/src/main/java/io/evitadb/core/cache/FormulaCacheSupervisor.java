@@ -281,7 +281,9 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 	 * Compares the recomputed tuple and fails on a confirmed mismatch without retrying the request.
 	 * Plan construction may already have recorded capabilities and index activity. A dry verification can fail
 	 * before traffic recording starts; ordinary execution failures pass through the existing traffic recorder.
-	 * Previously injected memos in other in-flight queries are not retracted.
+	 * Previously injected memos in other in-flight queries are not retracted. Every confirmed mismatch commits a
+	 * {@link FormulaCacheMismatchEvent} with the catalog name, entity type and class before the exception is thrown,
+	 * also when an earlier mismatch has already switched the cache off.
 	 *
 	 * @throws GenericEvitaInternalError on every confirmed mismatch, describing that mismatch; the first one also
 	 *         switches this engine's cache off and becomes the stored witness
@@ -295,11 +297,12 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		this.verificationNanos.add(nanos);
 		if (!CachedResultEquivalence.equivalent(cached, recomputed)) {
 			this.mismatches.increment();
-			new FormulaCacheMismatchEvent(
-				context.getQueryContext().getCatalogSchema().getName(),
-				context.getQueryContext().getEvitaRequest().getEntityType(), formulaClass
-			).commit();
-			final String detected = describeMismatch(context, key, formulaClass, description, cached, recomputed);
+			final String catalogName = context.getQueryContext().getCatalogSchema().getName();
+			final String entityType = context.getQueryContext().getEvitaRequest().getEntityType();
+			new FormulaCacheMismatchEvent(catalogName, entityType, formulaClass).commit();
+			final String detected = describeMismatch(
+				catalogName, entityType, key, formulaClass, description, cached, recomputed
+			);
 			if (this.active.compareAndSet(true, false)) {
 				this.witness = detected;
 				this.cache.invalidateAll();
@@ -317,13 +320,12 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 	/** Renders the bounded description of one detected mismatch, retaining no payload or query object. */
 	@Nonnull
 	private static String describeMismatch(
-		@Nonnull QueryExecutionContext context, @Nonnull FormulaKey key, @Nonnull String formulaClass,
-		@Nonnull String description, @Nonnull CachedResult cached, @Nonnull CachedResult recomputed
+		@Nonnull String catalogName, @Nullable String entityType, @Nonnull FormulaKey key,
+		@Nonnull String formulaClass, @Nonnull String description, @Nonnull CachedResult cached,
+		@Nonnull CachedResult recomputed
 	) {
 		final String bounded = description.substring(0, Math.min(description.length(), MAX_WITNESS_LENGTH_CHARS));
-		return Instant.now() + ": " +
-			context.getQueryContext().getCatalogSchema().getName() + "/" +
-			context.getQueryContext().getEvitaRequest().getEntityType() + ", class=" + formulaClass +
+		return Instant.now() + ": " + catalogName + "/" + entityType + ", class=" + formulaClass +
 			", classId=" + key.getClassId() +
 			", hash64=" + key.getHash64() + ", " + bounded + ", cached=" + summary(cached) +
 			", recomputed=" + summary(recomputed) + ", differences=" + differences(cached, recomputed);

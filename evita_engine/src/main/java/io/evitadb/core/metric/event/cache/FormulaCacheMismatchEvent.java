@@ -34,9 +34,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * One confirmed cache verification mismatch, including detections already in flight after the first shutdown.
- * Only schema identifiers and the formula class are exported; the diagnostic witness and result values stay out
- * of this event.
+ * One confirmed cache verification mismatch. Every confirmed mismatch emits one event, including detections still
+ * in flight after an earlier mismatch has already switched the cache off. Only schema identifiers and the formula
+ * class are exported; the diagnostic witness and result values stay out of this event.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -53,19 +53,19 @@ public class FormulaCacheMismatchEvent extends AbstractFormulaCacheEvent {
 	@ExportMetricLabel
 	private final String catalogName;
 
-	/** Entity type from the verification request. */
+	/** Entity type from the verification request; null when the request names none. */
 	@Label("Entity type")
 	@Description("Entity type from the verification request.")
 	@ExportMetricLabel
-	private final String entityType;
+	@Nullable private final String entityType;
 
-	/** Formula class supplied by the verifier. */
+	/** Fully qualified class name of the cached formula or extra-result computer whose result differed. */
 	@Label("Formula class")
-	@Description("Formula class supplied by the verifier.")
+	@Description("Fully qualified class name of the cached formula or extra-result computer whose result differed.")
 	@ExportMetricLabel
 	private final String formulaClass;
 
-	/** Creates a point-in-time event from the same identifiers used by the existing mismatch witness. */
+	/** Creates a point-in-time event from the identifiers the mismatch witness names as well. */
 	public FormulaCacheMismatchEvent(
 		@Nonnull String catalogName, @Nullable String entityType, @Nonnull String formulaClass
 	) {

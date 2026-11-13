@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,11 +27,13 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.Debug;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.core.cache.FormulaCacheSupervisor;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
@@ -41,6 +43,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -67,6 +70,12 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(SCHEMA)
 @Tag(TRANSACTION)
 class FormulaCacheOracleTest extends FormulaCacheScenarioSupport {
+	/** Fixed number of mutation steps per seed. */
+	private static final int STEPS = 40;
+	/** Basic CZK prices at the query moment: the list and currency whose validity a mutation moves past it. */
+	private static final Query BASIC_CZK = query(and(priceInPriceLists("basic"), priceInCurrency(CZK),
+		priceValidIn(MOMENT)), priceNatural(), priceHistogram(6));
+
 	/** Executes every mutation kind for each seed; wall time never controls operation selection. */
 	@ParameterizedTest(name = "seed {0}")
 	@ValueSource(longs = {41, 42})
@@ -80,7 +89,9 @@ class FormulaCacheOracleTest extends FormulaCacheScenarioSupport {
 		final String[] names = {"first", "second"};
 		final int[][] model = {initialModel(), initialModel()};
 		final int liveStep = 2 + random.nextInt(3);
-		for (int step = 0; step < 40; step++) {
+		int crossVersionReads = 0;
+		int validityChanges = 0;
+		for (int step = 0; step < STEPS; step++) {
 			final int selected = step % 2;
 			final int operation = step % 12;
 			final int value = random.nextInt(300);
@@ -91,17 +102,10 @@ class FormulaCacheOracleTest extends FormulaCacheScenarioSupport {
 				}
 				// A registered reader pins the old catalog before a different session commits its successor.
 				if (step > liveStep && operation < 9) {
-					final Query pinnedQuery = query(prices(), priceNatural(), priceHistogram(6));
-					try (final EvitaSessionContract pinned = this.enabled.createReadOnlySession(names[selected]);
-						final EvitaSessionContract oracle = this.disabled.createReadOnlySession(names[selected])) {
-						final EvitaResponse<SealedEntity> expected = read(oracle, pinnedQuery);
-						equalResponse(expected, read(pinned, pinnedQuery), context + ", query=" + pinnedQuery);
-						mutate(names, model, selected, operation, step, value);
-						compare(names[selected], pinnedQuery);
-						equalResponse(expected, read(pinned, pinnedQuery), context + ", pinned query=" + pinnedQuery);
-						equalResponse(read(oracle, pinnedQuery), read(pinned, flagged(pinnedQuery)),
-							context + ", flagged pinned query=" + pinnedQuery);
+					if (mutateUnderPinnedReader(names, model, selected, operation, step, value, context)) {
+						validityChanges++;
 					}
+					crossVersionReads += operation >= 6 ? 1 : 0;
 				} else {
 					mutate(names, model, selected, operation, step, value);
 				}
@@ -110,16 +114,59 @@ class FormulaCacheOracleTest extends FormulaCacheScenarioSupport {
 					assertModel(names[catalog], model[catalog], context);
 				}
 				final String diagnostic = context + ", query=" + query(prices(), priceNatural());
-				assertTrue(statistics().active(), diagnostic);
-				assertEquals(0, statistics().mismatches(), diagnostic);
-				if (step < liveStep) assertEquals(0, statistics().admissions(), diagnostic);
+				assertTrue(cacheStatistics().active(), diagnostic);
+				assertEquals(0, cacheStatistics().mismatches(), diagnostic);
+				if (step < liveStep) assertEquals(0, cacheStatistics().admissions(), diagnostic);
 			} catch (final Throwable failure) {
 				throw new AssertionError(context + ", query=mutation or query set " + queries(), failure);
 			}
 		}
-		final String last = "seed=" + seed + ", step=39, query=" + queries();
-		assertTrue(statistics().hits() > 0, last);
-		if (seed % 2 == 1) assertTrue(statistics().verifiedHits() > 0, last);
+		final String last = "seed=" + seed + ", step=" + (STEPS - 1) + ", query=" + queries();
+		assertTrue(cacheStatistics().hits() > 0, last);
+		if (seed % 2 == 1) assertTrue(cacheStatistics().verifiedHits() > 0, last);
+		assertTrue(crossVersionReads > 0, last + ": no commit kept the price operands");
+		assertTrue(validityChanges > 0, last + ": no validity change was visible to " + BASIC_CZK);
+	}
+
+	/**
+	 * Commits one mutation while a reader stays pinned to the previous version, then requires the pinned reader to
+	 * keep its answer and the first read of the new version to agree with the cache-disabled engine. After a commit
+	 * that keeps the price operands (operations 6 to 8), that first read must hit entries admitted before it.
+	 *
+	 * @return whether the cache-disabled answer for basic CZK prices changed with the commit
+	 */
+	private boolean mutateUnderPinnedReader(
+		@Nonnull String[] names, @Nonnull int[][] model, int selected, int operation, int step, int value,
+		@Nonnull String context
+	) {
+		final Query pinnedQuery = query(prices(), priceNatural(), priceHistogram(6));
+		try (final EvitaSessionContract pinned = this.enabled.createReadOnlySession(names[selected]);
+			final EvitaSessionContract oracle = this.disabled.createReadOnlySession(names[selected])) {
+			final EvitaResponse<SealedEntity> expected = read(oracle, pinnedQuery);
+			equalResponse(expected, read(pinned, pinnedQuery), context + ", query=" + pinnedQuery);
+			final List<Integer> validBefore = operation == 5 ? oracleKeys(names[selected]) : null;
+			mutate(names, model, selected, operation, step, value);
+			final boolean validityChanged = validBefore != null && !validBefore.equals(oracleKeys(names[selected]));
+			final FormulaCacheSupervisor.Statistics committed = cacheStatistics();
+			compare(names[selected], pinnedQuery);
+			if (operation >= 6) {
+				// operations 6 to 8 move facets, groups and the hierarchy, so the price operands survive
+				assertTrue(cacheStatistics().hits() > committed.hits(), context + ", query=" + pinnedQuery +
+					": the first read after a commit keeping the price operands must hit earlier entries");
+			}
+			equalResponse(expected, read(pinned, pinnedQuery), context + ", pinned query=" + pinnedQuery);
+			equalResponse(read(oracle, pinnedQuery), read(pinned, flagged(pinnedQuery)),
+				context + ", flagged pinned query=" + pinnedQuery);
+			return validityChanged;
+		}
+	}
+
+	/** Reads the primary keys the cache-disabled engine returns for basic CZK prices at the query moment. */
+	@Nonnull
+	private List<Integer> oracleKeys(@Nonnull String name) {
+		try (final EvitaSessionContract oracle = this.disabled.createReadOnlySession(name)) {
+			return read(oracle, BASIC_CZK).getRecordData().stream().map(SealedEntity::getPrimaryKey).toList();
+		}
 	}
 
 	/** Includes the same query with verification enabled and with ordinary prefetch policy. */
@@ -147,7 +194,8 @@ class FormulaCacheOracleTest extends FormulaCacheScenarioSupport {
 			query(prices(), priceNatural()),
 			query(prices(), priceDiscount(OrderDirection.DESC, "reference")),
 			query(prices(), priceNatural(), priceHistogram(6)),
-			query(and(priceInPriceLists("basic"), priceInCurrency(java.util.Currency.getInstance("EUR")),
+			BASIC_CZK,
+			query(and(priceInPriceLists("basic"), priceInCurrency(EUR),
 				userFilter(priceBetween(BigDecimal.valueOf(150), BigDecimal.valueOf(400)))),
 				priceNatural(), priceHistogram(6)),
 			query(and(attributeBetween("amount", 10, 90), userFilter(attributeBetween("amount", 20, 60))),
@@ -167,18 +215,23 @@ class FormulaCacheOracleTest extends FormulaCacheScenarioSupport {
 	/** Replaces the policy requirement without changing the semantics or the requested bodies. */
 	@Nonnull
 	private static Query flagged(@Nonnull Query query) {
-		final List<RequireConstraint> requirements = new ArrayList<>(Arrays.asList(query.getRequire().getChildren()));
-		requirements.removeIf(io.evitadb.api.query.require.Debug.class::isInstance);
-		requirements.add(debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES));
-		return Query.query(query.getCollection(), query.getFilterBy(), query.getOrderBy(),
-			require(requirements.toArray(RequireConstraint[]::new)));
+		return withDebug(query, DebugMode.VERIFY_POSSIBLE_CACHING_TREES);
 	}
 
 	/** Leaves production planning free to use prefetch and omits the key-free verification flag. */
 	@Nonnull
 	private static Query ordinary(@Nonnull Query query) {
+		return withDebug(query, null);
+	}
+
+	/** Rebuilds the query without its debug requirement, appending the passed mode last when there is one. */
+	@Nonnull
+	private static Query withDebug(@Nonnull Query query, @Nullable DebugMode mode) {
 		final List<RequireConstraint> requirements = new ArrayList<>(Arrays.asList(query.getRequire().getChildren()));
-		requirements.removeIf(io.evitadb.api.query.require.Debug.class::isInstance);
+		requirements.removeIf(Debug.class::isInstance);
+		if (mode != null) {
+			requirements.add(debug(mode));
+		}
 		return Query.query(query.getCollection(), query.getFilterBy(), query.getOrderBy(),
 			require(requirements.toArray(RequireConstraint[]::new)));
 	}

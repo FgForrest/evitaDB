@@ -49,11 +49,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  *
  * The hooks are why this needs a test of its own rather than a line in an existing one.
  * {@link jdk.jfr.FlightRecorder#addPeriodicEvent(java.lang.Class, Runnable)} files a hook in a registry that lives
- * for the whole JVM, and every hook this engine registers captures the engine (or one of its executors) in order
- * to read statistics off it. That registry is a static of the JDK, so a hook left in it is a GC root: an engine
- * that has closed every executor, terminated every catalog and released every buffer still cannot be collected,
- * and neither can the catalogs, persistence services and output buffers hanging off it. One engine per process
- * hides this completely; a test suite that builds thousands of them exhausts the heap.
+ * for the whole JVM, and almost every hook this engine registers captures the engine (or one of its executors) in
+ * order to read statistics off it. That registry is a static of the JDK, so a hook left in it is a GC root: an
+ * engine that has closed every executor, terminated every catalog and released every buffer still cannot be
+ * collected, and neither can the catalogs, persistence services and output buffers hanging off it. One engine per
+ * process hides this completely; a test suite that builds thousands of them exhausts the heap. The formula cache
+ * statistics hook is the exception: it captures only the cache supervisor, so the test also watches the cache
+ * options that supervisor holds.
  *
  * The assertion is deliberately made against reachability rather than against the hook registry, which has no
  * public API to count: what matters is not how many hooks were handed back but whether anything at all still
@@ -89,13 +91,19 @@ class EvitaJfrHookRetentionTest implements EvitaTestSupport {
 	@Test
 	@DisplayName("should let a closed engine be collected once its Flight Recorder hooks are handed back")
 	void shouldNotRetainClosedEngine() {
-		final WeakReference<Evita> engineReference = bootUseAndCloseEngine();
+		final ClosedEngine closed = bootUseAndCloseEngine();
 		assertCollectable(
-			engineReference,
+			closed.engine(),
 			"A closed engine is still reachable. Every Flight Recorder periodic hook it registered is held by a " +
 				"JVM-lifetime static of the JDK and released only against the very instance registered, so a hook " +
 				"that was not handed back on close pins the engine - and everything it owns - for the rest of the " +
 				"process."
+		);
+		assertCollectable(
+			closed.cacheOptions(),
+			"The cache options of a closed engine are still reachable. The formula cache statistics hook captures " +
+				"only the cache supervisor, which holds these options, so a hook that was not handed back on close " +
+				"pins the supervisor and every cached result for the rest of the process."
 		);
 	}
 
@@ -110,11 +118,15 @@ class EvitaJfrHookRetentionTest implements EvitaTestSupport {
 	 * that no such hook survives the close - and a test that only ever created one catalog would pass with two of
 	 * those three sites still leaking.
 	 *
-	 * @return weak reference to the engine that has just been closed
+	 * @return weak references to the engine that has just been closed and to the cache options it was built with
 	 */
 	@Nonnull
-	private WeakReference<Evita> bootUseAndCloseEngine() {
-		final Evita evita = bootEvita();
+	private ClosedEngine bootUseAndCloseEngine() {
+		// the cache is enabled so that the engine registers its formula cache statistics hook too; that hook pins
+		// only the cache supervisor and the options it holds, never the engine, so the options are watched as well
+		final CacheOptions cacheOptions = CacheOptions.builder().enabled(true).dropEntriesAfterSecondsOfInactivity(0)
+			.build();
+		final Evita evita = bootEvita(cacheOptions);
 		evita.waitUntilFullyInitialized();
 		// a catalog is what makes the per-catalog hook exist at all - without one there is nothing to release.
 		// `products` is left standing, so its hook can only ever be released by the close itself
@@ -127,7 +139,7 @@ class EvitaJfrHookRetentionTest implements EvitaTestSupport {
 		// the engine-wide hooks are normally registered by the observability API, which does not run here
 		evita.emitStartObservabilityEvents();
 		evita.close();
-		return new WeakReference<>(evita);
+		return new ClosedEngine(new WeakReference<>(evita), new WeakReference<>(cacheOptions));
 	}
 
 	/**
@@ -164,11 +176,17 @@ class EvitaJfrHookRetentionTest implements EvitaTestSupport {
 		assertNull(reference.get(), message);
 	}
 
+	/**
+	 * Boots an engine over the test's own directories with a small transaction buffer.
+	 *
+	 * @param cacheOptions formula cache configuration, built by the caller so it can watch the instance
+	 * @return the started engine
+	 */
 	@Nonnull
-	private Evita bootEvita() {
+	private Evita bootEvita(@Nonnull CacheOptions cacheOptions) {
 		return new Evita(
 			newTestEvitaConfigurationBuilder(this.testPaths)
-				.cache(CacheOptions.builder().enabled(true).dropEntriesAfterSecondsOfInactivity(0).build())
+				.cache(cacheOptions)
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(this.storageDirectory)
@@ -183,6 +201,18 @@ class EvitaJfrHookRetentionTest implements EvitaTestSupport {
 				)
 				.build()
 		);
+	}
+
+	/**
+	 * Weak references to a closed engine and to the cache options its formula cache supervisor held.
+	 *
+	 * @param engine       the engine that has just been closed
+	 * @param cacheOptions the options instance only the engine's configuration and its cache supervisor referenced
+	 */
+	private record ClosedEngine(
+		@Nonnull WeakReference<Evita> engine,
+		@Nonnull WeakReference<CacheOptions> cacheOptions
+	) {
 	}
 
 }

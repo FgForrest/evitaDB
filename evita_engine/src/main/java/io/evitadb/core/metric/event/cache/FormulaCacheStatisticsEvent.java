@@ -48,6 +48,10 @@ import javax.annotation.Nullable;
 @Period("1m")
 @Getter
 public class FormulaCacheStatisticsEvent extends AbstractFormulaCacheEvent {
+	/** Baseline of the first emission: no counted work before the cache existed. */
+	private static final Statistics NO_PREVIOUS = new Statistics(
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, null
+	);
 
 	/** Cache hits since the previous emission. */
 	@Label("Cache hits")
@@ -170,24 +174,22 @@ public class FormulaCacheStatisticsEvent extends AbstractFormulaCacheEvent {
 	 * @param previous statistics used by the previous emission, or null for the first emission
 	 */
 	public FormulaCacheStatisticsEvent(@Nonnull Statistics current, @Nullable Statistics previous) {
-		this.hits = delta(current.hits(), previous == null ? 0 : previous.hits());
-		this.misses = delta(current.misses(), previous == null ? 0 : previous.misses());
-		this.admissions = delta(current.admissions(), previous == null ? 0 : previous.admissions());
-		this.duplicateAdmissions =
-			delta(current.duplicateAdmissions(), previous == null ? 0 : previous.duplicateAdmissions());
-		this.duplicateComputeMillis =
-			delta(current.duplicateComputeMillis(), previous == null ? 0 : previous.duplicateComputeMillis());
-		this.duplicateBytes = delta(current.duplicateBytes(), previous == null ? 0 : previous.duplicateBytes());
-		this.refusedOversized = delta(current.refusedOversized(), previous == null ? 0 : previous.refusedOversized());
-		this.refusedUnsized = delta(current.refusedUnsized(), previous == null ? 0 : previous.refusedUnsized());
-		this.prefetchBypasses = delta(current.prefetchBypasses(), previous == null ? 0 : previous.prefetchBypasses());
-		this.transactionBypasses =
-			delta(current.transactionBypasses(), previous == null ? 0 : previous.transactionBypasses());
-		this.evictions = delta(current.evictions(), previous == null ? 0 : previous.evictions());
-		this.evictedWeightBytes = delta(current.evictedWeightBytes(), previous == null ? 0 : previous.evictedWeightBytes());
-		this.verifiedHits = delta(current.verifiedHits(), previous == null ? 0 : previous.verifiedHits());
-		this.verificationMillis = delta(current.verificationMillis(), previous == null ? 0 : previous.verificationMillis());
-		this.mismatches = delta(current.mismatches(), previous == null ? 0 : previous.mismatches());
+		final Statistics base = previous == null ? NO_PREVIOUS : previous;
+		this.hits = delta(current.hits(), base.hits());
+		this.misses = delta(current.misses(), base.misses());
+		this.admissions = delta(current.admissions(), base.admissions());
+		this.duplicateAdmissions = delta(current.duplicateAdmissions(), base.duplicateAdmissions());
+		this.duplicateComputeMillis = delta(current.duplicateComputeMillis(), base.duplicateComputeMillis());
+		this.duplicateBytes = delta(current.duplicateBytes(), base.duplicateBytes());
+		this.refusedOversized = delta(current.refusedOversized(), base.refusedOversized());
+		this.refusedUnsized = delta(current.refusedUnsized(), base.refusedUnsized());
+		this.prefetchBypasses = delta(current.prefetchBypasses(), base.prefetchBypasses());
+		this.transactionBypasses = delta(current.transactionBypasses(), base.transactionBypasses());
+		this.evictions = delta(current.evictions(), base.evictions());
+		this.evictedWeightBytes = delta(current.evictedWeightBytes(), base.evictedWeightBytes());
+		this.verifiedHits = delta(current.verifiedHits(), base.verifiedHits());
+		this.verificationMillis = delta(current.verificationMillis(), base.verificationMillis());
+		this.mismatches = delta(current.mismatches(), base.mismatches());
 		this.entries = current.entries();
 		this.weightedSizeBytes = current.weightedSizeBytes();
 		this.maximumWeightBytes = current.maximumWeightBytes();
@@ -195,8 +197,10 @@ public class FormulaCacheStatisticsEvent extends AbstractFormulaCacheEvent {
 	}
 
 	/**
-	 * Clamps a regressing source to zero. Current supervisor counters never reset during the engine lifetime;
-	 * the clamp also protects export if a future source resets or a weakly consistent observation regresses.
+	 * Returns the work counted since the previous emission, clamped at zero. The supervisor's counters only grow
+	 * during the engine lifetime, so the clamp never engages today; it keeps a source that resets from exporting a
+	 * negative value. It does not repair a regressed observation: the emitter keeps the regressed value as its next
+	 * baseline, so the following emission exports the difference again.
 	 */
 	private static long delta(long current, long previous) {
 		return Math.max(0, current - previous);

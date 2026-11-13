@@ -347,11 +347,13 @@ public final class Evita implements EvitaContract {
 	 *
 	 * {@link FlightRecorder#addPeriodicEvent(Class, Runnable)} appends to a registry that lives as long as the JVM
 	 * (`jdk.jfr.internal.RequestEngine#entries`), and the only way out of it is
-	 * {@link FlightRecorder#removePeriodicEvent(Runnable)}, which matches on object identity. Every hook here
-	 * captures this instance or one of its executors, so a hook left behind pins the whole engine graph - its
-	 * catalogs, their persistence services and the output buffers those hold - until the process ends. The hooks
-	 * have to be stored rather than re-derived on close: a method reference yields a fresh object on every
-	 * evaluation, so `removePeriodicEvent(this::emitEvitaStatistics)` would remove nothing and report no error.
+	 * {@link FlightRecorder#removePeriodicEvent(Runnable)}, which matches on object identity. Every hook here but
+	 * one captures this instance or one of its executors, so a hook left behind pins the whole engine graph - its
+	 * catalogs, their persistence services and the output buffers those hold - until the process ends. The
+	 * exception is the formula cache emitter, which captures only the cache supervisor: left behind, it pins the
+	 * cache and every retained result instead of the engine. The hooks have to be stored rather than re-derived on
+	 * close: a method reference yields a fresh object on every evaluation, so
+	 * `removePeriodicEvent(this::emitEvitaStatistics)` would remove nothing and report no error.
 	 */
 	private final List<Runnable> engineStatisticsHooks = new CopyOnWriteArrayList<>();
 	/**

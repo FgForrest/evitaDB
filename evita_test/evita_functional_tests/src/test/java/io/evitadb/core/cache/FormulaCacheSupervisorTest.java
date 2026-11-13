@@ -60,8 +60,10 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.*;
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.RandomUtils;
 import jdk.jfr.Recording;
+import jdk.jfr.ValueDescriptor;
 import jdk.jfr.consumer.RecordedEvent;
 import jdk.jfr.consumer.RecordingFile;
 import org.junit.jupiter.api.*;
@@ -80,6 +82,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -779,8 +782,8 @@ class FormulaCacheSupervisorTest implements EvitaTestSupport {
 		/** Every in-flight detector emits once, even when another detector has already disabled the cache. */
 		@Test
 		@Tag(OBSERVABILITY)
-		@DisplayName("Emits only the three mismatch labels once per confirmed defective formula")
-		void shouldEmitEachConfirmedMismatchWithWitnessLabels() throws Exception {
+		@DisplayName("Emits the three identifying labels once per confirming detector, none once the cache is off")
+		void shouldEmitOnlyIdentifiersOncePerConfirmingDetector() throws Exception {
 			replaceCache(options(1, 0));
 			final Path recordingPath = Files.createTempFile("formula-cache-mismatch-", ".jfr");
 			try (final Recording recording = new Recording()) {
@@ -811,12 +814,12 @@ class FormulaCacheSupervisorTest implements EvitaTestSupport {
 					.toList();
 				assertEquals(2, events.size());
 				for (final RecordedEvent event : events) {
-					assertEquals("io.evitadb.cache.FormulaCacheMismatch", event.getEventType().getName());
+					final Set<String> fields = CollectionUtils.createHashSet(4);
+					for (final ValueDescriptor field : event.getFields()) fields.add(field.getName());
+					fields.removeAll(Set.of("startTime", "duration", "eventThread", "stackTrace"));
+					assertEquals(Set.of("catalogName", "entityType", "formulaClass"), fields);
 					assertEquals("cacheTest", event.getString("catalogName"));
 					assertEquals("product", event.getString("entityType"));
-					assertEquals(InputBlindCachedFormula.class.getName(), event.getString("formulaClass"));
-					assertFalse(event.hasField("witness"));
-					assertFalse(event.hasField("description"));
 				}
 			} finally {
 				Files.deleteIfExists(recordingPath);
