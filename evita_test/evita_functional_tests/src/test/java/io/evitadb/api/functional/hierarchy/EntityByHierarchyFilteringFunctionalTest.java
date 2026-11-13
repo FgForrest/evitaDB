@@ -357,11 +357,11 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 	 * Subtracts the categories that `having` keeps for a node filter from the categories that `anyHaving` keeps for
 	 * the very same node filter. The two specifications select different nodes: `having` keeps a node only when the
 	 * node and all its ancestors match the filter, `anyHaving` keeps every matching node together with all its
-	 * ancestors. The node predicate both of them build hashes the disjunction of its node filter and its any-child
-	 * filter, so the slot the filter sits in is not part of the hash, and the two hierarchy formulas read the same
-	 * hierarchy index. The formula deduplicator, which runs on every query, then treats the two formulas as one and
-	 * the subtraction removes a node set from itself. The expected answer is taken from the two constraints queried
-	 * separately, and no debug verification is requested, so that a wrong tree surfaces as a wrong result.
+	 * ancestors. Both build their node predicate from the same node filter and read the same hierarchy index; only the
+	 * slot the filter sits in tells the two hierarchy formulas apart. The formula deduplicator, which runs on every
+	 * query, must keep them apart - treated as one, the subtraction would remove a node set from itself. The expected
+	 * answer is taken from the two constraints queried separately, and no debug verification is requested, so that a
+	 * wrong tree surfaces as a wrong result.
 	 */
 	@DisplayName("Should subtract categories having a node filter from categories any having the same node filter")
 	@UseDataSet(THOUSAND_CATEGORIES)

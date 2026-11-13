@@ -112,13 +112,13 @@ public class AttributeHistogramRequestedRangeFunctionalTest {
 
 	/**
 	 * The user filter selects widths 10 to 20, and a disjunction outside it selects widths 10 to 35 or the wide
-	 * product. Both ranges select the widths 10 and 20 only, so both range formulas wrap the same slice of the
-	 * attribute index and share their hash and transactional ids - the bounds and the requested-bucket predicate are
-	 * folded into neither. The formula deduplicator, which runs on every query, then may put the range formula of the
-	 * disjunction into the user filter, and the histogram reads the requested-bucket predicate of the wrong range.
-	 * The expected histogram comes from the same query with the disjunction selecting widths 10 and 20 by
-	 * `attributeInSet`, whose formula cannot share an identity with a range formula. Both orders of the two
-	 * constraints are queried, because the deduplicator keeps whichever formula it visits first.
+	 * product. Both ranges select the widths 10 and 20 only, so both range formulas read the same slice of the
+	 * attribute index and differ only in their bounds and in the requested-bucket predicate the histogram reads. The
+	 * formula deduplicator, which runs on every query, must keep them apart: were the range formula of the disjunction
+	 * put into the user filter, the histogram would read the requested-bucket predicate of the wrong range. The
+	 * expected histogram comes from the same query with the disjunction selecting widths 10 and 20 by
+	 * `attributeInSet`, whose formula never equals a range formula. Both orders of the two constraints are queried,
+	 * because the deduplicator keeps whichever formula it completes first.
 	 */
 	@DisplayName("Should request buckets of the user filter range when another range selects the same values")
 	@UseDataSet(ATTRIBUTE_HISTOGRAM_REQUESTED_RANGE)

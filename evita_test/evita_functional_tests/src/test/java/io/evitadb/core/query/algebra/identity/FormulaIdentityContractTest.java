@@ -91,19 +91,19 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 				tests.stream().anyMatch(type -> type.getName().equals(exemption.getKey())),
 				"Stale named exemption: " + exemption.getKey());
 		}
-		final int engineDeclared = verifyInventory(engine);
-		final int testsDeclared = verifyInventory(tests);
+		final int engineVerified = verifyInventory(engine);
+		final int testsVerified = verifyInventory(tests);
 		System.out.println("Identity discovery: engine=" + engine.size() + "/floor=" + ENGINE_FLOOR +
-			", functional=" + tests.size() + "/floor=" + TEST_FLOOR + ", declared=" +
-			(engineDeclared + testsDeclared) + ", exemptions=" + EXEMPTIONS.size());
+			", functional=" + tests.size() + "/floor=" + TEST_FLOOR + ", verified=" +
+			(engineVerified + testsVerified) + ", exemptions=" + EXEMPTIONS.size());
 	}
 
 	/**
 	 * Verifies each discovered class by the shared rule, except the mutable wrapper, which is checked by its forwarding
-	 * contract; returns how many of them declare an identity.
+	 * contract; returns how many classes were verified.
 	 */
 	private static int verifyInventory(@Nonnull Set<Class<?>> inventory) throws ReflectiveOperationException {
-		int declared = IdentityContractVerifier.verifyInventory(inventory, EXEMPTIONS.keySet());
+		int verified = IdentityContractVerifier.verifyInventory(inventory, EXEMPTIONS.keySet());
 		for (final Class<?> type : inventory) {
 			if (type.getName().equals(MUTABLE_FORMULA)) {
 				IdentityContractVerifier.verifyMutableFormula(
@@ -111,10 +111,9 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 					new FacetGroupAndFormula("reference", 1, new BaseBitmap(1), new BaseBitmap(10)),
 					new FacetGroupAndFormula("reference", 1, new BaseBitmap(2), new BaseBitmap(20))
 				);
-				declared++;
+				verified++;
 			}
 		}
-		return declared;
+		return verified;
 	}
-
 }

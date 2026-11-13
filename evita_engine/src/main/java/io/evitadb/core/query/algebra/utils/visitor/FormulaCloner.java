@@ -145,7 +145,8 @@ public class FormulaCloner implements FormulaVisitor {
 			storeFormula(alreadyProcessedFormula);
 		} else {
 			final Formula formulaToStore;
-			if (mutatedFormula == formula) {
+			final Formula replacedFormula = mutatedFormula == formula ? preProcess(formula) : mutatedFormula;
+			if (replacedFormula == formula) {
 				pushContext(this.treeStack, formula);
 				this.parents.push(formula);
 				for (Formula innerFormula : formula.getInnerFormulas()) {
@@ -212,7 +213,7 @@ public class FormulaCloner implements FormulaVisitor {
 					}
 				}
 			} else {
-				formulaToStore = mutatedFormula;
+				formulaToStore = replacedFormula;
 			}
 
 			if (formulaToStore != null) {
@@ -224,9 +225,27 @@ public class FormulaCloner implements FormulaVisitor {
 	}
 
 	/**
-	 * Processes a retained formula after its children have been visited and any changed children installed.
+	 * Offers a replacement for a formula the mutator kept, before its inner formulas are visited. A returned formula
+	 * other than the argument replaces the whole subtree: the inner formulas are not visited, and the replacement
+	 * passes through {@link #postProcess(Formula)} like a replacement returned by the mutator.
 	 *
-	 * @param formula the original formula or its rebuilt replacement
+	 * @param formula the original formula, kept by the mutator and not processed yet
+	 * @return the argument to visit its inner formulas, or the formula that replaces the whole subtree
+	 */
+	@Nonnull
+	protected Formula preProcess(@Nonnull Formula formula) {
+		return formula;
+	}
+
+	/**
+	 * Processes the formula that takes the place of an original formula in the cloned tree: the original itself when
+	 * none of its inner formulas changed, its rebuild over the changed ones, a replacement returned by the mutator or
+	 * by {@link #preProcess(Formula)}, {@link EmptyFormula#INSTANCE} for a {@link NotFormula} whose two operands became
+	 * one formula, or the surviving superset of a {@link NotFormula}. The returned formula takes the original's place
+	 * in the parent and wherever the original occurs again. A dropped formula is not processed, and an original is
+	 * processed once however often it occurs.
+	 *
+	 * @param formula the formula retained in place of the original
 	 * @return the formula to store in the cloned tree
 	 */
 	@Nonnull

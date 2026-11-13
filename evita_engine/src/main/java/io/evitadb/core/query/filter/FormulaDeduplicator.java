@@ -33,8 +33,13 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 
 /**
- * This class is responsible for deduplicating formulas to optimize calculation performance by reusing memoized results.
- * In other words, existing instance can be reused on multiple places.
+ * Merges formulas that compute the same result over the same data into one instance, so a result memoized on that
+ * instance is reused wherever the computation occurs. Formulas merge when their {@link FormulaKey keys} are equal; an
+ * opaque key equals only its own holder, so a formula with one merges with no other formula.
+ *
+ * The first formula completed with a key becomes its canonical instance. A later formula whose key is interned already
+ * is replaced by the canonical instance before its inner formulas are visited. Any other formula is interned after its
+ * inner formulas, so it is first rebuilt over their canonical instances.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -45,7 +50,7 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 	private final Map<FormulaKey, Formula> formulaCache = CollectionUtils.createHashMap(64);
 
 	/**
-	 * Creates a deduplicator that visits every child before interning its parent.
+	 * Creates a deduplicator for one tree, which it returns unchanged until it has visited the tree.
 	 *
 	 * @param originalFormula the tree to deduplicate
 	 */
@@ -60,6 +65,19 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 		final Formula result = getResultClone();
 		this.formulaCache.clear();
 		return result == null ? this.originalFormula : result;
+	}
+
+	/**
+	 * Replaces a formula whose key is interned already by the canonical instance, so the subtree of a duplicate is
+	 * neither visited nor rebuilt. A visit would reach the same instance: a canonical instance has distinct canonical
+	 * children, so a formula with its key keeps every child when the children are interned, and its rebuild carries
+	 * the same key.
+	 */
+	@Nonnull
+	@Override
+	protected Formula preProcess(@Nonnull Formula formula) {
+		final Formula canonicalFormula = this.formulaCache.get(formula.getKey());
+		return canonicalFormula == null ? formula : canonicalFormula;
 	}
 
 	/**

@@ -53,8 +53,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * Pins the selection of facets whose group terms are merged across the live and the archived scope. A query over
  * both scopes collects the term of a facet group from the index of each scope and merges the terms of one group into
- * one; a facet both scopes reference gets the union of the two scopes' entities as a plain bitmap, no longer the
- * transactional bitmap of a facet index.
+ * one; a facet both scopes reference gets the union of the two scopes' entities as a plain bitmap rather than the
+ * transactional bitmap of either scope's facet index, so its term names no index the facet came from.
  *
  * ## The fixture
  *
@@ -168,12 +168,11 @@ public class FacetGroupTermsAcrossScopesFunctionalTest {
 	/**
 	 * Selects tags 1 and 2 over both scopes. Each scope's index yields the term of group 1 holding tag 2 and the term
 	 * of the facets without a group holding tags 1 and 2, and the terms of one group from the two scopes merge into
-	 * one whose entity bitmaps are plain bitmaps. The hash of a facet group formula folds the reference name, the group
-	 * id when present, the facet ids and the ids of transactional operand bitmaps into one flat array: plain operand
-	 * bitmaps contribute nothing, and nothing marks where the group id ends and the facet ids begin. Both merged terms
-	 * then hash `[tags, 1, 2]`, the formula deduplicator, which runs on every query, keeps only one of them, and the
-	 * conjunction of the two terms collapses into one term. The expected answer is the union of the answers of the
-	 * two scopes queried alone - in one scope the terms keep their transactional bitmaps and stay apart.
+	 * one whose entity bitmaps are plain bitmaps. The two merged terms then share the reference name and the numbers
+	 * `1, 2` - group 1 with facet 2, and facets 1 and 2 without a group - over bitmaps that belong to no index. The
+	 * formula deduplicator, which runs on every query, must keep them apart; merged, the conjunction of the two terms
+	 * would collapse into one term. The expected answer is the union of the answers of the two scopes queried alone -
+	 * in one scope the terms keep the transactional bitmaps of its facet index.
 	 */
 	@DisplayName("Should select products of both scopes matching the term of a group and of the facets without a group")
 	@UseDataSet(FACET_GROUP_TERMS_ACROSS_SCOPES)

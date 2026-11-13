@@ -71,9 +71,9 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 			"evita_test/evita_performance_tests/src/main/java"
 		), getRootDirectory().resolve("evita_engine/src/main/java"));
 		assertTrue(holders.size() >= PERFORMANCE_FLOOR, "Performance inventory below floor: " + holders.size());
-		final int declared = IdentityContractVerifier.verifyInventory(holders, Set.of());
+		final int verified = IdentityContractVerifier.verifyInventory(holders, Set.of());
 		System.out.println("Identity discovery: performance=" + holders.size() + "/floor=" + PERFORMANCE_FLOOR +
-			", verified=" + declared);
+			", verified=" + verified);
 	}
 
 	/**

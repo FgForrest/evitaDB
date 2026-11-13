@@ -165,6 +165,8 @@ public final class IdentityContractVerifier {
 	 * Named exemptions are left to the calling inventory test.
 	 *
 	 * @param holderType discovered concrete holder
+	 * @throws AssertionError when the holder declares no identity, has no conventional fixture, or fails a check of its
+	 *                        fixture
 	 */
 	public static void verifyDiscovered(@Nonnull Class<?> holderType) {
 		assertTrue(declares(holderType, "identity"), "Undeclared identity: " + holderType.getName());
@@ -188,25 +190,28 @@ public final class IdentityContractVerifier {
 	 *
 	 * @param inventory discovered concrete holders
 	 * @param exemptions binary names of holders the calling test verifies by a rule of its own
-	 * @return number of verified holders that declare an identity
+	 * @return number of verified holders, which is the inventory without the exemptions
 	 */
 	public static int verifyInventory(@Nonnull Set<Class<?>> inventory, @Nonnull Set<String> exemptions) {
-		int declared = 0;
+		int verified = 0;
 		for (final Class<?> type : inventory) {
 			if (!exemptions.contains(type.getName())) {
 				verifyDiscovered(type);
-				declared++;
+				verified++;
 			}
 		}
-		return declared;
+		return verified;
 	}
 
 	/**
-	 * Verifies that the mutable wrapper forwards its current delegate's key and follows a delegate swap.
+	 * Verifies that the mutable wrapper forwards its current delegate's key and follows a delegate swap. The wrapper is
+	 * built through its constructor taking a `FacetGroupFormula` and swapped through its `setDelegate` method taking
+	 * the same type, so both delegates must be facet group formulas.
 	 *
 	 * @param type the discovered mutable wrapper class
-	 * @param first the initial delegate
-	 * @param second a delegate with a different key
+	 * @param first the initial delegate, a facet group formula
+	 * @param second a facet group formula with a different key
+	 * @throws ReflectiveOperationException when the wrapper lacks that constructor or method, or either of them throws
 	 */
 	public static void verifyMutableFormula(
 		@Nonnull Class<?> type, @Nonnull Formula first, @Nonnull Formula second
