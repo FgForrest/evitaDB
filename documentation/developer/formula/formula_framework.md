@@ -100,8 +100,8 @@ Choose your base class based on the formula's role:
 
 | Base class                   | When to use                                                        |
 |------------------------------|--------------------------------------------------------------------|
-| `AbstractCacheableFormula`   | Formula produces a bitmap result that can be stored in the cache.  |
-| `AbstractFormula`            | Formula is a decorator/marker or carries side-data that must not be flattened into a cached bitmap. |
+| `AbstractCacheableFormula`   | Formula produces a supported bitmap or bitmap-and-price tuple. |
+| `AbstractFormula`            | Formula stays query-local, for example a decorator or a producer of unsupported side outputs. |
 
 Additionally, implement marker interfaces as needed:
 
@@ -348,24 +348,55 @@ public String toStringVerbose() {
 is a prefilter; equality compares exact identity and children. Equal hashes alone do not establish equality.
 Keys are immutable and confined to the JVM lifetime. A plan's diagnostic hash is process-local.
 
-`AbstractFormula#getKey()` creates and memoizes the key on demand. Construction and computation do not request
-keys. `clearMemory()` clears results and measured costs without replacing the key. Clones preserve semantic
-inputs and create their own execution state.
+`AbstractFormula#getKey()` creates and memoizes the key on demand. Construction and unbound computation do not request
+keys. A bound computation reads its memoized key for result-cache lookup. `clearMemory()` clears results and
+measured costs without replacing the key. Clones preserve semantic inputs and create their own execution state. Clearing a cacheable formula also removes its result-cache binding;
+its retained key may describe an earlier mutable facet delegate. Hypothetical facet trees are never analysed or bound.
 
 Opaque inputs bind identity to the holder instance. Oversized exact values retain exact equality but mark the
 key query-local. Query-local status propagates through children and side keys. Key weight accounts for retained
 identity content. An identity containing a predicate or expansion callback whose semantics cannot be described
 must be opaque.
 
-`FormulaDeduplicator` visits children before their parents and interns formulas in a map keyed by `FormulaKey`.
+`FormulaDeduplicator` interns formulas in a map keyed by `FormulaKey`, rebuilding changed parents after their
+children are canonical. Its pre-order hook can replace an already completed duplicate before descending again.
 Equal subtrees share computed results within a query. Every formula's children are ordered, including AND and OR
 in formula mode. Canonical raw bitmap operand lists express their own ordering rule inside the identity record.
 
-The installed `CacheSupervisor` is `NoCacheSupervisor`, which returns every formula and extra-result computer
-unchanged, so reuse happens within one query, where `FormulaDeduplicator` shares the results of equal subtrees.
-`AbstractCacheableFormula` supplies the common base for formulas whose results may be considered by that
-supervisor. Identity declarations must cover every
-side output read by sorters and extra-result producers as well as the computed bitmap.
+### Caching mechanism
+
+The engine installs `NoCacheSupervisor` by default. With `cache.enabled: true`, it owns one
+`FormulaCacheSupervisor` backed by Caffeine. Formula analysis binds eligible instances after deduplication,
+without substituting nodes. A hit fills the existing node's bitmap memo, paid cost and any price outputs as one
+tuple. It records zero cost for that node and avoids computing its children. Structured telemetry still shows
+those children's structure, with no computed outcomes unless another reader evaluated them.
+
+Eligibility is resolved independently for each planning root: its session must be read-only, its pinned catalog
+must be ALIVE, its request must target an entity type, and no transaction may be bound to the thread. Nested
+contexts inherit that decision. Body-fetch roots decide independently for their own requests. Execution contexts
+also exclude eager planning, prefetch filtering and transactions bound when the context is created. Verification
+executions of the query's own plans follow ordinary cache rules; the key-free baseline always uses
+`NoCacheSupervisor` and requests no keys for the tier.
+
+Candidates are the subclasses of `AbstractCacheableFormula` and the attribute and price histogram computers.
+Estimated cost selects candidates before lookup. Query-local and overweight keys remain unbound. Entries contain
+detached keys and immutable bitmap, price or histogram tuples. Both price arrays are frozen in entity-primary-key
+order before publication; SUM component maps are included in the charge. Consumers must not change retained bitmap
+contents, price arrays, records, component maps or histogram buckets. Sorters work on fresh arrays or bitmap clones.
+
+The weigher measures the complete retained graph using long arithmetic and refuses unsupported shapes, entries
+above one percent of the configured budget and charges above the integer range. The aggregate budget is a target
+with transient overshoot; queries' own memos and concurrent duplicate computations are outside it. Idle expiry
+uses best-effort periodic maintenance. Close releases retained entries and cancels maintenance. Committed producer
+IDs provide freshness, so catalog writes and catalog lifecycle operations need no cache purge.
+
+A configured fraction of hits is recomputed with the cache suspended across execution contexts and body-fetch
+roots. Semantic comparison includes bitmap membership, complete price tuples and SUM components, and strict
+histogram contents. An equal sample keeps its recomputed tuple and normal cost. A confirmed mismatch fails the
+detecting request, disables the cache for this engine's lifetime, clears retained entries and records a bounded
+text witness. It does not retract memos already injected into other in-flight queries. Sampling can reuse memos
+already computed in the query, so it is not an independent oracle. Counters and effective activity are available
+through the supervisor's statistics accessor; `EngineSettings.queryCacheEnabled` reflects the effective state.
 
 ## Visitor pattern
 

@@ -124,7 +124,7 @@ public final class CachedResultEquivalence {
 	}
 
 	/** Compares each supported concrete price tuple, including all SUM components by their map keys. */
-	private static boolean equivalentRecord(@Nonnull PriceRecordContract left, @Nonnull PriceRecordContract right) {
+	static boolean equivalentRecord(@Nonnull PriceRecordContract left, @Nonnull PriceRecordContract right) {
 		if (left.getClass() != right.getClass()) {
 			return false;
 		} else if (left.getClass() == CumulatedVirtualPriceRecord.class) {

@@ -54,7 +54,8 @@ public enum DebugMode {
 
 	/**
 	 * This option triggers verification of computation results for all possible indexes. This mode allows us to verify
-	 * that all alternative indexes produce the same results.
+	 * that all alternative indexes produce the same results. These executions use the query's ordinary result-cache
+	 * eligibility, admission and sampled verification; they suppress query recording.
 	 *
 	 * BEWARE: triggering this debug mode will slow down the query response because all alternative computation paths
 	 * needs to be computed along the way.
@@ -65,7 +66,8 @@ public enum DebugMode {
 	 * response of the preferred plan with an independently planned baseline that bypasses computation keys, formula
 	 * sharing and caching. Nested queries and fetched bodies are compared as part of that response, not on their own.
 	 * Both verification executions use the same frozen random state, so random ordering causes no difference. A
-	 * difference fails the query with an `InconsistentResultsException`.
+	 * difference fails the query with an `InconsistentResultsException`. The preferred plan's verification execution
+	 * uses ordinary result-cache rules; the baseline never consults or populates the result cache.
 	 *
 	 * BEWARE: triggering this debug mode slows down the query, because it is planned a second time and executed twice
 	 * more before the normal execution.

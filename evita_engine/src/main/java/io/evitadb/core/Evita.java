@@ -533,7 +533,11 @@ public final class Evita implements EvitaContract {
 			.filter(it -> it > 0)
 			.map(it -> new SessionKiller(it, this, this.serviceExecutor))
 			.orElse(null);
-		this.cacheSupervisor = NoCacheSupervisor.INSTANCE;
+		this.cacheSupervisor = configuration.cache().enabled() ?
+			new io.evitadb.core.cache.FormulaCacheSupervisor(
+				configuration.cache(), this.serviceExecutor,
+				com.github.benmanes.caffeine.cache.Ticker.systemTicker()
+			) : NoCacheSupervisor.INSTANCE;
 		this.collationKeyCacheSweeper = of(configuration.server().dropCollationKeysAfterSecondsOfInactivity())
 			.filter(it -> it > 0)
 			.map(it -> new CollationKeyCacheSweeper(it, this.serviceExecutor))
@@ -2492,6 +2496,19 @@ public final class Evita implements EvitaContract {
 			FlightRecorder.removePeriodicEvent(this);
 		}
 
+	}
+
+	/** Returns whether this engine's configured formula result cache remains active. */
+	public boolean isQueryCacheEnabled() {
+		final io.evitadb.core.cache.FormulaCacheSupervisor.Statistics statistics = getFormulaCacheStatistics();
+		return statistics != null && statistics.active();
+	}
+
+	/** Returns the formula cache's counters and effective state, or null when it was not configured. */
+	@Nullable
+	public io.evitadb.core.cache.FormulaCacheSupervisor.Statistics getFormulaCacheStatistics() {
+		return this.cacheSupervisor instanceof io.evitadb.core.cache.FormulaCacheSupervisor cache ?
+			cache.getStatistics() : null;
 	}
 
 }

@@ -24,6 +24,7 @@
 package io.evitadb.core.cache;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
@@ -33,14 +34,14 @@ import java.io.Closeable;
 
 /**
  * Integrates query formula and extra-result computation with a cache supervisor.
- * Implementations may return a replacement that preserves the computation contract.
+ * Formula analysis preserves the node; extra-result analysis may wrap computation under its execution context.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface CacheSupervisor extends Closeable {
 
 	/**
-	 * Analyses a formula tree for reuse within the given session and entity type.
+	 * Binds an eligible formula graph without replacing nodes, after query-local deduplication.
 	 */
 	@Nonnull
 	<T extends Formula> T analyse(
@@ -50,13 +51,14 @@ public interface CacheSupervisor extends Closeable {
 	);
 
 	/**
-	 * Analyses an extra-result computer for reuse within the given session and entity type.
+	 * Analyses an extra-result computer using the context that will execute it.
 	 */
 	@Nonnull
 	<U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		@Nonnull String entityType,
-		@Nonnull T extraResultComputer
+		@Nonnull T extraResultComputer,
+		@Nonnull QueryExecutionContext context
 	);
 
 	/**

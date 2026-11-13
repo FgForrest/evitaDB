@@ -65,7 +65,8 @@ import java.io.Serializable;
  * @param trafficRecordingEnabled  true when the server records client traffic, so recordings can be
  *                                 started, inspected and exported
  * @param queryCacheEnabled        true when the engine caches computed query results; affects
- *                                 latency characteristics only, never query results
+ *                                 latency characteristics only, never query results. Sampled verification disables this
+ *                                 engine's cache and fails the detecting query when recomputation differs
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record EngineSettings(

@@ -82,7 +82,11 @@ class VerificationRecordingRegressionTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() {
 		this.paths = createTestPaths("VerificationRecordingRegressionTest");
-		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).cache(
+			io.evitadb.api.configuration.CacheOptions.builder()
+				.enabled(Boolean.getBoolean("formulaCache.regression.enabled"))
+				.minimalComplexityThreshold(0).cacheSizeInBytes(100_000_000L)
+				.verifyOneHitIn(0).dropEntriesAfterSecondsOfInactivity(0).build()).build());
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		this.evita.updateCatalog(CATALOG, session -> {
 			session.defineEntitySchema("Category").withoutGeneratedPrimaryKey().withHierarchy()
@@ -166,6 +170,79 @@ class VerificationRecordingRegressionTest implements EvitaTestSupport {
 				() -> assertEquals(expectedCapabilities, requested.toString()),
 				() -> assertEquals(Map.of("Category:GLOBAL:LIVE:null", 2L, "Product:GLOBAL:LIVE:null", 1L), queried));
 		}
+	}
+
+	/** Pins deterministic results, telemetry, requested capabilities and index activity when the tier is bypassed. */
+	@Test
+	@DisplayName("Preserves parent recording with the tier disabled or the read-write gate closed")
+	void shouldPreserveBypassedTierRecording() throws Exception {
+		this.evita.updateCatalog(CATALOG, writer -> {
+			writer.defineEntitySchema("Product").withAttribute("amount", Integer.class,
+				attribute -> attribute.filterable()).updateVia(writer);
+			writer.upsertEntity(writer.getEntity("Product", 1, attributeContentAll()).orElseThrow()
+				.openForWrite().setAttribute("amount", 100));
+			writer.goLiveAndClose();
+		});
+		final boolean enabled = Boolean.getBoolean("formulaCache.regression.enabled");
+		final Query[] queries = {
+			Query.query(collection("Product"),
+				filterBy(referenceHaving("categories", entityHaving(attributeEqualsTrue("stop")))),
+				require(referenceSummaryOfReference("categories", io.evitadb.api.query.require.FacetStatisticsDepth.COUNTS,
+					entityFetch(hierarchyContent(stopAt(node(filterBy(attributeEqualsTrue("stop"))))),
+						referenceContent("related", filterBy(entityHaving(attributeEqualsTrue("stop")))))),
+					queryTelemetry(), debug(DebugMode.PREFER_INDEX_SCAN))),
+			Query.query(collection("Product"), filterBy(attributeBetween("amount", 50, 150)),
+				require(attributeHistogram(10, "amount"), queryTelemetry(), debug(DebugMode.PREFER_INDEX_SCAN)))
+		};
+		final StringBuilder recording = new StringBuilder(8_192);
+		try (final EvitaSessionContract session = enabled ? this.evita.createReadWriteSession(CATALOG) :
+			this.evita.createReadOnlySession(CATALOG)) {
+			for (final Query query : queries) {
+				final Map<String, Long> beforeCapabilities = capabilities();
+				final Map<String, Long> beforeActivity = activity();
+				final EvitaResponse<EntityReference> response = session.query(query, EntityReference.class);
+				recording.append(query).append('\n').append(response.getRecordData()).append('\n')
+					.append(response.getTotalRecordCount()).append('\n')
+					.append(tree(response.getExtraResult(QueryTelemetry.class))).append('\n')
+					.append(metrics(response.getExtraResult(QueryTelemetry.class))).append('\n')
+					.append(delta(capabilities(), beforeCapabilities)).append('\n')
+					.append(delta(activity(), beforeActivity)).append('\n');
+				final io.evitadb.api.requestResponse.extraResult.ReferenceSummary summary =
+					response.getExtraResult(io.evitadb.api.requestResponse.extraResult.ReferenceSummary.class);
+				if (summary != null) {
+					recording.append(summary.prettyPrint()).append('\n');
+					for (final io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics group :
+						summary.getReferenceStatistics()) {
+						appendFetchedContent(recording, group.getGroupEntity());
+						for (final io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics facet :
+							group.getFacetStatistics()) appendFetchedContent(recording, facet.getFacetEntity());
+					}
+				}
+				final io.evitadb.api.requestResponse.extraResult.AttributeHistogram histogram =
+					response.getExtraResult(io.evitadb.api.requestResponse.extraResult.AttributeHistogram.class);
+				if (histogram != null) {
+					for (final Map.Entry<String, io.evitadb.api.requestResponse.extraResult.HistogramContract> entry :
+						histogram.getHistograms().entrySet()) {
+						final io.evitadb.api.requestResponse.extraResult.HistogramContract value = entry.getValue();
+						recording.append(entry.getKey()).append(':').append(value.getMin()).append(':')
+							.append(value.getMax()).append(':').append(value.getOverallCount()).append('\n');
+						for (final io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket bucket :
+							value.getBuckets()) {
+							recording.append(bucket.threshold()).append(':').append(bucket.occurrences()).append(':')
+								.append(bucket.relativeFrequency()).append(':').append(bucket.requested()).append('\n');
+						}
+						appendFetchedContent(recording, value.getMinReferencedEntity().orElse(null));
+						appendFetchedContent(recording, value.getMaxReferencedEntity().orElse(null));
+					}
+				}
+			}
+		}
+		final String fingerprint = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+			.digest(recording.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+		System.out.println("Bypassed recording enabled=" + enabled + " fingerprint=" + fingerprint);
+		System.out.println(recording);
+		assertEquals("7e9a8d7b289352752e882f0caf6d66f1873bfb3f1f827d3671e79f55332437fc",
+			fingerprint, recording.toString());
 	}
 
 	/** A stop predicate is compiled during fetching and pushes steps directly on its planning context. */
@@ -260,6 +337,36 @@ class VerificationRecordingRegressionTest implements EvitaTestSupport {
 			if (increment != 0) result.put(key, increment);
 		});
 		return result;
+	}
+
+	/** Serializes this fixture's fetched values, availability, parent chains and referenced bodies recursively. */
+	private static void appendFetchedContent(
+		@Nonnull StringBuilder output,
+		@javax.annotation.Nullable io.evitadb.api.requestResponse.data.EntityClassifier classifier
+	) {
+		if (classifier == null) {
+			output.append("null\n");
+			return;
+		}
+		output.append(classifier.getType()).append(':').append(classifier.getPrimaryKey()).append('\n');
+		if (classifier instanceof io.evitadb.api.requestResponse.data.EntityContract entity) {
+			output.append(entity.version()).append(':').append(entity.dropped()).append(':').append(entity.getScope())
+				.append(':').append(entity.getLocales()).append(':').append(entity.getAllLocales()).append(':')
+				.append(entity.parentAvailable()).append(':').append(entity.attributesAvailable()).append(':')
+				.append(entity.associatedDataAvailable()).append(':').append(entity.pricesAvailable()).append(':')
+				.append(entity.referencesAvailable()).append(':').append(entity.describe()).append('\n');
+			if (entity.parentAvailable()) appendFetchedContent(output, entity.getParentEntity().orElse(null));
+			if (entity.referencesAvailable()) {
+				for (final io.evitadb.api.requestResponse.data.ReferenceContract reference : entity.getReferences()) {
+					output.append(reference.getReferenceKey()).append(':').append(reference.dropped()).append(':')
+						.append(reference.attributesAvailable()).append(':').append(reference.getGroup()).append('\n');
+					appendFetchedContent(output, reference.getReferencedEntity().orElse(null));
+					appendFetchedContent(output, reference.getGroupEntity().orElse(null));
+				}
+			}
+		} else if (classifier instanceof io.evitadb.api.requestResponse.data.EntityClassifierWithParent parent) {
+			appendFetchedContent(output, parent.getParentEntity().orElse(null));
+		}
 	}
 
 	/** Collects deterministic root metrics and verifies that descendants carry no metrics or formula plans. */

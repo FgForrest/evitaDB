@@ -62,6 +62,7 @@ import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -77,6 +78,7 @@ import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
+import io.evitadb.core.cache.FormulaCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.metric.event.query.FinishedEvent;
@@ -193,7 +195,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * the metrics point of view and must not be reported as one.
 	 */
 	@Nullable @Getter private final FinishedEvent queryFinishedEvent;
-	/** Shared only by contexts participating in the same verification; absent for ordinary queries. */
+	/** Shared execution state for plan verification and sampled cache recomputation; absent on ordinary bypassed roots. */
 	@Nullable private final VerificationState verificationState;
 	/**
 	 * Contains reference to the catalog that is targeted by {@link #evitaRequest}.
@@ -603,10 +605,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			.orElse(null);
 		this.evitaSession = evitaSession instanceof EvitaSession es ? es : null;
 		this.evitaRequest = evitaRequest;
-		this.verificationState = parentQueryContext != null ? parentQueryContext.verificationState :
-			verificationState != null ? verificationState :
-			this.verificationSibling || isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) ||
-				isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) ? new VerificationState(null) : null;
 		if (parentQueryContext == null) {
 			// These debug modes favour bitmap planning and suppress optional prefetch so the query resolves indexes.
 			this.planningPolicy = isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -619,6 +617,23 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			this.prefetchPossible = false;
 			this.recordingRequestedCapabilities = parentQueryContext.recordingRequestedCapabilities;
 		}
+		if (cacheSupervisor instanceof FormulaCacheSupervisor cache) {
+			this.cacheSupervisor = this.verificationSibling ? NoCacheSupervisor.INSTANCE :
+				parentQueryContext != null ? parentQueryContext.cacheSupervisor :
+				cache.resolveForRoot(this.evitaSession, evitaRequest.getEntityType());
+			this.verificationState = parentQueryContext != null ? parentQueryContext.verificationState :
+				verificationState != null ? verificationState :
+				this.cacheSupervisor instanceof FormulaCacheSupervisor || this.verificationSibling ||
+					isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) ||
+					isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) ? new VerificationState(null) : null;
+		} else {
+			this.cacheSupervisor = parentQueryContext != null ?
+				parentQueryContext.cacheSupervisor : NoCacheSupervisor.INSTANCE;
+			this.verificationState = parentQueryContext != null ? parentQueryContext.verificationState :
+				verificationState != null ? verificationState :
+				this.verificationSibling || isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) ||
+					isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) ? new VerificationState(null) : null;
+		}
 		this.telemetryStack = new ArrayDeque<>(16);
 		// Runtime body fetching may plan more queries; dry-run planning must not attach to the real profile.
 		ofNullable(this.verificationSibling ||
@@ -628,9 +643,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this.indexes = (Map<IndexKey, Index<?>>) indexes;
 		//noinspection unchecked
 		this.indexesByPk = (Map<Integer, Index<?>>) indexesByPk;
-		this.cacheSupervisor = this.verificationSibling ? NoCacheSupervisor.INSTANCE : cacheSupervisor;
 		this.queryFinishedEvent = this.verificationSibling ? null : event;
-		this.internalExecutionContext = createExecutionContext();
+		this.internalExecutionContext = createExecutionContext(false, null, true);
 	}
 
 	/**
@@ -651,19 +665,23 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Creates an independent body-fetch root while retaining only verification execution state and sibling policy.
+	 * Creates an independent body-fetch root while retaining shared execution state and sibling policy.
 	 * Its planning policy, optional prefetch, capability accounting and memos belong to the fetch request alone.
 	 * The fetch records no telemetry, capabilities or finished event during verification.
 	 */
 	@Nonnull
-	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext createVerificationFetchContext(
+	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext createFetchContext(
 		@Nonnull EntityCollection collection, @Nonnull EvitaRequest request,
 		@Nonnull Map<S, T> indexes, @Nonnull Map<Integer, T> indexesByPk,
 		@Nonnull CacheSupervisor supervisor
 	) {
+		final boolean verifying = this.verificationSibling || isVerificationExecutionActive();
 		return new QueryPlanningContext(
-			null, this.catalog, collection, this.evitaSession, request, null, indexes, indexesByPk,
-			supervisor, null, false, this.verificationSibling, this.verificationState
+			null, this.catalog, collection, this.evitaSession, request,
+			!verifying && request.isQueryTelemetryRequested() ? QueryTelemetry.root(QueryPhase.OVERALL) : null,
+			indexes, indexesByPk, supervisor,
+			verifying ? null : new FinishedEvent(this.catalog.getName(), collection.getEntityType(), request.getLabels()),
+			!verifying, this.verificationSibling, this.verificationState
 		);
 	}
 
@@ -1911,15 +1929,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Analyzes the input formula for cacheable / cached formulas and replaces them with appropriate counterparts (only
-	 * if cache is enabled).
+	 * Binds eligible canonical instances after formula deduplication and preserves the supplied graph.
+	 * The effective supervisor is already resolved for this planning root; disabled and ineligible roots do no key work.
 	 *
-	 * The formula is returned untouched when there is no session or the query targets no particular entity type -
-	 * the cache is keyed per entity type and accounted per session, so neither can be skipped. Callers therefore
-	 * must not assume the returned tree differs from the input one.
-	 *
-	 * @param formula formula tree to be analysed
-	 * @return the same tree, or an equivalent one with cacheable / cached counterparts substituted in
+	 * @param formula canonical formula graph to analyse
+	 * @return the original formula graph
 	 */
 	@Nonnull
 	public Formula analyse(@Nonnull Formula formula) {
@@ -1932,20 +1946,19 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Lets the cache supervisor replace the extra result computer with an equivalent one.
+	 * Analyses a histogram computer under the actual calling execution context.
 	 *
-	 * The computer is returned untouched when there is no session or the query targets no particular entity type,
-	 * for the same reason as in {@link #analyse(Formula)}. Otherwise the supervisor decides regardless of the planning
-	 * policy, and it may return the input itself.
-	 *
-	 * @param computer extra result computer to be analysed
-	 * @return the same computer, or an equivalent one the supervisor substituted
+	 * @param computer extra-result computation
+	 * @param context execution context controlling planning, prefetch and sampling suspension
+	 * @return the original computer or a wrapper preserving its result contract
 	 */
 	@Nonnull
-	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
+	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
+		@Nonnull T computer, @Nonnull QueryExecutionContext context
+	) {
 		final String theEntityType = this.evitaRequest.getEntityType();
 		if (this.evitaSession != null && theEntityType != null) {
-			return this.cacheSupervisor.analyse(this.evitaSession, theEntityType, computer);
+			return this.cacheSupervisor.analyse(this.evitaSession, theEntityType, computer, context);
 		} else {
 			return computer;
 		}
@@ -2976,6 +2989,29 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		return formula == null ? EmptyBitmap.INSTANCE : formula.compute();
 	}
 
+	/** Returns whether execution state must travel to an independent body-fetch root. */
+	public boolean hasSharedExecutionState() {
+		return this.verificationState != null;
+	}
+
+	/** Returns whether this planning root passed the formula cache gate. */
+	public boolean isFormulaCacheEnabled() {
+		return this.cacheSupervisor instanceof FormulaCacheSupervisor;
+	}
+
+	/** Returns the shared suspension flag without traversing the context ancestry. */
+	boolean isFormulaCacheSuspended() {
+		return this.verificationState != null && this.verificationState.formulaCacheSuspended;
+	}
+
+	/** Exchanges suspension for all execution contexts in this query and its independent fetch roots. */
+	boolean exchangeFormulaCacheSuspension(boolean suspended) {
+		if (this.verificationState == null) return false;
+		final boolean previous = this.verificationState.formulaCacheSuspended;
+		this.verificationState.formulaCacheSuspended = suspended;
+		return previous;
+	}
+
 	/** Returns the shared verification state in constant time, including for contexts captured before execution. */
 	@Nullable
 	VerificationState getVerificationState() {
@@ -3004,13 +3040,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Execution state shared in constant time by nested contexts and independent fetch roots during verification.
-	 * Allocated only for verification; the owning query executes sequentially.
+	 * Allocated for verification or an eligible formula cache; the owning query executes sequentially.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	static final class VerificationState {
 		/** Non-null only while a verification execution is active. */
 		@Nullable byte[] frozenRandom;
+		/** Shared suspension seen by existing contexts and independent fetch roots. */
+		boolean formulaCacheSuspended;
 
 		/** Captures either an explicit execution seed or the inactive query state. */
 		VerificationState(@Nullable byte[] frozenRandom) {
@@ -3046,12 +3084,19 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public QueryExecutionContext createExecutionContext(boolean prefetchExecution, @Nullable byte[] frozenRandom) {
-		return new QueryExecutionContext(
-			this, prefetchExecution, frozenRandom,
+		return createExecutionContext(prefetchExecution, frozenRandom, false);
+	}
+
+	/** Creates an execution context with an explicit eager-planning marker. */
+	@Nonnull
+	private QueryExecutionContext createExecutionContext(
+		boolean prefetchExecution, @Nullable byte[] frozenRandom, boolean planningEvaluation
+	) {
+		final BiFunction<Class<?>, SealedEntity, Object> converter =
 			this.evitaSession != null ? this.evitaSession::createEntityProxy : (type, entity) -> {
 				throw new GenericEvitaInternalError("Entity proxy creation is not available without a session.");
-			}
-		);
+			};
+		return new QueryExecutionContext(this, prefetchExecution, planningEvaluation, frozenRandom, converter);
 	}
 
 	/**

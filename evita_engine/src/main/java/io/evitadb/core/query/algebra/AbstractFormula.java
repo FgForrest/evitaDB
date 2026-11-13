@@ -193,6 +193,13 @@ public abstract class AbstractFormula implements Formula {
 		return this.memoizedResult;
 	}
 
+	/** Restores a retained result and records that this node performed no computation. */
+	protected final void restoreComputedResult(@Nonnull Bitmap result) {
+		this.memoizedResult = result;
+		this.cost = 0;
+		this.costComputed = true;
+	}
+
 	@Override
 	public void clearMemory() {
 		this.memoizedResult = null;

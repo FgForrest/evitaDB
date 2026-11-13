@@ -34,6 +34,9 @@ import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.cache.CachedResult;
+import io.evitadb.core.cache.CachedPriceRecordsResult;
+import io.evitadb.core.cache.CachedResultWeigher;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -285,6 +288,30 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	@Override
 	public long getOperationCost() {
 		return 18203;
+	}
+
+	/** Freezes and measures all price outputs before publication. */
+	@Override
+	protected long measurePayload(@Nonnull Bitmap computed) {
+		return CachedResultWeigher.measure(getKey(), computed, this.filteredPriceRecords, this.perInnerRecordPriceRecords);
+	}
+
+	/** Captures the bitmap and both price outputs from the same computation. */
+	@Nonnull
+	@Override
+	protected CachedResult toCachedResult(@Nonnull Bitmap computed, int weight) {
+		return new CachedPriceRecordsResult(computed,
+			(ResolvedFilteredPriceRecords) this.filteredPriceRecords,
+			(ResolvedFilteredPriceRecords) this.perInnerRecordPriceRecords, weight);
+	}
+
+	/** Restores all side outputs before exposing the memoized bitmap. */
+	@Override
+	protected void restoreFromCache(@Nonnull CachedResult cached) {
+		final CachedPriceRecordsResult prices = (CachedPriceRecordsResult) cached;
+		this.filteredPriceRecords = prices.priceRecords();
+		this.perInnerRecordPriceRecords = prices.perInnerRecordPriceRecords();
+		restoreComputedResult(prices.result());
 	}
 
 	@Nonnull

@@ -27,6 +27,9 @@ import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.cache.CachedResult;
+import io.evitadb.core.cache.CachedPriceRecordsResult;
+import io.evitadb.core.cache.CachedResultWeigher;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -109,6 +112,29 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	@Override
 	public long getOperationCost() {
 		return 3527;
+	}
+
+	/** Freezes and measures all price outputs before publication. */
+	@Override
+	protected long measurePayload(@Nonnull Bitmap computed) {
+		return CachedResultWeigher.measure(getKey(), computed, this.filteredPriceRecords, null);
+	}
+
+	/** Captures the bitmap and its price output from the same computation. */
+	@Nonnull
+	@Override
+	protected CachedResult toCachedResult(@Nonnull Bitmap computed, int weight) {
+		return new CachedPriceRecordsResult(computed,
+			(ResolvedFilteredPriceRecords) this.filteredPriceRecords,
+			null, weight);
+	}
+
+	/** Restores all side outputs before exposing the memoized bitmap. */
+	@Override
+	protected void restoreFromCache(@Nonnull CachedResult cached) {
+		final CachedPriceRecordsResult prices = (CachedPriceRecordsResult) cached;
+		this.filteredPriceRecords = prices.priceRecords();
+		restoreComputedResult(prices.result());
 	}
 
 	@Nonnull

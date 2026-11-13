@@ -51,7 +51,7 @@ import java.util.function.BooleanSupplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-class MutableFormula implements Formula {
+public class MutableFormula implements Formula {
 	/** Whether the pivot is temporarily omitted from the current computation. */
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private boolean suppressPivot;

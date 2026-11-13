@@ -255,7 +255,7 @@ class CachedResultEquivalenceTest {
 
 	/** Supplies all thirteen candidates, keeping producer indexes shared while each formula is new. */
 	@Nonnull
-	private static Stream<Supplier<Formula>> formulaSuppliers() {
+	static Stream<Supplier<Formula>> formulaSuppliers() {
 		final PriceListAndCurrencyPriceSuperIndex index = priceIndex();
 		final PriceEvaluationContext context = new PriceEvaluationContext(null, index.getPriceIndexKey());
 		final PriceListAndCurrencyPriceSuperIndex plainIndex = new PriceListAndCurrencyPriceSuperIndex(

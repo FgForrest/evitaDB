@@ -440,6 +440,9 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 						histogramBaselineFormula, histogramRequest.bucketCount(), histogramRequest.behavior(),
 						histogramRequest
 					);
+					if (context.getQueryContext().isFormulaCacheEnabled()) {
+						computer.initialize(context);
+					}
 					final CacheableHistogramContract optimalHistogram = context.analyse(computer).compute();
 					if (optimalHistogram == CacheableHistogramContract.EMPTY) {
 						return null;

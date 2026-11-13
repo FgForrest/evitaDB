@@ -707,7 +707,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			configuration.storage().timeTravelEnabled(),
 			configuration.server().changeDataCapture().enabled(),
 			configuration.server().trafficRecording().enabled(),
-			false
+			this.evita.isQueryCacheEnabled()
 		);
 	}
 

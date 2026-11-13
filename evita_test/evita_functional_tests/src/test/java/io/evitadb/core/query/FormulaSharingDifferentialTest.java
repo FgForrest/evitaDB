@@ -158,6 +158,67 @@ class FormulaSharingDifferentialTest implements EvitaTestSupport {
 		cleanupTestPaths(this.paths);
 	}
 
+	/** A populated engine tier remains completely outside the key-free sibling's execution. */
+	@Test
+	@DisplayName("Keeps the baseline key-free when the enabled engine tier already contains a hit")
+	void shouldKeepBaselineOutsidePopulatedTier() {
+		this.evita.close();
+		cleanupTestPaths(this.paths);
+		this.paths = createTestPaths("FormulaSharingDifferentialTest-populatedTier");
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).cache(
+			io.evitadb.api.configuration.CacheOptions.builder().enabled(true).minimalComplexityThreshold(0)
+				.cacheSizeInBytes(100_000_000L).verifyOneHitIn(1).dropEntriesAfterSecondsOfInactivity(0).build()
+		).build());
+		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
+		this.evita.updateCatalog(CATALOG, session -> {
+			session.defineEntitySchema(PRODUCT).withoutGeneratedPrimaryKey().updateVia(session);
+			session.upsertEntity(session.createNewEntity(PRODUCT, 1));
+			session.upsertEntity(session.createNewEntity(PRODUCT, 2));
+			session.goLiveAndClose();
+		});
+		final List<InputBlindFormula> supplied = new ArrayList<>();
+		final SupersetIndex index = new SupersetIndex(() -> {
+			final InputBlindFormula leaf = new InputBlindFormula(1);
+			supplied.add(leaf);
+			return new OrFormula(leaf, leaf(2));
+		});
+		final EntityCollection collection = catalog().getCollectionForEntityInternal(PRODUCT).orElseThrow();
+		collection.addIndex(index);
+		try (final EvitaSessionContract session = io.evitadb.core.cache.FormulaCacheTestSessions.readOnly(
+			this.evita, CATALOG)) {
+			final Query warmup = Query.query(collection(PRODUCT), require(debug(DebugMode.PREFER_INDEX_SCAN)));
+			session.query(warmup, EntityReference.class);
+			assertTrue(this.evita.getFormulaCacheStatistics().admissions() > 0);
+			final long hits = this.evita.getFormulaCacheStatistics().hits();
+			assertTrue(this.evita.management().getEngineSettings().queryCacheEnabled());
+			final long misses = this.evita.getFormulaCacheStatistics().misses();
+			final long admissions = this.evita.getFormulaCacheStatistics().admissions();
+			QueryPlanner.planQuery(collection.createQueryContext(
+				new EvitaRequest(warmup, OffsetDateTime.now(), EntityReference.class, null), session));
+			assertEquals(hits, this.evita.getFormulaCacheStatistics().hits());
+			assertEquals(misses, this.evita.getFormulaCacheStatistics().misses());
+			assertEquals(admissions, this.evita.getFormulaCacheStatistics().admissions());
+			{
+				final EvitaSessionContract internal = session;
+				final Query flagged = Query.query(collection(PRODUCT),
+					require(debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)));
+				final QueryPlanningContext context = collection.createQueryContext(
+					new EvitaRequest(flagged, OffsetDateTime.now(), EntityReference.class, null), internal);
+				QueryPlanner.planQuery(context).execute();
+				assertTrue(this.evita.getFormulaCacheStatistics().hits() > hits);
+				assertTrue(this.evita.getFormulaCacheStatistics().verifiedHits() > 0);
+				supplied.clear();
+				final long probes = this.evita.getFormulaCacheStatistics().hits() +
+					this.evita.getFormulaCacheStatistics().misses();
+				QueryPlanner.planQuery(context.createVerificationSibling()).execute(RandomUtils.getFrozenRandom());
+				assertFalse(supplied.isEmpty());
+				assertEquals(0, supplied.stream().mapToInt(it -> it.keyRequests).sum());
+				assertEquals(probes, this.evita.getFormulaCacheStatistics().hits() +
+					this.evita.getFormulaCacheStatistics().misses());
+			}
+		}
+	}
+
 	/** Opens a read-only session on the test-owned catalog. */
 	@Nonnull
 	private EvitaSessionContract readOnlySession() {
@@ -1079,7 +1140,8 @@ class FormulaSharingDifferentialTest implements EvitaTestSupport {
 		@Nonnull
 		@Override
 		public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
-			@Nonnull EvitaSessionContract evitaSession, @Nonnull String entityType, @Nonnull T extraResultComputer
+			@Nonnull EvitaSessionContract evitaSession, @Nonnull String entityType, @Nonnull T extraResultComputer,
+			@Nonnull QueryExecutionContext context
 		) {
 			return extraResultComputer;
 		}

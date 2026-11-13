@@ -111,6 +111,8 @@ public class QueryExecutionContext implements Closeable {
 	 * indexes.
 	 */
 	@Getter private final boolean prefetchExecution;
+	/** Eligibility fixed when the execution mode and ambient transaction are known. */
+	private final boolean formulaCacheUsable;
 	/**
 	 * This field is used only for debugging purposes when we need to compute results for different variants of
 	 * query plan. In case random function is used in the evaluation process, the variants would ultimately produce
@@ -161,17 +163,43 @@ public class QueryExecutionContext implements Closeable {
 
 	/**
 	 * Creates an execution context with an explicit verification seed or the query's shared verification state.
-	 * Ordinary executions keep a null state, so dry-run checks never walk their context ancestry.
+	 * Executions without verification or caching keep a null state; shared checks never walk context ancestry.
 	 */
 	public QueryExecutionContext(
 		@Nonnull QueryPlanningContext queryContext, boolean prefetchExecution, @Nullable byte[] frozenRandom,
 		@Nonnull BiFunction<Class<?>, SealedEntity, Object> converter
 	) {
+		this(queryContext, prefetchExecution, false, frozenRandom, converter);
+	}
+
+	/** Creates an execution context with an explicit eager-planning marker. */
+	public QueryExecutionContext(
+		@Nonnull QueryPlanningContext queryContext, boolean prefetchExecution, boolean planningEvaluation,
+		@Nullable byte[] frozenRandom,
+		@Nonnull BiFunction<Class<?>, SealedEntity, Object> converter
+	) {
 		this.queryContext = queryContext;
 		this.prefetchExecution = prefetchExecution;
+		this.formulaCacheUsable = queryContext.isFormulaCacheEnabled() && !planningEvaluation &&
+			!prefetchExecution && !io.evitadb.core.transaction.Transaction.isTransactionAvailable();
 		this.verificationState = frozenRandom == null ? queryContext.getVerificationState() :
 			new QueryPlanningContext.VerificationState(frozenRandom);
 		this.converter = converter;
+	}
+
+	/** Returns execution eligibility, including suspension shared with every context of the query. */
+	public boolean isFormulaCacheUsable() {
+		return this.formulaCacheUsable && !this.queryContext.isFormulaCacheSuspended();
+	}
+
+	/** Suspends formula cache access throughout a sampled recomputation and returns the preceding flag. */
+	public boolean suspendFormulaCache() {
+		return this.queryContext.exchangeFormulaCacheSuspension(true);
+	}
+
+	/** Restores the suspension state in a sampled recomputation's finally block. */
+	public void resumeFormulaCache(boolean previous) {
+		this.queryContext.exchangeFormulaCacheSuspension(previous);
 	}
 
 	/**
@@ -747,7 +775,7 @@ public class QueryExecutionContext implements Closeable {
 
 	@Nonnull
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
-		return this.queryContext.analyse(computer);
+		return this.queryContext.analyse(computer, this);
 	}
 
 	@Nonnull

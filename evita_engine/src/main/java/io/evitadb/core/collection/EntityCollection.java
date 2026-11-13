@@ -3859,8 +3859,8 @@ public final class EntityCollection implements
 	private QueryPlanningContext createFetchQueryContext(
 		@Nonnull EvitaRequest request, @Nonnull QueryPlanningContext origin
 	) {
-		return origin.isVerificationSibling() || origin.isVerificationExecutionActive() ?
-			origin.createVerificationFetchContext(this, request, this.indexes, this.indexesByPrimaryKey,
+		return origin.hasSharedExecutionState() ?
+			origin.createFetchContext(this, request, this.indexes, this.indexesByPrimaryKey,
 				this.cacheSupervisor) :
 			createQueryContext(request, Objects.requireNonNull(origin.getEvitaSession()));
 	}

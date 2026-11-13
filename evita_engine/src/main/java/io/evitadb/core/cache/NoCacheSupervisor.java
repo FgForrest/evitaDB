@@ -24,6 +24,7 @@
 package io.evitadb.core.cache;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
@@ -34,8 +35,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * The {@link CacheSupervisor} the engine installs: it returns every formula and extra-result computer unchanged, so
- * each query computes its results in full.
+ * Supervisor used when the formula result cache is disabled or a planning root fails its eligibility gate.
+ * It returns every formula and extra-result computer unchanged.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -43,6 +44,7 @@ import javax.annotation.Nullable;
 public class NoCacheSupervisor implements CacheSupervisor {
 	public static final NoCacheSupervisor INSTANCE = new NoCacheSupervisor();
 
+	/** Preserves the formula graph without building cache keys or allocating bindings. */
 	@Nonnull
 	@Override
 	public <T extends Formula> T analyse(
@@ -54,18 +56,21 @@ public class NoCacheSupervisor implements CacheSupervisor {
 		return filterFormula;
 	}
 
+	/** Returns the original computer without consulting its key or execution mode. */
 	@SuppressWarnings("ClassEscapesDefinedScope")
 	@Nonnull
 	@Override
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
 		@Nullable EvitaSessionContract evitaSession,
 		@Nonnull String entityType,
-		@Nonnull T extraResultComputer
+		@Nonnull T extraResultComputer,
+		@Nonnull QueryExecutionContext context
 	) {
 		// just return the input without any modification
 		return extraResultComputer;
 	}
 
+	/** Holds no resources and requires no shutdown work. */
 	@Override
 	public void close() {
 		// nothing to close
