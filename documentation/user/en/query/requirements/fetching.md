@@ -413,11 +413,12 @@ are only fetched if there is a *locale context* in the query, either by using th
 filter constraint or the [`dataInLocales`](#data-in-locales) require constraint.
 
 For a named localized attribute in a nested `entityFetch` or `entityGroupFetch`, the locale context belongs to that
-body's level. Its own `entityHaving` or `groupHaving` locale takes precedence, followed by the reference filter's
-locale and then the enclosing body's locale. A `dataInLocales` requirement also supplies a locale context: the
-one in the body's own fetch, or, when that fetch names none, the one of the enclosing fetch. Entity and group bodies
-are separate levels: `entityHaving` does not supply the group's locale. Named localized attributes and associated
-data require a resolved locale or a `dataInLocales` that reaches their fetch level.
+body's level. The locale of its own `entityHaving` or `groupHaving` takes precedence when no `or`, `not` or `inScope`
+of the reference filter encloses it, followed by the reference filter's locale and then the enclosing body's locale.
+A `dataInLocales` requirement also supplies a locale context: the one in the body's own fetch, or, when that fetch
+names none, the one of the enclosing fetch. Entity and group bodies are separate levels: `entityHaving` does not
+supply the group's locale. Named localized attributes and associated data require a resolved locale or a
+`dataInLocales` that reaches their fetch level.
 
 <Note type="info">
 
@@ -1817,9 +1818,10 @@ referenceContent(
         by the locale of the referenced entity, wrap the constraint in `entityHaving`.
         </p>
         <p>
-        referenced entity bodies and their ordering use the locale named by their `entityHaving` level; group bodies
-        and their ordering use the locale named by their `groupHaving` level. A level without its own opinion inherits
-        the reference filter's locale, then the enclosing owner's locale. Each body fetch can also use
+        referenced entity bodies and their ordering use the locale named by an `entityHaving` of this filter that no
+        `or`, `not` or `inScope` encloses; group bodies and their ordering use the locale named by such a
+        `groupHaving`. A level without its own opinion inherits the reference filter's locale, then the enclosing
+        owner's locale. Each body fetch can also use
         [`dataInLocales`](#data-in-locales) to specify which localized data to fetch
         </p>
     </dd>
@@ -2129,6 +2131,18 @@ must be managed by evitaDB, otherwise the query is refused. A filter outside of 
 the references of the entities in all the queried scopes; wrap its part in [`inScope`](../filtering/behavioral.md#in-scope)
 to apply it to the references of the entities living in a single scope only.
 
+The referenced entities fetched by `entityFetch` are fetched in the [`scope`](../filtering/constant.md#scope) named
+by an `entityHaving` of the filter that no `or`, `not` or `inScope` encloses, and the groups fetched by
+`entityGroupFetch` in the `scope` named by such a `groupHaving`. Otherwise they are fetched in the scopes of every way
+a reference can pass the filter: the scope each enclosed `entityHaving` (or `groupHaving`) names, and the scopes the
+entities owning the references are fetched in for every way that names none. So
+`or(entityHaving(and(scope(ARCHIVED), …)), attributeEquals("rank", 1))` fetches the referenced entities in the
+archived scope and in the scopes of their owners, and a filter that names no scope for the level fetches them in the
+scopes of their owners. A `referenceContent` nested in that `entityFetch` or `entityGroupFetch` filters the
+references of the fetched entities, so an `inScope` in its filter may name the scopes they are fetched in - even a
+scope the query itself doesn't request - and a scope its own filter names, at its root or in its own `entityHaving`.
+Any other scope is refused, whether or not some reference reaches the filter.
+
 </Note>
 
 <Note type="info">
@@ -2160,8 +2174,9 @@ the query is refused unless the attribute is unique across all locales.
 ##### What happens to the references to missing entities or groups?
 </NoteTitle>
 
-When the `referenceContent` has a filter, only the references to entities that exist in the queried scopes (and in the
-required locale, if the entity type has localized data) can match; a reference to a missing entity is not returned.
+When the `referenceContent` has a filter, only the references to entities that exist in the queried scopes or in a
+scope the filter names (and in the required locale, if the entity type has localized data) can match; a reference to a
+missing entity is not returned.
 A reference to a group that doesn't exist or was removed has no group, and `groupHaving` doesn't match it.
 
 </Note>

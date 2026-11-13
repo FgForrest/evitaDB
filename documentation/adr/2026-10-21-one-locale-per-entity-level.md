@@ -1,7 +1,7 @@
 ---
 title: A filter names one locale per entity level, and a level without one inherits from its enclosing level
 date: 2026-10-21
-updated: 2026-10-21 16:20
+updated: 2026-11-10 22:40
 status: accepted
 kind: fix
 issues: [925]
@@ -22,7 +22,8 @@ areas:
   - evita_external_api/evita_external_api_grpc/shared
 supersedes: []
 superseded-by: []
-relates: [2026-10-20-reference-content-filter-row-by-row, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
+relates: [2026-10-20-reference-content-filter-row-by-row, 2026-10-08-scope-faithful-planning-and-facet-summary-parity,
+  2026-11-05-nested-inscope-requested-scopes]
 ---
 
 # A filter names one locale per entity level, and a level without one inherits from its enclosing level
@@ -145,6 +146,9 @@ edge case, so the fix ships with this change in 2026.3 only.
 
   Every lookup site uses it; inheritance stays at each site. `QueryUtils#resolveReferenceBodyLocale` adds the
   entity / group body chain of a reference filter (body level, then reference level, then enclosing).
+  Since #1915 the body level is only an `entityHaving` / `groupHaving` reachable from the root of the reference
+  filter through `and`: one below `or`, `not` or `inScope` gives the bodies no opinion, so two of them naming
+  different locales no longer conflict (`2026-11-05-nested-inscope-requested-scopes`, Option Q).
 - **The two markers are different boundaries.** `DifferentEntityFilterContainer` extends
   `SeparateEntityScopeContainer`, but `referenceHaving` and `facetHaving` isolate entity keys and `entityScope`
   (Separate) while their direct children keep the owner's locale (not Different). Do not unify the stop predicates.
@@ -258,6 +262,8 @@ Known, not part of this change:
 
 ## Related work
 
+- `2026-11-05-nested-inscope-requested-scopes`: the body level of `resolveReferenceBodyLocale` follows `and` only
+  (#1915), as the criteria of the bodies do; their scope unites the scopes of every way to match instead.
 - `2026-10-20-reference-content-filter-row-by-row`:
   - its decision Q1 (the locale of a localized leaf) is superseded by this record;
   - its suspicion that "a nested query ignores its own filter's `entityLocaleEquals`" is confirmed and fixed here.
