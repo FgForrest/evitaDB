@@ -76,6 +76,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.cache.CacheSupervisor;
+import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.metric.event.query.FinishedEvent;
@@ -260,7 +261,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	private final boolean prefetchPossible;
 	/**
-	 * False for the context of an internal evaluation a write makes - the condition of a conditional facet or histogram
+	 * False for a key-free verification sibling and for an internal evaluation a write makes - the condition of a
+	 * conditional facet or histogram
 	 * expression a mutation, or the replay of the write-ahead log, re-evaluates through the query engine (see the
 	 * session-optional constructor) - and for every context derived from it. Such an evaluation is no query: nothing it
 	 * names is asked for by anybody, so it records no schema capability at all - it neither mints the keys nor
@@ -268,6 +270,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * derived contexts, so the decision is made once, where the evaluation starts, and no translator has to know.
 	 */
 	private final boolean recordingRequestedCapabilities;
+	/**
+	 * True for a key-free verification sibling and its descendants. These contexts never share formulas, render
+	 * plans, record index activity or start another verification; their effective supervisor always bypasses caching.
+	 */
+	@Getter
+	private final boolean verificationSibling;
 	/**
 	 * Internal execution context used for execution of formulas evaluated in planning phase.
 	 *
@@ -451,7 +459,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				entityCollection == null ? null : entityCollection.getEntityType(),
 				evitaRequest.getLabels()
 			),
-			true
+			true, false
 		);
 		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
 	}
@@ -489,7 +497,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this(
 			parentQueryContext, catalog, entityCollection,
 			evitaSession, evitaRequest, telemetry, indexes, indexesByPk,
-			cacheSupervisor, null, true
+			cacheSupervisor, null, true, false
 		);
 		// guard only when session is expected — nested contexts during session-less evaluation
 		// (WAL replay) inherit the null session from the parent and should not assert
@@ -534,7 +542,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	) {
 		this(
 			null, catalog, entityCollection, evitaSession, evitaRequest, null, indexes, indexesByPk, cacheSupervisor,
-			null, false
+			null, false, false
 		);
 	}
 
@@ -563,6 +571,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param recordingRequestedCapabilities false for the context of an internal evaluation a write makes, which
 	 *                           records no schema capability request - ignored for a nested context, which inherits
 	 *                           the value of its parent, see {@link #recordingRequestedCapabilities}
+	 * @param verificationSibling true for a key-free verification root; nested contexts inherit their parent's value
 	 */
 	private <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nullable QueryPlanningContext parentQueryContext,
@@ -575,9 +584,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Map<Integer, T> indexesByPk,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nullable FinishedEvent event,
-		boolean recordingRequestedCapabilities
+		boolean recordingRequestedCapabilities,
+		boolean verificationSibling
 	) {
 		this.parentContext = parentQueryContext;
+		this.verificationSibling = parentQueryContext == null ?
+			verificationSibling : parentQueryContext.verificationSibling;
 		this.catalog = catalog;
 		this.entityCollection = entityCollection;
 		this.entityType = ofNullable(entityCollection)
@@ -592,21 +604,53 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				|| isDebugModeEnabled(DebugMode.PREFER_INDEX_SCAN) ?
 				BitmapFavouringNoCachePolicy.INSTANCE : DefaultPolicy.INSTANCE;
 			this.prefetchPossible = true;
-			this.recordingRequestedCapabilities = recordingRequestedCapabilities;
+			this.recordingRequestedCapabilities = recordingRequestedCapabilities && !this.verificationSibling;
 		} else {
 			this.planningPolicy = parentQueryContext.planningPolicy;
 			this.prefetchPossible = false;
 			this.recordingRequestedCapabilities = parentQueryContext.recordingRequestedCapabilities;
 		}
 		this.telemetryStack = new ArrayDeque<>(16);
-		ofNullable(telemetry).ifPresent(this.telemetryStack::push);
+		ofNullable(this.verificationSibling ? null : telemetry).ifPresent(this.telemetryStack::push);
 		//noinspection unchecked
 		this.indexes = (Map<IndexKey, Index<?>>) indexes;
 		//noinspection unchecked
 		this.indexesByPk = (Map<Integer, Index<?>>) indexesByPk;
-		this.cacheSupervisor = cacheSupervisor;
-		this.queryFinishedEvent = event;
+		this.cacheSupervisor = this.verificationSibling ? NoCacheSupervisor.INSTANCE : cacheSupervisor;
+		this.queryFinishedEvent = this.verificationSibling ? null : event;
 		this.internalExecutionContext = createExecutionContext();
+	}
+
+	/**
+	 * Creates an independent planning context over the same request and pinned indexes for a key-free baseline.
+	 * Planning memos belong to the sibling alone; capability requests, telemetry, index activity and the finished
+	 * event are suppressed. Its descendants inherit this state even when a collection supplies its own supervisor.
+	 *
+	 * @return the sibling, with formula sharing disabled and a supervisor that never requests computation keys
+	 */
+	@Nonnull
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	public QueryPlanningContext createVerificationSibling() {
+		return new QueryPlanningContext(
+			null, this.catalog, this.entityCollection, this.evitaSession, this.evitaRequest, null,
+			(Map) this.indexes, (Map) this.indexesByPk, NoCacheSupervisor.INSTANCE, null, false, true
+		);
+	}
+
+	/** Returns whether this context may deduplicate formulas by their computation keys. */
+	public boolean isFormulaSharingEnabled() {
+		return !this.verificationSibling;
+	}
+
+	/** Prevents alternative-index verification for a key-free sibling and all of its descendants. */
+	public boolean isAlternativeIndexVerificationRequired() {
+		return isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) && !this.verificationSibling;
+	}
+
+	/** Checks the debug flag once, then restricts verification to the original top-level query. */
+	public boolean isFormulaSharingVerificationRequired() {
+		return isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) &&
+			this.parentContext == null && !this.verificationSibling;
 	}
 
 	/**

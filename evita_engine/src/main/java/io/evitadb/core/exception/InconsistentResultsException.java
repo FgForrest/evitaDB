@@ -33,25 +33,36 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when the evitaDB produces different results for alternative index sources. The exception is
- * thrown only when {@link DebugMode} equal to {@link DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} is set in the query.
+ * Thrown when debug verification finds different responses from alternative indexes or from the key-free baseline
+ * and the preferred plan. These comparisons are enabled by {@link DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} and
+ * {@link DebugMode#VERIFY_POSSIBLE_CACHING_TREES}, respectively.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class InconsistentResultsException extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = 185377662501574496L;
 
+	/** Describes a difference between the preferred index plan and an alternative. */
 	public InconsistentResultsException(
 		@Nonnull QueryPlanBuilder mainBuilder,
 		@Nonnull EvitaResponse<EntityClassifier> mainResult,
 		@Nonnull QueryPlanBuilder alternativeBuilder,
 		@Nonnull EvitaResponse<EntityClassifier> alternativeResult
 	) {
+		this(mainBuilder.getDescription(), mainResult, alternativeBuilder.getDescription(), alternativeResult);
+	}
+
+	/** Describes a difference between two named execution paths, retaining both responses for diagnosis. */
+	public InconsistentResultsException(
+		@Nonnull String mainDescription,
+		@Nonnull EvitaResponse<EntityClassifier> mainResult,
+		@Nonnull String alternativeDescription,
+		@Nonnull EvitaResponse<EntityClassifier> alternativeResult
+	) {
 		super(
-			"Results for `" + mainBuilder.getDescription() + "` and `" + alternativeBuilder.getDescription() + "` differ!"
-				+ "\n\n" +
-				mainResult + "\nvs.\n" + alternativeResult,
-			"Results for `" + mainBuilder.getDescription() + "` and `" + alternativeBuilder.getDescription() + "` differ!"
+			"Results for `" + mainDescription + "` and `" + alternativeDescription + "` differ!"
+				+ "\n\n" + mainResult + "\nvs.\n" + alternativeResult,
+			"Results for `" + mainDescription + "` and `" + alternativeDescription + "` differ!"
 		);
 	}
 }

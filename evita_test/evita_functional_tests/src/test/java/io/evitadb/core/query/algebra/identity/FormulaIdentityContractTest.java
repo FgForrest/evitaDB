@@ -66,7 +66,9 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 		"io.evitadb.core.query.algebra.identity.IdentityContractVerifierTest$DelegateBlindFormula",
 		"Deliberately drops an inherited input to prove attestation cannot hide it.",
 		"io.evitadb.core.query.algebra.identity.FormulaKeyTest$UnrequestedIdentityFormula",
-		"Throws from identity to prove construction and computation do not request keys."
+		"Throws from identity to prove construction and computation do not request keys.",
+		"io.evitadb.core.query.FormulaSharingDifferentialTest$InputBlindFormula",
+		"Deliberately omits a result input to prove key-free response verification catches incorrect sharing."
 	);
 
 	/** Verifies the engine and test inventories independently against their floors. */

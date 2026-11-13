@@ -231,6 +231,9 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 * What that translation accumulates is drained by the empty plan instead, because the query asked for it all the
 	 * same: counting it nowhere would make a flag only such queries use look dead.
 	 *
+	 * A key-free verification sibling and its descendants count neither capabilities nor index activity. Their
+	 * additional planning and execution exist only to compare responses within the same logical query.
+	 *
 	 * The cost is `O(winning set)` volatile increments plus one per distinct capability the query named, both bounded
 	 * from below by the reads the query is about to perform on those very indexes.
 	 */
@@ -238,7 +241,8 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	public QueryPlan build() {
 		ofNullable(this.queryContext.getQueryFinishedEvent())
 			.ifPresent(FinishedEvent::startExecuting);
-		final List<? extends Index<?>> winningIndexes = this.targetIndexes.getIndexes();
+		final List<? extends Index<?>> winningIndexes = this.queryContext.isVerificationSibling() ?
+			Collections.emptyList() : this.targetIndexes.getIndexes();
 		final List<SchemaCapabilityUsage> requestedCapabilities = this.queryContext.drainRequestedCapabilitiesToCount();
 		if (!winningIndexes.isEmpty() || !requestedCapabilities.isEmpty()) {
 			// one instant for both readings, so a single query cannot stamp them with two different moments

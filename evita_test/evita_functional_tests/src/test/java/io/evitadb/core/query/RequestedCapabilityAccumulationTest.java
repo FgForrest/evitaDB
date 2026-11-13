@@ -598,13 +598,13 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("A bitmap-favouring query builds only the preferred plan and counts one request")
-		void shouldCountOnceUnderBitmapFavouringPlanning() {
+		@DisplayName("Key-free verification counts one request and no additional index activity")
+		void shouldCountOnceUnderFormulaSharingVerification() {
 			assertCountedOnceUnder(DebugMode.VERIFY_POSSIBLE_CACHING_TREES);
 
 			assertEquals(
 				1L, reducedIndexOfCategory(QUERIED_CATEGORY).getActivity().getQueryCount(),
-				"The preferred plan must be built exactly once"
+				"The key-free sibling must not add index activity to the preferred plan"
 			);
 			assertEquals(0L, globalIndex().getActivity().getQueryCount(), "The losing candidate must not be built");
 		}

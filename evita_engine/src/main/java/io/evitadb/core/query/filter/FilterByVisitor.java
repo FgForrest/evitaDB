@@ -2181,6 +2181,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				finalFormula = postProcessor.getPostProcessedFormula();
 			}
 		}
+		if (!this.queryContext.isFormulaSharingEnabled()) {
+			return finalFormula;
+		}
 		final FormulaDeduplicator deduplicator = new FormulaDeduplicator(finalFormula);
 		deduplicator.visit(finalFormula);
 		return deduplicator.getPostProcessedFormula();

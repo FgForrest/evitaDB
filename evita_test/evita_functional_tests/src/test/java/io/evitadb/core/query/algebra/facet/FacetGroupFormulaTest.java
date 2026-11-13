@@ -31,6 +31,7 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -543,6 +544,101 @@ class FacetGroupFormulaTest {
 				new FacetGroupOrFormula(
 					"reference", 1, new ArrayBitmap(1, 2), new BaseBitmap(20), new BaseBitmap(10)
 				).getKey()
+			);
+		}
+		/** Merged terms retain the entity bitmap produced by each merge in their keys. */
+		@Test
+		@DisplayName("should produce different identity for merged terms of one group holding different entities")
+		void shouldProduceDifferentIdentityForMergedTermsOfOneGroupHoldingDifferentEntities() {
+			final FacetGroupFormula termA = new FacetGroupOrFormula(
+				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(10, 20)
+			).mergeWith(
+				new FacetGroupOrFormula("tags", 1, new BaseBitmap(2), new TransactionalBitmap(30))
+			);
+			final FacetGroupFormula termB = new FacetGroupOrFormula(
+				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(40)
+			).mergeWith(
+				new FacetGroupOrFormula("tags", 1, new BaseBitmap(2), new TransactionalBitmap(50))
+			);
+
+			assertNotEquals(termA.compute(), termB.compute());
+			assertNotEquals(
+				termA.getKey(),
+				termB.getKey(),
+				() -> "Distinct merged terms: " + termA.getKey() + " and " + termB.getKey()
+			);
+		}
+
+		/** Group presence and facet ids remain separate identity inputs after merging across indexes. */
+		@Test
+		@DisplayName("should produce different identity for group term and ungrouped term with the same id layout")
+		void shouldProduceDifferentIdentityForGroupTermAndUngroupedTermWithSameIdLayout() {
+			final FacetGroupFormula groupTerm = new FacetGroupOrFormula(
+				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(10)
+			).mergeWith(
+				new FacetGroupOrFormula("tags", 1, new BaseBitmap(2), new TransactionalBitmap(20))
+			);
+			final FacetGroupFormula ungroupedTerm = new FacetGroupOrFormula(
+				"tags", null, new BaseBitmap(1, 2), new TransactionalBitmap(30), new TransactionalBitmap(40)
+			).mergeWith(
+				new FacetGroupOrFormula(
+					"tags", null, new BaseBitmap(1, 2), new TransactionalBitmap(50), new TransactionalBitmap(60)
+				)
+			);
+
+			assertNotEquals(groupTerm.compute(), ungroupedTerm.compute());
+			assertNotEquals(
+				groupTerm.getKey(),
+				ungroupedTerm.getKey(),
+				() -> "Grouped and ungrouped terms: " + groupTerm.getKey() + " and " + ungroupedTerm.getKey()
+			);
+		}
+
+		/** Conjunctive merged terms retain their distinct entity sets in their keys. */
+		@Test
+		@DisplayName("should produce different identity for merged AND terms of one group holding different entities")
+		void shouldProduceDifferentIdentityForMergedAndTermsOfOneGroupHoldingDifferentEntities() {
+			final FacetGroupFormula termA = new FacetGroupAndFormula(
+				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(10, 20)
+			).mergeWith(
+				new FacetGroupAndFormula("tags", 1, new BaseBitmap(2), new TransactionalBitmap(30))
+			);
+			final FacetGroupFormula termB = new FacetGroupAndFormula(
+				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(40)
+			).mergeWith(
+				new FacetGroupAndFormula("tags", 1, new BaseBitmap(2), new TransactionalBitmap(50))
+			);
+
+			assertNotEquals(termA.compute(), termB.compute());
+			assertNotEquals(
+				termA.getKey(),
+				termB.getKey(),
+				() -> "Distinct merged terms: " + termA.getKey() + " and " + termB.getKey()
+			);
+		}
+
+		/** Conjunctive grouped and ungrouped merged terms have distinct keys. */
+		@Test
+		@DisplayName("should produce different identity for AND group term and ungrouped term with the same id layout")
+		void shouldProduceDifferentIdentityForAndGroupTermAndUngroupedTermWithSameIdLayout() {
+			final FacetGroupFormula groupTerm = new FacetGroupAndFormula(
+				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(10)
+			).mergeWith(
+				new FacetGroupAndFormula("tags", 1, new BaseBitmap(2), new TransactionalBitmap(20))
+			);
+			final FacetGroupFormula ungroupedTerm = new FacetGroupAndFormula(
+				"tags", null, new BaseBitmap(1, 2), new TransactionalBitmap(10, 30), new TransactionalBitmap(10, 40)
+			).mergeWith(
+				new FacetGroupAndFormula(
+					"tags", null, new BaseBitmap(1, 2), new TransactionalBitmap(50), new TransactionalBitmap(60)
+				)
+			);
+
+			assertNotEquals(groupTerm.compute(), ungroupedTerm.compute());
+			assertNotEquals(
+				groupTerm.getKey(),
+				ungroupedTerm.getKey(),
+				() -> "Grouped and ungrouped terms: " + groupTerm.getKey() + " and " + ungroupedTerm.getKey()
 			);
 		}
 	}

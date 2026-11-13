@@ -134,7 +134,9 @@ public class QueryPlanner {
 	 * 3. prefetching the entity bodies if the filtering requires it, or it would produce results faster
 	 * 4. creating extra result computers, that will create and provide extra results for the request
 	 *
-	 * The expensive work will be executed when {@link QueryPlan#execute()} is called outside this method.
+	 * The expensive work normally executes when {@link QueryPlan#execute()} is called outside this method. A flagged
+	 * top-level query first compares its preferred plan with an independently planned key-free baseline under one
+	 * frozen random state; the caller then executes the preferred plan with its formula memos reused.
 	 *
 	 * Phases 2 - 4 are normally performed for the preferred plan only; the debug branch performs them for every
 	 * alternative, because the consistency verification needs fully built plans to execute and compare - see
@@ -148,6 +150,16 @@ public class QueryPlanner {
 	 */
 	@Nonnull
 	public static QueryPlan planQuery(@Nonnull QueryPlanningContext context) {
+		final QueryPlan preferredPlan = planQueryInternal(context);
+		if (context.isFormulaSharingVerificationRequired()) {
+			verifyKeyFreeBaseline(context, preferredPlan);
+		}
+		return preferredPlan;
+	}
+
+	/** Builds a plan, including an empty plan, before any formula-sharing verification executes it. */
+	@Nonnull
+	private static QueryPlan planQueryInternal(@Nonnull QueryPlanningContext context) {
 		// structural rules the constraints cannot check themselves - they are verified on the final tree here, so
 		// that a stored query of the refused shape stays readable and a copied container cannot slip past them
 		final EvitaRequest evitaRequest = context.getEvitaRequest();
@@ -188,7 +200,7 @@ public class QueryPlanner {
 
 			// verify results in alternative indexes if the debug option is on
 			final List<? extends TargetIndexes<?>> targetIndexes = indexSelectionResult.targetIndexes();
-			if (context.isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS)) {
+			if (context.isAlternativeIndexVerificationRequired()) {
 				// create sorter and computers for all plans
 				createSorter(context, targetIndexes, queryPlanBuilders);
 				createExtraResultProducers(context, queryPlanBuilders);
@@ -267,7 +279,7 @@ public class QueryPlanner {
 
 			// verify results in alternative indexes
 			final List<? extends TargetIndexes<?>> targetIndexes = indexSelectionResult.targetIndexes();
-			if (context.isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS)) {
+			if (context.isAlternativeIndexVerificationRequired()) {
 				// create sorters for all possible plans
 				createSorter(context, targetIndexes, queryPlanBuilders);
 				verifyConsistentResultsInAllPlans(queryPlanBuilders, preferredPlan);
@@ -467,7 +479,7 @@ public class QueryPlanner {
 				}
 			}
 
-			return queryContext.isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) ?
+			return queryContext.isAlternativeIndexVerificationRequired() ?
 				result : result.subList(0, 1);
 		} finally {
 			if (result.isEmpty()) {
@@ -706,6 +718,28 @@ public class QueryPlanner {
 			} finally {
 				queryContext.popStep();
 			}
+		}
+	}
+
+	/**
+	 * Compares the independently planned key-free baseline with the preferred plan under one frozen random state.
+	 * Neither dry run passes through traffic recording. The sibling suppresses all planning side effects and both
+	 * verification paths, including in nested contexts.
+	 *
+	 * @throws InconsistentResultsException when sharing or cache analysis changes the full response
+	 */
+	private static void verifyKeyFreeBaseline(
+		@Nonnull QueryPlanningContext context,
+		@Nonnull QueryPlan preferredPlan
+	) {
+		final byte[] frozenRandom = RandomUtils.getFrozenRandom();
+		final QueryPlan baseline = planQuery(context.createVerificationSibling());
+		final EvitaResponse<EntityClassifier> baselineResponse = baseline.execute(frozenRandom);
+		final EvitaResponse<EntityClassifier> preferredResponse = preferredPlan.execute(frozenRandom);
+		if (!baselineResponse.equals(preferredResponse)) {
+			throw new InconsistentResultsException(
+				"key-free baseline", baselineResponse, "preferred plan", preferredResponse
+			);
 		}
 	}
 

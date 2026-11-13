@@ -59,7 +59,10 @@ public enum DebugMode {
 	 */
 	VERIFY_ALTERNATIVE_INDEX_RESULTS,
 	/**
-	 * Selects bitmap-favouring planning and denies optional prefetch.
+	 * Selects bitmap-favouring planning and denies optional prefetch. For a top-level query, also compares the full
+	 * response of the preferred plan with an independently planned baseline that bypasses computation keys, formula
+	 * sharing and caching. Both verification executions use the same frozen random state. A difference fails the
+	 * query; verification adds a second planning and two dry executions before the normal execution.
 	 */
 	VERIFY_POSSIBLE_CACHING_TREES,
 	/**
