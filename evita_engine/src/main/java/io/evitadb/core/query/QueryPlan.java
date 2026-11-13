@@ -77,10 +77,9 @@ import static java.util.Optional.ofNullable;
  * Query plan contains the full recipe on how the query result is going to be computed. Final result can be acquired
  * by calling {@link #execute()} method.
  *
- * The plan is assembled by {@link QueryPlanBuilder} during the planning phase and is **single-use** - see
- * {@link #execute(byte[])} for the reasons why it must not be executed twice. The planner may build several
- * alternative plans for the same request and execute all of them in a "dry run" to verify they agree on the result;
- * each such execution gets its own isolated {@link QueryExecutionContext}.
+ * The plan is assembled by {@link QueryPlanBuilder} during planning. Verification may execute it in several dry
+ * runs before the caller executes it once for the client, reusing formula memos. Each execution gets its own
+ * {@link QueryExecutionContext}; executions are sequential because the plan publishes mutable result fields.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -219,10 +218,10 @@ public class QueryPlan {
 
 	/**
 	 * This method will {@link Formula#compute()} the filtered result, applies ordering and cuts out the requested page.
-	 * Method is expected to be called only once per request.
+	 * The real execution is performed once per request.
 	 *
 	 * @return the response of the form the {@link EvitaRequest} asked for
-	 * @see #execute(byte[]) for the full contract, including why a second call is not allowed
+	 * @see #execute(byte[]) for the dry-run and real-execution contract
 	 */
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute() {
@@ -231,25 +230,25 @@ public class QueryPlan {
 
 	/**
 	 * This method will {@link Formula#compute()} the filtered result, applies ordering and cuts out the requested page.
-	 * Method is expected to be called only once per request.
+	 * The real execution is performed once per request.
 	 *
-	 * The single-use rule is not merely a convention: the method publishes its outcome into the mutable
-	 * {@link #totalRecordCount} / {@link #primaryKeys} fields, so a second call silently overwrites the first one's
-	 * results. When query telemetry was requested it does not even get that far - the final
-	 * {@link QueryExecutionContext#finalizeTelemetry()} drains the telemetry stack owned by the *planning* context
-	 * and asserts that stack is not already empty, so the second call fails outright.
+	 * Verification may call this method repeatedly with frozen randomness before the real execution. Each call
+	 * overwrites {@link #totalRecordCount} and {@link #primaryKeys}, and formula memos may be reused. Only the real
+	 * execution records the finished event and drains the planning context's telemetry stack, so a second real
+	 * execution with requested telemetry is unsupported.
 	 *
 	 * Passing a non-null `frozenRandom` puts the execution context into "dry run" mode: results are computed for
 	 * plan-comparison purposes only, and telemetry collection is suppressed - see
 	 * {@link QueryExecutionContext#isDryRun()}.
 	 *
-	 * @param frozenRandom the frozen random state to use (non-null for deterministic results, null for random results)
+	 * @param frozenRandom verification seed, or null to inherit an enclosing verification or use ordinary randomness
 	 * @return the response of the form the {@link EvitaRequest} asked for - entity references or full entity bodies -
 	 *         carrying the requested page, the total record count and all requested extra results
 	 * @see RandomUtils#getFrozenRandom()
 	 */
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute(@Nullable byte[] frozenRandom) {
+		final byte[] previousRandom = this.queryContext.exchangeVerificationRandom(frozenRandom);
 		final boolean prefetchedDataSuitableForFiltering = this.prefetcher != null && this.prefetcher.isPrefetchedEntitiesSuitableForFiltering();
 		try (
 			final QueryExecutionContext executionContext = this.queryContext.createExecutionContext(
@@ -260,7 +259,10 @@ public class QueryPlan {
 			// de-duplicate storage record reads for the whole execution - the catalog version is pinned here, so
 			// a record read twice under the same key is guaranteed to be the same record
 			executionContext.openStorageAccessScope();
-			this.queryContext.pushStep(QueryPhase.EXECUTION);
+			if (!executionContext.isDryRun()) {
+				ofNullable(this.queryContext.getQueryFinishedEvent()).ifPresent(FinishedEvent::startExecuting);
+			}
+			executionContext.pushStep(QueryPhase.EXECUTION);
 			try {
 				// prefetch the entities to allow using them in filtering / sorting in next step
 				if (this.prefetcher != null) {
@@ -296,7 +298,7 @@ public class QueryPlan {
 						offsetAndLimit
 					);
 				} finally {
-					popStep();
+					executionContext.popStep();
 				}
 
 				// finally, fabricate extra results
@@ -371,23 +373,27 @@ public class QueryPlan {
 
 				executionContext.finalizeTelemetry();
 
-				ofNullable(this.queryContext.getQueryFinishedEvent())
-					.ifPresent(
-						it -> it.finish(
-							prefetchedDataSuitableForFiltering,
-							this.filter.getEstimatedCardinality(),
-							this.primaryKeys == null ? 0 : this.primaryKeys.length,
-							this.totalRecordCount,
-							result::getIoFetchCount,
-							result::getIoFetchedSizeBytes,
-							this.filter.getEstimatedCost(),
-							this.filter.getCost()
-						).commit()
-					);
+				if (!executionContext.isDryRun()) {
+					ofNullable(this.queryContext.getQueryFinishedEvent())
+						.ifPresent(
+							it -> it.finish(
+								prefetchedDataSuitableForFiltering,
+								this.filter.getEstimatedCardinality(),
+								this.primaryKeys == null ? 0 : this.primaryKeys.length,
+								this.totalRecordCount,
+								result::getIoFetchCount,
+								result::getIoFetchedSizeBytes,
+								this.filter.getEstimatedCost(),
+								this.filter.getCost()
+							).commit()
+						);
+				}
 				return result;
 			} finally {
 				executionContext.popStep();
 			}
+		} finally {
+			this.queryContext.exchangeVerificationRandom(previousRandom);
 		}
 	}
 

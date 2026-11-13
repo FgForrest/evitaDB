@@ -162,25 +162,21 @@ public class QueryExecutionContext implements Closeable {
 	private int ioFetchedBytesAtScopeOpen;
 
 	/**
-	 * Returns true during {@link QueryPlanner#verifyConsistentResultsInAllPlans(List, QueryPlanBuilder)}.
+	 * Returns true during either plan-verification mode, including nested executions and sorter contexts captured
+	 * during planning. These runs compute results under frozen randomness without recording real execution telemetry
+	 * or finishing the query's event. The preferred plan can subsequently execute once for the client.
 	 *
-	 * In that mode the same query is evaluated by several alternative plans purely to check they agree, so the run is
-	 * not the one the client observes. Two things follow, and both are relied upon across this class: the random
-	 * source is frozen so the plans cannot diverge on it (see {@link #frozenRandom}), and every telemetry step
-	 * pushed or popped *through this class* is suppressed - the throw-away runs must not pollute the tree that the
-	 * real execution reports.
-	 *
-	 * The suppression covers steps, not annotations, and it only covers callers that go through this class. Code
-	 * that reaches the planning context directly - `SortResolutionStrategies` is the one such caller today - can
-	 * still annotate the open step during a dry run, so a query run under
-	 * {@link io.evitadb.api.query.require.DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} may carry annotations
-	 * contributed by a verification pass rather than by the run the client observes.
-	 *
-	 * The flag is derived from {@link #frozenRandom} rather than stored separately: a frozen random source is only
-	 * ever supplied for plan verification, so its presence *is* the dry-run signal.
+	 * An explicit seed marks the current execution; otherwise the enclosing planning context supplies the active
+	 * execution's seed. This lookup also reaches contexts captured before verification started.
 	 */
 	public boolean isDryRun() {
-		return this.frozenRandom != null;
+		return getEffectiveFrozenRandom() != null;
+	}
+
+	/** Resolves the active seed for both newly created and previously captured nested execution contexts. */
+	@Nullable
+	private byte[] getEffectiveFrozenRandom() {
+		return this.frozenRandom == null ? this.queryContext.getVerificationRandom() : this.frozenRandom;
 	}
 
 	/**
@@ -190,7 +186,7 @@ public class QueryExecutionContext implements Closeable {
 	 */
 	@Nonnull
 	public Random getRandom() {
-		return RandomUtils.getRandom(this.frozenRandom);
+		return RandomUtils.getRandom(getEffectiveFrozenRandom());
 	}
 
 	/**
@@ -210,7 +206,7 @@ public class QueryExecutionContext implements Closeable {
 	public Optional<SealedEntity> fetchEntity(@Nullable String entityType, int entityPrimaryKey, @Nonnull EntityFetchRequire requirements) {
 		final EntityCollection targetCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
 		final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
-		return targetCollection.fetchEntity(entityPrimaryKey, fetchRequest, this.queryContext.getEvitaSession());
+		return targetCollection.fetchEntity(entityPrimaryKey, fetchRequest, this.queryContext);
 	}
 
 	/**
@@ -229,7 +225,7 @@ public class QueryExecutionContext implements Closeable {
 	public List<SealedEntity> fetchEntities(@Nullable String entityType, @Nonnull int[] entityPrimaryKeys, @Nonnull EntityFetchRequire requirements) {
 		final EntityCollection entityCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entities");
 		final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
-		return entityCollection.fetchEntities(entityPrimaryKeys, fetchRequest, this.queryContext.getEvitaSession());
+		return entityCollection.fetchEntities(entityPrimaryKeys, fetchRequest, this.queryContext);
 	}
 
 	/**
@@ -282,7 +278,7 @@ public class QueryExecutionContext implements Closeable {
 				entityPrimaryKey,
 				entityType,
 				(entityCollection, entityPrimaryKeys, requestToUse) ->
-					entityCollection.fetchEntities(entityPrimaryKeys, evitaRequest, evitaSession),
+					entityCollection.fetchEntities(entityPrimaryKeys, evitaRequest, this.queryContext),
 				(entityCollection, prefetchedEntities, requestToUse) ->
 					entityCollection.limitAndFetchExistingEntities(prefetchedEntities, requestToUse, entityFetcher)
 			);

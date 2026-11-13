@@ -27,7 +27,6 @@ import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.requestResponse.chunk.DefaultSlicer;
 import io.evitadb.api.requestResponse.chunk.Slicer;
-import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
@@ -48,7 +47,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Optional.ofNullable;
 
 /**
  * This DTO represents the carrier object that combines the constructed filtering {@link #filterFormula} with the link to
@@ -239,8 +237,6 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 */
 	@Nonnull
 	public QueryPlan build() {
-		ofNullable(this.queryContext.getQueryFinishedEvent())
-			.ifPresent(FinishedEvent::startExecuting);
 		final List<? extends Index<?>> winningIndexes = this.queryContext.isVerificationSibling() ?
 			Collections.emptyList() : this.targetIndexes.getIndexes();
 		final List<SchemaCapabilityUsage> requestedCapabilities = this.queryContext.drainRequestedCapabilitiesToCount();

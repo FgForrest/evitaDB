@@ -1623,13 +1623,18 @@ public final class EntityCollection implements
 	 *
 	 * @param primaryKeys an array of integer values representing the primary keys of the entities to be fetched
 	 * @param evitaRequest an instance of EvitaRequest that contains the request parameters
-	 * @param session an instance of EvitaSessionContract that represents the current session context
+	 * @param queryContext originating context whose verification state the fetch inherits
 	 *
 	 * @return a list of SealedEntity objects matching the provided primary keys and request parameters
 	 */
 	@Nonnull
-	public List<SealedEntity> fetchEntities(@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+	public List<SealedEntity> fetchEntities(
+		@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull QueryPlanningContext queryContext
+	) {
+		final EvitaSession session = Objects.requireNonNull(queryContext.getEvitaSession());
+		final ReferenceFetcher referenceFetcher = createReferenceFetcher(
+			evitaRequest, createQueryContext(queryContext, evitaRequest, session)
+		);
 		return fetchEntities(primaryKeys, evitaRequest, session, referenceFetcher);
 	}
 
@@ -1640,12 +1645,17 @@ public final class EntityCollection implements
 	 *
 	 * @param primaryKey the unique identifier for the desired entity
 	 * @param evitaRequest the request object containing parameters and configurations for fetching the entity
-	 * @param session the session contract that manages interaction contexts for fetching entities
+	 * @param queryContext originating context whose verification state the fetch inherits
 	 * @return an {@link Optional} containing the sealed entity if found, otherwise an empty Optional
 	 */
 	@Nonnull
-	public Optional<SealedEntity> fetchEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+	public Optional<SealedEntity> fetchEntity(
+		int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull QueryPlanningContext queryContext
+	) {
+		final EvitaSession session = Objects.requireNonNull(queryContext.getEvitaSession());
+		final ReferenceFetcher referenceFetcher = createReferenceFetcher(
+			evitaRequest, createQueryContext(queryContext, evitaRequest, session)
+		);
 		return fetchEntity(primaryKey, evitaRequest, session, referenceFetcher);
 	}
 
@@ -3838,9 +3848,17 @@ public final class EntityCollection implements
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session
 	) {
+		return createReferenceFetcher(evitaRequest, createQueryContext(evitaRequest, session));
+	}
+
+	/** Creates the fetcher in its originating context, retaining verification policy for nested filters and bodies. */
+	@Nonnull
+	private ReferenceFetcher createReferenceFetcher(
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull QueryPlanningContext queryContext
+	) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = evitaRequest.getNamedReferenceEntityFetch();
-		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		return referenceEntityFetch.isEmpty() &&
 			namedReferenceEntityFetch.isEmpty() &&
 			!evitaRequest.isRequiresEntityReferences() &&

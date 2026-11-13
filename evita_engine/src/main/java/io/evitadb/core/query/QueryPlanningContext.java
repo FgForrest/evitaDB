@@ -193,6 +193,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * the metrics point of view and must not be reported as one.
 	 */
 	@Nullable @Getter private final FinishedEvent queryFinishedEvent;
+	/** Frozen randomness of the active verification execution, also visible to contexts captured during planning. */
+	@Nullable private byte[] verificationRandom;
 	/**
 	 * Contains reference to the catalog that is targeted by {@link #evitaRequest}.
 	 */
@@ -611,7 +613,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			this.recordingRequestedCapabilities = parentQueryContext.recordingRequestedCapabilities;
 		}
 		this.telemetryStack = new ArrayDeque<>(16);
-		ofNullable(this.verificationSibling ? null : telemetry).ifPresent(this.telemetryStack::push);
+		// Runtime body fetching may plan more queries; dry-run planning must not attach to the real profile.
+		ofNullable(this.verificationSibling ||
+			(parentQueryContext != null && parentQueryContext.getVerificationRandom() != null) ? null : telemetry
+		).ifPresent(this.telemetryStack::push);
 		//noinspection unchecked
 		this.indexes = (Map<IndexKey, Index<?>>) indexes;
 		//noinspection unchecked
@@ -1672,7 +1677,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * caller must consult before walking a formula tree to describe it.
 	 *
 	 * Both halves are load-bearing. The stack test is what makes it false for a query without telemetry (and for
-	 * a dry run, whose planning context is never seeded with a root); the request test is what keeps plain
+	 * a verification sibling); execution callers additionally guard dry runs through
+	 * {@link QueryExecutionContext#isTelemetryPlanCollected()}. The request test is what keeps plain
 	 * `queryTelemetry()` from paying for a structure it did not ask for.
 	 *
 	 * @return true when a plan recorded on the current step ends up in the response
@@ -2934,6 +2940,21 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		}
 		final Formula formula = findCoveringResolution(this.rootHierarchyNodesFormula, hierarchyFilterConstraint, scope);
 		return formula == null ? EmptyBitmap.INSTANCE : formula.compute();
+	}
+
+	/** Returns the active verification seed, following parents for nested and previously captured contexts. */
+	@Nullable
+	byte[] getVerificationRandom() {
+		return this.verificationRandom != null || this.parentContext == null ?
+			this.verificationRandom : this.parentContext.getVerificationRandom();
+	}
+
+	/** Installs execution-scoped verification randomness and returns the local state to restore in a finally block. */
+	@Nullable
+	byte[] exchangeVerificationRandom(@Nullable byte[] frozenRandom) {
+		final byte[] previous = this.verificationRandom;
+		this.verificationRandom = frozenRandom;
+		return previous;
 	}
 
 	/**

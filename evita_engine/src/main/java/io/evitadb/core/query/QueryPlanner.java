@@ -736,7 +736,7 @@ public class QueryPlanner {
 		final QueryPlan baseline = planQuery(context.createVerificationSibling());
 		final EvitaResponse<EntityClassifier> baselineResponse = baseline.execute(frozenRandom);
 		final EvitaResponse<EntityClassifier> preferredResponse = preferredPlan.execute(frozenRandom);
-		if (!baselineResponse.equals(preferredResponse)) {
+		if (!QueryResponseComparator.matches(baselineResponse, preferredResponse)) {
 			throw new InconsistentResultsException(
 				"key-free baseline", baselineResponse, "preferred plan", preferredResponse
 			);
@@ -759,7 +759,7 @@ public class QueryPlanner {
 			if (alternativeBuilder != mainBuilder) {
 				final EvitaResponse<EntityClassifier> alternativeResponse = alternativeBuilder.build().execute(frozenRandom);
 				Assert.isPremiseValid(
-					mainResponse.equals(alternativeResponse),
+					QueryResponseComparator.matches(mainResponse, alternativeResponse),
 					() -> new InconsistentResultsException(mainBuilder, mainResponse, alternativeBuilder, alternativeResponse)
 				);
 				if (log.isDebugEnabled()) {

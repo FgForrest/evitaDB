@@ -80,10 +80,10 @@ public final class SortResolutionStrategies {
 
 	/**
 	 * Allocates a per-sort tally of resolution strategies (indexed by {@link SortResolutionStrategy#ordinal()}), or
-	 * `null` when no telemetry step is open - in which case the caller skips tallying entirely and pays no
+	 * `null` during verification or when no telemetry step is open - the caller then skips tallying and pays no
 	 * overhead.
 	 *
-	 * The probe is whether a telemetry step is currently open, which is the precondition {@link #report} actually
+	 * The probe checks dry-run state and whether a telemetry step is open, the preconditions {@link #report} actually
 	 * needs - there is no point tallying into an array that would have nowhere to be reported to. Deciding it once
 	 * here, up front, is what lets the per-record {@link #tally} collapse to a single null check.
 	 *
@@ -92,7 +92,8 @@ public final class SortResolutionStrategies {
 	 */
 	@Nullable
 	public static int[] newStrategyTally(@Nonnull QueryExecutionContext queryContext) {
-		return queryContext.getQueryContext().getCurrentStep() == null ? null : new int[STRATEGIES.length];
+		return queryContext.isDryRun() || queryContext.getQueryContext().getCurrentStep() == null ?
+			null : new int[STRATEGIES.length];
 	}
 
 	/**
@@ -113,9 +114,7 @@ public final class SortResolutionStrategies {
 	 * (e.g. `sortResolution=TREE_DENSE_WALKx1,ARRAY_MERGE_WALKx2`). A no-op when `tally` is `null` or the current
 	 * step is absent.
 	 *
-	 * It reads the step off the planning context rather than through
-	 * {@link io.evitadb.core.query.QueryExecutionContext}, so unlike a pushed step this annotation is *not*
-	 * suppressed during a plan-verification dry run, where the open step is `PLANNING` rather than the sort phase.
+	 * Like pushed execution steps, this annotation is suppressed during verification dry runs.
 	 *
 	 * The tally is an argument *of* the sort step, not a step of its own. It used to be emitted as a child step, which
 	 * nothing ever finished - so it reported a `spentTime` of `0` and was indistinguishable from a span that genuinely
@@ -129,7 +128,7 @@ public final class SortResolutionStrategies {
 	 * @param tally        the accumulated per-strategy counts, or `null` when telemetry is off
 	 */
 	public static void report(@Nonnull QueryExecutionContext queryContext, @Nullable int[] tally) {
-		if (tally == null) {
+		if (tally == null || queryContext.isDryRun()) {
 			return;
 		}
 		final QueryTelemetry currentStep = queryContext.getQueryContext().getCurrentStep();
