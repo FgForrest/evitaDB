@@ -213,28 +213,40 @@ Each node of the plan reports:
 |---|---|
 | `id` | Identity of the formula **instance**, stable across its occurrences in the plan |
 | `refTo` | Set only on a repeat occurrence, pointing back at the `id` that describes it |
-| `hash` | Structural hash — what the cache keys on |
+| `hash` | Process-local 64-bit hash of the declared formula identity and ordered child keys; a diagnostic value |
 | `description` | What the formula is, in human-readable form |
 | `estimatedCost` | What the planner expected this part to cost |
-| `actualCost` | What it really cost, or **absent** if it never ran |
+| `actualCost` | Recorded computation cost, or **absent** when no cost has been memoized |
 | `resultCount` | How many records it produced, or **absent** if it never ran |
+
+The `hash` comes from `FormulaKey.getHash64()`. Formula deduplication and the cross-query result cache use the
+complete key with equality checks; equal hashes alone do not establish equal computations. Inputs without a value
+identity bind the key to the formula instance. Hashes are not persistent identifiers and should not be compared
+across engine processes or restarts.
+
+An unsampled [formula cache](../../deep-dive/cache.md) hit fills the existing node's memoized result and any cached
+price outputs, and gives that node an `actualCost` of zero. Descendants may remain unevaluated, or a later reader
+may evaluate them for an output it needs. A sampled hit is recomputed and retains its normal computation cost.
+These costs describe formula accounting, not elapsed time spent on cache lookup or verification.
 
 <Note type="info">
 
 **Why `refTo` exists.** The plan is a directed acyclic graph, not a tree: a formula's result is memoized per
 *instance*, so a sub-formula reachable by two paths is computed **once** and every later occurrence of it is free.
 Without the back-reference you would see the same expensive subtree twice and reasonably conclude it cost twice as
-much. A node with `refTo` set carries no detail and no children — resolve it against the node with that `id`.
+much. A node with `refTo` set carries its hash and estimated cost, but no description, execution values or children —
+resolve it against the node with that `id`.
 
 </Note>
 
 <Note type="warning">
 
-**An absent `actualCost` is not a zero cost — it means the formula never ran.** The planner costs every candidate
-index but executes only the winner, so a rejected alternative legitimately reports no real cost at all, and so does a
-branch of the winning plan that was short-circuited past.
+**An absent `actualCost` means no cost has been memoized.** A node can have a `resultCount` because it ran, while
+its cost has not yet been priced. The renderer reads both values without triggering either computation. The planner
+costs every candidate index but executes only the winner, so a rejected alternative legitimately reports no real
+cost or result count, and so does a branch of the winning plan that was short-circuited past.
 
-There is a third case, and it is the one most often misread: when the planner decides it is cheaper to fetch a small
+Another case is easy to misread: when the planner decides it is cheaper to fetch a small
 number of entity bodies and filter over those, the node described `APPLY PREDICATE ON PREFETCHED ENTITIES IF POSSIBLE`
 answers the query from the fetched bodies and **never evaluates the index branch beneath it**. That whole sub-tree is
 therefore reported with no `actualCost` and no `resultCount`, inside a plan that really did run. The metric that tells

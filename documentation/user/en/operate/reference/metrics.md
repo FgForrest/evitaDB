@@ -13,6 +13,8 @@
     <dd><strong>Build type</strong>: Type of the instance build: NEW or REFRESH</dd>
     <dt>catalogName</dt>
     <dd><strong>Catalog</strong>: The name of the catalog to which this event/metric is associated.</dd>
+    <dt>catalogName</dt>
+    <dd><strong>Catalog name</strong>: Catalog schema name from the verification context.</dd>
     <dt>commit</dt>
     <dd><strong>Commit hash</strong>: Abbreviated Git commit hash injected into the manifest at build time.</dd>
     <dt>conflictPolicy</dt>
@@ -23,12 +25,16 @@
     <dd><strong>GOAWAY direction</strong>: SENT when the server closed the connection, RECEIVED when the peer did.</dd>
     <dt>entityType</dt>
     <dd><strong>Entity type</strong>: The name of the related entity type (collection).</dd>
+    <dt>entityType</dt>
+    <dd><strong>Entity type</strong>: Entity type from the verification request.</dd>
     <dt>errorCode</dt>
     <dd><strong>GOAWAY error code</strong>: The RFC 9113 error code carried by the GOAWAY frame, for example ENHANCE_YOUR_CALM(11).</dd>
     <dt>error_type</dt>
     <dd><strong>Error type</strong>: Class of the error being counted.</dd>
     <dt>fileType</dt>
     <dd><strong>File type</strong>: The type of the file that was flushed. One of: CATALOG, ENTITY_COLLECTION, WAL, or BOOTSTRAP</dd>
+    <dt>formulaClass</dt>
+    <dd><strong>Formula class</strong>: Fully qualified class name of the cached formula or extra-result computer whose result differed.</dd>
     <dt>graphQLInstanceType</dt>
     <dd><strong>GraphQL instance type</strong>: Domain of the GraphQL API used in connection with this event/metric: SYSTEM, SCHEMA, or DATA</dd>
     <dt>graphQLOperationType</dt>
@@ -166,15 +172,6 @@ duration of the probe.</dd>
   <dd><strong>Subscriber count</strong>: The number of subscribers active in the system.</dd>
 </dl>
 
-#### Cache
-
-<dl>
-  <dt><code>io_evitadb_cache_anteroom_record_statistics_updated_records</code> (GAUGE)</dt>
-  <dd><strong>Number of records waiting in anteroom</strong>: The number of cacheable but not yet cached records that are collecting usage statistics to evaluate for becoming cached.</dd>
-  <dt><code>io_evitadb_cache_anteroom_wasted_total</code> (COUNTER)</dt>
-  <dd>Anteroom wasted total</dd>
-</dl>
-
 #### ExternalAPI / GraphQL / Request
 
 <dl>
@@ -234,6 +231,51 @@ duration of the probe.</dd>
   <dd><strong>Result serializatio duration</strong>: Time to serialize the final request result into output JSON in milliseconds.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>operationId</Term>, <Term>responseStatus</Term>, <Term>restInstanceType</Term>, <Term>restOperationType</Term><br/></dd>
   <dt><code>io_evitadb_external_api_rest_request_executed_total</code> (COUNTER)</dt>
   <dd>REST request executed total<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>operationId</Term>, <Term>responseStatus</Term>, <Term>restInstanceType</Term>, <Term>restOperationType</Term><br/></dd>
+</dl>
+
+#### Formula cache
+
+<dl>
+  <dt><code>io_evitadb_cache_formula_cache_mismatch_total</code> (COUNTER)</dt>
+  <dd>Confirmed formula cache mismatches<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>formulaClass</Term><br/></dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_active</code> (GAUGE)</dt>
+  <dd><strong>Cache active</strong>: Cache active: 1 when usable, 0 after shutdown or a confirmed mismatch.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_admissions</code> (COUNTER)</dt>
+  <dd><strong>Unique admissions</strong>: Unique admissions since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_duplicate_admissions</code> (COUNTER)</dt>
+  <dd><strong>Duplicate admissions</strong>: Duplicate admissions since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_duplicate_bytes</code> (COUNTER)</dt>
+  <dd><strong>Duplicate computation bytes</strong>: Duplicate computation bytes since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_duplicate_compute_millis</code> (COUNTER)</dt>
+  <dd><strong>Duplicate computation milliseconds</strong>: Duplicate computation milliseconds since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_entries</code> (GAUGE)</dt>
+  <dd><strong>Retained entries</strong>: Retained entries at this observation.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_evicted_weight_bytes</code> (COUNTER)</dt>
+  <dd><strong>Evicted weight bytes</strong>: Evicted weight bytes since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_evictions</code> (COUNTER)</dt>
+  <dd><strong>Cache evictions</strong>: Cache evictions since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_hits</code> (COUNTER)</dt>
+  <dd><strong>Cache hits</strong>: Cache hits since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_maximum_weight_bytes</code> (GAUGE)</dt>
+  <dd><strong>Maximum weight bytes</strong>: Maximum weight bytes at this observation.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_mismatches</code> (COUNTER)</dt>
+  <dd><strong>Confirmed mismatches</strong>: Confirmed mismatches since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_misses</code> (COUNTER)</dt>
+  <dd><strong>Cache misses</strong>: Cache misses since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_prefetch_bypasses</code> (COUNTER)</dt>
+  <dd><strong>Prefetch bypasses</strong>: Prefetch bypasses since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_refused_oversized</code> (COUNTER)</dt>
+  <dd><strong>Oversized entries refused</strong>: Oversized entries refused since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_refused_unsized</code> (COUNTER)</dt>
+  <dd><strong>Unsized entries refused</strong>: Unsized entries refused since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_transaction_bypasses</code> (COUNTER)</dt>
+  <dd><strong>Transaction bypasses</strong>: Transaction bypasses since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_verification_millis</code> (COUNTER)</dt>
+  <dd><strong>Verification milliseconds</strong>: Verification milliseconds since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_verified_hits</code> (COUNTER)</dt>
+  <dd><strong>Verified hits</strong>: Verified hits since the previous emission.</dd>
+  <dt><code>io_evitadb_cache_formula_cache_statistics_weighted_size_bytes</code> (GAUGE)</dt>
+  <dd><strong>Retained weight bytes</strong>: Retained weight bytes at this observation.</dd>
 </dl>
 
 #### Query
@@ -330,9 +372,9 @@ duration of the probe.</dd>
 
 <dl>
   <dt><code>io_evitadb_storage_catalog_checkpoint_cadence_milliseconds</code> (GAUGE)</dt>
-  <dd><strong>Checkpoint cadence in milliseconds</strong>: The time elapsed since the previous completed checkpoint. Compare against the configured checkpoint interval - sustained higher values mean checkpointing is not keeping up with the write rate.</dd>
+  <dd><strong>Checkpoint cadence in milliseconds</strong>: The time elapsed since the previous completed checkpoint. On its own this says only how often checkpoints happen, not whether that is healthy - a value above the configured checkpoint interval is the normal reading for a rarely written catalog. Alert on fence depth instead, and read this alongside it.</dd>
   <dt><code>io_evitadb_storage_catalog_checkpoint_fence_depth_milliseconds</code> (GAUGE)</dt>
-  <dd><strong>Fence depth in milliseconds</strong>: How long the oldest change covered by this checkpoint waited to become durable. Bounds both the write-ahead log retention and the amount of replay a restart has to perform. Zero when the round checkpointed without deferring.</dd>
+  <dd><strong>Fence depth in milliseconds</strong>: How long the oldest change covered by this checkpoint waited to become durable - measured from the end of the first round that deferred, not from the start of the force. Bounds both the write-ahead log retention and the amount of replay a restart has to perform. Zero when the round checkpointed without deferring.</dd>
   <dt><code>io_evitadb_storage_catalog_checkpoint_files_forced</code> (GAUGE)</dt>
   <dd><strong>Number of files forced</strong>: The number of data files that were forced to the physical device by this checkpoint.</dd>
   <dt><code>io_evitadb_storage_catalog_checkpoint_force_duration_milliseconds</code> (GAUGE)</dt>
@@ -398,8 +440,6 @@ duration of the probe.</dd>
   <dd>Background tasks started<br/><br/><strong>Labels:</strong> <Term>taskName</Term><br/></dd>
   <dt><code>io_evitadb_system_background_task_timed_out_timed_out_tasks</code> (COUNTER)</dt>
   <dd><strong>Timed out tasks</strong>: Number of timed out and canceled tasks.<br/><br/><strong>Labels:</strong> <Term>taskName</Term><br/></dd>
-  <dt><code>io_evitadb_system_evita_statistics_cache_size_in_bytes</code> (GAUGE)</dt>
-  <dd><strong>Maximum cache size in Bytes</strong>: Configured threshold for the maximum cache size in Bytes (`cache.cacheSizeInBytes`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_catalogs</code> (GAUGE)</dt>
   <dd><strong>Catalog count</strong>: Number of accessible catalogs managed by this instance of evitaDB.<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_close_sessions_after_seconds_of_inactivity</code> (GAUGE)</dt>

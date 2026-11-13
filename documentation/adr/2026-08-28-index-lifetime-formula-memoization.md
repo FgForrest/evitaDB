@@ -1,7 +1,7 @@
 ---
 title: Index caches memoize the bitmap, never the formula, because a formula node carries per-query state
 date: 2026-08-28
-updated: 2026-11-12 21:12
+updated: 2026-11-14 00:50
 status: accepted
 kind: fix
 issues: [1458]
@@ -9,7 +9,7 @@ prs: [1459, 1460]
 areas: [evita_engine/io/evitadb/index/attribute, evita_engine/io/evitadb/index/hierarchy, evita_engine/io/evitadb/index/bitmap, evita_engine/io/evitadb/core/query/algebra]
 supersedes: []
 superseded-by: []
-relates: []
+relates: [2026-11-14-formula-cache-redesign]
 ---
 
 # Index caches memoize the bitmap, never the formula
@@ -174,6 +174,11 @@ unrepresentable rather than merely documented and tested.
   scatter across sizes says it now sits below that harness's noise floor.
 
 ## Consequences & open follow-ups
+
+- **2026-11-14 update:** [Declared formula identity and result caching](2026-11-14-formula-cache-redesign.md)
+  removes the legacy bitmap content-hash API and memo described below. Named derived producer tokens identify the
+  supported index memos. The no-query-state retention invariant and fresh formula wrappers remain in force; the
+  content-hash discussion below records the earlier implementation.
 
 - **The heap accounting differs by branch.** `IndexHeapSize` and the two heap-size test classes exist only on
   `dev`; the release line has no accounting for these memos at all. On `dev`,

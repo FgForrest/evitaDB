@@ -94,9 +94,9 @@ cache:                                            # [see Cache configuration](#c
   enabled: false
   reflection: CACHE
   minimalComplexityThreshold: 10K
-  cacheSizeInBytes: null
-  dropEntriesAfterSecondsOfInactivity: 600
-  verifyOneHitIn: 1000
+  cacheSizeInBytes: null                           # bytes; null selects the default budget
+  dropEntriesAfterSecondsOfInactivity: 600          # seconds
+  verifyOneHitIn: 1000                             # randomly verify one in 1000 hits
 
 api:                                              # [see API configuration](#api-configuration)
   workerGroupThreads: 4
@@ -1111,9 +1111,13 @@ occur in your application.
 
 ## Cache configuration
 
-The cross-query cache retains formula computation results for reuse across queries. Its memory budget is bounded by
-an estimate of the size of retained entries. Cache options accept only non-negative thresholds, budgets, expiry periods
-and verification rates.
+The cross-query formula result cache is **disabled by default**. When enabled, it retains eligible computation
+results for reuse across queries. Its memory budget is a target based on estimated retained entry sizes; concurrent
+admissions can temporarily exceed it. Memory used by queries in progress is outside this budget. See
+[Formula result cache](../deep-dive/cache.md) for eligibility, admission and verification rules.
+
+Cache options accept only non-negative thresholds, budgets, expiry periods and verification rates. These defaults
+are shared by embedded instances and the server YAML configuration.
 
 <dl>
     <dt>reflection</dt>
@@ -1130,14 +1134,17 @@ and verification rates.
     <dt>minimalComplexityThreshold</dt>
     <dd>
         <p>**Default:** `10K` (`10000`)</p>
-        <p>The minimal estimated cost of a computation whose result may be cached. Raising this threshold restricts
-        admission to more expensive computations.</p>
+        <p>The minimal estimated cost of a computation whose result may be cached, in the planner's cost units,
+        not elapsed time or bytes. `0` removes this cost floor; other eligibility and size limits still apply.
+        Raising this threshold restricts admission to more expensive computations.</p>
     </dd>
     <dt>cacheSizeInBytes</dt>
     <dd>
         <p>**Default:** `null` (25% of free heap measured when `CacheOptions` is initialized)</p>
-        <p>The target budget in bytes for the estimated size of retained entries. Omission, `null` and `0` select
-        the same default budget. Use `enabled: false` to disable formula result caching.</p>
+        <p>The target budget in bytes for estimated retained payloads, keys and entry overhead. The default is
+        calculated once from maximum heap minus currently used heap, before catalog loading is accounted for.
+        Omission, `null` and `0` select the same default budget. YAML size suffixes such as `MB` use powers of 1024;
+        numeric suffixes such as `M` use powers of 1000. Use `enabled: false` to disable formula result caching.</p>
     </dd>
     <dt>dropEntriesAfterSecondsOfInactivity</dt>
     <dd>
@@ -1148,8 +1155,9 @@ and verification rates.
     <dt>verifyOneHitIn</dt>
     <dd>
         <p>**Default:** `1000`</p>
-        <p>The sampling rate for verifying cached results by recomputation: `1000` verifies one in a thousand hits,
-        `1` verifies every hit and `0` disables verification.</p>
+        <p>The sampling rate for verifying cached results by recomputation: `1000` gives each hit a one-in-a-thousand
+        chance of verification, `1` verifies every hit and `0` disables verification. A confirmed mismatch fails
+        the detecting query and disables formula result caching for the lifetime of that engine instance.</p>
     </dd>
 </dl>
 

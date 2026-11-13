@@ -1,7 +1,7 @@
 ---
 title: Price histogram granularity is decided per accessor, not all-or-nothing across the query
 date: 2026-08-24
-updated: 2026-08-24 13:45
+updated: 2026-11-14 00:50
 status: accepted
 kind: fix
 issues: [1433]
@@ -9,7 +9,7 @@ prs: [1435, 1436]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/algebra/price, evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/histogram]
 supersedes: []
 superseded-by: []
-relates: [2026-09-07-equalized-histogram-density-and-quantile-bucketing]
+relates: [2026-09-07-equalized-histogram-density-and-quantile-bucketing, 2026-11-14-formula-cache-redesign]
 ---
 
 # Price histogram granularity is decided per accessor, not all-or-nothing across the query
