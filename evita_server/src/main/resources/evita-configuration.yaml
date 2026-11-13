@@ -23,6 +23,7 @@ server:
   readOnly: ${server.readOnly:false}
   quiet: ${server.quiet:false}
   usageStatisticsTracking: ${server.usageStatisticsTracking:true}
+  missingHistogramValueBehavior: ${server.missingHistogramValueBehavior:REFUSE}
   trafficRecording:
     enabled: ${server.trafficRecording.enabled:false}
     sourceQueryTracking: ${server.trafficRecording.sourceQueryTracking:false}

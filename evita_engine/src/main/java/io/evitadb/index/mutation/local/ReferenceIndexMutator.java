@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -84,6 +85,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodySt
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -2539,7 +2541,8 @@ public interface ReferenceIndexMutator {
 	/**
 	 * Removes histogram entries contributed by a single trigger for the given reference. Reads the
 	 * current attribute value, resolves to the histogram-value array (typed to the descriptor's
-	 * `plainType`), and asserts that each value is present for the owner before removing it.
+	 * `plainType`), and checks that each value is present for the owner before removing it - a missing value fails
+	 * the write or is logged and skipped, as the executor's {@link MissingHistogramValueBehavior} decides.
 	 *
 	 * Extracted as a separate method so that callers needing per-trigger condition evaluation (the withdrawal
 	 * before a storage change) can iterate triggers themselves, evaluate conditions, and call this method only for
@@ -3980,8 +3983,21 @@ public interface ReferenceIndexMutator {
 	 * Withdraws values of a trigger whose condition holds against current storage. Every value must be present
 	 * for the owner in the locale bucket of the ungrouped type index or every reduced index listed for the group.
 	 * A grouped reference must have a group-type index listing at least one reduced index.
-	 * Fails at the first absent value; the values checked before it have already been removed by this call.
-	 * Diagnostic messages are constructed only on failure.
+	 *
+	 * What happens when something is missing follows the executor's {@link MissingHistogramValueBehavior}:
+	 *
+	 * - `REFUSE` fails at the first absent value or index; the values checked before it have already been removed by
+	 *   this call.
+	 * - `REPORT` logs every value it cannot withdraw and skips only that value: a missing value skips the value, a
+	 *   listed reduced index the executor answers as missing skips that index, and a missing type index or an empty
+	 *   listing skips every value. Everything else is withdrawn as under `REFUSE`.
+	 *
+	 * A listed reduced index the collection does not hold never reaches the branch that skips it: the collection's
+	 * accessor behind `EntityIndexLocalMutationExecutor#getGroupIndexByPrimaryKeyForModification` refuses the primary
+	 * key with a premise error instead of answering `null`, so such a write fails under either behavior and nothing is
+	 * reported for that index.
+	 *
+	 * Diagnostic messages are constructed only when something is missing.
 	 *
 	 * @param executor the mutation executor
 	 * @param referenceKey the reference including its internal primary key
@@ -4009,34 +4025,49 @@ public interface ReferenceIndexMutator {
 				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceKey.referenceName()
 			));
 			if (!(index instanceof ReferencedTypeEntityIndex groupTypeIndex)) {
-				throw missingHistogramValue(
-					executor, referenceKey, histogramName, locale, values[0], ownerPK, groupId, -1, 0, scope
-				);
+				// no group-type index - nothing of the reference can be withdrawn
+				for (final Serializable value : values) {
+					refuseOrReportMissingHistogramValue(
+						executor, referenceKey, histogramName, locale, value, ownerPK, groupId, -1, 0, scope
+					);
+				}
+				return;
 			}
 			final int[] storagePKs = groupTypeIndex.getAllReferenceIndexes(groupId);
 			if (storagePKs.length == 0) {
-				throw missingHistogramValue(
-					executor, referenceKey, histogramName, locale, values[0], ownerPK, groupId, -1, 0, scope
-				);
+				// no reduced index listed for the group - nothing of the reference can be withdrawn
+				for (final Serializable value : values) {
+					refuseOrReportMissingHistogramValue(
+						executor, referenceKey, histogramName, locale, value, ownerPK, groupId, -1, 0, scope
+					);
+				}
+				return;
 			}
 			for (final int storagePK : storagePKs) {
 				final EntityIndex reducedIndex = executor.getGroupIndexByPrimaryKeyForModification(
 					scope, referenceKey.referenceName(), storagePK
 				);
 				if (!(reducedIndex instanceof HistogramCapableEntityIndex histogramIndex)) {
-					throw missingHistogramValue(
-						executor, referenceKey, histogramName, locale, values[0], ownerPK, groupId,
-						storagePK, storagePKs.length, scope
-					);
-				}
-				for (final Serializable value : values) {
-					if (!isValueInHistogram(histogramIndex, histogramName, locale, value, ownerPK)) {
-						throw missingHistogramValue(
+					// this listed reduced index is missing - the other listed indexes are still withdrawn from
+					for (final Serializable value : values) {
+						refuseOrReportMissingHistogramValue(
 							executor, referenceKey, histogramName, locale, value, ownerPK, groupId,
 							storagePK, storagePKs.length, scope
 						);
 					}
-					histogramIndex.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
+					continue;
+				}
+				for (final Serializable value : values) {
+					if (isValueInHistogram(histogramIndex, histogramName, locale, value, ownerPK)) {
+						histogramIndex.removeHistogramValue(
+							histogramName, locale, value, ownerPK, indexedDecimalPlaces
+						);
+					} else {
+						refuseOrReportMissingHistogramValue(
+							executor, referenceKey, histogramName, locale, value, ownerPK, groupId,
+							storagePK, storagePKs.length, scope
+						);
+					}
 				}
 			}
 		} else {
@@ -4045,27 +4076,35 @@ public interface ReferenceIndexMutator {
 			);
 			final EntityIndex index = executor.getIndexIfExists(typeKey);
 			if (!(index instanceof HistogramCapableEntityIndex histogramIndex)) {
-				throw missingHistogramValue(
-					executor, referenceKey, histogramName, locale, values[0], ownerPK, null, -1, 0, scope
-				);
-			}
-			for (final Serializable value : values) {
-				if (!isValueInHistogram(histogramIndex, histogramName, locale, value, ownerPK)) {
-					throw missingHistogramValue(
+				// no referenced-type index - nothing of the reference can be withdrawn
+				for (final Serializable value : values) {
+					refuseOrReportMissingHistogramValue(
 						executor, referenceKey, histogramName, locale, value, ownerPK, null, -1, 0, scope
 					);
 				}
-				executor.getOrCreateIndex(typeKey);
-				histogramIndex.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
+				return;
+			}
+			for (final Serializable value : values) {
+				if (isValueInHistogram(histogramIndex, histogramName, locale, value, ownerPK)) {
+					executor.getOrCreateIndex(typeKey);
+					histogramIndex.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
+				} else {
+					refuseOrReportMissingHistogramValue(
+						executor, referenceKey, histogramName, locale, value, ownerPK, null, -1, 0, scope
+					);
+				}
 			}
 		}
 	}
 
 	/**
-	 * Builds the withdrawal failure only after a presence check fails. A reduced primary key of `-1` means
-	 * that the group-type index is missing or lists no reduced index, or that the reference is ungrouped.
+	 * Refuses or reports one value the withdrawal cannot find, by the behavior configured in
+	 * `server.missingHistogramValueBehavior`. Any behavior other than `REPORT` throws the error - the withdrawal
+	 * stops there. `REPORT` logs the same identification at error level with a sentence saying the write continues,
+	 * and returns, so the caller skips that value. No stack trace is logged: the line carries everything the error
+	 * would, and an operator alerts on its prefix `Cannot withdraw histogram value`.
 	 *
-	 * @param executor the mutation executor
+	 * @param executor the mutation executor, which carries the behavior on a missing histogram value
 	 * @param referenceKey the reference including its internal primary key
 	 * @param histogramName the histogram definition name
 	 * @param locale the locale, or `null`
@@ -4075,10 +4114,9 @@ public interface ReferenceIndexMutator {
 	 * @param reducedIndexPrimaryKey the listed reduced index primary key, or `-1`
 	 * @param listedIndexCount the number of reduced indexes listed for the group
 	 * @param scope the current scope
-	 * @return the error describing the missing contribution
+	 * @throws GenericEvitaInternalError unless the behavior is `REPORT`
 	 */
-	@Nonnull
-	private static GenericEvitaInternalError missingHistogramValue(
+	private static void refuseOrReportMissingHistogramValue(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull String histogramName,
@@ -4090,14 +4128,54 @@ public interface ReferenceIndexMutator {
 		int listedIndexCount,
 		@Nonnull Scope scope
 	) {
-		return new GenericEvitaInternalError(
-			"Cannot withdraw histogram value: entity type `" + executor.getEntitySchema().getName() +
-				"`, owner primary key " + ownerPK + ", reference " + referenceKey + " (internal primary key " +
-				referenceKey.internalPrimaryKey() + "), group " + groupId + ", histogram `" + histogramName +
-				"`, locale " + locale + ", value " + value + ", reduced index primary key " + reducedIndexPrimaryKey +
-				", listed group indexes " + listedIndexCount + ", scope " + scope +
-				". The index, histogram, locale bucket and value-owner pair must exist for withdrawal."
+		final String description = describeMissingHistogramValue(
+			executor, referenceKey, histogramName, locale, value, ownerPK, groupId, reducedIndexPrimaryKey,
+			listedIndexCount, scope
 		);
+		if (executor.getMissingHistogramValueBehavior() != MissingHistogramValueBehavior.REPORT) {
+			throw new GenericEvitaInternalError(description);
+		}
+		LoggerFactory.getLogger(ReferenceIndexMutator.class).error(
+			description + " The value is not withdrawn and the write continues, because " +
+				"`server.missingHistogramValueBehavior` is `REPORT`."
+		);
+	}
+
+	/**
+	 * Describes a value the withdrawal cannot find, only after a presence check fails. A reduced primary key of `-1`
+	 * means that the group-type index is missing or lists no reduced index, or that the reference is ungrouped.
+	 *
+	 * @param executor the mutation executor
+	 * @param referenceKey the reference including its internal primary key
+	 * @param histogramName the histogram definition name
+	 * @param locale the locale, or `null`
+	 * @param value the missing value
+	 * @param ownerPK the owner primary key
+	 * @param groupId the group primary key, or `null`
+	 * @param reducedIndexPrimaryKey the listed reduced index primary key, or `-1`
+	 * @param listedIndexCount the number of reduced indexes listed for the group
+	 * @param scope the current scope
+	 * @return the description of the missing contribution
+	 */
+	@Nonnull
+	private static String describeMissingHistogramValue(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int ownerPK,
+		@Nullable Integer groupId,
+		int reducedIndexPrimaryKey,
+		int listedIndexCount,
+		@Nonnull Scope scope
+	) {
+		return "Cannot withdraw histogram value: entity type `" + executor.getEntitySchema().getName() +
+			"`, owner primary key " + ownerPK + ", reference " + referenceKey + " (internal primary key " +
+			referenceKey.internalPrimaryKey() + "), group " + groupId + ", histogram `" + histogramName +
+			"`, locale " + locale + ", value " + value + ", reduced index primary key " + reducedIndexPrimaryKey +
+			", listed group indexes " + listedIndexCount + ", scope " + scope +
+			". The index, histogram, locale bucket and value-owner pair must exist for withdrawal.";
 	}
 
 	/**

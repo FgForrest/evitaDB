@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
@@ -142,6 +143,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			this.usageRegistry,
 			this.catalogUsageRegistry,
 			true,
+			MissingHistogramValueBehavior.REFUSE,
 			new PartitionReservations()
 		);
 	}
