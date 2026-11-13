@@ -25,6 +25,7 @@ package io.evitadb.index.mutation.local;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntObjectHashMap;
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -262,6 +263,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private final boolean usageStatisticsTracking;
 	/**
+	 * What the withdrawal of a reference-histogram value does when the index does not hold the value for the owner -
+	 * the server-wide `server.missingHistogramValueBehavior` switch, resolved once when the executor is built (see
+	 * {@link ReferenceIndexMutator#removeHistogramForTrigger}).
+	 */
+	@Nonnull private final MissingHistogramValueBehavior missingHistogramValueBehavior;
+	/**
 	 * Whether this executor writes the registry of single-owner partitions - records the sort values and chain
 	 * predecessors it writes into a partition in the partition's registry row (see
 	 * {@link VirtualReferencePartitionWriter}). TRUE for every executor but one writing as another owner of a partition
@@ -473,8 +480,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Creates the index executor of one entity's local mutations, which writes the registry of single-owner
 	 * partitions.
 	 *
-	 * @param partitionReservations the reservations of the root mutation the executor belongs to, shared by all its
-	 *                              executors - see {@link PartitionReservations}
+	 * @param missingHistogramValueBehavior what the withdrawal of a reference-histogram value the index does not hold
+	 *                                      does - see {@link #missingHistogramValueBehavior}
+	 * @param partitionReservations         the reservations of the root mutation the executor belongs to, shared by
+	 *                                      all its executors - see {@link PartitionReservations}
 	 */
 	public EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -491,24 +500,27 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
 		boolean usageStatisticsTracking,
+		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior,
 		@Nonnull PartitionReservations partitionReservations
 	) {
 		this(
 			containerAccessor, entityPrimaryKey, entityIndexCreatingAccessor, catalogIndexCreatingAccessor,
 			schemaAccessor, priceInternalIdSupplier, fullEntitySupplier, triggerRegistrySupplier,
 			localFacetTriggerSupplier, crossEntitySchemaResolver, entityTypeClassifierResolver, usageRegistry,
-			catalogUsageRegistry, usageStatisticsTracking, true, partitionReservations
+			catalogUsageRegistry, usageStatisticsTracking, missingHistogramValueBehavior, true, partitionReservations
 		);
 	}
 
 	/**
 	 * Creates the index executor of one entity's local mutations.
 	 *
-	 * @param partitionRegistryWritten TRUE when the executor writes the registry of single-owner partitions, FALSE
-	 *                                 only for an executor writing as another owner of a partition - see
-	 *                                 {@link #partitionRegistryWritten}
-	 * @param partitionReservations    the reservations of the root mutation the executor belongs to, shared by all its
-	 *                                 executors - see {@link PartitionReservations}
+	 * @param missingHistogramValueBehavior what the withdrawal of a reference-histogram value the index does not hold
+	 *                                      does - see {@link #missingHistogramValueBehavior}
+	 * @param partitionRegistryWritten      TRUE when the executor writes the registry of single-owner partitions,
+	 *                                      FALSE only for an executor writing as another owner of a partition - see
+	 *                                      {@link #partitionRegistryWritten}
+	 * @param partitionReservations         the reservations of the root mutation the executor belongs to, shared by
+	 *                                      all its executors - see {@link PartitionReservations}
 	 */
 	private EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -525,6 +537,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
 		boolean usageStatisticsTracking,
+		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior,
 		boolean partitionRegistryWritten,
 		@Nonnull PartitionReservations partitionReservations
 	) {
@@ -544,6 +557,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.usageRegistry = usageRegistry;
 		this.catalogUsageRegistry = catalogUsageRegistry;
 		this.usageStatisticsTracking = usageStatisticsTracking;
+		this.missingHistogramValueBehavior = missingHistogramValueBehavior;
 		this.partitionRegistryWritten = partitionRegistryWritten;
 		this.partitionReservations = partitionReservations;
 	}
@@ -556,6 +570,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	boolean isPartitionRegistryWritten() {
 		return this.partitionRegistryWritten;
+	}
+
+	/**
+	 * Returns what the withdrawal of a reference-histogram value does when the index does not hold the value for the
+	 * owner - see {@link #missingHistogramValueBehavior}.
+	 *
+	 * @return the behavior on a missing histogram value
+	 */
+	@Nonnull
+	MissingHistogramValueBehavior getMissingHistogramValueBehavior() {
+		return this.missingHistogramValueBehavior;
 	}
 
 	/**
@@ -666,6 +691,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			this.usageRegistry,
 			this.catalogUsageRegistry,
 			false,
+			this.missingHistogramValueBehavior,
 			false,
 			PartitionReservations.REFUSING
 		);
