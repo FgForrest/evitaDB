@@ -186,8 +186,8 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		/**
 		 * Detached computation inputs.
 		 *
-		 * @param first detached first input
-		 * @param second detached second input
+		 * @param first key of the first combined predicate
+		 * @param second key of the second combined predicate
 		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 		 */
 		public record Identity(@Nonnull FormulaKey first, @Nonnull FormulaKey second) implements IdentityRecord {
@@ -260,6 +260,7 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		public String toString() {
 			return this.first + " OR " + this.second;
 		}
+
 		/** Returns detached inputs without computing the bitmap. */
 		@Nonnull
 		@Override
@@ -286,8 +287,8 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		/**
 		 * Detached computation inputs.
 		 *
-		 * @param first detached first input
-		 * @param second detached second input
+		 * @param first key of the first combined predicate
+		 * @param second key of the second combined predicate
 		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 		 */
 		public record Identity(@Nonnull FormulaKey first, @Nonnull FormulaKey second) implements IdentityRecord {
@@ -336,6 +337,7 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		public String toString() {
 			return "REJECT ALL";
 		}
+
 		/** Returns detached inputs without computing the bitmap. */
 		@Nonnull
 		@Override
@@ -408,6 +410,7 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		public String toString() {
 			return "ACCEPT ALL";
 		}
+
 		/** Returns detached inputs without computing the bitmap. */
 		@Nonnull
 		@Override
@@ -504,6 +507,7 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 			result = 31 * result + this.hash.hashCode();
 			return result;
 		}
+
 		/** Returns detached inputs without computing the bitmap. */
 		@Nonnull
 		@Override
@@ -530,7 +534,7 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		/**
 		 * Detached computation inputs.
 		 *
-		 * @param predicate detached predicate input
+		 * @param predicate key of the negated predicate
 		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 		 */
 		public record Identity(@Nonnull FormulaKey predicate) implements IdentityRecord {

@@ -91,6 +91,7 @@ public class ScopeEntityToBitmapFilter implements EntityToBitmapFilter {
 	public EntityFetchRequire getEntityRequire() {
 		return ENTITY_BODY;
 	}
+
 	/** Captures the detached semantic inputs without evaluating the holder. */
 	@Nonnull
 	@Override

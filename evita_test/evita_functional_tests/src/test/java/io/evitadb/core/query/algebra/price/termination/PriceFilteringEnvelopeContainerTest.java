@@ -200,21 +200,6 @@ class PriceFilteringEnvelopeContainerTest {
 
 			assertEquals(a.getKey(), b.getKey());
 		}
-
-		/** Verifies detached computation identity. */
-		@Test
-		@DisplayName("should distinguish metadata differences")
-		void shouldDistinguishMetadataDifferences() {
-			final ConstantFormula innerFormula = createConstantFormula(1, 2, 3);
-			final FormulaKey keyA = new PriceFilteringEnvelopeContainer(
-				new String[]{"basic"}, CZK, VALID_IN, innerFormula
-			).getKey();
-			final FormulaKey keyB = new PriceFilteringEnvelopeContainer(
-				new String[]{"vip"}, Currency.getInstance("EUR"), null, innerFormula
-			).getKey();
-
-			assertNotEquals(keyA, keyB);
-		}
 	}
 
 	/**
@@ -279,6 +264,44 @@ class PriceFilteringEnvelopeContainerTest {
 			).getKey();
 
 			assertNotEquals(keyA, keyB);
+		}
+
+		/** The price lists are a key input on their own. */
+		@Test
+		@DisplayName("should produce different key for different price lists")
+		void shouldProduceDifferentKeyForDifferentPriceLists() {
+			final ConstantFormula innerFormula = createConstantFormula(1, 2, 3);
+
+			assertNotEquals(
+				new PriceFilteringEnvelopeContainer(new String[]{"basic"}, CZK, VALID_IN, innerFormula).getKey(),
+				new PriceFilteringEnvelopeContainer(new String[]{"vip"}, CZK, VALID_IN, innerFormula).getKey()
+			);
+		}
+
+		/** The currency is a key input on its own. */
+		@Test
+		@DisplayName("should produce different key for different currency")
+		void shouldProduceDifferentKeyForDifferentCurrency() {
+			final ConstantFormula innerFormula = createConstantFormula(1, 2, 3);
+
+			assertNotEquals(
+				new PriceFilteringEnvelopeContainer(new String[]{"basic"}, CZK, VALID_IN, innerFormula).getKey(),
+				new PriceFilteringEnvelopeContainer(
+					new String[]{"basic"}, Currency.getInstance("EUR"), VALID_IN, innerFormula
+				).getKey()
+			);
+		}
+
+		/** The validity moment is a key input on its own. */
+		@Test
+		@DisplayName("should produce different key for different validity moment")
+		void shouldProduceDifferentKeyForDifferentValidityMoment() {
+			final ConstantFormula innerFormula = createConstantFormula(1, 2, 3);
+
+			assertNotEquals(
+				new PriceFilteringEnvelopeContainer(new String[]{"basic"}, CZK, VALID_IN, innerFormula).getKey(),
+				new PriceFilteringEnvelopeContainer(new String[]{"basic"}, CZK, null, innerFormula).getKey()
+			);
 		}
 	}
 

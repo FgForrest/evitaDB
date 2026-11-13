@@ -136,6 +136,7 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	protected long getClassId() {
 		return CLASS_ID;
 	}
+
 	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
 	@Nonnull
 	@Override

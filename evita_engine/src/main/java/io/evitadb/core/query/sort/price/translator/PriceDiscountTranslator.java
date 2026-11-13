@@ -450,6 +450,9 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			// initialize the selling price records
 			this.sellingPriceRecords = priceRecordsLookupResult.getPriceRecords();
 
+			// the terminations get a predicate factory rather than one predicate, because the predicate advances a
+			// cursor over the selling prices and every clone of a termination must start from the beginning; the
+			// factories read these locals, so the records assigned by a later call do not leak into these clones
 			final PriceRecordContract[] sellingPriceRecords = this.sellingPriceRecords;
 			final ToIntFunction<PriceRecordContract> priceExtractor = this.priceExtractor;
 

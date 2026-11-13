@@ -116,13 +116,15 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	 */
 	@Getter private final PriceRecordPredicate sellingPricePredicate;
 	/**
-	 * Predicate that filters out individual prices from being calculated in selling price.
+	 * Predicate that filters out individual prices from being calculated in selling price, `null` when every price
+	 * takes part. When present, {@link #individualPricePredicateFactory} produced it for this instance alone, and the
+	 * key marks it as an opaque input.
 	 */
 	@Nullable
 	private final SumPredicate<PriceRecordContract> individualPricePredicate;
 	/**
-	 * Construction state that supplies an independent predicate to each clone. The resolved predicate above is
-	 * this instance's computation input; a factory is retained only when its caller requires fresh cursor state.
+	 * Construction state that supplies an independent predicate to each clone, so that a stateful predicate restarts
+	 * its cursor; present exactly when {@link #individualPricePredicate} is.
 	 */
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private final Supplier<? extends SumPredicate<PriceRecordContract>> individualPricePredicateFactory;
@@ -179,25 +181,6 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		this.initFields(containerFormula);
 	}
 
-	/**
-	 * Creates a new instance of SumPriceTerminationFormula with the specified individual price predicate and
-	 * retains the existing delegate formula, price evaluation context, query price mode,
-	 * and selling price predicate.
-	 *
-	 * @param individualPricePredicate the predicate to filter individual price records; must not be null
-	 * @return a new instance of SumPriceTerminationFormula with the specified individual price predicate
-	 */
-	@Nonnull
-	public SumPriceTerminationFormula withIndividualPricePredicate(@Nonnull SumPredicate<PriceRecordContract> individualPricePredicate) {
-		return new SumPriceTerminationFormula(
-			getDelegate(),
-			this.priceEvaluationContext,
-			this.queryPriceMode,
-			this.sellingPricePredicate,
-			individualPricePredicate,
-			null
-		);
-	}
 
 	@Nullable
 	@Override

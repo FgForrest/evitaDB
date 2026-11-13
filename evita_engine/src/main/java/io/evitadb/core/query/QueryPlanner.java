@@ -978,7 +978,7 @@ public class QueryPlanner {
 		/**
 		 * Detached computation inputs.
 		 *
-		 * @param innerFormula detached innerFormula input
+		 * @param innerFormula key of the formula whose result is negated once the superset is known
 		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 		 */
 		public record Identity(@Nonnull FormulaKey innerFormula) implements IdentityRecord {

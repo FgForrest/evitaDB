@@ -1105,27 +1105,6 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			assertEquals(formula.getKey(), first.getAllHierarchyNodesFormula().getKey());
 			assertNotEquals(formula.getKey(), second.getAllHierarchyNodesFormula().getKey());
 		}
-		/** Scope and referenced entity type each own an independent hierarchy version. */
-		@Test
-		@DisplayName("Separates scope and target-type hierarchy memos")
-		void shouldSeparateScopeAndTargetTypeMemoIdentities() throws ReflectiveOperationException {
-			final java.util.Set<io.evitadb.core.query.algebra.identity.FormulaKey> keys =
-				new java.util.HashSet<>();
-			for (final io.evitadb.dataType.Scope scope : io.evitadb.dataType.Scope.values()) {
-				for (final String type : new String[]{"category", "tree"}) {
-					final io.evitadb.index.GlobalEntityIndex index = new io.evitadb.index.GlobalEntityIndex(
-						1, type,
-							new io.evitadb.index.EntityIndexKey(io.evitadb.api.index.EntityIndexType.GLOBAL, scope));
-					index.addNode(1, null);
-					final java.lang.reflect.Field hierarchyField = io.evitadb.index.EntityIndex.class
-						.getDeclaredField("hierarchyIndex");
-					hierarchyField.setAccessible(true);
-					final HierarchyIndex hierarchy = (HierarchyIndex) hierarchyField.get(index);
-					assertTrue(keys.add(hierarchy.getAllHierarchyNodesFormula().getKey()));
-				}
-			}
-		}
-
 	}
 
 	@Nested

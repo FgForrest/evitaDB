@@ -25,6 +25,7 @@ package io.evitadb.core.query.filter.translator.price.alternative;
 
 import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
@@ -32,6 +33,7 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.CumulatedPrice;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
@@ -63,6 +65,8 @@ import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
+import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -73,7 +77,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Implementation of {@link EntityToBitmapFilter} that verifies that the entity has the "selling price" available.
  * The proper "selling price" is derived from the {@link QueryPlanningContext} automatically by specifying
  * {@link PriceContentMode#RESPECTING_FILTER} which in turn retrieves all basic constraints such as price list / currency
- * from the {@link io.evitadb.api.requestResponse.EvitaRequest}. Only the price between must be handled locally.
+ * from the {@link EvitaRequest}. Only the price between must be handled locally.
+ *
+ * Translators create the filter with {@link #forRequest}, which captures the request's price-for-sale context the
+ * prefetched entities resolve their selling price in; the constructors capture no context and keep an
+ * instance-unique key.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -82,6 +90,22 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	private static final long CLASS_ID = -8990446315162675198L;
 	/** Immutable ordered additional price lists, normalized to an empty list when absent. */
 	private final List<String> additionalPriceLists;
+	/**
+	 * Price lists of the request's price-for-sale context in priority order; the prefetched entities resolve their
+	 * selling price from them. Empty when the request names none or the context was not captured.
+	 */
+	private final List<String> priceLists;
+	/** Currency of the request's price-for-sale context, absent when the request names none. */
+	@Nullable private final Currency currency;
+	/** Moment the selling prices must be valid in, absent when the request names none. */
+	@Nullable private final OffsetDateTime validIn;
+	/**
+	 * Query price mode deciding which total a cumulated selling price record carries, absent when the context was not
+	 * captured.
+	 */
+	@Nullable private final QueryPriceMode queryPriceMode;
+	/** Opaque marker of a filter created without the request's price-for-sale context, null when it was captured. */
+	@Nullable private final IdentityToken priceContext;
 
 	private static final EntityFetch ENTITY_REQUIRE = new EntityFetch(new PriceContent(PriceContentMode.RESPECTING_FILTER));
 
@@ -112,11 +136,67 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Bitmap memoizedResult;
 
+	/**
+	 * Creates the filter without capturing the request's price-for-sale context. Its key is instance-unique, because
+	 * the prefetched entities select by a context this instance does not know; translators use {@link #forRequest}.
+	 *
+	 * @param additionalPriceLists price lists fetched in addition to those of the price-for-sale context
+	 * @param filter predicate the selling price must satisfy
+	 */
 	public SellingPriceAvailableBitmapFilter(
 		@Nullable String[] additionalPriceLists,
 		@Nonnull PriceContractPredicate filter
 	) {
+		this(additionalPriceLists, filter, List.of(), null, null, null, IdentityToken.OPAQUE);
+	}
+
+	/**
+	 * Creates the filter accepting any selling price, without capturing the request's price-for-sale context.
+	 *
+	 * @param additionalPriceLists price lists fetched in addition to those of the price-for-sale context
+	 * @see #SellingPriceAvailableBitmapFilter(String[], PriceContractPredicate)
+	 */
+	public SellingPriceAvailableBitmapFilter(@Nullable String... additionalPriceLists) {
+		this(additionalPriceLists, PricePredicate.ALL_CONTRACT_FILTER);
+	}
+
+	/**
+	 * Creates the filter for a query whose prefetched entities resolve their selling price in the request's
+	 * price-for-sale context. The filter reads that context through the prefetched entities and the query price mode
+	 * through the execution context, so the ordered price lists, the currency, the validity moment and the query
+	 * price mode of the request become its identity inputs.
+	 *
+	 * @param request request of the query the prefetched entities are fetched for
+	 * @param filter predicate the selling price must satisfy
+	 * @return the filter with a value key
+	 */
+	@Nonnull
+	public static SellingPriceAvailableBitmapFilter forRequest(
+		@Nonnull EvitaRequest request,
+		@Nonnull PriceContractPredicate filter
+	) {
+		return new SellingPriceAvailableBitmapFilter(
+			request.getFetchesAdditionalPriceLists(), filter, List.of(request.getRequiresPriceLists()),
+			request.getRequiresCurrency(), request.getRequiresPriceValidIn(), request.getQueryPriceMode(), null
+		);
+	}
+
+	/** Builds the execution strategy together with the captured or opaque price-for-sale context. */
+	private SellingPriceAvailableBitmapFilter(
+		@Nullable String[] additionalPriceLists,
+		@Nonnull PriceContractPredicate filter,
+		@Nonnull List<String> priceLists,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime validIn,
+		@Nullable QueryPriceMode queryPriceMode,
+		@Nullable IdentityToken priceContext
+	) {
 		this.additionalPriceLists = ArrayUtils.isEmpty(additionalPriceLists) ? List.of() : List.of(additionalPriceLists);
+		this.priceLists = priceLists;
+		this.currency = currency;
+		this.validIn = validIn;
+		this.queryPriceMode = queryPriceMode;
+		this.priceContext = priceContext;
 		this.entityFetch = ArrayUtils.isEmpty(additionalPriceLists) ? ENTITY_REQUIRE : new EntityFetch(PriceContent.respectingFilter(additionalPriceLists));
 		this.converter = (entityPrimaryKey, indexedPricePlaces, priceQueryMode, priceContract) -> {
 			if (priceContract instanceof CumulatedPrice cumulatedPrice) {
@@ -168,10 +248,6 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 			}
 		};
 		this.filter = filter;
-	}
-
-	public SellingPriceAvailableBitmapFilter(@Nullable String... additionalPriceLists) {
-		this(additionalPriceLists, PricePredicate.ALL_CONTRACT_FILTER);
 	}
 
 	@Nonnull
@@ -248,12 +324,16 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 		return this.memoizedResult;
 	}
 
-	/** Returns ordered additional price lists and the detached selling-price predicate. */
+	/**
+	 * Returns the inputs the filter reads: the additional fetched price lists, the selling-price predicate and the
+	 * request's price-for-sale context - ordered price lists, currency, validity moment and query price mode. A filter
+	 * created by a constructor carries the opaque context marker instead.
+	 */
 	@Nonnull
 	@Override
 	public IdentityRecord identity() {
-		return new Identity(this.additionalPriceLists,
-			this.filter.identity());
+		return new Identity(this.additionalPriceLists, this.filter.identity(), this.priceLists, this.currency,
+			this.validIn, this.queryPriceMode, this.priceContext);
 	}
 
 	/**
@@ -261,13 +341,27 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	 *
 	 * @param additionalPriceLists ordered additional fetched price lists, empty when absent
 	 * @param filter detached selling-price predicate
+	 * @param priceLists price lists of the price-for-sale context in priority order, empty when absent
+	 * @param currency currency of the price-for-sale context, absent when the request names none
+	 * @param validIn moment the selling prices must be valid in, absent when the request names none
+	 * @param queryPriceMode price mode deciding which total a cumulated selling price carries, absent when the context
+	 *                       was not captured
+	 * @param priceContext opaque marker of a context that was not captured, null when it was
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
-	public record Identity(@Nonnull List<String> additionalPriceLists,
-		@Nonnull PricePredicate.Identity filter) implements IdentityRecord {
-		/** Copies the additional lists so every identity remains detached and immutable. */
+	public record Identity(
+		@Nonnull List<String> additionalPriceLists,
+		@Nonnull PricePredicate.Identity filter,
+		@Nonnull List<String> priceLists,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime validIn,
+		@Nullable QueryPriceMode queryPriceMode,
+		@Nullable IdentityToken priceContext
+	) implements IdentityRecord {
+		/** Copies the price lists so every identity remains detached and immutable. */
 		public Identity {
 			additionalPriceLists = List.copyOf(additionalPriceLists);
+			priceLists = List.copyOf(priceLists);
 		}
 
 		/** Returns the declaring holder identifier. */
@@ -281,6 +375,11 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 		public void describeTo(@Nonnull KeyAccumulator accumulator) {
 			accumulator.addStrings(this.additionalPriceLists);
 			accumulator.add(this.filter);
+			accumulator.addStrings(this.priceLists);
+			accumulator.add(this.currency);
+			accumulator.add(this.validIn);
+			accumulator.add(this.queryPriceMode);
+			accumulator.add(this.priceContext);
 		}
 	}
 

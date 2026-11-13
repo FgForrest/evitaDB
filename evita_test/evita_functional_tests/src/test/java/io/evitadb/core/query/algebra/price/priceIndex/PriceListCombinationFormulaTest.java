@@ -294,6 +294,29 @@ class PriceListCombinationFormulaTest {
 	}
 
 	/**
+	 * Preserves the legacy hash distinction from ordinary subtraction over the same children.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Legacy class identifier difference")
+	class LegacyClassIdDifferenceTest {
+		@Test
+		@DisplayName("should have different hash than NotFormula with same children")
+		void shouldHaveDifferentHashThanNotFormulaWithSameChildren() {
+			final Formula subtracted = createConstantFormula(1, 2);
+			final Formula superset = createConstantFormula(1, 2, 3, 4);
+
+			final long notFormulaHash = new NotFormula(subtracted, superset).getHash();
+			final long priceListComboHash = new PriceListCombinationFormula(
+				"sub", "super", DEFAULT_CONTEXT, subtracted, superset
+			).getHash();
+
+			assertNotEquals(notFormulaHash, priceListComboHash);
+		}
+	}
+
+	/**
 	 * Creates a {@link ConstantFormula} wrapping the given bitmap values, or {@link EmptyFormula#INSTANCE}
 	 * when the values array is empty (because {@code ConstantFormula} rejects empty bitmaps).
 	 *
@@ -332,27 +355,4 @@ class PriceListCombinationFormulaTest {
 			createConstantFormula(superset)
 		);
 	}
-	/**
-	 * Preserves legacy hash assertions for cloning and side-output configuration.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Legacy hash cloning and configuration")
-	class LegacyHashCloneTest {
-		@Test
-		@DisplayName("should have different hash than NotFormula with same children")
-		void shouldHaveDifferentHashThanNotFormulaWithSameChildren() {
-			final Formula subtracted = createConstantFormula(1, 2);
-			final Formula superset = createConstantFormula(1, 2, 3, 4);
-
-			final long notFormulaHash = new NotFormula(subtracted, superset).getHash();
-			final long priceListComboHash = new PriceListCombinationFormula(
-				"sub", "super", DEFAULT_CONTEXT, subtracted, superset
-			).getHash();
-
-			assertNotEquals(notFormulaHash, priceListComboHash);
-		}
-	}
-
 }

@@ -30,7 +30,6 @@ import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
@@ -169,6 +168,47 @@ class LowestPriceTerminationFormulaTest {
 			);
 
 			assertNotEquals(f1.getKey(), f2.getKey());
+		}
+
+		/** Price mode changes selling-price selection even with an unrestricted selling-price predicate. */
+		@Test
+		@DisplayName("Distinguishes query price modes with an unrestricted selling-price predicate")
+		void shouldProduceDifferentIdentityWhenPriceModeSelectsDifferentSellingPrice() {
+			final PriceIndexKey priceIndexKey = new PriceIndexKey("basic", CZK, PriceInnerRecordHandling.LOWEST_PRICE);
+			final PriceListAndCurrencyPriceSuperIndex priceIndex =
+				new PriceListAndCurrencyPriceSuperIndex(priceIndexKey);
+			final PriceRecordContract cheaperWithoutTax = new PriceRecordInnerRecordSpecific(1, 1, 1, 1, 12100, 10000);
+			final PriceRecordContract cheaperWithTax = new PriceRecordInnerRecordSpecific(2, 2, 1, 2, 11000, 10500);
+			priceIndex.addPrice(cheaperWithoutTax, null);
+			priceIndex.addPrice(cheaperWithTax, null);
+			final PriceIndexContainerFormula container = new PriceIndexContainerFormula(
+				priceIndex, priceIndex, priceIndex.getIndexedPriceEntityIdsFormula()
+			);
+			final PriceEvaluationContext context = new PriceEvaluationContext(null, priceIndexKey);
+
+			final LowestPriceTerminationFormula withTax = new LowestPriceTerminationFormula(
+				container, context, QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, false
+			);
+			final LowestPriceTerminationFormula withoutTax = new LowestPriceTerminationFormula(
+				container, context, QueryPriceMode.WITHOUT_TAX, PricePredicate.ALL_RECORD_FILTER, false
+			);
+			withTax.compute();
+			withoutTax.compute();
+
+			// the price records are resolved without an execution context, as `compute()` itself resolves them
+			assertArrayEquals(
+				new PriceRecordContract[]{cheaperWithTax},
+				((ResolvedFilteredPriceRecords) withTax.getFilteredPriceRecords(null)).getPriceRecords()
+			);
+			assertArrayEquals(
+				new PriceRecordContract[]{cheaperWithoutTax},
+				((ResolvedFilteredPriceRecords) withoutTax.getFilteredPriceRecords(null)).getPriceRecords()
+			);
+			assertNotEquals(
+				withTax.getKey(),
+				withoutTax.getKey()
+			);
+			assertNotEquals(withTax.getKey().getHash64(), withoutTax.getKey().getHash64());
 		}
 	}
 
@@ -551,8 +591,8 @@ class LowestPriceTerminationFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should propagate the flag through individual price predicate cloning")
-		void shouldPropagateFlagThroughIndividualPricePredicateCloning() {
+		@DisplayName("should propagate the flag through individual price predicate factory cloning")
+		void shouldPropagateFlagThroughIndividualPricePredicateFactoryCloning() {
 			final LowestPriceTerminationFormula withHistogram = new LowestPriceTerminationFormula(
 				new ConstantFormula(new ArrayBitmap(1)),
 				createContext("basic", CZK),
@@ -561,7 +601,9 @@ class LowestPriceTerminationFormulaTest {
 				true
 			);
 
-			final LowestPriceTerminationFormula clone = withHistogram.withIndividualPricePredicate(price -> true);
+			final LowestPriceTerminationFormula clone = withHistogram.withIndividualPricePredicateFactory(
+				() -> price -> true
+			);
 
 			assertTrue(clone.isCollectingPerInnerRecordPrices());
 		}
@@ -717,45 +759,6 @@ class LowestPriceTerminationFormulaTest {
 			null,
 			new PriceIndexKey(priceList, currency, PriceInnerRecordHandling.NONE)
 		);
-	}
-	/** Price mode changes selling-price selection even with an unrestricted selling-price predicate. */
-	@Test
-	@DisplayName("Distinguishes query price modes with an unrestricted selling-price predicate")
-	void shouldProduceDifferentIdentityWhenPriceModeSelectsDifferentSellingPrice() {
-		final PriceIndexKey priceIndexKey = new PriceIndexKey("basic", CZK, PriceInnerRecordHandling.LOWEST_PRICE);
-		final PriceListAndCurrencyPriceSuperIndex priceIndex = new PriceListAndCurrencyPriceSuperIndex(priceIndexKey);
-		final PriceRecordContract cheaperWithoutTax = new PriceRecordInnerRecordSpecific(1, 1, 1, 1, 12100, 10000);
-		final PriceRecordContract cheaperWithTax = new PriceRecordInnerRecordSpecific(2, 2, 1, 2, 11000, 10500);
-		priceIndex.addPrice(cheaperWithoutTax, null);
-		priceIndex.addPrice(cheaperWithTax, null);
-		final PriceIndexContainerFormula container = new PriceIndexContainerFormula(
-			priceIndex, priceIndex, priceIndex.getIndexedPriceEntityIdsFormula()
-		);
-		final PriceEvaluationContext context = new PriceEvaluationContext(null, priceIndexKey);
-
-		final LowestPriceTerminationFormula withTax = new LowestPriceTerminationFormula(
-			container, context, QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, false
-		);
-		final LowestPriceTerminationFormula withoutTax = new LowestPriceTerminationFormula(
-			container, context, QueryPriceMode.WITHOUT_TAX, PricePredicate.ALL_RECORD_FILTER, false
-		);
-		withTax.compute();
-		withoutTax.compute();
-
-		// the price records are resolved without an execution context, as `compute()` itself resolves them
-		assertArrayEquals(
-			new PriceRecordContract[]{cheaperWithTax},
-			((ResolvedFilteredPriceRecords) withTax.getFilteredPriceRecords(null)).getPriceRecords()
-		);
-		assertArrayEquals(
-			new PriceRecordContract[]{cheaperWithoutTax},
-			((ResolvedFilteredPriceRecords) withoutTax.getFilteredPriceRecords(null)).getPriceRecords()
-		);
-		assertNotEquals(
-			withTax.getKey(),
-			withoutTax.getKey()
-		);
-		assertNotEquals(withTax.getKey().getHash64(), withoutTax.getKey().getHash64());
 	}
 
 	/**

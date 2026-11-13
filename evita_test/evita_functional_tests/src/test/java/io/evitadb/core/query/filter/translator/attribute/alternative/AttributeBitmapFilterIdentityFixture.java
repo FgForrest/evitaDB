@@ -24,10 +24,12 @@
 package io.evitadb.core.query.filter.translator.attribute.alternative;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.AttributeBetween;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.filter.translator.attribute.AttributeBetweenTranslator;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.identity.*;
 
@@ -36,49 +38,28 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 
 /**
- * Controlled value matchers and uncontrolled function-based attribute filters.
+ * Value matchers created by {@link AttributeBitmapFilter#forConstraint}, including an argument without a canonical
+ * encoding that keeps the key opaque.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class AttributeBitmapFilterIdentityFixture implements IdentityFixture<AttributeBitmapFilter> {
-	/** Shared schema accessor used to prove opacity for identical function inputs. */
-	private static final io.evitadb.function.TriFunction<
-		io.evitadb.api.requestResponse.schema.EntitySchemaContract, String, AttributeTrait[],
-		io.evitadb.api.requestResponse.schema.AttributeSchemaContract> SCHEMA_ACCESSOR =
-		(schema, name, traits) -> schema.getAttribute(name).orElseThrow();
-	/** Shared value accessor of the uncontrolled construction mode. */
-	private static final java.util.function.BiFunction<io.evitadb.api.requestResponse.data.EntityContract, String,
-		java.util.stream.Stream<java.util.Optional<io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue>>>
-		VALUE_ACCESSOR = (entity, name) -> java.util.stream.Stream.of(entity.getAttributeValue(name));
-	/** Shared opaque value test supplied to separate holders. */
-	private static final java.util.function.Function<io.evitadb.api.requestResponse.schema.AttributeSchemaContract,
-		java.util.function.Predicate<java.util.stream.Stream<
-			java.util.Optional<io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue>>>>
-		FILTER_FACTORY = schema -> values -> values.anyMatch(java.util.Optional::isPresent);
-	/** Shared equality matcher factory of the raw matching mode. */
-	private static final java.util.function.Function<io.evitadb.api.requestResponse.schema.AttributeSchemaContract,
-		AttributeValueMatcher> MATCHER_FACTORY = schema -> AttributeValueMatcher.equalToAny(
-			new AttributeIndexKey(null, "a", null), schema.getPlainType(),
-			schema.getIndexedDecimalPlaces(), new Serializable[]{1});
-	/** Covers both matcher modes and the two uncontrolled construction entry points. */
+	/** Covers the matcher created once for a known schema and the matcher created per entity type. */
 	@Nonnull
 	@Override
 	public Map<String, ConstructionMode<AttributeBitmapFilter>> modes() {
 		return Map.of(
 			"known schema", mode(false),
-			"matcher per entity type", mode(true),
-			"raw functions", new ConstructionMode<>(null, Map.of(), Map.of("functions", () -> raw()),
-				Map.of(), Map.of(), Set.of(), Set.of(), Set.of()),
-			"raw matching", new ConstructionMode<>(null, Map.of(), Map.of("matcher factory", () ->
-				AttributeBitmapFilter.matching("a", SCHEMA_ACCESSOR, VALUE_ACCESSOR, MATCHER_FACTORY)),
-				Map.of(), Map.of(), Set.of(), Set.of(), Set.of())
+			"matcher per entity type", mode(true)
 		);
 	}
 
@@ -143,14 +124,14 @@ public class AttributeBitmapFilterIdentityFixture implements IdentityFixture<Att
 		return AttributeBitmapFilter.forConstraint(
 			constraint, name, requirements,
 			(schema, attributeName, requiredTraits) -> schema.getAttribute(attributeName).orElseThrow(),
-			(entity, attributeName) -> java.util.stream.Stream.of(locale == null ?
+			(entity, attributeName) -> Stream.of(locale == null ?
 				entity.getAttributeValue(attributeName) : entity.getAttributeValue(attributeName, locale)),
 			schema -> {
 				final AttributeValueMatcher matcher;
-				if (constraint instanceof io.evitadb.api.query.filter.AttributeBetween between) {
-					matcher = new io.evitadb.core.query.filter.translator.attribute.AttributeBetweenTranslator()
+				if (constraint instanceof AttributeBetween between) {
+					matcher = new AttributeBetweenTranslator()
 						.createMatcher(between, schema, new AttributeIndexKey(null, name, locale),
-							() -> java.util.Objects.requireNonNull(moment));
+							() -> Objects.requireNonNull(moment));
 				} else {
 					matcher = AttributeValueMatcher.equalToAny(new AttributeIndexKey(null, name, locale),
 						schema.getPlainType(), schema.getIndexedDecimalPlaces(), new Serializable[]{value});
@@ -161,12 +142,6 @@ public class AttributeBitmapFilterIdentityFixture implements IdentityFixture<Att
 		);
 	}
 
-	/** Creates an uncontrolled function filter, whose key must remain tied to its holder. */
-	@Nonnull
-	static AttributeBitmapFilter raw() {
-		return new AttributeBitmapFilter("a", attributeContent("a"),
-			SCHEMA_ACCESSOR, VALUE_ACCESSOR, FILTER_FACTORY);
-	}
 
 	/** Builds the same leaf side key used by a selection formula. */
 	@Nonnull

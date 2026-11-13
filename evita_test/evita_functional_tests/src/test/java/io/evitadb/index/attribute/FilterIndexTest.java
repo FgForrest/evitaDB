@@ -734,10 +734,13 @@ class FilterIndexTest {
 			});
 		}
 
-		/** Distinct scope trees and reference-type trees never share an all-records identity. */
+		/**
+		 * Every filter index owner mints its own version, so equal small contents of distinct owners never share an
+		 * all-records key - whatever scope or reference type the owning entity index serves.
+		 */
 		@Test
-		@DisplayName("LIVE, ARCHIVED and reference-type memos remain separate with equal contents")
-		void shouldSeparateScopeAndReferenceTypeMemos() {
+		@DisplayName("Distinct owners keep distinct all-records keys for equal small contents")
+		void shouldKeepDistinctOwnerKeysForEqualSmallContents() {
 			final EntityIndex[] indexes = {
 				new GlobalEntityIndex(1, "item", new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE), false),
 				new GlobalEntityIndex(2, "item", new EntityIndexKey(EntityIndexType.GLOBAL, Scope.ARCHIVED), false),

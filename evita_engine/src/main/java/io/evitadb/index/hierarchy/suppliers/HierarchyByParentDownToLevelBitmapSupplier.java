@@ -120,10 +120,10 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 	/**
 	 * Detached computation inputs.
 	 *
-	 * @param parentNode detached parentNode input
-	 * @param levels detached levels input
-	 * @param excludedNodeTrees detached excludedNodeTrees input
-	 * @param hierarchyIndex detached hierarchyIndex input
+	 * @param parentNode primary key of the parent node the listing starts from
+	 * @param levels depth of the listed tree
+	 * @param excludedNodeTrees key of the predicate excluding node subtrees from the listing
+	 * @param hierarchyIndex version token of the hierarchy index the listing reads
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	public record Identity(int parentNode, int levels, @Nonnull FormulaKey excludedNodeTrees,

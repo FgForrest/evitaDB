@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
+import com.carrotsearch.hppc.IntCollection;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.Formula;
@@ -40,9 +41,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.lang.reflect.Constructor;
 import java.util.Currency;
-import java.util.function.ToIntFunction;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.PRICE;
@@ -91,22 +90,10 @@ class PriceTerminationCloneProbeTest {
 		assertArrayEquals(fresh.compute().getArray(), clone.compute().getArray());
 	}
 
-	/** Builds the exact stateful predicate used by discount sorting, without altering its visibility. */
+	/** Creates a fresh cursor over every entity the child supplies, as discount sorting creates one per computation. */
 	@Nonnull
-	@SuppressWarnings("unchecked")
 	private static SumPredicate<PriceRecordContract> discountPredicate() {
-		try {
-			final Class<?> type = Class.forName("io.evitadb.core.query.sort.price.translator.PriceDiscountTranslator" +
-				"$DiscountIndexComparator$InnerRecordInSellingPricesMatchingPredicate");
-			final Constructor<?> constructor = type.getDeclaredConstructor(PriceRecordContract[].class, ToIntFunction.class);
-			constructor.setAccessible(true);
-			return (SumPredicate<PriceRecordContract>) constructor.newInstance(
-				new PriceRecordContract[]{record(1), record(2), record(3), record(99)},
-				(ToIntFunction<PriceRecordContract>) PriceRecordContract::priceWithTax
-			);
-		} catch (ReflectiveOperationException ex) {
-			throw new AssertionError("Cannot construct the discount predicate.", ex);
-		}
+		return new CursorPredicate(1, 2, 3);
 	}
 
 	/** Supplies fresh lookups over real price records for each termination computation. */
@@ -125,5 +112,43 @@ class PriceTerminationCloneProbeTest {
 	@Nonnull
 	private static PriceRecordContract record(int entityId) {
 		return new PriceRecordInnerRecordSpecific(entityId, entityId, entityId, 1, 121, 100);
+	}
+
+	/**
+	 * Stateful predicate that accepts a price only while its entity is the next one of an ascending list, advancing a
+	 * cursor the way the discount sorting predicate does. A reused instance therefore accepts nothing in a second
+	 * computation, which makes a shared predicate observable in the result.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private static final class CursorPredicate implements SumPredicate<PriceRecordContract> {
+		/** Entities accepted in ascending order. */
+		private final int[] acceptedEntities;
+		/** Index of the next entity to accept. */
+		private int cursor;
+
+		/**
+		 * @param acceptedEntities entities accepted in ascending order
+		 */
+		private CursorPredicate(@Nonnull int... acceptedEntities) {
+			this.acceptedEntities = acceptedEntities;
+		}
+
+		/** Accepts the price of the next expected entity and advances the cursor past it. */
+		@Override
+		public boolean test(@Nonnull PriceRecordContract priceRecord) {
+			if (this.cursor < this.acceptedEntities.length &&
+				this.acceptedEntities[this.cursor] == priceRecord.entityPrimaryKey()) {
+				this.cursor++;
+				return true;
+			}
+			return false;
+		}
+
+		/** No component price is added for the prices this predicate rejects. */
+		@Override
+		public int getMissingComponentsPrice(@Nonnull IntCollection includedInnerRecordIds) {
+			return 0;
+		}
 	}
 }

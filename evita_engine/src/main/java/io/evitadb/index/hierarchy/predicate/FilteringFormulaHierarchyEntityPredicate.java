@@ -512,7 +512,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	/**
 	 * Detached computation inputs.
 	 *
-	 * @param filteringFormula detached filteringFormula input
+	 * @param filteringFormula key of the formula listing the nodes that satisfy the filter
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	public record Identity(@Nonnull FormulaKey filteringFormula) implements IdentityRecord {

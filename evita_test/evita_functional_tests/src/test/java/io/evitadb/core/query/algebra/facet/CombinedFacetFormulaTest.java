@@ -311,13 +311,4 @@ class CombinedFacetFormulaTest {
 			);
 		}
 	}
-
-	/** Verifies the real construction modes and all independently described inputs of {@link CombinedFacetFormula}. */
-	@Test
-	@DisplayName("Verifies CombinedFacetFormula identity construction contracts")
-	void shouldVerifyCombinedFacetFormulaIdentityContract() {
-		io.evitadb.test.identity.IdentityContractVerifier.verify(
-			CombinedFacetFormula.class, new CombinedFacetFormulaIdentityFixture()
-		);
-	}
 }

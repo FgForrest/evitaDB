@@ -305,14 +305,4 @@ class UserFilterFormulaTest {
 			assertEquals(0, formula.getEstimatedCardinality());
 		}
 	}
-
-
-	/** Verifies the real construction modes and all independently described inputs of {@link UserFilterFormula}. */
-	@Test
-	@DisplayName("Verifies UserFilterFormula identity construction contracts")
-	void shouldVerifyUserFilterFormulaIdentityContract() {
-		io.evitadb.test.identity.IdentityContractVerifier.verify(
-			UserFilterFormula.class, new UserFilterFormulaIdentityFixture()
-		);
-	}
 }

@@ -106,8 +106,8 @@ public class HierarchyRootsBitmapSupplier extends AbstractHierarchyBitmapSupplie
 	/**
 	 * Detached computation inputs.
 	 *
-	 * @param excludedNodeTrees detached excludedNodeTrees input
-	 * @param hierarchyIndex detached hierarchyIndex input
+	 * @param excludedNodeTrees key of the predicate excluding node subtrees from the listing
+	 * @param hierarchyIndex version token of the hierarchy index the listing reads
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	public record Identity(@Nonnull FormulaKey excludedNodeTrees,

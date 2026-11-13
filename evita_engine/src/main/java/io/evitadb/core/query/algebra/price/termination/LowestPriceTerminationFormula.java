@@ -110,13 +110,15 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 */
 	@Getter private final PriceRecordPredicate sellingPricePredicate;
 	/**
-	 * Predicate that filters out individual prices from being calculated in selling price.
+	 * Predicate that filters out individual prices from being calculated in selling price, `null` when every price
+	 * takes part. When present, {@link #individualPricePredicateFactory} produced it for this instance alone, and the
+	 * key marks it as an opaque input.
 	 */
 	@Nullable
 	private final Predicate<PriceRecordContract> individualPricePredicate;
 	/**
-	 * Construction state that supplies an independent predicate to each clone. The resolved predicate above is
-	 * this instance's computation input; a factory is retained only when its caller requires fresh cursor state.
+	 * Construction state that supplies an independent predicate to each clone, so that a stateful predicate restarts
+	 * its cursor; present exactly when {@link #individualPricePredicate} is.
 	 */
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private final Supplier<? extends Predicate<PriceRecordContract>> individualPricePredicateFactory;
@@ -185,7 +187,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 
 	/**
 	 * Internal constructor used by every cloning factory ({@link #getCloneWithInnerFormulas},
-	 * {@link #withIndividualPricePredicate}). Carries forward the
+	 * {@link #withIndividualPricePredicateFactory}). Carries forward the
 	 * individual price predicate and the histogram side-output flag — fields that
 	 * are absent from the public constructor's API surface but must survive cloning.
 	 */
@@ -210,28 +212,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 		this.initFields(containerFormula);
 	}
 
-	/**
-	 * Creates a new instance of LowestPriceTerminationFormula with the specified individual price predicate and
-	 * retains the existing delegate formula, price evaluation context, query price mode,
-	 * and selling price predicate.
-	 *
-	 * @param individualPricePredicate the predicate to filter individual price records; must not be null
-	 * @return a new instance of LowestPriceTerminationFormula with the specified individual price predicate
-	 */
-	@Nonnull
-	public LowestPriceTerminationFormula withIndividualPricePredicate(
-		@Nonnull Predicate<PriceRecordContract> individualPricePredicate
-	) {
-		return new LowestPriceTerminationFormula(
-			getDelegate(),
-			this.priceEvaluationContext,
-			this.queryPriceMode,
-			this.sellingPricePredicate,
-			individualPricePredicate,
-			null,
-			this.collectPerInnerRecordPrices
-		);
-	}
 
 	/**
 	 * Creates a termination with an independent individual-price predicate for this computation and each clone.

@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.prefetch;
 
-import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.QueryExecutionContext;
@@ -32,8 +31,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.identity.IdentityRecord;
-import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
@@ -42,8 +39,6 @@ import io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFor
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
 import io.evitadb.core.query.algebra.price.translate.PriceIdToEntityIdTranslateFormula;
 import io.evitadb.index.bitmap.ArrayBitmap;
-import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.price.model.PriceIndexKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -52,7 +47,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import java.util.Currency;
 import java.util.List;
@@ -92,7 +86,7 @@ class SelectionFormulaHistogramCapabilityTest {
 			final LowestPriceTerminationFormula leftLp = newLp(new ArrayBitmap(1, 2), true);
 			final LowestPriceTerminationFormula rightLp = newLp(new ArrayBitmap(3, 4), true);
 			final SelectionFormula selection = new SelectionFormula(
-				new AndFormula(leftLp, rightLp), new NoopBitmapFilter()
+				new AndFormula(leftLp, rightLp), new SelectionFormulaTest.NoOpEntityToBitmapFilter()
 			);
 
 			// every inner accessor opted in to histogram collection at construction time — the wrapper
@@ -106,7 +100,7 @@ class SelectionFormulaHistogramCapabilityTest {
 			final LowestPriceTerminationFormula withFlag = newLp(new ArrayBitmap(1, 2), true);
 			final LowestPriceTerminationFormula withoutFlag = newLp(new ArrayBitmap(3, 4), false);
 			final SelectionFormula selection = new SelectionFormula(
-				new AndFormula(withFlag, withoutFlag), new NoopBitmapFilter()
+				new AndFormula(withFlag, withoutFlag), new SelectionFormulaTest.NoOpEntityToBitmapFilter()
 			);
 
 			// "any-true" semantics: a single SelectionFormula wraps the whole price filter container, so in
@@ -121,7 +115,7 @@ class SelectionFormulaHistogramCapabilityTest {
 		@DisplayName("should not expose histogram capability when no inner accessors exist")
 		void shouldNotExposeHistogramCapabilityWhenNoInnerAccessorsExist() {
 			final SelectionFormula selection = new SelectionFormula(
-				new ConstantFormula(new ArrayBitmap(1, 2, 3)), new NoopBitmapFilter()
+				new ConstantFormula(new ArrayBitmap(1, 2, 3)), new SelectionFormulaTest.NoOpEntityToBitmapFilter()
 			);
 
 			// no FilteredPriceRecordAccessor in the delegate subtree — wrapping a non-price formula must
@@ -144,7 +138,8 @@ class SelectionFormulaHistogramCapabilityTest {
 			// histogram accessor returns a non-null value without needing executionContext setup
 			lp.compute();
 			final FilteredPriceRecords expected = lp.getFilteredPriceRecordsForHistogram(null);
-			final SelectionFormula selection = new SelectionFormula(lp, new NoopBitmapFilter());
+			final SelectionFormula selection =
+				new SelectionFormula(lp, new SelectionFormulaTest.NoOpEntityToBitmapFilter());
 
 			final FilteredPriceRecords actual = selection.getFilteredPriceRecordsForHistogram(null);
 
@@ -166,7 +161,8 @@ class SelectionFormulaHistogramCapabilityTest {
 			// while leaving `perInnerRecordPriceRecords` deliberately null — the fallback must therefore
 			// route to the per-entity records via the capability check rather than tripping the LP's guard
 			unflaggedLp.compute();
-			final SelectionFormula selection = new SelectionFormula(unflaggedLp, new NoopBitmapFilter());
+			final SelectionFormula selection =
+				new SelectionFormula(unflaggedLp, new SelectionFormulaTest.NoOpEntityToBitmapFilter());
 			// the per-entity fallback asserts a non-null execution context — the production planner always
 			// sets one via initialize() before any histogram fabrication
 			initializeForNonPrefetch(selection);
@@ -195,7 +191,7 @@ class SelectionFormulaHistogramCapabilityTest {
 			leftLp.compute();
 			rightLp.compute();
 			final SelectionFormula selection = new SelectionFormula(
-				new AndFormula(leftLp, rightLp), new NoopBitmapFilter()
+				new AndFormula(leftLp, rightLp), new SelectionFormulaTest.NoOpEntityToBitmapFilter()
 			);
 
 			final FilteredPriceRecords actual = selection.getFilteredPriceRecordsForHistogram(null);
@@ -220,7 +216,7 @@ class SelectionFormulaHistogramCapabilityTest {
 			leftLp.compute();
 			rightLp.compute();
 			final SelectionFormula selection = new SelectionFormula(
-				new AndFormula(leftLp, rightLp), new NoopBitmapFilter()
+				new AndFormula(leftLp, rightLp), new SelectionFormulaTest.NoOpEntityToBitmapFilter()
 			);
 
 			// the size>=2 branch must run the merge loop in mergePerInnerRecordHistogramRecords without
@@ -245,7 +241,8 @@ class SelectionFormulaHistogramCapabilityTest {
 		@DisplayName("should memoise capability probe across consecutive calls")
 		void shouldMemoiseCapabilityProbeAcrossCalls() {
 			final LowestPriceTerminationFormula lp = newLp(new ArrayBitmap(1, 2, 3), true);
-			final SelectionFormula selection = new SelectionFormula(lp, new NoopBitmapFilter());
+			final SelectionFormula selection =
+				new SelectionFormula(lp, new SelectionFormulaTest.NoOpEntityToBitmapFilter());
 
 			final boolean first = selection.exposesPerInnerRecordHistogramRecords();
 			final boolean second = selection.exposesPerInnerRecordHistogramRecords();
@@ -271,7 +268,7 @@ class SelectionFormulaHistogramCapabilityTest {
 			flagOn.compute();
 			flagOff.compute();
 			final SelectionFormula selection = new SelectionFormula(
-				new AndFormula(flagOn, flagOff), new NoopBitmapFilter()
+				new AndFormula(flagOn, flagOff), new SelectionFormulaTest.NoOpEntityToBitmapFilter()
 			);
 
 			assertTrue(selection.exposesPerInnerRecordHistogramRecords());
@@ -299,7 +296,7 @@ class SelectionFormulaHistogramCapabilityTest {
 		@DisplayName("should keep the exposing accessor when a price-free wrapper sits beside it")
 		void shouldKeepExposingAccessorBesidePriceFreeWrapper() {
 			final SelectionFormula priceFreeWrapper = new SelectionFormula(
-				new ConstantFormula(new ArrayBitmap(1, 2, 3)), new NoopBitmapFilter()
+				new ConstantFormula(new ArrayBitmap(1, 2, 3)), new SelectionFormulaTest.NoOpEntityToBitmapFilter()
 			);
 			final LowestPriceTerminationFormula flaggedLp = newLp(new ArrayBitmap(4, 5), true);
 			final List<FilteredPriceRecordAccessor> accessors = List.of(priceFreeWrapper, flaggedLp);
@@ -398,59 +395,6 @@ class SelectionFormulaHistogramCapabilityTest {
 	@Nonnull
 	private static LowestPriceTerminationFormula newLp(@Nonnull ArrayBitmap delegateBitmap, boolean collectPerInnerRecordPrices) {
 		return newLp(new ConstantFormula(delegateBitmap), collectPerInnerRecordPrices);
-	}
-
-	/**
-	 * Minimal {@link EntityToBitmapFilter} implementation used as the SelectionFormula's alternative
-	 * branch. None of the histogram-side tests exercise the prefetch path, so this filter is never invoked
-	 * — `filter` returns an empty bitmap and `getEntityRequire` returns `null`.
-	 */
-	static final class NoopBitmapFilter implements EntityToBitmapFilter {
-		/** Unique identifier of the test alternative. */
-		private static final long CLASS_ID = 3076531143703379468L;
-
-		@Nullable
-		@Override
-		public EntityFetchRequire getEntityRequire() {
-			return null;
-		}
-
-		@Nonnull
-		@Override
-		public Bitmap filter(@Nonnull QueryExecutionContext context) {
-			return EmptyBitmap.INSTANCE;
-		}
-
-		/** Returns the declared identity of the constant result and requirements. */
-		@Nonnull
-		@Override
-		public IdentityRecord identity() {
-			return new Identity();
-		}
-
-		/** Returns the test alternative's class identifier. */
-		@Override
-		public long getClassId() {
-			return CLASS_ID;
-		}
-
-		/**
-		 * Identity of the constant empty alternative.
-		 *
-		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-		 */
-		public record Identity() implements IdentityRecord {
-			/** Returns the declaring alternative's identifier. */
-			@Override
-			public long classId() {
-				return CLASS_ID;
-			}
-
-			/** The result and requirement are constants without additional components. */
-			@Override
-			public void describeTo(@Nonnull KeyAccumulator accumulator) {
-			}
-		}
 	}
 
 }

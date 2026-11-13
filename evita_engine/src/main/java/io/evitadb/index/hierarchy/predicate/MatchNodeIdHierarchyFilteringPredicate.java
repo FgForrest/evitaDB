@@ -106,7 +106,7 @@ public class MatchNodeIdHierarchyFilteringPredicate implements HierarchyFilterin
 	/**
 	 * Detached computation inputs.
 	 *
-	 * @param matchNodeId detached matchNodeId input
+	 * @param matchNodeId primary key of the matched node
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	public record Identity(int matchNodeId) implements IdentityRecord {

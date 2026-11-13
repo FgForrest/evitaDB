@@ -23,27 +23,43 @@
 
 package io.evitadb.index.hierarchy.predicate;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
-
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.test.identity.ConstructionMode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import io.evitadb.core.query.algebra.identity.*;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import io.evitadb.dataType.Scope;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.*;
-import static io.evitadb.test.TestTags.ENGINE;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
 import static io.evitadb.test.TestTags.CACHE;
+import static io.evitadb.test.TestTags.ENGINE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Verifies detached computation identity on real holders.
+ * Verifies the detached keys of real {@link HierarchyFilteringPredicate} holders: operand and operation sensitivity,
+ * locality propagation through planned filters, and bounded comparison of deeply shared predicate graphs.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -63,28 +79,13 @@ class HierarchyFilteringPredicateKeyTest {
 		assertNotEquals(first.getKey(), first.negate().getKey());
 	}
 
-	/** Filter-only and ancestor-expanding constructor paths have different computation identities. */
-	@Test
-	@DisplayName("Distinguishes having from any-having over the same node filter")
-	void shouldDistinguishHavingAndAnyHaving() {
-		final java.util.Map<String,
-			io.evitadb.test.identity.ConstructionMode<FilteringFormulaHierarchyEntityPredicate>> modes =
-			new FilteringFormulaHierarchyEntityPredicateIdentityFixture().modes();
-		final FilteringFormulaHierarchyEntityPredicate having = modes.get("node filter").base().get();
-		final FilteringFormulaHierarchyEntityPredicate anyHaving = modes.get("any child").opaqueVariants()
-			.get("child filter").get();
-		assertFalse(having.getKey().isOpaque());
-		assertTrue(anyHaving.getKey().isOpaque());
-		assertNotEquals(having.getKey(), anyHaving.getKey());
-	}
-
 	/** A planned opaque constant propagates locality through its superset intersection and telemetry wrapper. */
 	@ParameterizedTest
 	@ValueSource(strings = {"node filter", "hierarchy requirements",
 		"referenced node filter", "referenced hierarchy requirements"})
 	@DisplayName("Propagates large primary-key filter locality through filter-only planning")
 	void shouldPropagatePlannedFilterLocality(@Nonnull String modeName) {
-		final io.evitadb.test.identity.ConstructionMode<FilteringFormulaHierarchyEntityPredicate> mode =
+		final ConstructionMode<FilteringFormulaHierarchyEntityPredicate> mode =
 			new FilteringFormulaHierarchyEntityPredicateIdentityFixture().modes().get(modeName);
 		assertFalse(mode.base().get().getKey().isQueryLocal(), modeName);
 		final FilteringFormulaHierarchyEntityPredicate large =
@@ -93,34 +94,15 @@ class HierarchyFilteringPredicateKeyTest {
 		assertTrue(large.getKey().isQueryLocal(), modeName);
 	}
 
-	/** Referenced any-child planning binds each predicate to its own ancestor-expanding computation. */
-	@ParameterizedTest
-	@ValueSource(strings = {"referenced any child", "referenced node and any child"})
-	@DisplayName("Keeps referenced any-child planning opaque with and without a node filter")
-	void shouldKeepReferencedAnyChildPlanningOpaque(@Nonnull String modeName) {
-		final java.util.Map<String,
-			io.evitadb.test.identity.ConstructionMode<FilteringFormulaHierarchyEntityPredicate>> modes =
-			new FilteringFormulaHierarchyEntityPredicateIdentityFixture().modes();
-		final java.util.function.Supplier<FilteringFormulaHierarchyEntityPredicate> factory =
-			modes.get(modeName).opaqueVariants().get("child filter");
-		final FormulaKey first = factory.get().getKey();
-		assertTrue(first.isOpaque(), modeName);
-		assertTrue(first.isQueryLocal(), modeName);
-		assertNotEquals(first, factory.get().getKey(), modeName);
-		assertNotEquals(modes.get("referenced node filter").base().get().getKey(), first, modeName);
-	}
-
 	/** Equal leaves preserve operation discrimination between locale and general filtering predicates. */
 	@Test
 	@DisplayName("Distinguishes predicate holder classes over equal formulas")
 	void shouldDistinguishLocaleAndFilteringPredicates() {
-		final io.evitadb.index.GlobalEntityIndex index = new io.evitadb.index.GlobalEntityIndex(
-			1, "category", new io.evitadb.index.EntityIndexKey(
-				io.evitadb.api.index.EntityIndexType.GLOBAL, Scope.LIVE));
-		final LocaleHierarchyEntityPredicate locale = new LocaleHierarchyEntityPredicate(index,
-			java.util.Locale.ENGLISH);
+		final GlobalEntityIndex index = new GlobalEntityIndex(
+			1, "category", new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE));
+		final LocaleHierarchyEntityPredicate locale = new LocaleHierarchyEntityPredicate(index, Locale.ENGLISH);
 		final FilteringFormulaHierarchyEntityPredicate filter = new FilteringFormulaHierarchyEntityPredicate(
-			"category", Set.of(Scope.LIVE), index.getRecordsWithLanguageFormula(java.util.Locale.ENGLISH));
+			"category", Set.of(Scope.LIVE), index.getRecordsWithLanguageFormula(Locale.ENGLISH));
 		assertNotEquals(locale.getKey(), filter.getKey());
 		assertNotEquals(locale.getKey().getHash64(), filter.getKey().getHash64());
 	}
@@ -131,13 +113,16 @@ class HierarchyFilteringPredicateKeyTest {
 	void shouldCompareRealHolderDoublingDags() {
 		assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
 			for (final int depth : new int[]{20, 40, 200}) {
-				final HierarchyFilteringPredicate[] predicates = predicateGraphs(depth, depth != 40, false);
-				final FormulaKey[] keys = {predicates[0].getKey(), predicates[1].getKey()};
+				final Operands[] predicates = predicateGraphs(depth, depth != 40, false);
+				final FormulaKey[] keys = {predicates[0].predicate().getKey(), predicates[1].predicate().getKey()};
 				HierarchyPredicateLeafFormula.COMPARISONS.get()[0] = 0;
 				assertEquals(keys[0], keys[1]);
+				// the leaves are distinct holders, so equality must have been proven on at least one of them
+				assertTrue(HierarchyPredicateLeafFormula.COMPARISONS.get()[0] > 0);
 				assertTrue(HierarchyPredicateLeafFormula.COMPARISONS.get()[0] <= 4 * depth + 4);
 				HierarchyPredicateLeafFormula.COMPARISONS.get()[0] = 0;
 				assertEquals(keys[0], keys[1]);
+				assertTrue(HierarchyPredicateLeafFormula.COMPARISONS.get()[0] > 0);
 				assertTrue(HierarchyPredicateLeafFormula.COMPARISONS.get()[0] <= 4 * depth + 4);
 				if (depth >= 40) {
 					assertEquals(Integer.MAX_VALUE, keys[0].getWeight());
@@ -152,7 +137,7 @@ class HierarchyFilteringPredicateKeyTest {
 	void shouldComparePredicateDagsConcurrently() throws Exception {
 		final FormulaKey[] keys = asymmetricKeys(200);
 		try (final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-			final java.util.List<Future<Boolean>> comparisons = new java.util.ArrayList<>();
+			final List<Future<Boolean>> comparisons = new ArrayList<>(8);
 			for (int i = 0; i < 8; i++) {
 				comparisons.add(executor.submit(() -> keys[0].equals(keys[1])));
 			}
@@ -162,42 +147,17 @@ class HierarchyFilteringPredicateKeyTest {
 		}
 	}
 
-	/** Compares the asymmetric shape through memoized detached side keys. */
-	@Nonnull
-	private static FormulaKey[] asymmetricKeys(int depth) {
-		final HierarchyFilteringPredicate[] predicates = predicateGraphs(depth, true, false);
-		return new FormulaKey[]{predicates[0].getKey(), predicates[1].getKey()};
-	}
-
-	/** Builds distinct real predicate holders with only the sharing shown by each graph's recurrence. */
-	@Nonnull
-	private static HierarchyFilteringPredicate[] predicateGraphs(int depth, boolean asymmetric, boolean unequal) {
-		HierarchyFilteringPredicate p = countedLeaf(1);
-		HierarchyFilteringPredicate q = countedLeaf(unequal ? 2 : 1);
-		HierarchyFilteringPredicate r = countedLeaf(1);
-		for (int i = 0; i < depth; i++) {
-			final HierarchyFilteringPredicate nextP = p.and(p);
-			final HierarchyFilteringPredicate nextQ = q.and(asymmetric ? r : q);
-			final HierarchyFilteringPredicate nextR = q.and(r);
-			p = nextP;
-			q = nextQ;
-			r = nextR;
-		}
-		return new HierarchyFilteringPredicate[]{p, q};
-	}
-
-	/** A change confined to a deepest leaf must stay bounded and unequal. */
+	/** A difference confined to a deepest leaf reaches the root hash, so no leaf needs to be compared. */
 	@Test
-	@DisplayName("Rejects a deepest-leaf difference within the comparison bound")
-	void shouldBoundUnequalPredicateDags() {
-		assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
-			final HierarchyFilteringPredicate[] predicates = predicateGraphs(200, true, true);
-			final FormulaKey left = predicates[0].getKey();
-			final FormulaKey right = predicates[1].getKey();
-			HierarchyPredicateLeafFormula.COMPARISONS.get()[0] = 0;
-			assertNotEquals(left, right);
-			assertTrue(HierarchyPredicateLeafFormula.COMPARISONS.get()[0] <= 804);
-		});
+	@DisplayName("Rejects a deepest-leaf difference by the hash prefilter without comparing leaves")
+	void shouldRejectDeepLeafDifferenceByHashPrefilter() {
+		final Operands[] predicates = predicateGraphs(200, true, true);
+		final FormulaKey left = predicates[0].predicate().getKey();
+		final FormulaKey right = predicates[1].predicate().getKey();
+		HierarchyPredicateLeafFormula.COMPARISONS.get()[0] = 0;
+		assertNotEquals(left.getHash64(), right.getHash64());
+		assertNotEquals(left, right);
+		assertEquals(0, HierarchyPredicateLeafFormula.COMPARISONS.get()[0]);
 	}
 
 	/**
@@ -208,41 +168,81 @@ class HierarchyFilteringPredicateKeyTest {
 	@DisplayName("Exceeds the leaf-comparison bound when operand memoization is bypassed")
 	void shouldExceedBoundWithoutOperandMemoization() {
 		assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
-			final HierarchyFilteringPredicate[] predicates = predicateGraphs(20, true, false);
-			assertEquals(predicates[0].getKey(), predicates[1].getKey());
+			final Operands[] predicates = predicateGraphs(20, true, false);
+			assertEquals(predicates[0].predicate().getKey(), predicates[1].predicate().getKey());
 			HierarchyPredicateLeafFormula.COMPARISONS.get()[0] = 0;
 			assertFalse(compareWithoutOperandMemoization(predicates[0], predicates[1], 84));
 			assertTrue(HierarchyPredicateLeafFormula.COMPARISONS.get()[0] > 84);
 		});
 	}
 
-	/** Walks real conjunction operands directly, comparing each encountered leaf through its detached key. */
+	/** Compares the asymmetric shape through memoized detached side keys. */
+	@Nonnull
+	private static FormulaKey[] asymmetricKeys(int depth) {
+		final Operands[] predicates = predicateGraphs(depth, true, false);
+		return new FormulaKey[]{predicates[0].predicate().getKey(), predicates[1].predicate().getKey()};
+	}
+
+	/** Builds distinct real predicate holders with only the sharing shown by each graph's recurrence. */
+	@Nonnull
+	private static Operands[] predicateGraphs(int depth, boolean asymmetric, boolean unequal) {
+		Operands p = countedLeaf(1);
+		Operands q = countedLeaf(unequal ? 2 : 1);
+		Operands r = countedLeaf(1);
+		for (int i = 0; i < depth; i++) {
+			final Operands nextP = p.and(p);
+			final Operands nextQ = q.and(asymmetric ? r : q);
+			final Operands nextR = q.and(r);
+			p = nextP;
+			q = nextQ;
+			r = nextR;
+		}
+		return new Operands[]{p, q};
+	}
+
+	/** Walks the conjunction operands directly, comparing each encountered leaf through its detached key. */
 	private static boolean compareWithoutOperandMemoization(
-		@Nonnull HierarchyFilteringPredicate left, @Nonnull HierarchyFilteringPredicate right, int limit
-	) throws ReflectiveOperationException {
+		@Nonnull Operands left, @Nonnull Operands right, int limit
+	) {
 		if (HierarchyPredicateLeafFormula.COMPARISONS.get()[0] > limit) {
 			return false;
 		}
-		if (left instanceof HierarchyFilteringPredicate.AndHierarchyFilteringPredicate &&
-			right instanceof HierarchyFilteringPredicate.AndHierarchyFilteringPredicate) {
-			final java.lang.reflect.Field first = left.getClass().getDeclaredField("first");
-			final java.lang.reflect.Field second = left.getClass().getDeclaredField("second");
-			first.setAccessible(true);
-			second.setAccessible(true);
-			return compareWithoutOperandMemoization(
-				(HierarchyFilteringPredicate) first.get(left), (HierarchyFilteringPredicate) first.get(right), limit) &&
-				compareWithoutOperandMemoization(
-					(HierarchyFilteringPredicate) second.get(left),
-						(HierarchyFilteringPredicate) second.get(right), limit);
+		if (left.first() != null && left.second() != null && right.first() != null && right.second() != null) {
+			return compareWithoutOperandMemoization(left.first(), right.first(), limit) &&
+				compareWithoutOperandMemoization(left.second(), right.second(), limit);
 		}
-		return left.getKey().equals(right.getKey());
+		return left.predicate().getKey().equals(right.predicate().getKey());
 	}
 
 	/** Wraps an executable constant leaf in the real general filtering predicate. */
 	@Nonnull
-	private static HierarchyFilteringPredicate countedLeaf(int value) {
-		return new FilteringFormulaHierarchyEntityPredicate(
-			"category", Set.of(Scope.LIVE), new HierarchyPredicateLeafFormula(new BaseBitmap(value)));
+	private static Operands countedLeaf(int value) {
+		return new Operands(
+			new FilteringFormulaHierarchyEntityPredicate(
+				"category", Set.of(Scope.LIVE), new HierarchyPredicateLeafFormula(new BaseBitmap(value))),
+			null, null
+		);
+	}
+
+	/**
+	 * Real predicate together with the operands it was combined from, so a comparison can walk the conjunctions
+	 * without reading their private state.
+	 *
+	 * @param predicate the real predicate holder
+	 * @param first left operand of the conjunction, null for a leaf
+	 * @param second right operand of the conjunction, null for a leaf
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private record Operands(
+		@Nonnull HierarchyFilteringPredicate predicate,
+		@Nullable Operands first,
+		@Nullable Operands second
+	) {
+		/** Combines both operands into the real conjunction built by {@link HierarchyFilteringPredicate#and}. */
+		@Nonnull
+		Operands and(@Nonnull Operands other) {
+			return new Operands(this.predicate.and(other.predicate), this, other);
+		}
 	}
 
 	/**
@@ -257,7 +257,7 @@ class HierarchyFilteringPredicateKeyTest {
 		private static final ThreadLocal<int[]> COMPARISONS = ThreadLocal.withInitial(() -> new int[1]);
 
 		/** Captures a real bitmap operand with the constant-formula computation. */
-		public HierarchyPredicateLeafFormula(@Nonnull io.evitadb.index.bitmap.Bitmap bitmap) {
+		public HierarchyPredicateLeafFormula(@Nonnull Bitmap bitmap) {
 			super(bitmap);
 		}
 

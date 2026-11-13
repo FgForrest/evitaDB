@@ -215,22 +215,7 @@ class SelectionFormulaTest {
 			final SelectionFormula second = createFormula(delegate);
 
 			assertEquals(first.getKey(), second.getKey());
-		}
-
-		/** Verifies the corresponding detached key contract. */
-		@Test
-		@DisplayName("should produce identical key hash for same delegate")
-		void shouldProduceIdenticalTransactionalIdKeyForSameDelegate() {
-			final ConstantFormula delegate = new ConstantFormula(
-				new ArrayBitmap(new CompositeIntArray(5, 10, 15))
-			);
-			final SelectionFormula first = createFormula(delegate);
-			final SelectionFormula second = createFormula(delegate);
-
-			assertEquals(
-				first.getKey().getHash64(),
-				second.getKey().getHash64()
-			);
+			assertEquals(first.getKey().getHash64(), second.getKey().getHash64());
 		}
 	}
 
@@ -279,7 +264,6 @@ class SelectionFormulaTest {
 	@DisplayName("Alternative identity")
 	class AlternativeIdentityTest {
 		/** Distinguishes locales over an identical delegate. */
-		/** Verifies the corresponding detached key contract. */
 		@Test
 		@DisplayName("Different locale alternatives produce different keys")
 		void shouldDistinguishLocaleAlternatives() {
@@ -293,7 +277,6 @@ class SelectionFormulaTest {
 		}
 
 		/** Distinguishes scope while equal independently built alternatives remain equal. */
-		/** Verifies the corresponding detached key contract. */
 		@Test
 		@DisplayName("Scope alternatives determine selection identity and survive cloning")
 		void shouldDistinguishScopeAlternativesAndPreserveEqualClones() {
@@ -308,7 +291,6 @@ class SelectionFormulaTest {
 		}
 
 		/** A shared opaque input still binds each selection to its own instance. */
-		/** Verifies the corresponding detached key contract. */
 		@Test
 		@DisplayName("An opaque alternative makes a newly allocated selection clone unequal")
 		void shouldKeepOpaqueAlternativeSelectionsInstanceUnique() {

@@ -119,9 +119,9 @@ public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBi
 	/**
 	 * Detached computation inputs.
 	 *
-	 * @param levels detached levels input
-	 * @param excludedNodeTrees detached excludedNodeTrees input
-	 * @param hierarchyIndex detached hierarchyIndex input
+	 * @param levels depth of the listed tree
+	 * @param excludedNodeTrees key of the predicate excluding node subtrees from the listing
+	 * @param hierarchyIndex version token of the hierarchy index the listing reads
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	public record Identity(int levels, @Nonnull FormulaKey excludedNodeTrees,

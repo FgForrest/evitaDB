@@ -125,7 +125,9 @@ public class MultipleEntityFormula extends AbstractFormula {
 	/**
 	 * Detached semantic inputs of the holder.
 	 *
-	 * @param directEntityReferences detached virtual primary key content
+	 * @param directEntityReferences primary keys of the referenced entities, copied up to
+	 *                               {@link IdentityToken#CONTENT_LIMIT} of them and an opaque, query-local token
+	 *                               above that limit
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	public record Identity(@Nonnull IdentityToken directEntityReferences) implements IdentityRecord {

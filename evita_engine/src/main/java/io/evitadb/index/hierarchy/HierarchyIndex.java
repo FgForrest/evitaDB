@@ -1184,6 +1184,8 @@ public class HierarchyIndex
 	/**
 	 * Method returns formula that contains all nodes attached to the tree (i.e. every node except the `orphans`).
 	 *
+	 * The key is derived from the index version, so the node set is not copied into it.
+	 *
 	 * A **fresh** formula is returned on every call. What is memoized is the bitmap behind it — see
 	 * {@link #memoizedAllNodes} for why an index must never hand out the same formula instance twice.
 	 *

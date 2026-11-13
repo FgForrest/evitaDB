@@ -72,29 +72,15 @@ public class SumPriceTerminationFormulaIdentityFixture implements IdentityFixtur
 				), Map.of(), Map.of(),
 				Map.of("equal children", new ClonePath<>(
 					formula -> formula.getCloneWithInnerFormulas(formula.getInnerFormulas()), EQUAL),
-					"individual predicate", new ClonePath<>(
-						formula -> formula.withIndividualPricePredicate(individual), UNEQUAL),
 					"predicate factory", new ClonePath<>(
 						formula -> formula.withIndividualPricePredicateFactory(() -> individual), UNEQUAL)),
 				Set.of("individualPricePredicate"), Set.of("individualPricePredicate"), Set.of()),
-			"individual predicate", new ConstructionMode<>(null,
-				Map.of(), Map.of("individual predicate", () -> new SumPriceTerminationFormula(leaf(1), context(0),
-					QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER).withIndividualPricePredicate(individual)), Map.of(),
-				Map.of("equal children", new ClonePath<>(
-					formula -> formula.getCloneWithInnerFormulas(formula.getInnerFormulas()), UNEQUAL),
-					"same predicate", new ClonePath<>(
-						formula -> formula.withIndividualPricePredicate(individual), UNEQUAL),
-					"predicate factory", new ClonePath<>(
-						formula -> formula.withIndividualPricePredicateFactory(() -> individual), UNEQUAL)), Set.of(), Set.of(),
-				Set.of()),
 			"predicate factory", new ConstructionMode<>(null, Map.of(),
 				Map.of("restartable predicate", () -> new SumPriceTerminationFormula(
 					leaf(1), context(0), QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER
 				).withIndividualPricePredicateFactory(() -> individual)), Map.of(),
 				Map.of("equal children", new ClonePath<>(
 					formula -> formula.getCloneWithInnerFormulas(formula.getInnerFormulas()), UNEQUAL),
-					"same predicate", new ClonePath<>(
-						formula -> formula.withIndividualPricePredicate(individual), UNEQUAL),
 					"predicate factory", new ClonePath<>(
 						formula -> formula.withIndividualPricePredicateFactory(() -> individual), UNEQUAL)),
 				Set.of(), Set.of(), Set.of()));

@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.index.bitmap.ArrayBitmap;
@@ -182,6 +181,29 @@ class PriceIdToEntityIdTranslateFormulaTest {
 				(PriceIdToEntityIdTranslateFormula) clone;
 			assertSame(newInner, typedClone.getDelegate());
 		}
+
+		/** A clone resolves records from its own child even after the original memo was populated. */
+		@Test
+		@DisplayName("Recomputes translated price records after replacing a computed child")
+		void shouldResolveCloneRecordsFromReplacementChild() {
+			final PriceListAndCurrencyPriceSuperIndex index =
+				new PriceListAndCurrencyPriceSuperIndex(
+					new PriceIndexKey("basic", Currency.getInstance("CZK"),
+						PriceInnerRecordHandling.NONE)
+				);
+			final PriceIdToEntityIdTranslateFormula original =
+				new PriceIdToEntityIdTranslateFormula(EmptyFormula.INSTANCE);
+			original.compute();
+			index.addPrice(new PriceRecord(1, 1, 10, 121, 100), null);
+			final Formula replacement = new PriceIdContainerFormula(
+				index, new ConstantFormula(new ArrayBitmap(1))
+			);
+			final PriceIdToEntityIdTranslateFormula clone =
+				(PriceIdToEntityIdTranslateFormula) original.getCloneWithInnerFormulas(replacement);
+			assertEquals(1, ((ResolvedFilteredPriceRecords)
+				clone.getFilteredPriceRecords(null)).getPriceRecords().length);
+			assertArrayEquals(new int[]{10}, clone.compute().getArray());
+		}
 	}
 
 	@Nested
@@ -266,28 +288,6 @@ class PriceIdToEntityIdTranslateFormulaTest {
 			// getPriceIdBitmap delegates to inner formula's compute
 			assertArrayEquals(new int[]{100, 200, 300}, formula.getPriceIdBitmap().getArray());
 		}
-	}
-
-	/** A clone resolves records from its own child even after the original memo was populated. */
-	@Test
-	@DisplayName("Recomputes translated price records after replacing a computed child")
-	void shouldResolveCloneRecordsFromReplacementChild() {
-		final PriceListAndCurrencyPriceSuperIndex index =
-			new PriceListAndCurrencyPriceSuperIndex(
-				new PriceIndexKey("basic", Currency.getInstance("CZK"),
-					PriceInnerRecordHandling.NONE)
-			);
-		final PriceIdToEntityIdTranslateFormula original = new PriceIdToEntityIdTranslateFormula(EmptyFormula.INSTANCE);
-		original.compute();
-		index.addPrice(new PriceRecord(1, 1, 10, 121, 100), null);
-		final Formula replacement = new PriceIdContainerFormula(
-			index, new ConstantFormula(new ArrayBitmap(1))
-		);
-		final PriceIdToEntityIdTranslateFormula clone =
-			(PriceIdToEntityIdTranslateFormula) original.getCloneWithInnerFormulas(replacement);
-		assertEquals(1, ((ResolvedFilteredPriceRecords)
-			clone.getFilteredPriceRecords(null)).getPriceRecords().length);
-		assertArrayEquals(new int[]{10}, clone.compute().getArray());
 	}
 
 }

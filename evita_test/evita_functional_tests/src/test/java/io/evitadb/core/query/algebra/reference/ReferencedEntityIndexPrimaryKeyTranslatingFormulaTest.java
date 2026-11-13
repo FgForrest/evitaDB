@@ -334,7 +334,6 @@ class ReferencedEntityIndexPrimaryKeyTranslatingFormulaTest {
 	@DisplayName("Translation identity boundaries")
 	class TranslationIdentityTest {
 		/** The absent index token must not collide with a legal minus-one producer version. */
-		/** Verifies the corresponding detached key contract. */
 		@Test
 		@DisplayName("Absent scope indexes remain distinct from producer id minus one")
 		void shouldDistinguishAbsentScopeFromMinusOneProducerId() {
@@ -352,7 +351,6 @@ class ReferencedEntityIndexPrimaryKeyTranslatingFormulaTest {
 		}
 
 		/** Function objects have no detached value form, even for an identity function. */
-		/** Verifies the corresponding detached key contract. */
 		@Test
 		@DisplayName("Expansion functions make original and clone instance unique")
 		void shouldKeepExpansionFunctionsOpaque() {

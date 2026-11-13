@@ -96,7 +96,9 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 		return hashFunction.hashLong(this.instanceId);
 	}
 
-	/** Captures the detached semantic inputs without evaluating the holder. */
+	/**
+	 * The alternative filter has no comparable value form, so the key is always opaque and therefore query-local.
+	 */
 	@Nonnull
 	@Override
 	protected IdentityRecord identity() {
@@ -169,7 +171,7 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	/**
 	 * Detached semantic inputs of the holder.
 	 *
-	 * @param alternative query-bound input marker
+	 * @param alternative opaque marker standing for the alternative filter, the only input of the formula
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	public record Identity(@Nonnull IdentityToken alternative) implements IdentityRecord {

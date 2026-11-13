@@ -190,7 +190,11 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 		return this.memoizedKey;
 	}
 
-	/** Returns the detached inputs of the concrete supplier. */
+	/**
+	 * Returns the detached inputs of the concrete supplier: the node and depth arguments of its listing, the key of
+	 * the predicate excluding node subtrees from it, and the version token of the hierarchy index it reads
+	 * ({@link #getHierarchyIndexIdentityToken()}).
+	 */
 	@Nonnull
 	protected abstract IdentityRecord identity();
 

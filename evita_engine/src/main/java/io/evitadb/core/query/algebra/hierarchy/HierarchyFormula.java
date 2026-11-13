@@ -34,8 +34,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
-import io.evitadb.core.query.algebra.identity.FormulaKey;
-import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import net.openhft.hashing.LongHashFunction;
@@ -159,7 +157,8 @@ public class HierarchyFormula extends AbstractFormula implements ChildrenDepende
 	/**
 	 * Detached computation inputs.
 	 *
-	 * @param referenceName detached referenceName input
+	 * @param referenceName name of the reference whose hierarchy is traversed, null for the queried entity's own
+	 *                      hierarchy
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	public record Identity(@Nullable String referenceName) implements IdentityRecord {

@@ -121,6 +121,7 @@ public class PriceBetweenFormula extends AbstractFormula implements ChildrenDepe
 	public String toStringVerbose() {
 		return "PRICE BETWEEN (" + this.innerFormulas[0].toStringVerbose() + ")";
 	}
+
 	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
 	@Nonnull
 	@Override
@@ -129,7 +130,7 @@ public class PriceBetweenFormula extends AbstractFormula implements ChildrenDepe
 	}
 
 	/**
-	 * Detached computation inputs.
+	 * Detached identity of the formula, whose inputs are its child.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
@@ -140,7 +141,7 @@ public class PriceBetweenFormula extends AbstractFormula implements ChildrenDepe
 			return CLASS_ID;
 		}
 
-		/** Includes every component in declaration order. */
+		/** The formula has no inputs outside its child. */
 		@Override
 		public void describeTo(@Nonnull KeyAccumulator accumulator) {
 		}

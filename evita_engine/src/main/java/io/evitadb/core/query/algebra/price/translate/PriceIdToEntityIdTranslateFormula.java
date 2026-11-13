@@ -212,7 +212,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	}
 
 	/**
-	 * Detached computation inputs.
+	 * Detached identity of the formula, whose inputs are its child.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
@@ -223,7 +223,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 			return CLASS_ID;
 		}
 
-		/** Includes every component in declaration order. */
+		/** The formula has no inputs outside its child. */
 		@Override
 		public void describeTo(@Nonnull KeyAccumulator accumulator) {
 		}

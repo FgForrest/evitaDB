@@ -38,7 +38,6 @@ import io.evitadb.api.query.order.ReferenceOrderingSpecification;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.order.TraverseByEntityProperty;
 import io.evitadb.api.query.require.ReferenceContent;
-import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;

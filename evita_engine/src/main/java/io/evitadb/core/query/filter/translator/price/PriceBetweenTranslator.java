@@ -120,8 +120,8 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
 					taggedFilteringFormula,
-					new SellingPriceAvailableBitmapFilter(
-						filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists(),
+					SellingPriceAvailableBitmapFilter.forRequest(
+						filterByVisitor.getEvitaRequest(),
 						new PriceContractPredicate(priceBetween.getFrom(), priceBetween.getTo(), queryPriceMode, indexedPricePlaces)
 					)
 				);

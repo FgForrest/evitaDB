@@ -86,6 +86,7 @@ public class LocaleEntityToBitmapFilter implements EntityToBitmapFilter {
 	public EntityFetchRequire getEntityRequire() {
 		return entityFetch(dataInLocales(this.locale));
 	}
+
 	/** Captures the detached semantic inputs without evaluating the holder. */
 	@Nonnull
 	@Override

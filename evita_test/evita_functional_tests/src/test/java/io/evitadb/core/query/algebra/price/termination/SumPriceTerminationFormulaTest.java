@@ -30,7 +30,6 @@ import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
@@ -165,6 +164,51 @@ class SumPriceTerminationFormulaTest {
 			);
 
 			assertNotEquals(f1.getKey(), f2.getKey());
+		}
+
+		/**
+		 * The query price mode decides which total the cumulated selling price carries - the sum of prices with tax
+		 * or the sum of prices without it - even with an unrestricted selling-price predicate, so it is a key input.
+		 */
+		@Test
+		@DisplayName("Distinguishes query price modes whose cumulated prices carry different totals")
+		void shouldProduceDifferentIdentityWhenPriceModeSumsDifferentTotal() {
+			final PriceIndexKey priceIndexKey = new PriceIndexKey("basic", CZK, PriceInnerRecordHandling.SUM);
+			final PriceListAndCurrencyPriceSuperIndex priceIndex =
+				new PriceListAndCurrencyPriceSuperIndex(priceIndexKey);
+			priceIndex.addPrice(new PriceRecordInnerRecordSpecific(1, 1, 1, 1, 12100, 10000), null);
+			priceIndex.addPrice(new PriceRecordInnerRecordSpecific(2, 2, 1, 2, 11000, 10500), null);
+			final PriceIndexContainerFormula container = new PriceIndexContainerFormula(
+				priceIndex, priceIndex, priceIndex.getIndexedPriceEntityIdsFormula()
+			);
+			final PriceEvaluationContext context = new PriceEvaluationContext(null, priceIndexKey);
+
+			final SumPriceTerminationFormula withTax = new SumPriceTerminationFormula(
+				container, context, QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER
+			);
+			final SumPriceTerminationFormula withoutTax = new SumPriceTerminationFormula(
+				container, context, QueryPriceMode.WITHOUT_TAX, PricePredicate.ALL_RECORD_FILTER
+			);
+			withTax.compute();
+			withoutTax.compute();
+
+			// the price records are resolved without an execution context, as `compute()` itself resolves them
+			final PriceRecordContract[] withTaxPrices =
+				((ResolvedFilteredPriceRecords) withTax.getFilteredPriceRecords(null)).getPriceRecords();
+			final PriceRecordContract[] withoutTaxPrices =
+				((ResolvedFilteredPriceRecords) withoutTax.getFilteredPriceRecords(null)).getPriceRecords();
+			assertEquals(1, withTaxPrices.length);
+			assertEquals(1, withoutTaxPrices.length);
+			// a cumulated record carries only the total of its own mode, the other one reads as zero
+			assertEquals(12100 + 11000, withTaxPrices[0].priceWithTax());
+			assertEquals(0, withTaxPrices[0].priceWithoutTax());
+			assertEquals(0, withoutTaxPrices[0].priceWithTax());
+			assertEquals(10000 + 10500, withoutTaxPrices[0].priceWithoutTax());
+			assertNotEquals(
+				withTax.getKey(),
+				withoutTax.getKey()
+			);
+			assertNotEquals(withTax.getKey().getHash64(), withoutTax.getKey().getHash64());
 		}
 	}
 
@@ -460,43 +504,6 @@ class SumPriceTerminationFormulaTest {
 			null,
 			new PriceIndexKey(priceList, currency, PriceInnerRecordHandling.NONE)
 		);
-	}
-	/** Price mode changes selling-price selection even with an unrestricted selling-price predicate. */
-	@Test
-	@DisplayName("Distinguishes query price modes with an unrestricted selling-price predicate")
-	void shouldProduceDifferentIdentityWhenPriceModeSumsDifferentSellingPrice() {
-		final PriceIndexKey priceIndexKey = new PriceIndexKey("basic", CZK, PriceInnerRecordHandling.SUM);
-		final PriceListAndCurrencyPriceSuperIndex priceIndex = new PriceListAndCurrencyPriceSuperIndex(priceIndexKey);
-		priceIndex.addPrice(new PriceRecordInnerRecordSpecific(1, 1, 1, 1, 12100, 10000), null);
-		priceIndex.addPrice(new PriceRecordInnerRecordSpecific(2, 2, 1, 2, 11000, 10500), null);
-		final PriceIndexContainerFormula container = new PriceIndexContainerFormula(
-			priceIndex, priceIndex, priceIndex.getIndexedPriceEntityIdsFormula()
-		);
-		final PriceEvaluationContext context = new PriceEvaluationContext(null, priceIndexKey);
-
-		final SumPriceTerminationFormula withTax = new SumPriceTerminationFormula(
-			container, context, QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER
-		);
-		final SumPriceTerminationFormula withoutTax = new SumPriceTerminationFormula(
-			container, context, QueryPriceMode.WITHOUT_TAX, PricePredicate.ALL_RECORD_FILTER
-		);
-		withTax.compute();
-		withoutTax.compute();
-
-		// the price records are resolved without an execution context, as `compute()` itself resolves them
-		final PriceRecordContract[] withTaxPrices =
-			((ResolvedFilteredPriceRecords) withTax.getFilteredPriceRecords(null)).getPriceRecords();
-		final PriceRecordContract[] withoutTaxPrices =
-			((ResolvedFilteredPriceRecords) withoutTax.getFilteredPriceRecords(null)).getPriceRecords();
-		assertEquals(1, withTaxPrices.length);
-		assertEquals(1, withoutTaxPrices.length);
-		assertEquals(12100 + 11000, withTaxPrices[0].priceWithTax());
-		assertEquals(10000 + 10500, withoutTaxPrices[0].priceWithoutTax());
-		assertNotEquals(
-			withTax.getKey(),
-			withoutTax.getKey()
-		);
-		assertNotEquals(withTax.getKey().getHash64(), withoutTax.getKey().getHash64());
 	}
 
 	/**

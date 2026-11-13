@@ -174,26 +174,6 @@ class PriceIndexContainerFormulaTest {
 	}
 
 	/**
-	 * Verifies detached computation identity.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Key determinism")
-	class KeyDeterminismTest {
-
-		/** Verifies detached computation identity. */
-		@Test
-		@DisplayName("should produce different keys for distinct index versions")
-		void shouldDistinguishIndexVersions() {
-			final PriceIndexContainerFormula a = createFormula("basic", CZK, 1, 2, 3);
-			final PriceIndexContainerFormula b = createFormula("basic", CZK, 1, 2, 3);
-
-			assertNotEquals(a.getKey(), b.getKey());
-		}
-	}
-
-	/**
 	 * Preserves the hash contract used by the formula deduplicator.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -229,6 +209,16 @@ class PriceIndexContainerFormulaTest {
 			final FormulaKey keyB = createFormula("basic", CZK, 4, 5, 6).getKey();
 
 			assertNotEquals(keyA, keyB);
+		}
+
+		/** The key carries the id of each price index, so equal contents of two indexes do not share a key. */
+		@Test
+		@DisplayName("should produce different keys for distinct index versions")
+		void shouldDistinguishIndexVersions() {
+			final PriceIndexContainerFormula a = createFormula("basic", CZK, 1, 2, 3);
+			final PriceIndexContainerFormula b = createFormula("basic", CZK, 1, 2, 3);
+
+			assertNotEquals(a.getKey(), b.getKey());
 		}
 	}
 

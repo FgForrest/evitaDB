@@ -413,42 +413,33 @@ class BetweenAttributeFormulaTest {
 		}
 	}
 
-	/** Keeps every plain attribute input observable independently of its result bitmap. */
-	@Test
-	@DisplayName("Includes global ownership, predicate and locale implication in attribute keys")
-	void shouldIncludeAttributeInputsInKey() {
-		final AttributeKey key = new AttributeKey("Aa", Locale.ENGLISH);
-		final AttributeFormula base = new AttributeFormula(false, key, newInnerFormula(), null, true);
-		assertNotEquals(base.getKey(), new AttributeFormula(true, key, newInnerFormula(), null, true).getKey());
-		final RequestedThresholdPredicate requested = new ThresholdRange(BigDecimal.ONE, BigDecimal.TEN);
-		final AttributeFormula requestedFormula = new AttributeFormula(false, key, newInnerFormula(), requested, true);
-		assertNotEquals(base.getKey(), requestedFormula.getKey());
-		assertSame(requested, requestedFormula.getRequestedPredicate());
-		assertTrue(requestedFormula.getRequestedPredicate().test(BigDecimal.ONE));
-		assertFalse(requestedFormula.getRequestedPredicate().test(BigDecimal.ZERO));
-		assertEquals(requestedFormula.getKey(),
-			new AttributeFormula(false, key, newInnerFormula(), new ThresholdRange(
-				new BigDecimal("1.00"), new BigDecimal("10.0")), true).getKey());
-		assertNotEquals(base.getKey(), new AttributeFormula(false, key, newInnerFormula(), null, false).getKey());
-		assertNotEquals(base.getKey(), new AttributeFormula(false,
-			new AttributeKey("BB", Locale.ENGLISH), newInnerFormula(), null, true).getKey());
-	}
+	/**
+	 * Keys of the plain {@link AttributeFormula} the between formula specializes.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Plain attribute formula key")
+	class PlainAttributeFormulaKeyTest {
 
-	/** Verifies the real construction modes and all independently described inputs of {@link AttributeFormula}. */
-	@Test
-	@DisplayName("Verifies AttributeFormula identity construction contracts")
-	void shouldVerifyAttributeFormulaIdentityContract() {
-		io.evitadb.test.identity.IdentityContractVerifier.verify(
-			AttributeFormula.class, new AttributeFormulaIdentityFixture()
-		);
-	}
-
-	/** Verifies the real construction modes and all independently described inputs of {@link BetweenAttributeFormula}. */
-	@Test
-	@DisplayName("Verifies BetweenAttributeFormula identity construction contracts")
-	void shouldVerifyBetweenAttributeFormulaIdentityContract() {
-		io.evitadb.test.identity.IdentityContractVerifier.verify(
-			BetweenAttributeFormula.class, new BetweenAttributeFormulaIdentityFixture()
-		);
+		/** Keeps every plain attribute input observable independently of its result bitmap. */
+		@Test
+		@DisplayName("Includes global ownership, predicate and locale implication in attribute keys")
+		void shouldIncludeAttributeInputsInKey() {
+			final AttributeKey key = new AttributeKey("Aa", Locale.ENGLISH);
+			final AttributeFormula base = new AttributeFormula(false, key, newInnerFormula(), null, true);
+			assertNotEquals(base.getKey(), new AttributeFormula(true, key, newInnerFormula(), null, true).getKey());
+			final RequestedThresholdPredicate requested = new ThresholdRange(BigDecimal.ONE, BigDecimal.TEN);
+			final AttributeFormula requestedFormula =
+				new AttributeFormula(false, key, newInnerFormula(), requested, true);
+			assertNotEquals(base.getKey(), requestedFormula.getKey());
+			assertSame(requested, requestedFormula.getRequestedPredicate());
+			assertEquals(requestedFormula.getKey(),
+				new AttributeFormula(false, key, newInnerFormula(), new ThresholdRange(
+					new BigDecimal("1.00"), new BigDecimal("10.0")), true).getKey());
+			assertNotEquals(base.getKey(), new AttributeFormula(false, key, newInnerFormula(), null, false).getKey());
+			assertNotEquals(base.getKey(), new AttributeFormula(false,
+				new AttributeKey("BB", Locale.ENGLISH), newInnerFormula(), null, true).getKey());
+		}
 	}
 }

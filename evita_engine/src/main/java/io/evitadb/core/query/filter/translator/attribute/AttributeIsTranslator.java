@@ -54,6 +54,7 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -442,7 +443,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			attributeSchema -> optionalStream -> optionalStream.noneMatch(Optional::isPresent),
 			filterByVisitor.getLocale(), true, null,
 			AttributeBitmapFilter.captureExecutionContext(
-				filterByVisitor, attributeName, java.util.List.of(), false, AttributeTrait.FILTERABLE
+				filterByVisitor, attributeName, List.of(), false, AttributeTrait.FILTERABLE
 			),
 			AttributeTrait.FILTERABLE
 		);
@@ -470,7 +471,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			attributeSchema -> optionalStream -> optionalStream.anyMatch(Optional::isPresent),
 			filterByVisitor.getLocale(), true, null,
 			AttributeBitmapFilter.captureExecutionContext(
-				filterByVisitor, attributeName, java.util.List.of(), false, AttributeTrait.FILTERABLE
+				filterByVisitor, attributeName, List.of(), false, AttributeTrait.FILTERABLE
 			),
 			AttributeTrait.FILTERABLE
 		);

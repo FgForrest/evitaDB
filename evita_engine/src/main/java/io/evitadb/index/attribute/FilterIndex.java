@@ -1437,7 +1437,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * would otherwise distribute surrounding {@code NOT(OR(b₁..b_N), U)} via De Morgan into a wide
 	 * {@code AND(NOT b₁ ... NOT b_N)} — a transformation that explodes cost for high-cardinality indexes.
 	 *
-	 * The index version and the all-records derivation identify the memo without copying the union into its key.
+	 * The key is derived from the index version, so the union is not copied into it.
 	 *
 	 * A **fresh** formula is returned on every call. What is memoized is the bitmap behind it — see
 	 * {@link #memoizedAllRecords} for why an index must never hand out the same formula instance twice.

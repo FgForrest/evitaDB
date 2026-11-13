@@ -123,7 +123,7 @@ public class DeferredFormula extends AbstractFormula {
 		return "DEFERRED CALCULATION: " + this.retrieveLambda.toString();
 	}
 
-	/** Returns detached inputs without computing the bitmap. */
+	/** Returns the key of the supplier this formula defers its bitmap to; the supplier is not computed. */
 	@Nonnull
 	@Override
 	protected IdentityRecord identity() {
@@ -133,7 +133,7 @@ public class DeferredFormula extends AbstractFormula {
 	/**
 	 * Detached computation inputs.
 	 *
-	 * @param retrieveLambda detached retrieveLambda input
+	 * @param retrieveLambda key of the supplier that computes the bitmap lazily
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	public record Identity(@Nonnull FormulaKey retrieveLambda) implements IdentityRecord {

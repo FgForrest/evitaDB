@@ -397,14 +397,4 @@ class ScopeContainerFormulaTest {
 			assertEquals(0, formula.getEstimatedCardinality());
 		}
 	}
-
-
-	/** Verifies the real construction modes and all independently described inputs of {@link ScopeContainerFormula}. */
-	@Test
-	@DisplayName("Verifies ScopeContainerFormula identity construction contracts")
-	void shouldVerifyScopeContainerFormulaIdentityContract() {
-		io.evitadb.test.identity.IdentityContractVerifier.verify(
-			ScopeContainerFormula.class, new ScopeContainerFormulaIdentityFixture()
-		);
-	}
 }

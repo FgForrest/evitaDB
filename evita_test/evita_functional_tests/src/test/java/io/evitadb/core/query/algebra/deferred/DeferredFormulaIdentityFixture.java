@@ -24,9 +24,6 @@
 package io.evitadb.core.query.algebra.deferred;
 
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.*;
-import io.evitadb.core.query.algebra.identity.*;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.test.identity.*;
 
 import javax.annotation.Nonnull;
@@ -34,6 +31,7 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Set;
 
+import static io.evitadb.FormulaIdentityFixtureSupport.*;
 import static io.evitadb.test.identity.CloneOutcome.*;
 
 /**
@@ -57,29 +55,5 @@ public class DeferredFormulaIdentityFixture implements IdentityFixture<DeferredF
 			Map.of("oversized delegate", () -> new DeferredFormula(new FormulaWrapper(oversized, () -> "large"))),
 			Map.of("inner formulas", new ClonePath<>(formula -> formula.getCloneWithInnerFormulas(), REJECTED)),
 			Set.of(), Set.of(), Set.of()));
-	}
-
-	/** Builds a fresh exact leaf. */
-	@Nonnull
-	public static ConstantFormula leaf(int value) {
-		return new ConstantFormula(new BaseBitmap(value));
-	}
-
-	/** Builds a holder over unowned content exceeding the bounded snapshot size. */
-	@Nonnull
-	public static ConstantFormula opaqueFormula() {
-		final int[] values = new int[IdentityToken.CONTENT_LIMIT + 1];
-		for (int i = 0; i < values.length; i++) {
-			values[i] = i;
-		}
-		return new ConstantFormula(new BaseBitmap(values));
-	}
-
-	/** Builds exact ordered producer operands above the admission limit. */
-	@Nonnull
-	public static OrFormula oversizedFormula() {
-		final io.evitadb.index.bitmap.Bitmap[] bitmaps = new io.evitadb.index.bitmap.Bitmap[TokenList.CAP + 1];
-		java.util.Arrays.fill(bitmaps, new io.evitadb.index.bitmap.TransactionalBitmap(new BaseBitmap(1)));
-		return new OrFormula(new long[]{1}, bitmaps);
 	}
 }

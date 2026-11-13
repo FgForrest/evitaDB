@@ -117,7 +117,7 @@ public class CombinedFacetFormula extends AbstractFormula {
 	}
 
 	/**
-	 * Detached computation inputs.
+	 * Detached identity of the formula, whose inputs are its children.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
@@ -128,7 +128,7 @@ public class CombinedFacetFormula extends AbstractFormula {
 			return CLASS_ID;
 		}
 
-		/** Includes every input in declaration order. */
+		/** The formula has no inputs outside its children. */
 		@Override
 		public void describeTo(@Nonnull KeyAccumulator accumulator) {
 		}

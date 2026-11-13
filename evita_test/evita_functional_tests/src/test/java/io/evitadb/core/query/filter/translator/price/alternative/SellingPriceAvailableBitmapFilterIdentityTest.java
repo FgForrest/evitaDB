@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.Currency;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.PRICE;
@@ -47,20 +48,17 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(ENGINE)
 @Tag(PRICE)
 class SellingPriceAvailableBitmapFilterIdentityTest {
-	/** Null and empty additional lists describe the same fetch requirement. */
+	/** Currency of every request of this test. */
+	private static final Currency CZK = Currency.getInstance("CZK");
+
+	/** Additional price lists contribute with their order and content. */
 	@Test
-	@DisplayName("Normalizes absent lists and snapshots list order and content")
-	void shouldSnapshotAdditionalPriceLists() {
-		assertEquals(key(new SellingPriceAvailableBitmapFilter()),
-			key(new SellingPriceAvailableBitmapFilter((String[]) null)));
-		final String[] lists = {"first", "second"};
-		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(lists);
-		final FormulaKey captured = key(filter);
-		lists[0] = "changed";
-		assertEquals(captured, key(filter));
-		assertEquals(captured, key(new SellingPriceAvailableBitmapFilter("first", "second")));
-		assertNotEquals(captured, key(new SellingPriceAvailableBitmapFilter("second", "first")));
-		assertNotEquals(captured, key(new SellingPriceAvailableBitmapFilter("first")));
+	@DisplayName("Captures the order and content of additional price lists")
+	void shouldCaptureAdditionalPriceListsInOrder() {
+		final FormulaKey captured = key(additional("first", "second"));
+		assertEquals(captured, key(additional("first", "second")));
+		assertNotEquals(captured, key(additional("second", "first")));
+		assertNotEquals(captured, key(additional("first")));
 	}
 
 	/** Each price predicate value contributes to the alternative's value identity and structural hash. */
@@ -85,8 +83,8 @@ class SellingPriceAvailableBitmapFilterIdentityTest {
 	@Test
 	@DisplayName("Separates price-list names with equal Java string hashes")
 	void shouldHashPriceListNamesByContent() {
-		final FormulaKey first = key(new SellingPriceAvailableBitmapFilter("Aa"));
-		final FormulaKey second = key(new SellingPriceAvailableBitmapFilter("BB"));
+		final FormulaKey first = key(additional("Aa"));
+		final FormulaKey second = key(additional("BB"));
 		assertNotEquals(first, second);
 		assertNotEquals(first.getHash64(), second.getHash64());
 	}
@@ -97,7 +95,23 @@ class SellingPriceAvailableBitmapFilterIdentityTest {
 		@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode mode, int places
 	) {
 		final PriceContractPredicate predicate = new PricePredicate.PriceContractPredicate(from, to, mode, places);
-		return key(new SellingPriceAvailableBitmapFilter(new String[]{"basic"}, predicate));
+		return key(SellingPriceAvailableBitmapFilter.forRequest(
+			SellingPriceAvailableBitmapFilterIdentityFixture.request(
+				CZK, null, QueryPriceMode.WITH_TAX, new String[]{"basic"}, "basic"
+			),
+			predicate
+		));
+	}
+
+	/** Builds the alternative of a request fetching the passed additional price lists. */
+	@Nonnull
+	private static SellingPriceAvailableBitmapFilter additional(@Nonnull String... additionalPriceLists) {
+		return SellingPriceAvailableBitmapFilter.forRequest(
+			SellingPriceAvailableBitmapFilterIdentityFixture.request(
+				CZK, null, QueryPriceMode.WITH_TAX, additionalPriceLists, "basic"
+			),
+			PricePredicate.ALL_CONTRACT_FILTER
+		);
 	}
 
 	/** Builds the same leaf side key that a selection builds for its alternative. */

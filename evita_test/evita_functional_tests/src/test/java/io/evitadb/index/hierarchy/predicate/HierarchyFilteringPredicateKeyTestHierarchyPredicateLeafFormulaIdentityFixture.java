@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Set;
 
-import static io.evitadb.core.query.algebra.deferred.DeferredFormulaIdentityFixture.opaqueFormula;
+import static io.evitadb.FormulaIdentityFixtureSupport.opaqueFormula;
 import static io.evitadb.test.identity.CloneOutcome.REJECTED;
 
 /**

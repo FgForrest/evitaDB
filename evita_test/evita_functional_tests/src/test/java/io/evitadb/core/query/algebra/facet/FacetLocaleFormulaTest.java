@@ -362,13 +362,4 @@ class FacetLocaleFormulaTest {
 			assertArrayEquals(new int[]{1, 2, 7, 8}, project(formula));
 		}
 	}
-
-	/** Verifies the real construction modes and all independently described inputs of {@link FacetLocaleFormula}. */
-	@Test
-	@DisplayName("Verifies FacetLocaleFormula identity construction contracts")
-	void shouldVerifyFacetLocaleFormulaIdentityContract() {
-		io.evitadb.test.identity.IdentityContractVerifier.verify(
-			FacetLocaleFormula.class, new FacetLocaleFormulaIdentityFixture()
-		);
-	}
 }

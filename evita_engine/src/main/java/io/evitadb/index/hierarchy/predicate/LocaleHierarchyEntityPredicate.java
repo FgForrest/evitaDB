@@ -101,7 +101,7 @@ public class LocaleHierarchyEntityPredicate implements HierarchyFilteringPredica
 	/**
 	 * Detached computation inputs.
 	 *
-	 * @param filteringFormula detached filteringFormula input
+	 * @param filteringFormula key of the formula listing the nodes localized to the locale
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	public record Identity(@Nonnull FormulaKey filteringFormula) implements IdentityRecord {

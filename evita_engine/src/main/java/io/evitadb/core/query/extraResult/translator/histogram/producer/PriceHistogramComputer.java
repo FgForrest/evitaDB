@@ -64,8 +64,8 @@ import java.util.function.ToIntFunction;
 
 /**
  * Computes the price histogram extra result from the filtering formula tree. The computer is instantiated by
- * {@link io.evitadb.core.query.extraResult.translator.histogram.PriceHistogramTranslator} and its
- * {@link #compute()} method is called lazily by the extra-result fabrication phase.
+ * {@link PriceHistogramProducer} and its {@link #compute()} method is called lazily by the extra-result fabrication
+ * phase.
  *
  * The computation strategy depends on what {@link io.evitadb.api.requestResponse.data.PriceInnerRecordHandling}
  * the matched entities use:
@@ -261,7 +261,11 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	}
 
 	/**
-	 * Creates a histogram computer for the supplied request and filtering inputs.
+	 * Creates a histogram computer for the supplied request and filtering inputs. The shallow price-record accessors
+	 * are looked up in the relaxed baseline, and the histogram is supplemented with the prices the price filter left
+	 * out only when the baseline is neither the filtering formula itself nor {@link EmptyFormula#INSTANCE}.
+	 *
+	 * @param relaxedBaseline the filtering formula with its price-between carriers peeled off
 	 */
 	public PriceHistogramComputer(
 		int bucketCount,

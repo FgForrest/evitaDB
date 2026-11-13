@@ -51,7 +51,7 @@ import java.util.Set;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.core.query.algebra.deferred.DeferredFormulaIdentityFixture.*;
+import static io.evitadb.FormulaIdentityFixtureSupport.*;
 
 /**
  * Real construction inputs and operations for {@link FilteringFormulaHierarchyEntityPredicate}.

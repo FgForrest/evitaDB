@@ -217,8 +217,9 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	 * Detached computation inputs.
 	 *
 	 * @param referenceName target reference
-	 * @param facetGroupId group identifier or NO_FACET_GROUP
-	 * @param facetIds ascending facet identifiers
+	 * @param facetGroupId group identifier, or {@link FacetGroupFormula#NO_FACET_GROUP} for facets without a group
+	 * @param facetIds ascending facet identifiers, copied up to {@link IdentityToken#CONTENT_LIMIT} of them and an
+	 *                 opaque, query-local token above that limit
 	 * @param bitmaps operands paired with the facet identifiers
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */

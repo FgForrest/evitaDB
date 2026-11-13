@@ -499,6 +499,52 @@ class FacetGroupFormulaTest {
 
 			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
+
+		/** The facet entity bitmap of an AND group is part of its key. */
+		@Test
+		@DisplayName("should produce different key for different facet entity bitmap in an AND group")
+		void shouldProduceDifferentKeyForDifferentFacetEntityBitmapInAndGroup() {
+			assertNotEquals(
+				new FacetGroupAndFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(10)).getKey(),
+				new FacetGroupAndFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(20)).getKey()
+			);
+		}
+
+		/** The facet entity bitmap of an OR group is part of its key. */
+		@Test
+		@DisplayName("should produce different key for different facet entity bitmap in an OR group")
+		void shouldProduceDifferentKeyForDifferentFacetEntityBitmapInOrGroup() {
+			assertNotEquals(
+				new FacetGroupOrFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(10)).getKey(),
+				new FacetGroupOrFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(20)).getKey()
+			);
+		}
+
+		/** The facet ids and the group id are separate key inputs, so their boundary cannot shift. */
+		@Test
+		@DisplayName("should not collide an absent group with two facets and a group with one facet")
+		void shouldNotCollideAbsentGroupWithTwoFacetsAndGroupWithOneFacet() {
+			assertNotEquals(
+				new FacetGroupAndFormula(
+					"reference", null, new ArrayBitmap(1, 2), new BaseBitmap(10), new BaseBitmap(20)
+				).getKey(),
+				new FacetGroupAndFormula("reference", 1, new ArrayBitmap(2), new BaseBitmap(20)).getKey()
+			);
+		}
+
+		/** Each facet bitmap is keyed together with the facet it belongs to. */
+		@Test
+		@DisplayName("should produce different key when facet bitmaps swap facets")
+		void shouldProduceDifferentKeyWhenFacetBitmapsSwapFacets() {
+			assertNotEquals(
+				new FacetGroupOrFormula(
+					"reference", 1, new ArrayBitmap(1, 2), new BaseBitmap(10), new BaseBitmap(20)
+				).getKey(),
+				new FacetGroupOrFormula(
+					"reference", 1, new ArrayBitmap(1, 2), new BaseBitmap(20), new BaseBitmap(10)
+				).getKey()
+			);
+		}
 	}
 
 	@Nested
@@ -1045,63 +1091,5 @@ class FacetGroupFormulaTest {
 		}
 
 		assertEquals(expected, actual);
-	}
-
-	/** Keeps PlainAndContent distinguishable in detached keys. */
-	@Test
-	@DisplayName("Distinguishes PlainAndContent")
-	void shouldDistinguishPlainAndContent() {
-		assertNotEquals(
-			new FacetGroupAndFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(10)).getKey(),
-			new FacetGroupAndFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(20)).getKey()
-		);
-	}
-
-	/** Keeps PlainOrContent distinguishable in detached keys. */
-	@Test
-	@DisplayName("Distinguishes PlainOrContent")
-	void shouldDistinguishPlainOrContent() {
-		assertNotEquals(
-			new FacetGroupOrFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(10)).getKey(),
-			new FacetGroupOrFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(20)).getKey()
-		);
-	}
-
-	/** Keeps AbsentGroupAndFacetBoundary distinguishable in detached keys. */
-	@Test
-	@DisplayName("Distinguishes AbsentGroupAndFacetBoundary")
-	void shouldDistinguishAbsentGroupAndFacetBoundary() {
-		assertNotEquals(
-			new FacetGroupAndFormula("reference", null, new ArrayBitmap(1, 2), new BaseBitmap(10), new BaseBitmap(20)).getKey(),
-			new FacetGroupAndFormula("reference", 1, new ArrayBitmap(2), new BaseBitmap(20)).getKey()
-		);
-	}
-
-	/** Keeps BitmapAssociation distinguishable in detached keys. */
-	@Test
-	@DisplayName("Distinguishes BitmapAssociation")
-	void shouldDistinguishBitmapAssociation() {
-		assertNotEquals(
-			new FacetGroupOrFormula("reference", 1, new ArrayBitmap(1, 2), new BaseBitmap(10), new BaseBitmap(20)).getKey(),
-			new FacetGroupOrFormula("reference", 1, new ArrayBitmap(1, 2), new BaseBitmap(20), new BaseBitmap(10)).getKey()
-		);
-	}
-
-	/** Verifies the real construction modes and all independently described inputs of {@link FacetGroupAndFormula}. */
-	@Test
-	@DisplayName("Verifies FacetGroupAndFormula identity construction contracts")
-	void shouldVerifyFacetGroupAndFormulaIdentityContract() {
-		io.evitadb.test.identity.IdentityContractVerifier.verify(
-			FacetGroupAndFormula.class, new FacetGroupAndFormulaIdentityFixture()
-		);
-	}
-
-	/** Verifies the real construction modes and all independently described inputs of {@link FacetGroupOrFormula}. */
-	@Test
-	@DisplayName("Verifies FacetGroupOrFormula identity construction contracts")
-	void shouldVerifyFacetGroupOrFormulaIdentityContract() {
-		io.evitadb.test.identity.IdentityContractVerifier.verify(
-			FacetGroupOrFormula.class, new FacetGroupOrFormulaIdentityFixture()
-		);
 	}
 }

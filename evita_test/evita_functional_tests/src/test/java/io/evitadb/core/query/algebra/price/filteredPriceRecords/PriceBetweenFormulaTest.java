@@ -24,7 +24,6 @@
 package io.evitadb.core.query.algebra.price.filteredPriceRecords;
 
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.exception.EvitaInvalidUsageException;

@@ -108,7 +108,8 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 		// use: this producer never substitutes a baseline for the filter. The computer below always receives the
 		// genuine `filteringFormula`, and the relaxed tree only ever *widens* it, so an unsatisfiable filter already
 		// yields an empty histogram that `fabricate` drops. Folding both relaxation outcomes onto one value here
-		// therefore changes no answer, and keeps the supplementation check in `getPriceHistogramComputer` intact.
+		// therefore changes no answer, and keeps the supplementation check in the `PriceHistogramComputer`
+		// constructor intact.
 		final Formula relaxedBaseline = UserFilterRelaxer.relax(
 			this.filteringFormula, RangeCarrierGroup.PRICE_HISTOGRAM
 		).orElse(EmptyFormula.INSTANCE);

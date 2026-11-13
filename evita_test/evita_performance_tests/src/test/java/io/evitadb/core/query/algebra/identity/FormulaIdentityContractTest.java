@@ -23,19 +23,29 @@
 
 package io.evitadb.core.query.algebra.identity;
 
-import io.evitadb.spike.mock.MockInnerRecordIdsFormula;
-import io.evitadb.spike.mock.MockEntityIdsFormula;
-import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.AndFormula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.spike.mock.MockEntityIdsFormula;
+import io.evitadb.spike.mock.MockInnerRecordIdsFormula;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.identity.IdentityContractVerifier;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import javax.annotation.Nonnull;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.ENGINE;
@@ -65,35 +75,49 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 		System.out.println("Identity discovery: performance=" + holders.size() + "/floor=" + PERFORMANCE_FLOOR +
 			", declared=" + declared + ", undeclared=" + (holders.size() - declared));
 	}
-	/** Uses the bitmap-and-record constructor used by the benchmark states. */
-	@Test
-	@DisplayName("Initializes EntityIds benchmark formulas with stable instance-unique opaque keys")
-	void shouldInitializeEntityIdsFormulaWithOpaqueKeys() {
-		final Bitmap bitmap = new BaseBitmap(1);
-		final FilteredPriceRecords records = new ResolvedFilteredPriceRecords();
-		final MockEntityIdsFormula formula = new MockEntityIdsFormula(bitmap, records);
-		assertSame(formula.getKey(), formula.getKey());
-		assertNotEquals(formula.getKey(), new MockEntityIdsFormula(bitmap, records).getKey());
-		assertTrue(formula.getKey().isOpaque());
-		assertTrue(formula.getKey().isQueryLocal());
-		assertEquals(formula.getKey().getWeight() + 1,
-			new MockEntityIdsFormula(new BaseBitmap(1, 2), records).getKey().getWeight());
-		assertTrue(formula.getEstimatedCost() >= 0);
+
+	/**
+	 * Supplies the bitmap-and-record constructors of the benchmark mocks, as the benchmark states call them.
+	 *
+	 * @return the mock name and its constructor
+	 */
+	@Nonnull
+	static Stream<Arguments> benchmarkMockConstructors() {
+		return Stream.of(
+			Arguments.of(
+				"MockEntityIdsFormula",
+				(BiFunction<Bitmap, FilteredPriceRecords, Formula>) MockEntityIdsFormula::new
+			),
+			Arguments.of(
+				"MockInnerRecordIdsFormula",
+				(BiFunction<Bitmap, FilteredPriceRecords, Formula>) MockInnerRecordIdsFormula::new
+			)
+		);
 	}
 
-	/** Uses the bitmap-and-record constructor used by the benchmark states. */
-	@Test
-	@DisplayName("Initializes InnerRecordIds benchmark formulas with stable instance-unique opaque keys")
-	void shouldInitializeInnerRecordIdsFormulaWithOpaqueKeys() {
-		final Bitmap bitmap = new BaseBitmap(1);
-		final FilteredPriceRecords records = new ResolvedFilteredPriceRecords();
-		final MockInnerRecordIdsFormula formula = new MockInnerRecordIdsFormula(bitmap, records);
-		assertSame(formula.getKey(), formula.getKey());
-		assertNotEquals(formula.getKey(), new MockInnerRecordIdsFormula(bitmap, records).getKey());
-		assertTrue(formula.getKey().isOpaque());
-		assertTrue(formula.getKey().isQueryLocal());
-		assertEquals(formula.getKey().getWeight() + 1,
-			new MockInnerRecordIdsFormula(new BaseBitmap(1, 2), records).getKey().getWeight());
-		assertTrue(formula.getEstimatedCost() >= 0);
+	/**
+	 * The measurement states compose the benchmark mocks under real formulas, so a mock must be initialized by its
+	 * constructor alone.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Benchmark mock initialization")
+	class BenchmarkMockInitializationTest {
+
+		/** A real parent formula reads the hash, cost and result of its children when it is built and computed. */
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("io.evitadb.core.query.algebra.identity.FormulaIdentityContractTest#benchmarkMockConstructors")
+		@DisplayName("Constructs mocks a real parent formula can estimate and compute")
+		void shouldComposeConstructedMockUnderRealFormula(
+			@Nonnull String mockName,
+			@Nonnull BiFunction<Bitmap, FilteredPriceRecords, Formula> constructor
+		) {
+			final Formula mock = constructor.apply(new BaseBitmap(1, 2), new ResolvedFilteredPriceRecords());
+			final Formula parent = new AndFormula(mock, new ConstantFormula(new BaseBitmap(2, 3)));
+
+			assertTrue(parent.getEstimatedCost() > 0, mockName);
+			assertArrayEquals(new int[]{2}, parent.compute().getArray(), mockName);
+		}
 	}
 }

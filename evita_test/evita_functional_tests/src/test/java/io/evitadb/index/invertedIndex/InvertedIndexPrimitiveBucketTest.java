@@ -754,13 +754,16 @@ class InvertedIndexPrimitiveBucketTest {
 			assertSame(EmptyFormula.INSTANCE, slice.getFormula());
 		}
 
-		/** Unrelated committed writes retain equal keys; crossed writes change them. */
+		/**
+		 * The predicate-matching formula is keyed by the buckets it matches, so a committed write outside the match
+		 * keeps the key and a write changing a matched bucket changes it.
+		 */
 		@Test
-		@DisplayName("The predicate-matching formula key is leaf-granular across a commit")
-		void shouldKeepMatchingFormulaKeyLeafGranularAcrossCommit() {
+		@DisplayName("The predicate-matching formula key holds until a matched bucket changes")
+		void shouldKeepMatchingFormulaKeyUntilAMatchedBucketChanges() {
 			final Predicate<Serializable> lowSlice = value -> ((Integer) value) <= 150;
 
-			// An uncrossed-leaf write preserves the operands of the matched slice.
+			// A write outside the match preserves the operands of the matched slice.
 			final InvertedIndex uncrossed = denseIndex(MULTI_LEAF_BUCKET_COUNT);
 			final Formula uncrossedMatch = uncrossed.getRecordsMatchingFormula(lowSlice);
 			// Exercise the multi-bucket bitmap operands rather than the single-bucket shortcut.
@@ -776,11 +779,11 @@ class InvertedIndexPrimitiveBucketTest {
 				(original, committed) -> assertEquals(
 					beforeUncrossed,
 					committed.getRecordsMatchingFormula(lowSlice).getKey(),
-					"An uncrossed-leaf write must not change the matched slice's key!"
+					"A write outside the match must not change the matched slice's key!"
 				)
 			);
 
-			// A crossed-leaf write changes the bitmap operands of the matched slice.
+			// A write into a matched bucket changes the bitmap operands of the matched slice.
 			final InvertedIndex crossed = denseIndex(MULTI_LEAF_BUCKET_COUNT);
 			final FormulaKey beforeCrossed = crossed.getRecordsMatchingFormula(lowSlice).getKey();
 			assertStateAfterCommit(
@@ -790,7 +793,7 @@ class InvertedIndexPrimitiveBucketTest {
 				(original, committed) -> assertNotEquals(
 					beforeCrossed,
 					committed.getRecordsMatchingFormula(lowSlice).getKey(),
-					"A crossed-leaf write must change the matched slice's key!"
+					"A write into a matched bucket must change the matched slice's key!"
 				)
 			);
 		}

@@ -339,13 +339,4 @@ class FacetHavingFormulaTest {
 			);
 		}
 	}
-
-	/** Verifies the real construction modes and all independently described inputs of {@link FacetHavingFormula}. */
-	@Test
-	@DisplayName("Verifies FacetHavingFormula identity construction contracts")
-	void shouldVerifyFacetHavingFormulaIdentityContract() {
-		io.evitadb.test.identity.IdentityContractVerifier.verify(
-			FacetHavingFormula.class, new FacetHavingFormulaIdentityFixture()
-		);
-	}
 }

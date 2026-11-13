@@ -257,12 +257,6 @@ class ReferencedOwnerExistenceFormulaTest {
 	}
 
 	/**
-	 * The cache-correctness invariant, from three sides. The candidate owner set and the per-owner formulas are baked
-	 * into the formula at planning time and are invisible through {@link Formula#getInnerFormulas()}, so a cache keyed
-	 * on {@link Formula#getHash()} would happily serve one query's answer to another unless every one of those
-	 * components reaches `includeAdditionalHash`. Each test below varies exactly one component.
-	 */
-	/**
 	 * Sensitivity to every semantic input outside the formula children.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
