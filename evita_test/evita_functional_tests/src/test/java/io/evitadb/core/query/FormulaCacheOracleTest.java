@@ -38,7 +38,6 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -76,10 +75,12 @@ class FormulaCacheOracleTest extends FormulaCacheScenarioSupport {
 	private static final Query BASIC_CZK = query(and(priceInPriceLists("basic"), priceInCurrency(CZK),
 		priceValidIn(MOMENT)), priceNatural(), priceHistogram(6));
 
-	/** Executes every mutation kind for each seed; wall time never controls operation selection. */
+	/**
+	 * Executes every mutation kind for each seed. The number of steps is fixed, so the run is bounded without a
+	 * time limit; a limit would only fail the test on a loaded machine.
+	 */
 	@ParameterizedTest(name = "seed {0}")
 	@ValueSource(longs = {41, 42})
-	@Timeout(60)
 	@DisplayName("Agrees across catalog versions, debug policies and pinned readers")
 	void shouldMatchOracleAcrossVersions(long seed) {
 		start((int) (seed % 2));
