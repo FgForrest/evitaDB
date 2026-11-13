@@ -291,21 +291,29 @@ class FormulaKeyTest {
 	/** Checks that a large comparison does not leave oversized thread-local storage behind. */
 	@Test
 	@DisplayName("Releases grown comparison storage after outermost exit")
-	void shouldReleaseGrownComparisonStorage() {
-		// no time limit here: the first object layout measurement initializes JVM management services, which takes
+	void shouldReleaseGrownComparisonStorage() throws InterruptedException {
+		// the scope is thread-local: a fresh thread guarantees storage no earlier test has grown. There is no time
+		// limit, because the first object layout measurement initializes JVM management services, which takes
 		// seconds on a loaded machine and says nothing about the storage this test measures
-		final ComparisonScope scope = ComparisonScope.current();
-		final long initialSize = GraphLayout.parseInstance(scope).totalSize();
-		scope.enter();
-		try {
-			for (int i = 0; i < 2_048; i++) {
-				scope.add(tokenKey(IdentityToken.ofContent(new int[]{i}), new Object()),
-					tokenKey(IdentityToken.ofContent(new int[]{i}), new Object()));
+		final long[] sizes = new long[2];
+		final Thread worker = new Thread(() -> {
+			final ComparisonScope scope = ComparisonScope.current();
+			sizes[0] = GraphLayout.parseInstance(scope).totalSize();
+			scope.enter();
+			try {
+				for (int i = 0; i < 2_048; i++) {
+					scope.add(tokenKey(IdentityToken.ofContent(new int[]{i}), new Object()),
+						tokenKey(IdentityToken.ofContent(new int[]{i}), new Object()));
+				}
+			} finally {
+				scope.leave();
 			}
-		} finally {
-			scope.leave();
-		}
-		assertEquals(initialSize, GraphLayout.parseInstance(scope).totalSize());
+			sizes[1] = GraphLayout.parseInstance(scope).totalSize();
+		});
+		worker.start();
+		worker.join();
+		assertTrue(sizes[0] > 0, "The worker thread must have measured the scope");
+		assertEquals(sizes[0], sizes[1]);
 	}
 
 	/** Checks that pairs sharing one right key spread over the table instead of forming one probe chain. */
