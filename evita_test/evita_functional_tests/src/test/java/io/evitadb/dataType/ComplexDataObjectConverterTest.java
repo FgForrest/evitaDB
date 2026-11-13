@@ -104,20 +104,6 @@ class ComplexDataObjectConverterTest {
 		}
 
 		@Test
-		@DisplayName("should refuse an array of complex data objects in static getSerializableForm")
-		void shouldRefuseArrayOfComplexDataObjectsWhenStaticGetSerializableFormReceivesIt() {
-			final ComplexDataObject[] cdoArray = new ComplexDataObject[]{
-				new ComplexDataObject(new DataItemMap(Collections.emptyMap()))
-			};
-
-			final SerializationFailedException exception = assertThrows(
-				SerializationFailedException.class,
-				() -> ComplexDataObjectConverter.getSerializableForm(cdoArray)
-			);
-			assertTrue(exception.getMessage().contains("one `ComplexDataObject`"), exception.getMessage());
-		}
-
-		@Test
 		@DisplayName("should return same supported type from static getSerializableForm")
 		void shouldReturnSameInstanceWhenStaticGetSerializableFormReceivesSupportedType() {
 			final String value = "ABC";
@@ -188,20 +174,6 @@ class ComplexDataObjectConverterTest {
 			final Serializable serializedForm = converter.getSerializableForm();
 
 			assertArrayEquals(new String[]{"ABC", "DEF"}, ComplexDataObjectConverter.getOriginalForm(serializedForm, String[].class, reflectionLookup));
-		}
-
-		@Test
-		@DisplayName("should refuse an array of complex data objects in instance getSerializableForm")
-		void shouldRefuseArrayOfComplexDataObjectsWhenInstanceGetSerializableFormReceivesIt() {
-			final ComplexDataObject[] cdoArray = new ComplexDataObject[]{
-				new ComplexDataObject(new DataItemMap(Collections.emptyMap()))
-			};
-			final ComplexDataObjectConverter<ComplexDataObject[]> converter = new ComplexDataObjectConverter<>(cdoArray);
-
-			final SerializationFailedException exception = assertThrows(
-				SerializationFailedException.class, converter::getSerializableForm
-			);
-			assertTrue(exception.getMessage().contains("one `ComplexDataObject`"), exception.getMessage());
 		}
 	}
 
@@ -856,6 +828,34 @@ class ComplexDataObjectConverterTest {
 	@Nested
 	@DisplayName("Error handling")
 	class ErrorHandlingTest {
+
+		@Test
+		@DisplayName("should refuse an array of complex data objects in static getSerializableForm")
+		void shouldRefuseArrayOfComplexDataObjectsWhenStaticGetSerializableFormReceivesIt() {
+			final ComplexDataObject[] cdoArray = new ComplexDataObject[]{
+				new ComplexDataObject(new DataItemMap(Collections.emptyMap()))
+			};
+
+			final SerializationFailedException exception = assertThrows(
+				SerializationFailedException.class,
+				() -> ComplexDataObjectConverter.getSerializableForm(cdoArray)
+			);
+			assertTrue(exception.getMessage().contains("one `ComplexDataObject`"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("should refuse an array of complex data objects in instance getSerializableForm")
+		void shouldRefuseArrayOfComplexDataObjectsWhenInstanceGetSerializableFormReceivesIt() {
+			final ComplexDataObject[] cdoArray = new ComplexDataObject[]{
+				new ComplexDataObject(new DataItemMap(Collections.emptyMap()))
+			};
+			final ComplexDataObjectConverter<ComplexDataObject[]> converter = new ComplexDataObjectConverter<>(cdoArray);
+
+			final SerializationFailedException exception = assertThrows(
+				SerializationFailedException.class, converter::getSerializableForm
+			);
+			assertTrue(exception.getMessage().contains("one `ComplexDataObject`"), exception.getMessage());
+		}
 
 		@Test
 		@DisplayName("should fail to serialize incompatible object with no usable properties")

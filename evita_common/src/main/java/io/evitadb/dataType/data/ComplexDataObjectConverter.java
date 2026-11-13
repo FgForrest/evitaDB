@@ -111,7 +111,9 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 *
 	 * This method guarantees returning one of the supported {@link EvitaDataTypes}:
 	 * - If the container is already a {@link ComplexDataObject}, it is returned as is
-	 * - If the container is a supported Evita data type or its array, it is returned as is
+	 * - If the container is a supported Evita data type or its array, it is returned as is - a primitive array
+	 *   (`int[]`) included, although associated data cannot store it: its schema declares the wrapper array
+	 *   (`Integer[]`), which a primitive array is not an instance of
 	 * - Otherwise, it is converted to a {@link ComplexDataObject} automatically - an array of objects becomes one
 	 *   {@link ComplexDataObject} whose root is a {@link DataItemArray}
 	 *

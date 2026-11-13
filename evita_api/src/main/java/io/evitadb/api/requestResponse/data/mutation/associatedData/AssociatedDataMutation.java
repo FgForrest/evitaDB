@@ -159,7 +159,7 @@ public abstract sealed class AssociatedDataMutation implements NamedLocalMutatio
 			entitySchemaBuilder.getAssociatedData(associatedDataName);
 		associatedDataOpt
 			.ifPresent(associatedDataSchema -> {
-				// when associated data definition is known execute first encounter formal verification
+				// when associated data definition is known verify the value and its localization against it
 				Assert.isTrue(
 					associatedDataSchema.getType().isInstance(associatedDataValue),
 					() -> new InvalidMutationException(

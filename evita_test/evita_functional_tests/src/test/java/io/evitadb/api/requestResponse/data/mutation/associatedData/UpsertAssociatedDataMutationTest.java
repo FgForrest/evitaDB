@@ -37,10 +37,15 @@ import io.evitadb.dataType.data.DataItemValue;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -107,9 +112,7 @@ class UpsertAssociatedDataMutationTest extends AbstractMutationTest {
 		@Test
 		@DisplayName("should refuse an array of complex data objects when the schema does not declare it")
 		void shouldRefuseArrayOfComplexDataObjectsWhenSchemaIsMissing() {
-			final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-				UpsertAssociatedDataMutationTest.this.catalogSchema, UpsertAssociatedDataMutationTest.this.productSchema
-			);
+			final EntitySchemaBuilder schemaBuilder = createProductSchemaBuilder();
 			final UpsertAssociatedDataMutation mutation = new UpsertAssociatedDataMutation(
 				OBJECTS, new ComplexDataObject[]{createComplexDataObject("first")}
 			);
@@ -126,9 +129,8 @@ class UpsertAssociatedDataMutationTest extends AbstractMutationTest {
 		@Test
 		@DisplayName("should refuse an array of complex data objects when the schema declares a complex data object")
 		void shouldRefuseArrayOfComplexDataObjectsWhenSchemaDeclaresComplexDataObject() {
-			final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-				UpsertAssociatedDataMutationTest.this.catalogSchema, UpsertAssociatedDataMutationTest.this.productSchema
-			).withAssociatedData(OBJECTS, ComplexDataObject.class);
+			final EntitySchemaBuilder schemaBuilder = createProductSchemaBuilder()
+				.withAssociatedData(OBJECTS, ComplexDataObject.class);
 			final UpsertAssociatedDataMutation mutation = new UpsertAssociatedDataMutation(
 				OBJECTS, new ComplexDataObject[]{createComplexDataObject("first")}
 			);
@@ -141,29 +143,31 @@ class UpsertAssociatedDataMutationTest extends AbstractMutationTest {
 			assertArrayOfComplexDataObjectsRefused(exception);
 		}
 
-		@Test
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("valuesNotMatchingEvolvedType")
 		@DisplayName("should refuse a value that is not an instance of the type the schema evolves to")
-		void shouldRefuseValueThatIsNotInstanceOfEvolvedType() {
-			final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-				UpsertAssociatedDataMutationTest.this.catalogSchema, UpsertAssociatedDataMutationTest.this.productSchema
-			);
-			// the schema declares the wrapped form `Integer[]` for a primitive array
-			final UpsertAssociatedDataMutation mutation = new UpsertAssociatedDataMutation("numbers", new int[]{1, 2});
+		void shouldRefuseValueThatIsNotInstanceOfEvolvedType(
+			@Nonnull String description,
+			@Nonnull Serializable value,
+			@Nonnull Class<?> expectedDeclaredType
+		) {
+			final EntitySchemaBuilder schemaBuilder = createProductSchemaBuilder();
+			final UpsertAssociatedDataMutation mutation = new UpsertAssociatedDataMutation(OBJECTS, value);
 
 			final InvalidMutationException exception = assertThrows(
 				InvalidMutationException.class,
 				() -> mutation.verifyOrEvolveSchema(UpsertAssociatedDataMutationTest.this.catalogSchema, schemaBuilder)
 			);
 
-			assertTrue(exception.getMessage().contains("`numbers`"), exception.getMessage());
+			final String message = exception.getMessage();
+			assertTrue(message.contains("`" + OBJECTS + "`"), message);
+			assertTrue(message.contains("would be declared as type `" + expectedDeclaredType + "`"), message);
 		}
 
 		@Test
 		@DisplayName("should evolve the schema for one complex data object holding an array")
 		void shouldEvolveSchemaForOneComplexDataObjectHoldingArray() {
-			final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-				UpsertAssociatedDataMutationTest.this.catalogSchema, UpsertAssociatedDataMutationTest.this.productSchema
-			);
+			final EntitySchemaBuilder schemaBuilder = createProductSchemaBuilder();
 			final UpsertAssociatedDataMutation mutation = new UpsertAssociatedDataMutation(
 				OBJECTS,
 				new ComplexDataObject(
@@ -179,6 +183,41 @@ class UpsertAssociatedDataMutationTest extends AbstractMutationTest {
 			mutation.verifyOrEvolveSchema(UpsertAssociatedDataMutationTest.this.catalogSchema, schemaBuilder);
 
 			assertEquals(ComplexDataObject.class, schemaBuilder.getAssociatedData(OBJECTS).orElseThrow().getType());
+		}
+
+		/**
+		 * Lists values whose type the schema normalizes on evolution to a type the value is not an instance of.
+		 *
+		 * @return the description, the value and the type the schema would declare for it
+		 */
+		@Nonnull
+		static Stream<Arguments> valuesNotMatchingEvolvedType() {
+			return Stream.of(
+				Arguments.of(
+					"a primitive array is declared as its wrapper array",
+					new int[]{1, 2}, Integer[].class
+				),
+				Arguments.of(
+					"an array of serializables holding complex data objects is declared as a complex data object",
+					new Serializable[]{createComplexDataObject("first")}, ComplexDataObject.class
+				),
+				Arguments.of(
+					"an object of an unsupported type is declared as a complex data object",
+					new Dimension("width", 10), ComplexDataObject.class
+				)
+			);
+		}
+
+		/**
+		 * Creates a builder of the product schema that does not declare any associated data the tests upsert.
+		 *
+		 * @return the schema builder
+		 */
+		@Nonnull
+		private EntitySchemaBuilder createProductSchemaBuilder() {
+			return new InternalEntitySchemaBuilder(
+				UpsertAssociatedDataMutationTest.this.catalogSchema, UpsertAssociatedDataMutationTest.this.productSchema
+			);
 		}
 
 		/**
@@ -201,6 +240,18 @@ class UpsertAssociatedDataMutationTest extends AbstractMutationTest {
 		@Nonnull
 		private static ComplexDataObject createComplexDataObject(@Nonnull String name) {
 			return new ComplexDataObject(new DataItemMap(Map.of("name", new DataItemValue(name))));
+		}
+
+		/**
+		 * Plain object of a type evitaDB does not support directly.
+		 *
+		 * @param name  name of the dimension
+		 * @param value size of the dimension
+		 */
+		record Dimension(
+			@Nonnull String name,
+			@Nonnull Integer value
+		) implements Serializable {
 		}
 	}
 

@@ -148,10 +148,13 @@ public class JsonToComplexDataObjectConverter {
 	}
 
 	/**
-	 * Creates one complex data object whose root holds the entire JSON array represented by the list.
+	 * Creates one complex data object whose root holds the entire JSON array represented by the list - the array-root
+	 * counterpart of {@link #fromMap(Map)}, which creates an object root.
 	 *
 	 * @param array the JSON array elements
 	 * @return the complex data object with an array root
+	 * @throws JsonProcessingException declared for parity with {@link #fromMap(Map)}; the list is converted in memory
+	 *                                 without parsing JSON text, so it is not thrown
 	 */
 	@Nonnull
 	public ComplexDataObject fromArray(@Nonnull List<?> array) throws JsonProcessingException {

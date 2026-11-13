@@ -40,6 +40,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Collection;
@@ -445,12 +446,16 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final Object[] removedArray = (Object[]) removeLocalizedAssociatedDataAndReturnIt(associatedDataName, args, theState);
+			if (removedArray == null) {
+				return null;
+			}
 			return Arrays.stream(removedArray).map(it -> converter.apply((Serializable) it, theState.getReflectionLookup())).toList();
 		};
 	}
 
 	/**
-	 * Removes complex associated data and returns its deserialized collection, or null when absent.
+	 * Removes complex associated data in the locale passed as the first method argument and returns its deserialized
+	 * collection, or null when that locale holds no value.
 	 *
 	 * @param associatedDataName name of the associated data to remove
 	 * @param converter          deserializes the stored complex data object
@@ -461,14 +466,46 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull String associatedDataName,
 		@Nonnull BiFunction<Serializable, ReflectionLookup, Serializable> converter
 	) {
-		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ComplexDataObject removedValue = (ComplexDataObject) removeLocalizedAssociatedDataAndReturnIt(associatedDataName, args, theState);
-			if (removedValue == null) {
-				return null;
-			}
-			final Serializable result = converter.apply(removedValue, theState.getReflectionLookup());
-			return result.getClass().isArray() ? Arrays.stream((Object[]) result).toList() : List.of(result);
-		};
+		return (proxy, theMethod, args, theState, invokeSuper) -> toRemovedCollection(
+			(ComplexDataObject) removeLocalizedAssociatedDataAndReturnIt(associatedDataName, args, theState),
+			converter,
+			theState
+		);
+	}
+
+	/**
+	 * Deserializes removed complex associated data into the list a collection removal method returns.
+	 *
+	 * @param removedValue the removed value, or null when nothing was stored
+	 * @param converter    deserializes the complex data object into an array of the collection item type
+	 * @param theState     the proxy state providing the reflection lookup
+	 * @return the removed items, or null when nothing was stored
+	 */
+	@Nullable
+	private static List<Object> toRemovedCollection(
+		@Nullable ComplexDataObject removedValue,
+		@Nonnull BiFunction<Serializable, ReflectionLookup, Serializable> converter,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		if (removedValue == null) {
+			return null;
+		}
+		return Arrays.stream((Object[]) converter.apply(removedValue, theState.getReflectionLookup())).toList();
+	}
+
+	/**
+	 * Resolves the array type of the item type of the collection a removal method returns. Complex associated data
+	 * holding several objects is stored as one complex data object whose root is an array, so it is read back as this
+	 * array type and only then turned into the returned collection. The item type is known only at runtime, which is
+	 * why the callers hand the array type over to the converter as a raw class.
+	 *
+	 * @param proxyClass the proxy class resolving the generic return type of the method
+	 * @param method     the removal method returning a collection
+	 * @return the array type of the collection item type
+	 */
+	@Nonnull
+	private static Class<?> getCollectionItemArrayType(@Nonnull Class<?> proxyClass, @Nonnull Method method) {
+		return GenericsUtils.getGenericTypeFromCollection(proxyClass, method.getGenericReturnType()).arrayType();
 	}
 
 	/**
@@ -483,10 +520,14 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull String associatedDataName,
 		@Nonnull BiFunction<Serializable, ReflectionLookup, Serializable> converter
 	) {
-		return (proxy, theMethod, args, theState, invokeSuper) -> converter.apply(
-			removeLocalizedAssociatedDataAndReturnIt(associatedDataName, args, theState),
-			theState.getReflectionLookup()
-		);
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final Serializable removedValue =
+				removeLocalizedAssociatedDataAndReturnIt(associatedDataName, args, theState);
+			if (removedValue == null) {
+				return null;
+			}
+			return converter.apply(removedValue, theState.getReflectionLookup());
+		};
 	}
 
 	/**
@@ -584,6 +625,9 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final Object[] removedArray = (Object[]) removeAssociatedDataAndReturnIt(associatedDataName, theState);
+			if (removedArray == null) {
+				return null;
+			}
 			return Arrays.stream(removedArray).map(it -> converter.apply((Serializable) it, theState.getReflectionLookup())).toList();
 		};
 	}
@@ -600,15 +644,11 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull String associatedDataName,
 		@Nonnull BiFunction<Serializable, ReflectionLookup, Serializable> converter
 	) {
-		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ComplexDataObject removedValue =
-				(ComplexDataObject) removeAssociatedDataAndReturnIt(associatedDataName, theState);
-			if (removedValue == null) {
-				return null;
-			}
-			final Serializable result = converter.apply(removedValue, theState.getReflectionLookup());
-			return result.getClass().isArray() ? Arrays.stream((Object[]) result).toList() : List.of(result);
-		};
+		return (proxy, theMethod, args, theState, invokeSuper) -> toRemovedCollection(
+			(ComplexDataObject) removeAssociatedDataAndReturnIt(associatedDataName, theState),
+			converter,
+			theState
+		);
 	}
 
 	/**
@@ -623,10 +663,13 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull String associatedDataName,
 		@Nonnull BiFunction<Serializable, ReflectionLookup, Serializable> converter
 	) {
-		return (proxy, theMethod, args, theState, invokeSuper) -> converter.apply(
-			removeAssociatedDataAndReturnIt(associatedDataName, theState),
-			theState.getReflectionLookup()
-		);
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final Serializable removedValue = removeAssociatedDataAndReturnIt(associatedDataName, theState);
+			if (removedValue == null) {
+				return null;
+			}
+			return converter.apply(removedValue, theState.getReflectionLookup());
+		};
 	}
 
 	/**
@@ -700,9 +743,9 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 										//noinspection rawtypes
 										final Class expectedType = GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method);
 										if (ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
-											final Class<?> arrayType = GenericsUtils.getGenericTypeFromCollection(
-												proxyState.getProxyClass(), method.getGenericReturnType()
-											).arrayType();
+											final Class<?> arrayType = getCollectionItemArrayType(
+												proxyState.getProxyClass(), method
+											);
 											//noinspection unchecked
 											return removeLocalizedAssociatedDataWithComplexDataObjectCollectionResult(
 												associatedDataName,
@@ -785,9 +828,9 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 										//noinspection rawtypes
 										final Class expectedType = GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method);
 										if (ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
-											final Class<?> arrayType = GenericsUtils.getGenericTypeFromCollection(
-												proxyState.getProxyClass(), method.getGenericReturnType()
-											).arrayType();
+											final Class<?> arrayType = getCollectionItemArrayType(
+												proxyState.getProxyClass(), method
+											);
 											//noinspection unchecked
 											return removeAssociatedDataWithComplexDataObjectCollectionResult(
 												associatedDataName,

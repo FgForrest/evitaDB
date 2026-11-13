@@ -40,6 +40,7 @@ import io.evitadb.dataType.data.DataItemArray;
 import io.evitadb.dataType.data.DataItemMap;
 import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.dataType.exception.SerializationFailedException;
+import io.evitadb.utils.ReflectionLookup;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -653,23 +654,31 @@ class InitialAssociatedDataBuilderTest extends AbstractBuilderTest {
 		@Test
 		@DisplayName("should convert an array of complex objects to one complex data object")
 		void shouldConvertArrayOfComplexObjectsToOneComplexDataObject() {
-			final Serializable value = new InitialAssociatedDataBuilder(createSchemaWithEnglishLocale())
+			final AssociatedData associatedData = new InitialAssociatedDataBuilder(createSchemaWithEnglishLocale())
 				.setAssociatedData("dimensions", createDimensions())
-				.build()
-				.getAssociatedData("dimensions");
+				.build();
 
-			assertHoldsTwoItemArray(value);
+			assertHoldsTwoItemArray(associatedData.getAssociatedData("dimensions"));
+			assertArrayEquals(
+				createDimensions(),
+				associatedData.getAssociatedData("dimensions", Dimension[].class, ReflectionLookup.NO_CACHE_INSTANCE)
+			);
 		}
 
 		@Test
 		@DisplayName("should convert a localized array of complex objects to one complex data object")
 		void shouldConvertLocalizedArrayOfComplexObjectsToOneComplexDataObject() {
-			final Serializable value = new InitialAssociatedDataBuilder(createSchemaWithEnglishLocale())
+			final AssociatedData associatedData = new InitialAssociatedDataBuilder(createSchemaWithEnglishLocale())
 				.setAssociatedData("dimensions", Locale.ENGLISH, createDimensions())
-				.build()
-				.getAssociatedData("dimensions", Locale.ENGLISH);
+				.build();
 
-			assertHoldsTwoItemArray(value);
+			assertHoldsTwoItemArray(associatedData.getAssociatedData("dimensions", Locale.ENGLISH));
+			assertArrayEquals(
+				createDimensions(),
+				associatedData.getAssociatedData(
+					"dimensions", Locale.ENGLISH, Dimension[].class, ReflectionLookup.NO_CACHE_INSTANCE
+				)
+			);
 		}
 
 		@Test
