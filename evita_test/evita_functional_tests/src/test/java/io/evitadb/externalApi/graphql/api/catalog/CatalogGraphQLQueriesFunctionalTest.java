@@ -33,6 +33,10 @@ import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import javax.annotation.Nonnull;
+
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static io.evitadb.test.TestTags.GRAPHQL;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -47,6 +51,19 @@ import static io.evitadb.test.TestTags.QUERY;
 @Tag(EXTERNAL_API)
 @Tag(QUERY)
 public class CatalogGraphQLQueriesFunctionalTest extends GraphQLEndpointFunctionalTest {
+
+	/** Verifies the catalog data endpoint's allowed methods, excluding the automatic WebSocket CONNECT route. */
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should answer 405 with Allow for DELETE on the GraphQL data endpoint")
+	void shouldRejectUnsupportedDataMethod(@Nonnull GraphQLTester tester) {
+		given()
+			.relaxedHTTPSValidation()
+			.delete(tester.getBaseUrl() + "/" + TEST_CATALOG)
+			.then()
+			.statusCode(405)
+			.header("Allow", equalTo("OPTIONS, GET, POST"));
+	}
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)

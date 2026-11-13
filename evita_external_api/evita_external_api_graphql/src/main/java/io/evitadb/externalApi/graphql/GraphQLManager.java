@@ -236,7 +236,6 @@ public class GraphQLManager {
 				this.objectMapper
 			).build(this.graphQLConfig);
 
-			this.graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.DATA, dataApi);
 			final long dataApiInstanceBuildDuration = System.currentTimeMillis() - dataApiInstanceBuildStartTime;
 
 			// build schema API instance
@@ -252,7 +251,7 @@ public class GraphQLManager {
 				this.objectMapper
 			).build(this.graphQLConfig);
 
-			this.graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, schemaApi);
+			this.graphQLRouter.registerCatalogApi(catalogName, dataApi, schemaApi);
 			final long schemaApiInstanceBuildDuration = System.currentTimeMillis() - schemaApiInstanceBuildStartTime;
 
 			this.registeredCatalogs.add(catalogName);

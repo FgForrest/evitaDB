@@ -40,12 +40,11 @@ import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.http.RoutableWebSocket;
 import io.evitadb.externalApi.http.WebSocketHandler;
+import io.evitadb.externalApi.http.routing.EndpointRoutingService;
+import io.evitadb.externalApi.http.routing.PrefixRoutingService;
 import io.evitadb.externalApi.utils.UriPath;
-import io.evitadb.externalApi.utils.path.PathHandlingService;
-import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils.Property;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -57,7 +56,9 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * Custom HTTP router for GraphQL APIs.
+ * Custom HTTP router for GraphQL APIs. The system API and every catalog own one prefix bound to an immutable
+ * {@link EndpointRoutingService}; a catalog's DATA and SCHEMA APIs share its prefix and are published together.
+ * A catalog refresh swaps the `GraphQL` instance behind each API's reference without republishing any route.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
@@ -85,8 +86,10 @@ public class GraphQLRouter implements HttpService, WebSocketHandler {
 	 */
 	@Nonnull private final HeaderOptions headers;
 
-	private final PathHandlingService delegateRouter = new PathHandlingService();
+	/** One prefix for the system API and one per catalog, each bound to an immutable endpoint router. */
+	private final PrefixRoutingService delegateRouter = new PrefixRoutingService();
 	private boolean systemApiRegistered = false;
+	/** API references of every published catalog, used by instance refreshes and to remove the catalog's prefix. */
 	@Nonnull private final Map<String, RegisteredCatalog> registeredCatalogs = createConcurrentHashMap(20);
 
 	@Nonnull
@@ -110,7 +113,7 @@ public class GraphQLRouter implements HttpService, WebSocketHandler {
 			() -> new GraphQLInternalError("System API has been already registered.")
 		);
 
-		final RoutingHandlerService apiRouter = new RoutingHandlerService();
+		final EndpointRoutingService.Builder apiRouter = new EndpointRoutingService.Builder();
 		registerApi(
 			apiRouter,
 			new RegisteredApi(
@@ -119,28 +122,40 @@ public class GraphQLRouter implements HttpService, WebSocketHandler {
 				new AtomicReference<>(systemApi)
 			)
 		);
-		this.delegateRouter.addPrefixPath(SYSTEM_PATH.toString(), apiRouter);
+		this.delegateRouter.addPrefixPath(SYSTEM_PATH.toString(), apiRouter.build());
 
 		this.systemApiRegistered = true;
 	}
 
 	/**
-	 * Registers new endpoints for defined catalog.
+	 * Builds DATA and SCHEMA endpoints together and publishes the complete catalog router once, so no request can
+	 * reach one of the two APIs while the other is missing.
+	 *
+	 * @param catalogName name of the catalog, which is also its path prefix
+	 * @param dataApi     GraphQL instance serving the catalog's data API
+	 * @param schemaApi   GraphQL instance serving the catalog's schema API
+	 * @throws GraphQLInternalError when APIs of the catalog are already registered
 	 */
-	public void registerCatalogApi(@Nonnull String catalogName, @Nonnull GraphQLInstanceType instanceType, @Nonnull GraphQL api) {
-		final RegisteredCatalog registeredCatalog = this.registeredCatalogs.computeIfAbsent(catalogName, k -> {
-			final RoutingHandlerService apiRouter = new RoutingHandlerService();
-			this.delegateRouter.addPrefixPath(constructCatalogPath(catalogName).toString(), apiRouter);
-			return new RegisteredCatalog(apiRouter);
-		});
-
-		final RegisteredApi registeredDataApi = new RegisteredApi(
-			instanceType,
-			API_PATH_MAPPING.get(instanceType),
-			new AtomicReference<>(api)
+	public void registerCatalogApi(
+		@Nonnull String catalogName, @Nonnull GraphQL dataApi, @Nonnull GraphQL schemaApi
+	) {
+		Assert.isPremiseValid(
+			!this.registeredCatalogs.containsKey(catalogName),
+			() -> new GraphQLInternalError("Catalog APIs have been already registered for `" + catalogName + "`.")
 		);
-		registerApi(registeredCatalog.getApiRouter(), registeredDataApi);
-		registeredCatalog.setApi(instanceType, registeredDataApi);
+		final EndpointRoutingService.Builder apiRouter = new EndpointRoutingService.Builder();
+		final RegisteredApi registeredDataApi = new RegisteredApi(
+			GraphQLInstanceType.DATA, API_PATH_MAPPING.get(GraphQLInstanceType.DATA), new AtomicReference<>(dataApi)
+		);
+		final RegisteredApi registeredSchemaApi = new RegisteredApi(
+			GraphQLInstanceType.SCHEMA, API_PATH_MAPPING.get(GraphQLInstanceType.SCHEMA),
+			new AtomicReference<>(schemaApi)
+		);
+		registerApi(apiRouter, registeredDataApi);
+		registerApi(apiRouter, registeredSchemaApi);
+		final EndpointRoutingService catalogRouter = apiRouter.build();
+		this.delegateRouter.addPrefixPath(constructCatalogPath(catalogName).toString(), catalogRouter);
+		this.registeredCatalogs.put(catalogName, new RegisteredCatalog(registeredDataApi, registeredSchemaApi));
 	}
 
 	/**
@@ -168,7 +183,9 @@ public class GraphQLRouter implements HttpService, WebSocketHandler {
 	/**
 	 * Registers all needed endpoints for a single API into a passed router.
 	 */
-	private void registerApi(@Nonnull RoutingHandlerService apiRouter, @Nonnull RegisteredApi registeredApi) {
+	private void registerApi(
+		@Nonnull EndpointRoutingService.Builder apiRouter, @Nonnull RegisteredApi registeredApi
+	) {
 		final CorsEndpoint corsEndpoint = new CorsEndpoint(this.headers);
 		corsEndpoint.addMetadata(Set.of(HttpMethod.GET, HttpMethod.POST), true, true);
 
@@ -216,34 +233,25 @@ public class GraphQLRouter implements HttpService, WebSocketHandler {
 		return UriPath.of("/", catalogName);
 	}
 
-	@RequiredArgsConstructor
-	private static class RegisteredCatalog {
+	/**
+	 * Tracks the references refreshed independently of the immutable catalog router.
+	 *
+	 * @param data   DATA API whose GraphQL instance a refresh swaps
+	 * @param schema SCHEMA API whose GraphQL instance a refresh swaps
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private record RegisteredCatalog(@Nonnull RegisteredApi data, @Nonnull RegisteredApi schema) {
 
-		private static final Set<GraphQLInstanceType> ALLOWED_API_INSTANCES = Set.of(GraphQLInstanceType.DATA, GraphQLInstanceType.SCHEMA);
-
-		@Getter
-		private final RoutingHandlerService apiRouter;
-		private final Map<GraphQLInstanceType, RegisteredApi> apis = createHashMap(2);
-
-		public void setApi(@Nonnull GraphQLInstanceType instanceType, @Nonnull RegisteredApi api) {
-			Assert.isPremiseValid(
-				ALLOWED_API_INSTANCES.contains(instanceType),
-				() -> new GraphQLInternalError("API `" + instanceType.name() + "` is not allowed for catalog.")
-			);
-			Assert.isPremiseValid(
-				!this.apis.containsKey(instanceType),
-				() -> new GraphQLInternalError("`" + instanceType.name() + "` API has been already registered.")
-			);
-			this.apis.put(instanceType, api);
-		}
-
+		/** Returns the registered reference for an instance refresh; a catalog has no SYSTEM API. */
+		@Nonnull
 		public RegisteredApi getApi(@Nonnull GraphQLInstanceType instanceType) {
-			final RegisteredApi api = this.apis.get(instanceType);
-			Assert.isPremiseValid(
-				api != null,
-				() -> new GraphQLInternalError("API `" + instanceType.name() + "` has not been registered yet.")
-			);
-			return api;
+			return switch (instanceType) {
+				case DATA -> this.data;
+				case SCHEMA -> this.schema;
+				case SYSTEM -> throw new GraphQLInternalError(
+					"API `" + instanceType.name() + "` has not been registered yet."
+				);
+			};
 		}
 	}
 

@@ -160,10 +160,18 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 		tester.test(TEST_CATALOG)
-			.post("/PRODUCT/get")
+			.get("/PRODUCT/get")
 			.requestParam(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), archivedEntity.getPrimaryKey())
 			.executeAndThen()
 			.statusCode(404);
+
+		// POST is not registered on this lookup path, so method validation precedes the entity lookup.
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/get")
+			.requestParam(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), archivedEntity.getPrimaryKey())
+			.executeAndThen()
+			.statusCode(405)
+			.header("Allow", equalTo("OPTIONS, GET, PUT, DELETE"));
 	}
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
