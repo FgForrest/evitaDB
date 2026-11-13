@@ -58,6 +58,7 @@ module evita.external.api.graphql {
 	requires static lombok;
 
 	requires com.graphqljava;
+	requires com.github.benmanes.caffeine;
 	requires com.fasterxml.jackson.databind;
 	requires com.linecorp.armeria;
 	requires com.linecorp.armeria.graphql;

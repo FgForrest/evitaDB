@@ -131,6 +131,7 @@ api:
       tlsMode: ${api.endpoints.graphQL.tlsMode:null}
       keepAlive: ${api.endpoints.graphQL.keepAlive:null}
       parallelize: ${api.endpoints.graphQL.parallelize:true}
+      documentCacheSizeInBytes: ${api.endpoints.graphQL.documentCacheSizeInBytes:16MB}
       mTLS:
         enabled: ${api.endpoints.graphQL.mTLS.enabled:null}
         allowedClientCertificatePaths: ${api.endpoints.graphQL.mTLS.allowedClientCertificatesPaths:null}

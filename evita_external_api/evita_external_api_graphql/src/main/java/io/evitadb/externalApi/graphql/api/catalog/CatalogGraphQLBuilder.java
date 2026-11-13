@@ -31,6 +31,7 @@ import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
+import io.evitadb.externalApi.graphql.api.GraphQLDocumentCache;
 import io.evitadb.externalApi.graphql.api.tracing.OperationTracingInstrumentation;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
@@ -67,9 +68,13 @@ public class CatalogGraphQLBuilder implements GraphQLBuilder {
         );
         final EvitaDataFetcherExceptionHandler dataFetcherExceptionHandler = new EvitaDataFetcherExceptionHandler();
 
-        return GraphQL.newGraphQL(this.graphQLSchema)
+        final GraphQL.Builder builder = GraphQL.newGraphQL(this.graphQLSchema)
             .instrumentation(instrumentation)
-            .defaultDataFetcherExceptionHandler(dataFetcherExceptionHandler)
-            .build();
+            .defaultDataFetcherExceptionHandler(dataFetcherExceptionHandler);
+        // a new cache per instance - a schema change builds a new instance and thus discards the old documents
+        if (config.getDocumentCacheSizeInBytes() > 0) {
+            builder.preparsedDocumentProvider(new GraphQLDocumentCache(config.getDocumentCacheSizeInBytes()));
+        }
+        return builder.build();
     }
 }
