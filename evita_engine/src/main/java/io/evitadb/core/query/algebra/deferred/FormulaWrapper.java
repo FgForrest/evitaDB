@@ -116,22 +116,6 @@ public class FormulaWrapper implements BitmapSupplier {
 	}
 
 	@Override
-	public long getHash() {
-		return this.formula.getHash();
-	}
-
-	@Override
-	public long getTransactionalIdHash() {
-		return this.formula.getTransactionalIdHash();
-	}
-
-	@Nonnull
-	@Override
-	public long[] gatherTransactionalIds() {
-		return this.formula.gatherTransactionalIds();
-	}
-
-	@Override
 	public long getEstimatedCost() {
 		return this.formula.getEstimatedCost();
 	}

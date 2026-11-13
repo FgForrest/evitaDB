@@ -55,7 +55,7 @@ import java.util.List;
  */
 public class AndFormula extends AbstractBitmapCacheableFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 2754438812730972016L;
 	/**
@@ -66,13 +66,13 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 	private List<Formula> sortedFormulasByComplexity;
 
 	public AndFormula(@Nonnull Formula... innerFormulas) {
-		super(null, null);
+		super(null);
 		Assert.isTrue(innerFormulas.length > 1, "And formula has no sense with " + innerFormulas.length + " inner formulas!");
 		this.initFields(innerFormulas);
 	}
 
-	public AndFormula(long[] indexTransactionId, @Nonnull Bitmap... bitmaps) {
-		super(indexTransactionId, bitmaps);
+	public AndFormula(@Nonnull Bitmap... bitmaps) {
+		super(bitmaps);
 		Assert.isTrue(bitmaps.length > 1, "And formula has no sense with " + bitmaps.length + " inner bitmaps!");
 		this.initFields();
 	}

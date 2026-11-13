@@ -51,7 +51,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(QUERY)
 class AndFormulaTest {
 
-	private static final long[] INDEX_TRANSACTION_ID = {1L};
 
 	@Nested
 	@DisplayName("Computation correctness")
@@ -63,7 +62,6 @@ class AndFormulaTest {
 			assertArrayEquals(
 				new int[]{1, 4},
 				new AndFormula(
-					INDEX_TRANSACTION_ID,
 					new ArrayBitmap(1, 3, 4, 5, 8),
 					new ArrayBitmap(1, 2, 4, 8),
 					new ArrayBitmap(1, 2, 3, 4, 5)
@@ -92,7 +90,6 @@ class AndFormulaTest {
 			assertArrayEquals(
 				new int[0],
 				new AndFormula(
-					INDEX_TRANSACTION_ID,
 					new ArrayBitmap(1, 3, 5, 7, 9, 11),
 					new ArrayBitmap(3, 4, 5, 6, 7),
 					new ArrayBitmap(10, 11, 1)
@@ -107,7 +104,6 @@ class AndFormulaTest {
 			assertArrayEquals(
 				new int[0],
 				new AndFormula(
-					INDEX_TRANSACTION_ID,
 					new ArrayBitmap(),
 					new ArrayBitmap()
 				)
@@ -121,7 +117,6 @@ class AndFormulaTest {
 			assertArrayEquals(
 				new int[0],
 				new AndFormula(
-					INDEX_TRANSACTION_ID,
 					new ArrayBitmap(1, 3, 4, 5, 8),
 					new ArrayBitmap(),
 					new ArrayBitmap(1, 2, 3, 4, 5)
@@ -139,7 +134,6 @@ class AndFormulaTest {
 		@DisplayName("should return same instance on repeated compute calls")
 		void shouldReturnSameInstanceOnRepeatedCompute() {
 			final AndFormula formula = new AndFormula(
-				INDEX_TRANSACTION_ID,
 				new ArrayBitmap(1, 2, 3),
 				new ArrayBitmap(2, 3, 4)
 			);
@@ -173,7 +167,6 @@ class AndFormulaTest {
 		@DisplayName("should recompute equal result after clearMemory")
 		void shouldRecomputeEqualResultAfterClearMemory() {
 			final AndFormula formula = new AndFormula(
-				INDEX_TRANSACTION_ID,
 				new ArrayBitmap(1, 2, 3),
 				new ArrayBitmap(2, 3, 4)
 			);
@@ -277,49 +270,13 @@ class AndFormulaTest {
 			final Bitmap first = new BaseBitmap(1);
 			final Bitmap second = new BaseBitmap(2);
 
-			final FormulaKey key = new AndFormula(new long[]{1}, first, second).getKey();
-			final FormulaKey reordered = new AndFormula(new long[]{2}, second, first).getKey();
-			final FormulaKey repeated = new AndFormula(new long[]{1}, first, second, second).getKey();
+			final FormulaKey key = new AndFormula(first, second).getKey();
+			final FormulaKey reordered = new AndFormula(second, first).getKey();
+			final FormulaKey repeated = new AndFormula(first, second, second).getKey();
 
 			assertEquals(key, reordered);
 			assertNotEquals(key, repeated);
 			assertNotEquals(key.getHash64(), repeated.getHash64());
-		}
-	}
-
-	/** Pins the legacy structural hash, which the formula deduplicator still keys formulas on. */
-	@Nested
-	@DisplayName("Legacy hash consumed by the formula deduplicator")
-	class LegacyHashTest {
-
-		@Test
-		@DisplayName("should produce identical hash for identically-constructed formulas")
-		void shouldProduceIdenticalHashForIdenticalFormulas() {
-			final long hashA = createAndFormula(1, 2, 3, 4).getHash();
-			final long hashB = createAndFormula(1, 2, 3, 4).getHash();
-
-			assertEquals(hashA, hashB);
-		}
-
-		@Test
-		@DisplayName("should produce different hash for different children")
-		void shouldProduceDifferentHashForDifferentChildren() {
-			final long hashA = createAndFormula(1, 2, 3).getHash();
-			final long hashB = createAndFormula(4, 5, 6).getHash();
-
-			assertNotEquals(hashA, hashB);
-		}
-
-		@Test
-		@DisplayName("should produce same hash when children are reordered (order-insignificant)")
-		void shouldProduceSameHashWhenChildrenReordered() {
-			final ConstantFormula childA = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 2, 3)));
-			final ConstantFormula childB = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(4, 5, 6)));
-
-			final long hashAB = new AndFormula(childA, childB).getHash();
-			final long hashBA = new AndFormula(childB, childA).getHash();
-
-			assertEquals(hashAB, hashBA);
 		}
 	}
 
@@ -331,7 +288,6 @@ class AndFormulaTest {
 		@DisplayName("should return minimum cardinality across bitmaps")
 		void shouldReturnMinCardinalityForBitmaps() {
 			final AndFormula formula = new AndFormula(
-				INDEX_TRANSACTION_ID,
 				new ArrayBitmap(1, 2, 3, 4, 5),
 				new ArrayBitmap(2, 3),
 				new ArrayBitmap(1, 2, 3, 4)
@@ -360,7 +316,6 @@ class AndFormulaTest {
 		@DisplayName("should have non-negative estimated and actual cost with estimated being an upper bound")
 		void shouldHaveNonNegativeCostsWithEstimatedAsUpperBound() {
 			final AndFormula formula = new AndFormula(
-				INDEX_TRANSACTION_ID,
 				new ArrayBitmap(1, 2, 3, 4, 5),
 				new ArrayBitmap(2, 3, 4)
 			);

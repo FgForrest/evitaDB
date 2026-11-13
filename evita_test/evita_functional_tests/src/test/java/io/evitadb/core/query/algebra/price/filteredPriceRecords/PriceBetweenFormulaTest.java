@@ -268,48 +268,6 @@ class PriceBetweenFormulaTest {
 		}
 	}
 
-	/**
-	 * Preserves the hash contract used by the formula deduplicator.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Legacy hash stability")
-	class LegacyHashStabilityTest {
-
-		@Test
-		@DisplayName("should produce identical hash for two wrappers around identical children")
-		void shouldProduceIdenticalHashForTwoWrappersAroundIdenticalChildren() {
-			// stable hashing is what lets the formula cache recognise "two priceBetween wrappers around
-			// the same subtree" as equivalent — a drift here silently misses cache hits
-			final PriceBetweenFormula a = new PriceBetweenFormula(newInnerFormula());
-			final PriceBetweenFormula b = new PriceBetweenFormula(newInnerFormula());
-
-			assertEquals(a.getHash(), b.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce different hash for wrappers around different children")
-		void shouldProduceDifferentHashForWrappersAroundDifferentChildren() {
-			// hash must change when the child changes — otherwise sibling price-range picks would collide
-			final PriceBetweenFormula a = new PriceBetweenFormula(new ConstantFormula(new ArrayBitmap(1)));
-			final PriceBetweenFormula b = new PriceBetweenFormula(new ConstantFormula(new ArrayBitmap(2)));
-
-			assertNotEquals(a.getHash(), b.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce a hash distinct from the bare inner formula")
-		void shouldProduceHashDistinctFromBareInnerFormula() {
-			// the wrapper's own class ID must enter the hash — otherwise `priceBetween(x)` and `x` would
-			// cache-collide and the relaxer's type-based lookup would see a false carrier
-			final Formula inner = newInnerFormula();
-			final PriceBetweenFormula wrapper = new PriceBetweenFormula(inner);
-
-			assertNotEquals(inner.getHash(), wrapper.getHash());
-		}
-	}
-
 	@Nested
 	@DisplayName("String representation")
 	class ToStringTest {

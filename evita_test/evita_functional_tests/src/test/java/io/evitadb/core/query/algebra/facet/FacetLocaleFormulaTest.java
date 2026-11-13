@@ -204,29 +204,6 @@ class FacetLocaleFormulaTest {
 	}
 
 	@Nested
-	@DisplayName("Legacy: Hash")
-	class LegacyHashTest {
-
-		@Test
-		@DisplayName("should hash guards of different references differently")
-		void shouldDifferInHashWhenReferenceDiffers() {
-			final FacetLocaleFormula brand = new FacetLocaleFormula(REFERENCE_NAME, constant(1, 2), constant(2));
-			final FacetLocaleFormula store = new FacetLocaleFormula("store", constant(1, 2), constant(2));
-
-			assertNotEquals(brand.getHash(), store.getHash());
-		}
-
-		@Test
-		@DisplayName("should hash identically constructed guards equally")
-		void shouldEqualInHashWhenReferenceAndChildrenMatch() {
-			final FacetLocaleFormula first = new FacetLocaleFormula(REFERENCE_NAME, constant(1, 2), constant(2));
-			final FacetLocaleFormula second = new FacetLocaleFormula(REFERENCE_NAME, constant(1, 2), constant(2));
-
-			assertEquals(first.getHash(), second.getHash());
-		}
-	}
-
-	@Nested
 	@DisplayName("Owner condition projection")
 	class ProjectionTest {
 

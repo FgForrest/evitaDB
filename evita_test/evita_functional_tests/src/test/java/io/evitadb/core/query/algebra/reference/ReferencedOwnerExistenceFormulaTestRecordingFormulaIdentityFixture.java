@@ -52,11 +52,11 @@ public class ReferencedOwnerExistenceFormulaTestRecordingFormulaIdentityFixture
 		}
 		final Bitmap opaque = new BaseBitmap(values);
 		return Map.of("result", new ConstructionMode<>(
-			() -> new ReferencedOwnerExistenceFormulaTest.RecordingFormula(new BaseBitmap(1), new long[]{1}, 1, 1, 1),
+			() -> new ReferencedOwnerExistenceFormulaTest.RecordingFormula(new BaseBitmap(1), 1, 1),
 			Map.of("content", () -> new ReferencedOwnerExistenceFormulaTest.RecordingFormula(
-				new BaseBitmap(2), new long[]{1}, 1, 1, 1)),
+				new BaseBitmap(2), 1, 1)),
 			Map.of("large result", () -> new ReferencedOwnerExistenceFormulaTest.RecordingFormula(
-				opaque, new long[]{1}, 1, 1, 1)), Map.of(),
+				opaque, 1, 1)), Map.of(),
 			Map.of("inner formulas", new ClonePath<>(formula -> formula.getCloneWithInnerFormulas(), REJECTED)),
 			Set.of(), Set.of(), Set.of()));
 	}

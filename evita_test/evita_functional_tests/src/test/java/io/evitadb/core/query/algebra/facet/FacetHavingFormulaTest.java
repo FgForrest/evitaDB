@@ -80,7 +80,7 @@ class FacetHavingFormulaTest {
 	private static final Bitmap REFERENCE_BITMAP = new ArrayBitmap(10, 20, 30);
 	/**
 	 * Reference name passed to every wrapper under test — keeps construction sites short while still
-	 * exercising the active (non-{@code null}) branch of {@link FacetHavingFormula#includeAdditionalHash}.
+	 * exercising the active (non-{@code null}) bitmap operand.
 	 */
 	@Nonnull
 	private static final String REFERENCE_NAME = "brand";
@@ -270,43 +270,6 @@ class FacetHavingFormulaTest {
 			final FacetHavingFormula wrapper = new FacetHavingFormula(REFERENCE_NAME, inner);
 
 			assertNotEquals(inner.getKey(), wrapper.getKey());
-		}
-	}
-
-	@Nested
-	@DisplayName("Legacy: Hash stability")
-	class LegacyHashTest {
-
-		@Test
-		@DisplayName("should produce identical hash for two wrappers around identical children")
-		void shouldProduceIdenticalHashForTwoWrappersAroundIdenticalChildren() {
-			// stable hashing is what lets the formula cache recognise "two facetHaving wrappers around
-			// the same subtree" as equivalent — a drift here silently misses cache hits
-			final FacetHavingFormula a = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula());
-			final FacetHavingFormula b = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula());
-
-			assertEquals(a.getHash(), b.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce different hash for wrappers around different children")
-		void shouldProduceDifferentHashForWrappersAroundDifferentChildren() {
-			// hash must change when the child changes — otherwise sibling facet picks would collide
-			final FacetHavingFormula a = new FacetHavingFormula(REFERENCE_NAME, new ConstantFormula(new ArrayBitmap(1)));
-			final FacetHavingFormula b = new FacetHavingFormula(REFERENCE_NAME, new ConstantFormula(new ArrayBitmap(2)));
-
-			assertNotEquals(a.getHash(), b.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce a hash distinct from the bare inner formula")
-		void shouldProduceHashDistinctFromBareInnerFormula() {
-			// the wrapper's own class ID must enter the hash — otherwise `facetHaving(x)` and `x` would
-			// cache-collide and the relaxer's type-based lookup would see a false carrier
-			final Formula inner = newInnerFormula();
-			final FacetHavingFormula wrapper = new FacetHavingFormula(REFERENCE_NAME, inner);
-
-			assertNotEquals(inner.getHash(), wrapper.getHash());
 		}
 	}
 

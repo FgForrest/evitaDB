@@ -28,7 +28,6 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.index.bitmap.Bitmap;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -42,7 +41,7 @@ import javax.annotation.Nonnull;
  */
 public class SkipFormula extends AbstractFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -8329967861689590212L;
 	/**
@@ -96,11 +95,6 @@ public class SkipFormula extends AbstractFormula {
 	@Override
 	public String toString() {
 		return "SKIP";
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return 0L;
 	}
 
 	/** Returns the identity of a formula without inputs, so its class identifier alone forms the key. */

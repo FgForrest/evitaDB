@@ -696,90 +696,6 @@ class EntityPrimaryKeyRangeFormulaTest {
 	}
 
 	@Nested
-	@DisplayName("Legacy hash consumed by the formula deduplicator")
-	class LegacyHashTest {
-
-		@Test
-		@DisplayName("should produce identical hash for same range and superset")
-		void shouldProduceIdenticalHashForSameParameters() {
-			final long hashA = createFormula(5, 15, 1, 2, 3).getHash();
-			final long hashB = createFormula(5, 15, 1, 2, 3).getHash();
-
-			assertEquals(hashA, hashB);
-		}
-
-		@Test
-		@DisplayName("should produce different hash for different range")
-		void shouldProduceDifferentHashForDifferentRange() {
-			final long hashA = createFormula(1, 10, 1, 2, 3).getHash();
-			final long hashB = createFormula(5, 20, 1, 2, 3).getHash();
-
-			assertNotEquals(hashA, hashB);
-		}
-
-		@Test
-		@DisplayName("should produce different hash for different superset")
-		void shouldProduceDifferentHashForDifferentSuperset() {
-			final long hashA = createFormula(1, 10, 1, 2, 3).getHash();
-			final long hashB = createFormula(1, 10, 4, 5, 6).getHash();
-
-			assertNotEquals(hashA, hashB);
-		}
-
-		@Test
-		@DisplayName("should produce different hash when only from differs")
-		void shouldProduceDifferentHashWhenOnlyFromDiffers() {
-			final long hashA = createFormula(1, 10, 1, 5, 10).getHash();
-			final long hashB = createFormula(2, 10, 1, 5, 10).getHash();
-
-			assertNotEquals(hashA, hashB);
-		}
-
-		@Test
-		@DisplayName("should produce different hash when only to differs")
-		void shouldProduceDifferentHashWhenOnlyToDiffers() {
-			final long hashA = createFormula(1, 10, 1, 5, 10).getHash();
-			final long hashB = createFormula(1, 9, 1, 5, 10).getHash();
-
-			assertNotEquals(hashA, hashB);
-		}
-
-		@Test
-		@DisplayName("should produce different hash when bounds fold to the same linear combination")
-		void shouldProduceDifferentHashWhenBoundsFoldToSameLinearCombination() {
-			// `31 * from + to` is 131 for both ranges, so any hash that folds the bounds linearly
-			// makes the two indistinguishable - and over one child their transactional ids are
-			// equal as well, which leaves the hash as the only thing telling them apart
-			final ConstantFormula inner = new ConstantFormula(
-				new ArrayBitmap(new CompositeIntArray(1, 2, 69, 70, 100))
-			);
-			final EntityPrimaryKeyRangeFormula wide = new EntityPrimaryKeyRangeFormula(1, 100, inner);
-			final EntityPrimaryKeyRangeFormula narrow = new EntityPrimaryKeyRangeFormula(2, 69, inner);
-
-			assertEquals(wide.getTransactionalIdHash(), narrow.getTransactionalIdHash());
-			assertNotEquals(wide.getHash(), narrow.getHash());
-		}
-
-		@Test
-		@DisplayName("should preserve hash across compute + clearMemory cycle")
-		void shouldPreserveHashAfterClearMemory() {
-			// the hash is the formula's identity; if clearMemory accidentally invalidated the memoised
-			// hash as well, the same formula would carry a different identity before and after the reset
-			final EntityPrimaryKeyRangeFormula formula = createFormula(
-				5, 15,
-				1, 5, 10, 15, 20
-			);
-
-			final long hashBefore = formula.getHash();
-			formula.compute();
-			formula.clearMemory();
-			final long hashAfter = formula.getHash();
-
-			assertEquals(hashBefore, hashAfter);
-		}
-	}
-
-	@Nested
 	@DisplayName("Memoization")
 	class MemoizationTest {
 
@@ -824,7 +740,6 @@ class EntityPrimaryKeyRangeFormulaTest {
 			assertNotSame(first, second);
 			assertArrayEquals(first.getArray(), second.getArray());
 		}
-
 
 	}
 

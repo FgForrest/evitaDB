@@ -214,70 +214,6 @@ class PlainPriceTerminationFormulaTest {
 		}
 	}
 
-	/**
-	 * Preserves the hash contract used by the formula deduplicator.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Legacy hash determinism and sensitivity")
-	class LegacyHashTest {
-
-		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticalFormulas() {
-			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
-			final PriceEvaluationContext context = createPriceEvaluationContext("basic", CZK);
-
-			final PlainPriceTerminationFormula formula1 = new PlainPriceTerminationFormula(inner, context);
-			final PlainPriceTerminationFormula formula2 = new PlainPriceTerminationFormula(inner, context);
-
-			assertEquals(formula1.getHash(), formula2.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce different hash for different evaluation context")
-		void shouldProduceDifferentHashForDifferentEvaluationContext() {
-			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
-			final PlainPriceTerminationFormula formula1 = new PlainPriceTerminationFormula(
-				inner, createPriceEvaluationContext("basic", CZK)
-			);
-			final PlainPriceTerminationFormula formula2 = new PlainPriceTerminationFormula(
-				inner, createPriceEvaluationContext("vip", CZK)
-			);
-
-			assertNotEquals(formula1.getHash(), formula2.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce different hash for different currency")
-		void shouldProduceDifferentHashForDifferentCurrency() {
-			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
-			final PlainPriceTerminationFormula formula1 = new PlainPriceTerminationFormula(
-				inner, createPriceEvaluationContext("basic", CZK)
-			);
-			final PlainPriceTerminationFormula formula2 = new PlainPriceTerminationFormula(
-				inner, createPriceEvaluationContext("basic", EUR)
-			);
-
-			assertNotEquals(formula1.getHash(), formula2.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce different hash for different inner formulas")
-		void shouldProduceDifferentHashForDifferentInnerFormulas() {
-			final PriceEvaluationContext context = createPriceEvaluationContext("basic", CZK);
-			final PlainPriceTerminationFormula formula1 = new PlainPriceTerminationFormula(
-				new ConstantFormula(new ArrayBitmap(1, 2, 3)), context
-			);
-			final PlainPriceTerminationFormula formula2 = new PlainPriceTerminationFormula(
-				new ConstantFormula(new ArrayBitmap(4, 5, 6)), context
-			);
-
-			assertNotEquals(formula1.getHash(), formula2.getHash());
-		}
-	}
-
 	@Nested
 	@DisplayName("Cardinality and cost")
 	class CardinalityAndCostTest {
@@ -388,35 +324,6 @@ class PlainPriceTerminationFormulaTest {
 			null,
 			new PriceIndexKey(priceList, currency, PriceInnerRecordHandling.NONE)
 		);
-	}
-	/**
-	 * Preserves legacy hash assertions for cloning and side-output configuration.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Legacy hash cloning and configuration")
-	class LegacyHashCloneTest {
-		@Test
-		@DisplayName("should preserve evaluation context when cloning with new inner formula")
-		void shouldPreserveEvaluationContextWhenCloning() {
-			final PriceEvaluationContext context = createPriceEvaluationContext("vip", EUR);
-			final ConstantFormula originalInner = new ConstantFormula(new ArrayBitmap(1, 2));
-			final PlainPriceTerminationFormula original = new PlainPriceTerminationFormula(
-				originalInner, context
-			);
-
-			final ConstantFormula newInner = new ConstantFormula(new ArrayBitmap(10, 20, 30));
-			final Formula clone = original.getCloneWithInnerFormulas(newInner);
-
-			assertInstanceOf(PlainPriceTerminationFormula.class, clone);
-			final PlainPriceTerminationFormula typedClone = (PlainPriceTerminationFormula) clone;
-			assertEquals(
-				new PlainPriceTerminationFormula(newInner, context).getHash(),
-				typedClone.getHash()
-			);
-			assertArrayEquals(new int[]{10, 20, 30}, typedClone.compute().getArray());
-		}
 	}
 
 }

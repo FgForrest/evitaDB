@@ -116,7 +116,7 @@ public class SubstringEagerFoldBenchmark {
 			state.getPattern(), state.getExactPredicate()
 		);
 		// `match` cannot decline here - the state's setup refused the trial otherwise - so the fold is always reached
-		final Formula folded = state.getSharedValueTree().toFormula(matched, state.getVersionIds());
+		final Formula folded = state.getSharedValueTree().toFormula(matched);
 		blackhole.consume(folded.compute());
 	}
 

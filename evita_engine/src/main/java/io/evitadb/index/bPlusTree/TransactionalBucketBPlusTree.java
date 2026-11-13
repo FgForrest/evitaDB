@@ -23,7 +23,6 @@
 
 package io.evitadb.index.bPlusTree;
 
-
 import com.carrotsearch.hppc.LongLongHashMap;
 import com.carrotsearch.hppc.LongObjectHashMap;
 import io.evitadb.api.exception.IdentifierOverflowException;
@@ -69,7 +68,6 @@ import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.IntSupplier;
-import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 
@@ -1488,39 +1486,25 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * Resolves `valueId`, tests the value it names, and returns that bucket's record set on a match - from ONE
-	 * resolution of the location, where the chain this replaces resolved it three times.
+	 * Resolves a candidate value id, tests its stored value and returns the matching bucket's record set.
+	 * The directory lookup and slot validation use the same resolved leaf. An id naming no live bucket returns
+	 * `null`. The operation refuses an open transaction because the directory describes published tree state.
 	 *
-	 * `valueOf(int)` and {@link #leafVersionOf(int)} are byte-for-byte the same probe up to their final expression,
-	 * and {@link #getRecordsEqualTo} then discards the slot both of them found in order to re-find it by a
-	 * root-to-leaf descent plus a leaf-local binary search over front-coded keys. The leaf's columns are
-	 * slot-parallel, so the single probe below answers all three questions off the slot it has already validated -
-	 * which is what {@link SingleLeafBucketCursor} does at one index on the scan path.
+	 * A null predicate means every nominated value is known to match, so its key need not be decoded. When the
+	 * key column supports UTF-8 matching, a supplied byte pattern replaces the predicate and must express the same
+	 * containment test. Other columns use the predicate.
 	 *
-	 * The fusion also removes a disagreement rather than merely a cost: chained, the second probe could observe a
-	 * directory rebuild the first one missed and resolve the same id to a different leaf. Here there is one probe,
-	 * so the value, the version token and the record set necessarily describe the same bucket.
-	 *
-	 * @param valueId             the candidate id to resolve
-	 * @param valuePredicate      the exact test applied to the value the id names, or `null` when the caller already
-	 *                            knows every id it passes matches - in which case the key is never read off the slot
-	 *                            at all, which on a front-coded column saves a walk back to a restart point and a
-	 *                            `String` allocation per candidate. It is NOT consulted where `containsPatternUtf8`
-	 *                            applies, which REPLACES it rather than pre-filtering for it
-	 * @param containsPatternUtf8 the containment pattern's UTF-8 bytes, answering the same question `valuePredicate`
-	 *                            does but off the stored bytes, or `null` to always take the predicate. Used only
-	 *                            where the key column reports {@link ValueColumn#supportsUtf8Matching()}; every other
-	 *                            column falls back to the predicate, which is why the predicate remains required
-	 * @param leafVersionSink     receives the matched bucket's leaf version token, and is not called otherwise
-	 * @return the matched bucket's record set, or `null` when the id names nothing live or the value was rejected
+	 * @param valueId the candidate id to resolve
+	 * @param valuePredicate exact value test, or `null` when every nominated value is known to match
+	 * @param containsPatternUtf8 UTF-8 containment pattern, or `null` to use the predicate
+	 * @return matching record set, or `null` for a missing or rejected candidate
 	 */
 	@Nullable
 	@Override
 	public Bitmap recordsOfMatchingValueId(
 		int valueId,
 		@Nullable Predicate<K> valuePredicate,
-		@Nullable byte[] containsPatternUtf8,
-		@Nonnull LongConsumer leafVersionSink
+		@Nullable byte[] containsPatternUtf8
 	) {
 		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
 		// the obligation `valueOf(int)` documents, stated as a premise here because this method - unlike that one -
@@ -1549,7 +1533,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 		final int slot = (int) (location & SLOT_MASK);
 		// slot validation, key test and record read all live in the leaf, because EVERY slot-dependent read must
-		// happen before either piece of caller-supplied code runs and each accessor would otherwise resolve the
+		// happen before the caller-supplied predicate runs and each accessor would otherwise resolve the
 		// transactional layer again - three lookups per candidate, inside the loop this probe exists to make cheap.
 		// See `BPlusLeafTreeNode#recordsOfValidatedValueIdSlot` for why the order within it is a contract rather than
 		// tidiness
@@ -1557,9 +1541,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		if (records == null) {
 			return null;
 		}
-		// reported for MATCHES only: a candidate that fails the predicate contributes no record set, so its leaf is
-		// not a page the answer depends on and must not widen the staleness token set
-		leafVersionSink.accept(leaf.getId());
 		return records;
 	}
 
@@ -2686,7 +2667,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final Object bucketRecords =
 				this.overflow == null ? null : this.overflow.recordsAt(this.currentIndex);
 			if (bucketRecords != null) {
-				return OverflowRecords.asBitmapView(bucketRecords, this.leafId);
+				return OverflowRecords.asBitmapView(bucketRecords);
 			}
 			return new SingleRecordBitmap(this.records.intAt(this.currentIndex));
 		}
@@ -6247,7 +6228,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final int index = insertionPosition.position();
 			final Object bucketRecords = theOverflow == null ? null : theOverflow.recordsAt(index);
 			if (bucketRecords != null) {
-				return OverflowRecords.asBitmapView(bucketRecords, this.id);
+				return OverflowRecords.asBitmapView(bucketRecords);
 			}
 			return new SingleRecordBitmap(theRecords.intAt(index));
 		}
@@ -6275,7 +6256,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final OverflowColumn theOverflow = layer == null ? this.overflow : layer.overflow;
 			final Object bucketRecords = theOverflow == null ? null : theOverflow.recordsAt(slot);
 			if (bucketRecords != null) {
-				return OverflowRecords.asBitmapView(bucketRecords, this.id);
+				return OverflowRecords.asBitmapView(bucketRecords);
 			}
 			return new SingleRecordBitmap(theRecords.intAt(slot));
 		}
@@ -6293,7 +6274,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 *
 		 * ## Read order is part of the contract
 		 *
-		 * Every slot-dependent read happens BEFORE either piece of caller-supplied code runs, exactly as the tree
+		 * Every slot-dependent read happens BEFORE the caller-supplied predicate runs, exactly as the tree
 		 * method it was lifted from documents: reading the records after the predicate would let a predicate that
 		 * inserts a lower key into this very leaf slide the parallel columns along and hand back a NEIGHBOURING
 		 * bucket's records.
@@ -6344,7 +6325,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final M value = matchBytes || valuePredicate == null ? null : theKeys.keyAt(slot);
 			final Object bucketRecords = theOverflow == null ? null : theOverflow.recordsAt(slot);
 			final Bitmap records = bucketRecords != null
-				? OverflowRecords.asBitmapView(bucketRecords, this.id) : new SingleRecordBitmap(theRecords.intAt(slot));
+				? OverflowRecords.asBitmapView(bucketRecords) : new SingleRecordBitmap(theRecords.intAt(slot));
 			if (matchBytes) {
 				// safe to run AFTER the reads above, unlike `valuePredicate`: this is the column's own code and cannot
 				// mutate the tree, so it cannot shift the slot the reads have already resolved
@@ -7816,7 +7797,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final Object bucketRecords =
 				this.leafOverflow == null ? null : this.leafOverflow.recordsAt(this.currentIndex);
 			if (bucketRecords != null) {
-				return OverflowRecords.asBitmapView(bucketRecords, this.leafId);
+				return OverflowRecords.asBitmapView(bucketRecords);
 			}
 			return new SingleRecordBitmap(this.leafRecords.intAt(this.currentIndex));
 		}
@@ -8009,7 +7990,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final Object bucketRecords =
 				this.leafOverflow == null ? null : this.leafOverflow.recordsAt(this.currentIndex);
 			if (bucketRecords != null) {
-				return OverflowRecords.asBitmapView(bucketRecords, this.leafId);
+				return OverflowRecords.asBitmapView(bucketRecords);
 			}
 			return new SingleRecordBitmap(this.leafRecords.intAt(this.currentIndex));
 		}

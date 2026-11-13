@@ -29,12 +29,10 @@ import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,7 +44,7 @@ import javax.annotation.Nullable;
  */
 public class ConstantFormula extends AbstractFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 2713157071360876502L;
 	/**
@@ -101,23 +99,6 @@ public class ConstantFormula extends AbstractFormula {
 		this.initFields();
 	}
 
-	/**
-	 * The staleness token set of this formula: the delegate's transactional id when it owns one, its CONTENT hash
-	 * otherwise.
-	 *
-	 * The content fallback matters because a delegate without a transactional identity is now ordinary rather than
-	 * exotic - a single-record bucket view and a sorted-array bucket view are both read-only projections created per
-	 * read, so neither can carry an id. Returning an empty set for those left a cacheable answer with no staleness
-	 * dependency at all, which is to say a cached result that no write could ever invalidate. The cache compares the
-	 * HASH of this set rather than resolving individual ids, so a content hash serves the purpose, and it mirrors what
-	 * {@link #includeAdditionalHash} has always done for the same delegate.
-	 */
-	@Nonnull
-	@Override
-	public long[] gatherBitmapIdsInternal() {
-		return new long[]{bitmapIdentityToken(this.delegate, HASH_FUNCTION)};
-	}
-
 	@Override
 	public long getEstimatedCostInternal() {
 		return this.delegate.size();
@@ -129,14 +110,6 @@ public class ConstantFormula extends AbstractFormula {
 			this.memoizedCardinality = this.delegate.size();
 		}
 		return this.memoizedCardinality;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// the same token the staleness set is built from - see AbstractFormula#bitmapIdentityToken. The walk a
-		// content hash costs is `O(size)`, which is why index memos hand out the same bitmap instance every time:
-		// `BaseBitmap#getContentHash` memoizes it, so only the first formula pays
-		return bitmapIdentityToken(this.delegate, hashFunction);
 	}
 
 	/** Returns the detached identity of the bitmap operand. */

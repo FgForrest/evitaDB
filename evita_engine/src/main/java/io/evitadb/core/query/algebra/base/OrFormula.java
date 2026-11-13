@@ -56,18 +56,18 @@ import javax.annotation.Nullable;
  */
 public class OrFormula extends AbstractBitmapCacheableFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -7493244674442362190L;
 
 	public OrFormula(@Nonnull Formula... innerFormulas) {
-		super(null, null);
+		super(null);
 		Assert.isTrue(innerFormulas.length > 1, "Or formula has no sense with " + innerFormulas.length + " inner formulas!");
 		this.initFields(innerFormulas);
 	}
 
-	public OrFormula(long[] indexTransactionId, @Nonnull Bitmap... bitmaps) {
-		super(indexTransactionId, bitmaps);
+	public OrFormula(@Nonnull Bitmap... bitmaps) {
+		super(bitmaps);
 		Assert.isTrue(bitmaps.length > 1, "Or formula has no sense with " + bitmaps.length + " inner bitmaps!");
 		this.initFields();
 	}

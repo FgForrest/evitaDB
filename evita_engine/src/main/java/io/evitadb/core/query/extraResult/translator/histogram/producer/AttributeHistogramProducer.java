@@ -291,11 +291,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 		} else if (histogramBitmaps.length == 1) {
 			histogramBitmapsFormula = new ConstantFormula(histogramBitmaps[0]);
 		} else {
-			final long[] indexTransactionIds = request.attributeIndexes()
-				.stream()
-				.mapToLong(FilterIndex::getId)
-				.toArray();
-			histogramBitmapsFormula = new OrFormula(indexTransactionIds, histogramBitmaps);
+			histogramBitmapsFormula = new OrFormula(histogramBitmaps);
 		}
 		final AndFormula finalFormula = new AndFormula(
 			histogramBitmapsFormula,

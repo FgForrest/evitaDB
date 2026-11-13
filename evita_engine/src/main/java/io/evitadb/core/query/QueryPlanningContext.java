@@ -245,11 +245,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull private final Map<Integer, Index<?>> indexesByPk;
 	/**
-	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified
-	 * by its {@link Formula#getHash()} method and when the supervisor identifies that certain
-	 * formula is frequently used in query formulas it moves its memoized results to the cache. The non-computed formula
-	 * of the same hash will be exchanged in next query that contains it with the cached formula that already contains
-	 * memoized result.
+	 * Supervisor for query cache lifecycle and memory management.
 	 */
 	@Getter
 	@Nonnull private final CacheSupervisor cacheSupervisor;
@@ -419,7 +415,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * resolution and never shared with another context, so it never outlives the index snapshots this context reads.
 	 */
 	@Nullable private PartitionKeyMemo partitionKeyMemo;
-
 
 	/**
 	 * Creates the context of a **top level** query - the one that produces the response handed back to the client.
@@ -2237,7 +2232,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			return primaryKey;
 		}
 	}
-
 
 	/**
 	 * Publishes the hierarchy translator's memoized node formula for one scope. The formula is already initialized

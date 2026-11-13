@@ -29,7 +29,6 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -85,7 +84,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.function.ObjIntConsumer;
 import java.util.function.Predicate;
 
@@ -190,7 +188,7 @@ public class InvertedIndex implements
 		} else if (bitmaps.length == 1) {
 			return new ConstantFormula(bitmaps[0]);
 		} else {
-			return new OrFormula(indexTransactionIds, bitmaps);
+			return new OrFormula(bitmaps);
 		}
 	};
 	/**
@@ -2144,23 +2142,19 @@ public class InvertedIndex implements
 	 * buckets - the allocation-lean equivalent of the former `getSortedRecordsMatching(predicate).getFormula()` path.
 	 *
 	 * @param valuePredicate tests each (already-normalized) bucket value; a bucket is included when it returns true
-	 * @return OR formula of the matched buckets' record ids, seeded with the leaf-version token set of the leaves the
-	 * matched buckets live in so the formula cache keys on the pages actually read
+	 * @return OR formula of the matched buckets' record ids
 	 */
 	@Nonnull
 	public Formula getRecordsMatchingFormula(@Nonnull Predicate<Serializable> valuePredicate) {
 		final List<Bitmap> bitmaps = new ArrayList<>(64);
-		final LeafVersionAccumulator leafVersions = new LeafVersionAccumulator();
 		final BucketCursor cursor = this.buckets.cursor();
 		while (cursor.next()) {
 			if (valuePredicate.test((Serializable) cursor.value())) {
-				// record the leaf of each matched bucket so the folded formula keys on the leaves it actually read
-				leafVersions.accept(cursor.currentLeafId());
 				// read the record set straight off the cursor - no ValueToRecord flyweight is materialized
 				bitmaps.add(cursor.records());
 			}
 		}
-		return toSortedOrFormula(bitmaps, leafVersions.toTokenSet());
+		return toSortedOrFormula(bitmaps);
 	}
 
 	/**
@@ -2170,19 +2164,13 @@ public class InvertedIndex implements
 	 *
 	 * Where the scan visits every bucket in key order, this visits only the buckets a candidate generator nominated,
 	 * in whatever order it nominated them. Each candidate costs ONE `O(1)` directory probe, whether it matches or not:
-	 * {@link IntRecordBucketTree#recordsOfMatchingValueId} answers the value, the leaf version token and the record set
+	 * {@link IntRecordBucketTree#recordsOfMatchingValueId} answers the value and the record set
 	 * off the single slot that probe resolves, so a match no longer pays a second probe and a root-to-leaf descent to
 	 * re-find a bucket already located. Candidates that resolve to nothing live
 	 * are SKIPPED rather than refused: the trigram postings are keyed by value id and a value can die between the
 	 * posting being read and this verification running, which is an ordinary race rather than a divergence.
 	 *
-	 * ## Buckets, not a formula
-	 *
-	 * This deliberately stops at the matched buckets rather than folding them into a {@link Formula}. What the answer
-	 * is folded into — an eagerly materialized disjunction, or a lazily evaluated one — is the CALLER's decision, and
-	 * the two shapes want different things: an eager caller consumes {@link MatchedBuckets#leafVersionIds()} as its
-	 * staleness set, while a lazy one cannot (the leaves are only known once verification has already run, which is
-	 * the very thing it defers) and ignores them.
+	 * The caller chooses how to combine the verified buckets' record sets into a result.
 	 *
 	 * ## Committed state only
 	 *
@@ -2195,8 +2183,7 @@ public class InvertedIndex implements
 	 * @param valuePredicate    tests each candidate's (already-normalized) value, or `null` when the caller has
 	 *                          established that EVERY candidate matches and no value need be decoded to prove it; a
 	 *                          bucket is included when the predicate accepts the value its id names
-	 * @return the matched buckets' record sets in candidate order, with the leaf-version token set of the leaves
-	 * those buckets live in
+	 * @return the matched buckets' record sets in candidate order
 	 * @throws GenericEvitaInternalError when a transaction is open on the current thread
 	 */
 	@Nonnull
@@ -2228,7 +2215,7 @@ public class InvertedIndex implements
 	 * @param valuePredicate      tests each candidate's (already-normalized) value, or `null` when every candidate is
 	 *                            known to match - which requires `containsPatternUtf8` to be `null` too
 	 * @param containsPatternUtf8 the containment pattern's UTF-8 bytes, or `null` to always take the predicate
-	 * @return the matched buckets' record sets in candidate order, with the leaf-version token set of their leaves
+	 * @return the matched buckets' record sets in candidate order
 	 * @throws GenericEvitaInternalError when a transaction is open on the current thread
 	 */
 	@Nonnull
@@ -2261,10 +2248,9 @@ public class InvertedIndex implements
 				"trigram index, so they belong to the global index's shared value tree and must be verified there. " +
 				"Answering EMPTY here would silently narrow the result instead of reporting the mis-wiring."
 		);
-		final LeafVersionAccumulator leafVersions = new LeafVersionAccumulator();
 		if (this.valueIdAllocator == null) {
 			// no candidates and no ids: nothing to verify and nothing to mis-answer, so the empty answer is honest
-			return new MatchedBuckets(MatchedBuckets.NO_RECORD_SETS, leafVersions.toTokenSet());
+			return new MatchedBuckets(MatchedBuckets.NO_RECORD_SETS);
 		}
 		// catch up the warm-up path's writes, exactly as `getValueById` does and for the same reason - the premise
 		// above has already established there is no transaction on this thread
@@ -2280,68 +2266,33 @@ public class InvertedIndex implements
 			// cheap test but to skip DECODING the key that would be handed to it
 			final Predicate<Comparable> matches = valuePredicate == null ?
 				null : value -> valuePredicate.test((Serializable) value);
-			final LongConsumer leafVersionSink = leafVersions::acceptUnordered;
 			for (int i = 0; i < candidateCount; i++) {
 				// ONE resolution of the bucket's location answers all three questions this loop used to ask
 				// separately - what value the id names, which leaf page the answer depends on, and what records the
-				// bucket holds. The leaf token still reaches the accumulator for MATCHES only; see the tree method
+				// bucket holds. The probe returns records only for matching candidates.
 				final Bitmap records = this.buckets.recordsOfMatchingValueId(
-					candidateValueIds[i], matches, containsPatternUtf8, leafVersionSink
+					candidateValueIds[i], matches, containsPatternUtf8
 				);
 				if (records != null) {
 					bitmaps.add(records);
 				}
 			}
 		}
-		return new MatchedBuckets(bitmaps.toArray(MatchedBuckets.NO_RECORD_SETS), leafVersions.toTokenSet());
+		return new MatchedBuckets(bitmaps.toArray(MatchedBuckets.NO_RECORD_SETS));
 	}
 
-	/**
-	 * Folds matched buckets into the natural ascending disjunction of their record ids — the EAGER assembly of
-	 * {@link #getRecordsOfValueIdsMatching}'s answer, and the only part of the substring path that presupposes eager
-	 * evaluation.
-	 *
-	 * `extraVersionIds` carries the staleness tokens of the structures the candidate set itself was derived from — the
-	 * trigram index's own id — which the leaf tokens cannot express: a write that changed which values a pattern's
-	 * postings nominate need not have touched any leaf this answer read.
-	 *
-	 * ## Why the result carries no search-term discriminator, and when that would change
-	 *
-	 * Because selection is EAGER, the formula is content-addressed: its hash is derived from the matched record sets,
-	 * which *are* the answer. Two searches that hash equal therefore compute the same bitmap, so `contains("ab")` and
-	 * `endsWith("ab")` sharing a cache entry is correct rather than a collision, and no search-term or constraint-kind
-	 * discriminator is needed. That argument rests entirely on eagerness. Deferring selection would hash the QUESTION
-	 * instead — see {@link io.evitadb.index.hierarchy.suppliers.HierarchyByParentBitmapSupplier}, the model for a
-	 * {@link io.evitadb.core.query.algebra.deferred.BitmapSupplier} behind
-	 * {@link io.evitadb.core.query.algebra.deferred.DeferredFormula}, with
-	 * {@link io.evitadb.index.trigram.PatternPostings#candidateUpperBound} serving as its cheap cost estimate — and a
-	 * discriminator would become mandatory. Deferring also costs invalidation granularity: the verified leaves are
-	 * unknown until verification has run, so the staleness set collapses to whole-index ids, which is the difference
-	 * between that supplier and {@link io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier}.
-	 *
-	 * @param matched         the verified buckets
-	 * @param extraVersionIds staleness tokens to fold in beside the leaf tokens
-	 * @return the disjunction over the matched buckets' record ids
-	 */
+	/** Returns the ascending disjunction of the verified buckets' record ids. */
 	@Nonnull
-	public Formula toFormula(@Nonnull MatchedBuckets matched, @Nonnull long[] extraVersionIds) {
-		final long[] leafVersionIds = matched.leafVersionIds();
-		final long[] tokenSet = new long[leafVersionIds.length + extraVersionIds.length];
-		System.arraycopy(leafVersionIds, 0, tokenSet, 0, leafVersionIds.length);
-		System.arraycopy(extraVersionIds, 0, tokenSet, leafVersionIds.length, extraVersionIds.length);
-		Arrays.sort(tokenSet);
-		return toSortedOrFormula(Arrays.asList(matched.recordSets()), tokenSet);
+	public Formula toFormula(@Nonnull MatchedBuckets matched) {
+		return toSortedOrFormula(Arrays.asList(matched.recordSets()));
 	}
 
 	/**
-	 * The buckets one candidate-verification pass matched, paired with the staleness tokens of the leaf pages they
-	 * live in.
+	 * The buckets one candidate-verification pass matched.
 	 *
 	 * @param recordSets     the matched buckets' record sets, in the order the candidates were nominated
-	 * @param leafVersionIds the canonical (sorted, deduplicated) leaf-version token set of those buckets' leaves,
-	 *                       collapsed to the single whole-index id when the leaf cap overflowed or nothing matched
 	 */
-	public record MatchedBuckets(@Nonnull Bitmap[] recordSets, @Nonnull long[] leafVersionIds) {
+	public record MatchedBuckets(@Nonnull Bitmap[] recordSets) {
 
 		/**
 		 * Shared empty record-set array, for the answers that matched nothing.
@@ -2395,21 +2346,19 @@ public class InvertedIndex implements
 	 * Folds the collected record-set bitmaps into a single disjunction that orders its record ids by natural ascending
 	 * value - the same shape the {@link #SORTED_AGGREGATION_LAMBDA} produces: an empty list yields
 	 * {@link EmptyFormula#INSTANCE}, a single bitmap a bare {@link ConstantFormula}, and several bitmaps an
-	 * {@link OrFormula} seeded with the leaf-version token set so the formula cache keys on the leaf pages the match
-	 * actually read (collapsing to the whole-index id past the leaf cap - see {@link LeafVersionAccumulator}).
+	 * {@link OrFormula} over the matched bitmap operands.
 	 *
 	 * @param bitmaps        the matched buckets' record-set bitmaps, in ascending bucket-value order
-	 * @param leafVersionIds the canonical leaf-version token set of the leaves the matched buckets live in
 	 * @return the disjunction formula over the bitmaps
 	 */
 	@Nonnull
-	private Formula toSortedOrFormula(@Nonnull List<Bitmap> bitmaps, @Nonnull long[] leafVersionIds) {
+	private static Formula toSortedOrFormula(@Nonnull List<Bitmap> bitmaps) {
 		if (bitmaps.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		} else if (bitmaps.size() == 1) {
 			return new ConstantFormula(bitmaps.getFirst());
 		} else {
-			return new OrFormula(leafVersionIds, bitmaps.toArray(Bitmap[]::new));
+			return new OrFormula(bitmaps.toArray(Bitmap[]::new));
 		}
 	}
 
@@ -2957,17 +2906,16 @@ public class InvertedIndex implements
 
 	/**
 	 * Accumulates the distinct version ids of the leaf pages a slice/scan crosses, in ascending traversal order, and
-	 * caps the set at {@link TransactionalDataRelatedStructure#EXCESSIVE_HIGH_CARDINALITY} leaves. A forward
+	 * caps the set at 100 leaves. A forward
 	 * {@link BucketCursor} visits every bucket of a leaf consecutively, so accepting an id only when it differs from the
 	 * previous one (a consecutive-dedup) yields the distinct leaf set without a hash set. {@link #toTokenSet()} folds
 	 * the gathered ids into the canonical staleness token, collapsing to the single whole-index id when the cap
 	 * overflowed or no leaf was crossed (an empty slice, whose formula never reads the token).
-	 *
-	 * A reverse-lookup consumer meets its leaves in no particular order and so cannot use the consecutive-dedup - see
-	 * {@link #acceptUnordered(long)}, which pays a bounded linear probe for the same result.
 	 */
 	private final class LeafVersionAccumulator {
-		private final long[] leafIds = new long[TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY];
+		/** Maximum number of leaf versions retained by a histogram slice. */
+		private static final int EXCESSIVE_HIGH_CARDINALITY = 100;
+		private final long[] leafIds = new long[EXCESSIVE_HIGH_CARDINALITY];
 		private int leafCount;
 		private boolean overflow;
 		private long lastLeafId;
@@ -2986,37 +2934,6 @@ public class InvertedIndex implements
 			}
 			this.lastLeafId = leafId;
 			this.haveLast = true;
-			if (this.leafCount == this.leafIds.length) {
-				this.overflow = true;
-			} else {
-				this.leafIds[this.leafCount++] = leafId;
-			}
-		}
-
-		/**
-		 * Records a leaf version id met in ARBITRARY order - what a reverse lookup produces, since value ids are
-		 * allocation-ordered and say nothing about which leaf their bucket ended up in.
-		 *
-		 * The consecutive-dedup {@link #accept(long)} relies on is kept as the cheap first test (runs of ids from one
-		 * leaf are common enough to be worth it), backed by a linear probe over what has been gathered so far. That
-		 * probe is bounded by {@link TransactionalDataRelatedStructure#EXCESSIVE_HIGH_CARDINALITY} entries and stops
-		 * growing the instant the cap overflows, which is what keeps a large match set from paying a quadratic dedup:
-		 * once the collection has overflowed, every further call returns on the first branch.
-		 *
-		 * @param leafId the matched bucket's leaf version id, or {@code 0} when the id resolved to nothing live
-		 */
-		void acceptUnordered(long leafId) {
-			if (this.overflow || leafId == TransactionalBucketBPlusTree.NO_LEAF_VERSION
-				|| (this.haveLast && leafId == this.lastLeafId)) {
-				return;
-			}
-			this.lastLeafId = leafId;
-			this.haveLast = true;
-			for (int i = 0; i < this.leafCount; i++) {
-				if (this.leafIds[i] == leafId) {
-					return;
-				}
-			}
 			if (this.leafCount == this.leafIds.length) {
 				this.overflow = true;
 			} else {

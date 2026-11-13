@@ -31,7 +31,6 @@ import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.util.function.Supplier;
@@ -45,7 +44,7 @@ import java.util.function.Supplier;
  */
 public class DeferredFormula extends AbstractFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 8831456737770154017L;
 	/**
@@ -95,22 +94,6 @@ public class DeferredFormula extends AbstractFormula {
 	@Override
 	public int getEstimatedCardinality() {
 		return this.retrieveLambda.getEstimatedCardinality();
-	}
-
-	@Nonnull
-	@Override
-	public long[] gatherBitmapIdsInternal() {
-		return this.retrieveLambda.gatherTransactionalIds();
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			new long[] {
-				CLASS_ID,
-				this.retrieveLambda.getHash()
-			}
-		);
 	}
 
 	@Override

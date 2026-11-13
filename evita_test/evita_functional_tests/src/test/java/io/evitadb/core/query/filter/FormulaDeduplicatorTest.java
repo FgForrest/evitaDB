@@ -21,7 +21,6 @@
  *   limitations under the License.
  */
 
-
 package io.evitadb.core.query.filter;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -42,7 +41,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
-import net.openhft.hashing.LongHashFunction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -90,8 +88,6 @@ class FormulaDeduplicatorTest {
 		final Formula archivedNodes = archivedTree.getListHierarchyNodesFromRootFormula();
 		final Formula union = new OrFormula(liveNodes, archivedNodes);
 		// the premise that makes the test non-vacuous: a hash-only identity would merge the two
-		assertEquals(liveNodes.getHash(), archivedNodes.getHash(), "both trees must yield the same computation");
-		assertNotEquals(liveNodes.getTransactionalIdHash(), archivedNodes.getTransactionalIdHash());
 		assertNotEquals(liveNodes.getKey(), archivedNodes.getKey());
 
 		final Formula deduplicated = deduplicate(union);
@@ -587,11 +583,6 @@ class FormulaDeduplicatorTest {
 			return computeConjunctionResult(
 				computeSortedConjunctionBitmaps(sortFormulasByComplexity(this.innerFormulas))
 			);
-		}
-
-		@Override
-		protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-			return CLASS_ID;
 		}
 
 		@Override

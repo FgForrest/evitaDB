@@ -65,20 +65,20 @@ public class ReferencedOwnerExistenceFormulaIdentityFixture
 			content[i] = i;
 		}
 		final Formula opaqueOwner = new ConstantFormula(new BaseBitmap(content));
-		final Formula oversizedOwner = new OrFormula(new long[]{1}, repeatedBitmaps());
+		final Formula oversizedOwner = new OrFormula(repeatedBitmaps());
 		return Map.of(
 			"value owners", new ConstructionMode<>(
-				() -> create(new int[]{10, 20}, owners, 1),
-				Map.of("owners", () -> create(new int[]{10, 21}, owners, 1),
-					"association", () -> create(new int[]{10, 20}, swapped, 1)),
-				Map.of(), Map.of("large side key", () -> create(new int[]{10}, new Formula[]{oversizedOwner}, 1)),
+				() -> create(new int[]{10, 20}, owners),
+				Map.of("owners", () -> create(new int[]{10, 21}, owners),
+					"association", () -> create(new int[]{10, 20}, swapped)),
+				Map.of(), Map.of("large side key", () -> create(new int[]{10}, new Formula[]{oversizedOwner})),
 				Map.of("equal child", new ClonePath<>(formula ->
 					formula.getCloneWithInnerFormulas(formula.getInnerFormulas()), EQUAL),
 					"no children", new ClonePath<>(formula -> formula.getCloneWithInnerFormulas(), UNEQUAL)),
 				Set.of(), Set.of("ownerPrimaryKeys"), Set.of()),
 			"opaque owners", new ConstructionMode<>(null, Map.of(),
-				Map.of("large owner keys", () -> create(largeOwners, largeFormulas, 1),
-					"opaque side key", () -> create(new int[]{10}, new Formula[]{opaqueOwner}, 1)), Map.of(),
+				Map.of("large owner keys", () -> create(largeOwners, largeFormulas),
+					"opaque side key", () -> create(new int[]{10}, new Formula[]{opaqueOwner})), Map.of(),
 				Map.of("equal child", new ClonePath<>(formula ->
 					formula.getCloneWithInnerFormulas(formula.getInnerFormulas()), UNEQUAL),
 					"no children", new ClonePath<>(formula -> formula.getCloneWithInnerFormulas(), UNEQUAL)),
@@ -94,9 +94,8 @@ public class ReferencedOwnerExistenceFormulaIdentityFixture
 	/** Builds an owner association with a fixed narrowing child. */
 	@Nonnull
 	private static ReferencedOwnerExistenceFormula create(
-		@Nonnull int[] owners, @Nonnull Formula[] formulas, long indexId
-	) {
-		return new ReferencedOwnerExistenceFormula(owners, formulas, leaf(1), indexId);
+		@Nonnull int[] owners, @Nonnull Formula[] formulas) {
+		return new ReferencedOwnerExistenceFormula(owners, formulas, leaf(1));
 	}
 
 	/** Builds an exact operand list above the admission limit. */

@@ -1958,7 +1958,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 							.filter(holder -> targetEntityType == null || holder.type().equals(targetEntityType))
 							.map(
 								holder -> (Formula) new MultipleEntityFormula(
-									new long[]{globalUniqueIndex.getId()},
 									toPrimaryKeyOfTargetCollection(holder, targetEntityType)
 								)
 							)

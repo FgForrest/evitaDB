@@ -54,7 +54,7 @@ class MultipleEntityFormulaTest {
 	@DisplayName("Captures exact virtual reference content without retaining the bitmap")
 	void shouldCaptureDetachedExactReferenceContent() {
 		final BaseBitmap bitmap = new BaseBitmap(1, 2);
-		final MultipleEntityFormula formula = new MultipleEntityFormula(new long[]{1}, bitmap);
+		final MultipleEntityFormula formula = new MultipleEntityFormula(bitmap);
 		final MultipleEntityFormula.Identity identity =
 			assertInstanceOf(MultipleEntityFormula.Identity.class, formula.identity());
 		assertInstanceOf(IdentityToken.Exact.class, identity.directEntityReferences());
@@ -63,8 +63,8 @@ class MultipleEntityFormulaTest {
 		bitmap.add(3);
 
 		assertEquals(captured, FormulaKey.of(identity, formula.getClassId(), FormulaKey.NO_CHILDREN, formula));
-		assertEquals(captured, new MultipleEntityFormula(new long[]{2}, new BaseBitmap(1, 2)).getKey());
-		assertNotEquals(captured, new MultipleEntityFormula(new long[]{1}, new BaseBitmap(1, 2, 3)).getKey());
+		assertEquals(captured, new MultipleEntityFormula(new BaseBitmap(1, 2)).getKey());
+		assertNotEquals(captured, new MultipleEntityFormula(new BaseBitmap(1, 2, 3)).getKey());
 	}
 
 	/** Virtual references have content identity even when their bitmap happens to have a producer version. */
@@ -73,8 +73,8 @@ class MultipleEntityFormulaTest {
 	void shouldUseExactContentForTransactionalReferenceBitmaps() {
 		final Bitmap first = new TransactionalBitmap(new BaseBitmap(1, 2));
 		final Bitmap second = new TransactionalBitmap(new BaseBitmap(1, 2));
-		final MultipleEntityFormula left = new MultipleEntityFormula(new long[]{1}, first);
-		final MultipleEntityFormula right = new MultipleEntityFormula(new long[]{2}, second);
+		final MultipleEntityFormula left = new MultipleEntityFormula(first);
+		final MultipleEntityFormula right = new MultipleEntityFormula(second);
 
 		assertEquals(left.getKey(), right.getKey());
 		assertEquals(left.getKey().getHash64(), right.getKey().getHash64());

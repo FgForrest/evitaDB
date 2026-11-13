@@ -56,7 +56,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.ToIntFunction;
-import java.util.stream.LongStream;
 
 /**
  * DTO that aggregates all data necessary for computing histogram for single attribute.
@@ -100,21 +99,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 */
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private final Long estimatedCost;
-	/**
-	 * Contains memoized value of {@link #getHash()} method.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private final Long hash;
-	/**
-	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private final long[] transactionalIds;
-	/**
-	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private final Long transactionalIdHash;
 	/**
 	 * Execution context from initialization phase.
 	 */
@@ -299,34 +283,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		this.behavior = behavior;
 		this.request = request;
 
-		this.hash = HASH_FUNCTION.hashLongs(
-			LongStream.concat(
-				LongStream.of(
-					bucketCount,
-					behavior.ordinal(),
-					filterFormula == null ? 0L : filterFormula.getHash()
-				),
-				LongStream.of(
-					request.attributeIndexes()
-						.stream()
-						.mapToLong(FilterIndex::getId)
-						.sorted()
-						.toArray()
-				)
-			).toArray()
-		);
-		this.transactionalIds = LongStream.concat(
-			filterFormula == null ? LongStream.empty() : LongStream.of(filterFormula.gatherTransactionalIds()),
-			request.attributeIndexes()
-				.stream()
-				.mapToLong(FilterIndex::getId)
-		).toArray();
-		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
-			Arrays.stream(this.transactionalIds)
-				.distinct()
-				.sorted()
-				.toArray()
-		);
 		this.estimatedCost = (filterFormula == null ? 0L : filterFormula.getEstimatedCost()) +
 			getAttributeIndexes()
 				.stream()
@@ -346,22 +302,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		if (this.filterFormula != null) {
 			this.filterFormula.initialize(executionContext);
 		}
-	}
-
-	@Override
-	public long getHash() {
-		return this.hash;
-	}
-
-	@Override
-	public long getTransactionalIdHash() {
-		return this.transactionalIdHash;
-	}
-
-	@Nonnull
-	@Override
-	public long[] gatherTransactionalIds() {
-		return this.transactionalIds;
 	}
 
 	@Override

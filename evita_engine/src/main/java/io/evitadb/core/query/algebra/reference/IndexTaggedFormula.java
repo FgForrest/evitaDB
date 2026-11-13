@@ -30,7 +30,6 @@ import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -58,7 +57,7 @@ import javax.annotation.Nonnull;
  */
 public class IndexTaggedFormula extends AbstractFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -1041915437753523562L;
 	/**
@@ -105,11 +104,6 @@ public class IndexTaggedFormula extends AbstractFormula {
 	@Override
 	public String toString() {
 		return "TAGGED BY INDEX " + this.indexPrimaryKey;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return this.indexPrimaryKey;
 	}
 
 	/** Captures the detached semantic inputs without evaluating the holder. */

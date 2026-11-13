@@ -59,7 +59,6 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
@@ -84,7 +83,7 @@ import java.util.function.ToIntFunction;
  */
 public class SumPriceTerminationFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 8387802561001219891L;
 	/**
@@ -180,7 +179,6 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		}
 		this.initFields(containerFormula);
 	}
-
 
 	@Nullable
 	@Override
@@ -374,16 +372,6 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			sum += this.innerFormulas[i].getEstimatedCardinality();
 		}
 		return sum;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			new long[]{
-				this.priceEvaluationContext.computeHash(hashFunction),
-				this.sellingPricePredicate.computeHash(hashFunction)
-			}
-		);
 	}
 
 	@Override

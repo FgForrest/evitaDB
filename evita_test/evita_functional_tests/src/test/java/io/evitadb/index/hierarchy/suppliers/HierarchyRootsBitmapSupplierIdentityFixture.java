@@ -60,14 +60,14 @@ public class HierarchyRootsBitmapSupplierIdentityFixture implements IdentityFixt
 		final HierarchyFilteringPredicate oversized = new FilteringFormulaHierarchyEntityPredicate(
 			"category", Set.of(Scope.LIVE), oversizedFormula());
 		return Map.of("hierarchy", new ConstructionMode<>(
-			() -> new HierarchyRootsBitmapSupplier(index, new long[]{1, 2},
+			() -> new HierarchyRootsBitmapSupplier(index,
 				basePredicate),
-			Map.of("predicate", () -> new HierarchyRootsBitmapSupplier(index, new long[]{1, 2},
+			Map.of("predicate", () -> new HierarchyRootsBitmapSupplier(index,
 				new MatchNodeIdHierarchyFilteringPredicate(2)),
-				"owner", () -> new HierarchyRootsBitmapSupplier(otherIndex, new long[]{1, 2},
+				"owner", () -> new HierarchyRootsBitmapSupplier(otherIndex,
 					basePredicate)),
-			Map.of("opaque predicate", () -> new HierarchyRootsBitmapSupplier(index, new long[]{1, 2}, opaque)),
-			Map.of("oversized predicate", () -> new HierarchyRootsBitmapSupplier(index, new long[]{1, 2}, oversized)),
+			Map.of("opaque predicate", () -> new HierarchyRootsBitmapSupplier(index, opaque)),
+			Map.of("oversized predicate", () -> new HierarchyRootsBitmapSupplier(index, oversized)),
 			Map.of(), Set.of(), Set.of("hierarchyIndex"), Set.of()));
 	}
 }

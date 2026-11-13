@@ -34,7 +34,6 @@ import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -48,11 +47,6 @@ import javax.annotation.Nonnull;
 public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBitmapSupplier {
 	private static final long CLASS_ID = 390851708L;
 	/**
-	 * Contains memoized value of {@link #getHash()} method.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private Long hash;
-	/**
 	 * Contains count of tree levels from the root should be returned (i.e. depth of the returned tree).
 	 */
 	private final int levels;
@@ -62,8 +56,12 @@ public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBi
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyRootsDownToLevelBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		super(hierarchyIndex, transactionalId);
+	public HierarchyRootsDownToLevelBitmapSupplier(
+		@Nonnull HierarchyIndex hierarchyIndex,
+		int levels,
+		@Nonnull HierarchyFilteringPredicate excludedNodeTrees
+	) {
+		super(hierarchyIndex);
 		this.levels = levels;
 		this.excludedNodeTrees = excludedNodeTrees;
 		this.initFields();
@@ -73,16 +71,6 @@ public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBi
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 		this.excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
 		super.initialize(executionContext);
-	}
-
-	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			new long[]{
-				hashFunction.hashInts(new int[]{(int) CLASS_ID, this.levels}),
-				this.excludedNodeTrees.getHash()
-			}
-		);
 	}
 
 	@Nonnull
@@ -101,7 +89,6 @@ public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBi
 	public String toString() {
 		return "HIERARCHY FOR ROOTS " + this.excludedNodeTrees + " DOWN TO " + this.levels;
 	}
-
 
 	/** Returns detached inputs without computing the bitmap. */
 	@Nonnull

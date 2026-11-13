@@ -34,7 +34,6 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexProvidingFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -104,11 +103,6 @@ public class MockInnerRecordIdsFormula extends AbstractFormula implements PriceI
 	@Override
 	protected Bitmap computeInternal() {
 		return this.innerRecordIds;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
 	}
 
 	@Override

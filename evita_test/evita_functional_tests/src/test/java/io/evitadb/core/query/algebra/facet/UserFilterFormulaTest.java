@@ -235,52 +235,6 @@ class UserFilterFormulaTest {
 	}
 
 	@Nested
-	@DisplayName("Legacy: Hash determinism and sensitivity")
-	class LegacyHashTest {
-
-		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticallyConstructedFormulas() {
-			final UserFilterFormula formulaA = new UserFilterFormula(
-				new ConstantFormula(new ArrayBitmap(10, 20)),
-				new ConstantFormula(new ArrayBitmap(30, 40))
-			);
-			final UserFilterFormula formulaB = new UserFilterFormula(
-				new ConstantFormula(new ArrayBitmap(10, 20)),
-				new ConstantFormula(new ArrayBitmap(30, 40))
-			);
-
-			assertEquals(formulaA.getHash(), formulaB.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce different hash for different inner formulas")
-		void shouldProduceDifferentHashForDifferentInnerFormulas() {
-			final UserFilterFormula formulaA = new UserFilterFormula(
-				new ConstantFormula(new ArrayBitmap(10, 20))
-			);
-			final UserFilterFormula formulaB = new UserFilterFormula(
-				new ConstantFormula(new ArrayBitmap(30, 40))
-			);
-
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce same hash regardless of child order")
-		void shouldProduceSameHashRegardlessOfChildOrder() {
-			final ConstantFormula childA = new ConstantFormula(new ArrayBitmap(10, 20));
-			final ConstantFormula childB = new ConstantFormula(new ArrayBitmap(30, 40));
-
-			final UserFilterFormula formulaAB = new UserFilterFormula(childA, childB);
-			final UserFilterFormula formulaBA = new UserFilterFormula(childB, childA);
-
-			// AbstractFormula sorts inner formula hashes by default (isFormulaOrderSignificant returns false)
-			assertEquals(formulaAB.getHash(), formulaBA.getHash());
-		}
-	}
-
-	@Nested
 	@DisplayName("Cardinality estimate")
 	class CardinalityEstimateTest {
 

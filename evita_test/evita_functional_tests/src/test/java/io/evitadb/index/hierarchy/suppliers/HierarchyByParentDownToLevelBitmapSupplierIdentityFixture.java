@@ -61,20 +61,18 @@ public class HierarchyByParentDownToLevelBitmapSupplierIdentityFixture
 		final HierarchyFilteringPredicate oversized = new FilteringFormulaHierarchyEntityPredicate(
 			"category", Set.of(Scope.LIVE), oversizedFormula());
 		return Map.of("hierarchy", new ConstructionMode<>(
-			() -> new HierarchyByParentDownToLevelBitmapSupplier(index, new long[]{1, 2}, 1, 1,
+			() -> new HierarchyByParentDownToLevelBitmapSupplier(index, 1, 1,
 				basePredicate),
-			Map.of("parentNode", () -> new HierarchyByParentDownToLevelBitmapSupplier(index, new long[]{1, 2},
+			Map.of("parentNode", () -> new HierarchyByParentDownToLevelBitmapSupplier(index,
 				2, 1, basePredicate),
-				"levels", () -> new HierarchyByParentDownToLevelBitmapSupplier(index, new long[]{1, 2}, 1, 2,
+				"levels", () -> new HierarchyByParentDownToLevelBitmapSupplier(index, 1, 2,
 					basePredicate),
-				"predicate", () -> new HierarchyByParentDownToLevelBitmapSupplier(index, new long[]{1, 2}, 1, 1,
+				"predicate", () -> new HierarchyByParentDownToLevelBitmapSupplier(index, 1, 1,
 					new MatchNodeIdHierarchyFilteringPredicate(2)),
-				"owner", () -> new HierarchyByParentDownToLevelBitmapSupplier(otherIndex, new long[]{1, 2}, 1,
+				"owner", () -> new HierarchyByParentDownToLevelBitmapSupplier(otherIndex, 1,
 					1, basePredicate)),
-			Map.of("opaque predicate", () -> new HierarchyByParentDownToLevelBitmapSupplier(index, new long[]{1,
-				2}, 1, 1, opaque)),
-			Map.of("oversized predicate", () -> new HierarchyByParentDownToLevelBitmapSupplier(index,
-				new long[]{1, 2}, 1, 1, oversized)),
+			Map.of("opaque predicate", () -> new HierarchyByParentDownToLevelBitmapSupplier(index, 1, 1, opaque)),
+			Map.of("oversized predicate", () -> new HierarchyByParentDownToLevelBitmapSupplier(index, 1, 1, oversized)),
 			Map.of(), Set.of(), Set.of("hierarchyIndex"), Set.of()));
 	}
 }

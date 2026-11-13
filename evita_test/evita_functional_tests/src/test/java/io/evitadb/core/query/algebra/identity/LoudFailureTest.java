@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.identity;
 
-import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -31,7 +30,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.identity.*;
-import net.openhft.hashing.LongHashFunction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -77,15 +75,6 @@ class LoudFailureTest {
 		assertEquals("Identity class identifier differs from its holder's identifier.", error.getMessage());
 	}
 
-	/** Proves the throwing default identifies the holder whose declaration is missing. */
-	@Test
-	@DisplayName("Names a holder without an identity in the runtime failure")
-	void shouldNameUndeclaredIdentity() {
-		final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class,
-			() -> new UndeclaredIdentityFormula().getKey());
-		assertTrue(error.getMessage().contains(UndeclaredIdentityFormula.class.getName()), error.getMessage());
-	}
-
 	/** Builds a fresh exact child without shared state. */
 	@Nonnull
 	private static ConstantFormula leaf(int value) {
@@ -98,7 +87,7 @@ class LoudFailureTest {
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	private static final class InheritedComputationFormula extends AndFormula {
-		/** Supplies valid children so the legacy initialization completes. */
+		/** Supplies the operands for the inherited conjunction. */
 		private InheritedComputationFormula() {
 			super(leaf(1), leaf(2));
 		}
@@ -132,56 +121,4 @@ class LoudFailureTest {
 		}
 	}
 
-	/**
-	 * Deliberately leaves the abstract formula's throwing identity declaration in place.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	private static final class UndeclaredIdentityFormula extends AbstractFormula {
-		/** Stable legacy identifier, with no matching identity record. */
-		private static final long CLASS_ID = 156754680071222022L;
-
-		/** Initializes a leaf without an identity declaration. */
-		private UndeclaredIdentityFormula() {
-			this.initFields();
-		}
-
-		/** Returns the legacy identifier required by the abstract formula contract. */
-		@Override
-		protected long getClassId() {
-			return CLASS_ID;
-		}
-
-		/** Contributes no additional legacy hash inputs. */
-		@Override
-		protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-			return 0L;
-		}
-
-		/** Produces one constant record. */
-		@Nonnull
-		@Override
-		protected Bitmap computeInternal() {
-			return new BaseBitmap(1);
-		}
-
-		/** Reports one record. */
-		@Override
-		public int getEstimatedCardinality() {
-			return 1;
-		}
-
-		/** Reports the unit cost of returning a constant. */
-		@Override
-		public long getOperationCost() {
-			return 1L;
-		}
-
-		/** Rejects replacing the children of a leaf. */
-		@Nonnull
-		@Override
-		public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
-			throw new UnsupportedOperationException("Leaf has no children.");
-		}
-	}
 }

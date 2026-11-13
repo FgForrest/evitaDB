@@ -55,10 +55,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Guards the one invariant `getClassId()` cannot enforce for itself: **no two classes may return the same
  * `CLASS_ID`**.
  *
- * The constant is folded into the structural hash as `hashArray[0]`, so two classes sharing a value become
- * indistinguishable by their hash whenever the rest of their hash inputs agree -
- * and the symptom is a cache hit returning another formula's bitmap, which no read-time check would notice.
- * Nothing about a single declaration reveals the clash; only comparing all of them does.
+ * The constant discriminates the holder type in its detached key. Comparing declarations across the source
+ * inventory catches accidental copies of the discriminator.
  *
  * The scan reads **sources** rather than loading classes: the invariant is a source convention, a source hit
  * names the file to fix, and no class loading, module opening or reflective access is involved. New constants
@@ -84,10 +82,9 @@ class FormulaClassIdUniquenessTest implements EvitaTestSupport {
 	/**
 	 * Floor on the number of declarations the walk must find. Without it a scan that resolved the wrong root
 	 * would find nothing, report no duplicates and pass - proving the opposite of what it claims. The repository
-	 * held 45 declarations when this was written; the floor sits below that with room for classes to come and go,
-	 * and only has to be high enough that an empty or truncated walk fails.
+	 * contains at least 87 declarations across production holders and test fixtures.
 	 */
-	private static final int MINIMAL_EXPECTED_DECLARATIONS = 30;
+	private static final int MINIMAL_EXPECTED_DECLARATIONS = 87;
 
 	@DisplayName("No two classes declare the same CLASS_ID")
 	@Test

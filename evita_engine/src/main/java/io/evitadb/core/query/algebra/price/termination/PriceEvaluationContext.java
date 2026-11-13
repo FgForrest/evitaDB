@@ -27,7 +27,6 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -99,16 +98,4 @@ public record PriceEvaluationContext(
 			));
 	}
 
-	/**
-	 * Method computes unique hash for this particular instance, this hash has much better collision rate than common
-	 * {@link #hashCode()} and is targeted to be used in cache key.
-	 */
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		final long[] hashes = new long[1 + this.targetPriceIndexes.size()];
-		hashes[0] = this.validIn;
-		for (int i = 0; i < this.targetPriceIndexes.size(); i++) {
-			hashes[i + 1] = hashFunction.hashChars(this.targetPriceIndexes.get(i).toString());
-		}
-		return hashFunction.hashLongs(hashes);
-	}
 }

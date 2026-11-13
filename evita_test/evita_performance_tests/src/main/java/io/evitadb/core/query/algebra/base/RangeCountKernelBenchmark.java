@@ -92,10 +92,6 @@ import java.util.concurrent.TimeUnit;
 public class RangeCountKernelBenchmark {
 
 	/**
-	 * Arbitrary index id; never affects the computed result.
-	 */
-	private static final long INDEX_ID = 42L;
-	/**
 	 * Operands in the production shape the census measured on a real e-commerce catalog.
 	 */
 	private static final int PRODUCTION_OPERANDS = 7602;
@@ -155,7 +151,7 @@ public class RangeCountKernelBenchmark {
 	 */
 	@Benchmark
 	public Bitmap rangeCountFormula(Operands operands) {
-		return new RangeCountFormula(INDEX_ID, operands.plus, operands.minus).compute();
+		return new RangeCountFormula(operands.plus, operands.minus).compute();
 	}
 
 	/**
@@ -216,7 +212,7 @@ public class RangeCountKernelBenchmark {
 	 */
 	@Benchmark
 	public Object rangeCountPlanOnly(Operands operands) {
-		return new RangeCountFormula(INDEX_ID, operands.plus, operands.minus);
+		return new RangeCountFormula(operands.plus, operands.minus);
 	}
 
 	/**
@@ -314,10 +310,7 @@ public class RangeCountKernelBenchmark {
 				for (final Integer value : values) {
 					array[index++] = value;
 				}
-				// MUST be a TransactionalBitmap, not a BaseBitmap: JoinFormula.includeAdditionalHash takes the
-				// cheap getId() path only for a TransactionalLayerProducer and otherwise falls back to hashing
-				// getArray() of every operand - a path production never takes, and one that would have made the
-				// baseline arm look far slower than it is
+
 				family[i] = new TransactionalBitmap(array);
 			}
 			return family;

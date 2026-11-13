@@ -24,7 +24,6 @@
 package io.evitadb.index.hierarchy.predicate;
 
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
@@ -43,27 +42,15 @@ public class MatchNodeIdHierarchyFilteringPredicate implements HierarchyFilterin
 	@Serial private static final long serialVersionUID = -785434923550857430L;
 	/** Stable discriminator of the detached predicate identity. */
 	private static final long CLASS_ID = -4695978231447111610L;
-	/** Integer discriminator used by the legacy hash computation. */
-	private static final int LEGACY_CLASS_ID = -550857430;
 	private final int matchNodeId;
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private final Long hash;
 
 	public MatchNodeIdHierarchyFilteringPredicate(int matchNodeId) {
 		this.matchNodeId = matchNodeId;
-		this.hash = TransactionalDataRelatedStructure.HASH_FUNCTION.hashInts(
-			new int[]{LEGACY_CLASS_ID, matchNodeId}
-		);
 	}
 
 	@Override
 	public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
 		// do nothing
-	}
-
-	@Override
-	public long getHash() {
-		return this.hash;
 	}
 
 	@Override

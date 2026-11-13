@@ -174,25 +174,6 @@ class PriceIndexContainerFormulaTest {
 	}
 
 	/**
-	 * Preserves the hash contract used by the formula deduplicator.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Legacy hash determinism")
-	class LegacyHashDeterminismTest {
-
-		@Test
-		@DisplayName("should produce identical hash for identical construction")
-		void shouldProduceIdenticalHashForIdenticalConstruction() {
-			final PriceIndexContainerFormula a = createFormula("basic", CZK, 1, 2, 3);
-			final PriceIndexContainerFormula b = createFormula("basic", CZK, 1, 2, 3);
-
-			assertEquals(a.getHash(), b.getHash());
-		}
-	}
-
-	/**
 	 * Verifies detached computation identity.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -219,25 +200,6 @@ class PriceIndexContainerFormulaTest {
 			final PriceIndexContainerFormula b = createFormula("basic", CZK, 1, 2, 3);
 
 			assertNotEquals(a.getKey(), b.getKey());
-		}
-	}
-
-	/**
-	 * Preserves the hash contract used by the formula deduplicator.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Legacy hash sensitivity")
-	class LegacyHashSensitivityTest {
-
-		@Test
-		@DisplayName("should produce different hash for different inner data")
-		void shouldProduceDifferentHashForDifferentInnerData() {
-			final long hashA = createFormula("basic", CZK, 1, 2, 3).getHash();
-			final long hashB = createFormula("basic", CZK, 4, 5, 6).getHash();
-
-			assertNotEquals(hashA, hashB);
 		}
 	}
 

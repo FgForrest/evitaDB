@@ -29,7 +29,6 @@ import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -47,7 +46,7 @@ import javax.annotation.Nonnull;
  */
 public class HistogramHavingFormula extends AbstractFormula implements AttributeRangeCarrierFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 5381325896905773047L;
 	/**
@@ -88,11 +87,6 @@ public class HistogramHavingFormula extends AbstractFormula implements Attribute
 	protected long getEstimatedCostInternal() {
 		// pass-through wrapper — cost is whatever the child's cost is, with no additional term
 		return this.innerFormulas[0].getEstimatedCost();
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
 	}
 
 	/** Identifies the wrapper; its single child carries all computation inputs. */

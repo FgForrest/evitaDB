@@ -61,16 +61,16 @@ public class HierarchyForParentBitmapSupplierIdentityFixture
 		final HierarchyFilteringPredicate oversized = new FilteringFormulaHierarchyEntityPredicate(
 			"category", Set.of(Scope.LIVE), oversizedFormula());
 		return Map.of("hierarchy", new ConstructionMode<>(
-			() -> new HierarchyForParentBitmapSupplier(index, new long[]{1, 2}, 1,
+			() -> new HierarchyForParentBitmapSupplier(index, 1,
 				basePredicate),
-			Map.of("parentNode", () -> new HierarchyForParentBitmapSupplier(index, new long[]{1, 2}, 2,
+			Map.of("parentNode", () -> new HierarchyForParentBitmapSupplier(index, 2,
 				basePredicate),
-				"predicate", () -> new HierarchyForParentBitmapSupplier(index, new long[]{1, 2}, 1,
+				"predicate", () -> new HierarchyForParentBitmapSupplier(index, 1,
 					new MatchNodeIdHierarchyFilteringPredicate(2)),
-				"owner", () -> new HierarchyForParentBitmapSupplier(otherIndex, new long[]{1, 2}, 1,
+				"owner", () -> new HierarchyForParentBitmapSupplier(otherIndex, 1,
 					basePredicate)),
-			Map.of("opaque predicate", () -> new HierarchyForParentBitmapSupplier(index, new long[]{1, 2}, 1, opaque)),
-			Map.of("oversized predicate", () -> new HierarchyForParentBitmapSupplier(index, new long[]{1, 2}, 1,
+			Map.of("opaque predicate", () -> new HierarchyForParentBitmapSupplier(index, 1, opaque)),
+			Map.of("oversized predicate", () -> new HierarchyForParentBitmapSupplier(index, 1,
 				oversized)),
 			Map.of(), Set.of(), Set.of("hierarchyIndex"), Set.of()));
 	}

@@ -53,7 +53,7 @@ import javax.annotation.Nullable;
  */
 public class BetweenAttributeFormula extends AttributeFormula implements AttributeRangeCarrierFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 1781480529956715061L;
 

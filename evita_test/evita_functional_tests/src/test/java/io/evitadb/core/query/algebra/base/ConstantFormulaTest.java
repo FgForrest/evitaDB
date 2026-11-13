@@ -38,7 +38,6 @@ import org.junit.jupiter.api.Test;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -187,8 +186,6 @@ class ConstantFormulaTest {
 			assertSame(token, ((ConstantFormula.Identity) formula.identity()).delegateIdentity());
 			assertFalse(formula.getKey().isOpaque());
 			assertFalse(formula.getKey().isQueryLocal());
-			assertEquals(new ConstantFormula(bitmap).getHash(), formula.getHash());
-			assertArrayEquals(new ConstantFormula(bitmap).gatherTransactionalIds(), formula.gatherTransactionalIds());
 		}
 
 		/** Verifies ordinary bitmap identity is recomputed rather than retained by the formula. */
@@ -227,21 +224,6 @@ class ConstantFormulaTest {
 			assertNotEquals(
 				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getKey(),
 				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 9)).getKey()
-			);
-		}
-
-		/** Pins the legacy structural hash, which the formula deduplicator still keys formulas on. */
-		@Test
-		@DisplayName("should give equal contents the same legacy hash and differing contents different ones")
-		void shouldHashByDelegateContents() {
-			// a plain bitmap has no transactional id, so its contents are the legacy hash's only discriminator
-			assertEquals(
-				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getHash(),
-				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getHash()
-			);
-			assertNotEquals(
-				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getHash(),
-				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 9)).getHash()
 			);
 		}
 

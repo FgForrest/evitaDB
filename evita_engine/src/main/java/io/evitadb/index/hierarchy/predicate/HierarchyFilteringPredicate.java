@@ -26,14 +26,12 @@ package io.evitadb.index.hierarchy.predicate;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.utils.Assert;
 import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import lombok.Getter;
+
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.function.IntPredicate;
@@ -48,22 +46,16 @@ import java.util.function.Predicate;
  */
 public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, ExecutionContextRequiringPredicate {
 
-	/** Returns detached identity; holders without a declaration fail explicitly. */
+	/** Returns the detached identity. */
 	@Nonnull
-	default FormulaKey getKey() {
-		throw new GenericEvitaInternalError("Identity not declared: " + getClass().getName());
-	}
+	FormulaKey getKey();
 
-	/** Returns the declaring class identifier; undeclared holders fail explicitly. */
-	default long getClassId() {
-		throw new GenericEvitaInternalError("Identity not declared: " + getClass().getName());
-	}
+	/** Returns the declaring class identifier. */
+	long getClassId();
 
-	/** Returns declared identity components; undeclared holders fail explicitly. */
+	/** Returns the declared identity components. */
 	@Nonnull
-	default IdentityRecord identity() {
-		throw new GenericEvitaInternalError("Identity not declared: " + getClass().getName());
-	}
+	IdentityRecord identity();
 
 	HierarchyFilteringPredicate REJECT_ALL_NODES_PREDICATE = new HierarchyFilteringRejectAllPredicate();
 	HierarchyFilteringPredicate ACCEPT_ALL_NODES_PREDICATE = new HierarchyFilteringAcceptAllPredicate();
@@ -87,16 +79,11 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 	}
 
 	/**
-	 * Allows to compute the {@link #getHash()}. Must be called prior to {@link #getHash()} method
+	 * Initializes execution state required to evaluate this predicate.
 	 *
 	 * @param executionContext the context for the query execution
 	 */
 	void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext);
-
-	/**
-	 * Returns unique hash for this predicate.
-	 */
-	long getHash();
 
 	@Nonnull
 	@Override
@@ -124,30 +111,16 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		private final HierarchyFilteringPredicate first;
 		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		private final HierarchyFilteringPredicate second;
-		@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-		private final Long hash;
 
 		public AndHierarchyFilteringPredicate(HierarchyFilteringPredicate first, HierarchyFilteringPredicate second) {
 			this.first = first;
 			this.second = second;
-			this.hash = TransactionalDataRelatedStructure.HASH_FUNCTION.hashLongs(
-				new long[]{
-					serialVersionUID,
-					first.getHash(),
-					second.getHash()
-				}
-			);
 		}
 
 		@Override
 		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
 			this.first.initializeIfNotAlreadyInitialized(executionContext);
 			this.second.initializeIfNotAlreadyInitialized(executionContext);
-		}
-
-		@Override
-		public long getHash() {
-			return this.hash;
 		}
 
 		@Override
@@ -224,31 +197,16 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		private final HierarchyFilteringPredicate first;
 		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		private final HierarchyFilteringPredicate second;
-		@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-		private final Long hash;
 
 		public OrHierarchyFilteringPredicate(HierarchyFilteringPredicate first, HierarchyFilteringPredicate second) {
 			this.first = first;
 			this.second = second;
-			this.hash = TransactionalDataRelatedStructure.HASH_FUNCTION.hashLongs(
-				new long[]{
-					serialVersionUID,
-					first.getHash(),
-					second.getHash()
-				}
-			);
 		}
 
 		@Override
 		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
 			this.first.initializeIfNotAlreadyInitialized(executionContext);
 			this.second.initializeIfNotAlreadyInitialized(executionContext);
-		}
-
-		@Override
-		public long getHash() {
-			Assert.isPremiseValid(this.hash != null, "Predicate must be initialized prior to calling getHash().");
-			return this.hash;
 		}
 
 		@Override
@@ -324,11 +282,6 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		}
 
 		@Override
-		public long getHash() {
-			return serialVersionUID;
-		}
-
-		@Override
 		public boolean test(int value) {
 			return false;
 		}
@@ -397,11 +350,6 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		}
 
 		@Override
-		public long getHash() {
-			return serialVersionUID;
-		}
-
-		@Override
 		public boolean test(int value) {
 			return true;
 		}
@@ -464,23 +412,14 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 
 		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		@Getter private final HierarchyFilteringPredicate predicate;
-		@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-		private final Long hash;
 
 		public NegatedHierarchyFilteringPredicate(HierarchyFilteringPredicate predicate) {
 			this.predicate = predicate;
-			this.hash = predicate.getHash() * -1;
 		}
 
 		@Override
 		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
 			this.predicate.initializeIfNotAlreadyInitialized(executionContext);
-		}
-
-		@Override
-		public long getHash() {
-			Assert.isPremiseValid(this.hash != null, "Predicate must be initialized prior to calling getHash().");
-			return this.hash;
 		}
 
 		@Override
@@ -491,21 +430,6 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		@Override
 		public String toString() {
 			return "NOT(" + this.predicate + ")";
-		}
-
-		@Override
-		public final boolean equals(Object o) {
-			if (this == o) return true;
-			if (!(o instanceof NegatedHierarchyFilteringPredicate that)) return false;
-
-			return this.predicate.equals(that.predicate) && this.hash.equals(that.hash);
-		}
-
-		@Override
-		public int hashCode() {
-			int result = this.predicate.hashCode();
-			result = 31 * result + this.hash.hashCode();
-			return result;
 		}
 
 		/** Returns detached inputs without computing the bitmap. */

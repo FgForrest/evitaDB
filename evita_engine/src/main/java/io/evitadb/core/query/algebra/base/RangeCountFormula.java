@@ -29,11 +29,8 @@ import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.identity.TokenList;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -65,20 +62,9 @@ import javax.annotation.Nonnull;
  */
 public class RangeCountFormula extends AbstractCacheableFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractCacheableFormula#getClassId()} for hash computation.
+	 * Stable discriminator returned by {@link AbstractCacheableFormula#getClassId()}.
 	 */
 	private static final long CLASS_ID = 8_142_337_905_512_664_411L;
-	/**
-	 * Separator folded into the operand hash between the two families, so that swapping `plus` and `minus` - which
-	 * computes a different result - cannot produce the same identity.
-	 */
-	private static final long FAMILY_SEPARATOR = 0x5241_4E47_4553_4550L;
-	/**
-	 * Transactional id of the index the operands were read from, used as the staleness token when the operand count
-	 * makes per-bitmap tokens uneconomical.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private final long indexTransactionId;
 	/**
 	 * Operands each membership of which contributes `+1`.
 	 */
@@ -91,7 +77,6 @@ public class RangeCountFormula extends AbstractCacheableFormula {
 	private final Bitmap[] minus;
 
 	public RangeCountFormula(
-		long indexTransactionId,
 		@Nonnull Bitmap[] plus,
 		@Nonnull Bitmap[] minus
 	) {
@@ -99,7 +84,6 @@ public class RangeCountFormula extends AbstractCacheableFormula {
 			plus.length > 0,
 			"Range count formula with an empty plus family computes nothing - use EmptyFormula.INSTANCE instead!"
 		);
-		this.indexTransactionId = indexTransactionId;
 		this.plus = plus;
 		this.minus = minus;
 		this.initFields();
@@ -133,11 +117,6 @@ public class RangeCountFormula extends AbstractCacheableFormula {
 		return sum;
 	}
 
-	@Override
-	protected boolean isFormulaOrderSignificant() {
-		return true;
-	}
-
 	/** Captures both canonical signed families, retaining every operand occurrence. */
 	@Nonnull
 	@Override
@@ -154,46 +133,6 @@ public class RangeCountFormula extends AbstractCacheableFormula {
 	@Override
 	protected Bitmap computeInternal() {
 		return RangeCountKernel.compute(this.plus, this.minus);
-	}
-
-	@Nonnull
-	@Override
-	public long[] gatherBitmapIdsInternal() {
-		if (this.plus.length + this.minus.length > TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY) {
-			// mirrors JoinFormula: past this width the per-bitmap tokens cost more than they buy, and the index's own
-			// id is a sound substitute because a mutated index becomes a fresh instance with a fresh id. A null or
-			// empty set would leave this cacheable formula with no staleness dependency at all - fail fast instead.
-			Assert.isPremiseValid(
-				this.indexTransactionId != 0L,
-				"High-cardinality operands require a non-zero indexTransactionId (else the cached result could never " +
-					"be invalidated)!"
-			);
-			return new long[]{this.indexTransactionId};
-		}
-		int count = 0;
-		for (final Bitmap bitmap : this.plus) {
-			if (bitmap instanceof TransactionalLayerProducer) {
-				count++;
-			}
-		}
-		for (final Bitmap bitmap : this.minus) {
-			if (bitmap instanceof TransactionalLayerProducer) {
-				count++;
-			}
-		}
-		final long[] ids = new long[count];
-		int index = 0;
-		for (final Bitmap bitmap : this.plus) {
-			if (bitmap instanceof final TransactionalLayerProducer<?, ?> producer) {
-				ids[index++] = producer.getId();
-			}
-		}
-		for (final Bitmap bitmap : this.minus) {
-			if (bitmap instanceof final TransactionalLayerProducer<?, ?> producer) {
-				ids[index++] = producer.getId();
-			}
-		}
-		return ids;
 	}
 
 	@Override
@@ -228,22 +167,6 @@ public class RangeCountFormula extends AbstractCacheableFormula {
 		} catch (final ArithmeticException ex) {
 			return Long.MAX_VALUE;
 		}
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		final long[] hashes = new long[this.plus.length + this.minus.length + 1];
-		int index = 0;
-		for (final Bitmap bitmap : this.plus) {
-			hashes[index++] = bitmapIdentityToken(bitmap, hashFunction);
-		}
-		// without this the families would be indistinguishable by their concatenation alone, and swapping them -
-		// which is exactly what getRecordsFrom does relative to getRecordsTo - would collide
-		hashes[index++] = FAMILY_SEPARATOR;
-		for (final Bitmap bitmap : this.minus) {
-			hashes[index++] = bitmapIdentityToken(bitmap, hashFunction);
-		}
-		return hashFunction.hashLongs(hashes);
 	}
 
 	@Override

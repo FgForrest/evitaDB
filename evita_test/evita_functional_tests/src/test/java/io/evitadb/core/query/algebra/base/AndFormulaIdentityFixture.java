@@ -65,18 +65,18 @@ public class AndFormulaIdentityFixture implements IdentityFixture<AndFormula> {
 					"one child", new ClonePath<>(formula -> formula.getCloneWithInnerFormulas(leaf(1)), UNEQUAL)),
 				Set.of("bitmaps"), Set.of("bitmaps"), Set.of()),
 			"raw bitmaps", new ConstructionMode<>(
-				() -> new AndFormula(new long[]{1}, new BaseBitmap(1), new BaseBitmap(2)),
-				Map.of("operand", () -> new AndFormula(new long[]{1}, new BaseBitmap(3), new BaseBitmap(2)),
-					"multiplicity", () -> new AndFormula(new long[]{1},
+				() -> new AndFormula(new BaseBitmap(1), new BaseBitmap(2)),
+				Map.of("operand", () -> new AndFormula(new BaseBitmap(3), new BaseBitmap(2)),
+					"multiplicity", () -> new AndFormula(
 						new BaseBitmap(1), new BaseBitmap(2), new BaseBitmap(2))), Map.of(),
-				Map.of("many operands", () -> new AndFormula(new long[]{1}, oversized)),
+				Map.of("many operands", () -> new AndFormula(oversized)),
 				Map.of("reconstruction", new ClonePath<>(
-					formula -> new AndFormula(new long[]{2}, formula.getBitmaps()), EQUAL)),
+					formula -> new AndFormula(formula.getBitmaps()), EQUAL)),
 				Set.of(), Set.of(), Set.of()),
 			"opaque raw bitmaps", new ConstructionMode<>(null, Map.of(),
-				Map.of("large operand", () -> new AndFormula(new long[]{1}, opaque)), Map.of(),
+				Map.of("large operand", () -> new AndFormula(opaque)), Map.of(),
 				Map.of("reconstruction", new ClonePath<>(
-					formula -> new AndFormula(new long[]{1}, formula.getBitmaps()), UNEQUAL)),
+					formula -> new AndFormula(formula.getBitmaps()), UNEQUAL)),
 				Set.of(), Set.of(), Set.of())
 		);
 	}

@@ -52,9 +52,9 @@ public class MultipleEntityFormulaIdentityFixture
 		}
 		final Bitmap opaque = new BaseBitmap(values);
 		return Map.of("entity references", new ConstructionMode<>(
-			() -> new MultipleEntityFormula(new long[]{1}, new BaseBitmap(1)),
-			Map.of("content", () -> new MultipleEntityFormula(new long[]{1}, new BaseBitmap(2))),
-			Map.of("large content", () -> new MultipleEntityFormula(new long[]{1}, opaque)), Map.of(),
+			() -> new MultipleEntityFormula(new BaseBitmap(1)),
+			Map.of("content", () -> new MultipleEntityFormula(new BaseBitmap(2))),
+			Map.of("large content", () -> new MultipleEntityFormula(opaque)), Map.of(),
 			Map.of("inner formulas", new ClonePath<>(formula -> formula.getCloneWithInnerFormulas(), REJECTED)),
 			Set.of(), Set.of(), Set.of()));
 	}

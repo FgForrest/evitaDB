@@ -320,57 +320,6 @@ class ScopeContainerFormulaTest {
 	}
 
 	@Nested
-	@DisplayName("Legacy: Hash determinism and sensitivity")
-	class LegacyHashTest {
-
-		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticallyConstructedFormulas() {
-			final ScopeContainerFormula formulaA = new ScopeContainerFormula(
-				Scope.LIVE,
-				new ConstantFormula(new ArrayBitmap(10, 20))
-			);
-			final ScopeContainerFormula formulaB = new ScopeContainerFormula(
-				Scope.LIVE,
-				new ConstantFormula(new ArrayBitmap(10, 20))
-			);
-
-			assertEquals(formulaA.getHash(), formulaB.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce different hash for different inner formulas")
-		void shouldProduceDifferentHashForDifferentInnerFormulas() {
-			final ScopeContainerFormula formulaA = new ScopeContainerFormula(
-				Scope.LIVE,
-				new ConstantFormula(new ArrayBitmap(10, 20))
-			);
-			final ScopeContainerFormula formulaB = new ScopeContainerFormula(
-				Scope.LIVE,
-				new ConstantFormula(new ArrayBitmap(30, 40))
-			);
-
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce same hash for different scopes with same children")
-		void shouldProduceSameHashForDifferentScopesWithSameChildren() {
-			// scope is not part of includeAdditionalHash (returns 0L)
-			final ScopeContainerFormula formulaLive = new ScopeContainerFormula(
-				Scope.LIVE,
-				new ConstantFormula(new ArrayBitmap(10, 20))
-			);
-			final ScopeContainerFormula formulaArchived = new ScopeContainerFormula(
-				Scope.ARCHIVED,
-				new ConstantFormula(new ArrayBitmap(10, 20))
-			);
-
-			assertEquals(formulaLive.getHash(), formulaArchived.getHash());
-		}
-	}
-
-	@Nested
 	@DisplayName("Cardinality estimate")
 	class CardinalityEstimateTest {
 

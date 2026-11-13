@@ -35,7 +35,6 @@ import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslato
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,7 +50,7 @@ import java.util.List;
  */
 public class ScopeContainerFormula extends AbstractCacheableFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractCacheableFormula#getClassId()} for hash computation.
+	 * Stable discriminator returned by {@link AbstractCacheableFormula#getClassId()}.
 	 */
 	private static final long CLASS_ID = -5387565378948662756L;
 	/**
@@ -143,11 +142,6 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 	@Override
 	public long getOperationCost() {
 		return 9;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return 0L;
 	}
 
 	@Override

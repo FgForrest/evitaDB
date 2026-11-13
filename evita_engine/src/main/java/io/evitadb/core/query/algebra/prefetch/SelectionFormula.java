@@ -45,7 +45,6 @@ import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHist
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -74,7 +73,7 @@ import java.util.Optional;
  */
 public class SelectionFormula extends AbstractFormula implements ChildrenDependentFormula, FilteredPriceRecordAccessor, FilteredOutPriceRecordAccessor, RequirementsDefiner {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 3311110127363103780L;
 	/**
@@ -337,11 +336,6 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 			);
 		}
 		return this.memoizedInnerAccessors;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return 0L;
 	}
 
 	/** Captures the detached semantic inputs without evaluating the holder. */

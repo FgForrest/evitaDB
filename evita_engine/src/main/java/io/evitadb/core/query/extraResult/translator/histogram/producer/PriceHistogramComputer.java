@@ -149,16 +149,6 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Nullable private final FilteredPriceRecordsLookupResult priceRecordsLookupResult;
 	/**
-	 * Contains memoized value of {@link #getHash()} method.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private final Long hash;
-	/**
-	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private final long[] transactionalIds;
-	/**
 	 * Contains memoized value of {@link #getEstimatedCost()} ()}  of this formula.
 	 */
 	@IdentityExempt(IdentityExempt.Reason.STATE)
@@ -168,11 +158,6 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 */
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Long cost;
-	/**
-	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private final Long transactionalIdHash;
 	/**
 	 * Contains price record array that all price records that represents source records for price histogram computation.
 	 * It is initialized during {@link #compute()} method and result is memoized, so it's ensured it's computed only once.
@@ -289,22 +274,6 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		);
 		this.priceRecordsLookupResult = priceRecordsLookupResult;
 
-		this.hash = HASH_FUNCTION.hashLongs(
-			new long[]{
-				bucketCount, behavior.ordinal(),
-				queryPriceMode.ordinal(),
-				filteringFormula.getHash()
-			}
-		);
-		this.transactionalIds = filteringFormula.gatherTransactionalIds();
-		// construction-time only — stream OK here (allocation-free hot paths use this hash, but the hashing
-		// itself runs exactly once per producer instance)
-		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
-			Arrays.stream(this.transactionalIds)
-				.distinct()
-				.sorted()
-				.toArray()
-		);
 		// floor((size + 1) / 2) — equivalent to ceil(size / 2.0) without floating-point arithmetic. The
 		// previous formulation `size / 2` collapsed to 0 for the common single-accessor case, hiding the
 		// per-record operation cost contribution from the planner's cost estimate.
@@ -325,25 +294,6 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 			// behind the fact that today's container formulas happen not to read executionContext
 			this.filteringFormulaWithFilteredOutRecords.initialize(executionContext);
 		}
-	}
-
-	@Override
-	public long getHash() {
-		Assert.isPremiseValid(this.hash != null, "The computer must be initialized prior to calling getHash().");
-		return this.hash;
-	}
-
-	@Override
-	public long getTransactionalIdHash() {
-		Assert.isPremiseValid(this.transactionalIdHash != null, "The computer must be initialized prior to calling getTransactionalIdHash().");
-		return this.transactionalIdHash;
-	}
-
-	@Nonnull
-	@Override
-	public long[] gatherTransactionalIds() {
-		Assert.isPremiseValid(this.transactionalIds != null, "The computer must be initialized prior to calling gatherTransactionalIds().");
-		return this.transactionalIds;
 	}
 
 	@Override

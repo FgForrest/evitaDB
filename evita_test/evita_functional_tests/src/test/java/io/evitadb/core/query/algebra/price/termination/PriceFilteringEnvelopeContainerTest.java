@@ -203,47 +203,6 @@ class PriceFilteringEnvelopeContainerTest {
 	}
 
 	/**
-	 * Preserves the hash contract used by the formula deduplicator.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Legacy hash determinism")
-	class LegacyHashDeterminismTest {
-
-		@Test
-		@DisplayName("should produce identical hash for identical construction")
-		void shouldProduceIdenticalHashForIdenticalConstruction() {
-			final PriceFilteringEnvelopeContainer a = new PriceFilteringEnvelopeContainer(
-				null, null, null,
-				createConstantFormula(1, 2, 3)
-			);
-			final PriceFilteringEnvelopeContainer b = new PriceFilteringEnvelopeContainer(
-				null, null, null,
-				createConstantFormula(1, 2, 3)
-			);
-
-			assertEquals(a.getHash(), b.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce same hash regardless of metadata differences")
-		void shouldProduceSameHashRegardlessOfMetadataDifferences() {
-			// metadata (priceLists, currency, validIn) is NOT included in the hash
-			final ConstantFormula innerFormula = createConstantFormula(1, 2, 3);
-			final long hashA = new PriceFilteringEnvelopeContainer(
-				new String[]{"basic"}, CZK, VALID_IN, innerFormula
-			).getHash();
-			final long hashB = new PriceFilteringEnvelopeContainer(
-				new String[]{"vip"}, Currency.getInstance("EUR"), null, innerFormula
-			).getHash();
-
-			// includeAdditionalHash returns 0, so metadata doesn't affect hash
-			assertEquals(hashA, hashB);
-		}
-	}
-
-	/**
 	 * Verifies detached computation identity.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -302,29 +261,6 @@ class PriceFilteringEnvelopeContainerTest {
 				new PriceFilteringEnvelopeContainer(new String[]{"basic"}, CZK, VALID_IN, innerFormula).getKey(),
 				new PriceFilteringEnvelopeContainer(new String[]{"basic"}, CZK, null, innerFormula).getKey()
 			);
-		}
-	}
-
-	/**
-	 * Preserves the hash contract used by the formula deduplicator.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Legacy hash sensitivity")
-	class LegacyHashSensitivityTest {
-
-		@Test
-		@DisplayName("should produce different hash for different inner data")
-		void shouldProduceDifferentHashForDifferentInnerData() {
-			final long hashA = new PriceFilteringEnvelopeContainer(
-				null, null, null, createConstantFormula(1, 2, 3)
-			).getHash();
-			final long hashB = new PriceFilteringEnvelopeContainer(
-				null, null, null, createConstantFormula(4, 5, 6)
-			).getHash();
-
-			assertNotEquals(hashA, hashB);
 		}
 	}
 

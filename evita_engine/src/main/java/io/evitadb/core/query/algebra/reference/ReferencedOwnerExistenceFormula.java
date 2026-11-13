@@ -38,7 +38,6 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -74,7 +73,7 @@ import java.util.List;
  */
 public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 7825194638201947355L;
 	/**
@@ -92,26 +91,17 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	 */
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final Formula[] perOwnerFormulas;
-	/**
-	 * Fold of counterpart type-level index transactional ids across scopes, retained for the legacy structural hash.
-	 * The computation uses only the captured owner keys, per-owner formulas and shared inner formula.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private final long counterpartTypeIndexTransactionalId;
 
 	public ReferencedOwnerExistenceFormula(
 		@Nonnull int[] ownerPrimaryKeys,
 		@Nonnull Formula[] perOwnerFormulas,
-		@Nonnull Formula referencedEntityFormula,
-		long counterpartTypeIndexTransactionalId
-	) {
+		@Nonnull Formula referencedEntityFormula) {
 		Assert.isPremiseValid(
 			ownerPrimaryKeys.length == perOwnerFormulas.length,
 			"Exactly one formula per owner primary key is expected!"
 		);
 		this.ownerPrimaryKeys = ownerPrimaryKeys;
 		this.perOwnerFormulas = perOwnerFormulas;
-		this.counterpartTypeIndexTransactionalId = counterpartTypeIndexTransactionalId;
 		this.initFields(referencedEntityFormula);
 	}
 
@@ -122,38 +112,6 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 		for (final Formula perOwnerFormula : this.perOwnerFormulas) {
 			perOwnerFormula.initialize(executionContext);
 		}
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// the owner keys and the per-owner formulas are part of the result but invisible through the inner formulas
-		final long[] additionalHashes = new long[this.perOwnerFormulas.length + 2];
-		additionalHashes[0] = this.counterpartTypeIndexTransactionalId;
-		additionalHashes[1] = hashFunction.hashInts(this.ownerPrimaryKeys);
-		for (int i = 0; i < this.perOwnerFormulas.length; i++) {
-			additionalHashes[i + 2] = this.perOwnerFormulas[i].getHash();
-		}
-		return hashFunction.hashLongs(additionalHashes);
-	}
-
-	@Nonnull
-	@Override
-	protected long[] gatherBitmapIdsInternal() {
-		final long[] innerIds = super.gatherBitmapIdsInternal();
-		int totalLength = innerIds.length;
-		final long[][] perOwnerIds = new long[this.perOwnerFormulas.length][];
-		for (int i = 0; i < this.perOwnerFormulas.length; i++) {
-			perOwnerIds[i] = this.perOwnerFormulas[i].gatherTransactionalIds();
-			totalLength += perOwnerIds[i].length;
-		}
-		final long[] result = new long[totalLength];
-		System.arraycopy(innerIds, 0, result, 0, innerIds.length);
-		int offset = innerIds.length;
-		for (final long[] perOwnerId : perOwnerIds) {
-			System.arraycopy(perOwnerId, 0, result, offset, perOwnerId.length);
-			offset += perOwnerId.length;
-		}
-		return result;
 	}
 
 	@Override
@@ -243,17 +201,13 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 			return new ReferencedOwnerExistenceFormula(
 				this.ownerPrimaryKeys,
 				this.perOwnerFormulas,
-				EmptyFormula.INSTANCE,
-				this.counterpartTypeIndexTransactionalId
-			);
+				EmptyFormula.INSTANCE);
 		}
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
 		return new ReferencedOwnerExistenceFormula(
 			this.ownerPrimaryKeys,
 			this.perOwnerFormulas,
-			innerFormulas[0],
-			this.counterpartTypeIndexTransactionalId
-		);
+			innerFormulas[0]);
 	}
 
 	@Override

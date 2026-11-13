@@ -213,41 +213,6 @@ class CombinedFacetFormulaTest {
 	}
 
 	@Nested
-	@DisplayName("Legacy: Hash determinism and sensitivity")
-	class LegacyHashTest {
-
-		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticallyConstructedFormulas() {
-			final CombinedFacetFormula formulaA = new CombinedFacetFormula(
-				new ConstantFormula(new ArrayBitmap(10, 20)),
-				new ConstantFormula(new ArrayBitmap(30, 40))
-			);
-			final CombinedFacetFormula formulaB = new CombinedFacetFormula(
-				new ConstantFormula(new ArrayBitmap(10, 20)),
-				new ConstantFormula(new ArrayBitmap(30, 40))
-			);
-
-			assertEquals(formulaA.getHash(), formulaB.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce different hash for different inner formulas")
-		void shouldProduceDifferentHashForDifferentInnerFormulas() {
-			final CombinedFacetFormula formulaA = new CombinedFacetFormula(
-				new ConstantFormula(new ArrayBitmap(10, 20)),
-				new ConstantFormula(new ArrayBitmap(30, 40))
-			);
-			final CombinedFacetFormula formulaB = new CombinedFacetFormula(
-				new ConstantFormula(new ArrayBitmap(10, 20)),
-				new ConstantFormula(new ArrayBitmap(50, 60))
-			);
-
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
-		}
-	}
-
-	@Nested
 	@DisplayName("Cardinality estimate")
 	class CardinalityEstimateTest {
 

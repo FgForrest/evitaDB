@@ -23,17 +23,12 @@
 
 package io.evitadb.core.query.algebra.identity;
 
-import io.evitadb.api.query.require.EntityFetchRequire;
-import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
-import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
-import net.openhft.hashing.LongHashFunction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -367,50 +362,33 @@ class FormulaKeyTest {
 		assertEquals(Integer.MAX_VALUE, pair[1].getWeight());
 	}
 
-	/** Builds and computes a tree over leaves without a declared identity, which any key request would fail. */
+	/** Builds and computes a tree over leaves whose identity method fails if requested. */
 	@Test
 	@DisplayName("Constructs and computes ordinary formulas without requesting keys")
 	void shouldKeepFormulaConstructionIndependentOfKeys() {
-		final AndFormula formula = new AndFormula(new UndeclaredFormula(), new UndeclaredFormula());
+		final AndFormula formula = new AndFormula(new UnrequestedIdentityFormula(), new UnrequestedIdentityFormula());
 		assertArrayEquals(new int[0], formula.compute().getArray());
 	}
 
-	/** Checks the explicit defaults of every holder family on holders that never declare an identity. */
-	@Test
-	@DisplayName("Fails explicitly when a holder has no declared identity")
-	void shouldRejectUndeclaredHolderIdentity() {
-		final UndeclaredFormula formula = new UndeclaredFormula();
-		assertThrows(GenericEvitaInternalError.class, formula::getKey);
-
-		final HierarchyFilteringPredicate predicate = new UndeclaredHierarchyPredicate();
-		assertThrows(GenericEvitaInternalError.class, predicate::getKey);
-		assertThrows(GenericEvitaInternalError.class, predicate::identity);
-		assertThrows(GenericEvitaInternalError.class, predicate::getClassId);
-
-		final EntityToBitmapFilter filter = new UndeclaredEntityFilter();
-		assertThrows(GenericEvitaInternalError.class, filter::identity);
-		assertThrows(GenericEvitaInternalError.class, filter::getClassId);
-	}
-
 	/**
-	 * Leaf formula that never declares an identity, so the throwing default stays observable whatever the production
-	 * formulas declare.
+	 * Leaf formula whose identity fails if construction or computation requests it.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
-	private static final class UndeclaredFormula extends AbstractFormula {
+	private static final class UnrequestedIdentityFormula extends AbstractFormula {
 		/** Stable holder identifier. */
 		private static final long CLASS_ID = 6979462139904334639L;
 
 		/** Creates an initialized leaf without inner formulas. */
-		private UndeclaredFormula() {
+		private UnrequestedIdentityFormula() {
 			this.initFields();
 		}
 
-		/** Contributes nothing beyond the class identifier to the legacy hash. */
+		/** Fails if construction or computation requests identity. */
+		@Nonnull
 		@Override
-		protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-			return 0L;
+		protected IdentityRecord identity() {
+			throw new GenericEvitaInternalError("Identity requested during construction or computation.");
 		}
 
 		/** Returns this holder's identifier. */
@@ -442,53 +420,8 @@ class FormulaKeyTest {
 		@Nonnull
 		@Override
 		public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
-			return new UndeclaredFormula();
+			return new UnrequestedIdentityFormula();
 		}
 	}
 
-	/**
-	 * Hierarchy predicate that never declares an identity, so the interface defaults stay observable.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	private static final class UndeclaredHierarchyPredicate implements HierarchyFilteringPredicate {
-		/** Has no state to initialize. */
-		@Override
-		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
-			// the predicate accepts every node and needs no execution context
-		}
-
-		/** Returns a constant legacy hash. */
-		@Override
-		public long getHash() {
-			return 0L;
-		}
-
-		/** Accepts every node. */
-		@Override
-		public boolean test(int value) {
-			return true;
-		}
-	}
-
-	/**
-	 * Entity filter alternative that never declares an identity, so the interface defaults stay observable.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	private static final class UndeclaredEntityFilter implements EntityToBitmapFilter {
-		/** Requires no entity content. */
-		@Nullable
-		@Override
-		public EntityFetchRequire getEntityRequire() {
-			return null;
-		}
-
-		/** Matches no entity. */
-		@Nonnull
-		@Override
-		public Bitmap filter(@Nonnull QueryExecutionContext context) {
-			return EmptyBitmap.INSTANCE;
-		}
-	}
 }

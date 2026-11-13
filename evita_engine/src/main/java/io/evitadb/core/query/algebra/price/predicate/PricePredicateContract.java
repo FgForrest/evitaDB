@@ -23,8 +23,6 @@
 
 package io.evitadb.core.query.algebra.price.predicate;
 
-import net.openhft.hashing.LongHashFunction;
-
 import javax.annotation.Nonnull;
 
 /**
@@ -46,10 +44,4 @@ public interface PricePredicateContract {
 	@Nonnull
 	PriceAmountPredicate getRequestedPredicate();
 
-	/**
-	 * Method is expected to compute unique hash for this particular instance of predicate. This hash needs much better
-	 * collision rate than common {@link Object#hashCode()} and therefore passed hash function is expected to be utilized.
-	 * Hash is targeted to be used in cache key.
-	 */
-	long computeHash(@Nonnull LongHashFunction hashFunction);
 }

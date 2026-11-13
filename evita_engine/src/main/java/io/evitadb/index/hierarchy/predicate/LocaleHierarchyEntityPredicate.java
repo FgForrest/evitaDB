@@ -61,11 +61,6 @@ public class LocaleHierarchyEntityPredicate implements HierarchyFilteringPredica
 	}
 
 	@Override
-	public long getHash() {
-		return this.filteringFormula.getHash();
-	}
-
-	@Override
 	public boolean test(int hierarchyNodeId) {
 		return this.filteringFormula.compute().contains(hierarchyNodeId);
 	}

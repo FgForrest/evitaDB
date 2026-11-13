@@ -32,7 +32,6 @@ import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -47,7 +46,7 @@ import javax.annotation.Nullable;
  */
 public class PlainPriceTerminationFormula extends AbstractFormula implements PriceTerminationFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -6690961703571256783L;
 
@@ -110,11 +109,6 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 	@Override
 	public int getEstimatedCardinality() {
 		return getDelegate().getEstimatedCardinality();
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return this.priceEvaluationContext.computeHash(hashFunction);
 	}
 
 	@Override

@@ -26,7 +26,6 @@ package io.evitadb.index.hierarchy.suppliers;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.core.query.algebra.identity.FormulaKey;
@@ -34,11 +33,9 @@ import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.core.query.algebra.identity.TokenRole;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 
 /**
  * Abstract - base implementation for {@link BitmapSupplier}. Generalizes logic connected with
@@ -63,21 +60,6 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Long cost;
 	/**
-	 * Contains memoized value of {@link #getHash()} method.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private Long hash;
-	/**
-	 * Set of {@link TransactionalLayerProducer#getId()} that are involved in data computation.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private long[] transactionalIds;
-	/**
-	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private Long transactionalIdHash;
-	/**
 	 * Contains memoized result of the supplier.
 	 */
 	@IdentityExempt(IdentityExempt.Reason.STATE)
@@ -91,9 +73,8 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private IdentityToken.ProducerId memoizedHierarchyIndexIdentity;
 
-	public AbstractHierarchyBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex, long[] transactionalIds) {
+	public AbstractHierarchyBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex) {
 		this.hierarchyIndex = hierarchyIndex;
-		this.transactionalIds = transactionalIds;
 	}
 
 	/**
@@ -102,36 +83,12 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	 * TOBEDONE when upgrading to Java 22 with https://openjdk.org/jeps/447, switch fields to final and do this in the constructor
 	 */
 	protected void initFields() {
-		this.hash = computeHash(HASH_FUNCTION);
-		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray()
-		);
 		this.estimatedCost = getEstimatedCardinality() * 12L;
 	}
 
 	@Override
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 		// do nothing
-	}
-
-	@Override
-	public long getHash() {
-		return this.hash;
-	}
-
-	@Override
-	public long getTransactionalIdHash() {
-		return this.transactionalIdHash;
-
-	}
-
-	@Nonnull
-	@Override
-	public long[] gatherTransactionalIds() {
-		return this.transactionalIds;
 	}
 
 	@Override
@@ -170,15 +127,6 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	 */
 	@Nonnull
 	protected abstract Bitmap getInternal();
-
-	/**
-	 * Computes the hash value using the specified hash function.
-	 *
-	 * @param hashFunction the hash function to use for computing the hash value
-	 * @return the computed hash value
-	 */
-	protected abstract long computeHash(@Nonnull LongHashFunction hashFunction);
-
 
 	/** Returns the memoized detached key of this holder. */
 	@Nonnull

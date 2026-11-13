@@ -74,7 +74,7 @@ public class ScopeContainerFormulaIdentityFixture implements IdentityFixture<Sco
 				Map.of("scope", () -> ScopeContainerFormula.restrictingScope(Scope.ARCHIVED, universe, leaf(2)),
 					"universe", () -> ScopeContainerFormula.restrictingScope(Scope.LIVE, otherUniverse, leaf(2))),
 				Map.of(), Map.of("large universe", () -> ScopeContainerFormula.restrictingScope(
-					Scope.LIVE, new AndFormula(new long[]{1}, many), leaf(2))),
+					Scope.LIVE, new AndFormula(many), leaf(2))),
 				Map.of("equal children", new ClonePath<>(
 					formula -> formula.getCloneWithInnerFormulas(formula.getInnerFormulas()), EQUAL),
 					"no children", new ClonePath<>(formula -> formula.getCloneWithInnerFormulas(), UNEQUAL)),

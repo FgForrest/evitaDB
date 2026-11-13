@@ -294,29 +294,13 @@ public final class OverflowRecords {
 	 */
 	@Nonnull
 	static Bitmap asBitmapView(@Nonnull Object records) {
-		return asBitmapView(records, SortedArrayBitmap.NO_OWNER);
-	}
-
-	/**
-	 * Exposes a bucket's record set as a {@link Bitmap}, stamping the array arm's view with the identity of the leaf
-	 * that owns the array.
-	 *
-	 * The stamp is what lets a consumer key a cached answer on an array-tier bucket. The view itself is built per read
-	 * and the array is a bare `int[]`, so neither carries an identity; without the owner's, two independently written
-	 * structures holding the same ids would be indistinguishable. A leaf is a fresh instance with a fresh id after
-	 * every commit that rebuilt it, so the stamp is a staleness token as well as a discriminator.
-	 *
-	 * @param records the bucket's record set (an `int[]` or a {@link TransactionalBitmap})
-	 * @param ownerId identity of the leaf owning the record set
-	 * @return the record ids as a bitmap
-	 */
-	@Nonnull
-	static Bitmap asBitmapView(@Nonnull Object records, long ownerId) {
 		if (records instanceof final int[] small) {
-			return small.length == 0 ? EmptyBitmap.INSTANCE : new SortedArrayBitmap(ownerId, small);
+			return small.length == 0 ? EmptyBitmap.INSTANCE : new SortedArrayBitmap(small);
 		}
 		return asBitmap(records);
 	}
+
+
 
 	/**
 	 * Returns the greatest record id of a bucket that is at or below `fromValue` **in signed order** - the array

@@ -32,7 +32,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -49,7 +48,7 @@ import javax.annotation.Nonnull;
  */
 public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 	/**
-	 * Unique identifier of this formula used for hash computation.
+	 * Unique identifier of this formula used as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -4829176503281746519L;
 	/**
@@ -103,14 +102,6 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 			"Expected exactly one inner formula (superset)!"
 		);
 		return new EntityPrimaryKeyRangeFormula(this.from, this.to, innerFormulas[0]);
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// both 32-bit bounds packed into one long: injective, so no two ranges share the value, and free of the
-		// long[] allocation of hashFunction.hashLongs - a linear fold such as `31 * from + to` is not injective
-		// and made e.g. [1, 100] and [2, 69] over the same superset indistinguishable
-		return ((long) this.from << 32) | (this.to & 0xFFFFFFFFL);
 	}
 
 	/** Captures both inclusive bounds; the superset is represented by its child key. */

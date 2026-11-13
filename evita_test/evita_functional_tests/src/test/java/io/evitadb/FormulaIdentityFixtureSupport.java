@@ -64,6 +64,6 @@ public final class FormulaIdentityFixtureSupport {
 	public static OrFormula oversizedFormula() {
 		final io.evitadb.index.bitmap.Bitmap[] bitmaps = new io.evitadb.index.bitmap.Bitmap[TokenList.CAP + 1];
 		java.util.Arrays.fill(bitmaps, new io.evitadb.index.bitmap.TransactionalBitmap(new BaseBitmap(1)));
-		return new OrFormula(new long[]{1}, bitmaps);
+		return new OrFormula(bitmaps);
 	}
 }

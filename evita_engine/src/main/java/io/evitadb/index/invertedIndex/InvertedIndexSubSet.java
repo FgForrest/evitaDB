@@ -61,7 +61,7 @@ public class InvertedIndexSubSet {
 	 * its transactional id set so that formula-level caching can detect staleness across index mutations. This is the
 	 * (canonical, sorted, deduplicated) set of version ids of the leaf pages the slice actually crossed — so a cached
 	 * read over an untouched value range survives writes to other pages — capped to the single whole-index id when the
-	 * slice spans more than {@link io.evitadb.core.query.response.TransactionalDataRelatedStructure#EXCESSIVE_HIGH_CARDINALITY}
+	 * slice spans more than 100
 	 * leaves (bounding the footprint). The aggregation lambda consumes it directly (the formula layer already keys on a
 	 * `long[]`).
 	 */

@@ -29,7 +29,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -44,7 +43,7 @@ public class EmptyFormula extends AbstractFormula {
 	 */
 	public static final EmptyFormula INSTANCE = new EmptyFormula();
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 7864590390866911682L;
 
@@ -90,11 +89,6 @@ public class EmptyFormula extends AbstractFormula {
 	@Override
 	public String toString() {
 		return "EMPTY";
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
 	}
 
 	/** Returns the identity of a formula without inputs, so its class identifier alone forms the key. */

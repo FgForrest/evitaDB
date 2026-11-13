@@ -108,7 +108,7 @@ class TrigramSubstringSearchTest {
 
 	/**
 	 * Values planted with the `zebra` pattern. Deliberately above
-	 * {@link io.evitadb.core.query.response.TransactionalDataRelatedStructure#EXCESSIVE_HIGH_CARDINALITY} (100), which
+	 * {@link io.evitadb.index.invertedIndex.InvertedIndex} (100), which
 	 * is the bitmap count at which the staleness ids of the folded formula stop naming its individual buckets and
 	 * fall back to the index-level token set. The key of the formula names its buckets at every size.
 	 *
@@ -444,8 +444,7 @@ class TrigramSubstringSearchTest {
 		@Nonnull BiPredicate<String, String> predicate
 	) {
 		return filterIndexOf(index, attributeName, locale).getInvertedIndex().toFormula(
-			matched(index, attributeName, locale, pattern, predicate),
-			TrigramSubstringSearch.versionIdsOf(trigramIndexOf(index, attributeName, locale))
+			matched(index, attributeName, locale, pattern, predicate)
 		);
 	}
 
@@ -1243,7 +1242,6 @@ class TrigramSubstringSearchTest {
 			final Formula firstSearch = accelerated(first, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
 			final Formula secondSearch = accelerated(second, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
 			assertEquals(firstSearch.getKey(), secondSearch.getKey());
-			assertNotEquals(firstSearch.getHash(), secondSearch.getHash());
 
 			// `omega` is already a value of the corpus, so the write changes the records of an existing bucket
 			second.upsertAttribute(
@@ -1266,10 +1264,6 @@ class TrigramSubstringSearchTest {
 			assertNotEquals(
 				new AttributeFormula(false, new AttributeKey(ATTRIBUTE_TITLE), inner).getKey(),
 				new AttributeFormula(false, new AttributeKey(ATTRIBUTE_LOCALIZED_TITLE), inner).getKey()
-			);
-			assertNotEquals(
-				new AttributeFormula(false, new AttributeKey(ATTRIBUTE_TITLE), inner).getHash(),
-				new AttributeFormula(false, new AttributeKey(ATTRIBUTE_LOCALIZED_TITLE), inner).getHash()
 			);
 		}
 

@@ -61,7 +61,7 @@ class HierarchyByParentBitmapSupplierTest {
 	@Nonnull
 	private static HierarchyByParentBitmapSupplier supplierOverEmptyHierarchy() {
 		return new HierarchyByParentBitmapSupplier(
-			new HierarchyIndex(), new long[]{1L}, PARENT_NODE,
+			new HierarchyIndex(), PARENT_NODE,
 			HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE
 		);
 	}
@@ -90,10 +90,10 @@ class HierarchyByParentBitmapSupplierTest {
 			original.addNode(1, null);
 			original.resetDirty();
 			final HierarchyByParentBitmapSupplier before = new HierarchyByParentBitmapSupplier(
-				original, new long[]{1, 2}, 1, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+				original, 1, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 			assertStateAfterCommit(original, index -> index.addNode(10, 99), (orig, committed) -> {
 				final HierarchyByParentBitmapSupplier after = new HierarchyByParentBitmapSupplier(
-					committed, new long[]{1, 2}, 1, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+					committed, 1, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 				assertNotEquals(before.getKey(), after.getKey());
 				assertNotEquals(before.getKey().getHash64(), after.getKey().getHash64());
 			});

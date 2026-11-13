@@ -90,10 +90,10 @@ QueryPlan.execute()
 ### Inheritance hierarchy
 
 ```
-TransactionalDataRelatedStructure          ◄── cost / hash / transactional-id contract
+TransactionalDataRelatedStructure          ◄── cost / detached identity contract
     └── Formula                            ◄── compute(), accept(), getCloneWithInnerFormulas(), …
-        └── AbstractFormula                ◄── memoization, hash computation, default cost model
-            └── AbstractCacheableFormula   ◄── computation callback for cache integration
+        └── AbstractFormula                ◄── memoization, lazy identity, default cost model
+            └── AbstractCacheableFormula   ◄── base for result-bearing formulas
 ```
 
 Choose your base class based on the formula's role:
@@ -113,14 +113,11 @@ Additionally, implement marker interfaces as needed:
 
 1. **Construction** — set formula-specific fields, call `initFields(innerFormulas)`.
 2. **Initialization** — `initialize(QueryExecutionContext)` propagates the execution context down the tree.
-   Hash and estimated cost are already available after `initFields()`.
+   Estimated cost is available after `initFields()`; identity is built lazily on the first key request.
 3. **Post-processing** — zero or more `FormulaPostProcessor` visitors may clone/restructure the tree.
 4. **Computation** — `compute()` is called on the root, which recursively evaluates the tree. Results are
    memoized per node.
-5. **Cache analysis** — `FormulaCacheVisitor` may instrument the tree with computation callbacks for the
-   `CacheSupervisor`.
-6. **Cleanup** — `clearMemory()` resets memoized results and cost caches; structural hash and transactional
-   IDs are *not* reset.
+5. **Cleanup** — `clearMemory()` resets memoized results and costs. The detached key remains available.
 
 ## Writing a new formula: step by step
 
@@ -132,8 +129,8 @@ Every concrete formula class must return a unique `long` constant from `getClass
 - **must not be inherited** from a superclass,
 - **must be different** for every leaf class.
 
-It is a critical component of the structural hash, which keys the result cache — so two classes sharing
-a value can answer each other's queries out of that cache.
+It discriminates the concrete holder type in `FormulaKey`. Formulas, bitmap suppliers, hierarchy predicates,
+histogram computers and entity filtering alternatives each declare their own identifier and identity record.
 
 Generate it, never invent it and never copy a sibling's:
 
@@ -163,7 +160,6 @@ Validate preconditions with `Assert.isTrue()`.
 
 ```java
 public MyFormula(@Nonnull Formula innerFormula, @Nonnull String attributeKey) {
-    super(null); // no computation callback (or pass one for cacheable formulas)
     Assert.notNull(attributeKey, "Attribute key must not be null!");
     this.attributeKey = attributeKey;
     this.initFields(innerFormula);
@@ -173,9 +169,7 @@ public MyFormula(@Nonnull Formula innerFormula, @Nonnull String attributeKey) {
 For cacheable formulas with bitmap-based inputs, provide a secondary constructor accepting `Bitmap[]`:
 
 ```java
-public MyFormula(long indexTransactionId, @Nonnull Bitmap... bitmaps) {
-    super(null);
-    this.indexTransactionId = new long[]{indexTransactionId};
+public MyFormula(@Nonnull Bitmap... bitmaps) {
     this.bitmaps = bitmaps;
     this.initFields(); // no inner formulas
 }
@@ -291,99 +285,47 @@ Conventions (each returning the worst-case upper bound):
 If the formula has internal data beyond inner formulas (e.g., the bitmap array `FacetGroupAndFormula` scans
 directly), override this to include its cost. Default is `0L`.
 
-### 6. Implement hashing
+### 6. Declare identity
 
-#### `includeAdditionalHash(LongHashFunction)`
-
-Return a hash covering formula-specific state that affects `compute()` output but is **not** already covered by
-inner formula hashes. Inner formulas are implicitly included — do not hash them here.
-
-```java
-@Override
-protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-    return hashFunction.hashChars(this.attributeKey);
-}
-```
-
-For bitmap-based formulas, hash the bitmap transactional IDs:
-
-```java
-@Override
-protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-    if (this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
-        return hashFunction.hashLongs(this.indexTransactionId);
-    }
-    final long[] ids = new long[this.bitmaps.length];
-    int idx = 0;
-    for (Bitmap bitmap : this.bitmaps) {
-        if (bitmap instanceof TransactionalLayerProducer<?, ?> tlp) {
-            ids[idx++] = tlp.getId();
-        }
-    }
-    final long[] result = idx == ids.length ? ids : Arrays.copyOf(ids, idx);
-    Arrays.sort(result);
-    return hashFunction.hashLongs(result);
-}
-```
-
-#### `isFormulaOrderSignificant()`
-
-Override and return `true` only for non-commutative operations (e.g., `NotFormula` where `A NOT B ≠ B NOT A`).
-When `false` (default), inner formula hashes are sorted before structural hash computation, ensuring
-`A AND B` and `B AND A` produce the same hash.
-
-### 7. Implement transactional ID gathering
-
-#### Why transactional IDs matter
-
-Every bitmap at the leaf of a formula tree originates from an index data structure. Each index instance carries
-a **transactional ID** — a monotonically increasing version number that changes whenever a write transaction
-modifies the underlying data. The distinct, sorted set of transactional IDs gathered from all leaf bitmaps is
-hashed into a single `transactionalIdHash` that becomes a **key component of the cache key** (see
-[Cache keys](#cache-keys)).
-
-When a query arrives, the cache looks up a cached record by the formula's structural hash and then **compares
-the stored `transactionalIdHash` against the current formula's `transactionalIdHash`**. If any source index has
-moved to a new version (i.e., a transaction committed new data), the transactional IDs change, the hash changes,
-and the cache correctly returns a miss — preventing stale results from being served. Without correct transactional
-ID gathering, the cache layer would have no way to distinguish a formula built on old data from one built on
-current data, and could silently return outdated results.
-
-In short: transactional IDs are the cache **freshness guarantee**. Getting them wrong means either stale cache
-hits (IDs missing → hash doesn't change when data does) or unnecessary cache misses (extra IDs included → hash
-changes too often).
-
-#### Implementation
-
-Override `gatherBitmapIdsInternal()` if the formula wraps bitmaps directly (rather than delegating to inner
-formulas). The default implementation recursively gathers IDs from inner formulas — this is correct for formulas
-whose computation depends solely on their children's results.
+Every concrete formula declares `identity()` and `getClassId()` itself. `identity()` returns an immutable
+`IdentityRecord` containing every input that can affect results or side outputs. Formula children are included
+in their supplied order by `AbstractFormula#getKey()`; the record describes the holder's additional inputs.
 
 ```java
 @Nonnull
 @Override
-protected long[] gatherBitmapIdsInternal() {
-    if (this.bitmaps == null) {
-        return super.gatherBitmapIdsInternal();
+protected IdentityRecord identity() {
+    return new Identity(this.attributeKey);
+}
+
+public record Identity(@Nonnull String attributeKey) implements IdentityRecord {
+    @Override
+    public long classId() {
+        return CLASS_ID;
     }
-    if (this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
-        return this.indexTransactionId; // use aggregate ID to avoid excessive allocation
+
+    @Override
+    public void describeTo(@Nonnull KeyAccumulator accumulator) {
+        accumulator.add(this.attributeKey);
     }
-    final long[] ids = new long[this.bitmaps.length];
-    int idx = 0;
-    for (Bitmap bitmap : this.bitmaps) {
-        if (bitmap instanceof TransactionalLayerProducer<?, ?> tlp) {
-            ids[idx++] = tlp.getId();
-        }
-    }
-    return idx == ids.length ? ids : Arrays.copyOf(ids, idx);
 }
 ```
 
-The `EXCESSIVE_HIGH_CARDINALITY` threshold (100) triggers a fallback to the index-level transactional ID instead
-of enumerating individual bitmap IDs — this avoids excessive memory allocation in `CacheEden`.
+Use detached values from the identity domain: primitives, strings, supported immutable domain values,
+`IdentityToken`, `TokenList`, `ValueList`, or other `FormulaKey` values. Copy mutable inputs at the identity
+boundary. Every record with components declares `describeTo()` and feeds each component to `KeyAccumulator`.
 
-### 8. String representation
+Raw bitmap inputs use tokens. A transactional producer contributes its version id. Small content-only bitmaps
+contribute copied exact content; large unowned content makes the holder opaque. A derived token requires a
+producer version and a role that together determine the named contents. Lists preserve multiplicity; canonical
+lists explicitly normalize operand order where the operation permits it.
+
+Every instance field must either correspond to an identity record component or carry `@IdentityExempt`:
+`STATE` for memoized execution state, `DERIVED` for values determined by identity inputs, or `DECOMPOSED` for
+inputs represented by detached components. Register an identity fixture for every construction mode so the
+contract test verifies sensitivity, clone behavior, opacity and the declared identifier pair.
+
+### 7. String representation
 
 Implement `toString()` for tree printing and optionally override `toStringVerbose()` for detailed diagnostics:
 
@@ -400,153 +342,28 @@ public String toStringVerbose() {
 }
 ```
 
-## Hash computation in depth
+## Identity and reuse
 
-The structural hash uniquely identifies a formula tree's **logical shape**. Two formula trees that would always
-produce the same result from the same data should have the same hash.
+`FormulaKey` contains a class discriminator, a detached identity record and ordered child keys. Its 64-bit hash
+is a prefilter; equality compares exact identity and children. Equal hashes alone do not establish equality.
+Keys are immutable and confined to the JVM lifetime. A plan's diagnostic hash is process-local.
 
-```
-hash = xxHash(
-    classId,
-    isFormulaOrderSignificant()
-        ? [innerFormula₁.hash, innerFormula₂.hash, …]                  // ordered
-        : sort([innerFormula₁.hash, innerFormula₂.hash, …]),           // canonical order
-    includeAdditionalHash()
-)
-```
+`AbstractFormula#getKey()` creates and memoizes the key on demand. Construction and computation do not request
+keys. `clearMemory()` clears results and measured costs without replacing the key. Clones preserve semantic
+inputs and create their own execution state.
 
-The **transactional ID hash** identifies the *data sources* the formula depends on. It is computed from the
-distinct, sorted array of `TransactionalLayerCreator.getId()` values gathered from all bitmaps:
+Opaque inputs bind identity to the holder instance. Oversized exact values retain exact equality but mark the
+key query-local. Query-local status propagates through children and side keys. Key weight accounts for retained
+identity content. An identity containing a predicate or expansion callback whose semantics cannot be described
+must be opaque.
 
-```
-transactionalIdHash = xxHash(distinct(sort(gatherTransactionalIds())))
-```
+`FormulaDeduplicator` visits children before their parents and interns formulas in a map keyed by `FormulaKey`.
+Equal subtrees share computed results within a query. Every formula's children are ordered, including AND and OR
+in formula mode. Canonical raw bitmap operand lists express their own ordering rule inside the identity record.
 
-Both hashes are computed once during `initFields()` and are immutable for the formula's lifetime.
-`clearMemory()` does **not** reset them.
-
-### Hash function
-
-All hash computation uses `LongHashFunction.xx3()` (xxHash, zero-allocation), obtained from
-`CacheSupervisor.createHashFunction()`.
-
-## Caching mechanism
-
-### Overview
-
-evitaDB uses a two-stage cache — **CacheAnteroom** (observation) and **CacheEden** (storage) — to memoize
-expensive formula sub-trees across queries.
-
-```
-Formula tree
-    │
-    ▼
-FormulaCacheVisitor traverses tree
-    │
-    ├─ Is estimatedCost ≥ minimalComplexityThreshold?
-    │
-    ▼
-CacheAnteroom.register()
-    │
-    ├─ Cache hit in CacheEden? ──────────────────────► Return cached FlattenedFormula
-    │     (transactionalIdHash must match)
-    │
-    └─ Cache miss → create instrumented clone
-         via getCloneWithComputationCallback()
-         │
-         ▼
-    Query executes, formula.compute() fires
-         │
-         ▼
-    Callback records sizeEstimate
-    as CacheRecordAdept in CacheAnteroom
-         │
-         ▼
-    Periodic evaluation (when anteroom fills or timer fires)
-         │
-         ▼
-CacheEden.evaluateAdepts()
-    ├─ Merge adepts + existing cached records
-    ├─ Sort by spaceToPerformanceRatio (descending)
-    ├─ Promote top candidates within memory budget
-    └─ Evict cold records (unused for ≥ 3 evaluation intervals)
-```
-
-### Cache keys
-
-The cache uses a **three-level key**:
-
-1. **Record key** — `xxHash(catalogName, entityType, formula.getHash())` — scopes cache entries
-   per catalog and entity type.
-2. **Structural hash** (`formula.getHash()`) — identifies the formula tree shape. Same query structure
-   → same hash.
-3. **Transactional ID hash** (`formula.getTransactionalIdHash()`) — validates freshness. If the underlying
-   data changed (transaction committed), the transactional IDs change, the hash changes, and the cached
-   entry is a miss.
-
-### Cache record lifecycle
-
-| State             | Description                                                              |
-|-------------------|--------------------------------------------------------------------------|
-| **Adept**         | Candidate in anteroom; usage count being tracked.                        |
-| **Promoted**      | Moved to CacheEden; awaiting first computation to capture payload.       |
-| **Initialized**   | Payload (`FlattenedFormula`) stored; future queries return it directly.   |
-| **Cooling**       | In cache but unused for consecutive evaluation intervals.                |
-| **Evicted**       | Removed after `≥ 3` unused intervals or exceeded memory budget.          |
-
-### Cache invalidation
-
-Invalidation is **automatic and transactional**:
-
-1. A write transaction modifies an entity → the affected index bitmap gets a new transactional layer ID.
-2. On the next read query, the formula is reconstructed with new transactional IDs.
-3. `CacheEden.getCachedRecord()` compares `cachedRecord.transactionalIdHash` vs `formula.transactionalIdHash`.
-4. Mismatch → cache miss → formula is re-evaluated → new result may be promoted.
-
-There is no explicit invalidation API. `clearMemory()` on a formula resets its memoized result but does not
-interact with the cache system.
-
-### toSerializableFormula()
-
-When a formula is promoted, `toSerializableFormula(formulaHash, hashFunction)` is called to materialize the
-computation result into a lightweight `CachePayloadHeader`. The default implementation in
-`AbstractCacheableFormula` produces a `FlattenedFormula`:
-
-```java
-new FlattenedFormula(
-    formulaHash,
-    getTransactionalIdHash(),
-    distinct(sort(gatherTransactionalIds())),
-    compute()  // already memoized
-)
-```
-
-Specialized variants exist for price-filtered queries that must preserve side-data:
-
-- `FlattenedFormulaWithFilteredPrices` — adds `FilteredPriceRecords` + `PriceEvaluationContext`.
-- `FlattenedFormulaWithFilteredOutRecords` — tracks filtered-out entity IDs.
-- `FlattenedFormulaWithFilteredPricesAndFilteredOutRecords` — combined.
-
-If your formula carries side-data that downstream consumers need (sorters, extra-result producers), you must
-override `toSerializableFormula()` to include that data.
-
-### Cache configuration
-
-| Parameter                            | Purpose                                                        |
-|--------------------------------------|----------------------------------------------------------------|
-| `reflection`                         | Reflection metadata caching mode (default `CACHE`).             |
-| `enabled`                            | Cross-query formula result caching switch (default `false`).    |
-| `minimalComplexityThreshold`         | Minimal estimated computation cost for admission (default 10K). |
-| `cacheSizeInBytes`                    | Estimated retained size budget; 0 selects 25% of free heap at class initialization. |
-| `dropEntriesAfterSecondsOfInactivity` | Idle expiry and maintenance period (default 600 s; 0 disables both). |
-| `verifyOneHitIn`                     | Hit verification sampling rate (default 1000; 0 disables it).     |
-
-Single records larger than 1 MB (`MAX_BUFFER_SIZE`) are rejected.
-
-### Read-only session requirement
-
-Caching is active **only for read-only sessions**. Write sessions bypass the cache entirely because they may
-contain client-specific uncommitted modifications.
+The installed `CacheSupervisor` controls reuse across queries. `AbstractCacheableFormula` supplies the common
+base for formulas whose results may be considered by that supervisor. Identity declarations must cover every
+side output read by sorters and extra-result producers as well as the computed bitmap.
 
 ## Visitor pattern
 
@@ -582,7 +399,6 @@ applied last.
 | `FormulaCloner`                   | Rebuilds formula tree with selective mutations.       |
 | `FormulaOptimizer`                | Prunes empty branches, unwraps redundant containers.  |
 | `FormulaDeduplicator`             | Collapses duplicate sub-trees for memoization reuse.  |
-| `FormulaCacheVisitor`             | Instruments cacheable formulas with callbacks.        |
 | `FormulaLocator` (`FormulaFinder`)| Finds formula nodes by type in the tree.             |
 | `PrettyPrintingFormulaVisitor`    | Serializes tree as human-readable text.              |
 
@@ -595,10 +411,8 @@ Formula tests live in `evita_test/evita_functional_tests/src/test/java/io/evitad
 Create bitmaps with `ArrayBitmap` and wrap them in `ConstantFormula` for formula-based tests:
 
 ```java
-private static final long INDEX_TRANSACTION_ID = 1L;
-
 // Direct bitmap mode
-new AndFormula(INDEX_TRANSACTION_ID,
+new AndFormula(
     new ArrayBitmap(1, 3, 4, 5, 8),
     new ArrayBitmap(1, 2, 4, 8)
 );
@@ -631,25 +445,24 @@ assertArrayEquals(
 | **Memoization**            | `assertSame(formula.compute(), formula.compute())` — same object reference.       |
 | **clearMemory()**          | After reset, `compute()` must produce the same result (fresh evaluation).         |
 | **Cloning**                | `getCloneWithInnerFormulas()` must preserve behavior: `assertArrayEquals(original.compute().getArray(), clone.compute().getArray())`. |
-| **Hash determinism**       | `assertEquals(formula.getHash(), identicalFormula.getHash())`.                    |
-| **Hash sensitivity**       | Different configuration → different hash.                                         |
+| **Identity determinism**   | `assertEquals(formula.getKey(), identicalFormula.getKey())`.                       |
+| **Identity sensitivity**   | Different semantic inputs produce different keys.                               |
 | **Cardinality estimate**   | Verify `getEstimatedCardinality()` returns sensible bounds.                       |
 | **Cost ordering**          | `getEstimatedCost()` must be less than or equal to `getCost()` for typical inputs.|
 | **Semantic equivalence**   | When testing optimizers: `assertArrayEquals(original.compute().getArray(), optimized.compute().getArray())`. |
 | **Tree structure**         | Use `assertInstanceOf` and `getInnerFormulas()` to verify post-processed trees.   |
-| **Cache behavior**         | Use `FormulaCacheVisitor.analyse()` with a `CacheAnteroom` to verify registration.|
 
 ### Initialization in tests
 
-Formulas require initialization before hash/cost methods work. Use `TestQueryExecutionContext` or create a
+Formulas require execution initialization before context-dependent computation. Use `TestQueryExecutionContext` or create a
 minimal context:
 
 ```java
 formula.initialize(new TestQueryExecutionContext(entitySchema, query));
 ```
 
-For simple computation-only tests, `compute()` works without initialization — but `getHash()`,
-`getEstimatedCost()`, and `gatherTransactionalIds()` will throw if `initFields()` has not been called.
+For context-free formulas, `compute()` works without execution initialization. Constructors must call
+`initFields()` before estimated costs or keys are requested.
 
 ## Common anti-patterns
 
@@ -660,7 +473,7 @@ For simple computation-only tests, `compute()` works without initialization — 
 | Forgetting to preserve state in `getCloneWithInnerFormulas()` | Clone **all** configuration fields.                  |
 | Not validating constructor arguments                     | Use `Assert.isTrue()` / `Assert.notNull()`.              |
 | Inheriting `getClassId()` from a superclass              | Each leaf class must define its own unique constant.      |
-| Hashing inner formulas in `includeAdditionalHash()`      | Inner formulas are already included — hash only additional state. |
+| Omitting result or side-output inputs from identity | Declare detached components and verify them with an identity fixture. |
 | Using `new StringBuilder()` without capacity             | Always estimate capacity: `new StringBuilder(64)`.       |
 | Using `Objects.hash()` with primitives                   | Use `31 * result + Type.hashCode(primitive)`.            |
 | Using Java streams in hot paths                          | Write index-based `for` loops — streams allocate iterators, lambdas, and intermediate arrays per call. |
@@ -677,9 +490,8 @@ For simple computation-only tests, `compute()` works without initialization — 
 - [ ] `getCloneWithInnerFormulas()` preserves all configuration, handles 0/1/N children edge cases
 - [ ] `getOperationCost()` returns a meaningful constant
 - [ ] `getEstimatedCardinality()` returns a sensible estimate (min for AND, sum for OR, delegate for wrappers)
-- [ ] `includeAdditionalHash()` covers formula-specific state (not inner formulas)
-- [ ] `isFormulaOrderSignificant()` returns `true` if operation is non-commutative
-- [ ] `gatherBitmapIdsInternal()` overridden if formula wraps bitmaps directly
+- [ ] `identity()` declares every semantic input beyond the ordered children
+- [ ] Identity record declares `describeTo()` and matches the holder's `CLASS_ID`
+- [ ] Identity fixture covers construction modes, changed inputs, clone paths and opaque inputs
 - [ ] `toString()` and optionally `toStringVerbose()` implemented
-- [ ] If cacheable: `toSerializableFormula()` preserves any side-data needed by downstream consumers
-- [ ] Tests cover computation correctness, edge cases, memoization, cloning, hash determinism, and cost ordering
+- [ ] Tests cover computation correctness, edge cases, memoization, cloning, identity determinism, and cost ordering

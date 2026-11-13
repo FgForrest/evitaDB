@@ -39,7 +39,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -59,7 +58,7 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
 public class AttributeFormula extends AbstractFormula implements ChildrenDependentFormula, NonCollapsibleFormula,
 	RequirementsDefiner {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 4944486926494447594L;
 	/**
@@ -206,20 +205,6 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 			return this.innerFormulas[0].compute();
 		} else {
 			throw new GenericEvitaInternalError(ERROR_SINGLE_FORMULA_EXPECTED);
-		}
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.attributeKey.locale() == null) {
-			return hashFunction.hashChars(this.attributeKey.attributeName());
-		} else {
-			return hashFunction.hashLongs(
-				new long[] {
-					hashFunction.hashChars(this.attributeKey.attributeName()),
-					hashFunction.hashChars(this.attributeKey.locale().toLanguageTag())
-				}
-			);
 		}
 	}
 

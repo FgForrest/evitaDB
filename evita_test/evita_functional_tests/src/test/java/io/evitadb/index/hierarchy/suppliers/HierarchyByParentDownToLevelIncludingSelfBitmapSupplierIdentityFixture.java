@@ -61,20 +61,16 @@ public class HierarchyByParentDownToLevelIncludingSelfBitmapSupplierIdentityFixt
 		final HierarchyFilteringPredicate oversized = new FilteringFormulaHierarchyEntityPredicate(
 			"category", Set.of(Scope.LIVE), oversizedFormula());
 		return Map.of("hierarchy", new ConstructionMode<>(
-			() -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(index, new long[]{1, 2}, 1, 1,
+			() -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(index, 1, 1,
 				basePredicate),
-			Map.of("parentNode", () -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(index,
-				new long[]{1, 2}, 2, 1, basePredicate),
-				"levels", () -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(index, new long[]{1,
-					2}, 1, 2, basePredicate),
-				"predicate", () -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(index,
-					new long[]{1, 2}, 1, 1, new MatchNodeIdHierarchyFilteringPredicate(2)),
-				"owner", () -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(otherIndex,
-					new long[]{1, 2}, 1, 1, basePredicate)),
-			Map.of("opaque predicate", () -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(index,
-				new long[]{1, 2}, 1, 1, opaque)),
+			Map.of("parentNode", () -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(index, 2, 1, basePredicate),
+				"levels", () -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(index, 1, 2, basePredicate),
+				"predicate", () -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(
+					index, 1, 1, new MatchNodeIdHierarchyFilteringPredicate(2)),
+				"owner", () -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(otherIndex, 1, 1, basePredicate)),
+			Map.of("opaque predicate", () -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(index, 1, 1, opaque)),
 			Map.of("oversized predicate",
-				() -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(index, new long[]{1, 2}, 1, 1,
+				() -> new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(index, 1, 1,
 					oversized)),
 			Map.of(), Set.of(), Set.of("hierarchyIndex"), Set.of()));
 	}

@@ -36,15 +36,12 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 
 /**
  * This formula has almost identical implementation as {@link OrFormula} but it accepts only set of
@@ -56,7 +53,7 @@ import java.util.Arrays;
  */
 public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 2720865649065325701L;
 
@@ -151,39 +148,6 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 			sum += bitmap.size();
 		}
 		return sum;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// count transactional bitmaps for pre-sizing
-		int transactionalCount = 0;
-		for (Bitmap bitmap : this.bitmaps) {
-			if (bitmap instanceof TransactionalBitmap) {
-				transactionalCount++;
-			}
-		}
-		// 1 (referenceName hash) + groupId (0 or 1) + facetIds count + transactional bitmap count
-		final int groupIdSize = this.facetGroupId == null ? 0 : 1;
-		final long[] hashes = new long[1 + groupIdSize + this.facetIds.size() + transactionalCount];
-		int idx = 0;
-		hashes[idx++] = hashFunction.hashChars(this.referenceName);
-		if (this.facetGroupId != null) {
-			hashes[idx++] = this.facetGroupId;
-		}
-		for (int facetId : this.facetIds) {
-			hashes[idx++] = facetId;
-		}
-		// collect transactional bitmap ids into a temporary array for sorting
-		final long[] txIds = new long[transactionalCount];
-		int txIdx = 0;
-		for (Bitmap bitmap : this.bitmaps) {
-			if (bitmap instanceof TransactionalBitmap) {
-				txIds[txIdx++] = ((TransactionalBitmap) bitmap).getId();
-			}
-		}
-		Arrays.sort(txIds);
-		System.arraycopy(txIds, 0, hashes, idx, txIds.length);
-		return hashFunction.hashLongs(hashes);
 	}
 
 	@Override

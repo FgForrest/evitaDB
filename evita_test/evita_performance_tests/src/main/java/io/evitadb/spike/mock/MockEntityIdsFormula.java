@@ -32,7 +32,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.index.bitmap.Bitmap;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -90,11 +89,6 @@ public class MockEntityIdsFormula extends AbstractFormula implements FilteredPri
 	@Override
 	protected Bitmap computeInternal() {
 		return this.entityIds;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
 	}
 
 	@Override

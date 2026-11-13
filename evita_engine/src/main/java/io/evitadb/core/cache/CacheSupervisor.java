@@ -27,7 +27,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.io.Closeable;
@@ -39,17 +38,6 @@ import java.io.Closeable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface CacheSupervisor extends Closeable {
-
-	/**
-	 * Central accessor for creating a hash function that returns fast hashing function producing low collision hashes
-	 * for passed input. We use <a href="https://github.com/OpenHFT/Zero-Allocation-Hashing">zero-allocation hashing</a>
-	 * library and <a href="https://github.com/Cyan4973/xxHash">xxHash</a> function that is believed to fulfill these
-	 * requirements.
-	 */
-	@Nonnull
-	static LongHashFunction createHashFunction() {
-		return LongHashFunction.xx3();
-	}
 
 	/**
 	 * Analyses a formula tree for reuse within the given session and entity type.

@@ -67,15 +67,15 @@ public class RangeCountFormulaIdentityFixture implements IdentityFixture<RangeCo
 				Map.of(
 					"plus", () -> formula(new BaseBitmap(3), new BaseBitmap(2)),
 					"minus", () -> formula(new BaseBitmap(1), new BaseBitmap(3)),
-					"plus multiplicity", () -> new RangeCountFormula(1,
+					"plus multiplicity", () -> new RangeCountFormula(
 						new Bitmap[]{new BaseBitmap(1), new BaseBitmap(1)}, new Bitmap[]{new BaseBitmap(2)}),
-					"minus multiplicity", () -> new RangeCountFormula(1,
+					"minus multiplicity", () -> new RangeCountFormula(
 						new Bitmap[]{new BaseBitmap(1)}, new Bitmap[]{new BaseBitmap(2), new BaseBitmap(2)})
 				),
 				Map.of("opaque plus", () -> formula(opaque, new BaseBitmap(2)),
 					"opaque minus", () -> formula(new BaseBitmap(1), opaque)),
-				Map.of("many plus", () -> new RangeCountFormula(1, oversized, new Bitmap[]{producer}),
-					"many minus", () -> new RangeCountFormula(1, new Bitmap[]{producer}, oversized)),
+				Map.of("many plus", () -> new RangeCountFormula(oversized, new Bitmap[]{producer}),
+					"many minus", () -> new RangeCountFormula(new Bitmap[]{producer}, oversized)),
 				paths, Set.of(), Set.of(), Set.of()),
 			"producer", new ConstructionMode<>(
 				() -> formula(producer, minusProducer),
@@ -83,14 +83,14 @@ public class RangeCountFormulaIdentityFixture implements IdentityFixture<RangeCo
 					"minus version", () -> formula(producer, otherMinusProducer)),
 				Map.of("opaque plus", () -> formula(opaque, minusProducer),
 					"opaque minus", () -> formula(producer, opaque)),
-				Map.of("many plus", () -> new RangeCountFormula(1, oversized, new Bitmap[]{minusProducer}),
-					"many minus", () -> new RangeCountFormula(1, new Bitmap[]{producer}, oversized)),
+				Map.of("many plus", () -> new RangeCountFormula(oversized, new Bitmap[]{minusProducer}),
+					"many minus", () -> new RangeCountFormula(new Bitmap[]{producer}, oversized)),
 				paths, Set.of(), Set.of(), Set.of()),
 			"empty minus", new ConstructionMode<>(
-				() -> new RangeCountFormula(1, new Bitmap[]{new BaseBitmap(1)}, new Bitmap[0]),
-				Map.of("plus", () -> new RangeCountFormula(1, new Bitmap[]{new BaseBitmap(2)}, new Bitmap[0])),
-				Map.of("opaque plus", () -> new RangeCountFormula(1, new Bitmap[]{opaque}, new Bitmap[0])),
-				Map.of("many plus", () -> new RangeCountFormula(1, oversized, new Bitmap[0])),
+				() -> new RangeCountFormula(new Bitmap[]{new BaseBitmap(1)}, new Bitmap[0]),
+				Map.of("plus", () -> new RangeCountFormula(new Bitmap[]{new BaseBitmap(2)}, new Bitmap[0])),
+				Map.of("opaque plus", () -> new RangeCountFormula(new Bitmap[]{opaque}, new Bitmap[0])),
+				Map.of("many plus", () -> new RangeCountFormula(oversized, new Bitmap[0])),
 				paths, Set.of("minus"), Set.of("minus"), Set.of("minus"))
 		);
 	}
@@ -98,6 +98,6 @@ public class RangeCountFormulaIdentityFixture implements IdentityFixture<RangeCo
 	/** Builds one operand in each signed family. */
 	@Nonnull
 	private static RangeCountFormula formula(@Nonnull Bitmap plus, @Nonnull Bitmap minus) {
-		return new RangeCountFormula(1, new Bitmap[]{plus}, new Bitmap[]{minus});
+		return new RangeCountFormula(new Bitmap[]{plus}, new Bitmap[]{minus});
 	}
 }

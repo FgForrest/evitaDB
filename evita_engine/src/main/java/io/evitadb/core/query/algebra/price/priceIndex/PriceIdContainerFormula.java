@@ -38,7 +38,6 @@ import io.evitadb.index.price.AbstractPriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -55,7 +54,7 @@ import javax.annotation.Nonnull;
  */
 public class PriceIdContainerFormula extends AbstractFormula implements PriceIndexProvidingFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -1448590239158197683L;
 
@@ -111,11 +110,6 @@ public class PriceIdContainerFormula extends AbstractFormula implements PriceInd
 	@Override
 	public int getEstimatedCardinality() {
 		return getDelegate().getEstimatedCardinality();
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
 	}
 
 	@Override

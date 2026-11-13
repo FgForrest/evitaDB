@@ -121,22 +121,6 @@ class MutableFormula implements Formula {
 	}
 
 	@Override
-	public long getHash() {
-		return getInnerFormula().getHash();
-	}
-
-	@Override
-	public long getTransactionalIdHash() {
-		return getInnerFormula().getTransactionalIdHash();
-	}
-
-	@Override
-	@Nonnull
-	public long[] gatherTransactionalIds() {
-		return getInnerFormula().gatherTransactionalIds();
-	}
-
-	@Override
 	public long getEstimatedCost() {
 		return getInnerFormula().getEstimatedCost();
 	}

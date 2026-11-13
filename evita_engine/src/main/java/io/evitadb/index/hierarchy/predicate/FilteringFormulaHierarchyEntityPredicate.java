@@ -108,11 +108,6 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Getter @Nonnull private final Formula filteringFormula;
 	/**
-	 * Contains memoized value of {@link #getHash()} method.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private final Long hash;
-	/**
 	 * Signalizes that the {@link HierarchyTraversalPredicate} reached a node that was marked as "stop" node and its
 	 * children should be tested by a predicate logic as "false".
 	 */
@@ -286,7 +281,6 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 						}
 					)
 				);
-			this.hash = this.filteringFormula.getHash();
 		} finally {
 			queryContext.popStep();
 		}
@@ -296,8 +290,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 * Constructor used when only the pre-computed filtering formula is available — typically because the formula
 	 * was derived by cloning the main query's filter tree (see
 	 * {@link io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor#getFilteringFormulaForStatisticsBase}).
-	 * Identity for {@link #equals(Object)}/{@link #hashCode()} relies on the formula's hash because no
-	 * {@link FilterBy} is captured.
+	 * The detached identity captures the supplied formula key.
 	 *
 	 * @param targetEntityType  name of the entity type whose hierarchy is being filtered by this predicate
 	 * @param requestedScopes   set of {@link Scope}s the surrounding query operates against; used to constrain
@@ -316,7 +309,6 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		this.filterBy = null;
 		this.anyChildFilter = null;
 		this.filteringFormula = filteringFormula;
-		this.hash = this.filteringFormula.getHash();
 	}
 
 	/**
@@ -390,7 +382,6 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 					stepDescriptionSupplier
 				)
 			);
-			this.hash = this.filteringFormula.getHash();
 		} finally {
 			queryContext.popStep();
 		}
@@ -417,12 +408,6 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	}
 
 	@Override
-	public long getHash() {
-		Assert.isPremiseValid(this.hash != null, "The predicate hasn't been initialized!");
-		return this.hash;
-	}
-
-	@Override
 	public boolean test(int hierarchyNodeId, int level, int distance) {
 		return !this.stopNodeEncountered;
 	}
@@ -444,36 +429,6 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	@Override
 	public boolean test(int hierarchyNodeId) {
 		return this.filteringFormula.compute().contains(hierarchyNodeId);
-	}
-
-	@Override
-	public int hashCode() {
-		int result = Arrays.hashCode(this.parent);
-		result = 31 * result + (this.filterBy == null ? 0 : this.filterBy.hashCode());
-		result = 31 * result + this.targetEntityType.hashCode();
-		result = 31 * result + this.requestedScopes.hashCode();
-		// fold in the formula's hash so predicates that share `(parent, targetEntityType, requestedScopes)` but
-		// were built from different filtering formulas (e.g. cached pre-computed formulas with `filterBy == null`)
-		// remain distinguishable
-		result = 31 * result + Long.hashCode(this.hash);
-		return result;
-	}
-
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-
-		FilteringFormulaHierarchyEntityPredicate that = (FilteringFormulaHierarchyEntityPredicate) o;
-		// `hash` is a 64-bit content hash of `filteringFormula` (xxhash, uniformly distributed) and is one of
-		// five equality components — a collision alone cannot make two predicates equal. The alternative
-		// (deep formula-tree structural equality) is exactly the cost this predicate is built to avoid; the
-		// 64-bit collision risk across the predicate identities used in a single query context is negligible.
-		return Arrays.equals(this.parent, that.parent) &&
-			Objects.equals(this.filterBy, that.filterBy) &&
-			this.targetEntityType.equals(that.targetEntityType) &&
-			this.requestedScopes.equals(that.requestedScopes) &&
-			this.hash.longValue() == that.hash.longValue();
 	}
 
 	@Override

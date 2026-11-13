@@ -221,12 +221,7 @@ public class BidirectionalReferenceRewriter {
 			new ReferencedOwnerExistenceFormula(
 				plan.candidateOwners(),
 				perOwnerFormulas,
-				referencedEntityFormula,
-				counterpartTypeIndexId(
-					filterByVisitor.getQueryContext(), plan.targetEntityType(), plan.counterpart(),
-					plan.counterpartScopes()
-				)
-			)
+				referencedEntityFormula)
 		);
 	}
 
@@ -1235,26 +1230,6 @@ public class BidirectionalReferenceRewriter {
 		return FormulaFactory.or(plainFormulas);
 	}
 
-	/**
-	 * Returns the transactional id of the counterpart type-level index the candidate owners were read from, so that
-	 * the produced formula becomes obsolete as soon as anything about those references changes.
-	 */
-	private static long counterpartTypeIndexId(
-		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull String targetEntityType,
-		@Nonnull ReferenceSchemaContract counterpart,
-		@Nonnull Set<Scope> scopes
-	) {
-		long id = 0L;
-		for (final Scope scope : scopes) {
-			id = 31L * id + queryContext.getEntityIndex(
-				targetEntityType,
-				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, counterpart.getName()),
-				ReferencedTypeEntityIndex.class
-			).map(ReferencedTypeEntityIndex::getId).orElse(0L);
-		}
-		return id;
-	}
 
 	/**
 	 * Result of {@link #splitChildren(ReferenceHaving)} - the `entityHaving` payload separated from the pure

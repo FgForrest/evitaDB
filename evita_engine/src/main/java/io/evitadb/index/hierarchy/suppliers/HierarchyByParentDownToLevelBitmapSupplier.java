@@ -34,7 +34,6 @@ import io.evitadb.core.query.algebra.identity.IdentityExempt;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -61,8 +60,13 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyByParentDownToLevelBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		super(hierarchyIndex, transactionalId);
+	public HierarchyByParentDownToLevelBitmapSupplier(
+		@Nonnull HierarchyIndex hierarchyIndex,
+		int parentNode,
+		int levels,
+		@Nonnull HierarchyFilteringPredicate excludedNodeTrees
+	) {
+		super(hierarchyIndex);
 		this.parentNode = parentNode;
 		this.levels = levels;
 		this.excludedNodeTrees = excludedNodeTrees;
@@ -73,16 +77,6 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 		this.excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
 		super.initialize(executionContext);
-	}
-
-	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			new long[]{
-				hashFunction.hashInts(new int[]{(int) CLASS_ID, this.parentNode, this.levels}),
-				this.excludedNodeTrees.getHash()
-			}
-		);
 	}
 
 	@Nonnull
@@ -101,7 +95,6 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 	public String toString() {
 		return "HIERARCHY FROM PARENT: " + this.parentNode + " " + this.excludedNodeTrees + " DOWN TO " + this.levels;
 	}
-
 
 	/** Returns detached inputs without computing the bitmap. */
 	@Nonnull

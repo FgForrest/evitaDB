@@ -242,43 +242,6 @@ class NotFormulaTest {
 		}
 	}
 
-	/** Pins the legacy structural hash, which the formula deduplicator still keys formulas on. */
-	@Nested
-	@DisplayName("Legacy hash consumed by the formula deduplicator")
-	class LegacyHashTest {
-
-		@Test
-		@DisplayName("should produce identical hash for identically-constructed formulas")
-		void shouldProduceIdenticalHashForIdenticalFormulas() {
-			final long hashA = createNotFormula(new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}).getHash();
-			final long hashB = createNotFormula(new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}).getHash();
-
-			assertEquals(hashA, hashB);
-		}
-
-		@Test
-		@DisplayName("should produce different hash for different children")
-		void shouldProduceDifferentHashForDifferentChildren() {
-			final long hashA = createNotFormula(new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}).getHash();
-			final long hashB = createNotFormula(new int[]{1, 3}, new int[]{1, 2, 3, 4, 5}).getHash();
-
-			assertNotEquals(hashA, hashB);
-		}
-
-		@Test
-		@DisplayName("should produce different hash when subtracted and superset are swapped (order-significant)")
-		void shouldProduceDifferentHashWhenArgumentsSwapped() {
-			final ConstantFormula childA = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 2, 3)));
-			final ConstantFormula childB = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(2, 3, 4, 5)));
-
-			// NOT(A, B) vs NOT(B, A) — order matters
-			final long hashAB = new NotFormula(childA, childB).getHash();
-			final long hashBA = new NotFormula(childB, childA).getHash();
-
-			assertNotEquals(hashAB, hashBA);
-		}
-	}
-
 	@Nested
 	@DisplayName("Cardinality estimate")
 	class CardinalityEstimateTest {

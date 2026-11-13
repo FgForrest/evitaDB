@@ -93,41 +93,6 @@ class PriceIdToEntityIdTranslateFormulaTest {
 
 	}
 
-	/**
-	 * Preserves the hash contract used by the formula deduplicator.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Legacy hash determinism and sensitivity")
-	class LegacyHashTest {
-
-		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticalFormulas() {
-			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
-
-			final PriceIdToEntityIdTranslateFormula f1 = new PriceIdToEntityIdTranslateFormula(inner);
-			final PriceIdToEntityIdTranslateFormula f2 = new PriceIdToEntityIdTranslateFormula(inner);
-
-			assertEquals(f1.getHash(), f2.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce different hash for different inner formulas")
-		void shouldProduceDifferentHashForDifferentInnerFormulas() {
-			final PriceIdToEntityIdTranslateFormula f1 = new PriceIdToEntityIdTranslateFormula(
-				new ConstantFormula(new ArrayBitmap(1, 2))
-			);
-			final PriceIdToEntityIdTranslateFormula f2 = new PriceIdToEntityIdTranslateFormula(
-				new ConstantFormula(new ArrayBitmap(3, 4))
-			);
-
-			assertNotEquals(f1.getHash(), f2.getHash());
-		}
-
-	}
-
 	@Nested
 	@DisplayName("Cloning")
 	class CloningTest {

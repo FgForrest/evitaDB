@@ -35,7 +35,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -53,7 +52,7 @@ import java.util.Currency;
  */
 public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractCacheableFormula#getClassId()} for hash computation.
+	 * Stable discriminator returned by {@link AbstractCacheableFormula#getClassId()}.
 	 */
 	private static final long CLASS_ID = -1722354238488401487L;
 	/**
@@ -103,11 +102,6 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	@Override
 	public long getOperationCost() {
 		return 11;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return 0L;
 	}
 
 	@Override

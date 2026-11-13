@@ -59,7 +59,6 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
@@ -85,14 +84,14 @@ import java.util.function.Supplier;
  * every inner-record winning price into the histogram side-output funnel exposed by
  * {@link #getFilteredPriceRecordsForHistogram(QueryExecutionContext)}. Non-histogram queries leave the flag
  * at {@code false} at construction time and pay zero overhead for the side-output. The flag is mixed into
- * {@link #includeAdditionalHash(LongHashFunction)} so formula identity distinguishes computations with
+ * the detached identity so formula identity distinguishes computations with
  * different histogram side-output requirements.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class LowestPriceTerminationFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -4905806490462655316L;
 
@@ -134,7 +133,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * `priceHistogram` extra result is requested AND (b) this LP is being built outside any
 	 * `userFilter` scope. When `false`, the histogram side-output funnel is never allocated and the
 	 * per-inner-record drain branch is never entered, so non-histogram queries pay zero cost.
-	 * The flag is mixed into {@link #includeAdditionalHash(LongHashFunction)} to distinguish formulas
+	 * The flag is mixed into the detached identity to distinguish formulas
 	 * with different histogram side-output requirements.
 	 */
 	private final boolean collectPerInnerRecordPrices;
@@ -211,7 +210,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 		this.collectPerInnerRecordPrices = collectPerInnerRecordPrices;
 		this.initFields(containerFormula);
 	}
-
 
 	/**
 	 * Creates a termination with an independent individual-price predicate for this computation and each clone.
@@ -477,18 +475,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 			sum += innerFormula.getEstimatedCardinality();
 		}
 		return sum;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// Include the histogram flag so identity distinguishes formulas with per-inner-record side-output.
-		return hashFunction.hashLongs(
-			new long[]{
-				this.priceEvaluationContext.computeHash(hashFunction),
-				this.sellingPricePredicate.computeHash(hashFunction),
-				this.collectPerInnerRecordPrices ? 1L : 0L
-			}
-		);
 	}
 
 	@Override

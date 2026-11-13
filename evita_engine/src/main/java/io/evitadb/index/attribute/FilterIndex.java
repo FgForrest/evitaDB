@@ -24,7 +24,6 @@
 package io.evitadb.index.attribute;
 
 import com.carrotsearch.hppc.IntIntHashMap;
-import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -161,7 +160,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 					? EmptyFormula.INSTANCE
 					: new ConstantFormula(bitmaps[0]);
 			}
-			return new OrFormula(indexTransactionIds, bitmaps);
+			return new OrFormula(bitmaps);
 		};
 	/**
 	 * Prices one bucket of the memoized {@link #memoizedRangeHistogramSubSet}, which — unlike a slice off the value
@@ -239,16 +238,6 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 *
 	 * Memoizing the bitmap keeps the expensive part — the join of all internally held bitmaps — and the
 	 * {@link ConstantFormula} built around it per call is a handful of bytes over the shared bitmap.
-	 *
-	 * What keeps that cheap in CPU as well is where the formula's cache key comes from. Once the value tree holds
-	 * more than one bucket the memoized bitmap is a `BaseBitmap`, which is not a
-	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer} and so has no transactional id to key
-	 * on; `ConstantFormula#includeAdditionalHash` falls through to hashing its **contents**, eagerly, in the
-	 * constructor. That would be `O(records)` on every call — measured at roughly 1.4 µs for 1k records, 83 µs for
-	 * 100k and 309 µs for 500k — were the hash not memoized on the bitmap itself. It is: because this field hands
-	 * out the same `BaseBitmap` instance every time, {@link Bitmap#getContentHash} computes the walk once and every
-	 * later formula reads it back. Replacing this bitmap with a per-call copy would silently reinstate that cost.
-	 * See `documentation/adr/2026-08-28-index-lifetime-formula-memoization.md`.
 	 *
 	 * Do not turn this back into a `Formula` field.
 	 */

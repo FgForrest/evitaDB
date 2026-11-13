@@ -129,7 +129,6 @@ public class FormulaCostMeasurement {
 	public void andFormulaInteger(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
 			new AndFormula(
-				new long[]{1L},
 				bitmapDataSet.getBitmapA(),
 				bitmapDataSet.getBitmapB()
 			).compute()
@@ -144,7 +143,6 @@ public class FormulaCostMeasurement {
 	public void orFormulaInteger(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
 			new OrFormula(
-				new long[]{1L},
 				bitmapDataSet.getBitmapA(),
 				bitmapDataSet.getBitmapB()
 			).compute()

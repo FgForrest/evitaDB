@@ -63,16 +63,10 @@ class FormulaIdentityContractTest implements EvitaTestSupport {
 		"Deliberately inherits the identity pair to prove reflective rejection.",
 		"io.evitadb.core.query.algebra.identity.LoudFailureTest$MismatchedClassFormula",
 		"Deliberately mismatches its class identifier and inherited identity.",
-		"io.evitadb.core.query.algebra.identity.LoudFailureTest$UndeclaredIdentityFormula",
-		"Deliberately retains the throwing identity default.",
 		"io.evitadb.core.query.algebra.identity.IdentityContractVerifierTest$DelegateBlindFormula",
 		"Deliberately drops an inherited input to prove attestation cannot hide it.",
-		"io.evitadb.core.query.algebra.identity.FormulaKeyTest$UndeclaredFormula",
-		"Keeps the formula identity default observable.",
-		"io.evitadb.core.query.algebra.identity.FormulaKeyTest$UndeclaredHierarchyPredicate",
-		"Keeps the hierarchy predicate identity defaults observable.",
-		"io.evitadb.core.query.algebra.identity.FormulaKeyTest$UndeclaredEntityFilter",
-		"Keeps the entity filter identity defaults observable."
+		"io.evitadb.core.query.algebra.identity.FormulaKeyTest$UnrequestedIdentityFormula",
+		"Throws from identity to prove construction and computation do not request keys."
 	);
 
 	/** Verifies the engine and test inventories independently against their floors. */

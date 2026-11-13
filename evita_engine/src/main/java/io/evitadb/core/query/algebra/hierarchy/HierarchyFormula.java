@@ -36,7 +36,6 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
 import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -55,7 +54,7 @@ import javax.annotation.Nullable;
  */
 public class HierarchyFormula extends AbstractFormula implements ChildrenDependentFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -7910610363796304904L;
 	/**
@@ -120,11 +119,6 @@ public class HierarchyFormula extends AbstractFormula implements ChildrenDepende
 		} else {
 			throw new GenericEvitaInternalError(ERROR_SINGLE_FORMULA_EXPECTED);
 		}
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return this.referenceName == null ? 0L : hashFunction.hashChars(this.referenceName);
 	}
 
 	@Override

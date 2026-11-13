@@ -198,31 +198,6 @@ class PriceListCombinationFormulaTest {
 	}
 
 	/**
-	 * Preserves the hash contract used by the formula deduplicator.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Legacy hash determinism")
-	class LegacyHashDeterminismTest {
-
-		@Test
-		@DisplayName("should produce identical hash for identical construction")
-		void shouldProduceIdenticalHashForIdenticalConstruction() {
-			final PriceListCombinationFormula a = createFormula(
-				"sub", "super",
-				new int[]{1, 2}, new int[]{1, 2, 3}
-			);
-			final PriceListCombinationFormula b = createFormula(
-				"sub", "super",
-				new int[]{1, 2}, new int[]{1, 2, 3}
-			);
-
-			assertEquals(a.getHash(), b.getHash());
-		}
-	}
-
-	/**
 	 * Verifies detached computation identity.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -248,31 +223,6 @@ class PriceListCombinationFormulaTest {
 		}
 	}
 
-	/**
-	 * Preserves the hash contract used by the formula deduplicator.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Legacy hash sensitivity")
-	class LegacyHashSensitivityTest {
-
-		@Test
-		@DisplayName("should produce different hash for different inner data")
-		void shouldProduceDifferentHashForDifferentInnerData() {
-			final long hashA = createFormula(
-				"sub", "super",
-				new int[]{1, 2}, new int[]{1, 2, 3}
-			).getHash();
-			final long hashB = createFormula(
-				"sub", "super",
-				new int[]{4, 5}, new int[]{4, 5, 6}
-			).getHash();
-
-			assertNotEquals(hashA, hashB);
-		}
-	}
-
 	@Nested
 	@DisplayName("Class ID difference")
 	class ClassIdDifferenceTest {
@@ -290,29 +240,6 @@ class PriceListCombinationFormulaTest {
 			).getKey();
 
 			assertNotEquals(notFormulaKey, priceListComboKey);
-		}
-	}
-
-	/**
-	 * Preserves the legacy hash distinction from ordinary subtraction over the same children.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
-	 */
-	@Nested
-	@DisplayName("Legacy class identifier difference")
-	class LegacyClassIdDifferenceTest {
-		@Test
-		@DisplayName("should have different hash than NotFormula with same children")
-		void shouldHaveDifferentHashThanNotFormulaWithSameChildren() {
-			final Formula subtracted = createConstantFormula(1, 2);
-			final Formula superset = createConstantFormula(1, 2, 3, 4);
-
-			final long notFormulaHash = new NotFormula(subtracted, superset).getHash();
-			final long priceListComboHash = new PriceListCombinationFormula(
-				"sub", "super", DEFAULT_CONTEXT, subtracted, superset
-			).getHash();
-
-			assertNotEquals(notFormulaHash, priceListComboHash);
 		}
 	}
 

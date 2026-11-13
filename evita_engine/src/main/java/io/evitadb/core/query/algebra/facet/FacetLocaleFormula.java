@@ -40,7 +40,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -220,12 +219,6 @@ public class FacetLocaleFormula extends AbstractFormula
 			RoaringBitmapBackedBitmap.getRoaringBitmap(this.innerFormulas[0].compute()),
 			RoaringBitmapBackedBitmap.getRoaringBitmap(this.innerFormulas[1].compute())
 		));
-	}
-
-	/** Includes the reference identity as well as the child formulas in the hash. */
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID + 31 * hashFunction.hashChars(this.referenceName);
 	}
 
 	/** Returns the generated class identifier. */

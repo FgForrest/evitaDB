@@ -75,7 +75,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -936,15 +935,6 @@ public class QueryPlanner {
 		 */
 		@Override
 		public long getOperationCost() {
-			return 0L;
-		}
-
-		/**
-		 * Contributes nothing beyond the class id and the inner formula's own hash - the placeholder holds no
-		 * state that could distinguish two instances.
-		 */
-		@Override
-		protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 			return 0L;
 		}
 

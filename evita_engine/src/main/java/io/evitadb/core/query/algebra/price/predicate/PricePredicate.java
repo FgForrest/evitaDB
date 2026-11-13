@@ -37,7 +37,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.NumberUtils;
 import lombok.RequiredArgsConstructor;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -126,18 +125,6 @@ public sealed abstract class PricePredicate implements PricePredicateContract
 	@Nonnull
 	public PriceAmountPredicate getRequestedPredicate() {
 		return this.amountPredicate;
-	}
-
-	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashInts(
-			new int[] {
-				this.queryPriceMode == null ? 0 : this.queryPriceMode.ordinal(),
-				this.indexedPricePlaces,
-				this.fromAsInt,
-				this.toAsInt
-			}
-		);
 	}
 
 	@Override

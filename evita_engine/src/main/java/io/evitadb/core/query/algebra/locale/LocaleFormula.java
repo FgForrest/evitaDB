@@ -43,7 +43,7 @@ import javax.annotation.Nonnull;
  */
 public class LocaleFormula extends ConstantFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 6877689619565475680L;
 

@@ -51,7 +51,7 @@ import javax.annotation.Nonnull;
  */
 public class PriceListCombinationFormula extends NotFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -379304706891548493L;
 	/**

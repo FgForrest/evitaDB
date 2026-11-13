@@ -32,7 +32,6 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.base.RangeCountFormula;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
@@ -158,19 +157,6 @@ public class RangeIndex
 	 */
 	private static final Predicate<TransactionalRangePoint> INT_RANGE_POINT_OBSOLETE_CHECKER =
 		point -> point.getThreshold() != Long.MIN_VALUE && point.getThreshold() != Long.MAX_VALUE && point.getStarts().isEmpty() && point.getEnds().isEmpty();
-
-	/**
-	 * Unique transactional id for this index instance. Overrides the {@link VoidTransactionMemoryProducer} default
-	 * (the constant `1L`) so that a formula-cache token seeded from this id — the `indexTransactionId` of the
-	 * {@link RangeCountFormula} built by this index's range queries — is UNIQUE per index yet
-	 * STABLE across commits that did not touch it: an untouched index is carried forward by reference from
-	 * {@link #createCopyWithMergedTransactionalMemory} (preserving its id), while a mutated index becomes a fresh
-	 * instance with a fresh id (correctly invalidating dependent cached formulas). With the constant `1L` default the
-	 * token never changed across commits, so a cached result over a `> EXCESSIVE_HIGH_CARDINALITY`-bucket range was
-	 * never invalidated and a committed write went unseen by every later query that hit the cache. This is a
-	 * runtime-only field, regenerated on load — it is never persisted (the persisted form carries no id).
-	 */
-	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
 	/**
 	 * Contains range information keyed by {@link RangePoint#getThreshold()} in ascending order. At least two points are
@@ -518,7 +504,7 @@ public class RangeIndex
 			starts.add(point.getStarts(), point.getRepeatedStarts());
 			ends.add(point.getEnds(), point.getRepeatedEnds());
 		}
-		return createRangeCountFormulaIfNecessary(getId(), ends, starts);
+		return createRangeCountFormulaIfNecessary(ends, starts);
 	}
 
 	/**
@@ -613,7 +599,7 @@ public class RangeIndex
 	 * Ranges of one record may share a border, so a point contributes every non-empty occurrence level it holds, each
 	 * as one more operand of its family; a point where nothing repeats contributes exactly its two level-1 bitmaps. The
 	 * repeated levels are expanded only when the ends family is not empty — see
-	 * {@link #createRangeCountFormulaIfNecessary(long, OperandFamily, OperandFamily)}.
+	 * {@link #createRangeCountFormulaIfNecessary(OperandFamily, OperandFamily)}.
 	 *
 	 * @param startsBound     highest threshold whose STARTS still contribute `+1`
 	 * @param startsInclusive whether a point sitting exactly on `startsBound` contributes its starts
@@ -649,7 +635,7 @@ public class RangeIndex
 				ends.add(point.getEnds(), point.getRepeatedEnds());
 			}
 		}
-		return createRangeCountFormulaIfNecessary(getId(), starts, ends);
+		return createRangeCountFormulaIfNecessary(starts, ends);
 	}
 
 	/**
@@ -663,14 +649,13 @@ public class RangeIndex
 	 * record whose `k` distinct open-start ranges share the `MIN` sentinel would turn every prefix query reaching no
 	 * end into a union of `k` operands that the single level 1 already answers.
 	 *
-	 * @param id    transactional id of this index - the staleness token for a high-cardinality operand set
 	 * @param plus  the family each membership of which contributes `+1` to a record's count
 	 * @param minus the family each membership of which contributes `-1`
 	 * @return the formula computing the records whose signed count is strictly positive
 	 */
 	@Nonnull
 	private static Formula createRangeCountFormulaIfNecessary(
-		long id, @Nonnull OperandFamily plus, @Nonnull OperandFamily minus
+		@Nonnull OperandFamily plus, @Nonnull OperandFamily minus
 	) {
 		if (plus.isEmpty()) {
 			return EmptyFormula.INSTANCE;
@@ -679,9 +664,9 @@ public class RangeIndex
 			// with nothing to cancel against, "counted at least once" is exactly the union
 			final Bitmap[] levelOne = plus.getLevelOneOperands();
 			return levelOne.length == 1 ?
-				new ConstantFormula(levelOne[0]) : new OrFormula(new long[]{id}, levelOne);
+				new ConstantFormula(levelOne[0]) : new OrFormula(levelOne);
 		}
-		return new RangeCountFormula(id, plus.getAllOperands(), minus.getAllOperands());
+		return new RangeCountFormula(plus.getAllOperands(), minus.getAllOperands());
 	}
 
 	/**
@@ -1114,8 +1099,8 @@ public class RangeIndex
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id + warmUpTouchStamp + the ranges / dirty / pageStreamRegistry / envelopingNowCache slots
-		long size = layout.sizeOfObject(2L * Long.BYTES + 4L * layout.referenceSize())
+		// warmUpTouchStamp + the ranges / dirty / pageStreamRegistry / envelopingNowCache slots
+		long size = layout.sizeOfObject(Long.BYTES + 4L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.ranges.getHeapSizeInBytes(
 				point -> ((TransactionalRangePoint) point).getHeapSizeInBytes()

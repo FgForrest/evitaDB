@@ -34,7 +34,6 @@ import io.evitadb.core.query.algebra.identity.IdentityToken;
 import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -51,7 +50,7 @@ import javax.annotation.Nonnull;
  */
 public class MultipleEntityFormula extends AbstractFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 7381005856920907843L;
 	/**
@@ -59,14 +58,8 @@ public class MultipleEntityFormula extends AbstractFormula {
 	 */
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Getter private final Bitmap directEntityReferences;
-	/**
-	 * Contains the transactional ids of the bitmaps that contributed to this formula for cache invalidation.
-	 */
-	@IdentityExempt(IdentityExempt.Reason.LEGACY_HASH)
-	private final long[] transactionalIds;
 
-	public MultipleEntityFormula(@Nonnull long[] transactionalIds, @Nonnull Bitmap directEntityReferences) {
-		this.transactionalIds = transactionalIds;
+	public MultipleEntityFormula(@Nonnull Bitmap directEntityReferences) {
 		this.directEntityReferences = directEntityReferences;
 		this.initFields();
 	}
@@ -82,11 +75,6 @@ public class MultipleEntityFormula extends AbstractFormula {
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashInts(this.directEntityReferences.getArray());
 	}
 
 	@Nonnull
@@ -109,12 +97,6 @@ public class MultipleEntityFormula extends AbstractFormula {
 	@Override
 	public long getOperationCost() {
 		return 0;
-	}
-
-	@Nonnull
-	@Override
-	protected long[] gatherBitmapIdsInternal() {
-		return this.transactionalIds;
 	}
 
 	@Override

@@ -23,7 +23,6 @@
 
 package io.evitadb.index.bitmap;
 
-import net.openhft.hashing.LongHashFunction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -400,7 +399,7 @@ class SortedArrayBitmapTest {
 			// fix moves the `new BaseBitmap` there, so `BaseBitmap.equals` would be tested instead of this class's
 			assertFalse(
 				bitmap.equals(new BaseBitmap(1, 2, 3)),
-				"content equality across representations is getContentHash's job"
+				"equality compares sorted-array representations"
 			);
 		}
 
@@ -428,30 +427,6 @@ class SortedArrayBitmapTest {
 			assertEquals(leftView, rightView);
 			assertEquals(rightView, leftView);
 			assertEquals(leftView.hashCode(), rightView.hashCode());
-		}
-	}
-
-	@Nested
-	@DisplayName("Content hash parity")
-	class ContentHashParityTest {
-
-		@Test
-		@DisplayName("The content hash matches the equivalent BaseBitmap, with and without negative ids")
-		void shouldHashLikeAnEquivalentBaseBitmap() {
-			// getContentHash is a discriminating part of a formula-cache key, and two representations of the same
-			// record set must land on the same cache entry. Parity holds only because getArray performs the signed
-			// rotation, so this pins the two halves of that contract together
-			final LongHashFunction hashFunction = LongHashFunction.xx3();
-
-			final int[] nonNegative = {0, 5, 9, Integer.MAX_VALUE};
-			assertEquals(
-				new BaseBitmap(nonNegative).getContentHash(hashFunction),
-				new SortedArrayBitmap(nonNegative).getContentHash(hashFunction)
-			);
-			assertEquals(
-				new BaseBitmap(MIXED_SIGN_IDS).getContentHash(hashFunction),
-				new SortedArrayBitmap(MIXED_SIGN_IDS).getContentHash(hashFunction)
-			);
 		}
 	}
 

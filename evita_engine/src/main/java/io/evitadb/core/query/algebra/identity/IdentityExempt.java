@@ -52,7 +52,5 @@ public @interface IdentityExempt {
 		DERIVED,
 		/** Input whose relevant parts are represented by separate components. */
 		DECOMPOSED,
-		/** State serving only the legacy formula hash and the transactional ids that invalidate cached results. */
-		LEGACY_HASH
 	}
 }

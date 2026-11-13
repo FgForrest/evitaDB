@@ -57,7 +57,6 @@ class InvertedIndexSubTest {
 			new ValueToRecordBitmap(5, 8, 9),
 		},
 		(indexTransactionIds, histogramBuckets) -> new OrFormula(
-			indexTransactionIds,
 			Arrays.stream(histogramBuckets).map(ValueToRecord::getRecordIds).toArray(Bitmap[]::new)
 		)
 	);
@@ -191,7 +190,6 @@ class InvertedIndexSubTest {
 			new long[]{1L},
 			this.mixedBackingArray,
 			(indexTransactionIds, histogramBuckets) -> new OrFormula(
-				indexTransactionIds,
 				Arrays.stream(histogramBuckets).map(ValueToRecord::getRecordIds).toArray(Bitmap[]::new)
 			)
 		);

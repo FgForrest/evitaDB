@@ -196,10 +196,7 @@ public class HierarchyIndex
 	 *
 	 * Memoizing the bitmap keeps the expensive part — the `O(nodes)` walk in
 	 * {@link #createAllHierarchyNodesBitmap()} — and the {@link ConstantFormula} built around it per call is a
-	 * handful of bytes over the shared bitmap. It is cheap in CPU too, but only because the same instance is handed
-	 * out every time: the memo is a `BaseBitmap` with no transactional id, so the formula's cache key comes from
-	 * hashing its contents, and {@link io.evitadb.index.bitmap.Bitmap#getContentHash} memoizes that `O(nodes)` walk
-	 * on the bitmap. See `FilterIndex#memoizedAllRecords` for the measured figures.
+	 * handful of bytes over the shared bitmap. Its key is built lazily from the detached content identity.
 	 *
 	 * Do not turn this back into a `Formula` field.
 	 */
@@ -524,7 +521,7 @@ public class HierarchyIndex
 		}
 		return new DeferredFormula(
 			new HierarchyRootsDownBitmapSupplier(
-				this, new long[]{store.roots().getId(), store.levelIndex().getId()},
+				this,
 				hierarchyFilteringPredicate
 			)
 		);
@@ -607,7 +604,7 @@ public class HierarchyIndex
 		}
 		return new DeferredFormula(
 			new HierarchyByParentIncludingSelfBitmapSupplier(
-				this, new long[]{store.roots().getId(), store.levelIndex().getId()},
+				this,
 				parentNode, excludedNodeTrees
 			)
 		);
@@ -700,7 +697,7 @@ public class HierarchyIndex
 		}
 		return new DeferredFormula(
 			new HierarchyByParentBitmapSupplier(
-				this, new long[]{store.roots().getId(), store.levelIndex().getId()},
+				this,
 				parentNode, excludedNodeTrees
 			)
 		);
@@ -779,7 +776,6 @@ public class HierarchyIndex
 		return new DeferredFormula(
 			new HierarchyRootsBitmapSupplier(
 				this,
-				new long[]{store.roots().getId(), store.levelIndex().getId()},
 				excludedNodeTrees
 			)
 		);
@@ -825,7 +821,7 @@ public class HierarchyIndex
 		}
 		return new DeferredFormula(
 			new HierarchyForParentBitmapSupplier(
-				this, new long[]{store.roots().getId(), store.levelIndex().getId()},
+				this,
 				parentNode,
 				excludedNodeTrees
 			)

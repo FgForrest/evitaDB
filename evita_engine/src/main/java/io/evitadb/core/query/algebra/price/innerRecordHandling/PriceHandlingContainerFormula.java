@@ -32,7 +32,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -47,7 +46,7 @@ import javax.annotation.Nonnull;
  */
 public class PriceHandlingContainerFormula extends AbstractFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -8703919997870820964L;
 
@@ -99,11 +98,6 @@ public class PriceHandlingContainerFormula extends AbstractFormula {
 	@Override
 	public long getOperationCost() {
 		return 1;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashInt(this.innerRecordHandling.ordinal());
 	}
 
 	@Override

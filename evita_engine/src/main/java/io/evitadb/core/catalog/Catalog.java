@@ -120,7 +120,6 @@ import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
-import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
 import io.evitadb.core.session.SessionRegistry;
@@ -306,11 +305,7 @@ public final class Catalog
 	 */
 	private final AtomicBoolean goingLive = new AtomicBoolean();
 	/**
-	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified by
-	 * its {@link Formula#getHash()} method and when the supervisor identifies that certain formula
-	 * is frequently used in query formulas it moves its memoized results to the cache. The non-computed formula
-	 * of the same hash will be exchanged in next query that contains it with the cached formula that already contains
-	 * memoized result.
+	 * Supervisor for query cache lifecycle and memory management.
 	 */
 	private final CacheSupervisor cacheSupervisor;
 	/**
