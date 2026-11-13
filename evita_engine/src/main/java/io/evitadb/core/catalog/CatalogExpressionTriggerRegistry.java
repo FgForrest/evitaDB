@@ -70,8 +70,9 @@ import java.util.Set;
  *
  * ## Generic storage
  *
- * The registry stores all {@link ExpressionIndexTrigger} subtypes without type discrimination. Both
- * `FacetExpressionTrigger` and `HistogramExpressionTrigger` instances coexist in the same index.
+ * The cross-entity index stores all {@link ExpressionIndexTrigger} subtypes without type discrimination. Both
+ * `FacetExpressionTrigger` and `HistogramExpressionTrigger` instances coexist there. The local index keeps facet
+ * and histogram triggers apart within one leaf.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -247,7 +248,8 @@ public interface CatalogExpressionTriggerRegistry {
 	 * Called when an entity schema's reference definitions change.
 	 *
 	 * The caller (typically `Catalog`) is responsible for building the trigger list by invoking
-	 * `FacetExpressionTriggerFactory` for each reference schema on the specified entity type.
+	 * both `FacetExpressionTriggerFactory` and `HistogramExpressionTriggerFactory` for each reference schema on the
+	 * specified entity type. Every trigger in the replacement list must belong to `entityType`.
 	 * This method is a **pure function** — it does not access the catalog or any external state.
 	 *
 	 * **Immutability principle:** the rebuild constructs a **new** registry instance. The original instance remains
@@ -257,6 +259,8 @@ public interface CatalogExpressionTriggerRegistry {
 	 * @param newTriggers the complete set of triggers built from the entity type's current reference schemas
 	 *                    (may be empty to remove all triggers for that entity type)
 	 * @return a new registry instance with the rebuilt trigger set
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if a trigger belongs to another owner that the registry
+	 *                                                        still holds
 	 */
 	@Nonnull
 	CatalogExpressionTriggerRegistry rebuildForEntityType(

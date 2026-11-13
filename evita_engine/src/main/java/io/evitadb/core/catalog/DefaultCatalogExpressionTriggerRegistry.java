@@ -64,7 +64,8 @@ class DefaultCatalogExpressionTriggerRegistry implements CatalogExpressionTrigge
 	private final CrossEntityTriggerIndex crossEntityIndex;
 
 	/**
-	 * Immutable local trigger index: owner entity type + reference name + scope -> facet/histogram triggers.
+	 * Immutable local trigger index with shared per-owner forward lookups and derived reverse dependencies.
+	 * Reverse lookups start by input kind so misses stop before accessing an unrelated dependency kind.
 	 */
 	@Nonnull
 	private final LocalTriggerIndex localIndex;
