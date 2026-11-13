@@ -31,7 +31,7 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFiltered
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogram;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
-import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.*;
 import io.evitadb.index.price.model.priceRecord.*;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.VMLayout;
@@ -62,27 +62,31 @@ public final class CachedResultWeigher {
 	private CachedResultWeigher() {
 	}
 
-	/** Returns the complete bitmap entry charge using long arithmetic. */
+	/** Returns the complete bitmap entry charge using long arithmetic, or {@link #UNSIZED} for unsupported storage. */
 	public static long measure(@Nonnull FormulaKey key, @Nonnull Bitmap bitmap) {
-		return baseCharge(key) + LAYOUT.sizeOfObject(LAYOUT.referenceSize() + Integer.BYTES)
-			+ bitmap.getHeapSizeInBytes();
+		final long bitmapBytes = measureBitmap(bitmap);
+		if (bitmapBytes == UNSIZED) {
+			return UNSIZED;
+		}
+		return baseCharge(key) + LAYOUT.sizeOfObject(LAYOUT.referenceSize() + Integer.BYTES) + bitmapBytes;
 	}
 
 	/**
 	 * Freezes and charges both price arrays, their holders, all records and SUM component-map capacities.
-	 * Returns {@link #UNSIZED} for non-resolved arrays, unknown records or unknown component-map implementations.
+	 * Returns {@link #UNSIZED} for unsupported bitmap storage, non-resolved arrays, unknown records or maps.
 	 */
 	public static long measure(
 		@Nonnull FormulaKey key, @Nonnull Bitmap bitmap, @Nonnull FilteredPriceRecords priceRecords,
 		@Nullable FilteredPriceRecords perInnerRecordPriceRecords
 	) {
+		final long bitmapBytes = measureBitmap(bitmap);
 		final long prices = measureRecords(priceRecords);
 		final long innerPrices = perInnerRecordPriceRecords == null ? 0 : measureRecords(perInnerRecordPriceRecords);
-		if (prices == UNSIZED || innerPrices == UNSIZED) {
+		if (bitmapBytes == UNSIZED || prices == UNSIZED || innerPrices == UNSIZED) {
 			return UNSIZED;
 		}
 		return baseCharge(key) + LAYOUT.sizeOfObject(3L * LAYOUT.referenceSize() + Integer.BYTES)
-			+ bitmap.getHeapSizeInBytes() + prices + innerPrices;
+			+ bitmapBytes + prices + innerPrices;
 	}
 
 	/** Returns the complete histogram entry charge, or {@link #UNSIZED} for an unknown retained value type. */
@@ -94,18 +98,24 @@ public final class CachedResultWeigher {
 		if (histogram.getClass() != CacheableHistogram.class) {
 			return UNSIZED;
 		}
+		final long max = measureValue(histogram.getMax());
 		final long rawMin = measureValue(histogram.getRawMin());
 		final long rawMax = measureValue(histogram.getRawMax());
-		if (rawMin == UNSIZED || rawMax == UNSIZED) {
+		if (max == UNSIZED || rawMin == UNSIZED || rawMax == UNSIZED) {
 			return UNSIZED;
 		}
 		bytes += LAYOUT.sizeOfObject(4L * LAYOUT.referenceSize() + Integer.BYTES)
-			+ measureValue(histogram.getMax()) + rawMin + rawMax;
+			+ max + rawMin + rawMax;
 		final CacheableBucket[] buckets = histogram.getBuckets();
 		bytes += LAYOUT.sizeOfArray(buckets.length, LAYOUT.referenceSize());
 		for (final CacheableBucket bucket : buckets) {
+			final long threshold = measureValue(bucket.threshold());
+			final long relativeFrequency = measureValue(bucket.relativeFrequency());
+			if (threshold == UNSIZED || relativeFrequency == UNSIZED) {
+				return UNSIZED;
+			}
 			bytes += LAYOUT.sizeOfObject(2L * LAYOUT.referenceSize() + Integer.BYTES)
-				+ measureValue(bucket.threshold()) + measureValue(bucket.relativeFrequency());
+				+ threshold + relativeFrequency;
 		}
 		return bytes;
 	}
@@ -122,6 +132,23 @@ public final class CachedResultWeigher {
 			return OVERSIZED;
 		}
 		return (int) charge;
+	}
+
+	/**
+	 * Charges only concrete bitmap representations whose allocated storage is measured entirely in long arithmetic.
+	 * ArrayBitmap is refused because its composite-array helper narrows the backing footprint to int; subclasses
+	 * and foreign implementations are refused because their additional retained storage has no known size model.
+	 * Roaring-backed representations charge shared containers in full so the charge survives predecessor reclamation.
+	 */
+	private static long measureBitmap(@Nonnull Bitmap bitmap) {
+		final Class<?> bitmapType = bitmap.getClass();
+		if (bitmapType != BaseBitmap.class && bitmapType != TransactionalBitmap.class
+			&& bitmapType != SortedArrayBitmap.class && bitmapType != SingleRecordBitmap.class
+			&& bitmapType != EmptyBitmap.class) {
+			return UNSIZED;
+		}
+		final long bytes = bitmap.getHeapSizeInBytes();
+		return bytes < 0 ? UNSIZED : bytes;
 	}
 
 	/** Charges the detached key and entry bookkeeping without narrowing the multiplication. */

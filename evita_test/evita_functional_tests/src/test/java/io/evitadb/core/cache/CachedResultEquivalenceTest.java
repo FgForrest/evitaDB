@@ -102,6 +102,26 @@ class CachedResultEquivalenceTest {
 		}
 	}
 
+	/** Checks both tuple shapes and argument orders when duplicate entries hide a missing identifier. */
+	@Test
+	@DisplayName("Rejects unequal bitmap membership even when duplicates preserve the reported size")
+	void shouldRejectMissingMembershipWhenBitmapContainsDuplicates() {
+		final Bitmap duplicates = new ArrayBitmap(1, 1);
+		final Bitmap distinct = new BaseBitmap(1, 2);
+		assertEquals(duplicates.size(), distinct.size());
+		final CachedBitmapResult first = new CachedBitmapResult(duplicates, 1);
+		final CachedBitmapResult second = new CachedBitmapResult(distinct, 1);
+		final CachedPriceRecordsResult firstPrices = new CachedPriceRecordsResult(duplicates, records(), null, 1);
+		final CachedPriceRecordsResult secondPrices = new CachedPriceRecordsResult(distinct, records(), null, 1);
+		assertAll(
+			() -> assertFalse(equivalent(first, second)),
+			() -> assertFalse(equivalent(second, first)),
+			() -> assertFalse(equivalent(firstPrices, secondPrices)),
+			() -> assertFalse(equivalent(secondPrices, firstPrices)),
+			() -> assertTrue(equivalent(first, new CachedBitmapResult(new ArrayBitmap(1, 1), 2)))
+		);
+	}
+
 	/** Moves every plain and inner-record tuple component independently, keeping identity equality misleading. */
 	@Test
 	@DisplayName("Detects every physical price tuple component")

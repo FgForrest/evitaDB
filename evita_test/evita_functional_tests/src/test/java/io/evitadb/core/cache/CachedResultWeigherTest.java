@@ -29,16 +29,22 @@ import io.evitadb.core.query.algebra.identity.*;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.*;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.*;
 import io.evitadb.index.bitmap.*;
+import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.priceRecord.*;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.utils.JolHeapSize;
+import io.evitadb.utils.VMLayout;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -69,6 +75,80 @@ class CachedResultWeigherTest {
 		assertEquals(CachedResultWeigher.UNSIZED,
 			CachedResultWeigher.admittedWeight(CachedResultWeigher.UNSIZED, Long.MAX_VALUE));
 		assertEquals(CachedResultWeigher.OVERSIZED, CachedResultWeigher.admittedWeight(96, 0));
+	}
+
+	/** Reproduces a four-GiB-to-zero narrowing through a real ArrayBitmap without allocating its backing store. */
+	@Test
+	@DisplayName("Refuses bitmap storage whose size model narrows to an integer")
+	void shouldRefuseNarrowedBitmapSizing() {
+		final FormulaKey key = new ConstantFormula(new BaseBitmap(10)).getKey();
+		final CompositeIntArray backing = new NarrowedCompositeIntArray(1L << 32);
+		final Bitmap large = new ArrayBitmap(backing);
+		assertEquals(0, backing.getSizeInBytes());
+		assertEquals(VMLayout.current().sizeOfObject(VMLayout.current().referenceSize()),
+			large.getHeapSizeInBytes());
+		for (final Bitmap bitmap : new Bitmap[]{large, new ArrayBitmap(10)}) {
+			assertAll(
+				() -> assertEquals(CachedResultWeigher.UNSIZED, CachedResultWeigher.measure(key, bitmap)),
+				() -> assertEquals(CachedResultWeigher.UNSIZED,
+					CachedResultWeigher.measure(key, bitmap, records(), null)),
+				() -> assertEquals(CachedResultWeigher.UNSIZED,
+					CachedResultWeigher.measure(key, bitmap, records(), records()))
+			);
+		}
+	}
+
+	/** Verifies all supported concrete representations against their retained graphs in both bitmap overloads. */
+	@Test
+	@DisplayName("Sizes each supported concrete bitmap representation")
+	void shouldCoverSupportedBitmapRepresentations() {
+		final FormulaKey key = new ConstantFormula(new BaseBitmap(10)).getKey();
+		for (final Bitmap bitmap : new Bitmap[]{EmptyBitmap.INSTANCE, new SingleRecordBitmap(10),
+			new SortedArrayBitmap(10, 20), new BaseBitmap(10, 20), new TransactionalBitmap(10, 20)}) {
+			assertCovered(key, new CachedBitmapResult(bitmap, 1), CachedResultWeigher.measure(key, bitmap));
+			final ResolvedFilteredPriceRecords prices = records();
+			assertCovered(key, new CachedPriceRecordsResult(bitmap, prices, null, 1),
+				CachedResultWeigher.measure(key, bitmap, prices, null));
+		}
+	}
+
+	/** Extra state on a subclass has no known size model even if its inherited size method returns a number. */
+	@Test
+	@DisplayName("Refuses unknown bitmap implementations before adding their size")
+	void shouldRefuseUnknownBitmapSizing() {
+		final FormulaKey key = new ConstantFormula(new BaseBitmap(10)).getKey();
+		final Bitmap unknown = new SingleRecordBitmap(10) {
+			/** Models a foreign implementation reporting the unsupported-size sentinel. */
+			@Override
+			public long getHeapSizeInBytes() {
+				return CachedResultWeigher.UNSIZED;
+			}
+		};
+		assertAll(
+			() -> assertEquals(CachedResultWeigher.UNSIZED, CachedResultWeigher.measure(key, unknown)),
+			() -> assertEquals(CachedResultWeigher.UNSIZED,
+				CachedResultWeigher.measure(key, unknown, records(), null))
+		);
+	}
+
+	/** Moves an unsupported decimal subclass through every retained numeric position independently. */
+	@ParameterizedTest(name = "{0}")
+	@ValueSource(strings = {"max", "threshold", "relativeFrequency", "rawMin", "rawMax"})
+	@DisplayName("Refuses histogram payloads with an unsupported nested decimal")
+	void shouldRefuseUnsupportedHistogramComponent(@Nonnull String position) {
+		final FormulaKey key = new ConstantFormula(new BaseBitmap(10)).getKey();
+		final BigDecimal unknown = new RetainingDecimal("1");
+		final CacheableHistogramContract.CacheableBucket bucket = new CacheableHistogramContract.CacheableBucket(
+			position.equals("threshold") ? unknown : BigDecimal.ONE, 1,
+			position.equals("relativeFrequency") ? unknown : BigDecimal.ONE);
+		final CacheableHistogram histogram = new CacheableHistogram(
+			new CacheableHistogramContract.CacheableBucket[]{bucket},
+			position.equals("max") ? unknown : BigDecimal.TEN,
+			position.equals("rawMin") ? unknown : BigDecimal.ONE,
+			position.equals("rawMax") ? unknown : BigDecimal.TEN);
+		final long charge = CachedResultWeigher.measure(key, histogram);
+		assertEquals(CachedResultWeigher.UNSIZED, charge);
+		assertEquals(CachedResultWeigher.UNSIZED, CachedResultWeigher.admittedWeight(charge, Long.MAX_VALUE));
 	}
 
 	/** Builds a compact doubling graph whose saturated key weight would overflow integer multiplication. */
@@ -230,6 +310,42 @@ class CachedResultWeigherTest {
 			accumulator.add(this.token);
 			accumulator.add(this.values);
 			accumulator.add(this.side);
+		}
+	}
+
+	/**
+	 * Models the existing integer-only backing-store size boundary while retaining only a small empty array.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private static final class NarrowedCompositeIntArray extends CompositeIntArray {
+		@Serial private static final long serialVersionUID = 1L;
+		private final long backingBytes;
+
+		/** Supplies a hypothetical retained backing-store footprint without allocating it. */
+		private NarrowedCompositeIntArray(long backingBytes) {
+			this.backingBytes = backingBytes;
+		}
+
+		/** Reproduces the narrowing performed by the existing composite-array size helper. */
+		@Override
+		public int getSizeInBytes() {
+			return (int) this.backingBytes;
+		}
+	}
+
+	/**
+	 * Decimal subclass with additional retained storage unsupported by the exact-class size model.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private static final class RetainingDecimal extends BigDecimal {
+		@Serial private static final long serialVersionUID = 1L;
+		private final byte[] retained = new byte[1024];
+
+		/** Builds a valid numeric value carrying additional retained bytes. */
+		private RetainingDecimal(@Nonnull String value) {
+			super(value);
 		}
 	}
 

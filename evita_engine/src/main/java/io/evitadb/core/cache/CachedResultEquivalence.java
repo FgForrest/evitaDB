@@ -64,7 +64,7 @@ public final class CachedResultEquivalence {
 		throw new GenericEvitaInternalError("Unsupported cached result type.");
 	}
 
-	/** Compares membership rather than iteration order, which differs for negative identifiers. */
+	/** Compares size and membership in both directions, including representations that retain duplicate ids. */
 	private static boolean equivalentBitmaps(@Nonnull Bitmap left, @Nonnull Bitmap right) {
 		if (left.size() != right.size()) {
 			return false;
@@ -72,6 +72,13 @@ public final class CachedResultEquivalence {
 		final OfInt iterator = left.iterator();
 		while (iterator.hasNext()) {
 			if (!right.contains(iterator.nextInt())) {
+				return false;
+			}
+		}
+		// Equal reported sizes do not imply equal distinct counts for duplicate-bearing representations.
+		final OfInt reverseIterator = right.iterator();
+		while (reverseIterator.hasNext()) {
+			if (!left.contains(reverseIterator.nextInt())) {
 				return false;
 			}
 		}
