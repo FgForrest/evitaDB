@@ -292,20 +292,20 @@ class FormulaKeyTest {
 	@Test
 	@DisplayName("Releases grown comparison storage after outermost exit")
 	void shouldReleaseGrownComparisonStorage() {
-		assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
-			final ComparisonScope scope = ComparisonScope.current();
-			final long initialSize = GraphLayout.parseInstance(scope).totalSize();
-			scope.enter();
-			try {
-				for (int i = 0; i < 2_048; i++) {
-					scope.add(tokenKey(IdentityToken.ofContent(new int[]{i}), new Object()),
-						tokenKey(IdentityToken.ofContent(new int[]{i}), new Object()));
-				}
-			} finally {
-				scope.leave();
+		// no time limit here: the first object layout measurement initializes JVM management services, which takes
+		// seconds on a loaded machine and says nothing about the storage this test measures
+		final ComparisonScope scope = ComparisonScope.current();
+		final long initialSize = GraphLayout.parseInstance(scope).totalSize();
+		scope.enter();
+		try {
+			for (int i = 0; i < 2_048; i++) {
+				scope.add(tokenKey(IdentityToken.ofContent(new int[]{i}), new Object()),
+					tokenKey(IdentityToken.ofContent(new int[]{i}), new Object()));
 			}
-			assertEquals(initialSize, GraphLayout.parseInstance(scope).totalSize());
-		});
+		} finally {
+			scope.leave();
+		}
+		assertEquals(initialSize, GraphLayout.parseInstance(scope).totalSize());
 	}
 
 	/** Checks that pairs sharing one right key spread over the table instead of forming one probe chain. */

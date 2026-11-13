@@ -406,9 +406,9 @@ public class QueryPlanner {
 	 *
 	 * - the list is kept **sorted by estimated cost** as it is built (the cheapest candidate is always pushed to
 	 *   the front), so `get(0)` is the preferred plan without a separate sorting pass
-	 * - unless {@link DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} is on, only that first element is returned; the
-	 *   remaining candidates are constructed but thrown away, since building them is cheap and comparing their
-	 *   costs is the only way to know which one wins
+	 * - unless {@link QueryPlanningContext#isAlternativeIndexVerificationRequired()} holds, only that first element is
+	 *   returned; the remaining candidates are constructed but thrown away, since building them is cheap and comparing
+	 *   their costs is the only way to know which one wins
 	 *
 	 * Candidates that are not eligible for a separate query plan produce no builder at all - they are only
 	 * recorded in telemetry, so that a reader can see the index was considered and why it lost.
@@ -723,9 +723,10 @@ public class QueryPlanner {
 
 	/**
 	 * Compares the independently planned key-free baseline with the preferred plan under one frozen random state.
-	 * Neither dry run passes through traffic recording. The sibling suppresses all planning side effects and both
-	 * verification paths, including in nested contexts. The finished event starts when the plan is built, so
-	 * verification dry runs contribute to its execution interval.
+	 * Both execute here as dry runs inside planning, so the session's traffic recording sees only the caller's later
+	 * real execution of the preferred plan. A dry run records no telemetry and no finished event, and the plans it
+	 * builds record no index activity; the sibling also records no capabilities and starts no further verification.
+	 * The finished event starts when the plan is built, so verification dry runs contribute to its execution interval.
 	 *
 	 * @throws InconsistentResultsException when sharing or cache analysis changes the full response
 	 */

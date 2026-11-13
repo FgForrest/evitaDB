@@ -60,9 +60,14 @@ public class InconsistentResultsException extends EvitaInternalError {
 		@Nonnull EvitaResponse<EntityClassifier> alternativeResult
 	) {
 		super(
-			"Results for `" + mainDescription + "` and `" + alternativeDescription + "` differ!"
-				+ "\n\n" + mainResult + "\nvs.\n" + alternativeResult,
-			"Results for `" + mainDescription + "` and `" + alternativeDescription + "` differ!"
+			headline(mainDescription, alternativeDescription) + "\n\n" + mainResult + "\nvs.\n" + alternativeResult,
+			headline(mainDescription, alternativeDescription)
 		);
+	}
+
+	/** Names both compared execution paths; shared by the detailed and the public message. */
+	@Nonnull
+	private static String headline(@Nonnull String mainDescription, @Nonnull String alternativeDescription) {
+		return "Results for `" + mainDescription + "` and `" + alternativeDescription + "` differ!";
 	}
 }

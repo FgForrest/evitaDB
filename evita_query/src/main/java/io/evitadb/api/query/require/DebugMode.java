@@ -35,7 +35,9 @@ import io.evitadb.dataType.SupportedEnum;
  * - `VERIFY_ALTERNATIVE_INDEX_RESULTS` — exercises index redundancy by computing the query result through every
  *   available alternative index (e.g. both a sorted and an inverted index for the same attribute) and asserting
  *   that all paths produce bit-identical result sets. Detects inconsistencies between index implementations.
- * - `VERIFY_POSSIBLE_CACHING_TREES` — selects bitmap-favouring planning and denies optional prefetch.
+ * - `VERIFY_POSSIBLE_CACHING_TREES` — selects bitmap-favouring planning, denies optional prefetch and compares the
+ *   response of a top-level query with a baseline computed without formula sharing or caching; a difference fails
+ *   the query.
  * - `PREFER_PREFETCHING` — overrides the cost-based strategy selector and unconditionally uses the prefetch
  *   strategy whenever the query's filter constraints make prefetching feasible. Used to exercise the prefetch
  *   code path that would otherwise be skipped for large datasets where the index scan is cheaper.
@@ -61,8 +63,12 @@ public enum DebugMode {
 	/**
 	 * Selects bitmap-favouring planning and denies optional prefetch. For a top-level query, also compares the full
 	 * response of the preferred plan with an independently planned baseline that bypasses computation keys, formula
-	 * sharing and caching. Both verification executions use the same frozen random state. A difference fails the
-	 * query; verification adds a second planning and two dry executions before the normal execution.
+	 * sharing and caching. Nested queries and fetched bodies are compared as part of that response, not on their own.
+	 * Both verification executions use the same frozen random state, so random ordering causes no difference. A
+	 * difference fails the query with an `InconsistentResultsException`.
+	 *
+	 * BEWARE: triggering this debug mode slows down the query, because it is planned a second time and executed twice
+	 * more before the normal execution.
 	 */
 	VERIFY_POSSIBLE_CACHING_TREES,
 	/**
@@ -96,7 +102,8 @@ public enum DebugMode {
 	 *   `MultipleEntityFormula` contributing direct entity references), prefetching is the only way to answer it and
 	 *   happens regardless of this option.
 	 * - It does not select a planning policy of its own. The option resolves to the same bitmap-favouring policy as
-	 *   {@link #VERIFY_POSSIBLE_CACHING_TREES}, so enabling both behaves like enabling either.
+	 *   {@link #VERIFY_POSSIBLE_CACHING_TREES}, but only that option also compares the response with a baseline
+	 *   computed without formula sharing or caching.
 	 *
 	 * When combined with {@link #PREFER_PREFETCHING} this option wins: the planning policy denies prefetch both when
 	 * the planner asks whether prefetch is possible at all and when it prices the prefetch, and neither decision

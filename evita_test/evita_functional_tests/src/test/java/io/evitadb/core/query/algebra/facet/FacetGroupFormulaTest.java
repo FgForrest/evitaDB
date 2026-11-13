@@ -546,6 +546,7 @@ class FacetGroupFormulaTest {
 				).getKey()
 			);
 		}
+
 		/** Merged terms retain the entity bitmap produced by each merge in their keys. */
 		@Test
 		@DisplayName("should produce different identity for merged terms of one group holding different entities")
@@ -569,10 +570,10 @@ class FacetGroupFormulaTest {
 			);
 		}
 
-		/** Group presence and facet ids remain separate identity inputs after merging across indexes. */
+		/** Merged terms with and without a group, differing in group, facets and entities, keep distinct keys. */
 		@Test
-		@DisplayName("should produce different identity for group term and ungrouped term with the same id layout")
-		void shouldProduceDifferentIdentityForGroupTermAndUngroupedTermWithSameIdLayout() {
+		@DisplayName("should produce different identity for merged terms with and without a group")
+		void shouldProduceDifferentIdentityForMergedTermsWithAndWithoutGroup() {
 			final FacetGroupFormula groupTerm = new FacetGroupOrFormula(
 				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(10)
 			).mergeWith(
@@ -617,10 +618,10 @@ class FacetGroupFormulaTest {
 			);
 		}
 
-		/** Conjunctive grouped and ungrouped merged terms have distinct keys. */
+		/** Merged AND terms with and without a group, differing in group, facets and entities, keep distinct keys. */
 		@Test
-		@DisplayName("should produce different identity for AND group term and ungrouped term with the same id layout")
-		void shouldProduceDifferentIdentityForAndGroupTermAndUngroupedTermWithSameIdLayout() {
+		@DisplayName("should produce different identity for merged AND terms with and without a group")
+		void shouldProduceDifferentIdentityForMergedAndTermsWithAndWithoutGroup() {
 			final FacetGroupFormula groupTerm = new FacetGroupAndFormula(
 				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(10)
 			).mergeWith(

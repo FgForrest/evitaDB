@@ -233,9 +233,9 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 * What that translation accumulates is drained by the empty plan instead, because the query asked for it all the
 	 * same: counting it nowhere would make a flag only such queries use look dead.
 	 *
-	 * A key-free verification sibling and any plan built during a verification execution count neither
-	 * capabilities nor index activity. Their additional planning and execution exist only to compare responses
-	 * within the same logical query.
+	 * A key-free verification sibling ({@link QueryPlanningContext#createVerificationSibling()}) and any plan built
+	 * during a verification execution count neither capabilities nor index activity and start no finished event.
+	 * Their additional planning and execution exist only to compare responses within the same logical query.
 	 *
 	 * The cost is `O(winning set)` volatile increments plus one per distinct capability the query named, both bounded
 	 * from below by the reads the query is about to perform on those very indexes.
