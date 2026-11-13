@@ -35,7 +35,6 @@ server:                                           # [see Server configuration](#
   readOnly: false
   quiet: false
   usageStatisticsTracking: true
-  missingHistogramValueBehavior: REFUSE
   trafficRecording:
     enabled: false
     sourceQueryTracking: false
@@ -506,40 +505,6 @@ This section contains general settings for the evitaDB server. It allows configu
            what changes is that each row reports itself as **not measured** instead of reporting zeros. Treat that
            distinction as load-bearing: a zero request count against a live observation window reads as *"nothing uses
            this flag, drop it"*, which is a destructive conclusion to draw when the truth is that nobody was counting.</p>
-    </dd>
-    <dt>missingHistogramValueBehavior</dt>
-    <dd>
-        <p>**Default:** `REFUSE`</p>
-        <p>Decides what a write does when it changes a reference that feeds a
-           [reference histogram](../use/schema.md#reference-histograms) and the histogram does not hold the value the
-           reference contributed so far. Before such a write the engine withdraws that value and checks that it is
-           there. A missing value means the histogram index has drifted from the stored entities; the entities
-           themselves are intact.</p>
-        <ul>
-            <li>**`REFUSE`** - the write fails with an error naming the entity, the reference, the histogram and the
-                missing value.</li>
-            <li>**`REPORT`** - the engine logs the same identification at error level, skips the withdrawal of that
-                value and continues with the rest of the write.</li>
-        </ul>
-        <p>Choose `REPORT` to let writes that meet a missing value complete while a catalog awaits its rebuild or a fix.
-           The price is a reference histogram that may stay wrong where the write itself does not repair it, until the
-           catalog is rebuilt.</p>
-        <p>The setting governs this one check. Where the index the histogram lives in is missing altogether, the
-           engine reports the values it cannot withdraw and goes on, and the histogram checks then fail the write only
-           if it adds a value into that index - typically the reference's new value. A write that adds nothing there,
-           such as the removal of the reference, passes them. The exception is a group index that the catalog still
-           lists for the group but no longer holds: a write that reaches it fails in either mode, and nothing is
-           reported for it. The other consistency checks of reference histograms fail the write in either mode.</p>
-        <p>Every value the engine cannot withdraw produces one error line starting with
-           `Cannot withdraw histogram value`; alert on that text. Expect at least one line per affected write: a write
-           to an alive catalog is applied once in its session and once more when its transaction is committed, and logs
-           a line each time.</p>
-        <Note type="warning">
-            Writes accepted under `REPORT` that no checkpoint has covered yet are replayed from the write-ahead log when
-            the server starts after an unclean shutdown. Under `REFUSE` that replay meets the same missing value and the
-            catalog is marked corrupted. After an unclean shutdown, start the server with `REPORT` and switch back once
-            it has loaded the catalog.
-        </Note>
     </dd>
 </dl>
 

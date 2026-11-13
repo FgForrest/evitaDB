@@ -23,7 +23,6 @@
 
 package io.evitadb.index.mutation.local;
 
-import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -4098,11 +4097,11 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Refuses or reports one value the withdrawal cannot find, by the behavior configured in
-	 * `server.missingHistogramValueBehavior`. Any behavior other than `REPORT` throws the error - the withdrawal
-	 * stops there. `REPORT` logs the same identification at error level with a sentence saying the write continues,
-	 * and returns, so the caller skips that value. No stack trace is logged: the line carries everything the error
-	 * would, and an operator alerts on its prefix `Cannot withdraw histogram value`.
+	 * Refuses or reports one value the withdrawal cannot find, by the behavior the executor carries. Any behavior
+	 * other than `REPORT` throws the error - the withdrawal stops there. `REPORT` logs the same identification at
+	 * error level with a sentence saying the write continues, and returns, so the caller skips that value. No stack
+	 * trace is logged: the line carries everything the error would, and an operator alerts on its prefix
+	 * `Cannot withdraw histogram value`.
 	 *
 	 * @param executor the mutation executor, which carries the behavior on a missing histogram value
 	 * @param referenceKey the reference including its internal primary key
@@ -4136,8 +4135,8 @@ public interface ReferenceIndexMutator {
 			throw new GenericEvitaInternalError(description);
 		}
 		LoggerFactory.getLogger(ReferenceIndexMutator.class).error(
-			description + " The value is not withdrawn and the write continues, because " +
-				"`server.missingHistogramValueBehavior` is `REPORT`."
+			description + " The value is not withdrawn and the write continues: missing histogram values are " +
+				"reported, not refused."
 		);
 	}
 

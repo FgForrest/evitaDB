@@ -26,7 +26,6 @@ package io.evitadb.core.collection;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
@@ -147,6 +146,7 @@ import io.evitadb.index.mutation.IndexMutationExecutorRegistry;
 import io.evitadb.index.mutation.IndexMutationTarget;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.MissingHistogramValueBehavior;
 import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
@@ -5068,7 +5068,7 @@ public final class EntityCollection implements
 		}
 
 		/**
-		 * Answers the server-wide switch through the catalog, so every executor of the collection reads the one value.
+		 * Answers the catalog's behavior, so every executor of the collection reads the one value.
 		 */
 		@Nonnull
 		@Override
