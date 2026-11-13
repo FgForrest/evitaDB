@@ -24,18 +24,21 @@
 package io.evitadb.core.query;
 
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.proxy.WithEntityContract;
-import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.proxy.WithEntityContract;
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -70,20 +73,10 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.RandomUtils;
-import java.io.IOException;
-import java.io.Serializable;
-import java.math.BigDecimal;
-import java.nio.file.Path;
-import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.Supplier;
-import javax.annotation.Nonnull;
+
 import jdk.jfr.Recording;
 import jdk.jfr.consumer.RecordingFile;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -92,11 +85,27 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import javax.annotation.Nonnull;
+
+import java.io.IOException;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.nio.file.Path;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Currency;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Supplier;
+
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.*;
+
 
 /**
  * Exercises sharing verification through the planner with real contexts and a test-owned index supplying its trees.
@@ -274,13 +283,15 @@ class FormulaSharingDifferentialTest implements EvitaTestSupport {
 			final QueryPlan plan = QueryPlanner.planQuery(context);
 			assertAll(
 				() -> assertNull(context.getQueryFinishedEvent().getPrefetched(), "Dry runs must not finish the event"),
-				() -> assertEquals(0, context.getQueryFinishedEvent().getPlanned(),
-					"Dry runs must not start the event"),
+				() -> assertTrue(context.getQueryFinishedEvent().getPlanned() > 0,
+					"Building the preferred plan must start the event"),
 				() -> assertEquals(0, countExecutionSteps(context.getTelemetryRoot()),
 					"Dry runs must not add execution steps")
 			);
 			assertEquals(0, countSortAnnotations(context.getTelemetryRoot()));
+			final long planned = context.getQueryFinishedEvent().getPlanned();
 			final EvitaResponse<EntityReference> response = plan.execute();
+			assertEquals(planned, context.getQueryFinishedEvent().getPlanned());
 			assertEquals(1, countExecutionSteps(response.getExtraResult(QueryTelemetry.class)), mode.toString());
 			assertTrue(countSortAnnotations(response.getExtraResult(QueryTelemetry.class)) > 0,
 				"The real execution must record its sort strategy");
@@ -579,6 +590,113 @@ class FormulaSharingDifferentialTest implements EvitaTestSupport {
 		}
 	}
 
+	/** Named-only reference chunks must be compared even though the ordinary reference view is empty. */
+	@Test
+	@DisplayName("Compares named reference rows, keys, pagination and nested named bodies")
+	void shouldCompareNamedReferences() {
+		prepareBodies();
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(CATALOG)) {
+			final SealedEntity baseline = fetchBody(session, entityFetch(namedReferences(
+				"selection", "categories", new RequireConstraint[0], filterBy(entityPrimaryKeyInSet(1, 2))
+			))).orElseThrow();
+			assertTrue(baseline.getReferences().isEmpty(), "The witness must have no unnamed rows");
+			assertTrue(QueryResponseComparator.matches(bodyResponse(baseline), bodyResponse(
+				fetchBody(session, entityFetch(namedReferences("selection", "categories", new RequireConstraint[0],
+					filterBy(entityPrimaryKeyInSet(1, 2))))).orElseThrow())));
+			assertContentDifference(baseline, fetchBody(session, entityFetch(namedReferences(
+				"selection", "categories", new RequireConstraint[0], filterBy(entityPrimaryKeyInSet(1))
+			))).orElseThrow());
+			assertContentDifference(baseline, fetchBody(session, entityFetch(namedReferences(
+				"other", "categories", new RequireConstraint[0], filterBy(entityPrimaryKeyInSet(1, 2))
+			))).orElseThrow());
+			assertContentDifference(
+				fetchBody(session, entityFetch(namedReferences("selection", "categories",
+					new RequireConstraint[]{page(1, 2)}))).orElseThrow(),
+				fetchBody(session, entityFetch(namedReferences("selection", "categories",
+					new RequireConstraint[]{strip(0, 2)}))).orElseThrow());
+			assertContentDifference(
+				fetchBody(session, entityFetch(namedReferences("selection", "categories",
+					new RequireConstraint[0], orderBy(entityPrimaryKeyNatural(
+						io.evitadb.api.query.order.OrderDirection.ASC))))).orElseThrow(),
+				fetchBody(session, entityFetch(namedReferences("selection", "categories",
+					new RequireConstraint[0], orderBy(entityPrimaryKeyNatural(
+						io.evitadb.api.query.order.OrderDirection.DESC))))).orElseThrow());
+			assertContentDifference(
+				fetchBody(session, entityFetch(namedReferences("selection", "categories", new RequireConstraint[]{
+					entityFetch(referenceContent("target"))}))).orElseThrow(),
+				fetchBody(session, entityFetch(namedReferences("selection", "categories", new RequireConstraint[]{
+					entityFetch(referenceContent("target", filterBy(entityPrimaryKeyInSet(2))))}))).orElseThrow());
+
+			assertContentDifference(
+				fetchBody(session, entityFetch(referenceContent("categories", entityFetch(namedReferences(
+					"nested", "target", new RequireConstraint[]{entityFetch(attributeContentAll())}
+				))))).orElseThrow(),
+				fetchBody(session, entityFetch(referenceContent("categories", entityFetch(namedReferences(
+					"nested", "target", new RequireConstraint[]{entityFetch(attributeContentAll())},
+					filterBy(entityPrimaryKeyInSet(2))
+				))))).orElseThrow());
+		}
+	}
+
+	/** Uses the same named-instance constructor as the server's reference projection. */
+	@Nonnull
+	private static ReferenceContent namedReferences(
+		@Nonnull String instance, @Nonnull String reference, @Nonnull RequireConstraint[] requirements,
+		@Nonnull Constraint<?>... children
+	) {
+		return new ReferenceContent(instance, ManagedReferencesBehaviour.ANY,
+			new String[]{reference}, requirements, children);
+	}
+
+	/** Different valid projections must report a difference without asking either view for an unfetched key. */
+	@Test
+	@DisplayName("Compares different attribute and associated-data projections without fetch-context errors")
+	void shouldCompareDifferentProjections() {
+		this.evita.updateCatalog(CATALOG, session -> {
+			session.defineEntitySchema(PRODUCT)
+				.withAttribute("code", String.class)
+				.withAttribute("name", String.class).updateVia(session);
+			session.getEntity(PRODUCT, 1, attributeContentAll(), associatedDataContentAll())
+				.orElseThrow().openForWrite()
+				.setAttribute("code", "one").setAttribute("name", "One")
+				.setAssociatedData("code", "one").setAssociatedData("name", "One").upsertVia(session);
+		});
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(CATALOG)) {
+			assertContentDifference(
+				fetchBody(session, entityFetch(attributeContent("code"))).orElseThrow(),
+				fetchBody(session, entityFetch(attributeContent("name"))).orElseThrow());
+			assertContentDifference(
+				fetchBody(session, entityFetch(associatedDataContent("code"))).orElseThrow(),
+				fetchBody(session, entityFetch(associatedDataContent("name"))).orElseThrow());
+		}
+	}
+
+	/** Materialized price maps may contain equal numbers of prices with disjoint currency keys. */
+	@Test
+	@DisplayName("Compares prices held by different currency projections")
+	void shouldCompareDifferentPriceProjections() {
+		this.evita.updateCatalog(CATALOG, session -> {
+			session.defineEntitySchema(PRODUCT).withPrice().updateVia(session);
+			session.getEntity(PRODUCT, 1, priceContentAll()).orElseThrow().openForWrite()
+				.setPrice(1, "basic", Currency.getInstance("USD"),
+					BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+				.setPrice(1, "basic", Currency.getInstance("EUR"),
+					BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+				.upsertVia(session);
+		});
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(CATALOG)) {
+			final SealedEntity first = session.query(Query.query(collection(PRODUCT),
+				filterBy(entityPrimaryKeyInSet(1), priceInCurrency("USD")),
+				require(entityFetch(priceContentRespectingFilter()))), SealedEntity.class).getRecordData().getFirst();
+			final SealedEntity second = session.query(Query.query(collection(PRODUCT),
+				filterBy(entityPrimaryKeyInSet(1), priceInCurrency("EUR")),
+				require(entityFetch(priceContentRespectingFilter()))), SealedEntity.class).getRecordData().getFirst();
+			assertEquals(1, first.getPrices().size());
+			assertEquals(1, second.getPrices().size());
+			assertContentDifference(first, second);
+		}
+	}
+
 	/** Histogram equality excludes both referenced anchor entities. */
 	@Test
 	@DisplayName("Detects changed histogram anchors despite equal public responses")
@@ -612,6 +730,7 @@ class FormulaSharingDifferentialTest implements EvitaTestSupport {
 		assertEquals(left, right, "The witness must be invisible to public response equality");
 		assertTrue(QueryResponseComparator.matches(left, left));
 		assertFalse(QueryResponseComparator.matches(left, right));
+		assertFalse(QueryResponseComparator.matches(right, left));
 	}
 
 	/** Places a real body view in a response without altering its identity or version. */

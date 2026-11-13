@@ -27,6 +27,7 @@ import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.requestResponse.chunk.DefaultSlicer;
 import io.evitadb.api.requestResponse.chunk.Slicer;
+import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
@@ -38,15 +39,18 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexActivity;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Optional.ofNullable;
 
 /**
  * This DTO represents the carrier object that combines the constructed filtering {@link #filterFormula} with the link to
@@ -229,31 +233,35 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 * What that translation accumulates is drained by the empty plan instead, because the query asked for it all the
 	 * same: counting it nowhere would make a flag only such queries use look dead.
 	 *
-	 * A key-free verification sibling and its descendants count neither capabilities nor index activity. Their
-	 * additional planning and execution exist only to compare responses within the same logical query.
+	 * A key-free verification sibling and any plan built during a verification execution count neither
+	 * capabilities nor index activity. Their additional planning and execution exist only to compare responses
+	 * within the same logical query.
 	 *
 	 * The cost is `O(winning set)` volatile increments plus one per distinct capability the query named, both bounded
 	 * from below by the reads the query is about to perform on those very indexes.
 	 */
 	@Nonnull
 	public QueryPlan build() {
-		final List<? extends Index<?>> winningIndexes = this.queryContext.isVerificationSibling() ?
-			Collections.emptyList() : this.targetIndexes.getIndexes();
-		final List<SchemaCapabilityUsage> requestedCapabilities = this.queryContext.drainRequestedCapabilitiesToCount();
-		if (!winningIndexes.isEmpty() || !requestedCapabilities.isEmpty()) {
-			// one instant for both readings, so a single query cannot stamp them with two different moments
-			final long now = System.currentTimeMillis();
-			for (final Index<?> index : winningIndexes) {
-				// absent on a server that does not track usage statistics - no holder was ever allocated for the index
-				final IndexActivity activity = index.getActivity();
-				if (activity != null) {
-					activity.recordQuery(now);
+		if (!this.queryContext.isVerificationSibling() && !this.queryContext.isVerificationExecutionActive()) {
+			ofNullable(this.queryContext.getQueryFinishedEvent()).ifPresent(FinishedEvent::startExecuting);
+			final List<? extends Index<?>> winningIndexes = this.targetIndexes.getIndexes();
+			final List<SchemaCapabilityUsage> requestedCapabilities =
+				this.queryContext.drainRequestedCapabilitiesToCount();
+			if (!winningIndexes.isEmpty() || !requestedCapabilities.isEmpty()) {
+				// one instant for both readings, so a single query cannot stamp them with two different moments
+				final long now = System.currentTimeMillis();
+				for (final Index<?> index : winningIndexes) {
+					// No holder is allocated on a server that does not track usage statistics.
+					final IndexActivity activity = index.getActivity();
+					if (activity != null) {
+						activity.recordQuery(now);
+					}
 				}
-			}
-			// the holders were resolved while the schema was being looked up anyway, so this is an increment per
-			// distinct capability the query named - no lookup, no hashing, no allocation
-			for (SchemaCapabilityUsage requestedCapability : requestedCapabilities) {
-				requestedCapability.recordRequested(now);
+				// the holders were resolved while the schema was being looked up anyway, so this is an increment per
+				// distinct capability the query named - no lookup, no hashing, no allocation
+				for (SchemaCapabilityUsage requestedCapability : requestedCapabilities) {
+					requestedCapability.recordRequested(now);
+				}
 			}
 		}
 		// propagate all collected requirements to the prefetch formula visitor

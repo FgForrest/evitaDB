@@ -724,7 +724,8 @@ public class QueryPlanner {
 	/**
 	 * Compares the independently planned key-free baseline with the preferred plan under one frozen random state.
 	 * Neither dry run passes through traffic recording. The sibling suppresses all planning side effects and both
-	 * verification paths, including in nested contexts.
+	 * verification paths, including in nested contexts. The finished event starts when the plan is built, so
+	 * verification dry runs contribute to its execution interval.
 	 *
 	 * @throws InconsistentResultsException when sharing or cache analysis changes the full response
 	 */
@@ -746,6 +747,7 @@ public class QueryPlanner {
 	/**
 	 * Executes each alternative index plan and compares its response with the preferred plan.
 	 * All verification executions share a frozen random seed so randomized ordering remains comparable.
+	 * The finished event starts at plan construction; its execution interval includes these dry runs.
 	 *
 	 * @throws InconsistentResultsException when an alternative produces a different response
 	 */

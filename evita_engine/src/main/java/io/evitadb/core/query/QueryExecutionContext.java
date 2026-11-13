@@ -69,7 +69,6 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.RandomUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -100,7 +99,6 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
 public class QueryExecutionContext implements Closeable {
 	/**
 	 * The original context that was used for planning the query.
@@ -119,7 +117,7 @@ public class QueryExecutionContext implements Closeable {
 	 * different results. Therefore, we "freeze" the {@link Random} using Java serialization process and restore it
 	 * along with its internal state for each query plan so that the random row, stays the same for all evaluations.
 	 */
-	private final byte[] frozenRandom;
+	@Nullable private final QueryPlanningContext.VerificationState verificationState;
 	/**
 	 * A function that converts a given {@link SealedEntity} into a specified type.
 	 * This BiFunction takes a {@link Class} object representing the desired type
@@ -162,31 +160,37 @@ public class QueryExecutionContext implements Closeable {
 	private int ioFetchedBytesAtScopeOpen;
 
 	/**
-	 * Returns true during either plan-verification mode, including nested executions and sorter contexts captured
-	 * during planning. These runs compute results under frozen randomness without recording real execution telemetry
-	 * or finishing the query's event. The preferred plan can subsequently execute once for the client.
-	 *
-	 * An explicit seed marks the current execution; otherwise the enclosing planning context supplies the active
-	 * execution's seed. This lookup also reaches contexts captured before verification started.
+	 * Creates an execution context with an explicit verification seed or the query's shared verification state.
+	 * Ordinary executions keep a null state, so dry-run checks never walk their context ancestry.
 	 */
-	public boolean isDryRun() {
-		return getEffectiveFrozenRandom() != null;
+	public QueryExecutionContext(
+		@Nonnull QueryPlanningContext queryContext, boolean prefetchExecution, @Nullable byte[] frozenRandom,
+		@Nonnull BiFunction<Class<?>, SealedEntity, Object> converter
+	) {
+		this.queryContext = queryContext;
+		this.prefetchExecution = prefetchExecution;
+		this.verificationState = frozenRandom == null ? queryContext.getVerificationState() :
+			new QueryPlanningContext.VerificationState(frozenRandom);
+		this.converter = converter;
 	}
 
-	/** Resolves the active seed for both newly created and previously captured nested execution contexts. */
-	@Nullable
-	private byte[] getEffectiveFrozenRandom() {
-		return this.frozenRandom == null ? this.queryContext.getVerificationRandom() : this.frozenRandom;
+	/**
+	 * Returns true during either plan-verification mode, including nested executions and sorter contexts captured
+	 * during planning. The preferred plan can subsequently execute for the client without recording its dry runs.
+	 * Ordinary queries pay one field read and one null check, independently of context depth.
+	 */
+	public boolean isDryRun() {
+		return this.verificationState != null && this.verificationState.frozenRandom != null;
 	}
 
 	/**
 	 * Returns random object to generate sequences from.
 	 *
-	 * @see #frozenRandom for more information
+	 * @see #verificationState for more information
 	 */
 	@Nonnull
 	public Random getRandom() {
-		return RandomUtils.getRandom(getEffectiveFrozenRandom());
+		return RandomUtils.getRandom(this.verificationState == null ? null : this.verificationState.frozenRandom);
 	}
 
 	/**
@@ -493,8 +497,8 @@ public class QueryExecutionContext implements Closeable {
 	 *
 	 * This wrapper exists solely to add the {@link #isDryRun()} guard to the identically named method on the planning
 	 * context: the telemetry tree belongs to the planning context and is shared by every execution of the query, so a
-	 * plan-verification run must not push its steps into it. Execution-time code must therefore always go through
-	 * this class and never reach for the {@link #queryContext} directly to push or pop a step.
+	 * plan-verification run must not push its steps into it. This guard also covers an explicit execution seed;
+	 * the planning context additionally suppresses direct runtime-planning steps during shared verification.
 	 *
 	 * @param phase the phase the pushed step measures
 	 */

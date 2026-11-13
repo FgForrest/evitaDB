@@ -193,8 +193,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * the metrics point of view and must not be reported as one.
 	 */
 	@Nullable @Getter private final FinishedEvent queryFinishedEvent;
-	/** Frozen randomness of the active verification execution, also visible to contexts captured during planning. */
-	@Nullable private byte[] verificationRandom;
+	/** Shared only by contexts participating in the same verification; absent for ordinary queries. */
+	@Nullable private final VerificationState verificationState;
 	/**
 	 * Contains reference to the catalog that is targeted by {@link #evitaRequest}.
 	 */
@@ -461,7 +461,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				entityCollection == null ? null : entityCollection.getEntityType(),
 				evitaRequest.getLabels()
 			),
-			true, false
+			true, false, null
 		);
 		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
 	}
@@ -499,7 +499,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this(
 			parentQueryContext, catalog, entityCollection,
 			evitaSession, evitaRequest, telemetry, indexes, indexesByPk,
-			cacheSupervisor, null, true, false
+			cacheSupervisor, null, true, false, null
 		);
 		// guard only when session is expected — nested contexts during session-less evaluation
 		// (WAL replay) inherit the null session from the parent and should not assert
@@ -544,7 +544,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	) {
 		this(
 			null, catalog, entityCollection, evitaSession, evitaRequest, null, indexes, indexesByPk, cacheSupervisor,
-			null, false, false
+			null, false, false, null
 		);
 	}
 
@@ -574,6 +574,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *                           records no schema capability request - ignored for a nested context, which inherits
 	 *                           the value of its parent, see {@link #recordingRequestedCapabilities}
 	 * @param verificationSibling true for a key-free verification root; nested contexts inherit their parent's value
+	 * @param verificationState execution state shared with an independent fetch root, NULL for a new query
 	 */
 	private <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nullable QueryPlanningContext parentQueryContext,
@@ -587,7 +588,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nullable FinishedEvent event,
 		boolean recordingRequestedCapabilities,
-		boolean verificationSibling
+		boolean verificationSibling,
+		@Nullable VerificationState verificationState
 	) {
 		this.parentContext = parentQueryContext;
 		this.verificationSibling = parentQueryContext == null ?
@@ -600,6 +602,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			.orElse(null);
 		this.evitaSession = evitaSession instanceof EvitaSession es ? es : null;
 		this.evitaRequest = evitaRequest;
+		this.verificationState = parentQueryContext != null ? parentQueryContext.verificationState :
+			verificationState != null ? verificationState :
+			this.verificationSibling || isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) ||
+				isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) ? new VerificationState(null) : null;
 		if (parentQueryContext == null) {
 			// These debug modes favour bitmap planning and suppress optional prefetch so the query resolves indexes.
 			this.planningPolicy = isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -615,7 +621,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this.telemetryStack = new ArrayDeque<>(16);
 		// Runtime body fetching may plan more queries; dry-run planning must not attach to the real profile.
 		ofNullable(this.verificationSibling ||
-			(parentQueryContext != null && parentQueryContext.getVerificationRandom() != null) ? null : telemetry
+			isVerificationExecutionActive() ? null : telemetry
 		).ifPresent(this.telemetryStack::push);
 		//noinspection unchecked
 		this.indexes = (Map<IndexKey, Index<?>>) indexes;
@@ -638,7 +644,24 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	public QueryPlanningContext createVerificationSibling() {
 		return new QueryPlanningContext(
 			null, this.catalog, this.entityCollection, this.evitaSession, this.evitaRequest, null,
-			(Map) this.indexes, (Map) this.indexesByPk, NoCacheSupervisor.INSTANCE, null, false, true
+			(Map) this.indexes, (Map) this.indexesByPk, NoCacheSupervisor.INSTANCE, null, false, true, null
+		);
+	}
+
+	/**
+	 * Creates an independent body-fetch root while retaining only verification execution state and sibling policy.
+	 * Its planning policy, optional prefetch, capability accounting and memos belong to the fetch request alone.
+	 * The fetch records no telemetry, capabilities or finished event during verification.
+	 */
+	@Nonnull
+	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext createVerificationFetchContext(
+		@Nonnull EntityCollection collection, @Nonnull EvitaRequest request,
+		@Nonnull Map<S, T> indexes, @Nonnull Map<Integer, T> indexesByPk,
+		@Nonnull CacheSupervisor supervisor
+	) {
+		return new QueryPlanningContext(
+			null, this.catalog, collection, this.evitaSession, request, null, indexes, indexesByPk,
+			supervisor, null, false, this.verificationSibling, this.verificationState
 		);
 	}
 
@@ -1617,6 +1640,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		return collection::getIndexByPrimaryKeyIfExists;
 	}
 
+	/** Guards every telemetry step mutation, including runtime planning that holds the original context. */
+	private boolean isTelemetryRecording() {
+		return !this.telemetryStack.isEmpty() && !isVerificationExecutionActive();
+	}
+
 	/**
 	 * Adds new step of query evaluation.
 	 *
@@ -1630,7 +1658,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param phase phase of the query evaluation the new step measures
 	 */
 	public void pushStep(@Nonnull QueryPhase phase) {
-		if (!this.telemetryStack.isEmpty()) {
+		if (isTelemetryRecording()) {
 			this.telemetryStack.push(
 				this.telemetryStack.peek().addStep(phase)
 			);
@@ -1649,7 +1677,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param messageSupplier description of the step, invoked only when telemetry is being collected
 	 */
 	public void pushStep(@Nonnull QueryPhase phase, @Nonnull Supplier<String> messageSupplier) {
-		if (!this.telemetryStack.isEmpty()) {
+		if (isTelemetryRecording()) {
 			this.telemetryStack.push(
 				this.telemetryStack.peek().addStep(phase, messageSupplier.get())
 			);
@@ -1666,7 +1694,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nullable
 	public QueryTelemetry getCurrentStep() {
-		if (!this.telemetryStack.isEmpty()) {
+		if (isTelemetryRecording()) {
 			return this.telemetryStack.peek();
 		}
 		return null;
@@ -1676,15 +1704,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Returns true when telemetry is being collected **and** the query asked for the formula plan - the guard a
 	 * caller must consult before walking a formula tree to describe it.
 	 *
-	 * Both halves are load-bearing. The stack test is what makes it false for a query without telemetry (and for
-	 * a verification sibling); execution callers additionally guard dry runs through
+	 * Both halves are load-bearing. The recording guard excludes absent telemetry, verification siblings and active
+	 * verification executions; execution callers additionally guard explicit dry runs through
 	 * {@link QueryExecutionContext#isTelemetryPlanCollected()}. The request test is what keeps plain
 	 * `queryTelemetry()` from paying for a structure it did not ask for.
 	 *
 	 * @return true when a plan recorded on the current step ends up in the response
 	 */
 	public boolean isTelemetryPlanCollected() {
-		return !this.telemetryStack.isEmpty() && this.evitaRequest.isQueryTelemetryPlanRequested();
+		return isTelemetryRecording() && this.evitaRequest.isQueryTelemetryPlanRequested();
 	}
 
 	/**
@@ -1693,7 +1721,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * unconditionally in a `finally` block.
 	 */
 	public void popStep() {
-		if (!this.telemetryStack.isEmpty()) {
+		if (isTelemetryRecording()) {
 			this.telemetryStack.pop().finish();
 		}
 	}
@@ -1709,7 +1737,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param messageSupplier description of the outcome, invoked only when telemetry is being collected
 	 */
 	public void popStep(@Nonnull Supplier<String> messageSupplier) {
-		if (!this.telemetryStack.isEmpty()) {
+		if (isTelemetryRecording()) {
 			this.telemetryStack.pop().finish(messageSupplier.get());
 		}
 	}
@@ -2942,19 +2970,46 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		return formula == null ? EmptyBitmap.INSTANCE : formula.compute();
 	}
 
-	/** Returns the active verification seed, following parents for nested and previously captured contexts. */
+	/** Returns the shared verification state in constant time, including for contexts captured before execution. */
 	@Nullable
-	byte[] getVerificationRandom() {
-		return this.verificationRandom != null || this.parentContext == null ?
-			this.verificationRandom : this.parentContext.getVerificationRandom();
+	VerificationState getVerificationState() {
+		return this.verificationState;
 	}
 
-	/** Installs execution-scoped verification randomness and returns the local state to restore in a finally block. */
+	/** Returns whether a verification execution is currently running anywhere in this query. */
+	public boolean isVerificationExecutionActive() {
+		return this.verificationState != null && this.verificationState.frozenRandom != null;
+	}
+
+	/** Returns the active verification seed without traversing context ancestry. */
+	@Nullable
+	byte[] getVerificationRandom() {
+		return this.verificationState == null ? null : this.verificationState.frozenRandom;
+	}
+
+	/** Installs execution-scoped verification randomness and returns the state to restore in a finally block. */
 	@Nullable
 	byte[] exchangeVerificationRandom(@Nullable byte[] frozenRandom) {
-		final byte[] previous = this.verificationRandom;
-		this.verificationRandom = frozenRandom;
+		if (this.verificationState == null) return null;
+		final byte[] previous = this.verificationState.frozenRandom;
+		this.verificationState.frozenRandom = frozenRandom;
 		return previous;
+	}
+
+	/**
+	 * Execution state shared in constant time by nested contexts and independent fetch roots during verification.
+	 * Allocated only for verification; the owning query executes sequentially.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	static final class VerificationState {
+		/** Non-null only while a verification execution is active. */
+		@Nullable byte[] frozenRandom;
+
+		/** Captures either an explicit execution seed or the inactive query state. */
+		VerificationState(@Nullable byte[] frozenRandom) {
+			this.frozenRandom = frozenRandom;
+		}
 	}
 
 	/**

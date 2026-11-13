@@ -248,7 +248,9 @@ public class QueryPlan {
 	 */
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute(@Nullable byte[] frozenRandom) {
-		final byte[] previousRandom = this.queryContext.exchangeVerificationRandom(frozenRandom);
+		final byte[] previousRandom = this.queryContext.exchangeVerificationRandom(
+			frozenRandom == null ? this.queryContext.getVerificationRandom() : frozenRandom
+		);
 		final boolean prefetchedDataSuitableForFiltering = this.prefetcher != null && this.prefetcher.isPrefetchedEntitiesSuitableForFiltering();
 		try (
 			final QueryExecutionContext executionContext = this.queryContext.createExecutionContext(
@@ -259,9 +261,6 @@ public class QueryPlan {
 			// de-duplicate storage record reads for the whole execution - the catalog version is pinned here, so
 			// a record read twice under the same key is guaranteed to be the same record
 			executionContext.openStorageAccessScope();
-			if (!executionContext.isDryRun()) {
-				ofNullable(this.queryContext.getQueryFinishedEvent()).ifPresent(FinishedEvent::startExecuting);
-			}
 			executionContext.pushStep(QueryPhase.EXECUTION);
 			try {
 				// prefetch the entities to allow using them in filtering / sorting in next step

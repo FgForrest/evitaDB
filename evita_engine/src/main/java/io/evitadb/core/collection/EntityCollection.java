@@ -1633,7 +1633,7 @@ public final class EntityCollection implements
 	) {
 		final EvitaSession session = Objects.requireNonNull(queryContext.getEvitaSession());
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(
-			evitaRequest, createQueryContext(queryContext, evitaRequest, session)
+			evitaRequest, createFetchQueryContext(evitaRequest, queryContext)
 		);
 		return fetchEntities(primaryKeys, evitaRequest, session, referenceFetcher);
 	}
@@ -1654,7 +1654,7 @@ public final class EntityCollection implements
 	) {
 		final EvitaSession session = Objects.requireNonNull(queryContext.getEvitaSession());
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(
-			evitaRequest, createQueryContext(queryContext, evitaRequest, session)
+			evitaRequest, createFetchQueryContext(evitaRequest, queryContext)
 		);
 		return fetchEntity(primaryKey, evitaRequest, session, referenceFetcher);
 	}
@@ -3851,7 +3851,21 @@ public final class EntityCollection implements
 		return createReferenceFetcher(evitaRequest, createQueryContext(evitaRequest, session));
 	}
 
-	/** Creates the fetcher in its originating context, retaining verification policy for nested filters and bodies. */
+	/**
+	 * Plans body fetching as a root from its own request, preserving the ordinary fetch policy and accounting.
+	 * Verification roots share only execution state and the key-free sibling policy with the originating query.
+	 */
+	@Nonnull
+	private QueryPlanningContext createFetchQueryContext(
+		@Nonnull EvitaRequest request, @Nonnull QueryPlanningContext origin
+	) {
+		return origin.isVerificationSibling() || origin.isVerificationExecutionActive() ?
+			origin.createVerificationFetchContext(this, request, this.indexes, this.indexesByPrimaryKey,
+				this.cacheSupervisor) :
+			createQueryContext(request, Objects.requireNonNull(origin.getEvitaSession()));
+	}
+
+	/** Creates the fetcher with the root context selected for this body fetch. */
 	@Nonnull
 	private ReferenceFetcher createReferenceFetcher(
 		@Nonnull EvitaRequest evitaRequest,
