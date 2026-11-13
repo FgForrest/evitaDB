@@ -440,6 +440,9 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 						histogramBaselineFormula, histogramRequest.bucketCount(), histogramRequest.behavior(),
 						histogramRequest
 					);
+					// with the formula result cache the relaxed baseline must run under this execution context, so the
+					// cache gate, the prefetch bypass and a sampled recomputation's suspension reach its bound formulas;
+					// without the cache the computer is left exactly as it was before the cache existed
 					if (context.getQueryContext().isFormulaCacheEnabled()) {
 						computer.initialize(context);
 					}

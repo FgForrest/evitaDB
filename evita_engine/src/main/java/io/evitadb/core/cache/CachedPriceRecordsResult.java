@@ -23,6 +23,7 @@
 
 package io.evitadb.core.cache;
 
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.index.bitmap.Bitmap;
 
@@ -51,5 +52,26 @@ public record CachedPriceRecordsResult(
 		if (perInnerRecordPriceRecords != null) {
 			perInnerRecordPriceRecords.getPriceRecords();
 		}
+	}
+
+	/**
+	 * Captures the bitmap and the price outputs of one computation of a price formula. Each of those formulas assigns
+	 * its outputs only as {@link ResolvedFilteredPriceRecords} - when computing and when restoring a tuple - so the
+	 * casts hold on every path, including a sampled recomputation, which captures its tuple without
+	 * {@link CachedResultWeigher} refusing other holders first.
+	 *
+	 * @param result computed bitmap
+	 * @param priceRecords resolved selling prices of the same computation
+	 * @param perInnerRecordPriceRecords resolved per-inner-record prices of the same computation, or null
+	 * @param weight complete admitted charge in bytes
+	 * @return the tuple with both arrays frozen
+	 */
+	@Nonnull
+	public static CachedPriceRecordsResult of(
+		@Nonnull Bitmap result, @Nonnull FilteredPriceRecords priceRecords,
+		@Nullable FilteredPriceRecords perInnerRecordPriceRecords, int weight
+	) {
+		return new CachedPriceRecordsResult(result, (ResolvedFilteredPriceRecords) priceRecords,
+			(ResolvedFilteredPriceRecords) perInnerRecordPriceRecords, weight);
 	}
 }

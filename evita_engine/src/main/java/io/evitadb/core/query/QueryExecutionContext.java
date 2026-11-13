@@ -59,6 +59,7 @@ import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComput
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.core.query.response.ServerEntityDecorator;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
@@ -111,7 +112,11 @@ public class QueryExecutionContext implements Closeable {
 	 * indexes.
 	 */
 	@Getter private final boolean prefetchExecution;
-	/** Eligibility fixed when the execution mode and ambient transaction are known. */
+	/**
+	 * True when the planning root passed the formula cache gate, this is neither an eager planning evaluation nor a
+	 * prefetch execution, and no transaction was bound to the creating thread - decided once, at construction. The
+	 * suspension during a sampled recomputation is read separately, see {@link #isFormulaCacheUsable()}.
+	 */
 	private final boolean formulaCacheUsable;
 	/**
 	 * This field is used only for debugging purposes when we need to compute results for different variants of
@@ -162,17 +167,17 @@ public class QueryExecutionContext implements Closeable {
 	private int ioFetchedBytesAtScopeOpen;
 
 	/**
-	 * Creates an execution context with an explicit verification seed or the query's shared verification state.
+	 * Creates an execution context with an explicit verification seed or the query's shared execution state.
 	 * Executions without verification or caching keep a null state; shared checks never walk context ancestry.
+	 * An eager planning evaluation computes formulas while the plan is being built and never uses the formula
+	 * result cache.
+	 *
+	 * @param queryContext the planning context the execution belongs to
+	 * @param prefetchExecution true when the execution filters prefetched entities instead of indexes
+	 * @param planningEvaluation true for the eager evaluation of formulas while the plan is being built
+	 * @param frozenRandom serialized random state of a verification execution, null to use the query's shared state
+	 * @param converter converts a fetched entity to the type the caller requested
 	 */
-	public QueryExecutionContext(
-		@Nonnull QueryPlanningContext queryContext, boolean prefetchExecution, @Nullable byte[] frozenRandom,
-		@Nonnull BiFunction<Class<?>, SealedEntity, Object> converter
-	) {
-		this(queryContext, prefetchExecution, false, frozenRandom, converter);
-	}
-
-	/** Creates an execution context with an explicit eager-planning marker. */
 	public QueryExecutionContext(
 		@Nonnull QueryPlanningContext queryContext, boolean prefetchExecution, boolean planningEvaluation,
 		@Nullable byte[] frozenRandom,
@@ -181,7 +186,7 @@ public class QueryExecutionContext implements Closeable {
 		this.queryContext = queryContext;
 		this.prefetchExecution = prefetchExecution;
 		this.formulaCacheUsable = queryContext.isFormulaCacheEnabled() && !planningEvaluation &&
-			!prefetchExecution && !io.evitadb.core.transaction.Transaction.isTransactionAvailable();
+			!prefetchExecution && !Transaction.isTransactionAvailable();
 		this.verificationState = frozenRandom == null ? queryContext.getVerificationState() :
 			new QueryPlanningContext.VerificationState(frozenRandom);
 		this.converter = converter;

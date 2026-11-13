@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.core.cache.FormulaCacheSupervisor;
+import io.evitadb.core.cache.FormulaCacheTestSessions;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -65,7 +66,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class FormulaCacheMutableAncestorTest implements EvitaTestSupport {
 	/** Exercises the actual replacement visitor, not an imitation of its memory-clearing behavior. */
 	@Test
-	@DisplayName("Neither reads nor writes the tier after replacing a mutable delegate")
+	@DisplayName("Neither reads nor writes the result cache after replacing a mutable delegate")
 	void shouldUnbindStaleAncestorsAfterReplacement() {
 		final TestPaths paths = createTestPaths("FormulaCacheMutableAncestorTest");
 		final Scheduler scheduler = new Scheduler(new ScheduledThreadPoolExecutor(1, runnable -> {
@@ -83,33 +84,30 @@ class FormulaCacheMutableAncestorTest implements EvitaTestSupport {
 				session.upsertEntity(session.createNewEntity("product", 1));
 				session.goLiveAndClose();
 			});
-			try (final EvitaSessionContract session = io.evitadb.core.cache.FormulaCacheTestSessions.readOnly(
-				evita, "mutableCache")) {
-				{
-					final EvitaSessionContract internal = session;
-					final Catalog catalog = (Catalog) evita.getCatalogInstanceOrThrowException("mutableCache");
-					final QueryPlanningContext context = new QueryPlanningContext(catalog,
-						catalog.getCollectionForEntityInternal("product").orElseThrow(), internal,
-						new EvitaRequest(Query.query(collection("product")), OffsetDateTime.now(),
-							EntityReference.class, null), Map.of(), Map.of(), cache);
-					final MutableFormula mutable = new MutableFormula(new FacetGroupOrFormula("facet", 1,
-						new BaseBitmap(1), new BaseBitmap(1)));
-					final OrFormula ancestor = new OrFormula(mutable, new ConstantFormula(new BaseBitmap(2)));
-					assertThrows(GenericEvitaInternalError.class, () -> context.analyse(ancestor));
-					ancestor.initialize(context.createExecutionContext());
-					// Seed the pre-replacement binding explicitly; the normal walk refuses hypothetical graphs.
-					ancestor.bindFormulaCache(cache);
-					assertArrayEquals(new int[]{1, 2}, ancestor.compute().getArray());
-					final FormulaKey stale = ancestor.getKey();
-					final FormulaCacheSupervisor.Statistics before = cache.getStatistics();
-					ancestor.accept(new AbstractFacetFormulaGenerator.MutableFormulaFinderAndReplacer(
-						ignored -> new FacetGroupOrFormula("facet", 1, new BaseBitmap(3), new BaseBitmap(3))));
-					assertSame(stale, ancestor.getKey());
-					assertArrayEquals(new int[]{2, 3}, ancestor.compute().getArray());
-					assertEquals(before.hits(), cache.getStatistics().hits());
-					assertEquals(before.misses(), cache.getStatistics().misses());
-					assertEquals(before.admissions(), cache.getStatistics().admissions());
-				}
+			try (final EvitaSessionContract session = FormulaCacheTestSessions.readOnly(evita, "mutableCache")) {
+				final Catalog catalog = (Catalog) evita.getCatalogInstanceOrThrowException("mutableCache");
+				final QueryPlanningContext context = new QueryPlanningContext(catalog,
+					catalog.getCollectionForEntityInternal("product").orElseThrow(), session,
+					new EvitaRequest(Query.query(collection("product")), OffsetDateTime.now(),
+						EntityReference.class, null), Map.of(), Map.of(), cache);
+				final MutableFormula mutable = new MutableFormula(new FacetGroupOrFormula("facet", 1,
+					new BaseBitmap(1), new BaseBitmap(1)));
+				final OrFormula ancestor = new OrFormula(mutable, new ConstantFormula(new BaseBitmap(2)));
+				assertThrows(GenericEvitaInternalError.class, () -> context.analyse(ancestor));
+				ancestor.initialize(context.createExecutionContext());
+				// The walk throws on reaching the mutable delegate, possibly after binding the ancestors it visited
+				// first; seeding the binding explicitly keeps the test independent of that order.
+				ancestor.bindFormulaCache(cache);
+				assertArrayEquals(new int[]{1, 2}, ancestor.compute().getArray());
+				final FormulaKey stale = ancestor.getKey();
+				final FormulaCacheSupervisor.Statistics before = cache.getStatistics();
+				ancestor.accept(new AbstractFacetFormulaGenerator.MutableFormulaFinderAndReplacer(
+					ignored -> new FacetGroupOrFormula("facet", 1, new BaseBitmap(3), new BaseBitmap(3))));
+				assertSame(stale, ancestor.getKey());
+				assertArrayEquals(new int[]{2, 3}, ancestor.compute().getArray());
+				assertEquals(before.hits(), cache.getStatistics().hits());
+				assertEquals(before.misses(), cache.getStatistics().misses());
+				assertEquals(before.admissions(), cache.getStatistics().admissions());
 			}
 		} finally {
 			scheduler.shutdownNow();

@@ -23,6 +23,7 @@
 
 package io.evitadb.core;
 
+import com.github.benmanes.caffeine.cache.Ticker;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
@@ -69,6 +70,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogForma
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.CollationKeyCacheSweeper;
+import io.evitadb.core.cache.FormulaCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
@@ -195,7 +197,9 @@ public final class Evita implements EvitaContract {
 	 */
 	private final Map<String, SessionRegistry> catalogSessionRegistries = CollectionUtils.createConcurrentHashMap(64);
 	/**
-	 * Analysis seam for query formulas and extra-result computers. The configured supervisor returns its inputs.
+	 * Analysis seam for query formulas and extra-result computers: `NoCacheSupervisor` when the formula result cache is
+	 * disabled, otherwise the engine's single `FormulaCacheSupervisor`, from which every planning root resolves its own
+	 * gate. It is closed together with the engine.
 	 */
 	private final CacheSupervisor cacheSupervisor;
 	/**
@@ -534,10 +538,8 @@ public final class Evita implements EvitaContract {
 			.map(it -> new SessionKiller(it, this, this.serviceExecutor))
 			.orElse(null);
 		this.cacheSupervisor = configuration.cache().enabled() ?
-			new io.evitadb.core.cache.FormulaCacheSupervisor(
-				configuration.cache(), this.serviceExecutor,
-				com.github.benmanes.caffeine.cache.Ticker.systemTicker()
-			) : NoCacheSupervisor.INSTANCE;
+			new FormulaCacheSupervisor(configuration.cache(), this.serviceExecutor, Ticker.systemTicker()) :
+			NoCacheSupervisor.INSTANCE;
 		this.collationKeyCacheSweeper = of(configuration.server().dropCollationKeysAfterSecondsOfInactivity())
 			.filter(it -> it > 0)
 			.map(it -> new CollationKeyCacheSweeper(it, this.serviceExecutor))
@@ -2500,14 +2502,14 @@ public final class Evita implements EvitaContract {
 
 	/** Returns whether this engine's configured formula result cache remains active. */
 	public boolean isQueryCacheEnabled() {
-		final io.evitadb.core.cache.FormulaCacheSupervisor.Statistics statistics = getFormulaCacheStatistics();
+		final FormulaCacheSupervisor.Statistics statistics = getFormulaCacheStatistics();
 		return statistics != null && statistics.active();
 	}
 
 	/** Returns the formula cache's counters and effective state, or null when it was not configured. */
 	@Nullable
-	public io.evitadb.core.cache.FormulaCacheSupervisor.Statistics getFormulaCacheStatistics() {
-		return this.cacheSupervisor instanceof io.evitadb.core.cache.FormulaCacheSupervisor cache ?
+	public FormulaCacheSupervisor.Statistics getFormulaCacheStatistics() {
+		return this.cacheSupervisor instanceof FormulaCacheSupervisor cache ?
 			cache.getStatistics() : null;
 	}
 

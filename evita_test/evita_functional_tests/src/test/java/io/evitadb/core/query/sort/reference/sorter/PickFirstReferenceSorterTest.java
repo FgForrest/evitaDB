@@ -1175,7 +1175,7 @@ class PickFirstReferenceSorterTest {
 
 		PrefetchedExecutionContext(@Nonnull QueryPlanningContext queryContext) {
 			super(
-				queryContext, true, null,
+				queryContext, true, false, null,
 				(type, entity) -> {
 					throw new UnsupportedOperationException("No entity is converted in this test.");
 				}

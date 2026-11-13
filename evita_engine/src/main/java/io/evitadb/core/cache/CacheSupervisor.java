@@ -41,7 +41,13 @@ import java.io.Closeable;
 public interface CacheSupervisor extends Closeable {
 
 	/**
-	 * Binds an eligible formula graph without replacing nodes, after query-local deduplication.
+	 * Analyses a formula graph the caller has already deduplicated and returns the same graph: no node is replaced.
+	 * An implementation may bind eligible nodes in place, so that computing them consults the formula result cache.
+	 *
+	 * @param evitaSession  session the query runs in
+	 * @param entityType    entity type the query targets
+	 * @param filterFormula deduplicated formula graph
+	 * @return the passed formula graph
 	 */
 	@Nonnull
 	<T extends Formula> T analyse(
@@ -51,7 +57,13 @@ public interface CacheSupervisor extends Closeable {
 	);
 
 	/**
-	 * Analyses an extra-result computer using the context that will execute it.
+	 * Analyses an extra-result computer using the execution context that will compute it.
+	 *
+	 * @param evitaSession        session the query runs in
+	 * @param entityType          entity type the query targets
+	 * @param extraResultComputer computer to analyse
+	 * @param context             execution context that computes the result
+	 * @return the computer itself, or a wrapper computing the same result through the passed context
 	 */
 	@Nonnull
 	<U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(

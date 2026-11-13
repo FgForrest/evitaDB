@@ -30,14 +30,26 @@ import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
+import io.evitadb.core.cache.FormulaCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
@@ -49,8 +61,13 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.EnumMap;
 import java.util.Map;
@@ -58,6 +75,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.*;
@@ -78,17 +96,18 @@ class VerificationRecordingRegressionTest implements EvitaTestSupport {
 	/** Engine with hierarchical referenced entities and sortable body content. */
 	private Evita evita;
 
-	/** Creates a parent-bound hierarchy and several sortable references. */
+	/** Creates the default engine, whose formula result cache is disabled. */
 	@BeforeEach
 	void setUp() {
 		this.paths = createTestPaths("VerificationRecordingRegressionTest");
-		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).cache(
-			io.evitadb.api.configuration.CacheOptions.builder()
-				.enabled(Boolean.getBoolean("formulaCache.regression.enabled"))
-				.minimalComplexityThreshold(0).cacheSizeInBytes(100_000_000L)
-				.verifyOneHitIn(0).dropEntriesAfterSecondsOfInactivity(0).build()).build());
-		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
-		this.evita.updateCatalog(CATALOG, session -> {
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+		populate(this.evita);
+	}
+
+	/** Creates a parent-bound hierarchy and several sortable references. */
+	private static void populate(@Nonnull Evita evita) {
+		evita.defineCatalog(CATALOG).updateViaNewSession(evita);
+		evita.updateCatalog(CATALOG, session -> {
 			session.defineEntitySchema("Category").withoutGeneratedPrimaryKey().withHierarchy()
 				.withAttribute("code", String.class, whichIs -> whichIs.sortable())
 				.withAttribute("stop", Boolean.class, whichIs -> whichIs.filterable())
@@ -126,7 +145,7 @@ class VerificationRecordingRegressionTest implements EvitaTestSupport {
 			final EvitaResponse<EntityReference> response = session.query(Query.query(collection("Product"),
 				filterBy(referenceHaving("categories", entityHaving(attributeEqualsTrue("stop")))),
 				require(referenceSummaryOfReference("categories",
-					io.evitadb.api.query.require.FacetStatisticsDepth.COUNTS,
+					FacetStatisticsDepth.COUNTS,
 					entityFetch(hierarchyContent(stopAt(node(filterBy(attributeEqualsTrue("stop"))))),
 						referenceContent("related", filterBy(entityHaving(attributeEqualsTrue("stop")))))),
 					queryTelemetry())), EntityReference.class);
@@ -172,10 +191,25 @@ class VerificationRecordingRegressionTest implements EvitaTestSupport {
 		}
 	}
 
-	/** Pins deterministic results, telemetry, requested capabilities and index activity when the tier is bypassed. */
-	@Test
-	@DisplayName("Preserves parent recording with the tier disabled or the read-write gate closed")
-	void shouldPreserveBypassedTierRecording() throws Exception {
+	/**
+	 * Pins results, telemetry, requested capabilities and index activity to the recording of the sources before the
+	 * formula result cache existed: once on the default engine, once on an engine with the cache enabled, queried
+	 * through a read-write session whose gate stays closed.
+	 */
+	@ParameterizedTest(name = "cache enabled: {0}")
+	@ValueSource(booleans = {false, true})
+	@Tag(CACHE)
+	@DisplayName("Preserves parent recording with the result cache disabled or the read-write gate closed")
+	void shouldPreserveBypassedCacheRecording(boolean cacheEnabled) throws Exception {
+		if (cacheEnabled) {
+			this.evita.close();
+			cleanupTestPaths(this.paths);
+			this.paths = createTestPaths("VerificationRecordingRegressionTest");
+			this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).cache(CacheOptions.builder()
+				.enabled(true).minimalComplexityThreshold(0).cacheSizeInBytes(100_000_000L)
+				.verifyOneHitIn(0).dropEntriesAfterSecondsOfInactivity(0).build()).build());
+			populate(this.evita);
+		}
 		this.evita.updateCatalog(CATALOG, writer -> {
 			writer.defineEntitySchema("Product").withAttribute("amount", Integer.class,
 				attribute -> attribute.filterable()).updateVia(writer);
@@ -183,11 +217,10 @@ class VerificationRecordingRegressionTest implements EvitaTestSupport {
 				.openForWrite().setAttribute("amount", 100));
 			writer.goLiveAndClose();
 		});
-		final boolean enabled = Boolean.getBoolean("formulaCache.regression.enabled");
 		final Query[] queries = {
 			Query.query(collection("Product"),
 				filterBy(referenceHaving("categories", entityHaving(attributeEqualsTrue("stop")))),
-				require(referenceSummaryOfReference("categories", io.evitadb.api.query.require.FacetStatisticsDepth.COUNTS,
+				require(referenceSummaryOfReference("categories", FacetStatisticsDepth.COUNTS,
 					entityFetch(hierarchyContent(stopAt(node(filterBy(attributeEqualsTrue("stop"))))),
 						referenceContent("related", filterBy(entityHaving(attributeEqualsTrue("stop")))))),
 					queryTelemetry(), debug(DebugMode.PREFER_INDEX_SCAN))),
@@ -195,7 +228,7 @@ class VerificationRecordingRegressionTest implements EvitaTestSupport {
 				require(attributeHistogram(10, "amount"), queryTelemetry(), debug(DebugMode.PREFER_INDEX_SCAN)))
 		};
 		final StringBuilder recording = new StringBuilder(8_192);
-		try (final EvitaSessionContract session = enabled ? this.evita.createReadWriteSession(CATALOG) :
+		try (final EvitaSessionContract session = cacheEnabled ? this.evita.createReadWriteSession(CATALOG) :
 			this.evita.createReadOnlySession(CATALOG)) {
 			for (final Query query : queries) {
 				final Map<String, Long> beforeCapabilities = capabilities();
@@ -207,27 +240,23 @@ class VerificationRecordingRegressionTest implements EvitaTestSupport {
 					.append(metrics(response.getExtraResult(QueryTelemetry.class))).append('\n')
 					.append(delta(capabilities(), beforeCapabilities)).append('\n')
 					.append(delta(activity(), beforeActivity)).append('\n');
-				final io.evitadb.api.requestResponse.extraResult.ReferenceSummary summary =
-					response.getExtraResult(io.evitadb.api.requestResponse.extraResult.ReferenceSummary.class);
+				final ReferenceSummary summary = response.getExtraResult(ReferenceSummary.class);
 				if (summary != null) {
 					recording.append(summary.prettyPrint()).append('\n');
-					for (final io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics group :
-						summary.getReferenceStatistics()) {
+					for (final ReferenceGroupStatistics group : summary.getReferenceStatistics()) {
 						appendFetchedContent(recording, group.getGroupEntity());
-						for (final io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics facet :
-							group.getFacetStatistics()) appendFetchedContent(recording, facet.getFacetEntity());
+						for (final FacetStatistics facet : group.getFacetStatistics()) {
+							appendFetchedContent(recording, facet.getFacetEntity());
+						}
 					}
 				}
-				final io.evitadb.api.requestResponse.extraResult.AttributeHistogram histogram =
-					response.getExtraResult(io.evitadb.api.requestResponse.extraResult.AttributeHistogram.class);
+				final AttributeHistogram histogram = response.getExtraResult(AttributeHistogram.class);
 				if (histogram != null) {
-					for (final Map.Entry<String, io.evitadb.api.requestResponse.extraResult.HistogramContract> entry :
-						histogram.getHistograms().entrySet()) {
-						final io.evitadb.api.requestResponse.extraResult.HistogramContract value = entry.getValue();
+					for (final Map.Entry<String, HistogramContract> entry : histogram.getHistograms().entrySet()) {
+						final HistogramContract value = entry.getValue();
 						recording.append(entry.getKey()).append(':').append(value.getMin()).append(':')
 							.append(value.getMax()).append(':').append(value.getOverallCount()).append('\n');
-						for (final io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket bucket :
-							value.getBuckets()) {
+						for (final HistogramContract.Bucket bucket : value.getBuckets()) {
 							recording.append(bucket.threshold()).append(':').append(bucket.occurrences()).append(':')
 								.append(bucket.relativeFrequency()).append(':').append(bucket.requested()).append('\n');
 						}
@@ -237,12 +266,23 @@ class VerificationRecordingRegressionTest implements EvitaTestSupport {
 				}
 			}
 		}
-		final String fingerprint = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
-			.digest(recording.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-		System.out.println("Bypassed recording enabled=" + enabled + " fingerprint=" + fingerprint);
-		System.out.println(recording);
-		assertEquals("7e9a8d7b289352752e882f0caf6d66f1873bfb3f1f827d3671e79f55332437fc",
-			fingerprint, recording.toString());
+		final String fingerprint = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+			.digest(recording.toString().getBytes(StandardCharsets.UTF_8)));
+		final FormulaCacheSupervisor.Statistics statistics = this.evita.getFormulaCacheStatistics();
+		assertAll(
+			() -> assertEquals("7e9a8d7b289352752e882f0caf6d66f1873bfb3f1f827d3671e79f55332437fc",
+				fingerprint, recording.toString()),
+			() -> {
+				if (cacheEnabled) {
+					// the arm proves something only if the cache existed and the closed gate kept every query off it
+					assertNotNull(statistics);
+					assertTrue(statistics.active());
+					assertEquals(0, statistics.hits() + statistics.misses() + statistics.admissions());
+				} else {
+					assertNull(statistics);
+				}
+			}
+		);
 	}
 
 	/** A stop predicate is compiled during fetching and pushes steps directly on its planning context. */
@@ -342,14 +382,14 @@ class VerificationRecordingRegressionTest implements EvitaTestSupport {
 	/** Serializes this fixture's fetched values, availability, parent chains and referenced bodies recursively. */
 	private static void appendFetchedContent(
 		@Nonnull StringBuilder output,
-		@javax.annotation.Nullable io.evitadb.api.requestResponse.data.EntityClassifier classifier
+		@Nullable EntityClassifier classifier
 	) {
 		if (classifier == null) {
 			output.append("null\n");
 			return;
 		}
 		output.append(classifier.getType()).append(':').append(classifier.getPrimaryKey()).append('\n');
-		if (classifier instanceof io.evitadb.api.requestResponse.data.EntityContract entity) {
+		if (classifier instanceof EntityContract entity) {
 			output.append(entity.version()).append(':').append(entity.dropped()).append(':').append(entity.getScope())
 				.append(':').append(entity.getLocales()).append(':').append(entity.getAllLocales()).append(':')
 				.append(entity.parentAvailable()).append(':').append(entity.attributesAvailable()).append(':')
@@ -357,14 +397,14 @@ class VerificationRecordingRegressionTest implements EvitaTestSupport {
 				.append(entity.referencesAvailable()).append(':').append(entity.describe()).append('\n');
 			if (entity.parentAvailable()) appendFetchedContent(output, entity.getParentEntity().orElse(null));
 			if (entity.referencesAvailable()) {
-				for (final io.evitadb.api.requestResponse.data.ReferenceContract reference : entity.getReferences()) {
+				for (final ReferenceContract reference : entity.getReferences()) {
 					output.append(reference.getReferenceKey()).append(':').append(reference.dropped()).append(':')
 						.append(reference.attributesAvailable()).append(':').append(reference.getGroup()).append('\n');
 					appendFetchedContent(output, reference.getReferencedEntity().orElse(null));
 					appendFetchedContent(output, reference.getGroupEntity().orElse(null));
 				}
 			}
-		} else if (classifier instanceof io.evitadb.api.requestResponse.data.EntityClassifierWithParent parent) {
+		} else if (classifier instanceof EntityClassifierWithParent parent) {
 			appendFetchedContent(output, parent.getParentEntity().orElse(null));
 		}
 	}

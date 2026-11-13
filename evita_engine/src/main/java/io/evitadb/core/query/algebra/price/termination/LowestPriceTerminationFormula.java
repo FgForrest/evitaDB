@@ -295,16 +295,18 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	/** Freezes and measures all price outputs before publication. */
 	@Override
 	protected long measurePayload(@Nonnull Bitmap computed) {
-		return CachedResultWeigher.measure(getKey(), computed, this.filteredPriceRecords, this.perInnerRecordPriceRecords);
+		return CachedResultWeigher.measure(
+			getKey(), computed, this.filteredPriceRecords, this.perInnerRecordPriceRecords
+		);
 	}
 
 	/** Captures the bitmap and both price outputs from the same computation. */
 	@Nonnull
 	@Override
 	protected CachedResult toCachedResult(@Nonnull Bitmap computed, int weight) {
-		return new CachedPriceRecordsResult(computed,
-			(ResolvedFilteredPriceRecords) this.filteredPriceRecords,
-			(ResolvedFilteredPriceRecords) this.perInnerRecordPriceRecords, weight);
+		return CachedPriceRecordsResult.of(
+			computed, this.filteredPriceRecords, this.perInnerRecordPriceRecords, weight
+		);
 	}
 
 	/** Restores all side outputs before exposing the memoized bitmap. */

@@ -49,7 +49,7 @@ import java.math.BigDecimal;
 public final class CachedResultWeigher {
 	/** Refusal returned when a retained object has no supported size model. */
 	public static final int UNSIZED = -1;
-	/** Refusal returned when the charge exceeds the per-entry or integer limit. */
+	/** Refusal returned when the charge exceeds the per-entry or integer limit or is below the entry overhead. */
 	public static final int OVERSIZED = -2;
 	/** Entry bookkeeping allowance, separate from the result wrapper and key. */
 	private static final long ENTRY_OVERHEAD_BYTES = 96;
@@ -89,7 +89,10 @@ public final class CachedResultWeigher {
 			+ bitmapBytes + prices + innerPrices;
 	}
 
-	/** Returns the complete histogram entry charge, or {@link #UNSIZED} for an unknown retained value type. */
+	/**
+	 * Returns the complete histogram entry charge, or {@link #UNSIZED} for a histogram class other than
+	 * {@link CacheableHistogram} and the shared empty histogram, or for an unknown retained value type.
+	 */
 	public static long measure(@Nonnull FormulaKey key, @Nonnull CacheableHistogramContract histogram) {
 		long bytes = baseCharge(key) + LAYOUT.sizeOfObject(LAYOUT.referenceSize() + Integer.BYTES);
 		if (histogram == CacheableHistogramContract.EMPTY) {
@@ -122,7 +125,8 @@ public final class CachedResultWeigher {
 
 	/**
 	 * Converts a complete charge to a cache weight, refusing entries above one percent of the budget or the integer
-	 * range. Refusals are values, never saturated positive weights. An unsized payload keeps its refusal reason.
+	 * range, and a charge below the entry overhead every complete charge includes. Refusals are values, never
+	 * saturated positive weights. An unsized payload keeps its refusal reason.
 	 */
 	public static int admittedWeight(long charge, long budget) {
 		if (charge == UNSIZED) {

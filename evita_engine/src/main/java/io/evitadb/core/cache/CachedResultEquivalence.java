@@ -46,7 +46,10 @@ public final class CachedResultEquivalence {
 	private CachedResultEquivalence() {
 	}
 
-	/** Compares complete result tuples, ignoring their bookkeeping weights. */
+	/**
+	 * Compares complete result tuples, ignoring their bookkeeping weights. Histograms compare strictly: the same
+	 * instance, or two {@link CacheableHistogram} instances with equal contents; another implementation never matches.
+	 */
 	public static boolean equivalent(@Nonnull CachedResult left, @Nonnull CachedResult right) {
 		if (left instanceof CachedBitmapResult first) {
 			return right instanceof CachedBitmapResult second && equivalentBitmaps(first.result(), second.result());

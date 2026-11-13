@@ -27,12 +27,8 @@ import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.*;
-import io.evitadb.core.query.algebra.entity.EntityPrimaryKeyRangeFormula;
-import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.priceIndex.*;
@@ -42,14 +38,10 @@ import io.evitadb.core.query.algebra.price.translate.PriceIdToEntityIdTranslateF
 import io.evitadb.core.query.extraResult.translator.histogram.cache.*;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.*;
-import io.evitadb.dataType.Scope;
-import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.bitmap.*;
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.*;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -58,10 +50,10 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.io.Serial;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static io.evitadb.core.cache.CachedResultEquivalence.equivalent;
 import static io.evitadb.core.cache.CachedResultTestSupport.*;
@@ -333,9 +325,23 @@ class CachedResultEquivalenceTest {
 			new CachedHistogramResult(CacheableHistogramContract.EMPTY, 2)));
 	}
 
+	/** Equal contents do not make another histogram implementation equivalent, in either argument order. */
+	@Test
+	@DisplayName("Rejects a histogram subclass with equal contents")
+	void shouldRejectHistogramSubclassWithEqualContents() {
+		final CacheableHistogram base = histogram();
+		final CacheableHistogram subclass = new CacheableHistogram(
+			base.getBuckets(), base.getMax(), base.getRawMin(), base.getRawMax()) {
+			@Serial private static final long serialVersionUID = 1L;
+		};
+		assertEquals(base, subclass);
+		assertFalse(equivalent(new CachedHistogramResult(base, 1), new CachedHistogramResult(subclass, 1)));
+		assertFalse(equivalent(new CachedHistogramResult(subclass, 1), new CachedHistogramResult(base, 1)));
+	}
+
 	/** Compares independent computations from every eligible formula class using real bitmap and price inputs. */
 	@ParameterizedTest(name = "{index}: {0}")
-	@MethodSource("formulaSuppliers")
+	@MethodSource("io.evitadb.core.cache.CachedResultTestSupport#formulaSuppliers")
 	@DisplayName("Produces equivalent tuples from independently built formula instances")
 	void shouldComputeDeterministicFormulaPayloads(@Nonnull Supplier<Formula> factory) {
 		final Formula first = factory.get();
@@ -359,58 +365,13 @@ class CachedResultEquivalenceTest {
 		assertTrue(equivalent(new CachedHistogramResult(first.compute(), 1),
 			new CachedHistogramResult(second.compute(), 1)));
 		assertNotSame(CacheableHistogramContract.EMPTY, first.compute());
-		final AttributeSchema schema = AttributeSchema._internalBuild(
-			"amount", null, null, Map.of(), Set.of(), Map.of(), Set.of(), false, false, false,
-			Integer.class, null, 0, ConflictResolutionOverride.INHERITED);
-		final FilterIndex attributes = new OwnerFilterIndex(new AttributeIndexKey(null, "amount", null), Integer.class);
-		attributes.addRecord(10, 1000);
-		attributes.addRecord(20, 2000);
-		final AttributeHistogramProducer.AttributeHistogramRequest request =
-			new AttributeHistogramProducer.AttributeHistogramRequest(schema, 2, HistogramBehavior.STANDARD,
-				Comparator.naturalOrder(), List.of(attributes));
-		final AttributeHistogramComputer attributeFirst = new AttributeHistogramComputer("amount",
-			new ConstantFormula(new BaseBitmap(10, 20)), 2, HistogramBehavior.STANDARD, request);
-		final AttributeHistogramComputer attributeSecond = new AttributeHistogramComputer("amount",
-			new ConstantFormula(new BaseBitmap(10, 20)), 2, HistogramBehavior.STANDARD, request);
+		final AttributeHistogramProducer.AttributeHistogramRequest request = attributeHistogramRequest();
+		final AttributeHistogramComputer attributeFirst = attributeHistogram(request);
+		final AttributeHistogramComputer attributeSecond = attributeHistogram(request);
 		assertEquals(attributeFirst.getKey(), attributeSecond.getKey());
 		assertTrue(equivalent(new CachedHistogramResult(attributeFirst.compute(), 1),
 			new CachedHistogramResult(attributeSecond.compute(), 1)));
 		assertNotSame(CacheableHistogramContract.EMPTY, attributeFirst.compute());
-	}
-
-	/** Supplies all thirteen candidates, keeping producer indexes shared while each formula is new. */
-	@Nonnull
-	static Stream<Supplier<Formula>> formulaSuppliers() {
-		final PriceListAndCurrencyPriceSuperIndex index = priceIndex();
-		final PriceEvaluationContext context = new PriceEvaluationContext(null, index.getPriceIndexKey());
-		final PriceListAndCurrencyPriceSuperIndex plainIndex = new PriceListAndCurrencyPriceSuperIndex(
-			new PriceIndexKey("basic", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE));
-		plainIndex.addPrice(new PriceRecord(1, 1, 10, 120, 100), null);
-		plainIndex.addPrice(new PriceRecord(2, 2, 20, 240, 200), null);
-		final PriceEvaluationContext plainContext = new PriceEvaluationContext(null, plainIndex.getPriceIndexKey());
-		final PriceListAndCurrencyPriceSuperIndex sumIndex = priceIndex(PriceInnerRecordHandling.SUM);
-		final PriceEvaluationContext sumContext = new PriceEvaluationContext(null, sumIndex.getPriceIndexKey());
-		return Stream.of(
-			() -> new AndFormula(new BaseBitmap(1, 2), new BaseBitmap(2, 3)),
-			() -> new OrFormula(new BaseBitmap(1, 2), new BaseBitmap(2, 3)),
-			() -> new NotFormula(new BaseBitmap(1), new BaseBitmap(1, 2)),
-			() -> new PriceListCombinationFormula("other", "basic", context,
-				new ConstantFormula(new BaseBitmap(10)), new ConstantFormula(new BaseBitmap(10, 20))),
-			() -> new RangeCountFormula(new Bitmap[]{new BaseBitmap(10, 20)}, new Bitmap[]{new BaseBitmap(10)}),
-			() -> new EntityPrimaryKeyRangeFormula(5, 15, new ConstantFormula(new BaseBitmap(10, 20))),
-			() -> new ScopeContainerFormula(Scope.LIVE, new ConstantFormula(new BaseBitmap(10, 20))),
-			() -> new PriceFilteringEnvelopeContainer(new String[]{"basic"}, Currency.getInstance("CZK"), null,
-				new ConstantFormula(new BaseBitmap(10, 20))),
-			() -> container(index),
-			() -> new PriceIdToEntityIdTranslateFormula(new PriceIdContainerFormula(index,
-				new ConstantFormula(new BaseBitmap(1, 2, 3)))),
-			() -> new PlainPriceTerminationFormulaWithPriceFilter(
-				container(plainIndex), plainContext, PricePredicate.ALL_RECORD_FILTER),
-			() -> new SumPriceTerminationFormula(container(sumIndex), sumContext,
-				QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER),
-			() -> new LowestPriceTerminationFormula(container(index), context,
-				QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, true)
-		);
 	}
 
 	/** Builds a tuple whose supplied records belong exclusively to the histogram side-output. */
@@ -432,50 +393,5 @@ class CachedResultEquivalenceTest {
 			return new CachedPriceRecordsResult(result, prices, inner, 1);
 		}
 		return new CachedBitmapResult(result, 1);
-	}
-
-	/** Builds many independent tied variants so a hash-order selection cannot accidentally agree everywhere. */
-	@Nonnull
-	static PriceListAndCurrencyPriceSuperIndex tiedPriceIndex() {
-		final PriceListAndCurrencyPriceSuperIndex index = new PriceListAndCurrencyPriceSuperIndex(
-			new PriceIndexKey("basic", Currency.getInstance("CZK"), PriceInnerRecordHandling.LOWEST_PRICE));
-		for (int entity = 1; entity <= 64; entity++) {
-			index.addPrice(new PriceRecordInnerRecordSpecific(entity * 2, entity * 2, entity, 1, 120, 100), null);
-			index.addPrice(new PriceRecordInnerRecordSpecific(entity * 2 + 1, entity * 2 + 1, entity, 2, 120, 100), null);
-		}
-		return index;
-	}
-
-	/** Builds a real price index with two entities and two inner records on the first entity. */
-	@Nonnull
-	private static PriceListAndCurrencyPriceSuperIndex priceIndex() {
-		return priceIndex(PriceInnerRecordHandling.LOWEST_PRICE);
-	}
-
-	/** Builds the requested inner-record-handling index with two entities and three physical records. */
-	@Nonnull
-	private static PriceListAndCurrencyPriceSuperIndex priceIndex(@Nonnull PriceInnerRecordHandling handling) {
-		final PriceListAndCurrencyPriceSuperIndex index = new PriceListAndCurrencyPriceSuperIndex(
-			new PriceIndexKey("basic", Currency.getInstance("CZK"), handling));
-		index.addPrice(new PriceRecordInnerRecordSpecific(1, 1, 10, 1, 120, 100), null);
-		index.addPrice(new PriceRecordInnerRecordSpecific(2, 2, 10, 2, 240, 200), null);
-		index.addPrice(new PriceRecordInnerRecordSpecific(3, 3, 20, 1, 360, 300), null);
-		return index;
-	}
-
-	/** Builds a fresh formula exposing the index's entity and price inputs. */
-	@Nonnull
-	private static PriceIndexContainerFormula container(@Nonnull PriceListAndCurrencyPriceSuperIndex index) {
-		return new PriceIndexContainerFormula(index, index, index.getIndexedPriceEntityIdsFormula());
-	}
-
-	/** Builds a fresh price histogram computer without a captured sorter lookup. */
-	@Nonnull
-	private static PriceHistogramComputer priceHistogram(@Nonnull PriceListAndCurrencyPriceSuperIndex index) {
-		final Formula formula = new LowestPriceTerminationFormula(container(index),
-			new PriceEvaluationContext(null, index.getPriceIndexKey()), QueryPriceMode.WITH_TAX,
-			PricePredicate.ALL_RECORD_FILTER, true);
-		return new PriceHistogramComputer(2, HistogramBehavior.STANDARD, 2, QueryPriceMode.WITH_TAX,
-			formula, formula, null);
 	}
 }

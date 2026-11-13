@@ -69,13 +69,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class FormulaCacheTransactionIsolationTest implements EvitaTestSupport {
 	/** Currency shared by both catalogs. */
 	private static final Currency CURRENCY = Currency.getInstance("CZK");
-	/** Storage of the engine with the tier enabled. */
+	/** Storage of the engine with the result cache enabled. */
 	private TestPaths enabledPaths;
 	/** Storage of the independent cache-disabled oracle. */
 	private TestPaths disabledPaths;
 	/** Engine whose cross-query cache is under test. */
 	private Evita enabled;
-	/** Engine that evaluates every query without the result tier. */
+	/** Engine that evaluates every query without the result cache. */
 	private Evita disabled;
 
 	/** Creates identical alive catalogs with two hundred prices and a filterable numeric attribute. */
@@ -182,6 +182,12 @@ class FormulaCacheTransactionIsolationTest implements EvitaTestSupport {
 			assertEquals(before.admissions(), after.admissions());
 			final EvitaResponse<EntityReference> expected = read(oracle, prefetch);
 			final EvitaResponse<EntityReference> response = plan.execute();
+			final FormulaCacheSupervisor.Statistics executed = this.enabled.getFormulaCacheStatistics();
+			assertEquals(after.hits(), executed.hits(), "Prefetch filtering must not look up");
+			assertEquals(after.misses(), executed.misses());
+			assertEquals(after.admissions(), executed.admissions(), "Prefetch filtering must not admit");
+			assertTrue(executed.prefetchBypasses() > after.prefetchBypasses(),
+				"A bound formula must have computed over the prefetched entities");
 			assertTrue(QueryResponseComparator.matches(expected, response));
 			assertEquals(1, expected.getExtraResult(QueryTelemetry.class)
 				.getMetric(QueryTelemetry.StepMetric.PREFETCHED).orElseThrow());

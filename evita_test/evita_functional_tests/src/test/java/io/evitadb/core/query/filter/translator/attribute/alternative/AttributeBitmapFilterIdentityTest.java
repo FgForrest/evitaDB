@@ -626,7 +626,7 @@ class AttributeBitmapFilterIdentityTest {
 			Map.of(), Map.of(), NoCacheSupervisor.INSTANCE
 		);
 		try (final QueryExecutionContext context = new QueryExecutionContext(
-			planningContext, true, null, (type, value) -> value
+			planningContext, true, false, null, (type, value) -> value
 		) {
 			/** Supplies the real prefetched entity without accessing a catalog. */
 			@Nonnull

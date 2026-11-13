@@ -250,7 +250,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull private final Map<Integer, Index<?>> indexesByPk;
 	/**
-	 * Supervisor that analyses the formula trees and extra-result computers of each query for reuse.
+	 * Effective supervisor of this context: the engine's `FormulaCacheSupervisor` when this planning root passed the
+	 * formula cache gate, otherwise `NoCacheSupervisor`. A nested context shares its parent's and a verification
+	 * sibling never caches.
 	 */
 	@Getter
 	@Nonnull private final CacheSupervisor cacheSupervisor;
@@ -288,7 +290,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * hierarchy and facet group resolution, and everything memoized by
 	 * {@link #computeOnlyOnce(List, FilterConstraint, Supplier, long...)}. They all initialize their formulas with
 	 * this one context, so the memoized results stay valid for the whole planning phase instead of being
-	 * recomputed per candidate plan.
+	 * recomputed per candidate plan. It is created as an eager planning evaluation, so it never consults or fills the
+	 * formula result cache.
 	 */
 	@Getter @Nonnull
 	private final QueryExecutionContext internalExecutionContext;
@@ -442,7 +445,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *                         passing NULL turns the whole telemetry collection into a no-op
 	 * @param indexes          indexes available for the query, keyed by their {@link IndexKey}
 	 * @param indexesByPk      the very same indexes keyed by their primary key
-	 * @param cacheSupervisor  supervisor deciding which formulas get their results memoized in the shared cache
+	 * @param cacheSupervisor  the engine's supervisor, from which this root resolves its formula cache gate
 	 */
 	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nonnull Catalog catalog,
@@ -486,7 +489,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param telemetry          root telemetry node of this nested tree, NULL when telemetry is not collected
 	 * @param indexes            indexes available for the query, keyed by their {@link IndexKey}
 	 * @param indexesByPk        the very same indexes keyed by their primary key
-	 * @param cacheSupervisor    supervisor deciding which formulas get their results memoized
+	 * @param cacheSupervisor    the engine's supervisor; a nested context uses its parent's effective supervisor
+	 *                           instead, a standalone one resolves its own formula cache gate from it
 	 */
 	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nullable QueryPlanningContext parentQueryContext,
@@ -570,7 +574,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param telemetry          root telemetry node, NULL disables telemetry collection entirely
 	 * @param indexes            indexes available for the query, keyed by their {@link IndexKey}
 	 * @param indexesByPk        the very same indexes keyed by their primary key
-	 * @param cacheSupervisor    supervisor deciding which formulas get their results memoized
+	 * @param cacheSupervisor    the supervisor the engine offers; ignored by a nested context, which takes its parent's,
+	 *                           and by a verification sibling, which never caches; a root resolves its formula cache
+	 *                           gate from a `FormulaCacheSupervisor`
 	 * @param event              metric event to be completed when the query finishes, NULL for nested and
 	 *                           internal evaluations that must not be reported as client queries
 	 * @param recordingRequestedCapabilities false for the context of an internal evaluation a write makes, which
@@ -667,7 +673,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	/**
 	 * Creates an independent body-fetch root while retaining shared execution state and sibling policy.
 	 * Its planning policy, optional prefetch, capability accounting and memos belong to the fetch request alone.
-	 * The fetch records no telemetry, capabilities or finished event during verification.
+	 * The fetch records no telemetry, capabilities or finished event during verification; otherwise it records them
+	 * like an ordinary root. It resolves its own formula cache gate.
 	 */
 	@Nonnull
 	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext createFetchContext(
@@ -3012,7 +3019,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		return previous;
 	}
 
-	/** Returns the shared verification state in constant time, including for contexts captured before execution. */
+	/** Returns the shared execution state in constant time, including for contexts captured before execution. */
 	@Nullable
 	VerificationState getVerificationState() {
 		return this.verificationState;
@@ -3039,8 +3046,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Execution state shared in constant time by nested contexts and independent fetch roots during verification.
-	 * Allocated for verification or an eligible formula cache; the owning query executes sequentially.
+	 * Execution state shared in constant time by nested contexts and independent fetch roots: the frozen random of an
+	 * active verification execution and the suspension of the formula result cache during a sampled recomputation.
+	 * Allocated for verification or for a root that passed the formula cache gate; the owning query executes
+	 * sequentially.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */

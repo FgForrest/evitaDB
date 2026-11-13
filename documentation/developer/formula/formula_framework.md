@@ -376,7 +376,7 @@ must be ALIVE, its request must target an entity type, and no transaction may be
 contexts inherit that decision. Body-fetch roots decide independently for their own requests. Execution contexts
 also exclude eager planning, prefetch filtering and transactions bound when the context is created. Verification
 executions of the query's own plans follow ordinary cache rules; the key-free baseline always uses
-`NoCacheSupervisor` and requests no keys for the tier.
+`NoCacheSupervisor` and requests no keys for the result cache.
 
 Candidates are the subclasses of `AbstractCacheableFormula` and the attribute and price histogram computers.
 Estimated cost selects candidates before lookup. Query-local and overweight keys remain unbound. Entries contain

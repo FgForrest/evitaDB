@@ -124,9 +124,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	@Nonnull
 	@Override
 	protected CachedResult toCachedResult(@Nonnull Bitmap computed, int weight) {
-		return new CachedPriceRecordsResult(computed,
-			(ResolvedFilteredPriceRecords) this.filteredPriceRecords,
-			null, weight);
+		return CachedPriceRecordsResult.of(computed, this.filteredPriceRecords, null, weight);
 	}
 
 	/** Restores all side outputs before exposing the memoized bitmap. */

@@ -77,6 +77,14 @@ class CachedResultWeigherTest {
 		assertEquals(CachedResultWeigher.OVERSIZED, CachedResultWeigher.admittedWeight(96, 0));
 	}
 
+	/** A complete charge always includes the entry overhead, so anything below it is an impossible charge. */
+	@Test
+	@DisplayName("Refuses a charge below the entry overhead and admits one equal to it")
+	void shouldRefuseChargeBelowEntryOverhead() {
+		assertEquals(CachedResultWeigher.OVERSIZED, CachedResultWeigher.admittedWeight(95, Long.MAX_VALUE));
+		assertEquals(96, CachedResultWeigher.admittedWeight(96, 9_600));
+	}
+
 	/** Reproduces a four-GiB-to-zero narrowing through a real ArrayBitmap without allocating its backing store. */
 	@Test
 	@DisplayName("Refuses bitmap storage whose size model narrows to an integer")
@@ -112,23 +120,38 @@ class CachedResultWeigherTest {
 		}
 	}
 
-	/** Extra state on a subclass has no known size model even if its inherited size method returns a number. */
+	/** A subclass may retain state its inherited size method does not see, so a positive size is refused too. */
 	@Test
 	@DisplayName("Refuses unknown bitmap implementations before adding their size")
 	void shouldRefuseUnknownBitmapSizing() {
 		final FormulaKey key = new ConstantFormula(new BaseBitmap(10)).getKey();
-		final Bitmap unknown = new SingleRecordBitmap(10) {
-			/** Models a foreign implementation reporting the unsupported-size sentinel. */
-			@Override
-			public long getHeapSizeInBytes() {
-				return CachedResultWeigher.UNSIZED;
-			}
+		// neither subclass adds state; only their class is unknown to the weigher
+		final Bitmap single = new SingleRecordBitmap(10) {
 		};
-		assertAll(
-			() -> assertEquals(CachedResultWeigher.UNSIZED, CachedResultWeigher.measure(key, unknown)),
-			() -> assertEquals(CachedResultWeigher.UNSIZED,
-				CachedResultWeigher.measure(key, unknown, records(), null))
-		);
+		final Bitmap roaring = new BaseBitmap(10, 20) {
+		};
+		for (final Bitmap unknown : new Bitmap[]{single, roaring}) {
+			assertTrue(unknown.getHeapSizeInBytes() > 0, "The inherited size method must report a usable number");
+			assertAll(
+				() -> assertEquals(CachedResultWeigher.UNSIZED, CachedResultWeigher.measure(key, unknown)),
+				() -> assertEquals(CachedResultWeigher.UNSIZED,
+					CachedResultWeigher.measure(key, unknown, records(), null))
+			);
+		}
+	}
+
+	/** A histogram subclass may retain more than its supported values, so only the exact class is sized. */
+	@Test
+	@DisplayName("Refuses a histogram subclass holding only supported values")
+	void shouldRefuseHistogramSubclass() {
+		final FormulaKey key = new ConstantFormula(new BaseBitmap(10)).getKey();
+		final CacheableHistogram base = histogram();
+		final CacheableHistogram subclass = new CacheableHistogram(
+			base.getBuckets(), base.getMax(), base.getRawMin(), base.getRawMax()) {
+			@Serial private static final long serialVersionUID = 1L;
+		};
+		assertTrue(CachedResultWeigher.measure(key, base) > 0);
+		assertEquals(CachedResultWeigher.UNSIZED, CachedResultWeigher.measure(key, subclass));
 	}
 
 	/** Moves an unsupported decimal subclass through every retained numeric position independently. */

@@ -33,6 +33,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Supervisor used when the formula result cache is disabled or a planning root fails its eligibility gate.
@@ -40,6 +41,7 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@ThreadSafe
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class NoCacheSupervisor implements CacheSupervisor {
 	public static final NoCacheSupervisor INSTANCE = new NoCacheSupervisor();

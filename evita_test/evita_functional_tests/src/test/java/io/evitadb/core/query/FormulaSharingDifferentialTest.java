@@ -55,8 +55,11 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.core.cache.CacheSupervisor;
+import io.evitadb.core.cache.FormulaCacheSupervisor;
+import io.evitadb.core.cache.FormulaCacheTestSessions;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
@@ -158,15 +161,17 @@ class FormulaSharingDifferentialTest implements EvitaTestSupport {
 		cleanupTestPaths(this.paths);
 	}
 
-	/** A populated engine tier remains completely outside the key-free sibling's execution. */
-	@Test
-	@DisplayName("Keeps the baseline key-free when the enabled engine tier already contains a hit")
-	void shouldKeepBaselineOutsidePopulatedTier() {
+	/**
+	 * Replaces the default engine with one whose formula result cache serves and samples every hit, and installs a
+	 * supplied index whose leaves `supplied` collects.
+	 */
+	@Nonnull
+	private EntityCollection startEngineWithResultCache(@Nonnull List<InputBlindFormula> supplied) {
 		this.evita.close();
 		cleanupTestPaths(this.paths);
-		this.paths = createTestPaths("FormulaSharingDifferentialTest-populatedTier");
+		this.paths = createTestPaths("FormulaSharingDifferentialTest-resultCache");
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).cache(
-			io.evitadb.api.configuration.CacheOptions.builder().enabled(true).minimalComplexityThreshold(0)
+			CacheOptions.builder().enabled(true).minimalComplexityThreshold(0)
 				.cacheSizeInBytes(100_000_000L).verifyOneHitIn(1).dropEntriesAfterSecondsOfInactivity(0).build()
 		).build());
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
@@ -176,7 +181,6 @@ class FormulaSharingDifferentialTest implements EvitaTestSupport {
 			session.upsertEntity(session.createNewEntity(PRODUCT, 2));
 			session.goLiveAndClose();
 		});
-		final List<InputBlindFormula> supplied = new ArrayList<>();
 		final SupersetIndex index = new SupersetIndex(() -> {
 			final InputBlindFormula leaf = new InputBlindFormula(1);
 			supplied.add(leaf);
@@ -184,39 +188,26 @@ class FormulaSharingDifferentialTest implements EvitaTestSupport {
 		});
 		final EntityCollection collection = catalog().getCollectionForEntityInternal(PRODUCT).orElseThrow();
 		collection.addIndex(index);
-		try (final EvitaSessionContract session = io.evitadb.core.cache.FormulaCacheTestSessions.readOnly(
-			this.evita, CATALOG)) {
-			final Query warmup = Query.query(collection(PRODUCT), require(debug(DebugMode.PREFER_INDEX_SCAN)));
-			session.query(warmup, EntityReference.class);
-			assertTrue(this.evita.getFormulaCacheStatistics().admissions() > 0);
-			final long hits = this.evita.getFormulaCacheStatistics().hits();
-			assertTrue(this.evita.management().getEngineSettings().queryCacheEnabled());
-			final long misses = this.evita.getFormulaCacheStatistics().misses();
-			final long admissions = this.evita.getFormulaCacheStatistics().admissions();
-			QueryPlanner.planQuery(collection.createQueryContext(
-				new EvitaRequest(warmup, OffsetDateTime.now(), EntityReference.class, null), session));
-			assertEquals(hits, this.evita.getFormulaCacheStatistics().hits());
-			assertEquals(misses, this.evita.getFormulaCacheStatistics().misses());
-			assertEquals(admissions, this.evita.getFormulaCacheStatistics().admissions());
-			{
-				final EvitaSessionContract internal = session;
-				final Query flagged = Query.query(collection(PRODUCT),
-					require(debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)));
-				final QueryPlanningContext context = collection.createQueryContext(
-					new EvitaRequest(flagged, OffsetDateTime.now(), EntityReference.class, null), internal);
-				QueryPlanner.planQuery(context).execute();
-				assertTrue(this.evita.getFormulaCacheStatistics().hits() > hits);
-				assertTrue(this.evita.getFormulaCacheStatistics().verifiedHits() > 0);
-				supplied.clear();
-				final long probes = this.evita.getFormulaCacheStatistics().hits() +
-					this.evita.getFormulaCacheStatistics().misses();
-				QueryPlanner.planQuery(context.createVerificationSibling()).execute(RandomUtils.getFrozenRandom());
-				assertFalse(supplied.isEmpty());
-				assertEquals(0, supplied.stream().mapToInt(it -> it.keyRequests).sum());
-				assertEquals(probes, this.evita.getFormulaCacheStatistics().hits() +
-					this.evita.getFormulaCacheStatistics().misses());
-			}
-		}
+		return collection;
+	}
+
+	/** Returns the counters of the test-owned engine's formula result cache. */
+	@Nonnull
+	private FormulaCacheSupervisor.Statistics cacheStatistics() {
+		final FormulaCacheSupervisor.Statistics statistics = this.evita.getFormulaCacheStatistics();
+		assertNotNull(statistics);
+		return statistics;
+	}
+
+	/** Opens a read-only session that executes queries outside any transaction, so the cache gate can open. */
+	@Nonnull
+	private EvitaSessionContract cacheEligibleSession() {
+		return FormulaCacheTestSessions.readOnly(this.evita, CATALOG);
+	}
+
+	/** Returns the effective cache state the test-owned engine reports to its clients. */
+	private boolean queryCacheEnabled() {
+		return this.evita.management().getEngineSettings().queryCacheEnabled();
 	}
 
 	/** Opens a read-only session on the test-owned catalog. */
@@ -399,6 +390,52 @@ class FormulaSharingDifferentialTest implements EvitaTestSupport {
 			);
 			QueryPlanner.planNestedQuery(control, () -> "nested planning of the query itself");
 			assertTrue(index.getActivity().getQueryCount() > 0, "Planning outside the sibling must record activity");
+		}
+
+		/**
+		 * The verification dry runs inside planning are executions of the query's own plans, so a populated cache
+		 * serves and samples them before the real execution starts; the key-free baseline stays off the cache.
+		 */
+		@ParameterizedTest
+		@EnumSource(
+			value = DebugMode.class, names = {"VERIFY_POSSIBLE_CACHING_TREES", "VERIFY_ALTERNATIVE_INDEX_RESULTS"}
+		)
+		@DisplayName("Serves verification dry runs from a populated result cache and keeps the baseline key-free")
+		void shouldServeDryRunsFromPopulatedCacheAndKeepBaselineKeyFree(@Nonnull DebugMode mode) {
+			final List<InputBlindFormula> supplied = new ArrayList<>(8);
+			final EntityCollection collection = startEngineWithResultCache(supplied);
+			try (final EvitaSessionContract session = cacheEligibleSession()) {
+				final Query warmup = Query.query(collection(PRODUCT), require(debug(DebugMode.PREFER_INDEX_SCAN)));
+				session.query(warmup, EntityReference.class);
+				final FormulaCacheSupervisor.Statistics warm = cacheStatistics();
+				assertTrue(warm.admissions() > 0);
+				assertTrue(queryCacheEnabled());
+				QueryPlanner.planQuery(collection.createQueryContext(
+					new EvitaRequest(warmup, OffsetDateTime.now(), EntityReference.class, null), session));
+				assertEquals(warm.hits(), cacheStatistics().hits(), "Planning an unflagged query must not look up");
+				assertEquals(warm.misses(), cacheStatistics().misses());
+				assertEquals(warm.admissions(), cacheStatistics().admissions());
+
+				// the alternative-index mode does not favour bitmaps on its own; prefetch must not keep the cache out
+				final Query flagged = Query.query(collection(PRODUCT),
+					require(debug(mode, DebugMode.PREFER_INDEX_SCAN)));
+				final QueryPlanningContext context = collection.createQueryContext(
+					new EvitaRequest(flagged, OffsetDateTime.now(), EntityReference.class, null), session);
+				final QueryPlan plan = QueryPlanner.planQuery(context);
+				final FormulaCacheSupervisor.Statistics planned = cacheStatistics();
+				assertTrue(planned.hits() > warm.hits(), "The dry runs inside planning must be served from the cache");
+				assertTrue(planned.verifiedHits() > warm.verifiedHits(), "The dry runs' hits must be sampled");
+				plan.execute();
+
+				if (mode == DebugMode.VERIFY_POSSIBLE_CACHING_TREES) {
+					supplied.clear();
+					final long probes = cacheStatistics().hits() + cacheStatistics().misses();
+					QueryPlanner.planQuery(context.createVerificationSibling()).execute(RandomUtils.getFrozenRandom());
+					assertFalse(supplied.isEmpty());
+					assertEquals(0, supplied.stream().mapToInt(it -> it.keyRequests).sum());
+					assertEquals(probes, cacheStatistics().hits() + cacheStatistics().misses());
+				}
+			}
 		}
 	}
 

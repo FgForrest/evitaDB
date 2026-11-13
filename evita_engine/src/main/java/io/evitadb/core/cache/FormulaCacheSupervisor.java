@@ -23,6 +23,7 @@
 
 package io.evitadb.core.cache;
 
+import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Ticker;
@@ -36,6 +37,7 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
@@ -44,16 +46,23 @@ import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHist
 import io.evitadb.core.query.extraResult.translator.reference.producer.MutableFormula;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.price.model.priceRecord.CumulatedVirtualPriceRecord;
+import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import javax.annotation.concurrent.ThreadSafe;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.Objects;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -65,12 +74,20 @@ import java.util.concurrent.atomic.LongAdder;
  * The retained budget is an eventual target; concurrent misses and queries' own memos are outside that budget.
  * A confirmed sampled mismatch disables this engine's cache for the rest of its lifetime.
  *
+ * An engine with the cache enabled owns exactly one instance, shared by the queries of all its threads; every planning
+ * root obtains its effective supervisor through {@link #resolveForRoot(EvitaSessionContract, String)}.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Slf4j
+@ThreadSafe
 public final class FormulaCacheSupervisor implements CacheSupervisor {
-	/** Upper bound on comparison work and retained key shape. */
-	private static final int MAX_ADMITTED_WEIGHT = 4_096;
+	/** Upper bound on comparison work and retained key shape, in key weight units. */
+	private static final int MAX_ADMITTED_KEY_WEIGHT_UNITS = 4_096;
+	/** Upper bound on the length of a mismatch description and of each of its parts. */
+	private static final int MAX_WITNESS_LENGTH_CHARS = 2_000;
+	/** Upper bound on the differing values or tuples a mismatch description lists. */
+	private static final int MAX_REPORTED_DIFFERENCES = 16;
 	/** Immutable configuration shared by all planning roots. */
 	private final CacheOptions options;
 	/** Completed, immutable tuples published without a loading function. */
@@ -105,7 +122,9 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 	@Nullable private volatile String witness;
 
 	/** Creates a cache and schedules idle maintenance on the engine's scheduler when expiry is configured. */
-	public FormulaCacheSupervisor(@Nonnull CacheOptions options, @Nonnull Scheduler scheduler, @Nonnull Ticker ticker) {
+	public FormulaCacheSupervisor(
+		@Nonnull CacheOptions options, @Nonnull Scheduler scheduler, @Nonnull Ticker ticker
+	) {
 		this.options = options;
 		final Caffeine<Object, Object> builder = Caffeine.newBuilder()
 			.maximumWeight(options.cacheSizeInBytes()).executor(Runnable::run).ticker(ticker).recordStats();
@@ -124,7 +143,10 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		}
 	}
 
-	/** Resolves eligibility independently for a planning root using its session's pinned catalog state. */
+	/**
+	 * Resolves eligibility independently for a planning root using its session's pinned catalog state. A root refused
+	 * only because a transaction is bound to the thread is counted as a transaction bypass.
+	 */
 	@Nonnull
 	public CacheSupervisor resolveForRoot(@Nullable EvitaSessionContract session, @Nullable String entityType) {
 		if (!isActive() || session == null || entityType == null || !session.isReadOnly()
@@ -143,27 +165,41 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		return this.active.get();
 	}
 
-	/** Binds distinct canonical instances without replacing nodes or traversing a shared DAG by path. */
+	/**
+	 * Binds distinct canonical instances without replacing nodes or traversing a shared DAG by path.
+	 *
+	 * @throws GenericEvitaInternalError when the graph contains a `MutableFormula`: hypothetical facet graphs are
+	 *         refused rather than skipped, and nodes the walk visited before it may already be bound
+	 */
 	@Nonnull
 	@Override
 	public <T extends Formula> T analyse(
 		@Nonnull EvitaSessionContract session, @Nonnull String entityType, @Nonnull T formula
 	) {
-		if (!isActive()) return formula;
+		if (!isActive()) {
+			return formula;
+		}
 		final Set<Formula> visited = Collections.newSetFromMap(new IdentityHashMap<>());
 		final ArrayDeque<Formula> stack = new ArrayDeque<>();
 		stack.push(formula);
 		while (!stack.isEmpty()) {
 			final Formula current = stack.pop();
-			if (!visited.add(current)) continue;
+			if (!visited.add(current)) {
+				continue;
+			}
 			if (current instanceof MutableFormula) {
-				throw new GenericEvitaInternalError("Mutable hypothetical formulas cannot be bound to the result cache.");
+				throw new GenericEvitaInternalError(
+					"Mutable hypothetical formulas cannot be bound to the result cache."
+				);
 			}
 			if (current instanceof AbstractCacheableFormula candidate &&
-				candidate.getEstimatedCost() >= this.options.minimalComplexityThreshold() && eligible(candidate.getKey())) {
+				candidate.getEstimatedCost() >= this.options.minimalComplexityThreshold() &&
+				eligible(candidate.getKey())) {
 				candidate.bindFormulaCache(this);
 			}
-			for (final Formula child : current.getInnerFormulas()) stack.push(child);
+			for (final Formula child : current.getInnerFormulas()) {
+				stack.push(child);
+			}
 		}
 		return formula;
 	}
@@ -175,9 +211,13 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		@Nonnull EvitaSessionContract session, @Nonnull String entityType, @Nonnull T computer,
 		@Nonnull QueryExecutionContext context
 	) {
-		if (context.isPrefetchExecution()) this.prefetchBypasses.increment();
+		if (context.isPrefetchExecution()) {
+			this.prefetchBypasses.increment();
+		}
 		if (!isActive() || !context.isFormulaCacheUsable() ||
-			computer.getEstimatedCost() < this.options.minimalComplexityThreshold()) return computer;
+			computer.getEstimatedCost() < this.options.minimalComplexityThreshold()) {
+			return computer;
+		}
 		if (!(computer instanceof AttributeHistogramComputer) && !(computer instanceof PriceHistogramComputer)) {
 			throw new GenericEvitaInternalError("Unsupported cacheable extra-result computer.");
 		}
@@ -187,7 +227,7 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 
 	/** Rejects query-local keys before lookup or retention. */
 	private static boolean eligible(@Nonnull FormulaKey key) {
-		return !key.isQueryLocal() && key.getWeight() <= MAX_ADMITTED_WEIGHT;
+		return !key.isQueryLocal() && key.getWeight() <= MAX_ADMITTED_KEY_WEIGHT_UNITS;
 	}
 
 	/** Looks up an eligible key; Caffeine records both hits and misses. */
@@ -203,24 +243,32 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 
 	/** Selects a hit for verification without shared random state. */
 	public boolean sampleHit() {
-		return this.options.verifyOneHitIn() > 0 && ThreadLocalRandom.current().nextInt(this.options.verifyOneHitIn()) == 0;
+		return this.options.verifyOneHitIn() > 0 &&
+			ThreadLocalRandom.current().nextInt(this.options.verifyOneHitIn()) == 0;
 	}
 
 	/** Checks the complete long charge before allocating a retained tuple and records refusals. */
 	public int admittedWeight(long charge) {
 		final int weight = CachedResultWeigher.admittedWeight(charge, this.options.cacheSizeInBytes());
-		if (weight == CachedResultWeigher.UNSIZED) this.refusedUnsized.increment();
-		else if (weight == CachedResultWeigher.OVERSIZED) this.refusedOversized.increment();
+		if (weight == CachedResultWeigher.UNSIZED) {
+			this.refusedUnsized.increment();
+		} else if (weight == CachedResultWeigher.OVERSIZED) {
+			this.refusedOversized.increment();
+		}
 		return weight;
 	}
 
 	/** Publishes without a mapping function, allowing children to admit while their parent is computing. */
 	public void admit(@Nonnull FormulaKey key, @Nonnull CachedResult result, long computeNanos) {
-		if (!isActive()) return;
+		if (!isActive()) {
+			return;
+		}
 		final CachedResult previous = this.cache.asMap().putIfAbsent(key, result);
 		if (previous == null) {
 			this.admissions.increment();
-			if (!isActive()) this.cache.asMap().remove(key, result);
+			if (!isActive()) {
+				this.cache.asMap().remove(key, result);
+			}
 		} else {
 			this.duplicateAdmissions.increment();
 			this.duplicateComputeNanos.add(computeNanos);
@@ -233,6 +281,9 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 	 * Plan construction may already have recorded capabilities and index activity. A dry verification can fail
 	 * before traffic recording starts; ordinary execution failures pass through the existing traffic recorder.
 	 * Previously injected memos in other in-flight queries are not retracted.
+	 *
+	 * @throws GenericEvitaInternalError on every confirmed mismatch, describing that mismatch; the first one also
+	 *         switches this engine's cache off and becomes the stored witness
 	 */
 	public void verify(
 		@Nonnull QueryExecutionContext context, @Nonnull FormulaKey key, @Nonnull String formulaClass,
@@ -243,13 +294,7 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		this.verificationNanos.add(nanos);
 		if (!CachedResultEquivalence.equivalent(cached, recomputed)) {
 			this.mismatches.increment();
-			final String bounded = description.substring(0, Math.min(description.length(), 2_000));
-			final String detected = Instant.now() + ": " +
-				context.getQueryContext().getCatalogSchema().getName() + "/" +
-				context.getQueryContext().getEvitaRequest().getEntityType() + ", class=" + formulaClass +
-				", classId=" + key.getClassId() +
-				", hash64=" + key.getHash64() + ", " + bounded + ", cached=" + summary(cached) +
-				", recomputed=" + summary(recomputed) + ", differences=" + differences(cached, recomputed);
+			final String detected = describeMismatch(context, key, formulaClass, description, cached, recomputed);
 			if (this.active.compareAndSet(true, false)) {
 				this.witness = detected;
 				this.cache.invalidateAll();
@@ -264,12 +309,30 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		}
 	}
 
+	/** Renders the bounded description of one detected mismatch, retaining no payload or query object. */
+	@Nonnull
+	private static String describeMismatch(
+		@Nonnull QueryExecutionContext context, @Nonnull FormulaKey key, @Nonnull String formulaClass,
+		@Nonnull String description, @Nonnull CachedResult cached, @Nonnull CachedResult recomputed
+	) {
+		final String bounded = description.substring(0, Math.min(description.length(), MAX_WITNESS_LENGTH_CHARS));
+		return Instant.now() + ": " +
+			context.getQueryContext().getCatalogSchema().getName() + "/" +
+			context.getQueryContext().getEvitaRequest().getEntityType() + ", class=" + formulaClass +
+			", classId=" + key.getClassId() +
+			", hash64=" + key.getHash64() + ", " + bounded + ", cached=" + summary(cached) +
+			", recomputed=" + summary(recomputed) + ", differences=" + differences(cached, recomputed);
+	}
+
 	/** Renders a bounded numeric description without retaining a payload or a query object. */
 	@Nonnull
 	private static String summary(@Nonnull CachedResult result) {
-		if (result instanceof CachedBitmapResult bitmap) return "bitmap size " + bitmap.result().size();
+		if (result instanceof CachedBitmapResult bitmap) {
+			return "bitmap size " + bitmap.result().size();
+		}
 		if (result instanceof CachedPriceRecordsResult prices) {
-			return "bitmap size " + prices.result().size() + ", prices " + prices.priceRecords().getPriceRecords().length +
+			return "bitmap size " + prices.result().size() +
+				", prices " + prices.priceRecords().getPriceRecords().length +
 				", inner prices " + (prices.perInnerRecordPriceRecords() == null ? 0 :
 				prices.perInnerRecordPriceRecords().getPriceRecords().length);
 		}
@@ -283,81 +346,127 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 	/** Captures at most sixteen differing values or tuples as bounded text without retaining payload references. */
 	@Nonnull
 	private static String differences(@Nonnull CachedResult cached, @Nonnull CachedResult recomputed) {
-		final io.evitadb.index.bitmap.Bitmap left = cached instanceof CachedBitmapResult bitmap ? bitmap.result() :
-			cached instanceof CachedPriceRecordsResult prices ? prices.result() : null;
-		final io.evitadb.index.bitmap.Bitmap right = recomputed instanceof CachedBitmapResult bitmap ? bitmap.result() :
-			recomputed instanceof CachedPriceRecordsResult prices ? prices.result() : null;
+		final Bitmap left = bitmapOf(cached);
+		final Bitmap right = bitmapOf(recomputed);
 		final StringBuilder text = new StringBuilder(512);
-		final int[] remaining = {16};
+		final int[] remaining = {MAX_REPORTED_DIFFERENCES};
 		if (left != null && right != null) {
-			final java.util.PrimitiveIterator.OfInt first = left.iterator();
-			while (first.hasNext() && remaining[0] > 0) {
-				final int id = first.nextInt();
-				if (!right.contains(id)) { text.append(" cached-only:").append(id); remaining[0]--; }
-			}
-			final java.util.PrimitiveIterator.OfInt second = right.iterator();
-			while (second.hasNext() && remaining[0] > 0) {
-				final int id = second.nextInt();
-				if (!left.contains(id)) { text.append(" recomputed-only:").append(id); remaining[0]--; }
-			}
+			appendBitmapDifferences(text, left, right, remaining);
 		}
 		if (cached instanceof CachedPriceRecordsResult first && recomputed instanceof CachedPriceRecordsResult second) {
-			appendPriceTuples(text, first.priceRecords(), second.priceRecords(), remaining);
-			if (first.perInnerRecordPriceRecords() != null && second.perInnerRecordPriceRecords() != null) {
-				appendPriceTuples(text, first.perInnerRecordPriceRecords(), second.perInnerRecordPriceRecords(), remaining);
-			}
-			appendValueDifference(text, "inner array present", first.perInnerRecordPriceRecords() != null,
-				second.perInnerRecordPriceRecords() != null, remaining);
-		} else if (cached instanceof CachedHistogramResult first && recomputed instanceof CachedHistogramResult second) {
-			appendValueDifference(text, "raw min", first.histogram().getRawMin(),
-				second.histogram().getRawMin(), remaining);
-			appendValueDifference(text, "raw max", first.histogram().getRawMax(),
-				second.histogram().getRawMax(), remaining);
-			appendValueDifference(text, "max", first.histogram().getMax(), second.histogram().getMax(), remaining);
-			appendValueDifference(text, "count", first.histogram().getOverallCount(),
-				second.histogram().getOverallCount(), remaining);
-			final CacheableHistogramContract.CacheableBucket[] firstBuckets = first.histogram().getBuckets();
-			final CacheableHistogramContract.CacheableBucket[] secondBuckets = second.histogram().getBuckets();
-			for (int i = 0; i < Math.max(firstBuckets.length, secondBuckets.length) && remaining[0] > 0; i++) {
-				appendValueDifference(text, "bucket " + i, i < firstBuckets.length ? firstBuckets[i] : null,
-					i < secondBuckets.length ? secondBuckets[i] : null, remaining);
+			appendPriceDifferences(text, first, second, remaining);
+		} else if (cached instanceof CachedHistogramResult first &&
+			recomputed instanceof CachedHistogramResult second) {
+			appendHistogramDifferences(text, first.histogram(), second.histogram(), remaining);
+		}
+		return text.substring(0, Math.min(text.length(), MAX_WITNESS_LENGTH_CHARS));
+	}
+
+	/** Returns the bitmap of a bitmap or price tuple; a histogram tuple has none. */
+	@Nullable
+	private static Bitmap bitmapOf(@Nonnull CachedResult result) {
+		return switch (result) {
+			case CachedBitmapResult bitmap -> bitmap.result();
+			case CachedPriceRecordsResult prices -> prices.result();
+			case CachedHistogramResult histogram -> null;
+		};
+	}
+
+	/** Lists identifiers present on one side only, the cached side first, within the shared allowance. */
+	private static void appendBitmapDifferences(
+		@Nonnull StringBuilder text, @Nonnull Bitmap cached, @Nonnull Bitmap recomputed, @Nonnull int[] remaining
+	) {
+		final OfInt first = cached.iterator();
+		while (first.hasNext() && remaining[0] > 0) {
+			final int id = first.nextInt();
+			if (!recomputed.contains(id)) {
+				text.append(" cached-only:").append(id);
+				remaining[0]--;
 			}
 		}
-		return text.substring(0, Math.min(text.length(), 2_000));
+		final OfInt second = recomputed.iterator();
+		while (second.hasNext() && remaining[0] > 0) {
+			final int id = second.nextInt();
+			if (!cached.contains(id)) {
+				text.append(" recomputed-only:").append(id);
+				remaining[0]--;
+			}
+		}
+	}
+
+	/** Lists differing selling and per-inner-record price tuples and whether only one side has the latter. */
+	private static void appendPriceDifferences(
+		@Nonnull StringBuilder text, @Nonnull CachedPriceRecordsResult cached,
+		@Nonnull CachedPriceRecordsResult recomputed, @Nonnull int[] remaining
+	) {
+		appendPriceTuples(text, cached.priceRecords(), recomputed.priceRecords(), remaining);
+		final ResolvedFilteredPriceRecords cachedInner = cached.perInnerRecordPriceRecords();
+		final ResolvedFilteredPriceRecords recomputedInner = recomputed.perInnerRecordPriceRecords();
+		if (cachedInner != null && recomputedInner != null) {
+			appendPriceTuples(text, cachedInner, recomputedInner, remaining);
+		}
+		appendValueDifference(text, "inner array present", cachedInner != null, recomputedInner != null, remaining);
+	}
+
+	/** Lists differing histogram bounds, counts and buckets. */
+	private static void appendHistogramDifferences(
+		@Nonnull StringBuilder text, @Nonnull CacheableHistogramContract cached,
+		@Nonnull CacheableHistogramContract recomputed, @Nonnull int[] remaining
+	) {
+		appendValueDifference(text, "raw min", cached.getRawMin(), recomputed.getRawMin(), remaining);
+		appendValueDifference(text, "raw max", cached.getRawMax(), recomputed.getRawMax(), remaining);
+		appendValueDifference(text, "max", cached.getMax(), recomputed.getMax(), remaining);
+		appendValueDifference(text, "count", cached.getOverallCount(), recomputed.getOverallCount(), remaining);
+		final CacheableHistogramContract.CacheableBucket[] firstBuckets = cached.getBuckets();
+		final CacheableHistogramContract.CacheableBucket[] secondBuckets = recomputed.getBuckets();
+		for (int i = 0; i < Math.max(firstBuckets.length, secondBuckets.length) && remaining[0] > 0; i++) {
+			appendValueDifference(text, "bucket " + i, i < firstBuckets.length ? firstBuckets[i] : null,
+				i < secondBuckets.length ? secondBuckets[i] : null, remaining);
+		}
 	}
 
 	/** Renders up to sixteen physical price tuples, retaining no array or record references in the witness. */
 	private static void appendPriceTuples(
 		@Nonnull StringBuilder text,
-		@Nonnull io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords cached,
-		@Nonnull io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords recomputed,
+		@Nonnull ResolvedFilteredPriceRecords cached, @Nonnull ResolvedFilteredPriceRecords recomputed,
 		@Nonnull int[] remaining
 	) {
-		final io.evitadb.index.price.model.priceRecord.PriceRecordContract[] first = cached.getPriceRecords();
-		final io.evitadb.index.price.model.priceRecord.PriceRecordContract[] second = recomputed.getPriceRecords();
-		for (int i = 0; i < Math.max(first.length, second.length) && remaining[0] > 0 && text.length() < 2_000; i++) {
-			if (i < first.length && i < second.length && CachedResultEquivalence.equivalentRecord(first[i], second[i])) {
+		final PriceRecordContract[] first = cached.getPriceRecords();
+		final PriceRecordContract[] second = recomputed.getPriceRecords();
+		for (
+			int i = 0;
+			i < Math.max(first.length, second.length) && remaining[0] > 0 && text.length() < MAX_WITNESS_LENGTH_CHARS;
+			i++
+		) {
+			if (i < first.length && i < second.length &&
+				CachedResultEquivalence.equivalentRecord(first[i], second[i])) {
 				continue;
 			}
-			if (i < first.length) appendPriceTuple(text.append(" cached:"), first[i], remaining);
-			if (i < second.length) appendPriceTuple(text.append(" recomputed:"), second[i], remaining);
+			if (i < first.length) {
+				appendPriceTuple(text.append(" cached:"), first[i], remaining);
+			}
+			if (i < second.length) {
+				appendPriceTuple(text.append(" recomputed:"), second[i], remaining);
+			}
 		}
 	}
 
 	/** Writes a complete physical tuple or a SUM total with bounded component tuples. */
 	private static void appendPriceTuple(
-		@Nonnull StringBuilder text, @Nonnull io.evitadb.index.price.model.priceRecord.PriceRecordContract record,
-		@Nonnull int[] remaining
+		@Nonnull StringBuilder text, @Nonnull PriceRecordContract record, @Nonnull int[] remaining
 	) {
-		if (remaining[0] == 0) return;
+		if (remaining[0] == 0) {
+			return;
+		}
 		remaining[0]--;
 		text.append(record.getClass().getSimpleName()).append('[').append(record.entityPrimaryKey()).append(',');
-		if (record instanceof io.evitadb.index.price.model.priceRecord.CumulatedVirtualPriceRecord sum) {
+		if (record instanceof CumulatedVirtualPriceRecord sum) {
 			text.append(sum.price()).append(',').append(sum.priceMode()).append(",components=")
 				.append(sum.innerRecordPrices().size());
-			for (final com.carrotsearch.hppc.cursors.IntObjectCursor<
-				io.evitadb.index.price.model.priceRecord.PriceRecordContract> component : sum.innerRecordPrices()) {
-				if (remaining[0] == 0 || text.length() >= 2_000) break;
+			for (final IntObjectCursor<PriceRecordContract> component : sum.innerRecordPrices()) {
+				if (remaining[0] == 0 || text.length() >= MAX_WITNESS_LENGTH_CHARS) {
+					break;
+				}
 				text.append(',').append(component.key).append('=');
 				appendPriceTuple(text, component.value, remaining);
 			}
@@ -374,7 +483,7 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		@Nonnull StringBuilder text, @Nonnull String label, @Nullable Object cached, @Nullable Object recomputed,
 		@Nonnull int[] remaining
 	) {
-		if (remaining[0] > 0 && !java.util.Objects.equals(cached, recomputed)) {
+		if (remaining[0] > 0 && !Objects.equals(cached, recomputed)) {
 			text.append(' ').append(label).append(" cached:").append(cached);
 			remaining[0]--;
 			if (remaining[0] > 0) {
@@ -395,22 +504,30 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 			return computer.compute();
 		}
 		final CachedResult cached = lookup(key);
-		if (cached != null && !sampleHit()) return (U) ((CachedHistogramResult) cached).histogram();
+		if (cached != null && !sampleHit()) {
+			return (U) ((CachedHistogramResult) cached).histogram();
+		}
 		final long start = System.nanoTime();
 		final boolean previous = cached != null && context.suspendFormulaCache();
 		final U computed;
 		try {
 			computed = computer.compute();
-			if (cached != null) verify(context, key, computer.getClass().getName(), computer.toString(), cached,
-				new CachedHistogramResult((CacheableHistogramContract) computed, cached.weight()), System.nanoTime() - start);
+			if (cached != null) {
+				verify(context, key, computer.getClass().getName(), computer.toString(), cached,
+					new CachedHistogramResult((CacheableHistogramContract) computed, cached.weight()),
+					System.nanoTime() - start);
+			}
 		} finally {
-			if (cached != null) context.resumeFormulaCache(previous);
+			if (cached != null) {
+				context.resumeFormulaCache(previous);
+			}
 		}
 		if (cached == null) {
 			final long computeNanos = System.nanoTime() - start;
 			final int weight = admittedWeight(CachedResultWeigher.measure(key, (CacheableHistogramContract) computed));
-			if (weight > 0) admit(key, new CachedHistogramResult((CacheableHistogramContract) computed, weight),
-				computeNanos);
+			if (weight > 0) {
+				admit(key, new CachedHistogramResult((CacheableHistogramContract) computed, weight), computeNanos);
+			}
 		}
 		return computed;
 	}
@@ -437,7 +554,9 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 	@Override
 	public void close() {
 		this.active.set(false);
-		if (this.maintenanceTask != null) IOUtils.closeQuietly(this.maintenanceTask::close);
+		if (this.maintenanceTask != null) {
+			IOUtils.closeQuietly(this.maintenanceTask::close);
+		}
 		this.cache.invalidateAll();
 		this.cache.cleanUp();
 	}
@@ -449,6 +568,7 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
+	@Immutable
 	public record Statistics(
 		long hits, long misses, long admissions, long duplicateAdmissions, long duplicateComputeMillis,
 		long duplicateBytes, long refusedOversized, long refusedUnsized, long prefetchBypasses,

@@ -356,6 +356,7 @@ class SelectionFormulaHistogramCapabilityTest {
 		final QueryExecutionContext context = new QueryExecutionContext(
 			Mockito.mock(QueryPlanningContext.class),
 			false,
+			false,
 			null,
 			(aClass, sealedEntity) -> {
 				throw new UnsupportedOperationException();
