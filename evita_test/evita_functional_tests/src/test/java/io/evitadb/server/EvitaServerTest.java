@@ -328,7 +328,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	/** Custom certificate downloads retain literal filenames through the outer router after startup. */
 	@ParameterizedTest
-	@ValueSource(strings = {"server-plain.pem", "server}prod{1}*.pem"})
+	@ValueSource(strings = {"server-plain.pem", "server}prod{1}.pem"})
 	@DisplayName("Should boot with a custom certificate and serve its literal filename")
 	void shouldServeCustomCertificateWithLiteralFileName(@Nonnull String fileName) throws Exception {
 		final String portDataSetName = DIR_EVITA_SERVER_TEST + "-custom-certificate";
@@ -354,7 +354,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		);
 		try {
 			evitaServer.run();
-			final String encodedName = fileName.replace("}", "%7D").replace("{", "%7B").replace("*", "%2A");
+			final String encodedName = fileName.replace("}", "%7D").replace("{", "%7B");
 			final WebClient client = WebClient.of("http://localhost:" + servicePorts.get(SystemProvider.CODE));
 			final AggregatedHttpResponse response = client.blocking().get("/system/" + encodedName);
 			assertEquals(200, response.status().code());

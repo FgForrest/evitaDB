@@ -389,13 +389,11 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 						"Certificate path is not properly set in the configuration file and `generateAndUseSelfSigned` is set to false."
 					);
 				}
-				final String certificate = certificatePath.certificate();
-				// Accept the native separator and `/`, which Java also accepts on Windows.
+				// Name and parent come from one normalized file, so a trailing separator cannot split them apart.
 				// A backslash on Unix remains a legal filename character.
-				final int lastSeparatorIndex = Math.max(certificate.lastIndexOf(File.separatorChar),
-					certificate.lastIndexOf('/'));
-				file = new File(certificate).getAbsoluteFile().getParentFile();
-				fileName = certificate.substring(lastSeparatorIndex + 1);
+				final File certificate = new File(certificatePath.certificate()).getAbsoluteFile();
+				file = certificate.getParentFile();
+				fileName = certificate.getName();
 			}
 			final Map<String, File> downloads = CollectionUtils.createHashMap(3);
 			registerCertificateDownload(router, downloads, new File(file, fileName));
