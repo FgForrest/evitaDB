@@ -47,7 +47,6 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
-import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
@@ -68,9 +67,9 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.index.HistogramCapableEntityIndex;
 import io.evitadb.index.HistogramIndex;
-import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
@@ -83,7 +82,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -98,7 +96,6 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -108,7 +105,6 @@ import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.WAL;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -170,17 +166,18 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	private static final EntityIndexKey GROUP_TYPE_KEY =
 		new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, Scope.LIVE, BRAND);
 	/**
-	 * The primary key of the reduced index of group 100 listed first.
+	 * The key of the histogram store of group 100.
 	 */
-	private static final int FIRST_REDUCED_INDEX_PK = 22;
+	private static final EntityIndexKey STORE_KEY = GroupHistogramEntityIndex.keyOf(BRAND, GROUP_PK, Scope.LIVE);
 	/**
-	 * The primary key of the reduced index of group 100 listed second.
+	 * The primary key of a histogram store the fixtures create.
 	 */
-	private static final int SECOND_REDUCED_INDEX_PK = 23;
+	private static final int STORE_PK = 22;
 	/**
-	 * A reduced-index primary key a group-type index of a real engine lists while its collection holds no index there.
+	 * The primary key of the reduced index through which the group-type index of the fixtures tracks group 100. No
+	 * index is held under it: a histogram write never looks for one.
 	 */
-	private static final int UNHELD_REDUCED_INDEX_PK = 1_000_000;
+	private static final int REDUCED_INDEX_PK = 23;
 	/**
 	 * The start of every message the withdrawal produces for a missing value, refused or reported.
 	 */
@@ -275,7 +272,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		 * The refusing engine fails the write whose withdrawal misses the old value, naming the owner, the histogram
 		 * and the value, and logs no report.
 		 *
-		 * @param grouped whether the reference belongs to a group, so the value lives in the group's reduced index
+		 * @param grouped whether the reference belongs to a group, so the value lives in the group's histogram store
 		 */
 		@ParameterizedTest(name = "grouped {0}")
 		@ValueSource(booleans = {false, true})
@@ -307,7 +304,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		 * The reporting engine completes the write and logs one error line identifying the missing value. The final
 		 * add of the write then leaves the histogram holding the new value and not the old one.
 		 *
-		 * @param grouped whether the reference belongs to a group, so the value lives in the group's reduced index
+		 * @param grouped whether the reference belongs to a group, so the value lives in the group's histogram store
 		 */
 		@ParameterizedTest(name = "grouped {0}")
 		@ValueSource(booleans = {false, true})
@@ -358,7 +355,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		 * reporting write skips 6 only and withdraws 5 and 7, whatever order it walks them in, so after the write the
 		 * owner holds the new value alone.
 		 *
-		 * @param grouped whether the reference belongs to a group, so the values live in the group's reduced index
+		 * @param grouped whether the reference belongs to a group, so the values live in the group's histogram store
 		 */
 		@ParameterizedTest(name = "grouped {0}")
 		@ValueSource(booleans = {false, true})
@@ -402,107 +399,11 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 				cleanupTestPaths(paths);
 			}
 		}
-
-		/**
-		 * Group 100 lists two valid reduced indexes. The second holds the old share of product 1, the first misses it
-		 * - a value-level miss, not a missing index - and both hold the same share of a neighbouring product. The
-		 * reporting write withdraws the old share from the second index, logs one line naming the first, and the final
-		 * add leaves the new share in both. A subsequent write then finds both indexes consistent and logs nothing,
-		 * while the neighbour keeps its share in both throughout.
-		 */
-		@Test
-		@DisplayName("Withdraw from the reduced index holding the value when another listed one misses it")
-		void shouldWithdrawFromHoldingIndexWhenAnotherListedIndexMissesValue() {
-			final String histogram = "sharesSplitAcrossGroupIndexes";
-			final TestPaths paths = createTestPaths("missingHistogramValueOneOfTwoIndexes");
-			try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
-				final ReducedGroupEntityIndex missing = reducedGroupIndex(FIRST_REDUCED_INDEX_PK);
-				final ReducedGroupEntityIndex holding = reducedGroupIndex(SECOND_REDUCED_INDEX_PK);
-				final List<ReducedGroupEntityIndex> both = List.of(missing, holding);
-				for (final ReducedGroupEntityIndex index : both) {
-					index.insertHistogramValue(histogram, null, OLD_SHARE, OTHER_PRODUCT_PK, Integer.class, 0);
-				}
-				holding.insertHistogramValue(histogram, null, OLD_SHARE, PRODUCT_PK, Integer.class, 0);
-				final ExecutorFixture fixture = createExecutorFixture(
-					evita, true, histogram, MissingHistogramValueBehavior.REPORT,
-					(indexes, indexesByPrimaryKey) -> {
-						indexesByPrimaryKey.put(FIRST_REDUCED_INDEX_PK, missing);
-						indexesByPrimaryKey.put(SECOND_REDUCED_INDEX_PK, holding);
-						listGroupReducedIndexes(indexes);
-					}
-				);
-
-				final EntityIndexLocalMutationExecutor reported = fixture.newExecutor();
-				final Outcome outcome = capture(histogram, () -> fixture.changeShare(reported, NEW_SHARE));
-
-				assertNull(outcome.failure(), () -> "The withdrawal must return, but threw " + outcome.failure());
-				assertEquals(1, outcome.reports().size(), outcome.reports()::toString);
-				final String line = outcome.reports().get(0);
-				assertAll(
-					() -> assertTrue(line.contains("reduced index primary key " + FIRST_REDUCED_INDEX_PK), line),
-					() -> assertTrue(line.contains("listed group indexes 2"), line),
-					() -> assertFalse(
-						holds(holding, histogram, OLD_SHARE, PRODUCT_PK),
-						"The index holding the old share must have lost it"
-					)
-				);
-
-				fixture.finishRun(reported, NEW_SHARE);
-				assertShareInBothIndexes(both, histogram, NEW_SHARE, "after the reported write");
-
-				final EntityIndexLocalMutationExecutor subsequent = fixture.newExecutor();
-				final Outcome next = capture(histogram, () -> {
-					fixture.changeShare(subsequent, SUBSEQUENT_SHARE);
-					fixture.finishRun(subsequent, SUBSEQUENT_SHARE);
-				});
-
-				assertNull(next.failure(), () -> "The subsequent write must complete, but threw " + next.failure());
-				assertEquals(List.of(), next.reports());
-				assertShareInBothIndexes(both, histogram, SUBSEQUENT_SHARE, "after the subsequent write");
-			} finally {
-				cleanupTestPaths(paths);
-			}
-		}
-
-		/**
-		 * Asserts that every reduced index holds the share of product 1 and none of its earlier shares, and that the
-		 * neighbouring product keeps its own share in every index.
-		 *
-		 * @param indexes   the reduced indexes of the group
-		 * @param histogram the histogram name
-		 * @param share     the share product 1 must hold
-		 * @param stage     names the moment in the failure messages
-		 */
-		private static void assertShareInBothIndexes(
-			@Nonnull List<ReducedGroupEntityIndex> indexes,
-			@Nonnull String histogram,
-			int share,
-			@Nonnull String stage
-		) {
-			final List<Executable> checks = new ArrayList<>(indexes.size() * 4);
-			for (final ReducedGroupEntityIndex index : indexes) {
-				final String where = stage + ", index " + index.getPrimaryKey() + ": ";
-				checks.add(() -> assertTrue(holds(index, histogram, share, PRODUCT_PK), where + "share " + share));
-				for (final int earlier : new int[]{OLD_SHARE, NEW_SHARE}) {
-					if (earlier != share) {
-						checks.add(() -> assertFalse(
-							holds(index, histogram, earlier, PRODUCT_PK), where + "no share " + earlier
-						));
-					}
-				}
-				checks.add(() -> assertTrue(
-					holds(index, histogram, OLD_SHARE, OTHER_PRODUCT_PK), where + "the neighbour's share"
-				));
-			}
-			assertAll(checks);
-		}
 	}
 
 	/**
 	 * The withdrawal sites where a whole index is missing, driven through the executor over an index lookup that
-	 * answers the missing index with nothing. For a listed reduced index the collection does not hold, that answer is
-	 * the fixture's and not the engine's: the collection refuses such an index before the withdrawal sees it, so the
-	 * cells of that site test the mutator in isolation, and one cell through a real engine pins what the engine does.
+	 * answers the missing index with nothing, as the collection does.
 	 */
 	@Nested
 	@DisplayName("A withdrawal missing an index")
@@ -529,7 +430,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 
 				final String message = missingValueError(outcome.failure()).getMessage();
 				assertAll(
-					() -> assertTrue(message.contains("reduced index primary key " + site.reportedIndex()), message),
+					() -> assertTrue(message.contains("histogram index primary key -1"), message),
 					() -> assertEquals(List.of(), outcome.reports())
 				);
 			} finally {
@@ -538,9 +439,9 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		}
 
 		/**
-		 * The reporting withdrawal logs one line for the value and returns. Where a listed reduced index is missing it
-		 * still withdraws the value from the valid index listed after it. The final add of the same run then meets the
-		 * same missing index and fails on its own assertion, which the switch does not govern.
+		 * The reporting withdrawal logs one line for the value and returns. The final add of the same run then meets
+		 * the same missing index and fails on its own assertion, which the switch does not govern - except where only
+		 * the histogram store of the group is missing, which the final add creates, as the first value of a group does.
 		 *
 		 * @param site the missing index
 		 */
@@ -555,7 +456,6 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 					evita, site, histogram, MissingHistogramValueBehavior.REPORT
 				);
 				final EntityIndexLocalMutationExecutor executor = fixture.newExecutor();
-				final EntityIndex validIndex = fixture.indexesByPrimaryKey().get(SECOND_REDUCED_INDEX_PK);
 
 				final Outcome outcome = capture(histogram, () -> fixture.changeShare(executor, NEW_SHARE));
 
@@ -565,25 +465,21 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 				assertAll(
 					() -> assertTrue(line.startsWith(MISSING_VALUE_PREFIX), line),
 					() -> assertTrue(line.contains("value " + OLD_SHARE + ","), line),
-					() -> assertTrue(line.contains("reduced index primary key " + site.reportedIndex()), line)
+					() -> assertTrue(line.contains("histogram index primary key -1"), line)
 				);
-				// only a missing listed reduced index leaves a valid index after it for the withdrawal to go on to
-				if (site == StructuralSite.LISTED_REDUCED_INDEX_MISSING) {
-					assertFalse(
-						holds(
-							assertInstanceOf(HistogramCapableEntityIndex.class, validIndex),
-							histogram, OLD_SHARE, PRODUCT_PK
-						),
-						"The valid index listed after the missing one must have lost the old value"
-					);
-				}
 
-				final GenericEvitaInternalError finalAdd = assertThrows(
-					GenericEvitaInternalError.class, () -> fixture.finishRun(executor, NEW_SHARE)
-				);
-				assertTrue(
-					finalAdd.getMessage().startsWith(site.finalAddMessage()), finalAdd.getMessage()
-				);
+				final String finalAddMessage = site.finalAddMessage();
+				if (finalAddMessage == null) {
+					fixture.finishRun(executor, NEW_SHARE);
+					final GroupHistogramEntityIndex store = fixture.stores().get(STORE_KEY);
+					assertNotNull(store, "The final add must create the store of the group");
+					assertTrue(holds(store, histogram, NEW_SHARE, PRODUCT_PK), "The store must hold the new share");
+				} else {
+					final GenericEvitaInternalError finalAdd = assertThrows(
+						GenericEvitaInternalError.class, () -> fixture.finishRun(executor, NEW_SHARE)
+					);
+					assertTrue(finalAdd.getMessage().startsWith(finalAddMessage), finalAdd.getMessage());
+				}
 			} finally {
 				cleanupTestPaths(paths);
 			}
@@ -618,54 +514,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 				assertNull(outcome.failure(), () -> "The removal must complete, but threw " + outcome.failure());
 				assertEquals(1, outcome.reports().size(), outcome.reports()::toString);
 				final String line = outcome.reports().get(0);
-				assertTrue(line.contains("reduced index primary key " + site.reportedIndex()), line);
-			} finally {
-				cleanupTestPaths(paths);
-			}
-		}
-
-		/**
-		 * Characterizes a real engine whose group-type index lists, beside the group's reduced index, a primary key the
-		 * collection holds no index under. The withdrawal of the write asks the collection for that index to modify it,
-		 * and the collection refuses with a premise error instead of answering nothing: the write fails under either
-		 * behavior and no value is reported. The mutator's branch for a missing listed reduced index - the one the
-		 * `LISTED_REDUCED_INDEX_MISSING` cells drive through the fixture - is not reached through the collection.
-		 *
-		 * @param behavior the behavior on a missing histogram value
-		 */
-		@ParameterizedTest(name = "{0}")
-		@EnumSource(MissingHistogramValueBehavior.class)
-		@DisplayName("Fail the write reaching a listed reduced index the collection does not hold, in either behavior")
-		void shouldFailWriteReachingListedReducedIndexTheCollectionDoesNotHold(
-			@Nonnull MissingHistogramValueBehavior behavior
-		) {
-			final String histogram = histogramName("unheldReducedIndex", true);
-			final TestPaths paths = createTestPaths("missingHistogramIndexUnheld_" + behavior);
-			try (final Evita evita = new Evita(configuration(paths, behavior, null))) {
-				evita.defineCatalog(TEST_CATALOG);
-				evita.updateCatalog(TEST_CATALOG, session -> {
-					defineSchema(session, true, histogram, Integer.class);
-					createProduct(session, PRODUCT_PK, BRAND_PK, true, OLD_SHARE);
-				});
-				final EntityCollection collection =
-					catalog(evita).getCollectionForEntityInternal(PRODUCT).orElseThrow();
-				assertNull(
-					collection.getIndexByPrimaryKeyIfExists(UNHELD_REDUCED_INDEX_PK),
-					"The collection must hold no index under the listed primary key"
-				);
-				assertInstanceOf(ReferencedTypeEntityIndex.class, collection.getIndexByKeyIfExists(GROUP_TYPE_KEY))
-					.insertPrimaryKeyIfMissing(UNHELD_REDUCED_INDEX_PK, GROUP_PK);
-
-				final Outcome outcome = capture(histogram, () -> updateShare(evita, true, NEW_SHARE));
-
-				final Throwable refusal = causeContaining(
-					outcome.failure(),
-					"Index with primary key " + UNHELD_REDUCED_INDEX_PK + " was not found in the persistent storage"
-				);
-				assertAll(
-					() -> assertInstanceOf(GenericEvitaInternalError.class, refusal),
-					() -> assertEquals(List.of(), outcome.reports())
-				);
+				assertTrue(line.contains("histogram index primary key -1"), line);
 			} finally {
 				cleanupTestPaths(paths);
 			}
@@ -839,41 +688,34 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	 */
 	enum StructuralSite {
 		/**
-		 * The group-type index of a grouped reference is absent.
+		 * The group-type index of a grouped reference is absent, and so is the histogram store of the group.
 		 */
-		GROUP_TYPE_INDEX_MISSING(true, -1, "Cannot insert histogram value: group ReducedTypeEntityIndex is missing"),
+		GROUP_TYPE_INDEX_MISSING(true, "Cannot insert histogram value: group ReducedTypeEntityIndex is missing"),
 		/**
-		 * The group-type index lists no reduced index for the group.
+		 * The group-type index does not track the group, and the histogram store of the group is absent.
 		 */
-		NO_REDUCED_INDEX_LISTED(true, -1, "Cannot insert histogram value: the group-type index lists no reduced index"),
+		GROUP_UNTRACKED(true, "Cannot insert histogram value: the group-type index does not track group"),
 		/**
-		 * The group-type index lists two reduced indexes for the group, and the first one is absent. Only the fixture's
-		 * lookup answers the absent index with nothing; the collection refuses it first (see
-		 * {@link StructuralSitesTest#shouldFailWriteReachingListedReducedIndexTheCollectionDoesNotHold}).
+		 * The group-type index tracks the group, and the histogram store of the group is absent. The final add creates
+		 * the store, as the first value of a group does.
 		 */
-		LISTED_REDUCED_INDEX_MISSING(
-			true, FIRST_REDUCED_INDEX_PK,
-			"Cannot insert histogram value: per-group reduced index is missing"
-		),
+		STORE_MISSING(true, null),
 		/**
 		 * The referenced-type index of an ungrouped reference is absent.
 		 */
-		TYPE_INDEX_MISSING(false, -1, "Cannot insert histogram value: ReferencedTypeEntityIndex is missing");
+		TYPE_INDEX_MISSING(false, "Cannot insert histogram value: ReferencedTypeEntityIndex is missing");
 
 		private final boolean grouped;
-		private final int reportedIndex;
-		private final String finalAddMessage;
+		@Nullable private final String finalAddMessage;
 
 		/**
 		 * Creates the site.
 		 *
 		 * @param grouped         whether the reference belongs to a group
-		 * @param reportedIndex   the reduced index primary key the withdrawal names
-		 * @param finalAddMessage the start of the message the final add fails with
+		 * @param finalAddMessage the start of the message the final add fails with, or `null` when it succeeds
 		 */
-		StructuralSite(boolean grouped, int reportedIndex, @Nonnull String finalAddMessage) {
+		StructuralSite(boolean grouped, @Nullable String finalAddMessage) {
 			this.grouped = grouped;
-			this.reportedIndex = reportedIndex;
 			this.finalAddMessage = finalAddMessage;
 		}
 
@@ -887,20 +729,11 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		}
 
 		/**
-		 * Returns the reduced index primary key the withdrawal names.
-		 *
-		 * @return the primary key, or `-1` when no reduced index is involved
-		 */
-		int reportedIndex() {
-			return this.reportedIndex;
-		}
-
-		/**
 		 * Returns the start of the message the final add fails with.
 		 *
-		 * @return the message start
+		 * @return the message start, or `null` when the final add succeeds
 		 */
-		@Nonnull
+		@Nullable
 		String finalAddMessage() {
 			return this.finalAddMessage;
 		}
@@ -908,16 +741,16 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 
 	/**
 	 * An executor fixture of product 1 over a real storage executor and an index lookup the cell lays out: the
-	 * referenced-type and group-type indexes it registers by key, and the reduced indexes it registers by primary key.
-	 * Every write gets its own executor, as every entity mutation does in the engine; all of them share the storage and
-	 * the indexes.
+	 * referenced-type and group-type indexes it registers by key, and the histogram stores of groups, which the lookup
+	 * creates on demand as the collection does. Every write gets its own executor, as every entity mutation does in the
+	 * engine; all of them share the storage and the indexes.
 	 *
-	 * @param executors           creates a new executor over the storage and the indexes
-	 * @param storage             the real storage executor of product 1
-	 * @param schema              the product schema whose reference carries the `share` attribute
-	 * @param grouped             TRUE when the reference is stored in group 100
-	 * @param globalIndex         the global index passed to reference handlers
-	 * @param indexesByPrimaryKey the reduced indexes the lookup answers by primary key
+	 * @param executors   creates a new executor over the storage and the indexes
+	 * @param storage     the real storage executor of product 1
+	 * @param schema      the product schema whose reference carries the `share` attribute
+	 * @param grouped     TRUE when the reference is stored in group 100
+	 * @param globalIndex the global index passed to reference handlers
+	 * @param stores      the histogram stores the lookup holds, by their keys
 	 */
 	private record ExecutorFixture(
 		@Nonnull Supplier<EntityIndexLocalMutationExecutor> executors,
@@ -925,7 +758,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		@Nonnull EntitySchema schema,
 		boolean grouped,
 		@Nonnull GlobalEntityIndex globalIndex,
-		@Nonnull Map<Integer, EntityIndex> indexesByPrimaryKey
+		@Nonnull Map<EntityIndexKey, GroupHistogramEntityIndex> stores
 	) {
 		/**
 		 * The stored reference, with its internal primary key.
@@ -1234,7 +1067,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	/**
 	 * Defines the brand, the brand group and the product, whose reference to a brand carries the `share` attribute
 	 * and the histogram over it. The reference is indexed for filtering and faceted; a grouped one also indexes its
-	 * group component, so its histogram lives in the reduced index of the group.
+	 * group component, so its histogram lives in the histogram store of the group.
 	 *
 	 * @param session   the session of the catalog in warm-up
 	 * @param grouped   whether the reference belongs to a group
@@ -1437,8 +1270,8 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the indexes the withdrawal reads the share from: the referenced-type index when ungrouped, or every
-	 * reduced index the group-type index lists for the group.
+	 * Returns the indexes the withdrawal reads the share from: the referenced-type index when ungrouped, or the
+	 * histogram store of the group.
 	 *
 	 * @param evita   the engine
 	 * @param grouped whether the reference belongs to the group
@@ -1447,18 +1280,9 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	@Nonnull
 	private static List<HistogramCapableEntityIndex> shareIndexes(@Nonnull Evita evita, boolean grouped) {
 		final EntityCollection collection = catalog(evita).getCollectionForEntityInternal(PRODUCT).orElseThrow();
-		final List<HistogramCapableEntityIndex> indexes = new ArrayList<>(2);
+		final List<HistogramCapableEntityIndex> indexes = new ArrayList<>(1);
 		if (grouped) {
-			final EntityIndex groupTypeIndex = collection.getIndexByKeyIfExists(
-				new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, Scope.LIVE, BRAND)
-			);
-			final int[] reducedIndexPks =
-				assertInstanceOf(ReferencedTypeEntityIndex.class, groupTypeIndex).getAllReferenceIndexes(GROUP_PK);
-			for (final int reducedIndexPk : reducedIndexPks) {
-				indexes.add(assertInstanceOf(
-					HistogramCapableEntityIndex.class, collection.getIndexByPrimaryKeyIfExists(reducedIndexPk)
-				));
-			}
+			indexes.add(assertInstanceOf(GroupHistogramEntityIndex.class, collection.getIndexByKeyIfExists(STORE_KEY)));
 		} else {
 			indexes.add(assertInstanceOf(
 				HistogramCapableEntityIndex.class,
@@ -1574,61 +1398,27 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	) {
 		return createExecutorFixture(
 			evita, site.grouped(), histogram, behavior,
-			(indexes, indexesByPrimaryKey) -> {
+			indexes -> {
 				switch (site) {
 					case GROUP_TYPE_INDEX_MISSING -> {
 						indexes.register(GROUP_TYPE_KEY, null);
 						indexes.register(TYPE_KEY, null);
 					}
-					case NO_REDUCED_INDEX_LISTED -> {
+					case GROUP_UNTRACKED -> {
 						indexes.register(GROUP_TYPE_KEY, new ReferencedTypeEntityIndex(21, PRODUCT, GROUP_TYPE_KEY));
 						indexes.register(TYPE_KEY, null);
 					}
-					case LISTED_REDUCED_INDEX_MISSING -> {
-						// the first listed index is held by nobody, the second one is valid and holds the old share
-						final ReducedGroupEntityIndex reducedIndex = reducedGroupIndex(SECOND_REDUCED_INDEX_PK);
-						reducedIndex.insertHistogramValue(histogram, null, OLD_SHARE, PRODUCT_PK, Integer.class, 0);
-						indexesByPrimaryKey.put(SECOND_REDUCED_INDEX_PK, reducedIndex);
-						listGroupReducedIndexes(indexes);
+					case STORE_MISSING -> {
+						// the group is tracked through a reduced index of its own, which a histogram never reaches
+						final ReferencedTypeEntityIndex groupTypeIndex =
+							new ReferencedTypeEntityIndex(21, PRODUCT, GROUP_TYPE_KEY);
+						groupTypeIndex.insertPrimaryKeyIfMissing(REDUCED_INDEX_PK, GROUP_PK);
+						indexes.register(GROUP_TYPE_KEY, groupTypeIndex);
+						indexes.register(TYPE_KEY, null);
 					}
 					case TYPE_INDEX_MISSING -> indexes.register(TYPE_KEY, null);
 				}
 			}
-		);
-	}
-
-	/**
-	 * Registers a group-type index listing the first and then the second reduced index for group 100, and no
-	 * referenced-type index.
-	 *
-	 * @param indexes the index lookup of the fixture
-	 */
-	private static void listGroupReducedIndexes(@Nonnull MockEntityIndexCreator<EntityIndexKey, EntityIndex> indexes) {
-		final ReferencedTypeEntityIndex groupTypeIndex = new ReferencedTypeEntityIndex(21, PRODUCT, GROUP_TYPE_KEY);
-		groupTypeIndex.insertPrimaryKeyIfMissing(FIRST_REDUCED_INDEX_PK, GROUP_PK);
-		groupTypeIndex.insertPrimaryKeyIfMissing(SECOND_REDUCED_INDEX_PK, GROUP_PK);
-		assertArrayEquals(
-			new int[]{FIRST_REDUCED_INDEX_PK, SECOND_REDUCED_INDEX_PK},
-			groupTypeIndex.getAllReferenceIndexes(GROUP_PK),
-			"The first reduced index must be listed before the second one"
-		);
-		indexes.register(GROUP_TYPE_KEY, groupTypeIndex);
-		indexes.register(TYPE_KEY, null);
-	}
-
-	/**
-	 * Creates a reduced index of group 100.
-	 *
-	 * @param primaryKey the primary key of the index
-	 * @return the reduced index
-	 */
-	@Nonnull
-	private static ReducedGroupEntityIndex reducedGroupIndex(int primaryKey) {
-		return new ReducedGroupEntityIndex(
-			primaryKey, PRODUCT, new EntityIndexKey(
-				EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE,
-				new RepresentativeReferenceKey(new ReferenceKey(BRAND, GROUP_PK))
-			)
 		);
 	}
 
@@ -1641,7 +1431,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	 * @param grouped   whether the reference belongs to group 100
 	 * @param histogram the histogram name
 	 * @param behavior  the behavior on a missing histogram value
-	 * @param layout    registers the indexes by key on the lookup and the reduced indexes by primary key in the map
+	 * @param layout    registers the indexes by key on the lookup
 	 * @return the fixture
 	 */
 	@Nonnull
@@ -1650,7 +1440,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		boolean grouped,
 		@Nonnull String histogram,
 		@Nonnull MissingHistogramValueBehavior behavior,
-		@Nonnull BiConsumer<MockEntityIndexCreator<EntityIndexKey, EntityIndex>, Map<Integer, EntityIndex>> layout
+		@Nonnull Consumer<MockEntityIndexCreator<EntityIndexKey, EntityIndex>> layout
 	) {
 		evita.defineCatalog(TEST_CATALOG);
 		evita.updateCatalog(TEST_CATALOG, session -> {
@@ -1673,27 +1463,31 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 
 		final GlobalEntityIndex globalIndex =
 			new GlobalEntityIndex(1, PRODUCT, new EntityIndexKey(EntityIndexType.GLOBAL));
-		final Map<Integer, EntityIndex> indexesByPrimaryKey = CollectionUtils.createHashMap(2);
-		// answers a primary key nobody holds with nothing instead of the blanket index - for the lookup registering an
-		// index for modification this is a model of a lenient collection, not of the real one, which refuses such a
-		// primary key with a premise error before the withdrawal sees it
+		final Map<EntityIndexKey, GroupHistogramEntityIndex> stores = CollectionUtils.createHashMap(1);
+		// answers the key of a histogram store with the store it holds, or nothing, and creates a missing store on
+		// demand - as the collection does, whose by-key lookups the blanket index stands in for otherwise
 		final MockEntityIndexCreator<EntityIndexKey, EntityIndex> indexes =
 			new MockEntityIndexCreator<EntityIndexKey, EntityIndex>(globalIndex) {
-				/** Answers the index registered under the primary key, or nothing, as the collection does. */
+				/** Answers the store held under a store key, or the registered or blanket index for any other key. */
 				@Nullable
 				@Override
-				public EntityIndex getIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
-					return indexesByPrimaryKey.get(indexPrimaryKey);
+				public EntityIndex getIndexIfExists(@Nonnull EntityIndexKey entityIndexKey) {
+					return entityIndexKey.type() == EntityIndexType.REFERENCED_GROUP_HISTOGRAM ?
+						stores.get(entityIndexKey) : super.getIndexIfExists(entityIndexKey);
 				}
 
-				/** Answers the index registered under the primary key, or nothing where the collection refuses. */
-				@Nullable
+				/** Answers the store held under a store key, created when missing, or the index for any other key. */
+				@Nonnull
 				@Override
-				public EntityIndex getOrCreateIndexByPrimaryKey(int indexPrimaryKey) {
-					return indexesByPrimaryKey.get(indexPrimaryKey);
+				public EntityIndex getOrCreateIndex(@Nonnull EntityIndexKey entityIndexKey) {
+					return entityIndexKey.type() == EntityIndexType.REFERENCED_GROUP_HISTOGRAM ?
+						stores.computeIfAbsent(
+							entityIndexKey, key -> new GroupHistogramEntityIndex(STORE_PK, PRODUCT, key, false)
+						) :
+						super.getOrCreateIndex(entityIndexKey);
 				}
 			};
-		layout.accept(indexes, indexesByPrimaryKey);
+		layout.accept(indexes);
 
 		final CatalogExpressionTriggerRegistry registry = CatalogExpressionTriggerRegistry.EMPTY
 			.rebuildForEntityType(PRODUCT, List.of(new DefaultHistogramExpressionTrigger(
@@ -1725,7 +1519,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 				new SchemaCapabilityUsageRegistry(), new SchemaCapabilityUsageRegistry(), true,
 				behavior, new PartitionReservations()
 			),
-			storage, schema, grouped, globalIndex, indexesByPrimaryKey
+			storage, schema, grouped, globalIndex, stores
 		);
 		fixture.storeReference(OLD_SHARE);
 		return fixture;

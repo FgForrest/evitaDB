@@ -55,6 +55,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.AttributeIndex;
@@ -88,9 +89,10 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
  *
  * - computes histograms via the existing {@link AttributeHistogramComputer} machinery — shares bucket
  * behaviors, cache hooks, and number-type handling with attribute-level histograms;
- * - for grouped references, a histogram is computed from each {@link ReducedGroupEntityIndex} of a group
- * (a group spans several of them when the reference has representative attributes) and attached to the
- * matching {@link ReferenceGroupStatistics} entry identified by the group PK;
+ * - for grouped references, a histogram is computed from the {@link GroupHistogramEntityIndex} of a group - the one
+ * store holding the histograms of the group as a whole, however many {@link ReducedGroupEntityIndex} instances the
+ * group spans when the reference has representative attributes - and attached to the matching
+ * {@link ReferenceGroupStatistics} entry identified by the group PK;
  * - for ungrouped references, a single histogram is computed from the
  * {@link ReferencedTypeEntityIndex} and attached to the (existing or newly-injected) non-grouped
  * entry (the entry with {@code groupEntity == null});
@@ -229,9 +231,9 @@ final class ReferenceHistogramAccumulator {
 		final String entityType = Objects.requireNonNull(context.getQueryContext().getEntityType());
 		final Set<Scope> scopes = context.getQueryContext().getScopes();
 
-		// Stage 1: compute cacheable histograms + resolve boundary PKs (no fetch yet). RGEIs/RTEIs
+		// Stage 1: compute cacheable histograms + resolve boundary PKs (no fetch yet). Group stores and RTEIs
 		// live on the entity collection, located per scope via QueryPlanningContext#getEntityIndex.
-		// Sizing: non-grouped = req × scope (floor); grouped grows by per-group RGEIs — probe the
+		// Sizing: non-grouped = req × scope (floor); grouped grows by one store per group — probe the
 		// RTEI's group count and clamp to a sanity cap against pathological group counts.
 		final int pendingEstimate;
 		if (grouped) {
@@ -319,14 +321,14 @@ final class ReferenceHistogramAccumulator {
 	}
 
 	/**
-	 * Collects a pending histogram per {@link ReducedGroupEntityIndex} tracked by the reference's
-	 * {@code REFERENCED_GROUP_ENTITY_TYPE} index in the given scope. Iterates all known group PKs
-	 * and their per-group storage indexes.
+	 * Collects a pending histogram per group tracked by the reference's {@code REFERENCED_GROUP_ENTITY_TYPE} index in
+	 * the given scope, read from the {@link GroupHistogramEntityIndex} of the group. A group without a store holds no
+	 * histogram value and yields nothing.
 	 *
-	 * The reduced indexes of a group are resolved once per group and serve as the boundary context of every
-	 * histogram of the group: the owners of a group spread over several reduced indexes when the reference has
-	 * representative attributes, and the reference carrying the smallest or the largest value may sit in any of
-	 * them, not only in the index the histogram is read from.
+	 * The reduced indexes of a group serve as the boundary context of the histogram: the owners of a group spread over
+	 * several reduced indexes when the reference has representative attributes, and the reference carrying the
+	 * smallest or the largest value may sit in any of them. The store itself tracks no reference, so it is never part
+	 * of the context.
 	 *
 	 * When a {@code groupPredicate} is supplied (the caller attached a `filterGroupBy` to the
 	 * enclosing `referenceSummaryOfReference`), group PKs that fail the predicate are skipped — the
@@ -376,16 +378,24 @@ final class ReferenceHistogramAccumulator {
 			if (groupPredicate != null && !groupPredicate.test(groupPk)) {
 				continue;
 			}
+			final GroupHistogramEntityIndex store = context.getQueryContext()
+				.getEntityIndex(
+					entityType, GroupHistogramEntityIndex.keyOf(referenceName, groupPk, scope),
+					GroupHistogramEntityIndex.class
+				)
+				.orElse(null);
+			if (store == null) {
+				// no value of the group was ever admitted, or the last one left - nothing to compute
+				continue;
+			}
 			final int[] rgeiPks = rtei.getAllReferenceIndexes(groupPk);
 			final ReducedGroupEntityIndex[] groupIndexes = new ReducedGroupEntityIndex[rgeiPks.length];
 			for (int i = 0; i < rgeiPks.length; i++) {
 				groupIndexes[i] = context.getQueryContext().getReducedGroupEntityIndexByPrimaryKey(rgeiPks[i]);
 			}
-			for (final ReducedGroupEntityIndex rgei : groupIndexes) {
-				computePendingHistogram(
-					resolved, rgei, groupIndexes, groupPk, attributeHistogramBaselineFormula, context, facetSorter
-				).ifPresent(pending::add);
-			}
+			computePendingHistogram(
+				resolved, store, groupIndexes, groupPk, attributeHistogramBaselineFormula, context, facetSorter
+			).ifPresent(pending::add);
 		}
 	}
 
@@ -437,7 +447,9 @@ final class ReferenceHistogramAccumulator {
 	 * @param resolved                          the pre-resolved histogram request
 	 * @param sourceIndex                       the index holding the histogram
 	 * @param boundaryContext                   the indexes tracking the references the histogram covers, in which
-	 *                                          the boundary PKs are resolved; contains {@code sourceIndex}
+	 *                                          the boundary PKs are resolved: {@code sourceIndex} itself for an
+	 *                                          ungrouped reference, the reduced indexes of the group for a grouped
+	 *                                          one
 	 * @param groupPk                           group primary key; `0` sentinel means the non-grouped slot
 	 * @param attributeHistogramBaselineFormula baseline filter formula the histogram is computed against
 	 * @param context                           the query execution context
@@ -481,24 +493,24 @@ final class ReferenceHistogramAccumulator {
 	}
 
 	/**
-	 * Looks up the histogram-backed {@link FilterIndex} on the appropriate index subtype. Grouped and
-	 * non-grouped references expose the same contract via separate methods so the dispatch stays local.
-	 * Any other subtype is a programming error and must surface immediately.
+	 * Looks up the histogram-backed {@link FilterIndex} on the appropriate index subtype: the
+	 * {@link GroupHistogramEntityIndex} of a group for a grouped reference, the {@link ReferencedTypeEntityIndex} for
+	 * an ungrouped one. Any other subtype is a programming error and must surface immediately.
 	 */
 	@Nullable
 	private static FilterIndex histogramFilterIndexFor(
 		@Nonnull EntityIndex sourceIndex,
 		@Nonnull HistogramRequest req
 	) {
-		if (sourceIndex instanceof ReducedGroupEntityIndex rgei) {
-			return rgei.getHistogramFilterIndex(req.histogramName(), req.locale());
+		if (sourceIndex instanceof GroupHistogramEntityIndex store) {
+			return store.getHistogramFilterIndex(req.histogramName(), req.locale());
 		}
 		if (sourceIndex instanceof ReferencedTypeEntityIndex rtei) {
 			return rtei.getHistogramFilterIndex(req.histogramName(), req.locale());
 		}
 		throw new GenericEvitaInternalError(
 			"Unexpected EntityIndex subtype `" + sourceIndex.getClass().getName() + "` passed to " +
-				"histogramFilterIndexFor — only ReducedGroupEntityIndex and ReferencedTypeEntityIndex " +
+				"histogramFilterIndexFor — only GroupHistogramEntityIndex and ReferencedTypeEntityIndex " +
 				"expose a histogram filter index."
 		);
 	}
@@ -509,7 +521,7 @@ final class ReferenceHistogramAccumulator {
 	 * (reference, group, histogram) tuple and routes the computation through
 	 * {@link QueryExecutionContext#analyse(CacheableEvitaResponseExtraResultComputer)} so the result
 	 * participates in the shared extra-result cache. The {@link FilterIndex#getId()} identifies
-	 * each RGEI / RTEI histogram index uniquely at the process level, so cache keys collide neither
+	 * each group store / RTEI histogram index uniquely at the process level, so cache keys collide neither
 	 * across references nor with attribute-level histograms.
 	 */
 	@Nonnull

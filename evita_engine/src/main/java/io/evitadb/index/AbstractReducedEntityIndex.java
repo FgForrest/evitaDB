@@ -565,8 +565,8 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 	 * Registers the four reload-side loaders shared by every reduced-index subclass: attribute,
 	 * reference-price, hierarchy, and facet. Mirrors `EntityIndex.registerBaseComponents()` on
 	 * the read side. Subclasses call this from their `reloadPlan()` static initializer and then
-	 * append their subclass-owned loaders (cardinality, histogram, group-cardinality) before
-	 * binding the finalizer.
+	 * append their subclass-owned loaders, if any (attribute cardinality and group cardinality for
+	 * `ReducedGroupEntityIndex`), before binding the finalizer.
 	 *
 	 * Order matters for deterministic reload sequencing: attribute first (it sizes the maps via
 	 * per-type counts), then prices (super or ref depending on caller), then hierarchy, then

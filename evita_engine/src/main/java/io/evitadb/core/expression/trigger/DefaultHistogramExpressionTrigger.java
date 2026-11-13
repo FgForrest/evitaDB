@@ -53,7 +53,7 @@ public class DefaultHistogramExpressionTrigger extends AbstractExpressionIndexTr
 
 	/**
 	 * Name of the histogram index from {@link io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition}.
-	 * Used as the key in the `histogramIndexes` map on `ReducedGroupEntityIndex` and `ReferencedTypeEntityIndex`
+	 * Used as the key in the `histogramIndexes` map on `GroupHistogramEntityIndex` and `ReferencedTypeEntityIndex`
 	 * to identify which histogram FilterIndex to write to.
 	 */
 	@Nonnull private final String histogramIndexName;

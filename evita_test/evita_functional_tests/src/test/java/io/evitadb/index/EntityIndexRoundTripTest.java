@@ -1010,8 +1010,9 @@ class EntityIndexRoundTripTest {
 
 		/**
 		 * Pre-populates a `ReducedGroupEntityIndex` with PKs (cardinality-aware), languages,
-		 * filter attributes (cardinality-tracked), CARDINALITY sub-indexes, histogram values, a
-		 * facet entry, and the group cardinality storage part. Hierarchy population is
+		 * filter attributes (cardinality-tracked), CARDINALITY sub-indexes, a facet entry, and the
+		 * group cardinality storage part. It holds no histogram - the histograms of a group live in
+		 * its `GroupHistogramEntityIndex`, see `GroupHistogramEntityIndexRoundTripTest`. Hierarchy population is
 		 * intentionally skipped — `AbstractReducedEntityIndex.addNode` throws because reduced
 		 * indexes never carry hierarchical state; hierarchy round-trip is covered by
 		 * `GlobalEntityIndexRoundTripTest`. Every kind of sub-index this subclass can hold must
@@ -1043,10 +1044,6 @@ class EntityIndexRoundTripTest {
 			// filter attribute with cardinality tracking — drives the CARDINALITY storage part
 			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13, false);
 			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13, false);
-
-			// histogram — must round-trip via the manifest
-			index.insertHistogramValue(HISTOGRAM_NAME, null, 100, 13, Integer.class, 0);
-			index.insertHistogramValue(HISTOGRAM_NAME, null, 200, 14, Integer.class, 0);
 
 			// price ref-index intentionally NOT populated here for the same reason as in
 			// ReducedEntityIndexRoundTripTest: PriceListAndCurrencyPriceRefIndex requires a
@@ -1090,8 +1087,6 @@ class EntityIndexRoundTripTest {
 			// reloaded RGEI answer "how many references back this entity in this group?" queries
 			final GroupCardinalityIndexStoragePart groupPart = storage.groupCardinalityPart;
 			assertNotNull(groupPart, "RGEI must emit a GroupCardinalityIndexStoragePart");
-			final Map<String, HistogramIndex> histogramIndexes =
-				reloadHistogramIndexes(storage, rrk.referenceName());
 
 			return new ReducedGroupEntityIndex(
 				manifest.getPrimaryKey(),
@@ -1106,13 +1101,12 @@ class EntityIndexRoundTripTest {
 				groupPart.getPkCardinalities(),
 				groupPart.getReferencedPrimaryKeysIndex(),
 				reloadCardinalityIndexes(storage),
-				histogramIndexes,
 				new IndexActivity()
 			);
 		}
 
 		@Test
-		@DisplayName("should preserve manifest cross-refs and reload histogram + cardinality sub-indexes")
+		@DisplayName("should preserve manifest cross-refs and reload the cardinality sub-indexes")
 		void shouldRoundTripReducedGroupEntityIndex() {
 			final ReducedGroupEntityIndex original = buildPopulatedIndex();
 
@@ -1120,9 +1114,12 @@ class EntityIndexRoundTripTest {
 
 			assertManifestReferencesAllSubParts(storage);
 
-			// pin the histogram + cardinality parts — without these checks the test would silently
-			// pass when emission regressed to nothing
-			assertFalse(storage.histogramParts.isEmpty(), "Expected histogram parts");
+			// pin the cardinality parts — without these checks the test would silently pass when emission regressed
+			// to nothing
+			assertTrue(storage.histogramParts.isEmpty(), "A reduced group index holds no histogram");
+			assertTrue(
+				storage.requireManifest().getHistogramIndexes().isEmpty(), "A reduced group index lists no histogram"
+			);
 			assertFalse(storage.attributeCardinalityParts.isEmpty(), "Expected attribute cardinality parts");
 			assertNotNull(storage.groupCardinalityPart, "Expected group cardinality part");
 			assertTrue(storage.priceParts.isEmpty(), "Price parts intentionally not exercised here");
@@ -1136,11 +1133,6 @@ class EntityIndexRoundTripTest {
 			assertTrue(reloaded.getAllPrimaryKeys().contains(13));
 			assertTrue(reloaded.getAllPrimaryKeys().contains(14));
 			assertTrue(reloaded.getLanguages().contains(Locale.ENGLISH));
-			// histogram sentinel — the sub-index that the manifest must round-trip
-			final FilterIndex reloadedHistogram = reloaded.getHistogramFilterIndex(HISTOGRAM_NAME, null);
-			assertNotNull(reloadedHistogram, "Histogram filter index must survive the reload");
-			assertTrue(reloadedHistogram.getRecordsEqualTo(100).contains(13));
-			assertTrue(reloadedHistogram.getRecordsEqualTo(200).contains(14));
 			// group cardinality sentinel — referenced PKs 1, 2, 3 must all be tracked
 			assertEquals(3, reloaded.getReferencedEntityPrimaryKeys().size());
 			assertTrue(reloaded.isPriceIndexEmpty(), "Price was not populated in this fixture");

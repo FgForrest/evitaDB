@@ -36,7 +36,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.test.EvitaTestSupport;
@@ -583,11 +583,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 	/**
 	 * Asserts that the owner entity is present in the histogram FilterIndex bucket for the given value
-	 * in the specified group's ReducedGroupEntityIndex.
+	 * in the histogram store of the specified group.
 	 *
 	 * @param collection    the entity collection to inspect
 	 * @param referenceName the reference schema name
-	 * @param groupPK       the group entity primary key (group index discriminator)
+	 * @param groupPK       the group entity primary key (histogram store discriminator)
 	 * @param histogramName the histogram definition name
 	 * @param value         the expected histogram bucket value
 	 * @param ownerPK       the primary key of the owner entity (Product PK)
@@ -600,20 +600,15 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 		@Nonnull Serializable value,
 		int ownerPK
 	) {
-		final EntityIndex entityIndex = IndexingTestSupport.getReferencedGroupEntityIndex(
+		final GroupHistogramEntityIndex store = IndexingTestSupport.getGroupHistogramStore(
 			collection, Scope.LIVE, referenceName, groupPK
 		);
 		assertNotNull(
-			entityIndex,
-			"ReducedGroupEntityIndex for ref '" + referenceName
+			store,
+			"Histogram store for ref '" + referenceName
 				+ "' groupPK " + groupPK + " must exist"
 		);
-		assertInstanceOf(
-			ReducedGroupEntityIndex.class, entityIndex,
-			"Expected ReducedGroupEntityIndex but got " + entityIndex.getClass().getSimpleName()
-		);
-		final ReducedGroupEntityIndex groupIndex = (ReducedGroupEntityIndex) entityIndex;
-		final FilterIndex filterIndex = groupIndex.getHistogramFilterIndex(histogramName, null);
+		final FilterIndex filterIndex = store.getHistogramFilterIndex(histogramName, null);
 		assertNotNull(
 			filterIndex,
 			"Histogram FilterIndex '" + histogramName
@@ -628,11 +623,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 	/**
 	 * Asserts that the owner entity is NOT present in the histogram FilterIndex bucket for the given value
-	 * in the specified group's ReducedGroupEntityIndex.
+	 * in the histogram store of the specified group.
 	 *
 	 * @param collection    the entity collection to inspect
 	 * @param referenceName the reference schema name
-	 * @param groupPK       the group entity primary key (group index discriminator)
+	 * @param groupPK       the group entity primary key (histogram store discriminator)
 	 * @param histogramName the histogram definition name
 	 * @param value         the histogram bucket value that should NOT contain the owner
 	 * @param ownerPK       the primary key of the owner entity (Product PK)
@@ -645,18 +640,13 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 		@Nonnull Serializable value,
 		int ownerPK
 	) {
-		final EntityIndex entityIndex = IndexingTestSupport.getReferencedGroupEntityIndex(
+		final GroupHistogramEntityIndex store = IndexingTestSupport.getGroupHistogramStore(
 			collection, Scope.LIVE, referenceName, groupPK
 		);
-		if (entityIndex == null) {
-			return; // no group index = not indexed
+		if (store == null) {
+			return; // no histogram store = not indexed
 		}
-		assertInstanceOf(
-			ReducedGroupEntityIndex.class, entityIndex,
-			"Expected ReducedGroupEntityIndex but got " + entityIndex.getClass().getSimpleName()
-		);
-		final ReducedGroupEntityIndex groupIndex = (ReducedGroupEntityIndex) entityIndex;
-		final FilterIndex filterIndex = groupIndex.getHistogramFilterIndex(histogramName, null);
+		final FilterIndex filterIndex = store.getHistogramFilterIndex(histogramName, null);
 		if (filterIndex == null) {
 			return; // no histogram FilterIndex = not indexed
 		}
@@ -669,11 +659,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 	/**
 	 * Asserts that the owner entity is NOT present in any histogram FilterIndex bucket
-	 * in the specified group's ReducedGroupEntityIndex.
+	 * in the histogram store of the specified group.
 	 *
 	 * @param collection    the entity collection to inspect
 	 * @param referenceName the reference schema name
-	 * @param groupPK       the group entity primary key (group index discriminator)
+	 * @param groupPK       the group entity primary key (histogram store discriminator)
 	 * @param histogramName the histogram definition name
 	 * @param ownerPK       the primary key of the owner entity (Product PK)
 	 */
@@ -684,18 +674,13 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 		@Nonnull String histogramName,
 		int ownerPK
 	) {
-		final EntityIndex entityIndex = IndexingTestSupport.getReferencedGroupEntityIndex(
+		final GroupHistogramEntityIndex store = IndexingTestSupport.getGroupHistogramStore(
 			collection, Scope.LIVE, referenceName, groupPK
 		);
-		if (entityIndex == null) {
-			return; // no group index = not indexed
+		if (store == null) {
+			return; // no histogram store = not indexed
 		}
-		assertInstanceOf(
-			ReducedGroupEntityIndex.class, entityIndex,
-			"Expected ReducedGroupEntityIndex but got " + entityIndex.getClass().getSimpleName()
-		);
-		final ReducedGroupEntityIndex groupIndex = (ReducedGroupEntityIndex) entityIndex;
-		final FilterIndex filterIndex = groupIndex.getHistogramFilterIndex(histogramName, null);
+		final FilterIndex filterIndex = store.getHistogramFilterIndex(histogramName, null);
 		if (filterIndex == null) {
 			return; // no histogram FilterIndex = not indexed
 		}

@@ -83,8 +83,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Measures the heap arithmetic of the entity indexes, the histogram indexes beneath them, and the attribute
  * cardinality index they both build on, against what JOL actually finds on the heap.
  *
- * An entity index is the top of the tree - it owns an attribute, facet, hierarchy and price index, and the reduced
- * variants add cardinality and histogram maps on top. Two of its rulings are the ones worth pinning, because getting
+ * An entity index is the top of the tree - it owns an attribute, facet, hierarchy and price index, the reduced group
+ * variant adds cardinality maps on top, and the referenced-type index and the group histogram store add histogram
+ * maps. Two of its rulings are the ones worth pinning, because getting
  * either wrong doubles a figure rather than shifting it by a constant:
  *
  * - the `components` list holds **the very sub-indexes charged above it**, so only its spine is charged;
@@ -836,7 +837,6 @@ class EntityIndexHeapSizeTest {
 				SHARED_EXCLUSIONS,
 				"priceIndex.priceIndexes.transactionalLayerWrapper",
 				"cardinalityIndexes.transactionalLayerWrapper",
-				"histogramIndexes.transactionalLayerWrapper",
 				"referencedPrimaryKeysIndex.transactionalLayerWrapper"
 			);
 		}

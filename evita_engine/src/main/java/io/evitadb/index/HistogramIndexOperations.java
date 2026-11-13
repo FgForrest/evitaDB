@@ -37,15 +37,12 @@ import java.util.Locale;
 
 /**
  * Package-private helper consolidating the four {@link HistogramCapableEntityIndex} operations
- * shared by {@link ReferencedTypeEntityIndex}, {@link ReducedGroupEntityIndex} and
- * {@link GroupHistogramEntityIndex}. The three classes are siblings under {@code EntityIndex} (not
- * parent-child), so this helper carries the shared logic without forcing accessor methods that would
- * leak `histogramIndexes` / `dirty` onto the public interface. Each subclass keeps its own
- * `histogramIndexes` field and passes it in at the call site together with the inherited `dirty`
- * flag — including the reference-name expression, which differs between the subclasses
- * ({@code getRepresentativeReferenceKey().referenceName()} on `ReducedGroupEntityIndex`,
- * {@code getReferenceName()} on `ReferencedTypeEntityIndex`, the index key's reference name on
- * `GroupHistogramEntityIndex`).
+ * shared by {@link ReferencedTypeEntityIndex} and {@link GroupHistogramEntityIndex}. The two classes are
+ * siblings under {@code EntityIndex} (not parent-child), so this helper carries the shared logic without forcing
+ * accessor methods that would leak `histogramIndexes` / `dirty` onto the public interface. Each subclass keeps its
+ * own `histogramIndexes` field and passes it in at the call site together with the inherited `dirty` flag —
+ * including the reference-name expression, which differs between the subclasses ({@code getReferenceName()} on
+ * `ReferencedTypeEntityIndex`, the index key's reference name on `GroupHistogramEntityIndex`).
  *
  * This helper is the single scale-normalization boundary for histogram-index writes: both
  * {@link #insertHistogramValue} and {@link #removeHistogramValue} re-encode the value to the source

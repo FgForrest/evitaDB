@@ -1969,54 +1969,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Returns the existing entity index by its storage primary key and registers it for modification tracking
-	 * so that its changed storage parts are persisted on flush. Returns `null` if no index with the given PK exists.
-	 * Use this method instead of a plain read by primary key when the caller intends to
-	 * mutate the returned index (e.g. inserting/removing histogram values).
-	 *
-	 * @param indexPrimaryKey the storage primary key of the index
-	 * @return the existing index registered for modification, or `null` if no index with the given PK exists
-	 */
-	@Nullable
-	EntityIndex getEntityIndexByPrimaryKeyForModification(int indexPrimaryKey) {
-		return this.entityIndexCreatingAccessor.getOrCreateIndexByPrimaryKey(indexPrimaryKey);
-	}
-
-	/**
-	 * Returns the existing index of the group family of a reference by its storage primary key, registered for
-	 * modification - see {@link #getEntityIndexByPrimaryKeyForModification(int)}. The primary keys of the group family
-	 * never name a partition of the entity family, so a primary key without an index object must not name a registry
-	 * row of the reference's single-owner partitions either: a registered partition reached by the group-family walk
-	 * means the two families got mixed up.
-	 *
-	 * @param scope           the scope of the group family
-	 * @param referenceName   the reference of this collection's entity type the group family belongs to
-	 * @param indexPrimaryKey the storage primary key of the index
-	 * @return the existing index registered for modification, or `null` if no index with the given PK exists
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when no index exists and the primary key names a registry
-	 *                                                         row of the reference in the scope
-	 */
-	@Nullable
-	EntityIndex getGroupIndexByPrimaryKeyForModification(
-		@Nonnull Scope scope,
-		@Nonnull String referenceName,
-		int indexPrimaryKey
-	) {
-		final EntityIndex index = getEntityIndexByPrimaryKeyForModification(indexPrimaryKey);
-		if (index == null) {
-			final ReferencedTypeEntityIndex typeIndex = getReferencedTypeIndexIfExists(scope, referenceName);
-			isPremiseValid(
-				typeIndex == null ||
-					typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(indexPrimaryKey).isEmpty(),
-				() -> "The group family of reference `" + referenceName + "` in scope `" + scope + "` lists primary " +
-					"key " + indexPrimaryKey + ", which names a registered single-owner partition of the reference " +
-					"rather than a group index!"
-			);
-		}
-		return index;
-	}
-
-	/**
 	 * Method returns existing index by primary key and adds it to the changed set of indexes that needs persisting.
 	 *
 	 * The resolution MUST go through the registering accessor, not the plain read: every caller of this method mutates

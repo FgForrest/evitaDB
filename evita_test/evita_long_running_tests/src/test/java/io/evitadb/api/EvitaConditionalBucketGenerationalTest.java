@@ -37,7 +37,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.ValueToRecord;
@@ -65,8 +65,8 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 
+import static io.evitadb.api.functional.indexing.IndexingTestSupport.getGroupHistogramStore;
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getReferencedEntityTypeIndex;
-import static io.evitadb.api.functional.indexing.IndexingTestSupport.getReferencedGroupEntityIndex;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.apache.commons.io.FileUtils.byteCountToDisplaySize;
@@ -83,7 +83,7 @@ import static io.evitadb.test.TestTags.QUERY;
  *
  * All tests exercise both grouped and ungrouped references within the same schema — random mutations
  * include `setGroup` / `removeGroup` operations that move histogram data between
- * `ReducedGroupEntityIndex` and `ReferencedTypeEntityIndex`.
+ * `GroupHistogramEntityIndex` and `ReferencedTypeEntityIndex`.
  *
  * Test 5 additionally exercises scope changes (LIVE ↔ ARCHIVED) to verify histogram data correctly
  * transitions between scope-specific indexes.
@@ -2063,7 +2063,7 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 
 	/**
 	 * Shadow-based verification: asserts histogram FilterIndex matches expected state for both
-	 * grouped (`ReducedGroupEntityIndex`) and ungrouped (`ReferencedTypeEntityIndex`) paths.
+	 * grouped (`GroupHistogramEntityIndex`) and ungrouped (`ReferencedTypeEntityIndex`) paths.
 	 */
 	private void assertHistogramMatchesExpected(
 		@Nonnull String referenceName,
@@ -2085,13 +2085,13 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 			for (int groupPK : allGroupPKs) {
 				final Map<Serializable, Set<Integer>> expected =
 					expectedGrouped.getOrDefault(groupPK, Map.of());
-				final EntityIndex entityIndex = getReferencedGroupEntityIndex(
+				final GroupHistogramEntityIndex store = getGroupHistogramStore(
 					collection, Scope.LIVE, referenceName, groupPK
 				);
 				final Map<Serializable, Set<Integer>> actual;
-				if (entityIndex instanceof ReducedGroupEntityIndex groupIndex) {
+				if (store != null) {
 					actual = extractHistogramState(
-						groupIndex.getHistogramFilterIndex(histogramName, null)
+						store.getHistogramFilterIndex(histogramName, null)
 					);
 				} else {
 					actual = Map.of();
@@ -2233,13 +2233,13 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 			for (int groupPK : allGroupPKs) {
 				final Map<Serializable, Set<Integer>> expected =
 					expectedPerGroup.getOrDefault(groupPK, Map.of());
-				final EntityIndex entityIndex = getReferencedGroupEntityIndex(
+				final GroupHistogramEntityIndex store = getGroupHistogramStore(
 					collection, scope, referenceName, groupPK
 				);
 				final Map<Serializable, Set<Integer>> actual;
-				if (entityIndex instanceof ReducedGroupEntityIndex groupIndex) {
+				if (store != null) {
 					actual = extractHistogramState(
-						groupIndex.getHistogramFilterIndex(histogramName, null)
+						store.getHistogramFilterIndex(histogramName, null)
 					);
 				} else {
 					actual = Map.of();

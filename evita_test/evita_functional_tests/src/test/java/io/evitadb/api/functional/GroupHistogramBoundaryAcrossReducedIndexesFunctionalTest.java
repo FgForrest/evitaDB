@@ -32,19 +32,10 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
-import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
-import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
-import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.core.expression.trigger.HistogramValueSource;
 import io.evitadb.dataType.Scope;
@@ -58,13 +49,21 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.functional.GroupHistogramTestSupport.addReference;
+import static io.evitadb.api.functional.GroupHistogramTestSupport.anchorShares;
+import static io.evitadb.api.functional.GroupHistogramTestSupport.anchoredRange;
+import static io.evitadb.api.functional.GroupHistogramTestSupport.createAnchor;
+import static io.evitadb.api.functional.GroupHistogramTestSupport.defineProduct;
+import static io.evitadb.api.functional.GroupHistogramTestSupport.describeBoundary;
+import static io.evitadb.api.functional.GroupHistogramTestSupport.everyReferenceAttribute;
+import static io.evitadb.api.functional.GroupHistogramTestSupport.plain;
+import static io.evitadb.api.functional.GroupHistogramTestSupport.restart;
+import static io.evitadb.api.functional.GroupHistogramTestSupport.withBothCatalogStates;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -87,15 +86,15 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Every value of the histogram is written while every reduced index of the group already exists. The shares are
  * written by the steps, after the set-up stored every owner. Over the weight of the brand, the anchor product, whose
  * references bring the weights 10 and 20, is the last owner the set-up stores, and the reference of the product to
- * the brand 10 with the smallest weight is added by a step. Each reduced index of the group therefore holds every
- * value whichever of them the histogram is read from, and the boundaries alone are under test. They are checked after
+ * the brand 10 with the smallest weight is added by a step. The histogram of the group therefore holds every value
+ * whatever order the reduced indexes were created in, and the boundaries alone are under test. They are checked after
  * the last upsert and again after a restart, without an order of the reference summary - the lowest primary key wins
  * a tie - and with the descending order of primary keys - the highest one wins.
  *
  * Two families of scenarios:
  *
- * - the histogram over the attribute of the referenced brand has its smallest value in the reduced index the
- *   histogram is not read from, while the brand 9 carrying the same value is referenced only in another group
+ * - the histogram over the attribute of the referenced brand has its smallest value on a reference of another reduced
+ *   index than its largest one, while the brand 9 carrying the same value is referenced only in another group
  *   (scenarios `REFERENCED_ENTITY_*`);
  * - two brands referenced from different reduced indexes carry the same boundary value of the histogram over the
  *   attribute of the reference, for both orders in which the reduced indexes are created, once with the smallest
@@ -111,25 +110,15 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag(CONTRACT)
 @Tag(INDEXING)
 @Tag(HISTOGRAM)
-class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaTestSupport {
+class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaTestSupport, GroupHistogramTestSupport {
 
-	private static final String ENTITY_PRODUCT = "product";
-	private static final String ENTITY_BRAND = "brand";
-	private static final String ENTITY_BRAND_GROUP = "brandGroup";
-	private static final String REFERENCE_BRAND = "brand";
-	private static final String ATTRIBUTE_SHARE = "share";
-	private static final String ATTRIBUTE_RANK = "rank";
 	private static final String ATTRIBUTE_WEIGHT = "weight";
-	private static final String HISTOGRAM_SHARE = "shareHistogram";
 	private static final String HISTOGRAM_WEIGHT = "weightHistogram";
-	private static final int PRODUCT_PK = 1;
-	private static final int ANCHOR_PK = 100;
 	/**
 	 * The owner referencing the brand {@link #SECOND_ANCHOR_BRAND_PK} at the rank {@link #THIRD_RANK}, so that the
 	 * group has a third reduced index.
 	 */
 	private static final int THIRD_OWNER_PK = 200;
-	private static final int GROUP_PK = 1;
 	/**
 	 * The group the brand {@link #OUTSIDE_BRAND_PK} is referenced in.
 	 */
@@ -139,25 +128,14 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 	 * only in the group {@link #OTHER_GROUP_PK}.
 	 */
 	private static final int OUTSIDE_BRAND_PK = 9;
-	private static final int BRAND_PK = 10;
 	/**
 	 * The brand without a weight, whose reference gives the product its place in the group without a value of the
 	 * weight histogram.
 	 */
 	private static final int PLACEHOLDER_BRAND_PK = 11;
-	private static final int FIRST_ANCHOR_BRAND_PK = 12;
-	private static final int SECOND_ANCHOR_BRAND_PK = 13;
 	private static final int SMALLEST_VALUE = 5;
 	private static final int MIDDLE_VALUE = 10;
 	private static final int LARGEST_VALUE = 20;
-	private static final int FIRST_RANK = 1;
-	private static final int SECOND_RANK = 2;
-	private static final int THIRD_RANK = 3;
-	private static final int BUCKET_COUNT = 10;
-	/**
-	 * The description of a histogram that does not exist.
-	 */
-	private static final String NO_HISTOGRAM = "no histogram";
 
 	/**
 	 * A catalog set up in warm-up, a sequence of upserts applied to it in the catalog state under test, and the
@@ -200,9 +178,8 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 	 * The product takes its place in the group by a reference to the brand without a weight and references the brand
 	 * 9 in the other group; the anchor product references the brands 12 and 13 with the weights 10 and 20. Only then
 	 * the product references the brand 10 with the weight 5. In the first scenario the product sits at another rank
-	 * than the anchor product and creates its reduced index first, so the histogram is read from the reduced index of
-	 * the anchor product while the smallest value belongs to a reference of the other one. The control has every owner
-	 * at one rank.
+	 * than the anchor product and creates its reduced index first, so the smallest value belongs to a reference of
+	 * another reduced index than the references of the anchor product. The control has every owner at one rank.
 	 *
 	 * @return arguments of {@link #shouldAnchorBoundariesInWholeGroupWhenHistogramReadsReferencedEntity}
 	 */
@@ -214,14 +191,14 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 				new Scenario(
 					"REFERENCED_ENTITY_BOUNDARY_HELD_BY_OWNER_OF_OTHER_INDEX",
 					HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE,
-					List.of(createProductWithoutWeight(SECOND_RANK), createAnchor(FIRST_RANK)),
+					List.of(createProductWithoutWeight(SECOND_RANK), createAnchor(FIRST_RANK, false)),
 					List.of(productReferencesBrand(SECOND_RANK)),
 					expected, expected
 				),
 				new Scenario(
 					"REFERENCED_ENTITY_CONTROL_EVERYONE_AT_ONE_RANK",
 					HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE,
-					List.of(createProductWithoutWeight(FIRST_RANK), createAnchor(FIRST_RANK)),
+					List.of(createProductWithoutWeight(FIRST_RANK), createAnchor(FIRST_RANK, false)),
 					List.of(productReferencesBrand(FIRST_RANK)),
 					expected, expected
 				)
@@ -262,28 +239,28 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 				new Scenario(
 					"TIE_ACROSS_INDEXES_PRODUCT_INDEX_CREATED_FIRST",
 					HistogramValueSource.REFERENCE_ATTRIBUTE,
-					List.of(createProductWithoutShare(SECOND_RANK), createAnchor(FIRST_RANK)),
+					List.of(createProductWithoutShare(SECOND_RANK), createAnchor(FIRST_RANK, false)),
 					tiedShares,
 					tieWithoutOrder, tieDescendingByKey
 				),
 				new Scenario(
 					"TIE_ACROSS_INDEXES_ANCHOR_INDEX_CREATED_FIRST",
 					HistogramValueSource.REFERENCE_ATTRIBUTE,
-					List.of(createAnchor(FIRST_RANK), createProductWithoutShare(SECOND_RANK)),
+					List.of(createAnchor(FIRST_RANK, false), createProductWithoutShare(SECOND_RANK)),
 					tiedShares,
 					tieWithoutOrder, tieDescendingByKey
 				),
 				new Scenario(
 					"TIE_CONTROL_EVERYONE_AT_ONE_RANK",
 					HistogramValueSource.REFERENCE_ATTRIBUTE,
-					List.of(createProductWithoutShare(FIRST_RANK), createAnchor(FIRST_RANK)),
+					List.of(createProductWithoutShare(FIRST_RANK), createAnchor(FIRST_RANK, false)),
 					tiedShares,
 					tieWithoutOrder, tieDescendingByKey
 				),
 				new Scenario(
 					"MIN_EQUALS_MAX_ACROSS_INDEXES",
 					HistogramValueSource.REFERENCE_ATTRIBUTE,
-					List.of(createProductWithoutShare(SECOND_RANK), createAnchor(FIRST_RANK)),
+					List.of(createProductWithoutShare(SECOND_RANK), createAnchor(FIRST_RANK, false)),
 					List.of(anchorShares(MIDDLE_VALUE, MIDDLE_VALUE), productShare(MIDDLE_VALUE)),
 					anchoredRange(MIDDLE_VALUE, BRAND_PK, MIDDLE_VALUE, BRAND_PK),
 					anchoredRange(MIDDLE_VALUE, SECOND_ANCHOR_BRAND_PK, MIDDLE_VALUE, SECOND_ANCHOR_BRAND_PK)
@@ -291,7 +268,7 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 				new Scenario(
 					"SHARES_IN_ONE_OF_TWO_INDEXES",
 					HistogramValueSource.REFERENCE_ATTRIBUTE,
-					List.of(createProductWithoutShare(SECOND_RANK), createAnchor(FIRST_RANK)),
+					List.of(createProductWithoutShare(SECOND_RANK), createAnchor(FIRST_RANK, false)),
 					List.of(anchorShares(MIDDLE_VALUE, LARGEST_VALUE)),
 					anchoredRange(MIDDLE_VALUE, FIRST_ANCHOR_BRAND_PK, LARGEST_VALUE, SECOND_ANCHOR_BRAND_PK),
 					anchoredRange(MIDDLE_VALUE, FIRST_ANCHOR_BRAND_PK, LARGEST_VALUE, SECOND_ANCHOR_BRAND_PK)
@@ -300,12 +277,12 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 					"TIE_ACROSS_THREE_INDEXES",
 					HistogramValueSource.REFERENCE_ATTRIBUTE,
 					List.of(
-						createProductWithoutShare(SECOND_RANK), createAnchor(FIRST_RANK),
+						createProductWithoutShare(SECOND_RANK), createAnchor(FIRST_RANK, false),
 						createThirdOwnerWithoutShare(THIRD_RANK)
 					),
 					List.of(
 						anchorShares(MIDDLE_VALUE, LARGEST_VALUE), productShare(MIDDLE_VALUE),
-						everyShareOf(THIRD_OWNER_PK, MIDDLE_VALUE)
+						everyReferenceAttribute(THIRD_OWNER_PK, ATTRIBUTE_SHARE, MIDDLE_VALUE)
 					),
 					anchoredRange(MIDDLE_VALUE, BRAND_PK, LARGEST_VALUE, SECOND_ANCHOR_BRAND_PK),
 					anchoredRange(MIDDLE_VALUE, SECOND_ANCHOR_BRAND_PK, LARGEST_VALUE, SECOND_ANCHOR_BRAND_PK)
@@ -348,23 +325,6 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 		@Nonnull Scenario scenario
 	) {
 		runScenario(state, scenario);
-	}
-
-	/**
-	 * Pairs every scenario with each catalog state the upserts are applied in.
-	 *
-	 * @param scenarios the scenarios
-	 * @return arguments of a parameterized test of this class
-	 */
-	@Nonnull
-	private static Stream<Arguments> withBothCatalogStates(@Nonnull List<Scenario> scenarios) {
-		final List<Arguments> result = new ArrayList<>(scenarios.size() * 2);
-		for (CatalogState state : new CatalogState[]{CatalogState.WARMING_UP, CatalogState.ALIVE}) {
-			for (Scenario scenario : scenarios) {
-				result.add(Arguments.of(state, scenario));
-			}
-		}
-		return result.stream();
 	}
 
 	/**
@@ -500,42 +460,6 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 	}
 
 	/**
-	 * Describes a histogram spanning the values `min` to `max`, anchored at the brands `minBrandPk` and `maxBrandPk`.
-	 *
-	 * @param min        the smallest value
-	 * @param minBrandPk the primary key of the brand anchoring the smallest value
-	 * @param max        the largest value
-	 * @param maxBrandPk the primary key of the brand anchoring the largest value
-	 * @return the description {@link #describeHistogram} produces for such a histogram
-	 */
-	@Nonnull
-	private static String anchoredRange(int min, int minBrandPk, int max, int maxBrandPk) {
-		return "min=" + min + "@" + minBrandPk + " max=" + max + "@" + maxBrandPk;
-	}
-
-	/**
-	 * Describes a boundary entity of a histogram by its primary key.
-	 *
-	 * @param boundary the boundary entity, or `null` when the histogram has none
-	 * @return the primary key of the entity, or `none`
-	 */
-	@Nonnull
-	private static String describeBoundary(@Nullable SealedEntity boundary) {
-		return boundary == null ? "none" : String.valueOf(boundary.getPrimaryKey());
-	}
-
-	/**
-	 * Formats `number` without trailing zeros and without an exponent.
-	 *
-	 * @param number the number
-	 * @return the plain form of the number
-	 */
-	@Nonnull
-	private static String plain(@Nullable BigDecimal number) {
-		return number == null ? "null" : number.stripTrailingZeros().toPlainString();
-	}
-
-	/**
 	 * Creates the upsert storing the product with one reference to the brand 10 in the group 1 at `rank`, without a
 	 * share.
 	 *
@@ -546,7 +470,7 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 	private static Consumer<EvitaSessionContract> createProductWithoutShare(int rank) {
 		return session -> {
 			final EntityBuilder product = session.createNewEntity(ENTITY_PRODUCT, PRODUCT_PK);
-			addReference(product, BRAND_PK, GROUP_PK, rank);
+			addReference(product, BRAND_PK, GROUP_PK, rank, null);
 			product.upsertVia(session);
 		};
 	}
@@ -562,26 +486,9 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 	private static Consumer<EvitaSessionContract> createProductWithoutWeight(int rank) {
 		return session -> {
 			final EntityBuilder product = session.createNewEntity(ENTITY_PRODUCT, PRODUCT_PK);
-			addReference(product, PLACEHOLDER_BRAND_PK, GROUP_PK, rank);
-			addReference(product, OUTSIDE_BRAND_PK, OTHER_GROUP_PK, rank);
+			addReference(product, PLACEHOLDER_BRAND_PK, GROUP_PK, rank, null);
+			addReference(product, OUTSIDE_BRAND_PK, OTHER_GROUP_PK, rank, null);
 			product.upsertVia(session);
-		};
-	}
-
-	/**
-	 * Creates the upsert storing the anchor product with its references to the brands 12 and 13 in the group 1 at
-	 * `rank`, without a share.
-	 *
-	 * @param rank the rank of the references
-	 * @return the upsert
-	 */
-	@Nonnull
-	private static Consumer<EvitaSessionContract> createAnchor(int rank) {
-		return session -> {
-			final EntityBuilder anchor = session.createNewEntity(ENTITY_PRODUCT, ANCHOR_PK);
-			addReference(anchor, FIRST_ANCHOR_BRAND_PK, GROUP_PK, rank);
-			addReference(anchor, SECOND_ANCHOR_BRAND_PK, GROUP_PK, rank);
-			anchor.upsertVia(session);
 		};
 	}
 
@@ -598,51 +505,8 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 			final EntityBuilder product = session.getEntity(ENTITY_PRODUCT, PRODUCT_PK, entityFetchAllContent())
 				.orElseThrow()
 				.openForWrite();
-			addReference(product, BRAND_PK, GROUP_PK, rank);
+			addReference(product, BRAND_PK, GROUP_PK, rank, null);
 			product.upsertVia(session);
-		};
-	}
-
-	/**
-	 * Adds a new reference to the brand `brandPk` in the group `groupPk` at `rank` to `owner`.
-	 *
-	 * @param owner   the builder of the owner
-	 * @param brandPk the primary key of the referenced brand
-	 * @param groupPk the primary key of the group
-	 * @param rank    the rank of the reference
-	 */
-	private static void addReference(@Nonnull EntityBuilder owner, int brandPk, int groupPk, int rank) {
-		// the predicate matches no stored reference, so a new one is created - the only form a reference that allows
-		// duplicates accepts
-		owner.setOrUpdateReference(
-			REFERENCE_BRAND, brandPk, reference -> false,
-			whichIs -> whichIs.setGroup(ENTITY_BRAND_GROUP, groupPk).setAttribute(ATTRIBUTE_RANK, rank)
-		);
-	}
-
-	/**
-	 * Creates the upsert giving the references of the stored anchor product their shares, `firstShare` to the one to
-	 * the brand 12 and `secondShare` to the one to the brand 13, in one upsert.
-	 *
-	 * @param firstShare  the share of the reference to the brand 12
-	 * @param secondShare the share of the reference to the brand 13
-	 * @return the upsert
-	 */
-	@Nonnull
-	private static Consumer<EvitaSessionContract> anchorShares(int firstShare, int secondShare) {
-		return session -> {
-			final Collection<ReferenceContract> references = storedReferences(session, ANCHOR_PK);
-			final List<LocalMutation<?, ?>> mutations = new ArrayList<>(references.size());
-			for (ReferenceContract reference : references) {
-				final int share = reference.getReferencedPrimaryKey() == FIRST_ANCHOR_BRAND_PK ?
-					firstShare : secondShare;
-				mutations.add(
-					new ReferenceAttributeMutation(
-						reference.getReferenceKey(), new UpsertAttributeMutation(ATTRIBUTE_SHARE, share)
-					)
-				);
-			}
-			upsert(session, ANCHOR_PK, mutations);
 		};
 	}
 
@@ -657,7 +521,7 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 	private static Consumer<EvitaSessionContract> createThirdOwnerWithoutShare(int rank) {
 		return session -> {
 			final EntityBuilder owner = session.createNewEntity(ENTITY_PRODUCT, THIRD_OWNER_PK);
-			addReference(owner, SECOND_ANCHOR_BRAND_PK, GROUP_PK, rank);
+			addReference(owner, SECOND_ANCHOR_BRAND_PK, GROUP_PK, rank, null);
 			owner.upsertVia(session);
 		};
 	}
@@ -670,81 +534,7 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 	 */
 	@Nonnull
 	private static Consumer<EvitaSessionContract> productShare(int share) {
-		return everyShareOf(PRODUCT_PK, share);
-	}
-
-	/**
-	 * Creates the upsert setting the share of every reference of the stored owner `ownerPk` to `share`.
-	 *
-	 * @param ownerPk the primary key of the owner
-	 * @param share   the share
-	 * @return the upsert
-	 */
-	@Nonnull
-	private static Consumer<EvitaSessionContract> everyShareOf(int ownerPk, int share) {
-		return session -> {
-			final Collection<ReferenceContract> references = storedReferences(session, ownerPk);
-			final List<LocalMutation<?, ?>> mutations = new ArrayList<>(references.size());
-			for (ReferenceContract reference : references) {
-				mutations.add(
-					new ReferenceAttributeMutation(
-						reference.getReferenceKey(), new UpsertAttributeMutation(ATTRIBUTE_SHARE, share)
-					)
-				);
-			}
-			upsert(session, ownerPk, mutations);
-		};
-	}
-
-	/**
-	 * Returns the stored references of the owner `ownerPk` to a brand.
-	 *
-	 * @param session the session to read from
-	 * @param ownerPk the primary key of the owner
-	 * @return the stored references
-	 */
-	@Nonnull
-	private static Collection<ReferenceContract> storedReferences(
-		@Nonnull EvitaSessionContract session,
-		int ownerPk
-	) {
-		return session.getEntity(ENTITY_PRODUCT, ownerPk, entityFetchAllContent())
-			.orElseThrow()
-			.getReferences(REFERENCE_BRAND);
-	}
-
-	/**
-	 * Applies one upsert of the existing owner `ownerPk` made of `mutations`.
-	 *
-	 * @param session   the session to write in
-	 * @param ownerPk   the primary key of the owner
-	 * @param mutations the local mutations of the upsert, in the order they are applied
-	 */
-	private static void upsert(
-		@Nonnull EvitaSessionContract session,
-		int ownerPk,
-		@Nonnull List<LocalMutation<?, ?>> mutations
-	) {
-		session.upsertEntity(
-			new EntityUpsertMutation(
-				ENTITY_PRODUCT, ownerPk, EntityExistence.MUST_EXIST, mutations.toArray(LocalMutation<?, ?>[]::new)
-			)
-		);
-	}
-
-	/**
-	 * Closes the engine and starts a new one on the stored data.
-	 *
-	 * @param evita         the running engine
-	 * @param configuration the configuration of the engine
-	 * @return the new engine, fully initialized
-	 */
-	@Nonnull
-	private static Evita restart(@Nonnull Evita evita, @Nonnull EvitaConfiguration configuration) {
-		evita.close();
-		final Evita restarted = new Evita(configuration);
-		restarted.waitUntilFullyInitialized();
-		return restarted;
+		return everyReferenceAttribute(PRODUCT_PK, ATTRIBUTE_SHARE, share);
 	}
 
 	/**
@@ -797,10 +587,8 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 	 * Defines the schemas, stores the groups and the brands with their weights, and applies the set-up upserts of the
 	 * scenario.
 	 *
-	 * The brand carries the filterable `weight` attribute. The reference of a product to a brand allows duplicates, is
-	 * grouped by a brand group, indexed for filtering and faceted, indexed with both its entity and its group
-	 * component, carries the filterable `share` attribute and the representative `rank` attribute, and has the one
-	 * histogram reading the source of the scenario.
+	 * The brand carries the filterable `weight` attribute. The reference of a product to a brand is the one of
+	 * {@link GroupHistogramTestSupport#defineProduct}, with the one histogram reading the source of the scenario.
 	 *
 	 * @param session  the session of the catalog in warm-up
 	 * @param scenario the scenario
@@ -811,26 +599,12 @@ class GroupHistogramBoundaryAcrossReducedIndexesFunctionalTest implements EvitaT
 			.withAttribute(ATTRIBUTE_WEIGHT, Integer.class, thatIs -> thatIs.filterable().nullable())
 			.updateVia(session);
 		session.defineEntitySchema(ENTITY_BRAND_GROUP).withoutGeneratedPrimaryKey().updateVia(session);
-		session.defineEntitySchema(ENTITY_PRODUCT)
-			.withoutGeneratedPrimaryKey()
-			.withReferenceToEntity(
-				REFERENCE_BRAND, ENTITY_BRAND,
-				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
-				whichIs -> whichIs
-					.withGroupTypeRelatedToEntity(ENTITY_BRAND_GROUP)
-					.indexedForFiltering()
-					.faceted()
-					.indexedWithComponents(
-						ReferenceIndexedComponents.REFERENCED_ENTITY,
-						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
-					)
-					.withAttribute(ATTRIBUTE_SHARE, Integer.class, thatIs -> thatIs.filterable().nullable())
-					.withAttribute(ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.filterable().representative())
-					.bucketed(
-						histogramName(scenario.source()), ExpressionFactory.parse(histogramValue(scenario.source()))
-					)
+		defineProduct(
+			session,
+			whichIs -> whichIs.bucketed(
+				histogramName(scenario.source()), ExpressionFactory.parse(histogramValue(scenario.source()))
 			)
-			.updateVia(session);
+		);
 
 		for (int groupPk : new int[]{GROUP_PK, OTHER_GROUP_PK}) {
 			session.upsertEntity(session.createNewEntity(ENTITY_BRAND_GROUP, groupPk));

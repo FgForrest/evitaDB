@@ -52,6 +52,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.IndexWriteTarget;
@@ -1553,7 +1554,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					);
 				}
 
-				// remove each (value, ownerPK) pair from both RGEI and RTEI; skip when the histogram
+				// remove each (value, ownerPK) pair from both the group's store and RTEI; skip when the histogram
 				// does not contain the entry (never created — condition was false, or different scope)
 				for (final Serializable value : valuesToRemove) {
 					for (int ownerPK : matched) {
@@ -2165,10 +2166,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
-	 * Removes a histogram value from the RTEI and (for grouped references) from each matching
-	 * {@link ReducedGroupEntityIndex}. Mirrors {@link #insertHistogramValue}. Skips removal
-	 * when the histogram index does not exist or does not contain the (value, ownerPK) pair
-	 * (the entry was never created — e.g. condition was false, or entity is in a different scope).
+	 * Removes a histogram value from the RTEI and, for a grouped reference, from the histogram store of the group
+	 * (see {@link GroupHistogramEntityIndex}). Mirrors {@link #insertHistogramValue}. Skips the removal when the store
+	 * or the histogram index does not exist or does not contain the (value, ownerPK) pair (the entry was never created
+	 * — e.g. the condition was false, or the entity is in a different scope).
 	 */
 	private static void removeHistogramValue(
 		@Nonnull String histogramName,
@@ -2181,13 +2182,16 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		int indexedDecimalPlaces
 	) {
 		if (isGrouped && group.groupPK() != null) {
-			final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
-			for (int storagePK : storagePKs) {
-				final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
-					target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
+			final EntityIndexKey storeKey = GroupHistogramEntityIndex.keyOf(
+				rtei.getReferenceName(), group.groupPK(), rtei.getIndexKey().scope()
+			);
+			if (target.getIndexIfExists(storeKey) != null) {
+				// registered for modification, so the change is persisted
+				final GroupHistogramEntityIndex store = asGroupHistogramStore(
+					target.getOrCreateIndex(storeKey), storeKey
 				);
-				if (histogramContainsOwner(rgei.getHistogramIndex(histogramName), locale, value, ownerPK)) {
-					rgei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
+				if (histogramContainsOwner(store.getHistogramIndex(histogramName), locale, value, ownerPK)) {
+					store.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 				}
 			}
 		}
@@ -2230,15 +2234,16 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
-	 * Inserts a histogram value into the RTEI and (for grouped references) into each matching
-	 * {@link ReducedGroupEntityIndex}.
+	 * Inserts a histogram value into the RTEI and, for a grouped reference, into the histogram store of the group (see
+	 * {@link GroupHistogramEntityIndex}), which its first value creates. The store is one per reference, group and
+	 * scope, so the value is written once however many reduced indexes the group spans.
 	 *
 	 * @param histogramName  name of the histogram definition
 	 * @param locale         locale for the histogram index, or `null` for non-localized
 	 * @param value          the value to insert (a `Number` for plain numeric attributes or a `Range`
 	 *                       instance for Range-typed attributes)
 	 * @param ownerPK        primary key of the owner entity
-	 * @param group          the group for reduced-index routing
+	 * @param group          the group whose histogram store receives the value
 	 * @param rtei           the top-level referenced-type index
 	 * @param isGrouped            `true` when the reference has a group type
 	 * @param target               access to entity collection indexes
@@ -2259,15 +2264,34 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		int indexedDecimalPlaces
 	) {
 		if (isGrouped && group.groupPK() != null) {
-			final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
-			for (int storagePK : storagePKs) {
-				final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
-					target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
-				);
-				rgei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
-			}
+			final EntityIndexKey storeKey = GroupHistogramEntityIndex.keyOf(
+				rtei.getReferenceName(), group.groupPK(), rtei.getIndexKey().scope()
+			);
+			asGroupHistogramStore(target.getOrCreateIndex(storeKey), storeKey)
+				.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
 		}
 		rtei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
+	}
+
+	/**
+	 * Casts the index registered under the key of the histogram store of a group to {@link GroupHistogramEntityIndex}.
+	 * The key resolves to a store by construction, so any other type is a programming error.
+	 *
+	 * @param index    the index registered under `storeKey`
+	 * @param storeKey the key of the store
+	 * @return the store
+	 */
+	@Nonnull
+	private static GroupHistogramEntityIndex asGroupHistogramStore(
+		@Nonnull EntityIndex index,
+		@Nonnull EntityIndexKey storeKey
+	) {
+		if (index instanceof GroupHistogramEntityIndex store) {
+			return store;
+		}
+		throw new GenericEvitaInternalError(
+			"Expected GroupHistogramEntityIndex for " + storeKey + ", got " + index.getClass().getName() + "."
+		);
 	}
 
 	/**
