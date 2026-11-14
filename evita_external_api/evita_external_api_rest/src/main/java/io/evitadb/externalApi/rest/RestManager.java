@@ -114,7 +114,7 @@ public class RestManager {
 		this.restOptions = restOptions;
 
 		final ObjectMapper objectMapper = new ObjectMapper();
-		this.restRouter = new RestRouter(objectMapper, headerOptions, restOptions);
+		this.restRouter = new RestRouter(objectMapper, headerOptions);
 
 		// listen to any evita catalog changes — explicitly opt into BOTH areas:
 		// `ENGINE` carries durable WAL-replicated engine mutations (catalog schema create /

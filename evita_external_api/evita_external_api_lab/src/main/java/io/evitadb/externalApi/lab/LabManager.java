@@ -36,7 +36,6 @@ import io.evitadb.externalApi.lab.configuration.LabOptions;
 import io.evitadb.externalApi.lab.gui.resolver.GuiHandler;
 import io.evitadb.externalApi.lab.io.LabExceptionHandler;
 import io.evitadb.externalApi.utils.UriPath;
-import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -49,7 +48,6 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@Slf4j
 public class LabManager {
 
 	/**

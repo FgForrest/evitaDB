@@ -32,7 +32,6 @@ import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.resolver.endpoint.OpenApiSpecificationHandler;
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.SystemRestHandlingContext;
-import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.test.EvitaTestSupport;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -86,7 +85,7 @@ class RestRouterTest implements EvitaTestSupport {
 	@Test
 	@DisplayName("Failed refresh keeps the old router; successful refresh replaces only B")
 	void shouldKeepOldCatalogOnFailedRefreshAndPublishSuccessfulRefresh() throws Exception {
-		final RestRouter router = new RestRouter(this.objectMapper, this.headers, new RestOptions("localhost:5555"));
+		final RestRouter router = new RestRouter(this.objectMapper, this.headers);
 		final Rest apiA = api("unchangedA", "/spec");
 		final Rest apiB = api("oldB", "/spec");
 		router.registerCatalogApi("A", apiA);
@@ -114,7 +113,7 @@ class RestRouterTest implements EvitaTestSupport {
 	@Test
 	@DisplayName("successful refresh never removes the catalog prefix")
 	void shouldKeepCatalogVisibleAcrossSuccessfulRefreshes() throws Exception {
-		final RestRouter router = new RestRouter(this.objectMapper, this.headers, new RestOptions("localhost:5555"));
+		final RestRouter router = new RestRouter(this.objectMapper, this.headers);
 		router.registerCatalogApi("A", api("unchangedA", "/spec"));
 		router.registerCatalogApi("B", api("generation0", "/spec"));
 		final Rest[] replacements = {api("generation0", "/spec"), api("generation1", "/spec")};

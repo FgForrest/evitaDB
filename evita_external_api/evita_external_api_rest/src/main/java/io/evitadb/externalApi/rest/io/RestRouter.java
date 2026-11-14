@@ -38,7 +38,6 @@ import io.evitadb.externalApi.http.WebSocketHandler;
 import io.evitadb.externalApi.http.routing.EndpointRoutingService;
 import io.evitadb.externalApi.http.routing.PrefixRoutingService;
 import io.evitadb.externalApi.rest.api.Rest;
-import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
@@ -67,7 +66,6 @@ public class RestRouter implements HttpService, WebSocketHandler {
 	 */
 	@Nonnull private final ObjectMapper objectMapper;
 	@Nonnull private final HeaderOptions headers;
-	@Nonnull private final RestOptions restConfig;
 	/** One prefix per API name, each bound to that API's immutable endpoint router. */
 	private final PrefixRoutingService delegateRouter = new PrefixRoutingService();
 
