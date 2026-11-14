@@ -28,6 +28,7 @@ import io.evitadb.api.proxy.WithEntityBuilder;
 import io.evitadb.api.proxy.WithScopeEditor;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
@@ -287,6 +288,9 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 	ProductInterfaceEditor setMarketsAttributeAsVarArg(String... marketsAttribute);
 
 	ProductInterfaceEditor setMarketsAttributeAsList(List<String> marketsAttributeAsList);
+
+	@Price
+	ProductInterfaceEditor setPriceInnerRecordHandling(PriceInnerRecordHandling priceInnerRecordHandling);
 
 	@Price(priceList = "basic")
 	ProductInterfaceEditor setBasicPrice(PriceContract basicPrice);

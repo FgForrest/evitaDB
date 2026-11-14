@@ -1461,6 +1461,12 @@ public class EvitaDataTypesConverter {
 	/**
 	 * This method is used to convert {@link BigDecimalNumberRange} to {@link GrpcBigDecimalNumberRange}.
 	 *
+	 * The decimal places sent are the ones the comparison bounds of the range are encoded at -
+	 * {@link BigDecimalNumberRange#getEffectiveRetainedDecimalPlaces()}. A range created without explicit retained
+	 * decimal places is encoded at the scale of its own bounds, and {@link #toBigDecimalNumberRange} rebuilds every
+	 * bounded range at the decimal places it receives, so sending anything else would make the range read back compare
+	 * differently from the range sent.
+	 *
 	 * @param bigDecimalNumberRange value to be converted
 	 * @return {@link GrpcBigDecimalNumberRange} value
 	 */
@@ -1473,8 +1479,7 @@ public class EvitaDataTypesConverter {
 		if (bigDecimalNumberRange.getPreciseTo() != null) {
 			grpcBigDecimalRangeBuilder.setTo(toGrpcBigDecimal(bigDecimalNumberRange.getPreciseTo()));
 		}
-		final Integer retainedDecimalPlaces = bigDecimalNumberRange.getRetainedDecimalPlaces();
-		grpcBigDecimalRangeBuilder.setDecimalPlacesToCompare(retainedDecimalPlaces == null ? 0 : retainedDecimalPlaces);
+		grpcBigDecimalRangeBuilder.setDecimalPlacesToCompare(bigDecimalNumberRange.getEffectiveRetainedDecimalPlaces());
 		return grpcBigDecimalRangeBuilder.build();
 	}
 

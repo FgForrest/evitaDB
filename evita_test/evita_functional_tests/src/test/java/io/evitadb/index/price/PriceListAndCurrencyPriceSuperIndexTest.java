@@ -73,6 +73,7 @@ import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -103,6 +104,13 @@ import static io.evitadb.test.TestTags.PRICE;
 @Tag(PRICE)
 class PriceListAndCurrencyPriceSuperIndexTest {
 	private static final PriceIndexKey PRICE_INDEX_KEY = new PriceIndexKey("basic", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE);
+	/**
+	 * Index of entities with variants: only such an index keeps one lowest price per inner record - an index of
+	 * entities without inner record handling keeps a single lowest price of the entity whatever inner records its
+	 * prices carry.
+	 */
+	private static final PriceIndexKey VARIANT_PRICE_INDEX_KEY =
+		new PriceIndexKey("basic", Currency.getInstance("CZK"), PriceInnerRecordHandling.LOWEST_PRICE);
 	private static final IntConsumer NOOP_NOT_FOUND_CALLBACK = notFound -> {};
 	private static PriceRecordContract[] PRICE_RECORDS;
 
@@ -179,6 +187,93 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 			assertEquals(record, index.getPriceRecord(record.internalPriceId()));
 			assertEquals(1, index.getEntityPrices(record.entityPrimaryKey()).getSize());
 		}
+	}
+
+	/**
+	 * Only an index of entities with inner record handling keeps one lowest price per inner record; an index of
+	 * entities without it keeps a single lowest price of the entity whatever inner records its prices carry. Each path
+	 * that builds the index decides the grouping on its own - price by price, in bulk, and from the persisted pages a
+	 * catalog reload reads - so each path is verified.
+	 */
+	@Nested
+	@DisplayName("Lowest prices of an entity on every path that builds the index")
+	class LowestPricesOnEveryConstructionPathTest {
+
+		/**
+		 * Builds the index of the passed key from the records along the passed path.
+		 *
+		 * @param path    the way the index is built
+		 * @param key     price list, currency and inner record handling of the index
+		 * @param records the price records sorted by their internal price id
+		 * @return the index
+		 */
+		@Nonnull
+		private static PriceListAndCurrencyPriceSuperIndex buildIndex(
+			@Nonnull ConstructionPath path,
+			@Nonnull PriceIndexKey key,
+			@Nonnull PriceRecordContract[] records
+		) {
+			final RangeIndex validityIndex = new RangeIndex();
+			for (final PriceRecordContract record : records) {
+				validityIndex.addRecord(Long.MIN_VALUE, Long.MAX_VALUE, record.internalPriceId());
+			}
+			return switch (path) {
+				case PRICE_BY_PRICE -> {
+					final PriceListAndCurrencyPriceSuperIndex index = new PriceListAndCurrencyPriceSuperIndex(key);
+					for (final PriceRecordContract record : records) {
+						index.addPrice(record, null);
+					}
+					yield index;
+				}
+				case BULK -> new PriceListAndCurrencyPriceSuperIndex(key, validityIndex, records);
+				case PERSISTED_PAGES -> PriceListAndCurrencyPriceSuperIndex.fromPersistedPages(
+					key, validityIndex, new int[]{0}, new PriceRecordContract[][]{records}, 0
+				);
+			};
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(ConstructionPath.class)
+		@DisplayName("keeps a single lowest price without inner record handling and one per inner record with it")
+		void shouldGroupLowestPricesByInnerRecordOnlyWithInnerRecordHandling(@Nonnull ConstructionPath path) {
+			// all records sell for the same amount, so the lowest price id wins the tie
+			final PriceRecordContract[] records = {
+				createInnerRecordSpecificPriceRecord(1, 30, 42, 1),
+				createInnerRecordSpecificPriceRecord(2, 20, 42, 2),
+				createInnerRecordSpecificPriceRecord(3, 10, 42, 3)
+			};
+
+			final PriceRecordContract[] withoutHandling =
+				buildIndex(path, PRICE_INDEX_KEY, records).getLowestPriceRecordsForEntity(42);
+			final PriceRecordContract[] withHandling =
+				buildIndex(path, VARIANT_PRICE_INDEX_KEY, records).getLowestPriceRecordsForEntity(42);
+
+			assertNotNull(withoutHandling);
+			assertNotNull(withHandling);
+			assertAll(
+				() -> assertEquals(1, withoutHandling.length),
+				() -> assertEquals(10, withoutHandling[0].priceId()),
+				() -> assertEquals(3, withHandling.length)
+			);
+		}
+	}
+
+	/**
+	 * The ways a price index is built.
+	 */
+	enum ConstructionPath {
+		/**
+		 * Price by price, as mutations of entities build it.
+		 */
+		PRICE_BY_PRICE,
+		/**
+		 * From all records at once.
+		 */
+		BULK,
+		/**
+		 * From the leaf pages the index was persisted in, as a catalog reload builds it.
+		 */
+		PERSISTED_PAGES
 	}
 
 	@BeforeAll
@@ -1070,7 +1165,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 		@DisplayName("forEachLowestPriceRecordOfEntity() streams what the array form returns")
 		void shouldStreamWhatTheArrayFormReturns() {
 			final PriceListAndCurrencyPriceSuperIndex tested =
-				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+				new PriceListAndCurrencyPriceSuperIndex(VARIANT_PRICE_INDEX_KEY);
 			tested.addPrice(createInnerRecordSpecificPriceRecord(10, 10, 42, 1), null);
 			tested.addPrice(createInnerRecordSpecificPriceRecord(20, 20, 42, 2), null);
 

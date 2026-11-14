@@ -30,6 +30,9 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -39,6 +42,7 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,6 +52,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.QUERY;
@@ -1142,6 +1148,37 @@ class PriceContractSerializablePredicateTest {
 			assertNotSame(predicate, richerCopy);
 			assertEquals(PriceContentMode.ALL, richerCopy.getPriceContentMode());
 			assertTrue(richerCopy.getPriceListsAsSet().contains("vip"));
+		}
+	}
+
+	@Nested
+	@DisplayName("Price for sale computed elsewhere")
+	class PreSeededPriceForSaleTest {
+
+		@Test
+		@DisplayName("the context pre-seeded with a price for sale keeps the price mode of the request")
+		void shouldKeepPriceModeOfRequestInContextPreSeededWithPriceForSale() {
+			final Currency czk = Currency.getInstance("CZK");
+			final EvitaRequest request = new EvitaRequest(
+				query(
+					collection("product"),
+					filterBy(priceInCurrency(czk), priceInPriceLists("basic")),
+					require(priceType(QueryPriceMode.WITHOUT_TAX), entityFetch(priceContentRespectingFilter()))
+				),
+				OffsetDateTime.now(), SealedEntity.class, null
+			);
+			final Price priceForSale = new Price(
+				1, "basic", czk, null, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
+			);
+
+			final PriceContractSerializablePredicate predicate = new PriceContractSerializablePredicate(
+				request, new PriceForSaleWithAccompanyingPrices(priceForSale, Collections.emptyMap())
+			);
+
+			assertEquals(QueryPriceMode.WITHOUT_TAX, predicate.getQueryPriceMode());
+			assertEquals(
+				QueryPriceMode.WITHOUT_TAX, predicate.getPriceForSaleContext().orElseThrow().queryPriceMode()
+			);
 		}
 	}
 }

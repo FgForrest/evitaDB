@@ -26,11 +26,13 @@ package io.evitadb.api.proxy;
 import io.evitadb.api.AbstractEntityProxyingFunctionalTest;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.proxy.mock.*;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -492,6 +494,28 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				);
 			}
 		);
+	}
+
+	/**
+	 * Sets a basic price valid at every moment in the price list and currency of price 1 of the new product, which has
+	 * no validity either, and verifies that the setter accepts the collision, that producing the mutation refuses it,
+	 * and that the price can be removed again.
+	 *
+	 * @param newProduct the editor of the new product holding price 1 in the reference price list in CZK
+	 */
+	private static void assertCollidingPriceRefusedWithMutationOnly(@Nonnull ProductInterfaceEditor newProduct) {
+		newProduct.setBasicPrice(
+			new Price(
+				5, "reference", CURRENCY_CZK, null,
+				BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
+			)
+		);
+		assertThrows(
+			AmbiguousPriceException.class,
+			newProduct::toMutation,
+			"Should refuse to build a mutation with two ambiguous prices."
+		);
+		assertTrue(newProduct.removePriceByIdAndReturnTrueIfRemoved(5, "reference", CURRENCY_CZK));
 	}
 
 	private static void shouldAddDuplicatedReferenceWhenMissingInternal(
@@ -1075,6 +1099,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
+					.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 					.setPrice(
 						new Price(
 							1, "reference", CURRENCY_CZK, null,
@@ -1131,16 +1156,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.addStore(2)
 					.addStore(3);
 
-				assertThrows(
-					EvitaInvalidUsageException.class,
-					() -> newProduct.setBasicPrice(
-						new Price(
-							5, "reference", CURRENCY_CZK, null,
-							BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
-						)
-					),
-					"Should refuse to set different price via basic price setter."
-				);
+				assertCollidingPriceRefusedWithMutationOnly(newProduct);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -1189,6 +1205,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						Arrays.asList("market-1", "market-2"))
 					.setMarketsAsList(
 						Arrays.asList("market-3", "market-4"))
+					.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 					.setAllPricesAsList(
 						Arrays.asList(
 							new Price(
@@ -1256,16 +1273,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							entityFetchAllContent()
 						).orElseThrow()));
 
-				assertThrows(
-					EvitaInvalidUsageException.class,
-					() -> newProduct.setBasicPrice(
-						new Price(
-							5, "reference", CURRENCY_CZK, null,
-							BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
-						)
-					),
-					"Should refuse to set different price via basic price setter."
-				);
+				assertCollidingPriceRefusedWithMutationOnly(newProduct);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -1314,6 +1322,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttributeAsVarArg(
 						"market-1", "market-2")
 					.setMarketsAsVarArg("market-3", "market-4")
+					.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 					.setAllPricesAsArray(
 						new Price(
 							1, "reference", CURRENCY_CZK, null,
@@ -1378,16 +1387,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							entityFetchAllContent()
 						).orElseThrow());
 
-				assertThrows(
-					EvitaInvalidUsageException.class,
-					() -> newProduct.setBasicPrice(
-						new Price(
-							5, "reference", CURRENCY_CZK, null,
-							BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
-						)
-					),
-					"Should refuse to set different price via basic price setter."
-				);
+				assertCollidingPriceRefusedWithMutationOnly(newProduct);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -1705,6 +1705,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttributeAsVarArg(
 						"market-1", "market-2")
 					.setMarketsAsVarArg("market-3", "market-4")
+					.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 					.setAllPricesAsArray(
 						new Price(
 							1, "reference", CURRENCY_CZK, null,

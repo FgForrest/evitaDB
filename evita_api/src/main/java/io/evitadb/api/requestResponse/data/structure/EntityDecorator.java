@@ -1769,6 +1769,16 @@ public class EntityDecorator implements SealedEntity {
 		return this.pricePredicate.getPriceForSaleContext();
 	}
 
+	/**
+	 * Returns the price mode of the query the entity was fetched by. The price predicate carries it even when the
+	 * query has no price constraint and so no price for sale context exists.
+	 */
+	@Nonnull
+	@Override
+	public QueryPriceMode getQueryPriceMode() {
+		return this.pricePredicate.getQueryPriceMode();
+	}
+
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
@@ -1988,7 +1998,8 @@ public class EntityDecorator implements SealedEntity {
 				this.pricePredicate.getCurrency(),
 				this.pricePredicate.getValidIn(),
 				this.pricePredicate.getPriceLists(),
-				predicate
+				predicate,
+				this.pricePredicate.getQueryPriceMode()
 			);
 		} else {
 			throw new ContextMissingException();

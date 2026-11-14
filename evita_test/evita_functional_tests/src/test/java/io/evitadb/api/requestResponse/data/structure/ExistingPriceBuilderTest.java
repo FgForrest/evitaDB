@@ -25,24 +25,35 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.dataType.DateTimeRange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Currency;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.data.structure.InitialPricesBuilderTest.assertPrice;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -433,25 +444,30 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 	@DisplayName("Ambiguous price validation")
 	class AmbiguousPriceValidationTest {
 
+		/**
+		 * The conflict is decided on the state the change set leads to, so setting the price and building the prices
+		 * container are lenient and only building the change set refuses it.
+		 */
 		@Test
 		@DisplayName(
-			"should refuse conflicting with existing"
+			"should refuse conflicting with existing when building the change set"
 		)
 		void shouldRefuseAddingConflictingPriceWithExistingPrice() {
+			ExistingPriceBuilderTest.this.builder
+				.setPrice(
+					10, "basic", CZK,
+					BigDecimal.ONE,
+					BigDecimal.ZERO,
+					BigDecimal.ONE, true
+				);
+
+			assertEquals(
+				2,
+				ExistingPriceBuilderTest.this.builder.build().getPrices(CZK, "basic").size()
+			);
 			assertThrows(
 				AmbiguousPriceException.class,
-				() -> {
-					final PricesContract prices =
-						ExistingPriceBuilderTest.this
-							.builder
-							.setPrice(
-								10, "basic", CZK,
-								BigDecimal.ONE,
-								BigDecimal.ZERO,
-								BigDecimal.ONE, true
-							)
-							.build();
-				}
+				ExistingPriceBuilderTest.this.builder::buildChangeSet
 			);
 		}
 
@@ -481,47 +497,45 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 				basicPrices.stream()
 					.anyMatch(it -> it.priceId() == 10)
 			);
+			assertEquals(1, ExistingPriceBuilderTest.this.builder.buildChangeSet().count());
 		}
 
 		@Test
 		@DisplayName(
-			"should refuse conflicting with upserted"
+			"should refuse conflicting with upserted when building the change set"
 		)
 		void shouldRefuseAddingConflictingPriceWithUpsertedPrice() {
+			ExistingPriceBuilderTest.this.builder
+				.setPrice(
+					10, "vip", CZK,
+					BigDecimal.ONE,
+					BigDecimal.ZERO,
+					BigDecimal.ONE,
+					DateTimeRange.since(
+						OffsetDateTime.of(
+							2021, 1, 1, 0, 0,
+							0, 0, ZoneOffset.UTC
+						)
+					),
+					true
+				)
+				.setPrice(
+					11, "vip", CZK,
+					BigDecimal.ONE,
+					BigDecimal.ZERO,
+					BigDecimal.ONE,
+					DateTimeRange.until(
+						OffsetDateTime.of(
+							2022, 1, 1, 0, 0,
+							0, 0, ZoneOffset.UTC
+						)
+					),
+					true
+				);
+
 			assertThrows(
 				AmbiguousPriceException.class,
-				() -> {
-					final PricesContract prices =
-						ExistingPriceBuilderTest.this
-							.builder
-							.setPrice(
-								10, "vip", CZK,
-								BigDecimal.ONE,
-								BigDecimal.ZERO,
-								BigDecimal.ONE,
-								DateTimeRange.since(
-									OffsetDateTime.of(
-										2021, 1, 1, 0, 0,
-										0, 0, ZoneOffset.UTC
-									)
-								),
-								true
-							)
-							.setPrice(
-								11, "vip", CZK,
-								BigDecimal.ONE,
-								BigDecimal.ZERO,
-								BigDecimal.ONE,
-								DateTimeRange.until(
-									OffsetDateTime.of(
-										2022, 1, 1, 0, 0,
-										0, 0, ZoneOffset.UTC
-									)
-								),
-								true
-							)
-							.build();
-				}
+				ExistingPriceBuilderTest.this.builder::buildChangeSet
 			);
 		}
 
@@ -571,6 +585,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 				basicPrices.stream()
 					.anyMatch(it -> it.priceId() == 11)
 			);
+			assertEquals(2, ExistingPriceBuilderTest.this.builder.buildChangeSet().count());
 		}
 
 		@Test
@@ -601,6 +616,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 				10,
 				basicPrices.iterator().next().priceId()
 			);
+			assertEquals(2, ExistingPriceBuilderTest.this.builder.buildChangeSet().count());
 		}
 
 		@Test
@@ -618,6 +634,384 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 					true
 				)
 			);
+		}
+	}
+
+	/**
+	 * The builder decides the ambiguity on the state its change set leads to, by the rule the server applies: only
+	 * pairs with a price the change set adds or moves to another validity or inner record are checked, and the group of
+	 * prices that compete is one price list, currency and inner record - one price list and currency for an entity
+	 * without inner record handling.
+	 */
+	@Nested
+	@DisplayName("Ambiguity of the state the change set leads to")
+	class EndStateAmbiguityTest {
+
+		/**
+		 * Returns the validity spanning the passed year.
+		 *
+		 * @param year the year
+		 * @return the validity
+		 */
+		@Nonnull
+		private static DateTimeRange wholeYear(int year) {
+			return DateTimeRange.between(
+				OffsetDateTime.of(year, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+				OffsetDateTime.of(year, 12, 31, 23, 59, 59, 0, ZoneOffset.UTC)
+			);
+		}
+
+		/**
+		 * Creates an indexed price in CZK selling for one without tax.
+		 *
+		 * @param priceId       id of the price
+		 * @param priceList     price list of the price
+		 * @param innerRecordId inner record of the price
+		 * @param validity      validity of the price, `null` for a price valid at any moment
+		 * @return the price
+		 */
+		@Nonnull
+		private static PriceContract price(
+			int priceId,
+			@Nonnull String priceList,
+			int innerRecordId,
+			@Nullable DateTimeRange validity
+		) {
+			return new Price(
+				priceId, priceList, CZK, innerRecordId,
+				BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, validity, true
+			);
+		}
+
+		/**
+		 * Creates a builder over stored prices with the passed handling, which may hold an ambiguous pair the builders
+		 * would refuse to create.
+		 *
+		 * @param handling inner record handling of the stored prices
+		 * @param prices   the stored prices
+		 * @return the builder
+		 */
+		@Nonnull
+		private static ExistingPricesBuilder builderOver(
+			@Nonnull PriceInnerRecordHandling handling,
+			@Nonnull PriceContract... prices
+		) {
+			return new ExistingPricesBuilder(
+				PRODUCT_SCHEMA, new Prices(PRODUCT_SCHEMA, 1, List.of(prices), handling, true)
+			);
+		}
+
+		/**
+		 * Creates a builder whose stored prices contain only the entries fetched by the requested content mode.
+		 *
+		 * @param mode price content mode of the fetched entity
+		 * @return the builder over the fetched prices
+		 */
+		@Nonnull
+		private static ExistingPricesBuilder builderWithFetchedPrices(@Nonnull PriceContentMode mode) {
+			final PriceContract first = price(1, "basic", 1, wholeYear(2020));
+			final PriceContract second = price(2, "basic", 1, null);
+			final OffsetDateTime validIn = OffsetDateTime.of(2021, 1, 15, 0, 0, 0, 0, ZoneOffset.UTC);
+			final EvitaRequest request = new EvitaRequest(
+				query(
+					collection("product"),
+					filterBy(priceInCurrency(CZK), priceInPriceLists("basic"), priceValidIn(validIn)),
+					require(entityFetch(priceContent(mode)))
+				),
+				validIn, SealedEntity.class, null
+			);
+			return new ExistingPricesBuilder(
+				PRODUCT_SCHEMA,
+				new Prices(
+					PRODUCT_SCHEMA, 1, mode == PriceContentMode.ALL ? List.of(first, second) : List.of(second),
+					PriceInnerRecordHandling.LOWEST_PRICE, true
+				),
+				new PriceContractSerializablePredicate(request, (Boolean) null)
+			);
+		}
+
+		@ParameterizedTest
+		@EnumSource(value = PriceContentMode.class, names = {"ALL", "RESPECTING_FILTER"})
+		@DisplayName("should accept an amount change of a stored price with complete or partial fetched prices")
+		void shouldAcceptAmountChangeOfStoredPriceWithCompleteOrPartialFetchedPrices(@Nonnull PriceContentMode mode) {
+			final ExistingPricesBuilder builder = builderWithFetchedPrices(mode);
+			builder.setPrice(
+				1, "basic", CZK, 1, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, wholeYear(2020), true
+			);
+
+			assertEquals(1, builder.buildChangeSet().count());
+		}
+
+		@ParameterizedTest
+		@EnumSource(value = PriceContentMode.class, names = {"ALL", "RESPECTING_FILTER"})
+		@DisplayName("should verify a new conflicting price only with complete fetched prices")
+		void shouldVerifyNewConflictingPriceOnlyWithCompleteFetchedPrices(@Nonnull PriceContentMode mode) {
+			final ExistingPricesBuilder builder = builderWithFetchedPrices(mode);
+			builder.setPrice(
+				3, "basic", CZK, 1, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
+			);
+
+			if (mode == PriceContentMode.ALL) {
+				assertThrows(AmbiguousPriceException.class, builder::buildChangeSet);
+			} else {
+				assertEquals(1, builder.buildChangeSet().count());
+			}
+		}
+
+		@Test
+		@DisplayName("should accept an amount change of a stored ambiguous pair of one inner record")
+		void shouldAcceptAmountChangeOfStoredAmbiguousPairOfOneInnerRecord() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE,
+				price(1, "basic", 1, null),
+				price(2, "basic", 1, wholeYear(2020))
+			);
+			builder.setPrice(
+				1, "basic", CZK, 1,
+				BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
+			);
+
+			assertEquals(1, builder.buildChangeSet().count());
+		}
+
+		@Test
+		@DisplayName("should accept a price added where the same builder moved a stored price away from")
+		void shouldAcceptPriceAddedWhereSameBuilderMovedStoredPriceAwayFrom() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE, price(1, "basic", 1, wholeYear(2020))
+			);
+			builder
+				.setPrice(
+					1, "basic", CZK, 1,
+					BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, wholeYear(2021), true
+				)
+				.setPrice(
+					2, "basic", CZK, 1,
+					BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, wholeYear(2020), true
+				);
+
+			assertEquals(2, builder.buildChangeSet().count());
+		}
+
+		@Test
+		@DisplayName("should reject a price of one inner record valid at a moment a stored price is")
+		void shouldRejectPriceOfOneInnerRecordOverlappingStoredPrice() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE, price(1, "basic", 1, wholeYear(2020))
+			);
+			builder.setPrice(
+				2, "basic", CZK, 1,
+				BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
+			);
+
+			assertNotNull(builder.build());
+			assertThrows(AmbiguousPriceException.class, builder::buildChangeSet);
+		}
+
+		@Test
+		@DisplayName("should reject a change between two inner record handlings that keeps stored prices overlapping")
+		void shouldRejectHandlingChangeThatKeepsStoredPricesOfOneInnerRecordOverlapping() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE,
+				price(1, "basic", 1, null),
+				price(2, "basic", 1, wholeYear(2020))
+			);
+			builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.SUM);
+
+			assertThrows(AmbiguousPriceException.class, builder::buildChangeSet);
+		}
+
+		@Test
+		@DisplayName("should reject a price of another inner record valid at a moment a stored price is")
+		void shouldRejectPriceOfAnotherInnerRecordOverlappingStoredPrice() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.NONE, price(1, "basic", 1, null)
+			);
+			builder.setPrice(
+				10, "basic", CZK, 2,
+				BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, wholeYear(2020), true
+			);
+
+			assertThrows(AmbiguousPriceException.class, builder::buildChangeSet);
+		}
+
+		@Test
+		@DisplayName("should reject a handling change that makes the stored prices overlap")
+		void shouldRejectHandlingChangeToNoneThatMakesStoredPricesOverlap() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE,
+				price(1, "basic", 1, null),
+				price(2, "basic", 2, null)
+			);
+			builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE);
+
+			assertThrows(AmbiguousPriceException.class, builder::buildChangeSet);
+		}
+
+		@Test
+		@DisplayName("should reject moving a stored price to a validity that still overlaps another stored price")
+		void shouldRejectValidityChangeThatKeepsStoredAmbiguousPairOverlapping() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.NONE,
+				price(1, "basic", 1, null),
+				price(2, "basic", 2, null)
+			);
+			builder.setPrice(
+				1, "basic", CZK, 1,
+				BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, wholeYear(2020), true
+			);
+
+			assertThrows(AmbiguousPriceException.class, builder::buildChangeSet);
+		}
+
+		@Test
+		@DisplayName("should accept an amount change of a stored ambiguous pair and a price in another price list")
+		void shouldAcceptAmountChangeOfStoredAmbiguousPairAndPriceInAnotherPriceList() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.NONE,
+				price(1, "basic", 1, null),
+				price(2, "basic", 2, null)
+			);
+			builder
+				.setPrice(
+					1, "basic", CZK, 1,
+					BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
+				)
+				.setPrice(
+					3, "reference", CZK, 1,
+					BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
+				);
+
+			assertEquals(2, builder.buildChangeSet().count());
+		}
+
+		@Test
+		@DisplayName("should accept a price of another inner record when the same builder leaves the handling")
+		void shouldAcceptOverlappingPriceWhenHandlingChangesFromNoneInSameBuilder() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.NONE, price(1, "basic", 1, null)
+			);
+			builder
+				.setPrice(
+					10, "basic", CZK, 2,
+					BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
+				)
+				.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
+
+			assertEquals(2, builder.buildChangeSet().count());
+		}
+
+		@Test
+		@DisplayName("should accept an overlapping price when the stored price it overlaps is removed")
+		void shouldAcceptOverlappingPriceWhenStoredPriceItOverlapsIsRemoved() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.NONE, price(1, "basic", 1, null)
+			);
+			builder
+				.removePrice(1, "basic", CZK)
+				.setPrice(
+					10, "basic", CZK, 2,
+					BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
+				);
+
+			assertEquals(2, builder.buildChangeSet().count());
+		}
+
+		@Test
+		@DisplayName("should reject a removed stored price revived with its former data when it overlaps another price")
+		void shouldRejectRemovedStoredPriceRevivedWithFormerDataWhenItOverlapsAnotherPrice() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE,
+				price(1, "basic", 1, null),
+				new Price(
+					1, new Price.PriceKey(2, "basic", CZK), 1,
+					BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true, true
+				)
+			);
+			builder.setPrice(
+				2, "basic", CZK, 1,
+				BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true
+			);
+
+			assertThrows(AmbiguousPriceException.class, builder::buildChangeSet);
+		}
+
+		@Test
+		@DisplayName("should reject a stored price moved to the inner record of a price it overlaps")
+		void shouldRejectStoredPriceMovedToInnerRecordOfPriceItOverlaps() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE,
+				price(1, "basic", 1, null),
+				price(2, "basic", 2, null)
+			);
+			builder.setPrice(
+				2, "basic", CZK, 1,
+				BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true
+			);
+
+			assertThrows(AmbiguousPriceException.class, builder::buildChangeSet);
+		}
+
+		@Test
+		@DisplayName("should accept the handling the entity holding a stored ambiguous pair already has")
+		void shouldAcceptHandlingTheEntityHoldingStoredAmbiguousPairAlreadyHas() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE,
+				price(1, "basic", 1, null),
+				price(2, "basic", 1, wholeYear(2020))
+			);
+			builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
+
+			assertEquals(0, builder.buildChangeSet().count());
+		}
+
+		@Test
+		@DisplayName("should accept a price overlapping a stored price that the removal of untouched prices removes")
+		void shouldAcceptPriceOverlappingStoredPriceThatRemovalOfUntouchedPricesRemoves() {
+			final ExistingPricesBuilder builder = ExistingPriceBuilderTest.this.builder;
+			builder
+				.removeAllNonTouchedPrices()
+				.setPrice(
+					10, "basic", CZK,
+					BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true
+				);
+
+			// the upsert of price 10 and the removal of the four untouched stored prices
+			assertEquals(5, builder.buildChangeSet().count());
+		}
+
+		@Test
+		@DisplayName("should reject a price overlapping a stored price set again unchanged when untouched prices go")
+		void shouldRejectPriceOverlappingStoredPriceSetAgainUnchangedWhenUntouchedPricesAreRemoved() {
+			final ExistingPricesBuilder builder = ExistingPriceBuilderTest.this.builder;
+			builder
+				.removeAllNonTouchedPrices()
+				.setPrice(
+					1, "basic", CZK,
+					BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true
+				)
+				.setPrice(
+					10, "basic", CZK,
+					BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true
+				);
+
+			assertThrows(AmbiguousPriceException.class, builder::buildChangeSet);
+		}
+
+		@Test
+		@DisplayName("should accept a price added to the group of a stored ambiguous pair at other moments")
+		void shouldAcceptPriceAddedToGroupOfStoredAmbiguousPairAtOtherMoments() {
+			final ExistingPricesBuilder builder = builderOver(
+				PriceInnerRecordHandling.LOWEST_PRICE,
+				price(1, "basic", 1, wholeYear(2020)),
+				price(2, "basic", 1, wholeYear(2020))
+			);
+			builder.setPrice(
+				3, "basic", CZK, 1,
+				BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, wholeYear(2021), true
+			);
+
+			assertEquals(1, builder.buildChangeSet().count());
 		}
 	}
 

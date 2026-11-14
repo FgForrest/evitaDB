@@ -375,12 +375,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 						newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(this.name, newValue)
 					),
 					makeTypeMutationIfDifferent(createdVersion, existingSchema, this.indexedDecimalPlaces),
-					makeMutationIfDifferent(
-						AttributeSchemaContract.class,
-						createdVersion, existingSchema,
-						AttributeSchemaContract::getDefaultValue,
-						newValue -> new ModifyAttributeSchemaDefaultValueMutation(this.name, this.defaultValue)
-					),
+					makeDefaultValueMutationIfDifferent(createdVersion, existingSchema, this.defaultValue),
 					makeMutationIfDifferent(
 						AttributeSchemaContract.class,
 						createdVersion, existingSchema,

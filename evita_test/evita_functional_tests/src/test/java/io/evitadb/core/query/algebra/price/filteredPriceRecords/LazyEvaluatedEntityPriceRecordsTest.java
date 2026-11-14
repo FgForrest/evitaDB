@@ -70,6 +70,13 @@ class LazyEvaluatedEntityPriceRecordsTest {
 	private static final PriceIndexKey REFERENCE_PRICE_INDEX_KEY =
 		new PriceIndexKey("reference", CURRENCY_CZK, PriceInnerRecordHandling.NONE);
 	/**
+	 * Index of entities with variants: only such an index keeps one lowest price per inner record - an index of
+	 * entities without inner record handling keeps a single lowest price of the entity whatever inner records its
+	 * prices carry.
+	 */
+	private static final PriceIndexKey VARIANT_PRICE_INDEX_KEY =
+		new PriceIndexKey("basic", CURRENCY_CZK, PriceInnerRecordHandling.LOWEST_PRICE);
+	/**
 	 * Primary key of the entity every test looks up. The second argument of
 	 * {@link PriceRecordLookup#forEachPriceOfEntity(int, int, java.util.function.Consumer)} is only a scan hint, so it
 	 * is passed the very same key throughout.
@@ -154,7 +161,7 @@ class LazyEvaluatedEntityPriceRecordsTest {
 		@DisplayName("should stream every lowest price of the entity in index order")
 		void shouldStreamEveryLowestPriceOfTheEntity() {
 			final PriceListAndCurrencyPriceSuperIndex index = createIndex(
-				BASIC_PRICE_INDEX_KEY,
+				VARIANT_PRICE_INDEX_KEY,
 				createInnerRecordSpecificPrice(10, ENTITY_PK, 1),
 				createInnerRecordSpecificPrice(20, ENTITY_PK, 2)
 			);
