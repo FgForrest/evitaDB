@@ -862,12 +862,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Sets the locale context for all localized attributes and associated data in the query, ensuring filters, sorting, and fetched values use the specified language/region (IETF BCP 47 format). Required when accessing localized data; only one locale per query is allowed.
+	 * Sets the locale context for all localized attributes and associated data in the query, ensuring filters, sorting, and fetched data use the specified IETF BCP 47 locale (e.g., `en-US`). Mandatory when querying localized properties; omitting it causes a validation error if localized attributes are referenced.
 	 *
 	 * ```evitaql
 	 * filterBy(
-	 *   entityLocaleEquals("en-US"),
-	 *   attributeContains("name", "phone")
+	 *     entityLocaleEquals("en-US"),
+	 *     attributeContains("name", "phone")
 	 * )
 	 * ```
 	 *
@@ -875,16 +875,14 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.filter.EntityLocaleEquals
 	 */
-	@SourceHash("e0d256276b3590b41703caf39f84089d")
+	@SourceHash("2ac6cbecfc13f45dfe0db234d149984f")
 	@Nullable
 	static EntityLocaleEquals entityLocaleEquals(@Nullable Locale locale) {
 		return locale == null ? null : new EntityLocaleEquals(locale);
 	}
 
 	/**
-	 * Filters referenced entities by their attributes or properties within a reference context, shifting the filter
-	 * scope from the relation to the referenced entity itself. Use only as a child of `referenceHaving` or
-	 * `facetHaving`. Several children are combined with logical AND; use `or` for alternatives.
+	 * Filters referenced entities by their own attributes or properties within a reference or facet context, shifting the filter scope from the relationship to the referenced entity itself. All child constraints are combined with logical AND and apply to the referenced entity, not the enclosing entity or the reference. Requires the reference schema to have the REFERENCED_ENTITY component enabled.
 	 *
 	 * ```evitaql
 	 * referenceHaving(
@@ -899,17 +897,14 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.filter.EntityHaving
 	 */
-	@SourceHash("76ef3b7f01baf2dc5858bddd0d65c74a")
+	@SourceHash("3e7cb1f0ce6e0abb018a095e0a01b4e1")
 	@Nullable
 	static EntityHaving entityHaving(@Nullable FilterConstraint... filterConstraints) {
 		return ArrayUtils.isEmptyOrItsValuesNull(filterConstraints) ? null : new EntityHaving(filterConstraints);
 	}
 
 	/**
-	 * Filters referenced group entities (e.g., a Store grouping brands) by their attributes or properties within a
-	 * reference context. Use only inside `referenceHaving` or `facetHaving` to target group entity fields, not the
-	 * reference or referenced entity itself. Several children are combined with logical AND; use `or` for
-	 * alternatives.
+	 * Filters based on attributes or properties of the group entity associated with a reference, shifting the filtering scope from the reference or referenced entity to its group. Only usable within `referenceHaving` or `facetHaving`, and requires the reference schema to support group entities. All child constraints must match the same group entity; multiple children are combined with logical AND.
 	 *
 	 * ```evitaql
 	 * referenceHaving(
@@ -924,7 +919,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.filter.GroupHaving
 	 */
-	@SourceHash("d44289b53427063520c4afc2ead5d27d")
+	@SourceHash("41027634beeb9fa7a6d2ff94eeb32e70")
 	@Nullable
 	static GroupHaving groupHaving(@Nullable FilterConstraint... filterConstraints) {
 		return ArrayUtils.isEmptyOrItsValuesNull(filterConstraints) ? null : new GroupHaving(filterConstraints);
@@ -1174,7 +1169,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Filters entities by faceted references (e.g., brand, color) for drill-down navigation and facet statistics. When used inside `userFilter`, it enables accurate "what-if" predictions in conjunction with `facetSummary`, excluding itself from impact calculations. Its nested constraints select facets rather than single references: a reference attribute condition is evaluated over all references to a facet together (for a reference allowing duplicates, over those sharing the same representative attribute values), and the entities referencing the selected facets are returned, combined by the facet group relations (by default OR within a group, AND between groups, and a negated group excludes its entities).
+	 * Filters entities by faceted references, selecting facets (referenced entities) via nested constraints and returning entities referencing them. Facets from the same group are OR-ed, groups are AND-ed by default; integrates with `facetSummary` for impact stats in faceted navigation. Use inside `userFilter` for drill-down UIs. Differs from `referenceHaving` by evaluating constraints per facet, not per reference.
 	 *
 	 * ```evitaql
 	 * userFilter(
@@ -1191,7 +1186,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.filter.FacetHaving
 	 */
-	@SourceHash("2a5eaf779bca8ed3cdbca87d3556b023")
+	@SourceHash("97dda9ca64f792ad54c17848d9a0aaf6")
 	@Nullable
 	static FacetHaving facetHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
 		requireName(referenceName, "referenceName");
@@ -1326,7 +1321,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Modifies `facetHaving` to include not just entities directly referencing a hierarchical facet (e.g., a category), but also those referencing any of its descendants. Use only with hierarchical references; errors if used otherwise.
+	 * Modifies `facetHaving` to include not just directly referenced hierarchical entities but also all their descendants in facet filtering. Use only within `facetHaving` on hierarchical references; using it elsewhere causes an error. Enables intuitive hierarchical facet navigation.
 	 *
 	 * ```evitaql
 	 * facetHaving(
@@ -1340,14 +1335,14 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.filter.FacetIncludingChildren
 	 */
-	@SourceHash("6f09433eef54f4b7482ca28d6a978ab9")
+	@SourceHash("56dd42efa2d099a240773cf0601283f2")
 	@Nonnull
 	static FacetIncludingChildren includingChildren() {
 		return new FacetIncludingChildren();
 	}
 
 	/**
-	 * Modifies hierarchical facet filtering to include only child entities that match the given filter constraint, allowing fine-grained control over which descendants of a faceted entity are considered in `facetHaving`. Use only with hierarchical references.
+	 * Modifies hierarchical facet filtering to include only those child entities of the matched facet that satisfy the provided filter constraint. Used within `facetHaving` for hierarchical references, enabling precise descendant inclusion in facet navigation.
 	 *
 	 * ```evitaql
 	 * facetHaving(
@@ -1361,14 +1356,14 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.filter.FacetIncludingChildren
 	 */
-	@SourceHash("001a3b5943fb94c22a731667eaa90dc3")
+	@SourceHash("1bce0e2b55e34e511ca29df58778c64f")
 	@Nonnull
 	static FacetIncludingChildren includingChildrenHaving(@Nullable FilterConstraint filterConstraint) {
 		return filterConstraint == null ? new FacetIncludingChildren() : new FacetIncludingChildren(filterConstraint);
 	}
 
 	/**
-	 * Modifies hierarchical facet filtering to include entities referencing a faceted entity or any of its descendants, **excluding** children that match the given filter. Use within `facetHaving` for hierarchical references to blacklist certain branches from facet stats and matches.
+	 * Modifies hierarchical facet filtering to include all descendants of a referenced entity except those matching the provided filter constraint. Use within `facetHaving` on hierarchical references to exclude specific child branches (e.g., invisible or inactive categories) from both result matching and facet statistics. Exclusion applies recursively: if a child is excluded, its descendants are too.
 	 *
 	 * ```evitaql
 	 * facetHaving(
@@ -1377,12 +1372,11 @@ public interface QueryConstraints {
 	 *     includingChildrenExcept(attributeEquals("visible", "INVISIBLE"))
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#including-children-except)
 	 *
 	 * @see io.evitadb.api.query.filter.FacetIncludingChildrenExcept
 	 */
-	@SourceHash("19b527716aa74e5578533e4d27a351f7")
+	@SourceHash("98e56626615e819e54bc6daa76f65422")
 	@Nonnull
 	static FacetIncludingChildrenExcept includingChildrenExcept(@Nullable FilterConstraint filterConstraint) {
 		return filterConstraint == null ? new FacetIncludingChildrenExcept() : new FacetIncludingChildrenExcept(filterConstraint);
@@ -1524,12 +1518,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Restricts child filtering constraints to a specific data scope (LIVE or ARCHIVED), enabling scope-aware queries where different filters apply based on indexing and data availability in each scope. Prevents query failures when attributes are indexed only in certain scopes and allows flexible, scope-specific filtering logic.
+	 * Restricts the application of child filtering constraints to a specific data scope (LIVE or ARCHIVED), enabling multi-scope queries with tailored filtering logic for each scope based on their indexing capabilities. Prevents query failures by isolating scope-specific constraints and disallows nesting within the same evaluation context.
 	 *
 	 * ```evitaql
 	 * filterBy(
 	 *     and(
 	 *         inScope(LIVE, attributeEquals('name', 'LED TV')),
+	 *         inScope(ARCHIVED, attributeEquals('archivedReason', 'outdated')),
 	 *         scope(LIVE, ARCHIVED)
 	 *     )
 	 * )
@@ -1539,7 +1534,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.filter.FilterInScope
 	 */
-	@SourceHash("773df310836b207593c2688b05682204")
+	@SourceHash("75c0caef03ae27c3fc823af0ae8bf0f6")
 	@Nullable
 	static FilterInScope inScope(@Nonnull Scope scope, @Nullable FilterConstraint... constraints) {
 		Assert.notNull(scope, "Argument `scope` must not be null: it has no default.");
@@ -1547,21 +1542,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Specifies which data scopes (LIVE, ARCHIVED, or both) the query should search within. By default, only LIVE entities are queried; use this constraint to include ARCHIVED (soft-deleted) data or combine both. Duplicates are resolved by scope order, and uniqueness is enforced per scope.
+	 * Specifies which data scopes (LIVE, ARCHIVED, or both) the query searches within. By default, only LIVE entities are included; ARCHIVED must be explicitly requested. If an entity exists in multiple scopes, the first listed scope takes priority. Uniqueness is enforced per scope, and filtering applies to all unless wrapped in `inScope`. Scope order matters for result precedence.
 	 *
 	 * ```evitaql
-	 * query(
-	 *     collection('Product'),
-	 *     filterBy(
-	 *         scope(LIVE, ARCHIVED)
-	 *     )
+	 * filterBy(
+	 *     scope(LIVE, ARCHIVED)
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/constant#scope)
 	 *
 	 * @see io.evitadb.api.query.filter.EntityScope
 	 */
-	@SourceHash("ca64ab4dbecd576b2d2b7fc691f8cc1f")
+	@SourceHash("94d0c0cd2746642b698e0ca185657285")
 	@Nullable
 	static EntityScope scope(@Nullable Scope... scope) {
 		requireNonNullItems(scope, "scope");
@@ -1597,7 +1590,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Limits the enclosed ordering constraints to entities within the specified scope, ensuring those constraints are only applied where valid. Useful when ordering by attributes that may not be indexed or available in all scopes, preventing query failures.
+	 * Limits enclosed ordering constraints to entities within the specified scope, ensuring that ordering is only applied where supported (e.g., only in LIVE scope if an attribute isn't indexed elsewhere). Cannot be nested in the same evaluation context.
 	 *
 	 * ```evitaql
 	 * orderBy(
@@ -1610,7 +1603,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.order.OrderInScope
 	 */
-	@SourceHash("523478cdf907e245f0d440512e3b9112")
+	@SourceHash("4fc249979cb3f5da882848c9527b884c")
 	@Nullable
 	static OrderInScope inScope(@Nonnull Scope scope, @Nullable OrderConstraint... constraints) {
 		Assert.notNull(scope, "Argument `scope` must not be null: it has no default.");
@@ -1640,7 +1633,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Defines multiple ordering segments within a single query, each with its own sorting and optional filtering and limit. Each segment extracts entities from the filtered result, applies its order and limit, and removes them before processing the next segment. Remaining entities are appended in primary key order. Segments enable complex, prioritized ordering beyond standard multi-clause `orderBy`.
+	 * Defines multiple ordering segments within a single query, each with its own sorting and optional filtering logic. Entities are processed by each segment in order: sorted and limited as specified, then excluded from subsequent segments. Remaining entities are appended by primary key. Useful for complex, prioritized result ordering.
 	 *
 	 * ```evitaql
 	 * orderBy(
@@ -1656,7 +1649,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.order.Segments
 	 */
-	@SourceHash("078ba1fd7ff87b06c5c8f4096145288c")
+	@SourceHash("664e1ac4a4e2cf10240ab133179dbadb")
 	@Nullable
 	static Segments segments(@Nullable Segment... constraints) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
@@ -1666,13 +1659,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Defines a segment within an ordering pipeline, specifying how a portion of filtered results should be sorted using the provided `OrderBy` clause. All entities matched by this segment are excluded from subsequent segments. If no limit or filter is set, all remaining entities are sorted as specified.
+	 * Defines a segment within a segmented ordering, specifying how a portion of the filtered results should be sorted. Entities matching the segment's ordering are extracted (all if no limit is set), excluded from later segments, and must have all attributes required for sorting. Nested segments are not allowed.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/segment)
 	 *
 	 * @see io.evitadb.api.query.order.Segment
 	 */
-	@SourceHash("4d7e601530242040ce98546b66561355")
+	@SourceHash("ee321b89a0e2fabd719bc73047624ef9")
 	@Nullable
 	static Segment segment(@Nonnull OrderBy orderBy) {
 		if (orderBy == null) {
@@ -1682,12 +1675,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Defines a segment within a segments container that sorts the filtered result using the specified `orderBy` clause and extracts up to the given `limit` of entities. Entities selected by this segment are excluded from subsequent segments. If no limit is provided, all matching entities are taken.
+	 * Defines a segment that sorts the current result set using the provided ordering and extracts up to the specified limit of entities. Entities selected by this segment are excluded from subsequent segments. If no limit is set, all matching entities are taken.
 	 *
 	 * ```evitaql
 	 * segment(
-	 *    orderBy(attributeNatural("orderedQuantity", DESC)),
-	 *    limit(3)
+	 *    orderBy(attributeNatural("score", DESC)),
+	 *    limit(5)
 	 * )
 	 * ```
 	 *
@@ -1695,7 +1688,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.order.Segment
 	 */
-	@SourceHash("45d8939ba6768768296253f745c46d82")
+	@SourceHash("11e88b0577dba622bd32223063eceff4")
 	@Nullable
 	static Segment segment(
 		@Nonnull OrderBy orderBy,
@@ -1708,16 +1701,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Defines a segment within a segmented ordering, applying the given filter to select entities for this segment and sorting them according to the specified order. Entities matched here are excluded from later segments. All matching entities are included unless limited elsewhere.
+	 * Defines a single segment within a segments container, applying an optional filter and a mandatory ordering to select and sort a portion of the result. Entities matched by this segment are excluded from subsequent segments. Nested segments are not allowed.
 	 *
 	 * ```evitaql
 	 * segment(
-	 *    entityHaving(
-	 *       attributeEquals("category", "electronics")
-	 *    ),
-	 *    orderBy(
-	 *       attributeNatural("popularity", DESC)
-	 *    )
+	 *    entityHaving(attributeEquals("new", true)),
+	 *    orderBy(attributeNatural("orderedQuantity", DESC))
 	 * )
 	 * ```
 	 *
@@ -1725,7 +1714,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.order.Segment
 	 */
-	@SourceHash("4799cae4fa8b00d82288bbb724fdc89f")
+	@SourceHash("91d5d48f3dfeb5ab2f4598852f688c9a")
 	@Nullable
 	static Segment segment(
 		@Nullable EntityHaving entityHaving,
@@ -1738,13 +1727,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Defines a segment within a segmented ordering, applying an optional filter to select entities, a mandatory sorting order, and an optional limit on the number of entities to extract. Entities chosen by this segment are excluded from subsequent segments.
+	 * Defines a segment within a segmented ordering, specifying an optional filter to select entities, a mandatory sorting order, and an optional limit on how many entities to extract. Entities extracted by a segment are excluded from later segments. Nested segments are not allowed.
 	 *
 	 * ```evitaql
 	 * segment(
 	 *    entityHaving(attributeEquals("new", true)),
-	 *    orderBy(attributeNatural("priority", DESC)),
-	 *    limit(5)
+	 *    orderBy(attributeNatural("orderedQuantity", DESC)),
+	 *    limit(3)
 	 * )
 	 * ```
 	 *
@@ -1752,7 +1741,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.order.Segment
 	 */
-	@SourceHash("69105f3830547662be41b4a24267301e")
+	@SourceHash("78565374f635be54fd083021e6e9d089")
 	@Nullable
 	static Segment segment(
 		@Nullable EntityHaving entityHaving,
@@ -2220,7 +2209,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Restricts the enclosed require constraints to apply only within the specified entity scope (LIVE or ARCHIVED), ensuring that requirements unsupported in certain scopes (like facet summaries in ARCHIVED) do not cause query failures. All children must be unique RequireConstraints; at least one is required.
+	 * Restricts the enclosed require constraints to apply only when processing entities in the specified scope (LIVE or ARCHIVED), ensuring requirements incompatible with a scope (e.g., facetSummary in ARCHIVED) are safely ignored there. At least one unique RequireConstraint is required; nesting is disallowed within the same evaluation context.
 	 *
 	 * ```evitaql
 	 * require(
@@ -2232,7 +2221,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.RequireInScope
 	 */
-	@SourceHash("f68fdc318b95a0c07488dea8b3cd91cc")
+	@SourceHash("59275d1389fd3e6825ba0099f76f30c2")
 	@Nullable
 	static RequireInScope inScope(@Nonnull Scope scope, @Nullable RequireConstraint... constraints) {
 		Assert.notNull(scope, "Argument `scope` must not be null: it has no default.");
@@ -2240,17 +2229,15 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Computes a value-distribution histogram for one or more numeric filterable attributes, returning the result in extra-results for use in range-filter UI widgets. Only entities matching the mandatory filter are included; userFilter range constraints are ignored to avoid dead ends. At least one attribute name must be provided. Uses STANDARD bucket behavior by default.
-	 *
+	 * Computes a value-distribution histogram for one or more numeric filterable attributes, returning the result in the extra-results section for use in range-filter UI widgets (e.g., price sliders). Only entities matching the mandatory filter (outside any `userFilter`) are considered, ensuring the histogram remains useful even as users narrow ranges. At least one attribute name must be provided; the default bucket behavior is `STANDARD`.  
 	 * ```evitaql
 	 * attributeHistogram(20, "price")
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram)
 	 *
 	 * @see io.evitadb.api.query.require.AttributeHistogram
 	 */
-	@SourceHash("4cfb5689db5ceec235262db5d5cf10b9")
+	@SourceHash("e7fb93a1d4b42b49a43cf1e477557c99")
 	@Nullable
 	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable String... attributeName) {
 		requireNonNullItems(attributeName, "attributeName");
@@ -2261,7 +2248,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Computes a value-distribution histogram for one or more numeric filterable attributes, returning the result in extra-results for UI range filters (e.g., price sliders). Only entities matching the mandatory filter are included; userFilter range constraints are ignored to prevent dead ends. Supports different bucket behaviors (standard, optimized, equalized) and requires at least one attribute name.
+	 * Computes a value-distribution histogram for one or more numeric filterable attributes, returning the result in extra-results for use in UI range filters (e.g., price sliders). Only entities matching the mandatory filter are included; user-narrowed ranges do not restrict the histogram, preventing dead ends. Supports configurable bucket count, boundary behavior, and multiple attributes. Not applicable if no attribute names are provided.
 	 *
 	 * ```evitaql
 	 * attributeHistogram(20, EQUALIZED, "price")
@@ -2271,7 +2258,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.AttributeHistogram
 	 */
-	@SourceHash("e3d44d26d004e0a85aaffab6f6ee19b1")
+	@SourceHash("debde7d476a48e65165c33a8ccc974b6")
 	@Nullable
 	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior,
 		@Nullable String... attributeName) {
@@ -2283,17 +2270,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Requests computation of histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of equal-width buckets (including empty ones by default). At least one index name must be provided; otherwise, the constraint is ignored.
+	 * Requests computation of histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of equal-width buckets (including empty ones) for each index. Use as a child of `referenceSummary` or `referenceSummaryOfReference` to retrieve histogram data alongside facet statistics. At least one index name must be provided; otherwise, the constraint is ignored.
 	 *
 	 * ```evitaql
-	 * histogramStatistics(20, "priceIndex")
+	 * referenceSummary(
+	 *     COUNTS,
+	 *     histogramStatistics(20, "priceIndex")
+	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
 	 */
-	@SourceHash("aa5b5b39a2ff5a19d1ef441ea67a737f")
+	@SourceHash("11258c3be38da1e54865fa8e3aed91fc")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable String... indexNames) {
 		requireNonNullItems(indexNames, "indexNames");
@@ -2304,18 +2293,17 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Requests histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of buckets with configurable behavior for bucket boundaries and empty-bucket handling. Each index name yields a separate histogram; at least one must be provided. Optionally, referenced entities can be fetched alongside the statistics.
+	 * Requests computation of histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of buckets per index. The `behavior` argument controls bucket boundaries and handling of empty buckets, supporting modes like `STANDARD`, `OPTIMIZED`, and `EQUALIZED`. At least one index name must be provided; otherwise, the constraint is ignored.
 	 *
 	 * ```evitaql
-	 * referenceSummary(
-	 *     histogramStatistics(10, OPTIMIZED, "priceIndex", "ratingIndex")
-	 * )
+	 * histogramStatistics(10, OPTIMIZED, "ratingIndex", "weightIndex")
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
 	 */
-	@SourceHash("c3c6826eacb3df2ead2464dcdfcc1bf5")
+	@SourceHash("577fe34dd045212340f8bd33bc379431")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount,
 		@Nullable HistogramBehavior behavior, @Nullable String... indexNames) {
@@ -2327,18 +2315,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Requests histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of buckets for each index. Optionally, fetches referenced entities alongside the histogram data. At least one index name must be provided; otherwise, the constraint is ignored.
+	 * Requests computation of histogram statistics for specified histogram indexes within a reference summary, producing the given number of buckets per index and optionally fetching referenced entities with the provided `EntityFetch` constraint. At least one index name must be supplied; otherwise, the constraint is ignored. The default bucket behavior is `STANDARD`, generating equal-width buckets, including empty ones.
 	 *
-	 * ```evitaql
-	 * referenceSummary(
-	 *     histogramStatistics(20, entityFetch(attributeContentAll()), "priceIndex")
-	 * )
-	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
 	 */
-	@SourceHash("f4ed0e832e6de0ee7c9a3e9a6b50d4ab")
+	@SourceHash("d177ff7205a36c2c27835c74872e4ff4")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable EntityFetch entityFetch,
 		@Nullable String... indexNames) {
@@ -2350,18 +2333,17 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Requests histogram statistics for one or more named histogram indexes within a reference summary, specifying the number of buckets, histogram behavior (e.g., empty bucket suppression, frequency equalization), and optionally fetching referenced entities. Ignored if no index names are provided.
+	 * Requests computation of histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of buckets using the chosen behavior (e.g., `STANDARD`, `OPTIMIZED`, `EQUALIZED`). Optionally fetches referenced entities alongside histogram data. At least one index name must be provided; otherwise, the constraint is ignored.
 	 *
 	 * ```evitaql
-	 * referenceSummary(
-	 *     histogramStatistics(20, OPTIMIZED, entityFetch(attributeContent()), "priceIndex")
-	 * )
+	 * histogramStatistics(20, STANDARD, entityFetch(attributeContent()), "priceIndex")
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
 	 */
-	@SourceHash("e833d9e89392c7a9c82e655dfa61e2d3")
+	@SourceHash("42dc234624b7f42ff8f2bc1215edf955")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(
 		int requestedBucketCount,
@@ -2377,22 +2359,20 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Computes a price-distribution histogram for entities matching the main `filterBy` conditions, excluding any price or attribute range narrowing from `userFilter`. The histogram aids UI elements like price sliders and defaults to 20 equal-width buckets using the price with tax unless overridden.
-	 * ```evitaql
-	 * priceHistogram(20)
-	 * ```
+	 * Computes a histogram of entity sale prices, dividing the price range into the specified number of buckets for use in UI elements like price sliders. Only entities passing the main filter are included; userFilter price/attribute constraints are ignored to avoid narrowing the range. Uses price with tax unless a different price type is specified. Defaults to `STANDARD` behavior, producing the exact number of equal-width buckets.
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/histogram#price-histogram)
 	 *
 	 * @see io.evitadb.api.query.require.PriceHistogram
 	 */
-	@SourceHash("7522963a5b80a1625d04ea1da62a888e")
+	@SourceHash("654ad9a20123b306795d639859288efb")
 	@Nonnull
 	static PriceHistogram priceHistogram(int requestedBucketCount) {
 		return new PriceHistogram(requestedBucketCount);
 	}
 
 	/**
-	 * Computes a price-distribution histogram for entities matching the mandatory filter, ignoring user-specified price or attribute ranges. The histogram's bucket count and boundary behavior are configurable, supporting standard, optimized, or frequency-equalized modes. Useful for powering price sliders or similar UI elements.
+	 * Computes a value-distribution histogram of entity sale prices, returning it in extra-results for powering UI elements like price sliders. Buckets are based on entities passing the mandatory filter (ignoring userFilter price/attribute ranges). Choose bucket count and behavior (standard, optimized, or equalized) to control distribution and density. Price type (with/without tax) follows the `priceType` constraint or defaults to with-tax.
 	 *
 	 * ```evitaql
 	 * priceHistogram(20, OPTIMIZED)
@@ -2402,7 +2382,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.PriceHistogram
 	 */
-	@SourceHash("fc2bdb417a03ba9e356e3f746ad86b62")
+	@SourceHash("6adc2983a68dd13c6ffb7fbe2440224f")
 	@Nonnull
 	static PriceHistogram priceHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior) {
 		return new PriceHistogram(requestedBucketCount, behavior);
@@ -2482,20 +2462,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Overrides the default AND logic between different facet groups for the specified reference, applying OR (disjunction) instead, so entities matching any of the selected groups are included. Use `filterBy` to target specific groups; otherwise, all groups are affected. This expands result sets and impacts facet summary calculations.
-	 *
+	 * Overrides the default AND logic between different facet groups of the specified reference, applying OR (disjunction) instead for groups matching the given filter. Entities matching any targeted group will be included, expanding result sets compared to the default.  
 	 * ```evitaql
 	 * facetGroupsDisjunction(
 	 *     "parameterValues",
 	 *     filterBy(attributeInSet("code", "color", "tags"))
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction)
 	 *
 	 * @see io.evitadb.api.query.require.FacetGroupsDisjunction
 	 */
-	@SourceHash("2fc451592ee9d7dd7fdcd3e318df7a5c")
+	@SourceHash("73eed23390309e4ee0bf16376bfd48ad")
 	@Nullable
 	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
 		requireName(referenceName, "referenceName");
@@ -2503,12 +2481,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Overrides the default AND logic between different facet groups for the specified reference, applying OR (disjunction) at the chosen relation level. This means entities matching any targeted group will be included, broadening result sets compared to the default.
-	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction)
+	 * Overrides the default logical AND between different facet groups of the specified reference, applying logical OR (disjunction) at the chosen relation level. This allows entities to match if they satisfy any targeted group, not all, expanding result sets. [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction)
 	 *
 	 * @see io.evitadb.api.query.require.FacetGroupsDisjunction
 	 */
-	@SourceHash("e1d80bef7c2c47b8f6722681b9cf48c3")
+	@SourceHash("d10bd3845949f63dd52ebe894d84b668")
 	@Nullable
 	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName,
 		@Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
@@ -2517,8 +2494,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Overrides the default AND logic between different facet groups for the specified reference, applying OR (disjunction) at the chosen relation level. This allows entities matching any of the targeted groups to be returned, expanding result sets. Use an optional filter to restrict which groups are affected.
-	 *
+	 * Overrides the default AND logic between different facet groups of a reference, applying OR (disjunction) at the specified relation level and for optionally filtered groups. This makes entities matching any targeted group sufficient, expanding result sets versus the default.  
 	 * ```evitaql
 	 * facetGroupsDisjunction(
 	 *     "parameterValues",
@@ -2526,12 +2502,11 @@ public interface QueryConstraints {
 	 *     filterBy(attributeInSet("code", "color", "tags"))
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction)
 	 *
 	 * @see io.evitadb.api.query.require.FacetGroupsDisjunction
 	 */
-	@SourceHash("8be53373ba64a2d5672e2c3b3c5e31f7")
+	@SourceHash("36e4c211c96381e665044193b51a1be2")
 	@Nullable
 	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName,
 		@Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
@@ -2540,13 +2515,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Overrides the default logical AND between different facet groups for the specified reference, applying logical OR instead. This means entities matching any of the selected groups will be returned, broadening results compared to the default behavior. Use to relax group-level facet filtering for a reference.
-	 *
+	 * Overrides the default AND logic between different facet groups of the specified reference, applying OR (disjunction) instead. This means entities matching any selected group (e.g., *blue* **or** *large*) are returned, rather than requiring all. Applies only to the given reference; other references still combine with AND.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction)
 	 *
 	 * @see io.evitadb.api.query.require.FacetGroupsDisjunction
 	 */
-	@SourceHash("e368a97b378b9f64ef6ac52c85548ea4")
+	@SourceHash("527f2d4129d05881a2440f82e42322ed")
 	@Nullable
 	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName) {
 		requireName(referenceName, "referenceName");
@@ -2633,7 +2607,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Marks facet options in the specified groups of a faceted reference as mutually exclusive, so only one facet can be selected per group at a time. This changes impact predictions to reflect replacing the current selection with a new one, not adding to it. Use this to ensure UI renders such groups as radio buttons, and to override global exclusivity for targeted groups.
+	 * Marks facet options in groups of the specified reference as mutually exclusive, so only one facet per group can be selected at a time. This alters impact predictions to reflect "replace" rather than "add" logic for those groups, ideal for radio button UI. Use a filter to target specific groups.
 	 *
 	 * ```evitaql
 	 * facetGroupsExclusivity(
@@ -2646,7 +2620,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.FacetGroupsExclusivity
 	 */
-	@SourceHash("ee884a58497b9f1243a4d044f3229628")
+	@SourceHash("90be13a342915b94280a1dc9bbccd569")
 	@Nullable
 	static FacetGroupsExclusivity facetGroupsExclusivity(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
 		requireName(referenceName, "referenceName");
@@ -2654,7 +2628,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Marks facet options in specified groups of a faceted reference as mutually exclusive, so only one facet can be selected at a time at the chosen relation level. This changes impact predictions to reflect replacing, not adding, selections—ideal for radio-button UIs. Use the optional filter to target specific groups; takes precedence over global exclusivity rules.
+	 * Marks facet options in selected groups of the given reference as mutually exclusive, so only one can be chosen at a time. This changes impact predictions to show the result count as if the current selection was replaced, not added. Use for radio-button style UI in facets.
 	 *
 	 * ```evitaql
 	 * facetGroupsExclusivity(
@@ -2668,7 +2642,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.FacetGroupsExclusivity
 	 */
-	@SourceHash("c50a382ccd8419c054840285a7ae8058")
+	@SourceHash("262638a488fef9fa5aa0b2b32c94fe6b")
 	@Nullable
 	static FacetGroupsExclusivity facetGroupsExclusivity(@Nonnull String referenceName,
 		@Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
@@ -2677,13 +2651,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Marks facet options in the specified reference as mutually exclusive at the chosen group relation level, ensuring only one facet can be selected at a time within or across groups. This affects impact predictions in facet summaries, making them reflect the result count if you replaced your current selection with another option, not added to it. Use for UI scenarios where radio button behavior is needed.
+	 * Declares that facet options in the specified reference's groups are mutually exclusive at the chosen relation level, so only one facet may be selected at a time per group or across groups. This affects impact predictions in facet summaries, making them reflect "replacement" rather than "addition" semantics. Use for facets best represented as radio buttons in the UI.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity)
 	 *
 	 * @see io.evitadb.api.query.require.FacetGroupsExclusivity
 	 */
-	@SourceHash("d28e37a6f4f8cbb2d74c2c29dacf16d3")
+	@SourceHash("d1b8d3224e7ce06f7512d07800d2a5b1")
 	@Nullable
 	static FacetGroupsExclusivity facetGroupsExclusivity(@Nonnull String referenceName,
 		@Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
@@ -2692,13 +2666,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Marks all facet groups of the specified reference as mutually exclusive, so only one facet option per group can be selected at a time. This affects impact predictions in facet summaries, making them reflect "replace" rather than "add" semantics, and is ideal for UI scenarios where radio buttons (single selection) are appropriate.
-	 *
-	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity)
+	 * Marks all facet groups of the specified reference as mutually exclusive, so only one facet can be selected at a time within each group. This changes impact predictions to reflect replacing the current selection with a new one, ideal for radio button UI. [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity)
 	 *
 	 * @see io.evitadb.api.query.require.FacetGroupsExclusivity
 	 */
-	@SourceHash("3b5ea1b6055ea16c8d2514d978373652")
+	@SourceHash("6f9d77baeecfe25986dd6ddb9be910ad")
 	@Nullable
 	static FacetGroupsExclusivity facetGroupsExclusivity(@Nonnull String referenceName) {
 		requireName(referenceName, "referenceName");
@@ -2706,7 +2678,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Sets global default relation types for combining selected facets within the same group and across different groups of the same reference in a query. Overrides built-in defaults (OR within group, AND across groups) unless per-group constraints are specified, which always take precedence. Facets of different references are always combined by logical AND. Applies only to the current query.
+	 * Sets default logical relation types for combining selected facets within the same group and across different groups of the same reference, affecting all faceted references in the query unless overridden by per-group constraints. Both arguments are required; null uses built-in defaults (OR within group, AND across groups). Scope is per-query.
 	 *
 	 * ```evitaql
 	 * require(
@@ -2719,7 +2691,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.FacetCalculationRules
 	 */
-	@SourceHash("4eaa3b3ca7efe0957153d2244cfc3df2")
+	@SourceHash("de0c7d21e367fb55279d7738e4c151dc")
 	@Nonnull
 	static FacetCalculationRules facetCalculationRules(@Nullable FacetRelationType facetsWithSameGroup, @Nullable FacetRelationType facetsWithDifferentGroups) {
 		return new FacetCalculationRules(facetsWithSameGroup, facetsWithDifferentGroups);
@@ -3570,12 +3542,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Loads full entity bodies from storage, enabling access to more than just primary keys in query results. Accepts sub-requirements to fetch only specific data containers (attributes, prices, references, etc.), minimizing unnecessary I/O. Empty `entityFetch()` loads only the entity's core metadata. Sub-requirements are merged if `entityFetch` appears multiple times in a query.
+	 * Loads full entity bodies from storage, optionally including specific data containers like attributes, prices, or references as specified by sub-requirements. Use only the data you need—each sub-requirement increases I/O and transfer cost. Merges duplicate requirements by superset, but conflicting ones throw an exception.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     entityFetch(
-	 *         attributeContent("code", "name")
+	 *         attributeContent("code", "name"),
+	 *         priceContentRespectingFilter()
 	 *     )
 	 * )
 	 * ```
@@ -3584,7 +3557,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.EntityFetch
 	 */
-	@SourceHash("12e7fd395e966a1c144f3dc9c9699417")
+	@SourceHash("ccc9c82c1dcc7ab5638fa87e0bf6409e")
 	@Nonnull
 	static EntityFetch entityFetch(@Nullable EntityContentRequire... requirements) {
 		if (requirements == null) {
@@ -3594,7 +3567,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Retrieves the bodies of group entities associated with references, allowing you to fetch group-level data (such as names or attributes) for referenced entities. Only meaningful within `referenceContent`. Accepts any combination of entity content sub-requirements to specify which data to load for each group entity.
+	 * Retrieves the bodies of group entities associated with references, allowing you to specify which data to load for each group (attributes, associated data, prices, hierarchy, or references). Use only within `referenceContent`. Duplicate sub-requirements are folded as in `entityFetch`.
 	 *
 	 * ```evitaql
 	 * require(
@@ -3608,12 +3581,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#entity-group-fetch)
 	 *
 	 * @see io.evitadb.api.query.require.EntityGroupFetch
 	 */
-	@SourceHash("8af199eff05f7b365771395a75288bdc")
+	@SourceHash("3f5aed2fc059b9f03656503e74429f2e")
 	@Nonnull
 	static EntityGroupFetch entityGroupFetch(@Nullable EntityContentRequire... requirements) {
 		if (requirements == null) {
@@ -3738,33 +3710,32 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types for the entity, returning the primary keys of referenced entities (but not reference-level attributes). Place inside `entityFetch` to include references in results; use `referenceContentAllWithAttributes()` to also fetch reference attributes.
-	 *
+	 * Fetches all references of all types from the entity, returning the primary keys of referenced entities and any nested entity/group bodies if specified. Reference attributes are not included—use `referenceContentAllWithAttributes()` for those. Must be used inside `entityFetch`.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("4d89e70b2df2dfa17a2f5c16643fda40")
+	@SourceHash("883aa9beb571a4f0ff9d7b2288aa7f50")
 	@Nonnull
 	static ReferenceContent referenceContentAll() {
 		return new ReferenceContent();
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including both the primary keys of referenced entities and all attributes stored on each reference record. This is the broadest form, ensuring complete reference and metadata retrieval in a single call.
+	 * Fetches all references of all types from the entity, including both the primary keys of referenced entities and all attributes stored on each reference record. Use inside `entityFetch` to retrieve complete reference data for every association on the entity.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("b3696d99e817e6ac45f0d23f96edd5d0")
+	@SourceHash("84ed4a05129bcddabeb26a2aeaf56219")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes() {
 		return new ReferenceContent(AttributeContent.ALL_ATTRIBUTES);
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including both the primary keys of referenced entities and all attributes stored on each reference record, as specified by the provided `attributeContent`. Use inside `entityFetch` to retrieve complete reference metadata.
+	 * Fetches all references of all types from the entity, including both the primary keys of referenced entities and all reference-level attributes as specified by the given `attributeContent`. Use inside `entityFetch` to retrieve complete reference metadata for every reference type.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -3778,7 +3749,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("af88ed7a2ff20f8f84fcccf16b6ec610")
+	@SourceHash("6142a4e360c8448aba97d6bb3a3fe579")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(
@@ -3787,7 +3758,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including all reference-level attributes as specified by `attributeContent`, and supports chunking large reference sets with a `chunk` constraint. Use inside `entityFetch` to retrieve complete reference info for every association.
+	 * Fetches all references of all types from the entity, including their reference-level attributes as specified by the given `attributeContent`, and limits the result set per reference type using the provided chunking constraint (e.g., pagination). Use inside `entityFetch` to retrieve both reference metadata and referenced entity keys/bodies for all associations.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -3797,11 +3768,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("efd692750b2b9b953640935b45e78201")
+	@SourceHash("1413ad7bd7012bca60f8232f8143ddb5")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(
@@ -3813,20 +3785,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches the specified reference group(s) from an entity, returning only the primary keys of referenced entities (not reference attributes or full bodies). Place inside `entityFetch` to include references in results; without it, references are omitted.
+	 * Fetches the specified reference group(s) from an entity, returning the primary keys of referenced entities and, optionally, their bodies if nested fetches are provided. Use inside `entityFetch` to include references; without it, references are omitted from results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent("brand"),
-	 *     referenceContent("categories")
+	 *     referenceContent("brand")
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("601b7ea4e75d2df92a12a1a99b27d0e3")
+	@SourceHash("5ff40eb0b169cee4315de8b9c431ac2f")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName) {
 		requireName(referenceName, "referenceName");
@@ -3834,7 +3804,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and selected reference-level attributes (metadata on the relationship itself). Place inside `entityFetch` to retrieve associations and their attributes.
+	 * Fetches the specified named reference(s) from an entity, including both the primary keys of the referenced entities and the selected reference-level attributes (metadata on the relationship itself). Use inside `entityFetch` to retrieve references and their attributes; without this, references and their metadata are omitted from results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -3846,7 +3816,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("d6e056c68193eeb3f381fcb7c494dc52")
+	@SourceHash("d9a977489f250f66eebbf4691b807c74")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName,
 		@Nullable String... attributeNames) {
@@ -3859,18 +3829,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches the specified named reference group from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record (metadata about the relationship). Place inside `entityFetch` to retrieve full reference details.
+	 * Fetches the specified reference group from an entity, returning both the primary keys of referenced entities and all attributes stored on the reference record (metadata about the relationship). Place inside `entityFetch` to include reference data in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes("categories", attributeContent("sortOrder"))
+	 *     referenceContentWithAttributes("brand")
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("84edbe6adac49a49723f88a734fc0438")
+	@SourceHash("9dfc88d7ce3a35f9f3601691731e819c")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName) {
 		requireName(referenceName, "referenceName");
@@ -3879,20 +3850,22 @@ public interface QueryConstraints {
 
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Use inside `entityFetch` when you need metadata about the association, not just the link.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Use inside `entityFetch` to retrieve reference metadata (e.g., sort order, flags) alongside referenced entity info.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
+	 *         "categories",
 	 *         attributeContent("sortOrder", "isPrimary")
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("a7a0c3b4079ccfbe2a5e50ff016b78b7")
+	@SourceHash("230e1dfc177b458300825af84f6f5999")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent) {
@@ -3905,7 +3878,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches one or more named reference groups from an entity, returning the primary keys of referenced entities and optionally their full bodies. Place inside `entityFetch` to include references in results; without it, references are omitted.
+	 * Fetches one or more named reference groups from an entity, returning the primary keys of referenced entities and, if nested constraints are provided, their full bodies. Must be used inside `entityFetch`; without it, references are excluded from results. By default, only reference primary keys are returned—reference attributes require a different constraint. Supports advanced filtering, ordering, and chunking for large reference sets.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -3917,7 +3890,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("1857a47c4744ac841592345690f99550")
+	@SourceHash("b3b0cce5f1debf77800d8b21f7ff3de1")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String... referenceName) {
 		requireNonNullItems(referenceName, "referenceName");
@@ -3928,7 +3901,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, if requested, the full bodies of referenced entities via a nested `entityFetch`. Place inside `entityFetch` to include references in results; without it, references are omitted.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of the referenced entities as defined by the nested `EntityFetch` constraint. Place inside `entityFetch` to include references in results. By default, only the reference keys and requested referenced entity data are returned, not reference-level attributes. Reference filtering, ordering, and pagination are supported via nested constraints.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -3942,7 +3915,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("2335a6122144bb225ef6bf6a98be8e6c")
+	@SourceHash("f63ec01586328d5f837958192f67d90a")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement) {
 		requireName(referenceName, "referenceName");
@@ -3952,21 +3925,22 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Optionally, fetches the full body of each referenced entity using the provided `entityFetch` constraint. Use this to retrieve reference metadata alongside referenced entity data in a single query.
+	 * Fetches references of the specified type from an entity, including both the reference's primary keys and its reference-level attributes, and optionally the full bodies of referenced entities as defined by the nested `EntityFetch`. Place inside `entityFetch` to retrieve associated references with their metadata. Supports advanced filtering, ordering, and chunking; see docs for merging and aliasing rules.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
-	 *         entityFetch(attributeContent("code"))
+	 *         "brand",
+	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("7abd573cf5cbaa2d0a5d9d1b03d80249")
+	@SourceHash("d674dcd31bb29a6eca89db0d2fd220a1")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName,
 		@Nullable EntityFetch entityRequirement) {
@@ -3978,13 +3952,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the reference's primary keys and its reference-level attributes, and optionally fetches the full bodies of the referenced entities. Place inside `entityFetch` to retrieve associated data and metadata for relationships such as product → brand. Use nested constraints to filter, order, or paginate references as needed.
-	 *
+	 * Fetches references of the specified type from an entity, including both the primary keys and all attributes stored on the reference record, plus the full body of the referenced entity as defined by the nested `entityFetch`. Use inside `entityFetch` to retrieve associations (e.g., product → category) along with reference-level metadata and referenced entity details. Reference filtering, ordering, and chunking can be applied via nested constraints.  
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "brand",
-	 *         attributeContent("isPrimary"),
+	 *         "categories",
+	 *         attributeContent("isPrimary", "sortOrder"),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
@@ -3993,7 +3966,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("1351f6db100ce3e6f3ec22bbeb37aa3e")
+	@SourceHash("6e0e4ad1d170b4e4a0099ea93e15dc3a")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
@@ -4006,21 +3979,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches the specified reference group from an entity, returning the primary keys of referenced entities and, if requested, the bodies of their group entities using a nested `entityGroupFetch`. Place inside `entityFetch` to include references in results.
+	 * Fetches the specified reference group(s) from an entity, returning the primary keys of referenced entities and, if requested, the full bodies of their group entities via a nested `entityGroupFetch`. Place inside `entityFetch` to include references in results; without it, references are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent(
-	 *         "categories",
-	 *         entityGroupFetch(attributeContent("code"))
-	 *     )
+	 *     referenceContent("categories", entityGroupFetch(attributeContent("code")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("017023b97be510d15dd1d3e77eff226f")
+	@SourceHash("4d1910f3b7caf27db329ab663cd8d16b")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName,
 		@Nullable EntityGroupFetch groupEntityRequirement) {
@@ -4029,7 +4000,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record. Optionally, fetches the full bodies of associated reference group entities as defined by the nested `EntityGroupFetch`.
+	 * Fetches the specified reference group from an entity, returning both the primary keys and all reference-level attributes, along with the full bodies of referenced group entities as defined by the nested `EntityGroupFetch`. Place inside `entityFetch` to include references in results.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
@@ -4038,11 +4010,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("837cce151783b4b915a2c570399bb21f")
+	@SourceHash("5aff16e0dc994d4e01d86e1c29eb1798")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName,
 		@Nullable EntityGroupFetch groupEntityRequirement) {
@@ -4054,7 +4027,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all attributes stored on the reference record itself. Optionally, fetches the referenced group entity bodies with the given requirements. Use inside `entityFetch` to retrieve associations (e.g., product → categories) with their metadata.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Optionally, also fetches the full body of the referenced group entity as specified. Use inside `entityFetch` to retrieve association metadata along with referenced entities.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4065,11 +4038,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("cdbe065da81e7511c52a3c777a7f2d4b")
+	@SourceHash("b847f5eab24c4027fbc4a9590e5aa3c5")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -4082,7 +4056,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, if requested, the full bodies of referenced entities and their groups. Place inside `entityFetch` to include references in results. Does not fetch reference attributes—use `referenceContentWithAttributes` for that. Supports nested fetches for referenced entities and groups.
+	 * Fetches the specified reference group(s) from an entity, returning the primary keys of referenced entities and, if requested, their full bodies via nested `entityFetch` and `entityGroupFetch` constraints. Place inside `entityFetch` to include references in results; without it, references are omitted. Reference attributes are not included—use `referenceContentWithAttributes` for those. Supports filtering, ordering, and pagination for advanced reference selection.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4093,11 +4067,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("9cb0ce1be5f703434a1f334d98f9d1d0")
+	@SourceHash("d8394fc73b1cf6d20ddefe06df9ce78d")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement) {
@@ -4106,7 +4081,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Optionally, loads full bodies of referenced entities and their groups via nested `entityFetch` and `entityGroupFetch` constraints. Use this when you need both reference metadata and related entity data in a single query.
+	 * Fetches references of the specified type from an entity, including both the referenced entity/group bodies (as defined by nested `entityFetch`/`entityGroupFetch`) and all attributes stored on the reference record itself. Use inside `entityFetch` to retrieve associations (e.g., product → brand) with their metadata. Reference-level filters, ordering, and chunking can be applied via nested constraints.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
@@ -4116,11 +4092,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("82d800511a16915e3f2e5fb04a33d293")
+	@SourceHash("c0b415cfa16bdbec3f815f07262852e4")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4135,7 +4112,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches the specified reference group from an entity, returning both the referenced entities' primary keys and the attributes stored on the reference record itself. Optionally, fetches full bodies of referenced and group entities. Place inside `entityFetch` to include references in results.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Optionally, fetches full bodies of referenced entities and their groups. Use inside `entityFetch` to retrieve reference-level metadata and related entities in one step.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4151,7 +4128,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("d42c46351a3c1601e77c7e52641a50f5")
+	@SourceHash("9a7a7d82bd4982f21b8bcacc6f3d7e37")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4169,7 +4146,7 @@ public interface QueryConstraints {
 
 
 	/**
-	 * Fetches references of the specified types from an entity, returning their primary keys and, if provided, the full bodies of the referenced entities via nested `entityFetch`. Place inside `entityFetch` to include references in results; without it, references are omitted.
+	 * Fetches references of the specified entity types from the parent entity, returning their primary keys and, optionally, the full bodies of the referenced entities as defined by the nested `entityFetch` constraint. Reference attributes are not included unless explicitly requested. Place inside `entityFetch` to retrieve associations like product→brand or product→categories.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4179,12 +4156,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("94850278aa03053b2965b81f1319e8b1")
+	@SourceHash("de3c893f9354fb64539d70303ad57f48")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes,
 		@Nullable EntityFetch entityRequirement) {
@@ -4203,20 +4179,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified types from an entity, including the primary keys of referenced entities and, if requested, the bodies of their group entities via a nested `entityGroupFetch`. Place inside `entityFetch` to retrieve associations like product → categories or brands. Reference attributes are not included—use the `WithAttributes` variant for those.
-	 * ```evitaql
-	 * entityFetch(
-	 *     referenceContent(
-	 *         ["categories", "brand"],
-	 *         entityGroupFetch(attributeContent("code"))
-	 *     )
-	 * )
-	 * ```
+	 * Fetches references of the specified types from an entity, returning their primary keys and, if provided, the bodies of referenced group entities as defined by the nested `EntityGroupFetch` constraint. Place inside `entityFetch` to include references in results; by default, only reference primary keys and group entity data are returned, not reference attributes. Combine with other constraints for filtering, ordering, or fetching referenced entity bodies as needed.
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("58d182a75b4954004ed42474b8f78f16")
+	@SourceHash("83c0ddc878dae46f5dfa9f1648586fbe")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes,
 		@Nullable EntityGroupFetch groupEntityRequirement) {
@@ -4235,11 +4204,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified types from an entity, returning their primary keys and, if requested, the full bodies of referenced and group entities. Place inside `entityFetch` to include references in results; supports nested `entityFetch`/`entityGroupFetch` for deep loading.
+	 * Fetches references of the specified types from an entity, returning the primary keys of referenced entities and, if nested, their full bodies via `entityFetch` and `entityGroupFetch`. Use inside `entityFetch` to include references; without it, references are omitted. Reference attributes are not included—use `referenceContentWithAttributes` for those. Supports filtering, ordering, and pagination of references. Merges with other `referenceContent` constraints by key, uniting nested requirements and resolving behavioral differences as described.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
-	 *         ["parameterValues"],
+	 *         "parameterValues",
 	 *         entityFetch(attributeContent("code")),
 	 *         entityGroupFetch(attributeContent("code"))
 	 *     )
@@ -4249,7 +4219,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("9f880d63eb796c1b4c2c999e29774563")
+	@SourceHash("86895ec12b20c66233fb055b6aeacd32")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes,
 		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -4262,8 +4232,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including only those that match the provided filter on reference-level attributes. Returns referenced entity primary keys and, if nested, their bodies. Place inside `entityFetch` to include references in results.
-	 *
+	 * Fetches references of the specified type from an entity, including only those that match the provided filter on reference-level attributes or metadata. Returns the primary keys of the referenced entities and, if nested, their bodies. Place inside `entityFetch`.  
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
@@ -4276,7 +4245,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("d3bcafb0738726e6c006fe5ef73270ec")
+	@SourceHash("143477f4fea0f674009149e134b2a3d2")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
 		requireName(referenceName, "referenceName");
@@ -4284,8 +4253,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Supports filtering references by their own attributes using a nested `filterBy` constraint.
-	 *
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Allows filtering references by reference-level attributes using the provided `filterBy` constraint. Must be used within `entityFetch`.  
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
@@ -4298,7 +4266,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("3f2fa0195d22f880427fe8d5a5df758d")
+	@SourceHash("cb453b0863a39a63ff9c815de7b6cc69")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4312,7 +4280,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the given type from an entity, including both the reference's primary keys and its reference-level attributes, with optional filtering on reference attributes. Useful for retrieving metadata about relationships, not just linked entities.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all reference-level attributes. Supports filtering references by reference attributes via `filterBy`, and returns the requested reference attributes using `attributeContent`. Place inside `entityFetch` to retrieve references with metadata; without this, references and their attributes are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4323,11 +4291,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("b22e4ce9779079137f9e1b10de0e7719")
+	@SourceHash("d510a20a549e8354fdaf0b273fffc615")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4343,14 +4312,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, full referenced entity bodies. Supports filtering references by reference-level attributes (via `filterBy`) and fetching referenced entities with custom requirements. Place inside `entityFetch` to include references in results.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of referenced entities. Supports filtering references by reference-level attributes or referenced entity attributes via `filterBy`. Place inside `entityFetch` to include references in results; without it, references are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
 	 *         "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         entityFetch(attributeContent("code"))
+	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
@@ -4358,7 +4327,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("8af3a6ceec3ef151533913771796512a")
+	@SourceHash("cc54589597865a8be2f5cc1a743fe362")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityRequirement) {
@@ -4367,7 +4336,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity bodies (as defined by the nested `EntityFetch`) and all attributes stored on the reference record itself. Supports filtering references by reference-level attributes using `filterBy`.
+	 * Fetches the specified named reference from an entity, including both the reference's primary keys and its reference-level attributes, and allows filtering references by criteria on the reference record. Optionally, fetches the full body of the referenced entity. Place inside `entityFetch` to retrieve references; without it, references are omitted from results.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
@@ -4381,7 +4351,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("e7cc1b5a6a3781389a09689457b788d7")
+	@SourceHash("56daafc6e6e65dfd28b14c69c53f4407")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4396,24 +4366,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including reference-level attributes, with optional filtering on reference records, and loads the full bodies of referenced entities as defined. Use inside `entityFetch` to retrieve associations with metadata.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering references by their attributes, fetching the full bodies of referenced entities, and combining these requirements in a single query. Use when you need both the association metadata and the referenced entity data in one result.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
 	 *         "parameterValues",
 	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         attributeContent("code"),
+	 *         attributeContent("sortOrder"),
 	 *         entityFetch(attributeContent("code"))
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("577d127e0c8b5c8c95306d360dc6986d")
+	@SourceHash("a65b4806afe5df63f51b8eb6ed7785c8")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4430,14 +4399,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, if requested, group entity bodies. Allows filtering references by attributes on the reference record. Place inside `entityFetch` to include references in results.
+	 * Fetches references of the specified type from an entity, returning the primary keys of referenced entities whose reference records match the given filter. Optionally, also fetches the bodies of referenced group entities as specified. Place inside `entityFetch` to include references in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
 	 *         "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         entityGroupFetch(attributeContent("code"))
+	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
@@ -4446,7 +4415,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("89412160a423613736aabee827d99d8b")
+	@SourceHash("db85f8bc682a257877265fc47bb76ca5")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable EntityGroupFetch groupEntityRequirement) {
@@ -4455,7 +4424,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all attributes stored on the reference record. Supports filtering the reference set and fetching group entity bodies. Place inside `entityFetch` to include references in results.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes, with optional filtering on reference attributes and optional fetching of group entity bodies. Place inside `entityFetch` to retrieve associated references; without it, references are omitted. Filtering applies to reference attributes, not the referenced entity itself.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4466,12 +4435,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("4c5f4392bf920ba4c314b7251f8830d3")
+	@SourceHash("5b0f76d7f577ec314660a08c733cedd2")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4486,7 +4454,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports filtering references, fetching group entity bodies, and is placed inside `entityFetch`.
+	 * Fetches references of the given name, including both the primary keys and all reference-level attributes, with optional filtering on reference attributes, and allows fetching the full bodies of referenced group entities. Place inside `entityFetch` to retrieve associations and their metadata.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4498,11 +4466,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("b58d42e4b036ce8266e5384c3a7db8e6")
+	@SourceHash("a700df424a28da37b80b703341ff8ccb")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4519,7 +4488,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, optionally filtering which references are included, and allows fetching full bodies of referenced entities and their groups. Place inside `entityFetch` to retrieve associated references; supports nested filtering, entity/group fetches, and custom ordering for fine-grained control.
+	 * Fetches references of the specified type from an entity, optionally filtering which references are returned and loading the full bodies of referenced entities and/or their groups. Filtering applies to reference attributes; use `entityHaving` for referenced entity filters. Reference attributes are not included—use `referenceContentWithAttributes` if needed. References to missing entities are included by default. Multiple `referenceContent` constraints for the same reference type are merged, with filters and chunking required to match.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4535,7 +4504,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("0a862dcb0593900612f3e0ca06cbf160")
+	@SourceHash("c5a3d2eb5e15be56af2902e34ace16f3")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -4544,7 +4513,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entities' primary keys and all reference-level attributes. Supports filtering references, fetching referenced entity/group bodies, and is placed inside `entityFetch`.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Optionally filters the references, fetches full bodies of referenced entities and their groups, and supports advanced configurations like filtering, ordering, and pagination. Use inside `entityFetch` to retrieve reference-level metadata along with referenced entities.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4560,7 +4529,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("5fcc8ffc076ac25a33a75f2f7872d1aa")
+	@SourceHash("d16714dab18f20fca70389be3224240b")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4576,22 +4545,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches a named reference group from an entity, returning both the primary keys of referenced entities and all reference-level attributes. Supports filtering references, fetching referenced entity/group bodies, and customizing the result via nested constraints.
+	 * Fetches references of the specified type from an entity, including their primary keys, reference-level attributes, and optionally the full bodies of referenced entities and their groups. Supports filtering references (by reference or referenced entity attributes), custom ordering, and combining multiple requirements. Returns only references matching the filter; reference attributes are included in the result.
 	 *
 	 * ```evitaql
-	 * referenceContentWithAttributes(
-	 *     "parameterValues",
-	 *     filterBy(attributeEquals("isPrimary", true)),
-	 *     attributeContent("sortOrder"),
-	 *     entityFetch(attributeContent("code")),
-	 *     entityGroupFetch(attributeContent("code"))
+	 * entityFetch(
+	 *     referenceContentWithAttributes(
+	 *         "parameterValues",
+	 *         filterBy(attributeEquals("isPrimary", true)),
+	 *         attributeContent("sortOrder"),
+	 *         entityFetch(attributeContent("code")),
+	 *         entityGroupFetch(attributeContent("code"))
+	 *     )
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("b8cfc4ba7baf12575b8b924e09f4e3e0")
+	@SourceHash("ff525ec330efa859d1f7c6333f36ec73")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4609,18 +4580,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, ordering them using the provided `orderBy` constraint. Returns primary keys of referenced entities (and optionally their bodies if nested fetches are used). Place inside `entityFetch` to include references in results.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, referenced entity bodies. The `orderBy` argument customizes the order of returned references using reference attributes or referenced entity properties.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent("categories", orderBy(attributeNatural("order", ASC)))
+	 *     referenceContent("categories", orderBy(attributeNatural("priority", DESC)))
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("0c2e63cf2a5e438c9a5ede98d34e468a")
+	@SourceHash("763a9456d90942087af35db8499f8a28")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy) {
 		requireName(referenceName, "referenceName");
@@ -4628,7 +4599,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all reference-level attributes, and orders the references using the provided `orderBy` constraint. Use within `entityFetch` to retrieve enriched reference info with custom sorting.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes (metadata on the association itself). The returned references are ordered according to the provided `orderBy` constraint, which operates on reference attributes. Use within `entityFetch` to retrieve rich reference data for advanced querying and result shaping.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4643,7 +4614,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("d83cc13283a1d8a532c4603cf12d4c77")
+	@SourceHash("4bca106c9bf082505952d12aa7b37c27")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4657,14 +4628,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including their reference-level attributes, and orders them using the provided `orderBy` constraint. Use inside `entityFetch` to retrieve both the primary keys and metadata about the relationship itself.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes, and orders the references according to the provided order. Place inside `entityFetch` to retrieve associations (e.g., product → categories) with their metadata and in a custom order.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
 	 *         "categories",
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         attributeContent("isPrimary")
+	 *         attributeContent("isPrimary", "sortOrder")
 	 *     )
 	 * )
 	 * ```
@@ -4672,7 +4643,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("7d5f273f7e07a3cdbe4a546607bfdb3a")
+	@SourceHash("f143d0bc94e22d228a88aca2183f31b7")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4688,22 +4659,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches a named reference group from an entity, returning the referenced entity primary keys ordered by a custom rule, and optionally loads the full bodies of referenced entities as specified. Place inside `entityFetch` to include references in results.
+	 * Fetches the specified reference group by name, returning reference primary keys and, optionally, the full bodies of referenced entities as defined by the nested `entityFetch`. References are ordered according to the provided `orderBy` constraint, which operates on reference attributes by default; use `entityProperty` to sort by referenced entity attributes. Must be used within `entityFetch`. 
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
 	 *         "categories",
-	 *         orderBy(attributeNatural("order", DESC)),
+	 *         orderBy(attributeNatural("priority", DESC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("d2eb8c6abd6e21ef131833e3bd74f832")
+	@SourceHash("14b666606090d366b7957a1ee24c5ea0")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement) {
@@ -4712,7 +4684,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both their primary keys and all reference-level attributes, with optional ordering and nested fetching of referenced entity bodies. Use inside `entityFetch` to retrieve enriched reference data with custom ordering.
+	 * Fetches references of the specified type, including both their primary keys and all reference-level attributes, with results ordered according to the provided `orderBy` constraint. Optionally, fetches the full body of referenced entities as specified by the nested `entityRequirement`. Use inside `entityFetch` to retrieve associated entities and metadata in a single query.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4723,11 +4695,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("906e52f8789413988fac9ce451789942")
+	@SourceHash("da8b97f2434dba70f1e2e44e7da499b3")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4742,8 +4715,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including their reference-level attributes, ordered as defined, and optionally loads full bodies of referenced entities. Useful for retrieving both the association metadata and related entity details in one query.
-	 *
+	 * Fetches references of the specified type, returning their primary keys, reference-level attributes, and optionally the bodies of referenced entities. Allows custom ordering of references and inclusion of specific reference attributes. Must be used inside `entityFetch`.  
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
@@ -4754,12 +4726,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("6480b57adf739d650dbce53a01ee912b")
+	@SourceHash("0e7cb7b1f4618d8d0722ff8ffa5be6af")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4776,13 +4747,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, ordering them with the provided `orderBy` constraint and optionally fetching bodies of their group entities. Place inside `entityFetch` to include references; by default, only primary keys are returned.
+	 * Fetches references of the specified type from an entity, ordering them according to the provided `orderBy` constraint (which operates on reference attributes by default) and optionally fetching the bodies of referenced group entities as defined by `groupEntityRequirement`. Returns only the referenced entity primary keys and any nested group entity data; reference-level attributes are not included unless using a variant with attributes. Must be used inside `entityFetch` to include references in the result.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
 	 *         "categories",
-	 *         orderBy(attributeNatural("order", ASC)),
+	 *         orderBy(attributeNatural("sortOrder", ASC)),
 	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
@@ -4792,7 +4763,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("0821e240f6e1e1c6fcd9a342d4387102")
+	@SourceHash("71124e64b0e36be514cee4450debebf1")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
 		@Nullable EntityGroupFetch groupEntityRequirement) {
@@ -4801,22 +4772,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the given name, including their attributes and optionally the bodies of referenced group entities, ordered as specified. Use inside `entityFetch` to retrieve both reference metadata and group entity details. Supports advanced ordering and attribute selection.
+	 * Fetches references of the specified type, including their reference-level attributes and optionally the full bodies of referenced group entities. Allows custom ordering of references by reference attributes or group entity properties. Must be used within `entityFetch`. 
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
 	 *         "categories",
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         entityGroupFetch(attributeContent("code"))
+	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("3acc5eb9ba3d060a7c80d21b634d2579")
+	@SourceHash("41f417ea4caf9d2a9793f4bb70ba89c7")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4831,7 +4803,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including their reference-level attributes, ordered as defined. Optionally fetches group entity bodies and their attributes. Use for scenarios needing both reference metadata and associated group entity details.
+	 * Fetches references of the specified type, returning both the referenced entity primary keys and all reference-level attributes, with optional ordering and nested group entity fetch. Use inside `entityFetch` to retrieve associations (e.g., product → categories) along with metadata stored on the reference record. Ordering is applied to reference attributes; use `entityProperty` to sort by referenced entity attributes.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4847,7 +4819,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("56ad4250ee96b1cbea3eb53333b4d969")
+	@SourceHash("e333c69ecf8d76e35d62d5ac63e19654")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4864,7 +4836,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, ordering them per the given `orderBy` constraint and optionally loading full bodies of referenced entities and their groups. Place inside `entityFetch` to retrieve associations like product→brand or product→categories, with support for nested fetches and ordering by reference or referenced entity attributes.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of referenced entities and their groups. Supports custom ordering of references and nested fetches for related entities. Place inside `entityFetch` to include references in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4872,15 +4844,16 @@ public interface QueryConstraints {
 	 *         "parameterValues",
 	 *         orderBy(entityProperty(attributeNatural("name", ASC))),
 	 *         entityFetch(attributeContent("name")),
-	 *         entityGroupFetch(attributeContent("code"))
+	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("265df60def6bf390205cf1b75d6af534")
+	@SourceHash("dfe535492433b8d8b91a418bc73ce9e3")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -4889,23 +4862,21 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity/group bodies and all reference-level attributes, with optional ordering. Place inside `entityFetch` to retrieve full reference details and sort references as needed.
+	 * Fetches references of the specified type from an entity, returning both the primary keys and all reference-level attributes, and optionally loads the full bodies of referenced entities and their groups. You can specify custom ordering of the references and nest `entityFetch`/`entityGroupFetch` to retrieve related entity data. Use this when you need both the relationship metadata and the referenced entities themselves.
 	 *
 	 * ```evitaql
-	 * entityFetch(
-	 *     referenceContentWithAttributes(
-	 *         "categories",
-	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         entityFetch(attributeContent("name")),
-	 *         entityGroupFetch(attributeContent("code"))
-	 *     )
+	 * referenceContentWithAttributes(
+	 *     "categories",
+	 *     orderBy(attributeNatural("sortOrder", ASC)),
+	 *     entityFetch(attributeContent("name")),
+	 *     entityGroupFetch(attributeContent("code"))
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("aff5270f6f3a39c54883d61ce763f6a5")
+	@SourceHash("27b76000d9e58285bfd9edd37eb9e4a8")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4921,15 +4892,15 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports ordering references, fetching referenced entity/group bodies, and retrieving reference-level attributes in one call.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes, with optional ordering, nested fetching of referenced entity bodies, and group entity bodies. Use inside `entityFetch` to retrieve associations like product → categories, including metadata about the relationship itself. Combine with `orderBy` to control reference order, and with `attributeContent` to specify which reference attributes to include.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
+	 *         "categories",
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
 	 *         attributeContent("isPrimary"),
-	 *         entityFetch(attributeContent("code")),
+	 *         entityFetch(attributeContent("name")),
 	 *         entityGroupFetch(attributeContent("code"))
 	 *     )
 	 * )
@@ -4938,7 +4909,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("b85f97cdedfb5aaead91382ddf933a89")
+	@SourceHash("86cf5a18da80e16bdcfc9d525e976e83")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -4956,7 +4927,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and optionally filtering and ordering the reference set. Filtering and ordering apply to reference-level attributes; use nested constraints for referenced entity fields. Place inside `entityFetch` to include references in results.
+	 * Fetches references named by `referenceName` from an entity, returning their primary keys and, optionally, referenced entity/group bodies. Use nested `filterBy` to filter references (by reference attributes or, via `entityHaving`, by referenced entity attributes) and `orderBy` to sort them (by reference or referenced entity attributes). Only references matching the filter are included, ordered as specified. Must be used inside `entityFetch`; without it, references are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4971,7 +4942,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("e736fd3fe28a39b955c8a47cee737703")
+	@SourceHash("bba89aacf1e166a4e95d69303ae336a5")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy) {
@@ -4980,7 +4951,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both their primary keys and all reference-level attributes, with optional filtering and ordering applied to the reference records themselves. Place inside `entityFetch` to retrieve enriched association data.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering and ordering of references via `filterBy` (on reference attributes) and `orderBy` (on reference or referenced entity attributes). Place inside `entityFetch` to retrieve associated references with metadata.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -4991,11 +4962,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f9aa22a99703b160128df33747f4f8d4")
+	@SourceHash("d26a6533ab7e6f3feddee733a92ba8ce")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -5010,7 +4982,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Supports filtering and ordering of references based on reference attributes. Place inside `entityFetch` to retrieve reference data along with entity results.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports filtering and ordering references by their attributes, and allows specifying which reference attributes to retrieve.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -5022,11 +4994,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("2f8b0a47ba2b7b077711023866217372")
+	@SourceHash("5083b8e9b429c0498bd26bf100eac70e")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -5043,7 +5016,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, optionally filtering and ordering them by reference attributes, and fetching the full bodies of referenced entities using nested constraints. Use for fine-grained control over which references and referenced entities are returned.
+	 * Fetches references of the specified type from an entity, allowing you to filter and order the reference set, and to fetch the full bodies of referenced entities. Filtering applies to reference attributes; use `entityHaving` to filter by referenced entity data. Returns only reference primary keys and any nested entity bodies, not reference attributes—use `referenceContentWithAttributes` for those.  
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -5055,11 +5028,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("d21afe52df336169d0fa0e6cb8df1e66")
+	@SourceHash("881676b44bdb43fe5ff2986eaba35155")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
@@ -5068,21 +5042,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including their reference-level attributes, with optional filtering, ordering, and nested entity body fetching. Use this to retrieve both the association metadata and the referenced entities in a single query.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all reference-level attributes. Supports filtering and ordering references by their attributes or referenced entity properties, and can load full referenced entity bodies via nested `entityFetch`. Use inside `entityFetch` to retrieve associated references with fine-grained control over which references and attributes are included.
 	 *
 	 * ```evitaql
-	 * referenceContentWithAttributes(
-	 *     "categories",
-	 *     filterBy(attributeEquals("isPrimary", true)),
-	 *     orderBy(attributeNatural("sortOrder", ASC)),
-	 *     entityFetch(attributeContent("name"))
+	 * entityFetch(
+	 *     referenceContentWithAttributes(
+	 *         "categories",
+	 *         filterBy(attributeEquals("isPrimary", true)),
+	 *         orderBy(attributeNatural("sortOrder", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("c6b637df05599f790c64f79021f02b79")
+	@SourceHash("092fb3d3498c37a7ff620db966ec3e5f")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -5098,12 +5074,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports filtering and ordering references by reference-level attributes, and can fetch full bodies of referenced entities. Use for advanced scenarios needing both reference metadata and related entity data.
+	 * Fetches references of the specified type from an entity, including their primary keys, reference-level attributes, and optionally the full bodies of referenced entities. Supports filtering and ordering references by reference or referenced entity attributes. Place inside `entityFetch` to retrieve associated references with fine-grained control over which references and attributes are included.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
+	 *         "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
 	 *         attributeContent("isPrimary", "sortOrder"),
@@ -5115,7 +5091,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("2bd78ef297d34a1513c53dff41aaa91b")
+	@SourceHash("cb1d4f13f2d0670e2fd9f8b86b35f870")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -5133,22 +5109,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches a named reference group from an entity, returning the referenced entities' primary keys and, if requested, their group entity bodies. Supports filtering and ordering of references—filters apply to reference attributes unless wrapped in `entityHaving`. Place inside `entityFetch`.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, group entity bodies. Supports filtering references by reference-level attributes (via `filterBy`) and ordering them (via `orderBy`). Place inside `entityFetch`; without it, references are omitted from results.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
-	 *         "parameterValues",
-	 *         filterBy(attributeEquals("isActive", true)),
+	 *         "categories",
+	 *         filterBy(attributeEquals("isPrimary", true)),
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         entityGroupFetch(attributeContent("code"))
+	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("e954453e072aacd375b74671d603ec44")
+	@SourceHash("2b5d266428c826d1c8cf12cc69c0bad7")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -5157,7 +5135,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Supports filtering and ordering references (by reference attributes), and can fetch group entity bodies as well.
+	 * Fetches references of the specified type from an entity, including their reference-level attributes, and allows filtering, ordering, and fetching of referenced group entity bodies. Filtering and ordering operate on reference attributes unless wrapped in entity/group containers. Use in `entityFetch` to retrieve associations like product→brand or product→categories, optionally filtering or sorting the references and including group entity data.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -5165,7 +5143,7 @@ public interface QueryConstraints {
 	 *         "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         entityGroupFetch(attributeContent("code"))
+	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
@@ -5173,7 +5151,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("2fa17a7f561b1b1edf31b9491516d755")
+	@SourceHash("b43842091083f4d9ec4b1464aed1091b")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -5189,15 +5167,15 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering and ordering on reference attributes, fetching group entity bodies, and customizing attribute selection for each reference.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports filtering and ordering references by reference attributes, fetching group entity bodies, and combining multiple requirements for the same reference type. Use when you need reference metadata (e.g., "sortOrder") along with the reference itself.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
+	 *         "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         attributeContent("code", "isPrimary"),
+	 *         attributeContent("isPrimary", "sortOrder"),
 	 *         entityGroupFetch(attributeContent("code"))
 	 *     )
 	 * )
@@ -5206,7 +5184,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("988e20452f82814153ef240340a8bf5c")
+	@SourceHash("9fe92bb6fed5421444eb55c674eaf4f6")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -5224,22 +5202,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, optionally filtering and ordering them, and can load full bodies of referenced entities and their groups. Reference-level filters/orderings apply to the relationship; use nested `entityFetch`/`entityGroupFetch` to fetch referenced data. By default, returns reference primary keys unless attributes are explicitly requested.
+	 * Fetches references of the specified type from an entity, optionally filtering and ordering them, and can load full bodies of referenced entities and their groups. Filtering applies to reference attributes unless wrapped in `entityHaving`. Multiple `referenceContent` constraints can be combined if their keys match, with rules for merging filters, ordering, and chunking. By default, all references are returned regardless of target existence; use `referenceContent(EXISTING, ...)` to suppress missing targets.
 	 *
 	 * ```evitaql
-	 * referenceContent(
-	 *     "parameterValues",
-	 *     filterBy(attributeEquals("isPrimary", true)),
-	 *     orderBy(attributeNatural("sortOrder", ASC)),
-	 *     entityFetch(attributeContent("code")),
-	 *     entityGroupFetch(attributeContent("code"))
+	 * entityFetch(
+	 *     referenceContent(
+	 *         "parameterValues",
+	 *         filterBy(attributeEquals("isPrimary", true)),
+	 *         orderBy(attributeNatural("sortOrder", ASC)),
+	 *         entityFetch(attributeContent("code")),
+	 *         entityGroupFetch(attributeContent("code"))
+	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("7499b83f1a5ba8464274e488839707d2")
+	@SourceHash("57d685f0774a63b12aec1cdf8ab80969")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement,
@@ -5249,7 +5230,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Supports filtering and ordering of references, and can fetch full bodies of referenced entities and their groups. Useful for accessing metadata about relationships (e.g., "sortOrder") alongside referenced entities.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all reference-level attributes. Supports filtering and ordering of references (by reference attributes or referenced entity properties), and can fetch full bodies of referenced entities and their groups. Place inside `entityFetch` to retrieve reference associations with metadata and related entity data.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -5262,11 +5243,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("68b232e8d91425242fd891561ca2817f")
+	@SourceHash("ace25254b599f4e4595425ac121aa2ad")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -5283,23 +5265,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including their reference-level attributes, with optional filtering, ordering, and nested fetching of referenced entity and group bodies. Use this to retrieve both reference metadata and related entity details in one query.
+	 * Fetches references of the given name from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Supports filtering and ordering references (by reference attributes or referenced entity fields), and can fetch full bodies of referenced entities and their groups. Use inside `entityFetch` to retrieve reference-level metadata along with associated entities.
 	 *
 	 * ```evitaql
-	 * referenceContentWithAttributes(
-	 *     "categories",
-	 *     filterBy(attributeEquals("isPrimary", true)),
-	 *     orderBy(attributeNatural("sortOrder", ASC)),
-	 *     attributeContent("isPrimary", "sortOrder"),
-	 *     entityFetch(attributeContent("name")),
-	 *     entityGroupFetch(attributeContent("code"))
+	 * entityFetch(
+	 *     referenceContentWithAttributes(
+	 *         "parameterValues",
+	 *         filterBy(attributeEquals("isPrimary", true)),
+	 *         orderBy(attributeNatural("sortOrder", ASC)),
+	 *         attributeContent("isPrimary", "sortOrder"),
+	 *         entityFetch(attributeContent("code")),
+	 *         entityGroupFetch(attributeContent("code"))
+	 *     )
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("deafcbb4acd01b2a02a7e6d946beec99")
+	@SourceHash("0585662696e7127de261992d72d1825d")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -5318,32 +5302,33 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types for an entity, returning the primary keys of referenced entities and, if specified, their full bodies via a nested `entityFetch`. Reference attributes are not included—use `referenceContentAllWithAttributes` for those.
+	 * Retrieves all references of all types for each entity, returning the primary keys of referenced entities and, if specified, their full bodies via the nested `EntityFetch` constraint. Reference attributes are not included; use `referenceContentAllWithAttributes()` to fetch those as well. Must be used inside `entityFetch`.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("40a9c201a77dfdb52a3ebbb399baa8a5")
+	@SourceHash("56ac4f7d1e8019c93a83231533f48afa")
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(entityRequirement, null);
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including both the primary keys of referenced entities and all attributes stored on each reference record. Optionally, fetches the full bodies of referenced entities as specified by the nested `EntityFetch` constraint.
+	 * Retrieves all reference groups from the entity, including both the primary keys of referenced entities and all attributes stored on each reference record. Optionally, fetches the full bodies of referenced entities as specified by the nested `entityFetch`. Use inside `entityFetch` to ensure references and their metadata are included in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentAllWithAttributes(
-	 *         entityFetch(attributeContent("code", "name"))
+	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("ace2c194cd92cfc943053ff6359b8519")
+	@SourceHash("572951b0f0ff62b55d3020644f016d51")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
@@ -5354,21 +5339,22 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including both the primary keys and all reference-level attributes, and loads the full bodies of referenced entities according to the specified `entityFetch` constraint. Use inside `entityFetch` to retrieve comprehensive reference data.
+	 * Fetches all references of all types from the entity, including their primary keys and all reference-level attributes, and optionally loads the full bodies of referenced entities as specified. Use inside `entityFetch` to retrieve complete reference and attribute data for all associations.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentAllWithAttributes(
-	 *         attributeContent("sortOrder"),
+	 *         attributeContent("isPrimary", "sortOrder"),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("0ec05df6ce093c6795fee8bcd54c445f")
+	@SourceHash("bc3fed5c1a3c88182114ed822adf2ca6")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
@@ -5379,25 +5365,33 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types for the entity, including the primary keys of referenced entities and, optionally, the full bodies of their group entities as specified by the nested `EntityGroupFetch` constraint. Reference attributes are not included; use `referenceContentAllWithAttributes()` for that. Must be used within `entityFetch`.
-	 *
+	 * Fetches all references of all types for each entity, returning their primary keys and, if specified, the full bodies of their group entities according to the provided `EntityGroupFetch` constraint. Reference attributes are not included; use `referenceContentAllWithAttributes()` to fetch those as well. Must be used inside `entityFetch`.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("852862db49fa147c9b54f58fe98e6452")
+	@SourceHash("0ce72a0d5aa24e31e94373ddde717518")
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(null, groupEntityRequirement);
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including both the primary keys of referenced entities and all attributes stored on each reference record, and allows specifying how to fetch the bodies of referenced group entities via `groupEntityRequirement`.
+	 * Fetches all references of all types for the entity, including both the primary keys and all reference-level attributes, and allows fetching the full bodies of referenced group entities as specified by the provided `EntityGroupFetch` constraint. Use inside `entityFetch` to retrieve complete reference data for all associations.
+	 *
+	 * ```evitaql
+	 * entityFetch(
+	 *     referenceContentAllWithAttributes(
+	 *         entityGroupFetch(attributeContent("code"))
+	 *     )
+	 * )
+	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f7d9044c998686f067e721628e622a2a")
+	@SourceHash("fb9ed4682cb989d1a09f5ba957d740d6")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -5408,21 +5402,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types for the entity, including all reference-level attributes as specified, and optionally loads full bodies of referenced group entities. Use inside `entityFetch` to retrieve comprehensive reference and group data for each entity.
-	 *
-	 * ```evitaql
-	 * entityFetch(
-	 *     referenceContentAllWithAttributes(
-	 *         attributeContent("isPrimary", "sortOrder"),
-	 *         entityGroupFetch(attributeContent("code"))
-	 *     )
-	 * )
-	 * ```
+	 * Fetches all references of all types from the entity, including the primary keys of referenced entities, all reference-level attributes (using the provided attribute content), and optionally the full bodies of referenced group entities. Use inside `entityFetch` to retrieve complete reference information for all associations.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f799172ceb1736ea34a316590ee413c5")
+	@SourceHash("d95764efbee700bb8223535a42a2df17")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -5433,24 +5418,39 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types for an entity, returning the primary keys of referenced entities and, if specified, their full bodies and group entities using nested `entityFetch` and `entityGroupFetch` constraints. Reference attributes are not included; use `referenceContentAllWithAttributes` for those.
+	 * Fetches all references of all types for each entity, returning their primary keys and, optionally, the full bodies of referenced entities and their groups as specified by nested `entityFetch` and `entityGroupFetch` constraints. Reference attributes are not included; use `referenceContentAllWithAttributes()` to fetch those. Must be placed inside `entityFetch`.  
+	 * ```evitaql
+	 * entityFetch(
+	 *     referenceContentAll(
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("code"))
+	 *     )
+	 * )
+	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("9c236b5c950283ac5089a818c01064da")
+	@SourceHash("c97d12ec9525a611c803772c0b5dc646")
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(entityRequirement, groupEntityRequirement);
 	}
 
 	/**
-	 * Fetches all references of all types for an entity, returning their primary keys and, if specified, paginates or chunks the reference set using the provided chunking constraint. Reference attributes are not included—use `referenceContentAllWithAttributes()` for those.
+	 * Fetches all references of all types for each entity, returning only the referenced entity primary keys (not reference attributes). Use this variant with a chunking constraint (e.g., `page` or `strip`) to limit the number of references returned per entity, which is useful for handling large reference sets efficiently.
+	 *
+	 * ```evitaql
+	 * entityFetch(
+	 *     referenceContentAll(page(1, 20))
+	 * )
+	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("34eb539fe7cd260d77f49b34036bb20d")
+	@SourceHash("67c327485e37b085cb37de62d955b03c")
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(
@@ -5461,13 +5461,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all reference groups of all types from the entity, including both the primary keys of referenced entities and all attributes stored on the reference records. Supports chunking (pagination) of large reference sets via the provided chunking constraint.
+	 * Fetches all references of all types for each entity, including all reference-level attributes and applying the specified chunking (pagination) constraint to limit the number of references returned per entity. Useful for efficiently retrieving large reference sets with their metadata.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("3688e788796d1eeb6aa98392d1b823c7")
+	@SourceHash("3905663d4c2c15230b7e2210232b6423")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(
@@ -5479,13 +5479,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including both the primary keys of referenced entities and all attributes stored on the reference records. Optionally loads full bodies of referenced entities and their groups via nested `entityFetch` and `entityGroupFetch` constraints.
+	 * Fetches all references of all types from the entity, including both the primary keys and all reference-level attributes, and optionally loads the full bodies of referenced entities and their group entities as specified. Use inside `entityFetch` to retrieve comprehensive reference data for all associations.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentAllWithAttributes(
 	 *         entityFetch(attributeContent("code")),
-	 *         entityGroupFetch(attributeContent("code"))
+	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
@@ -5494,7 +5494,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("809148d60070521ed41742fbc51fe673")
+	@SourceHash("396b3cfa74a88f05ac33bebf426b659e")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable EntityFetch entityRequirement,
@@ -5508,14 +5508,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including their reference-level attributes and, optionally, the full bodies of referenced entities and their groups as specified. Use inside `entityFetch` to retrieve comprehensive reference data in one call.
+	 * Fetches all references of all types from the entity, including their primary keys, all reference-level attributes (as specified by `attributeContent`), and optionally the full bodies of referenced entities and their groups. Use inside `entityFetch` to retrieve all associations in detail.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentAllWithAttributes(
 	 *         attributeContent("sortOrder"),
 	 *         entityFetch(attributeContent("code")),
-	 *         entityGroupFetch(attributeContent("name"))
+	 *         entityGroupFetch(attributeContent("code"))
 	 *     )
 	 * )
 	 * ```
@@ -5524,7 +5524,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("7fefd2c3e7744b4c5417af973074fa21")
+	@SourceHash("285fbaec43d8952ebc7e52d80f77c5e1")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable AttributeContent attributeContent,
@@ -5539,32 +5539,33 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, returning the primary keys of referenced entities (and optionally their bodies), with control over whether to include only references to existing entities or all references via `ManagedReferencesBehaviour`. Reference-level attributes are not included; use `referenceContentAllWithAttributes()` to fetch them.
+	 * Fetches all references of all types from the entity, returning the primary keys of referenced entities and, optionally, their full bodies. The `managedReferencesBehaviour` parameter controls whether to include references to non-existent entities (`ANY`) or only those with existing targets (`EXISTING`). Use inside `entityFetch` to retrieve all reference associations for each entity.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("b3d9a6a1ac45460ec03dda95a61160b8")
+	@SourceHash("238d4adb32d44ef50fb7b8c515a4a20b")
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour) {
 		return new ReferenceContent(managedReferencesBehaviour);
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including both the referenced entity primary keys and all reference-level attributes, using the specified managed references behaviour to control whether missing target entities are included.
+	 * Fetches all references of all types from the entity, including both the primary keys of referenced entities and all reference-level attributes (metadata on the association itself). The `managedReferencesBehaviour` parameter controls whether to include references pointing to non-existent entities (`ANY`) or only those with existing targets (`EXISTING`). Use inside `entityFetch` to retrieve complete reference info for all associations.
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("c702d0aadcdc516fd0dd09bce346767d")
+	@SourceHash("3b504b22ebda76f4424134790b717cfa")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour) {
 		return new ReferenceContent(managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES);
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including all reference-level attributes as specified, and controls which references are returned based on the managedReferencesBehaviour (e.g., only those pointing to existing entities). Use inside `entityFetch` to retrieve complete reference info.
+	 * Fetches all references of all types from the entity, including all reference-level attributes as specified, and returns the primary keys of referenced entities. The `managedReferencesBehaviour` controls whether only references to existing entities are included. Must be used within `entityFetch`.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -5576,7 +5577,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f2e9f639e9e3db326e30a296e6214973")
+	@SourceHash("c8839e653c62c864f9a9ad600af12600")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5590,7 +5591,7 @@ public interface QueryConstraints {
 
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, referenced entity bodies. The `managedReferencesBehaviour` controls whether to include only references to existing entities or all references, regardless of target existence.
+	 * Fetches references of the specified type from an entity, returning referenced entity primary keys and optionally their bodies. Use `managedReferencesBehaviour` to control whether references to missing entities are included. Place inside `entityFetch`; without it, references are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -5602,7 +5603,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("7ad8184cf2e7e053e314d2145eb603c1")
+	@SourceHash("9979b9b05d276644559371327c863b57")
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5613,11 +5614,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning both the primary keys of referenced entities and the selected reference-level attributes. Optionally restricts to references with existing targets via `managedReferencesBehaviour`. Place inside `entityFetch`.
+	 * Fetches references of the specified type from an entity, including both the primary keys of the referenced entities and the selected reference-level attributes. The `managedReferencesBehaviour` controls whether to include references pointing to non-existent entities. Must be used inside `entityFetch`.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "brand", "isPrimary", "sortOrder")
+	 *     referenceContentWithAttributes(EXISTING, "brand", "sortOrder", "isPrimary")
 	 * )
 	 * ```
 	 *
@@ -5625,7 +5626,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("2709cb5d69cb5a104cc9053e05873eb7")
+	@SourceHash("84c0cd18d545586ad2fb6a79bd988a0f")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5641,7 +5642,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, returning both the referenced entity primary keys and all attributes stored on the reference record. Use `managedReferencesBehaviour` to control whether only existing references are included. Place inside `entityFetch`.
+	 * Fetches references of the specified type from an entity, returning both the referenced entity primary keys and all attributes stored on the reference record itself. You can control whether to include only references pointing to existing entities or all references using the `managedReferencesBehaviour` parameter. Place inside `entityFetch` to retrieve reference data and metadata for associations like product → brand or categories.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -5653,7 +5654,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("87326b3c69584c0f5bbf5376847caa76")
+	@SourceHash("224570660c768ee1941847b63e976658")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5668,18 +5669,19 @@ public interface QueryConstraints {
 
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and the attributes stored on the reference record itself. Allows control over whether to include only references pointing to existing entities or all references, and supports fetching reference attributes via nested `attributeContent`. Use inside `entityFetch` for fine-grained reference and attribute retrieval.
+	 * Fetches references of the specified type from an entity, returning both the primary keys of the referenced entities and all reference-level attributes. You can control whether to include only references to existing entities or all references using `ManagedReferencesBehaviour`. Place inside `entityFetch` to retrieve associations like product → brand, including metadata about the relationship. Nested constraints allow fetching referenced entity bodies, filtering, ordering, and pagination.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "brand", attributeContent("isPrimary"))
+	 *     referenceContentWithAttributes(EXISTING, "brand", attributeContent("isPrimary", "sortOrder"))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("78a20f4a0dbf25b4ca7055b1a85466ed")
+	@SourceHash("76ba2d0070c2ad1da043e2f4c5e799ba")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5695,7 +5697,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches one or more named references from an entity, returning the primary keys of referenced entities and, optionally, their full bodies. The `managedReferencesBehaviour` parameter controls whether to include references to non-existent entities. Must be used inside `entityFetch`.
+	 * Fetches one or more named references from an entity, returning the primary keys of the referenced entities and, optionally, their full bodies. The `managedReferencesBehaviour` parameter controls whether to include references to non-existent entities (`ANY`) or only those pointing to existing ones (`EXISTING`). Place inside `entityFetch`; without it, references are omitted from results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -5707,7 +5709,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("5218cb28a5c68deb5c8e2fed55f2b21a")
+	@SourceHash("82f4a7b285c08c0a93174e7f2b77db4f")
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5721,17 +5723,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of referenced entities. Use `managedReferencesBehaviour` to control whether only existing referenced entities are returned. Place inside `entityFetch`.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of the referenced entities. The `managedReferencesBehaviour` controls whether to include references to non-existent entities. Place inside `entityFetch` to retrieve references; without it, references are omitted from results. Supports nested fetch, filter, order, and pagination constraints for fine-grained control.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(EXISTING, "brand", entityFetch(attributeContent("name")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("b9e5a17b16f002c787430f828644534f")
+	@SourceHash("e4909ebca0db3119f4efbe70bd431855")
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5745,18 +5749,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches the specified reference group from an entity, including both reference-level attributes and the full body of referenced entities as defined by the nested `EntityFetch`. Use `managedReferencesBehaviour` to control whether only existing referenced entities are returned. Place inside `entityFetch` to retrieve associations (e.g., product → brand) with their metadata and referenced entity data.
+	 * Fetches references of the specified type from an entity, including both the referenced entity's primary keys and any attributes stored on the reference record itself. Optionally loads the full body of the referenced entity and supports filtering, ordering, and referential integrity control via `ManagedReferencesBehaviour`. Use inside `entityFetch` to retrieve associations (e.g., product → brand) with reference-level metadata.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(EXISTING, "brand", entityFetch(attributeContent("name")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("afee7766531b054f9da2dd200ef7ed53")
+	@SourceHash("8c348e190b1ab5d61e8a1e2b4a75d97d")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5771,18 +5776,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning both the referenced entity's primary keys and all attributes stored on the reference record. Optionally loads full referenced entity bodies and supports filtering non-existent targets via `ManagedReferencesBehaviour`. Use for cases where reference-level metadata is needed alongside referenced entities.
+	 * Fetches references of the specified type from an entity, including both the referenced entity's primary keys and the attributes stored on the reference record itself. Optionally, retrieves the full body of the referenced entity and controls whether to include only references to existing entities or all references. Place inside `entityFetch` to access reference-level metadata and referenced entity data in one step.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "brand", attributeContent("isPrimary"), entityFetch(attributeContent("code")))
+	 *     referenceContentWithAttributes(EXISTING, "brand", attributeContent("isPrimary"), entityFetch(attributeContent("name")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("427d2c98aeb310b3c591e5e701b4fa1a")
+	@SourceHash("c2b55b414a5515c914e4ca6150e2570f")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5799,17 +5805,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, controlling whether only existing referenced entities are included (`EXISTING`) or all references regardless of target existence (`ANY`). Optionally fetches group entity bodies for each reference.
+	 * Fetches references of the specified type from an entity, returning primary keys and, if requested, group entity bodies. The `managedReferencesBehaviour` controls whether to include references to missing entities. Place inside `entityFetch` to retrieve references; without it, references are omitted.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(EXISTING, "brand", entityGroupFetch(attributeContent("code")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("a095f6ac635859e7556125d4f01a4580")
+	@SourceHash("b764872208d1095c3ddbdfba233f225d")
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5823,11 +5831,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes, with optional group entity body loading. Use `managedReferencesBehaviour` to control whether only existing references are returned. Aliasing, filtering, ordering, and pagination are supported for advanced use cases.
+	 * Fetches references of the specified type from an entity, including both the primary keys and all attributes stored on the reference record, and optionally fetches the full body of the referenced group entity. The `managedReferencesBehaviour` controls whether only references to existing target entities are returned. Place inside `entityFetch` to retrieve reference associations with their metadata.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "categories", entityGroupFetch(attributeContent("code")))
+	 *     referenceContentWithAttributes(EXISTING, "brand", entityGroupFetch(attributeContent("name")))
 	 * )
 	 * ```
 	 *
@@ -5835,7 +5843,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("e7e90ceafe772eb6f6eb5125327bd278")
+	@SourceHash("96cf143994bf5c0d7bf9aec9f0d06260")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5850,18 +5858,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored directly on the reference record. You can control whether to include only references to existing entities, and optionally fetch group entity bodies or filter/order references.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Optionally, you can control whether only references to existing entities are returned, and fetch group entity bodies with their own attribute content. Use inside `entityFetch` to retrieve associations and their metadata in a single query.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "brand", attributeContent("isPrimary"), entityGroupFetch(attributeContent("code")))
+	 *     referenceContentWithAttributes(EXISTING, "brand", attributeContent("sortOrder"), entityGroupFetch(attributeContent("code")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("962f036d6c1b0fd5a8c79b31a93bbc48")
+	@SourceHash("79d8d2959439859c79b74caffe7aaac4")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5878,11 +5887,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and optionally the full bodies of referenced entities and/or their groups. The `managedReferencesBehaviour` controls whether only existing references are returned. Place inside `entityFetch` to include references in results.
+	 * Fetches references of the specified type from an entity, returning referenced entity primary keys and optionally their full bodies or group entities. The `managedReferencesBehaviour` controls whether to include references to missing entities. Place inside `entityFetch` to retrieve associations like product→brand or product→categories; without it, references are omitted. Supports nested fetches for referenced entities and groups.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent(EXISTING, "brand", entityFetch(attributeContent("name")), null)
+	 *     referenceContent(EXISTING, "brand",
+	 *         entityFetch(attributeContent("code")),
+	 *         entityGroupFetch(attributeContent("code"))
+	 *     )
 	 * )
 	 * ```
 	 *
@@ -5890,7 +5902,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("ad9e842984c95e0589a1d8e139789532")
+	@SourceHash("831e435315120e377acd4726415b0d55")
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5906,19 +5918,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all reference-level attributes, with optional full bodies of referenced and group entities. Controls whether to include only references to existing entities or all references, and supports nested fetches for rich reference data retrieval.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Optionally loads full bodies of referenced entities and their groups, and can control whether to include only references to existing entities using `ManagedReferencesBehaviour`. Must be used within `entityFetch` to include references in the result.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(EXISTING, "brand", entityFetch(attributeContent("name")), null)
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("872756bb7b0387fa0f1de85c0918326c")
+	@SourceHash("acbbf59c2a91c308b0e8dbeb8acc3568")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5934,11 +5945,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Optionally loads full bodies of referenced and group entities, and controls inclusion of references to non-existent entities via `managedReferencesBehaviour`. Supports nested filtering, ordering, and pagination for fine-grained control.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Optionally, fetches full bodies of referenced entities and their groups, and controls whether to return references pointing to non-existent entities via `managedReferencesBehaviour`. Use this to retrieve reference-level metadata alongside referenced entity data.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "brand", attributeContent("isPrimary"), entityFetch(attributeContent("code")))
+	 *     referenceContentWithAttributes(EXISTING, "brand", attributeContent("isPrimary"), entityFetch(attributeContent("name")))
 	 * )
 	 * ```
 	 *
@@ -5946,7 +5957,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("e0a47bd9334eabd50f7bb8c5a66737f2")
+	@SourceHash("ad5aa0c3a591968ff648685b9f49d675")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5965,18 +5976,19 @@ public interface QueryConstraints {
 
 
 	/**
-	 * Fetches references of the specified types from an entity, returning their primary keys and, optionally, the full bodies of referenced entities per the nested `entityFetch`. The `managedReferencesBehaviour` controls whether to include only references to existing entities or all references. Place inside `entityFetch` to retrieve associations like product→brand or product→categories; without this, references are omitted from results.
+	 * Fetches references of the specified types from an entity, returning their primary keys and, optionally, the full bodies of referenced entities. The `managedReferencesBehaviour` controls whether only references to existing entities are included. Place inside `entityFetch` to retrieve associations such as product → brand or categories, and use nested constraints to fetch referenced entity bodies or filter/order references.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent(EXISTING, "brand", entityFetch(attributeContent("name")))
+	 *     referenceContent(EXISTING, "brand", entityFetch(attributeContent("code")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("24c6b0fa5c3ae1c7eaacda5157653a52")
+	@SourceHash("06db3e90845212a7eb992873a31885d2")
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -5999,17 +6011,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified types from an entity, returning their primary keys and, optionally, group entity bodies per the nested `EntityGroupFetch`. The `managedReferencesBehaviour` controls whether only references to existing entities are included. Place inside `entityFetch`.
+	 * Fetches references of the specified types from an entity, returning their primary keys and, if requested, the full bodies of their group entities. The `managedReferencesBehaviour` parameter controls whether only references to existing entities are included. Place inside `entityFetch` to retrieve references; otherwise, they are omitted from results.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(EXISTING, "brand", entityGroupFetch(attributeContent("code")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("ac8b3dd394fc3447769b8030718911c9")
+	@SourceHash("73a25d21bd35a2a104c89a3744b49234")
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6032,18 +6046,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches one or more named references from an entity, returning their primary keys and, optionally, full referenced entity and group bodies. Controls inclusion of references to non-existent entities via `ManagedReferencesBehaviour`. Place inside `entityFetch` to retrieve associations like product→brand or product→categories, with optional nested fetches for referenced entities or groups.
+	 * Fetches one or more named references from an entity, returning the primary keys of referenced entities and, optionally, their full bodies or group entities. Use `managedReferencesBehaviour` to control whether missing targets are included. Place inside `entityFetch` to include references in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent(EXISTING, "brand", entityFetch(attributeContent("name")), null)
+	 *     referenceContent(EXISTING, "brand", entityFetch(attributeContent("name")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("75b5ed55e669f0f2faa2a2643b094aa5")
+	@SourceHash("40de3cef11ee1371affafb180142c01b")
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6060,7 +6075,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, applying the given managed references behaviour (e.g., only existing targets) and filters on reference attributes. Use inside `entityFetch` to control which references are returned and how they're filtered.
+	 * Fetches references of the specified type from an entity, optionally filtering them by reference-level attributes. The `managedReferencesBehaviour` controls whether to include references to missing entities. Place inside `entityFetch` to retrieve references; without it, references are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -6072,7 +6087,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("fb6dd081e1ba9c609bd322fdaabcf820")
+	@SourceHash("6bbd96b5a4939bd6d4820fc4305c9754")
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6086,7 +6101,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Allows filtering references by their attributes and controlling whether only existing referenced entities are included via `managedReferencesBehaviour`.
+	 * Fetches references of the specified type from an entity, returning both the primary keys and all reference-level attributes, with optional filtering on reference attributes. The `managedReferencesBehaviour` controls whether only references to existing entities are included. Place inside `entityFetch`.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -6098,7 +6113,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("a99eb4f5d4f24e40e02bfffe3e7f493b")
+	@SourceHash("4e23254dfbf8be561edc4f7f10218f35")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6113,18 +6128,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Allows filtering references, controlling inclusion of only existing targets, and specifying which reference attributes to return.
+	 * Fetches references of the given type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record. You can specify whether to include only references to existing entities, filter references by their attributes, and fetch reference-level attributes. Use inside `entityFetch` to retrieve associations like product→brand or product→categories, including metadata about the relationship.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), attributeContent("sortOrder"))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("c1b94a18f0b1a1f8270b1ac6d217f33b")
+	@SourceHash("1a60400a92780c1e8155c149db3af6d7")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6141,18 +6157,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of referenced entities. Allows filtering references (by reference attributes), customizing inclusion of only existing targets, and nesting entity fetches for referenced entities. Use for fine-grained control over which references and referenced entity data are returned.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of referenced entities. Allows filtering references by reference-level attributes, controlling inclusion of references to missing entities via `managedReferencesBehaviour`, and specifying nested entity fetches. Combine with `filterBy` to limit references or with `entityFetch` to load referenced entity data.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), entityFetch(attributeContent("code")))
+	 *     referenceContent(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), entityFetch(attributeContent("name")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("5398cf7b13a5812d4d4af9dd8ce013b1")
+	@SourceHash("69a49e17561fdf2db760003f6ff3b8b7")
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6167,18 +6184,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity bodies (as defined by `entityRequirement`) and all reference-level attributes. You can filter which references are returned using `filterBy`, and control whether to include only references to existing entities or all references via `managedReferencesBehaviour`.
+	 * Fetches references of the specified type from an entity, returning both the reference's primary keys and its reference-level attributes. You can control whether to include only references to existing entities, filter references by reference attributes, and fetch full bodies of referenced entities. Use inside `entityFetch` to include reference data in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), entityFetch(attributeContent("name")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("95833cf2b0db6493b4a1a25d9659bce2")
+	@SourceHash("5d3c6ab488168d9df8c5f2fbe812f51e")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6194,7 +6212,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record. Allows filtering references, controlling inclusion of only existing targets, and fetching referenced entity bodies.
+	 * Fetches references of the specified type from an entity, including reference-level attributes, with optional filtering on reference attributes, custom managed reference behavior (e.g., only existing targets), and nested fetching of referenced entity bodies. Use this to retrieve both the association metadata and the referenced entities in a single query.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -6210,7 +6228,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("bdbf81bb0ca9d268f22a7aa349ca8d7c")
+	@SourceHash("998484156da210f0db9713aa264a3ad7")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6228,7 +6246,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and optionally group entity bodies. Allows filtering references (by reference attributes), controlling inclusion of non-existent targets, and fetching group data. Place inside `entityFetch`.
+	 * Fetches references of the specified name from an entity, optionally filtering them by reference-level attributes and including the full bodies of referenced group entities. The `managedReferencesBehaviour` controls whether references to missing entities are included. Place inside `entityFetch` to retrieve associations like product → brand or categories, with fine-grained control over which references are returned and how they're filtered.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), entityGroupFetch(attributeContent("code")))
@@ -6238,7 +6257,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("df50cf70fa7e935db8312339caafa44b")
+	@SourceHash("c4a6b99dcfa9805302bf0eefabf6a4d3")
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6254,20 +6273,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Allows filtering references, controlling inclusion of missing targets via `managedReferencesBehaviour`, and fetching group entity bodies.
+	 * Fetches references of the specified type from an entity, including both the primary keys of the referenced entities and all attributes stored on the reference record. You can control whether to include only references to existing entities or all references using `ManagedReferencesBehaviour`. Optionally, filter which references are returned and fetch the full bodies of referenced group entities. Place inside `entityFetch` to retrieve reference associations with metadata.
+	 *
 	 * ```evitaql
-	 * referenceContentWithAttributes(
-	 *     EXISTING,
-	 *     "categories",
-	 *     filterBy(attributeEquals("isPrimary", true)),
-	 *     entityGroupFetch(attributeContent("code"))
+	 * entityFetch(
+	 *     referenceContentWithAttributes(EXISTING, "categories", filterBy(attributeEquals("isPrimary", true)), entityGroupFetch(attributeContent("code")))
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("a02042b2e8471477797502140a248dbf")
+	@SourceHash("901797cc4aabf27a19c3cb5c99e950c8")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6283,16 +6300,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports filtering references, controlling inclusion of missing targets, and fetching group entity data.
+	 * Fetches references of the given name from an entity, returning their primary keys, all reference-level attributes, and optionally the bodies of referenced group entities. Allows filtering references by reference attributes, controlling inclusion of missing targets via `ManagedReferencesBehaviour`, and specifying which reference/group attributes to fetch. Use for advanced reference retrieval with attribute and group body needs.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(
-	 *         EXISTING, "brand",
-	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         attributeContent("sortOrder"),
-	 *         entityGroupFetch(attributeContent("code"))
-	 *     )
+	 *     referenceContentWithAttributes(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), attributeContent("sortOrder"), entityGroupFetch(attributeContent("code")))
 	 * )
 	 * ```
 	 *
@@ -6300,7 +6312,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("56635073e83f999934b005df9b1c125e")
+	@SourceHash("57a97a179f7cea6839e5f202ac2d780f")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6318,18 +6330,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, full referenced entity and group bodies. Supports filtering, ordering, and pagination on reference records. Use `managedReferencesBehaviour` to control whether only existing referenced entities are included. Nested constraints allow fine-grained selection and retrieval of reference and referenced entity data.
+	 * Fetches references of the specified type from an entity, optionally filtering them by reference-level attributes, controlling inclusion of only existing targets, and loading full bodies of referenced entities and/or their groups. Use nested `filterBy`, `entityFetch`, or `entityGroupFetch` for fine-grained control. References are omitted unless this constraint is present in `entityFetch`.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), entityFetch(attributeContent("name")), null)
+	 *     referenceContent(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), entityFetch(attributeContent("code")), null)
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("5040b1ca919f7d808bf22009fff049e5")
+	@SourceHash("fb1d6f20af1a1d27f2603a5d1c863d3a")
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6346,17 +6359,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes, with optional filtering and nested fetches for referenced and group entities. Use `managedReferencesBehaviour` to control whether only existing referenced entities are included.
+	 * Fetches references of the specified type from an entity, including their primary keys, reference-level attributes, and optionally the full bodies of referenced entities or groups. Supports filtering, ordering, and pagination of references, and can restrict results to only those referencing existing entities. Use inside `entityFetch` to retrieve associations like product → brand or categories, with fine-grained control over which references and attributes are returned.
+	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "brand", filterBy(...), entityFetch(...), entityGroupFetch(...))
+	 *     referenceContentWithAttributes(
+	 *         EXISTING, "brand",
+	 *         filterBy(attributeEquals("isPrimary", true)),
+	 *         entityFetch(attributeContent("name")),
+	 *         null
+	 *     )
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("350ba1fae2a10e742c7365ba06c02c20")
+	@SourceHash("153422f1c73d4ed1cfaaab2e33215337")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6373,13 +6392,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports filtering, custom reference attribute selection, and nested fetches for referenced entity/group bodies. The `managedReferencesBehaviour` controls whether to include only existing referenced entities or all references.
+	 * Fetches references of the specified type from an entity, including their primary keys, reference-level attributes, and optionally the full bodies of referenced entities or groups. Supports filtering, ordering, and pagination on references, and can restrict results to only those pointing to existing entities. Use inside `entityFetch` to retrieve rich association data.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         EXISTING,
-	 *         "brand",
+	 *         EXISTING, "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
 	 *         attributeContent("sortOrder"),
 	 *         entityFetch(attributeContent("name")),
@@ -6391,7 +6409,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("8ab6371c689f3ed172434b965a040716")
+	@SourceHash("5cb65bba1afff3ba7db5d91797d1591e")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6410,11 +6428,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and optionally referenced entity bodies, applying the given managed references behavior (e.g., only existing targets) and custom ordering. Use inside `entityFetch` to include references in results.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, referenced entity bodies. The `managedReferencesBehaviour` controls whether only references to existing entities are included. Use nested constraints for ordering, filtering, or fetching referenced entity data. 
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent(EXISTING, "brand", orderBy(attributeNatural("priority", DESC)))
+	 *     referenceContent(EXISTING, "brand", orderBy(attributeNatural("sortOrder", ASC)))
 	 * )
 	 * ```
 	 *
@@ -6422,7 +6440,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("dcaa2b25ba8570bb193c792f4b57fbfa")
+	@SourceHash("e9e32458aba362743805dfa180458e55")
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6436,7 +6454,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all reference-level attributes, with optional ordering and control over whether to include only existing targets or all references. Useful for retrieving rich relationship metadata.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes, with optional ordering and control over whether to include only references to existing entities. Use this to retrieve association metadata and order references by custom criteria.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -6447,7 +6465,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f17000c1317cea8e95a6b8e96866ee92")
+	@SourceHash("2e5fc409621e87fd94ea9d3831bcd884")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6462,7 +6480,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the given type with the specified managed references behavior, returning both the reference primary keys and all reference-level attributes. Supports custom ordering and inclusion of referenced entity bodies. Use for fine-grained control over reference fetching.
+	 * Fetches references of the specified type from an entity, including their primary keys, reference-level attributes, and optionally orders them using the provided `orderBy` constraint. Only references matching the `managedReferencesBehaviour` (e.g., EXISTING) are returned. Use inside `entityFetch` to retrieve both reference metadata and referenced entity details.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -6474,7 +6492,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("bfea56c231840f5639ccff07141fd5d7")
+	@SourceHash("7c5e1ed17781a9bf9e0a29fe271dba80")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6491,11 +6509,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, full referenced entity bodies. Controls whether to include only references to existing entities (`EXISTING`) or all (`ANY`), and allows ordering and nested entity fetches for referenced entities.
+	 * Fetches the specified reference group from an entity, returning referenced entity primary keys and, optionally, their full bodies. The `managedReferencesBehaviour` controls whether only existing references are included. Use `orderBy` to sort references by reference or referenced entity attributes, and nest `entityFetch` to fetch referenced entity data. Place inside `entityFetch`; without it, references are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent(EXISTING, "brand", orderBy(attributeNatural("name", ASC)), entityFetch(attributeContent("name")))
+	 *     referenceContent(EXISTING, "brand", orderBy(attributeNatural("name", ASC)), entityFetch(attributeContent("code")))
 	 * )
 	 * ```
 	 *
@@ -6503,7 +6521,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("54f9d49f1868b165256ee52ccdb33a30")
+	@SourceHash("f806f28744f099bec6a4f57def247654")
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6518,18 +6536,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity's primary keys and all reference-level attributes, with optional ordering and nested entity body loading. The `managedReferencesBehaviour` controls whether only existing referenced entities are returned. Useful for retrieving associations with full metadata and referenced entity details in a single query.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Allows filtering out references to non-existent entities via `managedReferencesBehaviour`, custom ordering of references, and fetching full bodies of referenced entities. Use inside `entityFetch` to retrieve rich association data and metadata for references.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "categories", orderBy(attributeNatural("sortOrder", ASC)), entityFetch(attributeContent("name")))
+	 *     referenceContentWithAttributes(EXISTING, "brand", orderBy(attributeNatural("sortOrder", ASC)), entityFetch(attributeContent("name")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("6b2db93557da183bc2f532be0b37d829")
+	@SourceHash("8f6e88867d89d9d87ddb0a384f62db42")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6545,23 +6564,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning both the referenced entity primary keys and all attributes stored on the reference record. Optionally filters out references to non-existent entities (via `managedReferencesBehaviour`), applies custom ordering, fetches reference attributes, and can load full bodies of referenced entities. Use inside `entityFetch` to retrieve rich association data and metadata in one step.
+	 * Fetches references of the specified type from an entity, returning their primary keys, reference-level attributes, and optionally the full bodies of referenced entities. Supports filtering non-existent references via `managedReferencesBehaviour`, custom ordering, and nested attribute/entity fetches. Use inside `entityFetch` to include reference metadata and related entity data in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(
-	 *         EXISTING, "categories",
-	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         attributeContent("isPrimary"),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
+	 *     referenceContentWithAttributes(EXISTING, "brand", orderBy(attributeNatural("sortOrder", ASC)), attributeContent("isPrimary"), entityFetch(attributeContent("name")))
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("7e96ece6d49f75315f8a5d8c235aa6a1")
+	@SourceHash("5d6b8f60e706f99cfe697d1a7479f644")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6579,18 +6593,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and optionally fetching group entity bodies, with results ordered by a custom `orderBy` constraint. Controls whether only existing target entities are included via `managedReferencesBehaviour`. Place inside `entityFetch` to retrieve reference data; without it, references are omitted.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of referenced group entities. Controls whether to include references pointing to missing entities via `managedReferencesBehaviour`, and allows custom ordering of references using `orderBy`. Place inside `entityFetch` to include references in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(EXISTING, "categories", orderBy(attributeNatural("order", ASC)), entityGroupFetch(attributeContent("name")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("cba1e5e6945cd0455ca90c9848d440e7")
+	@SourceHash("6ad9cf29d38f7af849c48c96db087382")
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6605,18 +6620,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering out non-existent targets via `managedReferencesBehaviour`, custom ordering, and fetching group entity bodies.
+	 * Fetches references of the given name from an entity, returning their primary keys, all reference-level attributes, and optionally the group entity body (using the provided group fetch constraint). Only references matching the specified managed reference behaviour are included, and their order can be customized via the `orderBy` constraint.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(EXISTING, "categories", orderBy(attributeNatural("sortOrder", ASC)), entityGroupFetch(attributeContent("code")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("837416c56c0706573f5153a800a303b1")
+	@SourceHash("479223a3aec01214e384f27d1b19c71e")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6632,23 +6648,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both their primary keys and all reference-level attributes, with optional ordering and group entity fetching. Use `managedReferencesBehaviour` to control whether only existing referenced entities are returned. Supports advanced filtering, ordering, and fetching of group entity bodies.
+	 * Fetches references of the specified type, including their primary keys, reference-level attributes, and optionally referenced group entity bodies, with control over whether to include only existing referenced entities. Supports custom ordering of references by reference attributes or referenced entity properties.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(
-	 *         EXISTING, "categories",
-	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         attributeContent("isPrimary"),
-	 *         entityGroupFetch(attributeContent("code"))
-	 *     )
+	 *     referenceContentWithAttributes(EXISTING, "categories", orderBy(attributeNatural("sortOrder", ASC)), attributeContent("isPrimary"), entityGroupFetch(attributeContent("code")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("d33b1fbbf4864132340eb90d9debf40d")
+	@SourceHash("cf98caae1af3cce13da939733b185ba2")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6666,19 +6678,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning referenced entity primary keys and optionally their full bodies or group entities. Allows filtering out references to non-existent entities via `managedReferencesBehaviour`, and supports custom ordering, nested entity/group fetches, and aliasing. Use inside `entityFetch` to include references in results.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of referenced entities and their groups. You can control whether only existing references are included, apply custom ordering (by reference or referenced entity attributes), and nest `entityFetch` or `entityGroupFetch` to load referenced data. Place inside `entityFetch` to include references in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent(EXISTING, "brand", orderBy(attributeNatural("name", ASC)), entityFetch(attributeContent("name")), null)
+	 *     referenceContent(EXISTING, "brand", orderBy(attributeNatural("sortOrder", ASC)), entityFetch(attributeContent("name")), null)
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("4e0ad559c3672a36696eec9f1960075a")
+	@SourceHash("ef1587c3b10ec2a5ad691557324abb0b")
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6695,11 +6706,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type with the given managed references behavior, returning both the referenced entity primary keys and all reference-level attributes. Optionally, fetches full bodies of referenced entities and their groups, and orders references as specified.
+	 * Fetches references of the specified type from an entity, returning their primary keys, all reference-level attributes, and optionally the full bodies of referenced and group entities. Allows filtering out references to missing entities via `ManagedReferencesBehaviour`, and supports custom ordering and nested fetches for referenced entities and groups.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "brand", orderBy(attributeNatural("sortOrder", ASC)), entityFetch(attributeContent("name")), entityGroupFetch(attributeContent("code")))
+	 *     referenceContentWithAttributes(EXISTING, "brand", orderBy(), entityFetch(attributeContent("name")), null)
 	 * )
 	 * ```
 	 *
@@ -6707,7 +6718,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("daad26329f6b7ceb4db048ab9d74406a")
+	@SourceHash("abd9577b5d2c0ad224d441c9878ec9f9")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6724,15 +6735,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both their primary keys and reference-level attributes, with optional filtering by managed references behaviour, ordering, and nested fetching of referenced entities or groups. Use for advanced reference retrieval with attribute access.
+	 * Fetches references of the specified type from an entity, returning their primary keys, all attributes stored on the reference record, and optionally the full bodies of referenced entities and groups. Supports filtering, ordering, and managed reference behavior to include only existing targets if desired.
 	 *
 	 * ```evitaql
-	 * referenceContentWithAttributes(
-	 *     EXISTING, "categories",
-	 *     orderBy(attributeNatural("sortOrder", ASC)),
-	 *     attributeContent("isPrimary"),
-	 *     entityFetch(attributeContent("name")),
-	 *     entityGroupFetch(attributeContent("code"))
+	 * entityFetch(
+	 *     referenceContentWithAttributes(EXISTING, "brand", orderBy(attributeNatural("sortOrder", ASC)), attributeContent("isPrimary"), entityFetch(attributeContent("name")), null)
 	 * )
 	 * ```
 	 *
@@ -6740,7 +6747,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("2093772b364b451c80d3471245ec363f")
+	@SourceHash("ece6ed823eb5e80c98b7d7c51bc0a9fe")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6759,7 +6766,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, optionally filtering and ordering them, and controlling whether to include only references to existing entities or all references. Place inside `entityFetch` to retrieve reference primary keys and, if nested, referenced entity bodies. Filtering and ordering apply to reference-level attributes by default.
+	 * Fetches references of the given type from an entity, optionally filtering and ordering them, and controlling whether only references to existing entities are included. Place inside `entityFetch` to retrieve reference primary keys and, if nested, referenced entity bodies. Filtering and ordering apply to reference attributes unless wrapped in `entityHaving` or `entityProperty`. Use `ManagedReferencesBehaviour.EXISTING` to suppress references to missing entities.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -6770,7 +6777,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("03470e4c53fa113544387d86386f039b")
+	@SourceHash("7cdafd5156f35ac75ee2985eac420af5")
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6785,21 +6792,17 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes, with optional filtering and ordering. Use `managedReferencesBehaviour` to control whether only existing referenced entities are returned.
-	 *
+	 * Fetches references of the specified type from an entity, including their primary keys and all reference-level attributes, with optional filtering and ordering. Controls whether to include only references to existing entities or all, based on `managedReferencesBehaviour`. Filtering and ordering operate on reference attributes; to target referenced entity data, use `entityHaving`. Must be used inside `entityFetch`.  
 	 * ```evitaql
-	 * referenceContentWithAttributes(
-	 *     EXISTING, "brand",
-	 *     filterBy(attributeEquals("isPrimary", true)),
-	 *     orderBy(attributeNatural("sortOrder", ASC))
+	 * entityFetch(
+	 *     referenceContentWithAttributes(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), orderBy(attributeNatural("sortOrder", ASC)))
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("a58ed7c8a90459187e5529117c4cffe7")
+	@SourceHash("8d4260ba35e9d92f5deba62441dad057")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6815,23 +6818,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including their primary keys, reference-level attributes, and optionally filters, orders, and limits the result set. You can control whether only existing referenced entities are included and fetch referenced entity bodies as needed.
+	 * Fetches references of the specified type from an entity, including reference-level attributes, with optional filtering, ordering, and managed references behavior (e.g., only existing targets). Use this to retrieve both reference metadata and referenced entity keys or bodies.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(
-	 *         EXISTING, "brand",
-	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         attributeContent("isPrimary", "sortOrder")
-	 *     )
+	 *     referenceContentWithAttributes(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), orderBy(attributeNatural("sortOrder", ASC)), attributeContent("isPrimary", "sortOrder"))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("25f56d71cb979c03607c310ec9bfd367")
+	@SourceHash("e49659f6b6734cf68d044b55496b10f6")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6849,7 +6848,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, optionally filtering, ordering, and loading referenced entity bodies. The `managedReferencesBehaviour` controls whether to include references to non-existent entities. Place inside `entityFetch` to retrieve references.
+	 * Fetches references of the specified type from an entity, optionally filtering and ordering them, and can include the full body of each referenced entity. The `managedReferencesBehaviour` controls whether only existing referenced entities are returned. Place inside `entityFetch` to retrieve reference associations; without it, references are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -6860,7 +6859,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("30ce5b8dcf1aa70b41233b36446ab4e8")
+	@SourceHash("d2c2cbf5b79a2cf78e5f0c58b5fa0e54")
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6876,18 +6875,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes, with optional filtering, ordering, and nested entity body fetching. The `managedReferencesBehaviour` controls whether to include only references pointing to existing entities or all references. Place inside `entityFetch` to retrieve associated references with fine-grained control over which references are included and how they are presented.
+	 * Fetches references of the specified type from an entity, including both the referenced entity's primary keys and all attributes stored on the reference record itself. Supports filtering, ordering, and loading full referenced entity bodies. Use `ManagedReferencesBehaviour.EXISTING` to suppress references to missing entities.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), orderBy(attributeNatural("sortOrder", ASC)), entityFetch(attributeContent("name")))
+	 *     referenceContentWithAttributes(EXISTING, "brand", filterBy(), orderBy(), entityFetch(attributeContent("code")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("2fe223bc82e21b0874ce8d81ab3a57be")
+	@SourceHash("7a2cc927117929da0193804dcab12fae")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6904,24 +6904,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both reference-level attributes and the full bodies of referenced entities. Supports filtering, ordering, and referential integrity control via `ManagedReferencesBehaviour`. Use this to retrieve rich reference metadata and related entity data in a single query.
+	 * Fetches references of the specified type from an entity, returning both the referenced entity primary keys and all reference-level attributes. Supports filtering and ordering references (by their attributes or referenced entity properties), and can load full referenced entity bodies. The `managedReferencesBehaviour` controls whether references to missing entities are included. Must be used inside `entityFetch`.  
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(
-	 *         EXISTING, "categories",
-	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         attributeContent("isPrimary", "sortOrder"),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
+	 *     referenceContentWithAttributes(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), orderBy(attributeNatural("sortOrder", ASC)), attributeContent("isPrimary", "sortOrder"), entityFetch(attributeContent("name")))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("2368e9be92fa04464c1774abf29150da")
+	@SourceHash("95c05565f06d8046644447d79ed9927e")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6940,18 +6935,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, referenced group entity bodies. Controls whether to include only references to existing entities, applies reference-level filtering and ordering, and supports fetching group entity data. Reference attributes are not included—use `referenceContentWithAttributes` for those. Must be used within `entityFetch`.
+	 * Fetches references of the specified type from an entity, returning primary keys of referenced entities and optionally their group entity bodies. Supports filtering and ordering references (by reference or referenced entity attributes), and controls whether to include references to non-existent entities via the managedReferencesBehaviour. Place inside `entityFetch` to include references in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), orderBy(attributeNatural("sortOrder", ASC)), entityGroupFetch(attributeContent("code")))
+	 *     referenceContent(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), orderBy(attributeNatural("sortOrder", ASC)), entityGroupFetch(attributeContent("name")))
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("df369f23440ed34878d8e96231705f26")
+	@SourceHash("899e4175f6dcad6de46e2ceda711646e")
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -6967,23 +6962,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all reference-level attributes. Supports filtering and ordering on reference attributes, optional group entity fetching, and can control inclusion of references to non-existent entities via `managedReferencesBehaviour`.
+	 * Fetches references of the specified type from an entity, including reference-level attributes, with optional filtering, ordering, and group entity body loading. The `managedReferencesBehaviour` controls whether references to non-existent entities are included. Place inside `entityFetch` to retrieve associations like product→brand or product→categories, and use nested constraints to filter or sort references or to fetch group entity data.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(
-	 *         EXISTING, "brand",
-	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         entityGroupFetch(attributeContent("code"))
-	 *     )
+	 *     referenceContentWithAttributes(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), orderBy(attributeNatural("sortOrder", ASC)), entityGroupFetch(attributeContent("code")))
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f8f639757659a75f7d231792e65355a9")
+	@SourceHash("067c3078a4fc0a612a19bd4c1698d829")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7000,24 +6990,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record. Supports filtering and ordering by reference or referenced entity attributes, group entity fetching, and controls whether to include only references to existing entities.
+	 * Fetches references of the specified type from an entity, returning both their primary keys and all reference-level attributes. Supports filtering and ordering references, loading referenced group entity bodies, and controlling whether to include references to missing entities via `managedReferencesBehaviour`. Use inside `entityFetch` to retrieve full reference metadata and related entities.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(
-	 *         EXISTING, "brand",
-	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         attributeContent("isPrimary", "sortOrder"),
-	 *         entityGroupFetch(attributeContent("code"))
-	 *     )
+	 *     referenceContentWithAttributes(EXISTING, "categories", filterBy(attributeEquals("isPrimary", true)), orderBy(attributeNatural("sortOrder", ASC)), attributeContent("isPrimary", "sortOrder"), entityGroupFetch(attributeContent("code")))
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("3c3c10069028405efb6c4bee7877a1a6")
+	@SourceHash("7399497fd0130e41e02ce959d111a370")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7036,18 +7020,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, with control over inclusion of only existing targets, filtering and ordering of references, and optional fetching of referenced entity/group bodies. Filtering and ordering apply to reference attributes unless wrapped for entity properties.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, referenced entity/group bodies. Supports filtering, ordering, and controlling whether to include references to missing entities. Place inside `entityFetch` to retrieve references.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(EXISTING, "brand", filterBy(attributeEquals("isPrimary", true)), orderBy(attributeNatural("sortOrder", ASC)), entityFetch(attributeContent("name")), null)
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("268c508968c3854519dd60248beedb8e")
+	@SourceHash("63540f1c78b3917dd0226befbfd48df2")
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7065,23 +7050,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both their primary keys and all reference-level attributes, with optional filtering, ordering, and nested fetching of referenced entity and group bodies. Controls whether to include only references to existing entities or all references using `managedReferencesBehaviour`.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Allows filtering, ordering, and chunking of references, and can load full bodies of referenced and group entities. Use `ManagedReferencesBehaviour.EXISTING` to suppress references to missing entities. Combine with nested constraints for advanced filtering and ordering.
 	 *
 	 * ```evitaql
-	 * referenceContentWithAttributes(
-	 *     EXISTING,
-	 *     "brand",
-	 *     filterBy(attributeEquals("isPrimary", true)),
-	 *     orderBy(attributeNatural("sortOrder", ASC)),
-	 *     entityFetch(attributeContent("name")),
-	 *     entityGroupFetch(attributeContent("code"))
+	 * entityFetch(
+	 *     referenceContentWithAttributes(
+	 *         EXISTING, "brand",
+	 *         filterBy(attributeEquals("isPrimary", true)),
+	 *         orderBy(attributeNatural("sortOrder", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("fb0674c7cf15b09f864806bf58790abd")
+	@SourceHash("5c9f9bdae997ef9715aae9569a44c975")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7099,25 +7084,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Supports filtering, ordering, and pagination of references, and can fetch full bodies of referenced entities and their groups. The `managedReferencesBehaviour` controls whether only references to existing entities are returned.
+	 * Fetches references of the specified type from an entity, returning both the referenced entity primary keys and all reference-level attributes. Supports filtering and ordering of references, fetching referenced entity/group bodies, and controlling inclusion of references to non-existent entities via `ManagedReferencesBehaviour`. Use inside `entityFetch` to include reference metadata and related entities in the result.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(
-	 *         EXISTING, "categories",
-	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         attributeContent("isPrimary", "sortOrder"),
-	 *         entityFetch(attributeContent("name")),
-	 *         entityGroupFetch(attributeContent("name"))
-	 *     )
+	 *     referenceContentWithAttributes(EXISTING, "brand", null, null, attributeContent("isPrimary"), entityFetch(attributeContent("name")), null)
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("d0a55a17bffa3c8e2fedb3715c7a3e89")
+	@SourceHash("122ecdba4edf517591df7f136a7019bf")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7137,13 +7116,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, returning referenced entity primary keys and, optionally, their full bodies as specified by the nested `EntityFetch`. The `managedReferencesBehaviour` parameter controls whether only references to existing entities are returned or all references, regardless of target existence.
-	 *
+	 * Fetches all references of all types from the entity, returning the primary keys of referenced entities and, optionally, their full bodies as specified by the nested `entityRequirement`. The `managedReferencesBehaviour` parameter controls whether to include references to non-existent entities. Must be used within `entityFetch`.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("01726d5761205b5fcfea96aecefd22f0")
+	@SourceHash("3485ceb0909dae11d3ca728a435ab8b8")
 	@Nonnull
 	static ReferenceContent referenceContentAll(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7153,11 +7131,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including their reference-level attributes and the full bodies of referenced entities as specified by the nested `EntityFetch`. The `ManagedReferencesBehaviour` controls whether only references to existing entities are returned. Useful for retrieving complete reference data with attributes in one call.
+	 * Fetches all references of all types for an entity, including all reference-level attributes and, optionally, the full bodies of referenced entities. Use `managedReferencesBehaviour` to control whether references to non-existent entities are included. Place inside `entityFetch` to retrieve references; without it, references are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAllWithAttributes(EXISTING, entityFetch(attributeContentAll()))
+	 *     referenceContentAllWithAttributes(EXISTING, entityFetch(attributeContent("name")))
 	 * )
 	 * ```
 	 *
@@ -7165,7 +7143,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("6b930e057109e3a467eb7095cf32dc8c")
+	@SourceHash("08d66be3c9b8cd9aed0bf71dd724620d")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7177,11 +7155,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including their reference-level attributes and, optionally, the full bodies of referenced entities. The `managedReferencesBehaviour` controls whether to include references to non-existent entities. Place inside `entityFetch` to retrieve comprehensive reference data for each entity.
+	 * Fetches all references of all types from the entity, including their reference-level attributes and, optionally, the full bodies of referenced entities. The `managedReferencesBehaviour` parameter controls whether only references to existing entities are returned. Use inside `entityFetch` to retrieve complete reference info for all associations.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAllWithAttributes(EXISTING, attributeContent("sortOrder"), entityFetch(attributeContent("name")))
+	 *     referenceContentAllWithAttributes(EXISTING, attributeContent("sortOrder"), entityFetch(attributeContent("code")))
 	 * )
 	 * ```
 	 *
@@ -7189,7 +7167,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("07870975764e792a2fc108e44f412b81")
+	@SourceHash("1fd71207d00532c35cde706cad248217")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7204,19 +7182,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types for an entity, returning the primary keys of referenced entities and, optionally, the full bodies of their group entities. The `managedReferencesBehaviour` controls whether only existing references are included. Place inside `entityFetch`.
-	 *
-	 * ```evitaql
-	 * entityFetch(
-	 *     referenceContentAll(EXISTING, entityGroupFetch(attributeContent("code")))
-	 * )
-	 * ```
+	 * Fetches all reference groups of all types for each entity, returning the primary keys of referenced entities and, optionally, their group entity bodies as specified by the nested `EntityGroupFetch`. The `ManagedReferencesBehaviour` controls whether references to non-existent entities are included. Use inside `entityFetch` to retrieve all references with group data.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("8866f7bcd2f164a81f3be0ce18b5f484")
+	@SourceHash("b1855137b5fedf4a0fd4c2c1fc33998a")
 	@Nonnull
 	static ReferenceContent referenceContentAll(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7226,7 +7198,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including reference-level attributes and group entity bodies as specified, with control over whether only references to existing entities are returned (`EXISTING`) or all references (`ANY`). Use inside `entityFetch` to retrieve complete reference data for each entity.
+	 * Fetches all references of all types from the entity, including their reference-level attributes and optionally the full bodies of referenced group entities. The `managedReferencesBehaviour` parameter controls whether to include references to non-existent entities. Place inside `entityFetch` to retrieve all reference associations with attributes.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -7238,7 +7210,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("50998b4e5a4f147015801fd270c70ba4")
+	@SourceHash("19d7e379f004dfd5a4f18bcc39e560be")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7250,17 +7222,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including all reference-level attributes, with optional control over whether to include only references to existing entities. Allows specifying which reference attributes to fetch and how to load referenced group entities.
+	 * Fetches all references of all types from the entity, including their reference-level attributes and, optionally, the bodies of referenced group entities. Use `managedReferencesBehaviour` to control whether only references to existing entities are returned. Place inside `entityFetch` to include references in the result.
+	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAllWithAttributes(EXISTING, attributeContent("isPrimary"), entityGroupFetch(attributeContent("code")))
+	 *     referenceContentAllWithAttributes(EXISTING, attributeContent("code"), entityGroupFetch(attributeContent("name")))
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("ddabb462019c59cd955cb65cc3a2e24d")
+	@SourceHash("c295755abcd447f26e49585a195f744f")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7275,19 +7248,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from an entity, returning the primary keys of referenced entities and optionally their full bodies or group entities, with control over whether to include only existing references or all. Place inside `entityFetch` to include references in results.
-	 *
-	 * ```evitaql
-	 * entityFetch(
-	 *     referenceContentAll(EXISTING, entityFetch(attributeContent("name")), entityGroupFetch(attributeContent("code")))
-	 * )
-	 * ```
-	 *
+	 * Fetches all references of all types for each entity, returning the primary keys of referenced entities and, optionally, their full bodies and group entities. Use `managedReferencesBehaviour` to control whether to include references to non-existent entities. Nested `entityRequirement` and `groupEntityRequirement` allow fetching referenced entity and group bodies.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("6b94260c0507b7444cf08f98896ef884")
+	@SourceHash("4be62f7bbb5ef63ece4298cde729c969")
 	@Nonnull
 	static ReferenceContent referenceContentAll(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7298,11 +7264,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all reference groups of all types from an entity, including both the primary keys and all reference-level attributes, and loads full bodies of referenced and group entities as specified. The `managedReferencesBehaviour` controls whether only existing or all references are returned.
+	 * Retrieves all references of all types from the entity, including their reference-level attributes and, optionally, the full bodies of referenced and group entities. Use `managedReferencesBehaviour` to control whether only existing referenced entities are included. 
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAllWithAttributes(EXISTING, entityFetch(attributeContent("name")), entityGroupFetch(attributeContent("code")))
+	 *     referenceContentAllWithAttributes(EXISTING, entityFetch(attributeContent("name")), entityGroupFetch())
 	 * )
 	 * ```
 	 *
@@ -7310,7 +7276,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("d43d3385f13804761182d51cbfcadbe6")
+	@SourceHash("4615a4e276a63d6b0770fa235a568717")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7323,19 +7289,17 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including their reference-level attributes, with optional fetching of referenced entity and group bodies. The `managedReferencesBehaviour` controls whether only references to existing entities are included. Useful for retrieving complete association data in one call.
-	 *
+	 * Fetches all references of all types from the entity, including all reference-level attributes, with optional filtering for only existing referenced entities. Also allows fetching full bodies of referenced entities and their groups, plus reference attributes.  
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAllWithAttributes(EXISTING, attributeContentAll(), entityFetch(attributeContent("name")), entityGroupFetch(attributeContent("code")))
+	 *     referenceContentAllWithAttributes(EXISTING, attributeContent("sortOrder"), entityFetch(attributeContent("code")), entityGroupFetch(attributeContent("code")))
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("1b16549981cd895ece4703cebd0184a5")
+	@SourceHash("9790ddae7f9e784c86ae767abf60f35c")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -7351,7 +7315,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, paginates or chunks the result using a chunking constraint. Place inside `entityFetch`; without it, references are excluded from results.
+	 * Fetches references of the specified type from an entity, returning their primary keys and optionally limiting the number of references using a chunking constraint (e.g., page or strip). Use inside `entityFetch` to include references; without it, references are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -7363,7 +7327,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("5ab005ac46d04b90accbbd268d31659e")
+	@SourceHash("728c895da7540b28bdc0a4631702d5df")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable ChunkingRequireConstraint chunk) {
 		requireName(referenceName, "referenceName");
@@ -7371,7 +7335,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both their primary keys and the listed reference-level attributes, with optional chunking for large sets. Place inside `entityFetch` to retrieve reference metadata and attributes in one step.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and selected reference-level attributes. Supports chunking to paginate large reference sets. Place inside `entityFetch` to retrieve associated references and their metadata.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -7382,11 +7346,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("cafc6951a3fb3461c75eab183912a7ab")
+	@SourceHash("2b1d8b87165bd075fcaaffc6b729c12c")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -7402,13 +7367,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports pagination or chunking via the provided chunking constraint.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all reference-level attributes (metadata on the association itself). Supports chunking via a paging or strip constraint to limit the number of returned references—useful for entities with large reference sets. Place inside `entityFetch` to retrieve reference details along with their attributes.
+	 *
+	 * ```evitaql
+	 * entityFetch(
+	 *     referenceContentWithAttributes("categories", page(1, 20))
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("254fbd4240b01c6a6017475f6189af71")
+	@SourceHash("dbff503150815f1fdd6447ca8d8539fe")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -7422,14 +7393,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the given type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Optionally, you can specify which reference attributes to fetch and paginate large reference sets using a chunking constraint.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Optionally, you can limit the returned references using a chunking constraint (e.g., pagination). Place inside `entityFetch` to retrieve reference-level metadata alongside the reference keys.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
 	 *         "categories",
-	 *         attributeContent("sortOrder"),
-	 *         page(1, 10)
+	 *         attributeContent("sortOrder", "isPrimary"),
+	 *         page(1, 20)
 	 *     )
 	 * )
 	 * ```
@@ -7438,7 +7409,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f2fdd3950643cbb8923167e99e203ac7")
+	@SourceHash("bb389cabbb4489c424146def2579e571")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -7454,18 +7425,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches one or more named references from an entity, returning the primary keys of referenced entities and optionally their full bodies. Supports chunking (pagination) of large reference sets via a chunking constraint. Place inside `entityFetch` to include references in results.
+	 * Fetches references with the given names from an entity, returning their primary keys and, optionally, referenced entity/group bodies. Supports paginating large reference sets via a chunking constraint. Place inside `entityFetch`; without it, references are excluded.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(page(1, 10), "categories", "brand")
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("5693afe47dd4b967931f0fed7b53e06a")
+	@SourceHash("0cf6b07fb2e82248e150019e369b3486")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable ChunkingRequireConstraint chunk,
 		@Nullable String... referenceName) {
@@ -7477,7 +7449,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches the specified reference group from an entity, returning primary keys of referenced entities and, if requested, their full bodies. Supports nested `EntityFetch` to load referenced entities, and chunking constraints for pagination of large reference sets.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of referenced entities (via nested `entityFetch`). Supports chunking large reference sets using a `Page` or `Strip` constraint. Place inside `entityFetch` to include references in results.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
@@ -7487,11 +7460,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("efda12b5cb0d4b174a5d504d140966cb")
+	@SourceHash("691c1098f57145ca24dd0cc13745ecc5")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement,
 		@Nullable ChunkingRequireConstraint chunk) {
@@ -7500,7 +7474,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity bodies (as defined by `entityRequirement`) and all attributes stored on the reference record itself. Supports chunking large reference sets via `chunk`. Use inside `entityFetch` to retrieve full reference details, including metadata about the relationship.
+	 * Fetches references of the specified type from an entity, including both the primary keys and all reference-level attributes, and loads the full bodies of referenced entities as defined by the nested `entityRequirement`. Supports chunking large reference sets via the `chunk` parameter. Use inside `entityFetch` to retrieve associated entities and their metadata.  
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -7511,11 +7485,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("25bd47e82d8e49f5db85b12dc895073c")
+	@SourceHash("0aa41279d763eb508b49604236b09f5e")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -7530,23 +7505,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record. Optionally, also fetches the referenced entity bodies and limits the reference set using chunking.
+	 * Fetches references of the specified type from an entity, returning both the referenced entity primary keys and all reference-level attributes. Optionally, fetches full referenced entity bodies and supports chunking for large reference sets. Use inside `entityFetch` to include associations (e.g., product → brand) with their metadata and referenced entity data as needed.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "categories",
+	 *         "brand",
 	 *         attributeContent("isPrimary"),
 	 *         entityFetch(attributeContent("name")),
 	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("b9b736a04b52db98bbac9651b6998e67")
+	@SourceHash("fd22fd716ee4c469ee9600167914841b")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -7563,7 +7539,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the bodies of referenced group entities. Supports chunking to limit the number of references returned. Place inside `entityFetch` to include references in results.
+	 * Fetches references of the specified type from an entity, returning referenced entity primary keys and, if requested, group entity bodies via `groupEntityRequirement`. Use `chunk` to paginate large reference sets. Must be nested in `entityFetch`; without it, references are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -7574,11 +7550,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("3cdedcf68d17bf5a842b71e8fb706ff3")
+	@SourceHash("32023c77d3ddfeab418ae4a2c14c1213")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName,
 		@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
@@ -7587,13 +7564,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Optionally, fetches group entity bodies and supports chunking (pagination) of large reference sets.
+	 * Fetches the specified reference group from an entity, returning both the primary keys and all reference-level attributes for each referenced entity. Optionally, fetches the full bodies of the referenced group entities and supports chunking large reference sets. Use inside `entityFetch` to include references and their metadata in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
 	 *         "categories",
-	 *         entityGroupFetch(attributeContent("code")),
+	 *         entityGroupFetch(attributeContent("name")),
 	 *         page(1, 10)
 	 *     )
 	 * )
@@ -7603,7 +7580,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("5794b17b86bc7d035af5b4a2a76898fd")
+	@SourceHash("ae9fe1773bd370b3acb0474e77cfc9a0")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -7618,15 +7595,15 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all reference-level attributes, with optional fetching of group entity bodies and chunking for large sets. Use inside `entityFetch` to retrieve associations and their metadata.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Optionally, you can fetch group entity bodies, reference-level attributes, and paginate large reference sets. Use within `entityFetch` to access associations (e.g., product → categories) and their metadata.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
 	 *         "categories",
-	 *         attributeContent("isPrimary", "sortOrder"),
+	 *         attributeContent("sortOrder"),
 	 *         entityGroupFetch(attributeContent("code")),
-	 *         page(1, 20)
+	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
@@ -7635,7 +7612,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f76c0a79ee75992e0c665bed5cc3bf92")
+	@SourceHash("10c766d5a7e4a24c0311490bfc5980b4")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -7652,7 +7629,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches a named reference group from an entity, returning referenced entity primary keys and, if specified, full referenced and group entity bodies. Supports chunking for large reference sets. Place inside `entityFetch` to include references in results.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, if requested, the full bodies of referenced entities and their groups. Supports chunking large reference sets via pagination. Place inside `entityFetch`; references are omitted without it.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -7669,7 +7646,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("9fd9551020c4834506d20a5ee86a09d0")
+	@SourceHash("a9b67c7e6abef5cf10a09d9953091e9a")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
@@ -7678,23 +7655,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entities' primary keys and all attributes stored on the reference record itself. Optionally loads full bodies of referenced entities and their groups, and supports chunking for large reference sets.
+	 * Fetches references of the specified type from an entity, including both the primary keys and all reference-level attributes, and optionally the full bodies of referenced entities and their groups. Supports chunking for large reference sets. Use inside `entityFetch` to retrieve associations like product → categories with their metadata.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
-	 *         entityFetch(attributeContent("code")),
+	 *         "categories",
+	 *         entityFetch(attributeContent("name")),
 	 *         entityGroupFetch(attributeContent("code")),
 	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("395f3b54de364c8f20935b1432733a03")
+	@SourceHash("fc20e1ff28773fae3dba8b7106eea1aa")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -7710,22 +7688,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Optionally, you can fetch full referenced entity/group bodies and paginate large reference sets. Filtering and ordering can be applied to reference or referenced entity attributes.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Optionally, fetches full bodies of referenced entities and their groups, and supports filtering, ordering, and chunking of the reference set. Use within `entityFetch` to retrieve associated references with their metadata and related entity data.
 	 *
 	 * ```evitaql
-	 * referenceContentWithAttributes(
-	 *     "parameterValues",
-	 *     attributeContent("sortOrder"),
-	 *     entityFetch(attributeContent("code")),
-	 *     entityGroupFetch(attributeContent("code")),
-	 *     page(1, 10)
+	 * entityFetch(
+	 *     referenceContentWithAttributes(
+	 *         "parameterValues",
+	 *         attributeContent("sortOrder"),
+	 *         entityFetch(attributeContent("code")),
+	 *         entityGroupFetch(attributeContent("code")),
+	 *         page(1, 10)
+	 *     )
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("48ab9a8918e0ba8fcab9a44792967188")
+	@SourceHash("236f2397f15511006874a4cf842a2bd2")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -7743,7 +7723,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified types from the entity, returning their primary keys and, optionally, full referenced entity bodies (via nested `entityFetch`). Supports chunking large reference sets with `page` or `strip`. Place inside `entityFetch` to include references in results.
+	 * Fetches references of the specified types from an entity, returning their primary keys and, if nested requirements are provided, the full bodies of referenced entities. Supports chunking for large reference sets. Place inside `entityFetch` to include references in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -7754,11 +7734,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("e511852154cb670bc1556a63e3f18cf3")
+	@SourceHash("f86afe84f9c45dda0017756e044ff743")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes,
 		@Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
@@ -7773,13 +7754,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified types from an entity, returning their primary keys and, optionally, group entity bodies and paginated chunks. Place inside `entityFetch` to include references in results; supports group fetching and chunking for large sets.
+	 * Fetches references of the specified types from an entity, returning their primary keys and, if requested, the bodies of referenced group entities. Supports chunking to limit the number of references returned. Use inside `entityFetch` to include references in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
-	 *         ["categories", "brand"],
-	 *         entityGroupFetch(attributeContent("code")),
+	 *         ["categories", "brands"],
+	 *         entityGroupFetch(attributeContent("name")),
 	 *         page(1, 10)
 	 *     )
 	 * )
@@ -7789,7 +7770,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f67ba879de6e1e7f32a7c7a126a56ae2")
+	@SourceHash("7584a39449fdd34ab62ba39bb8079b85")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes,
 		@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
@@ -7804,12 +7785,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified types from an entity, returning their primary keys and, if requested, the full bodies of referenced and group entities. Supports chunking for large reference sets. Reference attributes are not included by default.
+	 * Fetches references of the specified types from an entity, returning their primary keys and, optionally, the full bodies of referenced entities and their groups. Supports chunking for large reference sets. Place inside `entityFetch` to include references in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
-	 *         ["brand", "categories"],
+	 *         ["categories", "brands"],
 	 *         entityFetch(attributeContent("name")),
 	 *         entityGroupFetch(attributeContent("code")),
 	 *         page(1, 10)
@@ -7820,7 +7801,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("2a826f8159ef2c9930e76830fca21a4f")
+	@SourceHash("f1ab37c99420870912ac23aa01de2071")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes,
 		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement,
@@ -7834,22 +7815,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and optionally applying a filter and pagination (chunking). Place inside `entityFetch` to include only references matching the filter and within the requested chunk; referenced entity bodies and attributes are not loaded unless nested constraints are added.
+	 * Fetches references of the specified type from an entity, returning their primary keys and optionally limiting the result set with a filter and pagination (chunking). Place inside `entityFetch` to include references; without it, references are omitted from results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
 	 *         "categories",
-	 *         filterBy(attributeEquals("isPrimary", true)),
+	 *         filterBy(attributeEquals("isFeatured", true)),
 	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("5bc4f8602db5210d6f7664247421f424")
+	@SourceHash("674a59aef39cd7c25fcc9c6686d84d83")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable ChunkingRequireConstraint chunk) {
@@ -7858,7 +7840,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all attributes stored on the reference record. Supports filtering references by reference-level attributes and paginating large reference sets using chunking constraints.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering references by their attributes or referenced entity properties, and paginating large reference sets using chunking. Must be used inside `entityFetch`; without it, references are omitted from results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -7874,7 +7856,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("390d8c718dd7fff013ebf5e745e7f591")
+	@SourceHash("78badeaf50ef0178751f524b75786cc9")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -7889,14 +7871,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all reference-level attributes. Supports filtering references (by reference attributes), fetching specific reference attributes, and paginating large reference sets. Place inside `entityFetch` to retrieve enriched reference data.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports filtering references by reference attributes, selecting which reference attributes to include, and paginating large reference sets. Use inside `entityFetch` to retrieve associations (e.g., product → categories) with full reference metadata.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
 	 *         "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         attributeContent("isPrimary", "sortOrder"),
+	 *         attributeContent("isPrimary"),
 	 *         page(1, 10)
 	 *     )
 	 * )
@@ -7905,7 +7887,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("14e471b5c02eba449a7322c826769a26")
+	@SourceHash("55635ba21a67862e4424f1b32ca81f6b")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -7922,7 +7904,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of referenced entities. Supports filtering references (by reference attributes or referenced entity attributes), fetching referenced entity data, and paginating large reference sets. Must be used within `entityFetch`; references are omitted otherwise.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, full referenced entity bodies. Supports filtering references (by reference attributes or referenced entity properties), paginating large sets, and combining with nested `entityFetch` for referenced entity data. Reference attributes are not included; use `referenceContentWithAttributes` for those.  
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -7939,7 +7921,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("1cbb3f9fabfe5ca2d7c77ed9e1bc14f0")
+	@SourceHash("780c07bf46a5f6dd35d5d6a7d061a0d8")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
@@ -7948,7 +7930,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the given type, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports filtering references (by reference attributes), fetching referenced entity bodies, and chunking large reference sets. Place inside `entityFetch` to retrieve enriched reference data for associations.
+	 * Fetches the specified reference group(s) from an entity, returning both the referenced entity primary keys and all reference-level attributes. Supports filtering references by their own attributes, fetching full referenced entity bodies, and paginating large reference sets. Use inside `entityFetch` to include references in results; without it, references are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -7960,12 +7942,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("846f9a86a27c58d3d6d283dca99fb615")
+	@SourceHash("a4ee600610fac745a541a2724e6fe388")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -7981,24 +7962,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Supports filtering references, fetching referenced entity bodies, and chunking large reference sets. Use to access reference metadata alongside referenced entities.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all reference-level attributes. Supports filtering references (by their own attributes or via nested entityHaving), fetching referenced entity bodies, and paginating large reference sets. Must be used inside `entityFetch`. Merges with other referenceContent constraints by uniting requested attributes and bodies, but conflicting filters or chunking are refused.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
+	 *         "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
 	 *         attributeContent("sortOrder"),
-	 *         entityFetch(attributeContent("code")),
+	 *         entityFetch(attributeContent("name")),
 	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("cf43af6722f47160ca9b6173d7d4fce0")
+	@SourceHash("39f05cdf7acd389bd818d331f2b78287")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8016,7 +7998,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and optionally group entity bodies. Supports filtering references (by reference attributes), fetching group entity details, and paginating large reference sets. Place inside `entityFetch` to include references in results.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, referenced group entity bodies, filtered and paginated as requested. Place inside `entityFetch` to include references in results. Filtering operates on reference attributes; use `entityHaving` to filter by referenced entity data. Combine with chunking to paginate large reference sets.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -8028,11 +8010,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("247a81f6153f48ec6caf68ced8a11e1f")
+	@SourceHash("2b1a0a142751238c3745c830a660e0c2")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
@@ -8041,7 +8024,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the primary keys of referenced entities and all attributes stored on the reference record. Supports filtering, fetching group entity bodies, and paginating large reference sets. Place inside `entityFetch` to retrieve enriched reference data.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Supports filtering references (by reference or referenced entity attributes), fetching group entity bodies, and paginating large reference sets. Must be used within `entityFetch`. Reference attributes are included only with this variant.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -8053,11 +8036,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("cf0d59877ffbf4fbca4e8ab3acda2e0c")
+	@SourceHash("7a9816f3d6b2249744d24feaf08248fb")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8073,7 +8057,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all reference-level attributes. Allows filtering, fetching of referenced group entities, and chunking large reference sets. Useful for retrieving rich association data with metadata.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes, with optional filtering, group entity fetching, and chunking. Filtering applies to reference attributes unless wrapped in `entityHaving`. Use this to retrieve rich reference metadata and control which references are returned and how they are paginated.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -8090,7 +8074,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("7fbb65d74d705dfbe2fa558cda5c1bd8")
+	@SourceHash("dc6a7dff339d881bc1dcb15840d53af0")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8108,24 +8092,21 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, optionally filtering, ordering, paginating, and loading the bodies of referenced entities or their groups. Reference attributes are not included—use `referenceContentWithAttributes` for those. Place inside `entityFetch`.
-	 *
+	 * Fetches references of the given type from an entity, returning referenced entity primary keys and optionally their full bodies, filtered and paginated as specified. Supports filtering on reference attributes, loading referenced/group entity data, and chunking large reference sets. Reference attributes are not included; use `referenceContentWithAttributes` to fetch them.  
 	 * ```evitaql
-	 * entityFetch(
-	 *     referenceContent(
-	 *         "categories",
-	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         entityFetch(attributeContent("name")),
-	 *         entityGroupFetch(attributeContent("code")),
-	 *         page(1, 10)
-	 *     )
+	 * referenceContent(
+	 *     "categories",
+	 *     filterBy(attributeEquals("isPrimary", true)),
+	 *     entityFetch(attributeContent("name")),
+	 *     null,
+	 *     page(1, 10)
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("18f06936999a6f8a1a395596a5968443")
+	@SourceHash("7a9cc065c8513259e65186ef67de8c3d")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement,
@@ -8135,25 +8116,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering, ordering, pagination, and loading full referenced entity/group bodies. Place inside `entityFetch`.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering, fetching referenced entity/group bodies, and chunking for large sets. Use inside `entityFetch` to retrieve associated references with their attributes and optionally filter or paginate the results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
+	 *         "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         entityFetch(attributeContent("code")),
-	 *         entityGroupFetch(attributeContent("code")),
+	 *         entityFetch(attributeContent("name")),
+	 *         null,
 	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("988c57acfed421e7346f05086d935dee")
+	@SourceHash("e4baafad8033fcc1336db85987883a6b")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8170,12 +8150,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including their primary keys, reference-level attributes, and optionally the full bodies of referenced entities or groups. Supports filtering, ordering, and pagination of references. Reference attributes are included in the result, unlike the basic `referenceContent`.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering and chunking on reference records, and can nest entity/group fetches for related data. Use to retrieve full reference metadata and bodies in one step.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
+	 *         "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
 	 *         attributeContent("sortOrder"),
 	 *         entityFetch(attributeContent("code")),
@@ -8189,7 +8169,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("6758bbdde4dc96265d8ffc7f8000a70d")
+	@SourceHash("813d4603c30d8ac7d53f0aae3ce62508")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8208,22 +8188,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, referenced entity bodies. Use nested `orderBy` to sort references (by reference attributes or referenced entity attributes) and `chunk` to paginate large reference sets.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, referenced entity/group bodies. References are ordered as specified by `orderBy` (default: by primary key), and the number of returned references can be limited with `chunk`. Use within `entityFetch` to include associations like product → categories, brands, etc.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent(
-	 *         "categories",
-	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         page(1, 10)
-	 *     )
+	 *     referenceContent("categories", orderBy(attributeNatural("name", ASC)), page(1, 10))
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("3a15a77c7e858c8babc29489649ac40f")
+	@SourceHash("8c5f9f25a228073b1942aafa3d5e0048")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
 		@Nullable ChunkingRequireConstraint chunk) {
@@ -8232,7 +8208,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports custom ordering and chunking (pagination) of the reference set. Place inside `entityFetch` to retrieve reference metadata alongside entity data.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes, with optional ordering and chunking (pagination) applied to the returned references. Use this to retrieve reference metadata and control result order/size in one step.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -8243,11 +8219,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("add236ffdeafec3b97f18b5d99f820f3")
+	@SourceHash("c789153635cf61d3d65ac0234e0bdee5")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8261,7 +8238,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both reference-level attributes and referenced entity primary keys. Supports custom ordering, attribute selection, and chunking (pagination) of the reference set. Use inside `entityFetch` to retrieve associations with metadata.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Supports custom ordering and chunking (pagination) of the reference set. Use when you need both reference metadata and efficient navigation of large or ordered reference lists.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -8273,12 +8250,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("e5f6225a75058f8771fde8b01b68499b")
+	@SourceHash("4dc2ab7af92600d95ec55bc778c4811b")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8295,37 +8271,10 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, full referenced entity bodies. Supports ordering references (by reference or referenced entity attributes), nested entity fetches, and chunking for large sets. Place inside `entityFetch` to include references in results.
-	 *
+	 * Fetches references of the specified type from an entity, returning referenced entity primary keys and, if requested, their full bodies. Allows ordering references via `orderBy` (on reference attributes or referenced entity properties), and paginating large sets with chunking. Place inside `entityFetch` to include references in results; without it, references are omitted. For reference attributes, use `referenceContentWithAttributes`.  
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
-	 *         "categories",
-	 *         orderBy(attributeNatural("priority", DESC)),
-	 *         entityFetch(attributeContent("name")),
-	 *         page(1, 10)
-	 *     )
-	 * )
-	 * ```
-	 *
-	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
-	 *
-	 * @see io.evitadb.api.query.require.ReferenceContent
-	 */
-	@SourceHash("64b01a1f3afa8cdbbd43ef51c3d6501e")
-	@Nullable
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
-		@Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		requireName(referenceName, "referenceName");
-		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, null, chunk);
-	}
-
-	/**
-	 * Fetches references of the specified type, including both their primary keys and all reference-level attributes, with optional ordering, full referenced entity bodies, and chunking for large sets. Use inside `entityFetch` to retrieve rich relationship data and metadata.
-	 *
-	 * ```evitaql
-	 * entityFetch(
-	 *     referenceContentWithAttributes(
 	 *         "categories",
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
 	 *         entityFetch(attributeContent("name")),
@@ -8337,7 +8286,33 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f00b2373b614feab9763c114719a024f")
+	@SourceHash("0f6d7f298e94868f759496ac2ae55c82")
+	@Nullable
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, null, chunk);
+	}
+
+	/**
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all reference-level attributes. Allows ordering the references, fetching full referenced entity bodies, and paginating large reference sets. Place inside `entityFetch` to retrieve reference data; without it, references are omitted.
+	 *
+	 * ```evitaql
+	 * entityFetch(
+	 *     referenceContentWithAttributes(
+	 *         "categories",
+	 *         orderBy(attributeNatural("sortOrder", ASC)),
+	 *         entityFetch(attributeContent("name")),
+	 *         page(1, 10)
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceContent
+	 */
+	@SourceHash("abc0a3d4e75705273174bb6724bf914f")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8353,15 +8328,15 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including reference-level attributes, with optional ordering, nested attribute/entity fetches, and chunking for pagination. Use to retrieve both the reference metadata and details of referenced entities in a single query.
+	 * Fetches references of the specified type from an entity, including both the primary keys and all reference-level attributes, with optional ordering, nested referenced entity fetch, and chunking (pagination). Use inside `entityFetch` to retrieve associations like product → categories, including metadata about the relationship itself. Ordering applies to reference attributes; chunking limits the number of references returned. 
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
+	 *         "categories",
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
 	 *         attributeContent("isPrimary"),
-	 *         entityFetch(attributeContent("code")),
+	 *         entityFetch(attributeContent("name")),
 	 *         page(1, 10)
 	 *     )
 	 * )
@@ -8370,7 +8345,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("45820172e205af69f55caeefe418cc6d")
+	@SourceHash("3646f15207beb61c42b3ce10484b4bbc")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8388,22 +8363,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, referenced group entity bodies. Allows custom ordering and chunking (pagination) of references, and supports fetching group entity data via nested constraints.
+	 * Fetches references of the specified type from an entity, returning the primary keys of referenced entities and, if requested, their group entity bodies. Allows ordering references via `orderBy` and paginating large sets with chunking. Place inside `entityFetch` to include references in results; without it, references are omitted.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
 	 *         "categories",
-	 *         orderBy(attributeNatural("order", ASC)),
-	 *         entityGroupFetch(attributeContent("code")),
+	 *         orderBy(attributeNatural("priority", DESC)),
+	 *         entityGroupFetch(attributeContent("name")),
 	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("ed8052c0df3e6e27be6580c258af0f1b")
+	@SourceHash("19e4d46e241598f172beb999ee5f1090")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
 		@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
@@ -8412,7 +8389,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Supports custom ordering, group entity fetching, and chunking for large reference sets. Use when you need both reference metadata and referenced entity info.
+	 * Fetches references of the specified type, including their reference-level attributes, with optional ordering, group entity fetch, and chunking (pagination). Use inside `entityFetch` to retrieve both reference metadata and referenced entity/group bodies. References are ordered and paginated as specified, and group entity bodies are loaded according to the nested constraint.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -8424,11 +8401,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("1a129cf258104803084e2825f9c9abd2")
+	@SourceHash("781d4d04317784407285118786743174")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8444,15 +8422,17 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the primary keys of referenced entities and all attributes stored on the reference record itself. Supports custom ordering, attribute selection, group entity fetching, and chunking for large reference sets.
+	 * Fetches references of the specified type from an entity, including their primary keys, reference-level attributes, and optionally referenced group entity bodies. Supports custom ordering and pagination of references. Use inside `entityFetch` to retrieve associated references with their metadata and related group data.
 	 *
 	 * ```evitaql
-	 * referenceContentWithAttributes(
-	 *     "categories",
-	 *     orderBy(attributeNatural("sortOrder", ASC)),
-	 *     attributeContent("isPrimary"),
-	 *     entityGroupFetch(attributeContent("code")),
-	 *     page(1, 10)
+	 * entityFetch(
+	 *     referenceContentWithAttributes(
+	 *         "categories",
+	 *         orderBy(attributeNatural("sortOrder", ASC)),
+	 *         attributeContent("isPrimary"),
+	 *         entityGroupFetch(attributeContent("code")),
+	 *         page(1, 10)
+	 *     )
 	 * )
 	 * ```
 	 *
@@ -8460,7 +8440,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("86caa23f823b7f3a070c50cbf6c1db9f")
+	@SourceHash("d1869482f8fea1337256c205c2bf11a9")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8478,13 +8458,39 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of referenced and group entities. Supports custom ordering and chunking (pagination) of references. Place inside `entityFetch` to include references in results.
-	 *
+	 * Fetches references of the specified type from an entity, returning their primary keys and optionally the full bodies of referenced and group entities. Supports custom ordering via `orderBy` and chunking for pagination. Place inside `entityFetch`.  
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
 	 *         "categories",
-	 *         orderBy(attributeNatural("order", ASC)),
+	 *         orderBy(attributeNatural("priority", DESC)),
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("type")),
+	 *         page(1, 10)
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceContent
+	 */
+	@SourceHash("59e155af15d25d8ed84dfbcfdf9afb92")
+	@Nullable
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Allows ordering the references, fetching full bodies of referenced entities and their groups, and paginating large reference sets. Use inside `entityFetch` to retrieve rich association data for a named reference.
+	 *
+	 * ```evitaql
+	 * entityFetch(
+	 *     referenceContentWithAttributes(
+	 *         "categories",
+	 *         orderBy(attributeNatural("sortOrder", ASC)),
 	 *         entityFetch(attributeContent("name")),
 	 *         entityGroupFetch(attributeContent("code")),
 	 *         page(1, 10)
@@ -8495,32 +8501,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("4f6c3422468f795df95c00d42c2da42a")
-	@Nullable
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
-		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement,
-		@Nullable ChunkingRequireConstraint chunk) {
-		requireName(referenceName, "referenceName");
-		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement, chunk);
-	}
-
-	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity/group bodies and all reference-level attributes. Supports custom ordering, nested entity/group fetches, and chunking for large sets. Use to retrieve rich association data with metadata.
-	 *
-	 * ```evitaql
-	 * referenceContentWithAttributes(
-	 *     "categories",
-	 *     orderBy(attributeNatural("sortOrder", ASC)),
-	 *     entityFetch(attributeContent("name")),
-	 *     entityGroupFetch(attributeContent("code")),
-	 *     page(1, 10)
-	 * )
-	 * ```
-	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
-	 *
-	 * @see io.evitadb.api.query.require.ReferenceContent
-	 */
-	@SourceHash("6cab4f02c0baeb76eb1ab62de0ead7de")
+	@SourceHash("8edba9e1afa0fdf461273fbc73df6f67")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8538,16 +8519,16 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both their primary keys and all reference-level attributes, with optional ordering, attribute selection, referenced entity/group fetching, and chunking. Use to retrieve rich reference metadata and related entities in a single query.
+	 * Fetches references of the specified type from an entity, including reference-level attributes, with optional ordering, attribute selection, referenced entity/group bodies, and chunking (pagination). Use inside `entityFetch` to retrieve both the referenced entity primary keys and metadata stored on the reference record. Reference ordering and filtering apply to attributes on the reference itself unless wrapped in `entityHaving`. For large reference sets, use chunking to limit results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "categories",
-	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         attributeContent("isPrimary"),
-	 *         entityFetch(attributeContent("name")),
-	 *         null,
+	 *         "parameterValues",
+	 *         orderBy(entityProperty(attributeNatural("name", ASC))),
+	 *         attributeContent("code"),
+	 *         entityFetch(attributeContent("code")),
+	 *         entityGroupFetch(attributeContent("code")),
 	 *         page(1, 10)
 	 *     )
 	 * )
@@ -8557,7 +8538,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f682e4ca2e9b0eee6a1448b383f40769")
+	@SourceHash("0d6696c920c5d1bdcb56ceac6e968cab")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -8576,12 +8557,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types for an entity, returning referenced entity primary keys and, if specified, their full bodies via nested `entityFetch`. Supports chunking large reference sets with `page` or `strip`. Reference attributes are not included by default.
+	 * Fetches all references of all types for each entity, returning their primary keys and, optionally, the full bodies of referenced entities (as specified by `entityRequirement`). Supports chunking via `chunk` to paginate large reference sets. Reference attributes are not included; use `referenceContentAllWithAttributes()` for those. Must be used inside `entityFetch`.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentAll(
-	 *         entityFetch(attributeContent("code")),
+	 *         entityFetch(attributeContent("name")),
 	 *         page(1, 20)
 	 *     )
 	 * )
@@ -8591,14 +8572,14 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("e6a816a8207a8fe4f69dc9f3ca72eb03")
+	@SourceHash("0ae8563af631dbf18e3a764b207dc151")
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(entityRequirement, null, chunk);
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including their reference-level attributes and, optionally, the full bodies of referenced entities and chunking for large sets. Use inside `entityFetch` to retrieve complete reference info for each entity.
+	 * Fetches all references of all types from the entity, including their reference-level attributes and optionally the full bodies of referenced entities (via `entityFetch`). Supports chunking large reference sets with pagination or strip constraints. Use inside `entityFetch` to retrieve comprehensive reference data for each entity.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -8613,7 +8594,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f1b5db875deff11dd79fee2c9a437855")
+	@SourceHash("3e3c28d99afd71c0949db51a3aa9434b")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable EntityFetch entityRequirement,
@@ -8623,23 +8604,21 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including their reference-level attributes, and optionally loads full bodies of referenced entities and paginates large reference sets. Use inside `entityFetch` to retrieve comprehensive reference data.
-	 *
+	 * Fetches all references of all types for each entity, returning both the primary keys and all reference-level attributes, and optionally the full bodies of referenced entities and their groups. Supports filtering, ordering, and chunking of large reference sets.  
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentAllWithAttributes(
-	 *         attributeContent("isPrimary"),
-	 *         entityFetch(attributeContent("name")),
+	 *         attributeContent("sortOrder"),
+	 *         entityFetch(attributeContent("code")),
 	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f1dbb3f2f0fec10ffe47327276974a2a")
+	@SourceHash("8065d9e8f017f929b87525c3d60c9157")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable AttributeContent attributeContent,
@@ -8653,26 +8632,26 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including their group entity bodies (as specified by `groupEntityRequirement`), and limits the returned references using the provided chunking constraint (such as pagination). Reference attributes are not included—use `referenceContentAllWithAttributes` for that.
+	 * Fetches all references of all types for each entity, returning the primary keys of referenced entities and, if specified, the bodies of their group entities. Supports chunking to limit the number of references returned per entity. Reference attributes are not included; use `referenceContentAllWithAttributes()` for those.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("752ed61b640868fca1ecb5a0485576c3")
+	@SourceHash("ba9cba315a1448f9a6e4d1c988e3a567")
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(null, groupEntityRequirement, chunk);
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including both the primary keys of referenced entities and all attributes stored on the reference records. Allows fetching group entity bodies and paginating large reference sets via chunking constraints.
+	 * Fetches all references of all types from the entity, including reference-level attributes and optionally the bodies of referenced group entities, with support for chunking large reference sets. Use inside `entityFetch` to retrieve all associations and their metadata in one request.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentAllWithAttributes(
 	 *         entityGroupFetch(attributeContent("code")),
-	 *         page(1, 10)
+	 *         page(1, 20)
 	 *     )
 	 * )
 	 * ```
@@ -8681,7 +8660,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("67b7e690b1247a6236fa8bfa16724a2e")
+	@SourceHash("65a0efe784b3b8e3aa80fc685b4b8f92")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable EntityGroupFetch groupEntityRequirement,
@@ -8693,14 +8672,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including their reference-level attributes, optionally fetching group entity bodies and limiting the number of references returned via chunking. Use inside `entityFetch` to retrieve full reference metadata and related group data.
+	 * Fetches all references of all types from the entity, including their primary keys and all reference-level attributes, with optional fetching of group entity bodies and support for chunking large reference sets. Use within `entityFetch` to ensure references and their metadata are included in the result.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentAllWithAttributes(
 	 *         attributeContent("sortOrder"),
 	 *         entityGroupFetch(attributeContent("code")),
-	 *         page(1, 20)
+	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
@@ -8709,7 +8688,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("3981c374bfa4f9d8144817adeb6629eb")
+	@SourceHash("24b7ce04f62df5e506c4ab9b8fbb9b0f")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable AttributeContent attributeContent,
@@ -8723,10 +8702,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types for an entity, including the primary keys of referenced entities and, optionally, their full bodies and group entities. Supports nested entity/group fetches and chunking to limit result size.
+	 * Fetches all reference groups of all types for each entity, returning referenced entity primary keys and, if specified, their full bodies and group entities. Supports chunking to limit result size. Reference-level attributes are excluded; use `referenceContentAllWithAttributes()` to include them.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceContent
+	 */
+	@SourceHash("43f8af6b6fedc53a1c6048a983a44abf")
+	@Nonnull
+	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return new ReferenceContent(entityRequirement, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * Fetches all references of all types for each entity, including both the primary keys and all reference-level attributes, and optionally loads the full bodies of referenced entities and their groups. Supports chunking for large reference sets.  
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAll(
+	 *     referenceContentAllWithAttributes(
 	 *         entityFetch(attributeContent("name")),
 	 *         entityGroupFetch(attributeContent("code")),
 	 *         page(1, 10)
@@ -8737,30 +8729,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f1611f32fafb0c82da600277e330a623")
-	@Nonnull
-	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		return new ReferenceContent(entityRequirement, groupEntityRequirement, chunk);
-	}
-
-	/**
-	 * Fetches all references of all types from the entity, including both reference-level attributes and the full bodies of referenced entities and their groups, with optional chunking for large reference sets. Useful for retrieving complete reference details in one call.
-	 *
-	 * ```evitaql
-	 * entityFetch(
-	 *     referenceContentAllWithAttributes(
-	 *         entityFetch(attributeContentAll()),
-	 *         entityGroupFetch(attributeContentAll()),
-	 *         page(1, 20)
-	 *     )
-	 * )
-	 * ```
-	 *
-	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
-	 *
-	 * @see io.evitadb.api.query.require.ReferenceContent
-	 */
-	@SourceHash("b31e9dc4ae6d95ca564420008331c668")
+	@SourceHash("92a58113c3821cb73e40925bb88a379e")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable EntityFetch entityRequirement,
@@ -8773,23 +8742,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including reference-level attributes, and optionally loads full bodies of referenced entities and their groups. Supports filtering, ordering, and pagination of references via nested constraints.
+	 * Fetches all references of all types from the entity, including their reference-level attributes and optionally the full bodies of referenced entities and their groups. Supports filtering, ordering, and pagination of references via nested constraints. Use inside `entityFetch` to retrieve complete reference details for all associations.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentAllWithAttributes(
 	 *         attributeContent("sortOrder"),
-	 *         entityFetch(attributeContent("name")),
+	 *         entityFetch(attributeContent("code")),
 	 *         entityGroupFetch(attributeContent("code")),
 	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("ca7c47b0b06e51f5a610ab2f0876f109")
+	@SourceHash("6d5de12bd76572afb41658bb6010aa9d")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable AttributeContent attributeContent,
@@ -8804,25 +8774,26 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, returning primary keys of referenced entities and, optionally, their bodies, with control over whether to include only existing targets or all references. Supports chunking for large reference sets.
+	 * Fetches all references of all types for each entity, returning only the referenced entities' primary keys. You can control whether to include references to non-existent entities using `ManagedReferencesBehaviour`, and limit the number of references returned with a chunking constraint.
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("9f41ed071a7b10839b1c498c278aeaa0")
+	@SourceHash("e90f204d9719c33a6c18a2ddaf8252c4")
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(managedReferencesBehaviour, chunk);
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including reference-level attributes, with optional control over which references are included (e.g., only those pointing to existing entities) and support for paginating large reference sets via chunking constraints.
+	 * Fetches all references of all types from the entity, including reference-level attributes, and returns referenced entity primary keys and optional bodies. Controls inclusion of references to missing entities via `managedReferencesBehaviour`, and paginates results using the provided chunking constraint.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("e28d95796523f36a0a3621ef6fdbf69a")
+	@SourceHash("9d2c919c5f7504009bdfd544ec05f8d9")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -8832,13 +8803,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types for an entity, including all reference-level attributes, with control over which references are included (e.g., only those pointing to existing entities), which attributes to fetch, and how to paginate large reference sets.
+	 * Fetches all references of all types from the entity, including their primary keys and all reference-level attributes, with optional chunking for large sets. Use `managedReferencesBehaviour` to control whether to include references to non-existent entities. Combine with `attributeContent` to specify which reference attributes to fetch.
+	 *
+	 * ```evitaql
+	 * entityFetch(
+	 *     referenceContentAllWithAttributes(EXISTING, attributeContent("sortOrder"), page(1, 20))
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("25e9fb1a398f80bc334d6ffc16386f90")
+	@SourceHash("fb679d1c587b63fb85fafe3c99de8cdb")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -8853,19 +8830,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and optionally paginating the result set with a chunking constraint. The `managedReferencesBehaviour` controls whether to include references to non-existent entities. Place inside `entityFetch` to retrieve references; without it, references are omitted.
+	 * Fetches references of the specified type from an entity, returning referenced entity primary keys and optionally their full bodies. The `managedReferencesBehaviour` controls whether to include references to non-existent entities. Use `chunk` to paginate large reference sets. Place inside `entityFetch` to include references in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContent(EXISTING, "categories", page(1, 10))
+	 *     referenceContent(EXISTING, "categories", page(1, 20))
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("d2971f7834131f5bc0bf9d6d4070796f")
+	@SourceHash("7b9bb1f6714a6bb3f79c16435d9f6da8")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
 		@Nonnull String referenceName, @Nullable ChunkingRequireConstraint chunk) {
@@ -8874,18 +8850,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the given name from an entity, including both the referenced entity primary keys and specified reference-level attributes. Supports filtering out references to non-existent entities via `managedReferencesBehaviour`, and can paginate large reference sets using a chunking constraint.
+	 * Fetches references of the specified type from an entity, returning both the referenced entity primary keys and the attributes stored on the reference record. You can control whether to include only references to existing entities, paginate large reference sets, and specify which reference attributes to return. Place inside `entityFetch` to retrieve associations like product → brand or categories, including reference-level metadata. Merges with other referenceContent constraints by uniting attributes and nested bodies, but conflicting filters or chunking are refused.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(EXISTING, "categories", page(1, 10), "sortOrder", "isPrimary")
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("df895c4de29fac76488ad5f752ff68f0")
+	@SourceHash("e16ef398f5c291dd70579ff6d328833a")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -8900,18 +8877,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes, with optional chunking (pagination) and control over whether to include only existing referenced entities or all references. Suitable for retrieving rich association metadata in large or partially managed reference sets.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all reference-level attributes, with control over whether to include only references to existing entities or all references. Supports chunking to paginate large reference sets.
 	 *
-	 * ```evitaql
-	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "categories", page(1, 20))
-	 * )
-	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("5b89b6785a86df96b5297916751972b5")
+	@SourceHash("63ac32902d41567a49afc13421379810")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -8926,11 +8898,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes, with optional filtering by reference existence, attribute selection, and chunking for large sets. Supports nested fetches for referenced entities and groups.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all reference-level attributes. You can control whether to return only references to existing entities, and limit the result set using chunking (pagination). Use this to retrieve reference metadata (like "sortOrder") along with referenced entity links.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "brand", attributeContent("isPrimary"), page(1, 10))
+	 *     referenceContentWithAttributes(EXISTING, "categories", attributeContent("sortOrder"), page(1, 10))
 	 * )
 	 * ```
 	 *
@@ -8938,7 +8910,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("c65dba2d3034a9b2032dd9e36f35a0dc")
+	@SourceHash("e3e4242ce5a46bea5cdbc836a0e189d0")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -8955,7 +8927,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches one or more named references from an entity, returning their primary keys and, optionally, referenced entity bodies, with control over whether to include only existing targets and how many references to return using chunking. Place inside `entityFetch`; references are omitted otherwise.
+	 * Fetches references of specified types from an entity, returning their primary keys and, optionally, referenced entity bodies. The `managedReferencesBehaviour` controls whether to include references to missing entities, and `chunk` enables pagination of large reference sets. Place inside `entityFetch` to retrieve associations like product → brand or categories; without it, references are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -8967,7 +8939,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("a88b0f537385abac40982bd9b622a330")
+	@SourceHash("f47adf2e0574c82f3818bea1306ad660")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
 		@Nullable ChunkingRequireConstraint chunk, @Nullable String... referenceName) {
@@ -8979,7 +8951,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of referenced entities. Controls whether to include references to non-existent entities via `ManagedReferencesBehaviour`. Supports nested `EntityFetch` for referenced entity bodies and chunking for large reference sets.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, the full bodies of referenced entities. The `managedReferencesBehaviour` controls whether to include only references to existing entities or all references. Supports nested `entityFetch` for loading referenced entity bodies and chunking for paginating large reference sets. Reference attributes are not included—use `referenceContentWithAttributes` for those. Place inside `entityFetch` to retrieve references; otherwise, they are omitted.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -8991,7 +8963,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("113af5eff3adca6c11cf2d0530cd7a59")
+	@SourceHash("6818358426b27025b621a18779897293")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
 		@Nonnull String referenceName, @Nullable EntityFetch entityRequirement,
@@ -9002,11 +8974,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity's primary keys and all attributes stored on the reference record. Supports filtering, ordering, and chunking (pagination) of references, and can control whether to include only references to existing entities or all references via `ManagedReferencesBehaviour`.
+	 * Fetches references of the specified type from an entity, including their primary keys, reference-level attributes, and optionally the full bodies of referenced entities. You can control whether to include only references to existing entities, and paginate large reference sets. Place inside `entityFetch`.  
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "brand", entityFetch(attributeContent("name")), page(1, 10))
+	 *     referenceContentWithAttributes(EXISTING, "categories", entityFetch(attributeContent("name")), page(1, 10))
 	 * )
 	 * ```
 	 *
@@ -9014,7 +8986,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("04b2ca5c6a5369d96d8a12713614502c")
+	@SourceHash("f205a7c14621d88c2e2b198c30b29453")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -9030,23 +9002,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including their primary keys, all reference-level attributes, and optionally the full bodies of referenced entities. Lets you control inclusion of references to non-existent entities, filter/order references, and paginate large sets.
+	 * Fetches references of the given name from an entity, including both the referenced entities' primary keys and all attributes stored on the reference record itself. Optionally, you can specify whether to include only references to existing entities, fetch referenced entity bodies, and paginate large reference sets. Useful for retrieving rich association metadata and referenced data in one request.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(
-	 *         EXISTING, "categories",
-	 *         attributeContent("isPrimary"),
-	 *         entityFetch(attributeContent("name")),
-	 *         page(1, 10)
-	 *     )
+	 *     referenceContentWithAttributes(EXISTING, "brand", attributeContent("isPrimary"), entityFetch(attributeContent("code")), page(1, 10))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("6dc1a4a7cbb3030bd7c9cd2b7b982dcf")
+	@SourceHash("28be01a69cb5c82e1531a7c4d6121825")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -9064,7 +9032,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning primary keys of referenced entities and optionally their group entities, with control over including only existing targets. Supports chunking for large reference sets. Place inside `entityFetch`.
+	 * Fetches references of the specified type from an entity, returning primary keys of referenced entities and optionally their group entity bodies. Use `managedReferencesBehaviour` to control whether only references to existing entities are included. Combine with chunking to limit the number of references fetched. Place inside `entityFetch` to include references in results.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -9076,7 +9044,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("232b21d3eb2c89537d0750e244b8b349")
+	@SourceHash("29414beae0c02bfda67d296a6c5f912e")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
 		@Nonnull String referenceName, @Nullable EntityGroupFetch groupEntityRequirement,
@@ -9087,11 +9055,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all attributes stored on the reference record, with optional group entity fetching and chunking. The `managedReferencesBehaviour` controls whether only references to existing entities are returned. Use inside `entityFetch` to retrieve reference metadata and optionally limit results for large reference sets.
+	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all reference-level attributes. You can control whether only existing referenced entities are returned using `ManagedReferencesBehaviour`. Optionally fetches group entity bodies and supports chunking to limit the number of returned references.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "categories", entityGroupFetch(attributeContent("code")), page(1, 10))
+	 *     referenceContentWithAttributes(EXISTING, "brand", entityGroupFetch(attributeContent("code")), page(1, 10))
 	 * )
 	 * ```
 	 *
@@ -9099,7 +9067,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("346751ca1432fe3cbaaf69eaadd00ebd")
+	@SourceHash("06f7de41b1d58d0b3c4df9e06b8e805e")
 
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
@@ -9116,22 +9084,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning both the primary keys of referenced entities and all reference-level attributes. Allows filtering by reference or referenced entity attributes, custom ordering, and chunking. Use `managedReferencesBehaviour` to control whether only existing references are included. Supports nested entity/group fetches for loading referenced bodies.
+	 * Fetches references of the specified type from an entity, including reference-level attributes, with optional filtering for existing targets, group entity fetching, and chunking for large sets. Use this to retrieve both the referenced entity primary keys and metadata about each association.
 	 *
 	 * ```evitaql
-	 * referenceContentWithAttributes(
-	 *     EXISTING, "brand",
-	 *     attributeContent("isPrimary"),
-	 *     entityGroupFetch(attributeContent("code")),
-	 *     page(1, 10)
+	 * entityFetch(
+	 *     referenceContentWithAttributes(EXISTING, "categories", attributeContent("sortOrder"))
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("efa7e7eabcca07272ba9af25a9dd82e1")
+	@SourceHash("5ce82eb4039487b24d6838e70316ccea")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -9148,7 +9112,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning referenced entity primary keys and optionally their full bodies or group entities. Supports filtering, ordering, pagination, and controls whether to include only existing referenced entities. Place inside `entityFetch` to include references in results.
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, full referenced entity and group bodies. Controls whether to include references to non-existent entities via `managedReferencesBehaviour`. Supports nested fetches, filtering, ordering, and chunking for fine-grained control over reference data retrieval.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -9160,7 +9124,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("ad737065e09184fc07082251dc94e2c4")
+	@SourceHash("63f5d0d04338efe74a0df6f4fd91e244")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
 		@Nonnull String referenceName, @Nullable EntityFetch entityRequirement,
@@ -9171,11 +9135,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the primary keys of referenced entities and all reference-level attributes (metadata on the association). Optionally loads full bodies of referenced and group entities, applies chunking, and controls inclusion of references to non-existent entities via `ManagedReferencesBehaviour`.
+	 * Fetches references of the specified name from an entity, including both the referenced entity/group bodies and all reference-level attributes. Allows filtering out references to missing entities via `managedReferencesBehaviour`, and supports nested fetches and chunking for large sets.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentWithAttributes(EXISTING, "brand", entityFetch(attributeContent("name")), null, page(1, 10))
+	 *     referenceContentWithAttributes(EXISTING, "brand", entityFetch(attributeContent("code")), null, page(1, 10))
 	 * )
 	 * ```
 	 *
@@ -9183,7 +9147,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("6db5f35f17ce2565e667f68e2023cb6b")
+	@SourceHash("2696d6fe8b77c0c9ca138c2fadca9a24")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -9200,16 +9164,16 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all reference-level attributes, with optional fetching of referenced entity/group bodies, filtering, ordering, and chunking. Use `managedReferencesBehaviour` to control inclusion of references to non-existent entities.
+	 * Fetches references of the specified type from an entity, including their primary keys, reference-level attributes, and optionally the full bodies of referenced and group entities. Supports filtering, ordering, and chunking of references, and can suppress references to missing entities based on the chosen `ManagedReferencesBehaviour`. Use inside `entityFetch` to retrieve associations and their metadata.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         EXISTING, "categories",
+	 *         EXISTING, "brand",
 	 *         attributeContent("isPrimary"),
 	 *         entityFetch(attributeContent("name")),
-	 *         entityGroupFetch(attributeContent("code")),
-	 *         page(1, 10)
+	 *         null,
+	 *         null
 	 *     )
 	 * )
 	 * ```
@@ -9217,7 +9181,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("ef072b63199fdd587f6cd1e6e32f5ac5")
+	@SourceHash("e8e8126b90ba3d1717e97cf11cd8392b")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -9236,12 +9200,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, applying optional filtering, ordering, and chunking (pagination) to the reference set. Returns reference primary keys and, if nested, referenced entity/group bodies. Filtering and ordering target reference attributes by default; use `entityHaving` or `entityProperty` to act on referenced entity data.
+	 * Fetches references of the specified type from an entity, allowing you to filter, order, and paginate the reference set. Returns referenced entity primary keys and, if nested constraints are provided, can fetch referenced entity bodies or groups. Filtering and ordering operate on reference attributes by default; use `entityHaving` or `entityProperty` to target referenced entities. Multiple `referenceContent` constraints for the same reference type are merged, but conflicting filters, orders, or chunking are refused.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
-	 *         "parameterValues",
+	 *         "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
 	 *         page(1, 10)
@@ -9252,7 +9216,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("03fc62f3c3d1e6af2aa2d7255b653711")
+	@SourceHash("98e9af8fd41b1a48d0afb076f91d391f")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy, @Nullable ChunkingRequireConstraint chunk) {
@@ -9261,22 +9225,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Supports filtering, ordering, and chunking (pagination) of references. Place inside `entityFetch` to retrieve reference metadata and optionally fetch referenced entity bodies or groups.
+	 * Fetches references of the specified type, including their primary keys, all reference-level attributes, and optionally applies filtering, ordering, and pagination to the reference set. Place inside `entityFetch` to retrieve associated entities and metadata; without it, references are omitted from results. Filtering and ordering operate on reference attributes unless wrapped for entity/group properties.
+	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
+	 *         "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
 	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("0ad0e600bac4600a2bc29779a9b21d2c")
+	@SourceHash("854d548dea518ffeba24793fc210aa6c")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -9292,24 +9258,21 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports filtering, ordering, and chunking of references, and can fetch referenced entity bodies via nested constraints.
-	 *
+	 * Fetches references of the specified type from an entity, including reference-level attributes, with optional filtering, ordering, and pagination. Filtering and ordering apply to reference attributes unless wrapped for referenced entity fields. Only references matching the filter are returned, ordered and chunked as specified.  
 	 * ```evitaql
-	 * entityFetch(
-	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
-	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         attributeContent("isPrimary", "sortOrder"),
-	 *         page(1, 10)
-	 *     )
+	 * referenceContentWithAttributes(
+	 *     "categories",
+	 *     filterBy(attributeEquals("isPrimary", true)),
+	 *     orderBy(attributeNatural("sortOrder", ASC)),
+	 *     attributeContent("isPrimary", "sortOrder"),
+	 *     page(1, 10)
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("904b9f373a34c322e246637aa3ef1349")
+	@SourceHash("ca28f09eb19ee64057bc6ead562ee71d")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -9327,25 +9290,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, full referenced entity bodies, with support for filtering, ordering, and pagination. Filtering and ordering target reference attributes unless wrapped for entity attributes.
-	 *
+	 * Fetches references of the specified type from an entity, returning their primary keys and, optionally, referenced entity bodies, filtered, ordered, and paginated as requested. Filtering and ordering operate on reference attributes unless wrapped for entity/group properties. Use inside `entityFetch`.  
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContent(
-	 *         "categories",
+	 *         "parameterValues",
 	 *         filterBy(attributeEquals("isPrimary", true)),
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         entityFetch(attributeContent("name")),
+	 *         entityFetch(attributeContent("code")),
 	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("53be346ddbdd7e2bfcd85c5473cb43cc")
+	@SourceHash("fb350f8fd287b71561f094dadde6bc00")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
@@ -9354,8 +9315,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type, including their reference-level attributes, with optional filtering, ordering, referenced entity body loading, and chunking. Use this to retrieve both the association metadata and referenced entities in a single query.
-	 *
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record itself. Supports filtering, ordering, and chunking of references, and can nest entity/group fetches to retrieve full referenced bodies. Filtering and ordering operate on reference attributes unless wrapped for referenced entity properties. Returns only references matching all criteria, with merging rules for multiple requirements.  
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
@@ -9371,7 +9331,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("1fd2c49e1a75b9ee8ade516225fcc264")
+	@SourceHash("275f13543187dfd86ebf899e554af3e3")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -9388,25 +9348,26 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all attributes stored on the reference record. Supports filtering, ordering, and chunking of references, and can nest entity/group fetches for full referenced bodies.
+	 * Fetches references of the specified type from an entity, including their primary keys, reference-level attributes, and optionally the full bodies of referenced entities or groups. Supports filtering, ordering, and chunking of references, with filters applying to reference attributes unless wrapped for entity-level filtering. By default, includes references even if the target entity doesn't exist; use managed reference behavior to restrict this. Merges with other referenceContent constraints by uniting attributes and requirements, but conflicting filters, orders, or chunking are refused.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "parameterValues",
+	 *         "categories",
 	 *         filterBy(attributeEquals("isPrimary", true)),
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
 	 *         attributeContent("isPrimary", "sortOrder"),
-	 *         entityFetch(attributeContent("code")),
+	 *         entityFetch(attributeContent("name")),
 	 *         page(1, 10)
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("3cf72707fddccf6467845e65e971cdba")
+	@SourceHash("0869ad6d60287ce860edc55350f0b10c")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -9424,7 +9385,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, returning their primary keys and optionally loading group entity bodies, filtering, ordering, and paginating the reference set. Reference-level filters and ordering apply to reference attributes; use `entityHaving` to filter by referenced entity data.
+	 * Fetches references of the specified type from an entity, returning their primary keys and optionally referenced group entities, filtered, ordered, and chunked as specified. Place inside `entityFetch` to include references in results; supports filtering and ordering by reference attributes, and pagination for large sets.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -9437,11 +9398,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("3f1a6f2d7e644897f7c91c9248570120")
+	@SourceHash("65eecfe31cd6cf7ce5b04cac2719ac95")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement,
@@ -9451,24 +9413,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering, ordering, group entity fetching, and chunking for large reference sets. Place inside `entityFetch` to retrieve enriched reference data and metadata.
+	 * Fetches references of the specified type, including their reference-level attributes, with optional filtering, ordering, group entity fetching, and chunking. Filtering and ordering apply to reference attributes; use `entityHaving` for referenced entity criteria. Only references matching the filter and chunk constraints are returned, and reference attributes are always included.
 	 *
 	 * ```evitaql
-	 * entityFetch(
-	 *     referenceContentWithAttributes(
-	 *         "categories",
-	 *         filterBy(attributeEquals("isPrimary", true)),
-	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         entityGroupFetch(attributeContent("code")),
-	 *         page(1, 10)
-	 *     )
+	 * referenceContentWithAttributes(
+	 *     "parameterValues",
+	 *     filterBy(attributeEquals("isPrimary", true)),
+	 *     orderBy(attributeNatural("sortOrder", ASC)),
+	 *     entityGroupFetch(attributeContent("code")),
+	 *     page(1, 10)
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("93e4a685af7931054c35ababd666994e")
+	@SourceHash("81d9b75f3cfa47566cb7c47f9528ac1b")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -9484,7 +9445,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering, ordering, group entity fetching, and chunking for large reference sets; must be used inside `entityFetch`.
+	 * Fetches references of the specified type from an entity, returning both the referenced entity primary keys and all attributes stored on the reference record. Supports filtering, ordering, group entity fetching, and pagination of references. Use to retrieve association metadata (e.g., "sortOrder") alongside referenced entities. Returns only references matching the filter, ordered as requested, and paged if chunking is provided.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -9503,7 +9464,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("a8ba668323c06a7d7d1d2505db3311e1")
+	@SourceHash("60b535d56b3e982a52c38f6e14c45140")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -9522,16 +9483,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, optionally filtering, ordering, paginating, and loading referenced entity/group bodies. Reference-level filters/orderings act on the reference record; use nested entityHaving for target entity criteria. By default, only reference primary keys are returned—use the attributes variant to fetch reference attributes as well.
+	 * Fetches references of the specified type from an entity, optionally filtering, ordering, paginating, and loading full referenced entity or group bodies. Reference attributes are not included—use `referenceContentWithAttributes` for those. Filtering and ordering operate on reference record attributes unless wrapped for referenced entities. Multiple `referenceContent` constraints on the same reference type are merged, but conflicting filters or chunking are refused.
 	 *
 	 * ```evitaql
-	 * referenceContent(
-	 *     "parameterValues",
-	 *     filterBy(attributeEquals("isPrimary", true)),
-	 *     orderBy(attributeNatural("sortOrder", ASC)),
-	 *     entityFetch(attributeContent("code")),
-	 *     entityGroupFetch(attributeContent("code")),
-	 *     page(1, 10)
+	 * entityFetch(
+	 *     referenceContent(
+	 *         "categories",
+	 *         filterBy(attributeEquals("isPrimary", true)),
+	 *         orderBy(attributeNatural("sortOrder", ASC)),
+	 *         entityFetch(attributeContent("name")),
+	 *         null,
+	 *         page(1, 10)
+	 *     )
 	 * )
 	 * ```
 	 *
@@ -9539,7 +9502,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("4c72ae5b9b7de0dd64919a401de39a10")
+	@SourceHash("a0b3193a8ebefb717758445d429b9ed6")
 	@Nullable
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement,
@@ -9549,15 +9512,15 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering, ordering, and pagination of references, and can fetch full bodies of referenced and group entities. Use this to retrieve rich association data and metadata in one call.
+	 * Fetches references of the specified type from an entity, returning both the referenced entity primary keys and all reference-level attributes. Supports filtering, ordering, and chunking of references, and can nest entity/group fetches to retrieve referenced entity bodies. Use when you need both the association metadata and referenced entity data in a single query.
 	 *
 	 * ```evitaql
 	 * entityFetch(
 	 *     referenceContentWithAttributes(
-	 *         "categories",
+	 *         "parameterValues",
 	 *         filterBy(attributeEquals("isPrimary", true)),
 	 *         orderBy(attributeNatural("sortOrder", ASC)),
-	 *         entityFetch(attributeContent("name")),
+	 *         entityFetch(attributeContent("code")),
 	 *         entityGroupFetch(attributeContent("code")),
 	 *         page(1, 10)
 	 *     )
@@ -9567,7 +9530,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("8788fa7d71eb3b8c13bebebfd052d572")
+	@SourceHash("cc0b1e628b14fe90a3f0dbf77a0634d2")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -9585,7 +9548,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering, ordering, attribute selection, nested entity/group fetches, and chunking for large sets. Use to retrieve rich reference metadata alongside referenced entity data.
+	 * Fetches references of the specified type from an entity, including both the referenced entity primary keys and all reference-level attributes. Supports filtering and ordering references (by reference or referenced entity attributes), fetching referenced entity/group bodies, and paginating large reference sets. Returns only references matching the provided filter and order, with full attribute data for each reference.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -9602,7 +9565,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("3d2a05d44aabf50137de81cbed08fcbc")
+	@SourceHash("28fbd9dd23e50cee402e09627b4e95ec")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referenceName,
@@ -9622,29 +9585,31 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, returning the primary keys of referenced entities and optionally their full bodies, with control over inclusion of references to non-existent entities via `ManagedReferencesBehaviour`. Supports nested `EntityFetch` for loading referenced entity data and chunking constraints for pagination.
+	 * Fetches all references of all types for each entity, returning the primary keys of referenced entities and, optionally, their full bodies via nested `entityFetch`. The `managedReferencesBehaviour` controls whether to include references to missing entities. Supports pagination with a chunking constraint. For reference-level attributes, use `referenceContentAllWithAttributes()`.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("fdb0711f82ffa7e7b8a49e9611064022")
+	@SourceHash("d5c0d277902a114764d453f16339eafc")
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(managedReferencesBehaviour, entityRequirement, null, chunk);
 	}
 
 	/**
-	 * Fetches all reference groups for an entity, including reference-level attributes and the full bodies of referenced entities, with optional chunking for large sets. The `managedReferencesBehaviour` controls whether only existing references are included.
+	 * Fetches all references of all types for an entity, including their reference-level attributes, with optional full bodies of referenced entities and chunking for large sets. Controls whether to include only references to existing entities or all, based on the specified `ManagedReferencesBehaviour`. Use inside `entityFetch` to retrieve complete reference information for each entity.
+	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAllWithAttributes(EXISTING, entityFetch(attributeContent("name")), page(1, 10))
+	 *     referenceContentAllWithAttributes(EXISTING, entityFetch(attributeContent("code")), page(1, 10))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("334c7416dd543bfad927bb09b2719ccc")
+	@SourceHash("4375b76b32978f8ed442e477dd443197")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -9658,16 +9623,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types for an entity, including reference-level attributes, with optional control over which references are included (e.g., only those pointing to existing entities), referenced entity body fetching, and chunking for large sets. Supports advanced filtering, ordering, and pagination of references.
+	 * Fetches all references of all types from the entity, including their reference-level attributes, with optional referenced entity bodies and chunking. The `managedReferencesBehaviour` controls whether to include only references to existing entities. Use within `entityFetch` to retrieve full reference info for all associations.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAllWithAttributes(
-	 *         EXISTING,
-	 *         attributeContent("sortOrder"),
-	 *         entityFetch(attributeContent("code")),
-	 *         page(1, 10)
-	 *     )
+	 *     referenceContentAllWithAttributes(EXISTING, attributeContent("sortOrder"))
 	 * )
 	 * ```
 	 *
@@ -9675,7 +9635,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("28576e3ffcb8fd6dad2d1a209809b0f4")
+	@SourceHash("b163d9178663f2d850409bab3c546ef3")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -9691,28 +9651,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, returning the primary keys of referenced entities and optionally their group entity bodies, with control over inclusion of only existing references and support for chunking large reference sets.
-	 * ```evitaql
-	 * entityFetch(
-	 *     referenceContentAll(EXISTING, entityGroupFetch(attributeContent("code")), page(1, 10))
-	 * )
-	 * ```
+	 * Fetches all references of all types for each entity, returning the primary keys of referenced entities and, optionally, their group entity bodies and paginated chunks. The `managedReferencesBehaviour` controls whether only existing references are included. Use this to retrieve all references with optional group fetching and paging in a single call.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("eb599ab11195440dc2987252fe5ee43a")
+	@SourceHash("4d1e111e6fb5f2459d26a20560c7df41")
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(managedReferencesBehaviour, null, groupEntityRequirement, chunk);
 	}
 
 	/**
-	 * Fetches all references of all types for the entity, including all reference-level attributes, with optional filtering for only existing referenced entities, group entity body fetching, and chunking for large reference sets. Use for comprehensive reference retrieval with full metadata.
+	 * Fetches all references of all types from the entity, including their reference-level attributes, with optional filtering for references whose target entities exist (`EXISTING`) or any (`ANY`). Allows fetching group entity bodies and paginating large reference sets. Use inside `entityFetch` to include all reference associations with their metadata.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAllWithAttributes(EXISTING, entityGroupFetch(attributeContent("code")), page(1, 20))
+	 *     referenceContentAllWithAttributes(EXISTING, entityGroupFetch(attributeContent("code")), page(1, 10))
 	 * )
 	 * ```
 	 *
@@ -9720,7 +9675,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("17d7c5d73271d80cb33a235fbe803ddb")
+	@SourceHash("b777360f2fdb771383977fec45e91e98")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -9734,11 +9689,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including all reference-level attributes, with optional control over referenced entity existence, group entity fetching, and chunking for large sets. Useful for retrieving complete reference info with flexible filtering and pagination.
+	 * Fetches all references of all types from the entity, including reference-level attributes and optionally group entity bodies, with control over inclusion of references to non-existent entities via `ManagedReferencesBehaviour`. Supports chunking for large reference sets.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAllWithAttributes(EXISTING, attributeContentAll(), entityGroupFetch(attributeContent("code")), page(1, 20))
+	 *     referenceContentAllWithAttributes(EXISTING, attributeContent("isPrimary"), entityGroupFetch(attributeContent("code")), page(1, 10))
 	 * )
 	 * ```
 	 *
@@ -9746,7 +9701,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("9611ae740f4f14b5b4e6db36e6bbdd42")
+	@SourceHash("5dcfba91e390f8612d57be233ca315c0")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -9762,11 +9717,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, returning referenced entity primary keys and, optionally, their full bodies and groups. Use `managedReferencesBehaviour` to control inclusion of references to non-existent entities. Supports nested fetch, filtering, ordering, and pagination for large reference sets.
+	 * Fetches all references of all types from the entity, returning referenced entity primary keys and optionally their full bodies and group entities. Allows specifying whether to include only references to existing entities, fetching nested entity/group bodies, and paginating large reference sets. Use within `entityFetch` to retrieve all references at once, with control over referential integrity and chunking.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAll(EXISTING, entityFetch(attributeContent("name")), entityGroupFetch(attributeContent("code")), page(1, 10))
+	 *     referenceContentAll(EXISTING, entityFetch(attributeContent("code")), entityGroupFetch(attributeContent("name")), page(1, 10))
 	 * )
 	 * ```
 	 *
@@ -9774,23 +9729,18 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f10fafbfed6a8566e8f05667511a9660")
+	@SourceHash("6811fa14f61f254728a6b878b8d91737")
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(managedReferencesBehaviour, entityRequirement, groupEntityRequirement, chunk);
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including reference-level attributes, and allows control over which references are included (e.g., only those with existing targets). Supports fetching full bodies of referenced entities and their groups, as well as chunking for large reference sets.
+	 * Fetches all references of all types from entities, including their primary keys, all reference-level attributes, and optionally the full bodies of referenced entities and groups. Honors the specified managed references behavior, supports chunking, and can nest entity/group fetches for richer results. 
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAllWithAttributes(
-	 *         EXISTING,
-	 *         entityFetch(attributeContent("code")),
-	 *         entityGroupFetch(attributeContent("code")),
-	 *         page(1, 10)
-	 *     )
+	 *     referenceContentAllWithAttributes(EXISTING, entityFetch(attributeContent("code")), entityGroupFetch(attributeContent("name")), page(1, 10))
 	 * )
 	 * ```
 	 *
@@ -9798,7 +9748,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("f18823507364d2975a89cee40d2d78f5")
+	@SourceHash("259a81d53e5196b1d5c8c1ed04432e5c")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -9813,17 +9763,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches all references of all types from the entity, including reference-level attributes, with optional control over referenced entity existence, attribute selection, referenced entity/group body fetching, filtering, ordering, and pagination. Use this to retrieve comprehensive reference data in one call.
+	 * Fetches all references of all types for each entity, including reference-level attributes, with optional nested fetches for referenced entities and groups. Supports filtering out references to missing entities via `ManagedReferencesBehaviour`. Chunking can limit large reference sets.
 	 *
 	 * ```evitaql
 	 * entityFetch(
-	 *     referenceContentAllWithAttributes(
-	 *         EXISTING,
-	 *         attributeContent("sortOrder"),
-	 *         entityFetch(attributeContent("name")),
-	 *         entityGroupFetch(attributeContent("code")),
-	 *         page(1, 10)
-	 *     )
+	 *     referenceContentAllWithAttributes(EXISTING, attributeContent("sortOrder"))
 	 * )
 	 * ```
 	 *
@@ -9831,7 +9775,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceContent
 	 */
-	@SourceHash("975ffcff6e30ff8a0cfea9c4ed81ac4e")
+	@SourceHash("da2a2b9e35549e78bfc43500bc2142de")
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -9848,26 +9792,20 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches the ancestor chain (parent primary keys up to the root) for a hierarchical entity, enabling breadcrumb-style navigation. Returns only IDs by default; use nested constraints to limit depth or load parent entity data. Only valid inside `entityFetch` for hierarchical schemas.
-	 *
-	 * ```evitaql
-	 * entityFetch(
-	 *     hierarchyContent()
-	 * )
-	 * ```
+	 * Fetches the full chain of ancestor primary keys for a hierarchical entity, from its immediate parent up to the root, without loading any additional data for parent nodes. Use inside `entityFetch` for simple breadcrumb-style hierarchy placement.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content)
 	 *
 	 * @see io.evitadb.api.query.require.HierarchyContent
 	 */
-	@SourceHash("8738a87be2ff08a98791e93a3e98df2e")
+	@SourceHash("16fbfdb84f3b94b6d346cf51d35c7f9c")
 	@Nonnull
 	static HierarchyContent hierarchyContent() {
 		return new HierarchyContent();
 	}
 
 	/**
-	 * Fetches the ancestor chain (parent primary keys) for a hierarchical entity, stopping at the specified depth or condition via `stopAt`. Use inside `entityFetch` to retrieve breadcrumb-style placement without loading parent entity bodies.
+	 * Fetches the ancestor chain (parent primary keys) of a hierarchical entity, limiting traversal by the given `stopAt` constraint (e.g., only up to the immediate parent or grandparent). No parent entity bodies are loaded—only the ancestor keys are returned.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -9881,14 +9819,14 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.HierarchyContent
 	 */
-	@SourceHash("57f1ad34e1c371e5168565a3a9afac7f")
+	@SourceHash("5fe6d3ef177f85bc8bb60e1dc1c2acb0")
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt) {
 		return stopAt == null ? new HierarchyContent() : new HierarchyContent(stopAt);
 	}
 
 	/**
-	 * Fetches the full chain of ancestor entities (from immediate parent up to the root) for entities in a hierarchy, loading the complete body of each parent node according to the nested `EntityFetch` specification. Use inside `entityFetch` for breadcrumb-style ancestor data.
+	 * Fetches the full chain of ancestor entities for a hierarchical entity, loading the complete body of each parent node as specified by the nested `EntityFetch`. Useful for retrieving breadcrumb-style hierarchy data with parent attributes or associated data included.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -9904,14 +9842,14 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.HierarchyContent
 	 */
-	@SourceHash("b32fee6dfa52371a4a1fdf66571509f6")
+	@SourceHash("b7ac0fde222392b377ac604c04c6c9a1")
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable EntityFetch entityFetch) {
 		return entityFetch == null ? new HierarchyContent() : new HierarchyContent(entityFetch);
 	}
 
 	/**
-	 * Fetches the ancestor chain of a hierarchical entity, returning parent nodes up to a specified depth (`stopAt`). Optionally loads full parent entity data using nested `entityFetch`, allowing you to specify which attributes or data to include for each ancestor. Use for lightweight breadcrumb-style hierarchy info.
+	 * Fetches the full ancestor chain of a hierarchical entity up to the specified stop point, loading the complete body for each parent node as defined by the nested `EntityFetch`. Use to retrieve parent entities with selected data (attributes, associated data, etc.) up to a certain depth.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -9928,7 +9866,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.HierarchyContent
 	 */
-	@SourceHash("18f91d21e283a83e4fb8a2fe9b04c62f")
+	@SourceHash("349ac12fb02d47601348a4b54c3e5eb1")
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt, @Nullable EntityFetch entityFetch) {
 		if (stopAt == null && entityFetch == null) {
@@ -9941,44 +9879,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches the ancestor chain of a hierarchical entity under the given `HierarchyParentsBehaviour`. The behaviour
-	 * decides what happens at an ancestor whose requested body cannot be materialized - `MATCHING` cuts the chain
-	 * below it, `COMPLETE` returns it as a bodyless pointer and keeps walking above it. With no nested `entityFetch`
-	 * no body is requested, so both behaviours return the full chain of parent primary keys.
-	 *
-	 * ```evitaql
-	 * entityFetch(
-	 *     hierarchyContent(COMPLETE)
-	 * )
-	 * ```
-	 *
+	 * Fetches the full ancestor chain (parent primary keys) for a hierarchical entity, controlling how traversal behaves if an ancestor's body can't be loaded. Use `MATCHING` (default) to cut the chain below unmaterializable ancestors, or `COMPLETE` to include them as bodyless pointers.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content)
 	 *
 	 * @see io.evitadb.api.query.require.HierarchyContent
 	 */
+	@SourceHash("0653b7b55615f26a92e73892f90d8c57")
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable HierarchyParentsBehaviour parentsBehaviour) {
 		return new HierarchyContent(parentsBehaviour);
 	}
 
 	/**
-	 * Fetches the ancestor chain of a hierarchical entity up to the depth `stopAt` allows, under the given
-	 * `HierarchyParentsBehaviour`. No parent bodies are loaded, so the behaviour has nothing to act on and the full
-	 * chain of parent primary keys within the depth limit is returned either way.
-	 *
-	 * ```evitaql
-	 * entityFetch(
-	 *     hierarchyContent(
-	 *         COMPLETE,
-	 *         stopAt(distance(1))
-	 *     )
-	 * )
-	 * ```
+	 * Fetches the ancestor chain of a hierarchical entity, returning parent primary keys up to the root, but limits traversal depth via `stopAt` and controls behavior above unmaterializable ancestors using the specified `parentsBehaviour` (MATCHING or COMPLETE).
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content)
 	 *
 	 * @see io.evitadb.api.query.require.HierarchyContent
 	 */
+	@SourceHash("a4add517a5e5ad06f7ca845db23b79af")
 	@Nonnull
 	static HierarchyContent hierarchyContent(
 		@Nullable HierarchyParentsBehaviour parentsBehaviour,
@@ -9988,10 +9907,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches the ancestor chain of a hierarchical entity together with the parent bodies described by the nested
-	 * `entityFetch`, under the given `HierarchyParentsBehaviour`. `MATCHING` cuts the chain below the first ancestor
-	 * whose requested body cannot be materialized; `COMPLETE` returns that ancestor as a bodyless pointer and keeps
-	 * walking above it.
+	 * Fetches the ancestor chain of a hierarchical entity, returning each parent up to the root. With `parentsBehaviour`, controls whether traversal continues above missing or unmaterializable ancestors, and with nested `entityFetch`, loads full parent bodies as specified.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -10008,6 +9924,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.HierarchyContent
 	 */
+	@SourceHash("d01166e2c258fb7d1ddcb8a05c9fa3bb")
 	@Nonnull
 	static HierarchyContent hierarchyContent(
 		@Nullable HierarchyParentsBehaviour parentsBehaviour,
@@ -10017,10 +9934,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches the ancestor chain of a hierarchical entity up to the depth `stopAt` allows, loading the parent bodies
-	 * described by the nested `entityFetch`, under the given `HierarchyParentsBehaviour`. `MATCHING` cuts the chain
-	 * below the first ancestor whose requested body cannot be materialized; `COMPLETE` returns that ancestor as
-	 * a bodyless pointer and keeps walking above it.
+	 * Fetches the ancestor chain of a hierarchical entity, returning parent primary keys up to the root. Use `parentsBehaviour` to control behavior when a parent body can't be loaded, `stopAt` to limit depth, and `entityFetch` to specify which parent data to load.
 	 *
 	 * ```evitaql
 	 * entityFetch(
@@ -10038,6 +9952,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.HierarchyContent
 	 */
+	@SourceHash("091a261ad52715b5487452637106d892")
 	@Nonnull
 	static HierarchyContent hierarchyContent(
 		@Nullable HierarchyParentsBehaviour parentsBehaviour,
@@ -10133,31 +10048,33 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Requests calculation of an accompanying price (e.g., "original price" or "reference price") alongside the selling price, using a shared currency and validity but a custom price-list sequence defined by `DefaultAccompanyingPriceLists`. Requires selling price to be fetched as well.
+	 * Requests calculation of an accompanying price labeled `"default"` using the price-list sequence defined by the `DefaultAccompanyingPriceLists` constraint in the same query. This constraint must be used together with a selling price calculation and cannot be combined with explicit price-list forms for the same name.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/price#accompanying-price)
 	 *
 	 * @see io.evitadb.api.query.require.AccompanyingPriceContent
 	 */
-	@SourceHash("e8de857ea6f8e2daf2bbbbe3226c3712")
+	@SourceHash("ef031aafb5c70d1679c7ad7e8f9c4cea")
 	@Nullable
 	static AccompanyingPriceContent accompanyingPriceContentDefault() {
 		return new AccompanyingPriceContent();
 	}
 
 	/**
-	 * Requests calculation and inclusion of an accompanying price—such as an "original" or "reference" price—using a custom price-list sequence, labeled by the provided name. Must be combined with a selling price requirement or filter; order of price lists matters.
+	 * Requests calculation of an accompanying price (e.g., "original" or "reference" price) alongside the selling price, using a custom-ordered list of price lists but sharing currency, date, and type rules. The name labels the result; multiple named constraints can coexist. Requires selling price calculation in the same query.
 	 *
 	 * ```evitaql
-	 * entityFetch(
-	 *   priceContentRespectingFilter(),
-	 *   accompanyingPriceContent("originalPrice", "reference", "basic")
+	 * accompanyingPriceContent(
+	 *     "originalPrice",
+	 *     "reference",
+	 *     "basic"
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/price#accompanying-price)
 	 *
 	 * @see io.evitadb.api.query.require.AccompanyingPriceContent
 	 */
-	@SourceHash("33f1a643963924948b0d9fd8e94d569f")
+	@SourceHash("7b8e86cfad3463e699fe1d18dbe20da8")
 	@Nullable
 	static AccompanyingPriceContent accompanyingPriceContent(@Nonnull String name, @Nullable String... priceList) {
 		requireName(name, "name");
@@ -10326,13 +10243,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a summary of all faceted references in the current query, providing counts of matching entities for each facet option within the result set. Useful for building faceted navigation UIs; only entities matching the main query are counted.
+	 * Triggers calculation of facet statistics for all faceted references in the entity schema, returning counts of matching entities per facet option (excluding the `userFilter` part of the query). By default, computes only counts; use additional arguments for impact prediction, filtering, ordering, or fetching related entity data.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("b279b48460da86ca232260da30de183a")
+	@SourceHash("e60e70a37771e1a85f8bd20e3e867292")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary() {
@@ -10340,8 +10256,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of facet statistics for all faceted references in the current query scope, returning counts (or impact predictions) for each selectable facet option. Supports optional fetch, filtering, and ordering of facet entities/groups; only one fetch per type allowed.
-	 *
+	 * Triggers calculation of a facet summary with statistics for all faceted references in the entity schema, reflecting the current query scope except for the `userFilter` part. The `statisticsDepth` controls whether only counts or also impact predictions are computed. You can attach one `EntityFetch` and/or one `EntityGroupFetch` to control which data is loaded for facet and group entities. Use filters or ordering to limit or sort the summary, but these apply uniformly across all references. For per-reference customization, use `facetSummaryOfReference`.  
 	 * ```evitaql
 	 * require(
 	 *     facetSummary(
@@ -10350,13 +10265,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("6ff5fd5e9ef298d9ab371bfaaf0be53c")
+	@SourceHash("e4843cfb97ec8dc4c305bcfe0fbd9ecb")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
@@ -10364,7 +10277,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of facet statistics for all faceted references in the result set, reflecting only entities matching the current query. Controls the detail level (counts or impact), and allows filtering, ordering, and fetch customization for facet options and groups. Use filters and ordering only on properties shared by all referenced types.
+	 * Triggers calculation of a facet summary extra result for all faceted references, reporting counts (or impact predictions) for each facet option, grouped by reference and group. The summary reflects the current query minus the `userFilter` part, and you can filter, sort, or fetch additional data for facet entities. Use this to power faceted navigation UIs and get real-time facet statistics.
 	 *
 	 * ```evitaql
 	 * require(
@@ -10376,12 +10289,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("4d4f1aa0bdd23775ff9f60cd5608a03b")
+	@SourceHash("691f647a8a1e929bc0bbe2bc3040ffb6")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10394,23 +10307,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary for all faceted references in the schema, returning counts (or impact predictions) for each selectable facet option within the current query result. Supports filtering and ordering of facet options/groups, and allows fetching extra data for facet entities and groups. Only one fetch constraint per type is allowed; filters/orderings apply to all references uniformly. For reference-specific customization, use `facetSummaryOfReference`.
+	 * Triggers calculation of a facet summary for all faceted references, providing statistics for each facet option and group, scoped to the current query minus the `userFilter`. Controls summary depth, filtering, ordering, and fetches for facet and group entities. Only one entity/group fetch allowed. Filters/orderings apply across all references; use `facetSummaryOfReference` for per-reference overrides.
+	 *
 	 * ```evitaql
-	 * facetSummary(
-	 *     IMPACT,
-	 *     filterBy(attributeStartsWith("code", "a")),
-	 *     filterGroupBy(attributeEquals("visible", true)),
-	 *     orderGroupBy(attributeNatural("name", ASC)),
-	 *     entityFetch(attributeContent("name")),
-	 *     entityGroupFetch(attributeContent("name"))
+	 * require(
+	 *     facetSummary(
+	 *         IMPACT,
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("8870f732516794e5e107ae2f82afbd23")
+	@SourceHash("126a68507e2843586ef82ba7de155720")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10424,7 +10339,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary extra result, providing statistics for all faceted references in the current query scope. Supports configurable statistics depth (`COUNTS` or `IMPACT`), group and facet filtering, ordering, and fetch requirements for facets and groups. Only one fetch constraint per type is allowed. Use filters to limit summary size; cross-reference filtering/sorting must target shared properties.
+	 * Triggers calculation of a facet summary with the specified statistics depth, group filtering, and ordering for all faceted references, reflecting the current query scope except for the `userFilter` part. Attach entity/group fetches to control loaded data. Use filters and ordering to limit and sort the summary, but note these apply only to summary contents, not entity counts.
 	 *
 	 * ```evitaql
 	 * require(
@@ -10437,13 +10352,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("fbbadb7b5d37c1b91cad13a085c3512f")
+	@SourceHash("295cdb1350ce71c1e9be2f863c2b0cb5")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10457,8 +10370,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a hierarchical summary of all faceted references in the current query result, providing counts (or impact predictions) for each facet option, with optional filtering, ordering, and entity/group fetch customization. Only entities matching the main query are counted; filters/orderings apply to summary display, not entity selection. Use to power dynamic faceted navigation UIs.
-	 *
+	 * Triggers calculation of a facet summary for all faceted references, returning statistics for each facet option and group, based on the current query scope (excluding `userFilter`). Use `statisticsDepth` to control whether only counts or also impact predictions are computed. You may filter or order facets/groups, and specify which data to fetch for facet entities and their groups. For reference-specific customization, use `facetSummaryOfReference`.  
 	 * ```evitaql
 	 * require(
 	 *     facetSummary(
@@ -10470,13 +10382,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("97bddd46753aaae340ebc2fbcb26b981")
+	@SourceHash("0d9a13f759fff8606b1c611e563d8389")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10490,26 +10400,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of facet statistics for all faceted references in the current query scope, organizing results by reference, group, and facet. Supports configurable statistics depth (`COUNTS` or `IMPACT`), filtering, ordering, and fetch requirements for facet entities and groups. Filters and ordering apply only to the summary, not to counted entities, and must reference properties shared by all referenced types. Only one `EntityFetch` and one `EntityGroupFetch` are allowed. For reference-specific customization, use `facetSummaryOfReference`.
-	 *
+	 * Triggers calculation of a facet summary extra result for all faceted references, providing counts (or impact predictions) for each facet option and group, based on the current query scope minus the `userFilter`. Supports filtering, ordering, and fetch customization for facets and groups. Only one entity and one group fetch constraint allowed; filters/orderings apply across all references. For reference-specific logic, use `facetSummaryOfReference`.  
 	 * ```evitaql
 	 * require(
 	 *     facetSummary(
 	 *         IMPACT,
-	 *         filterBy(attributeStartsWith("code", "a")),
-	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         filterBy(attributeEquals("visible", true)),
+	 *         filterGroupBy(attributeEquals("active", true)),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("7ce163f20df1005cca5377b605daab3c")
+	@SourceHash("9ba2aee6149a483441ec8ce0492c6542")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10523,7 +10430,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary extra result, providing counts (or impact predictions) for all faceted references in the current query scope. You can filter or order which facets/groups appear, and control data fetched for facet/group entities. Only one entityFetch and one entityGroupFetch are allowed. Filters affect summary display, not entity counts.
+	 * Triggers calculation of facet statistics for all faceted references, returning counts (or impact predictions) for each facet/group, based on the current query scope minus `userFilter`. Supports filtering, ordering, and fetch customization for facets/groups.
 	 *
 	 * ```evitaql
 	 * require(
@@ -10535,12 +10442,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("0a62e26c5b95a6aa2016b7f9fc0f9ce8")
+	@SourceHash("7791106018b551cdb85aaeb2d53d6c6f")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10553,7 +10460,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary with statistics for all faceted references in the current query result. Use `statisticsDepth` to control detail (counts or impact prediction), and `orderBy`/`orderGroupBy` to sort facets/groups. Only one `entityFetch` and one `entityGroupFetch` are allowed; passing more throws an exception.
+	 * Triggers calculation of a facet summary extra result for all faceted references, providing counts (or impact predictions) for each facet option, grouped by reference and group. Use `statisticsDepth` to control detail level, and `orderBy`/`orderGroupBy` to sort facets and groups. Only one entity fetch and one group fetch constraint are allowed. Filters and ordering apply globally; for per-reference customization, use `facetSummaryOfReference`.
 	 *
 	 * ```evitaql
 	 * require(
@@ -10565,12 +10472,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("416fb7edd4896b0417f769d1c2585548")
+	@SourceHash("7f87a5d2970efb2d9588a1568112320a")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10583,7 +10490,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a multi-level facet summary for all faceted references in the current query, reporting counts (or impact predictions) for each facet option, with optional filtering, ordering, and fetch customization for facets/groups. Only entities matching the main query are counted.
+	 * Triggers calculation of a facet summary extra result for all faceted references, providing per-facet counts or impact predictions (depending on `statisticsDepth`) for entities matching the current query *without* the `userFilter` part. You can filter, sort, or fetch additional data for facets and their groups using child constraints. For large datasets, use filters to limit summary size.
 	 *
 	 * ```evitaql
 	 * require(
@@ -10598,9 +10505,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("fc3b488b188fc7604b7c1f708df3fbff")
+	@SourceHash("6b1f325dd1d2762c82f717b45cef5bf4")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10612,7 +10518,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a hierarchical summary of all faceted references in the result set, including counts (or impact predictions) for each facet option, with optional ordering of facets/groups and custom entity/group fetch requirements. Only one fetch constraint per type is allowed.
+	 * Triggers calculation of a facet summary for all faceted references, returning counts (or impact predictions) for each facet option, grouped by reference and group. The `statisticsDepth` selects between simple counts and impact estimation, while `orderBy` controls facet ordering. Attach at most one `entityFetch` and one `entityGroupFetch` to control loaded data for facet entities and groups. Use filters and ordering only for properties shared by all referenced types.
 	 *
 	 * ```evitaql
 	 * require(
@@ -10623,9 +10529,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("7b7c4d485c3aa82d284d7c27bf913bcc")
+	@SourceHash("2c59b451bd0eed71e501c40bc89e8b96")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10637,14 +10542,21 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary extra result, providing statistics for all faceted references in the current query scope. You can specify the statistics depth (`COUNTS` or `IMPACT`), filter facet groups, and control which data is loaded for facet entities or groups. Only one `EntityFetch` and one `EntityGroupFetch` can be attached; passing more throws an exception.
-	 *
+	 * Triggers calculation of a multi-level facet summary for all faceted references, reporting counts (or impact predictions) for each facet option and group, based on the current query minus its `userFilter`. Allows filtering facet groups and fetching extra data for facet/group entities.  
+	 * ```evitaql
+	 * require(
+	 *     facetSummary(
+	 *         IMPACT,
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("cf7b1db1de2e1172f996696cb59fee5f")
+	@SourceHash("bd6910ae7222ac1d4fbd9522f1a401f1")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10656,7 +10568,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary for all faceted references in the schema, returning counts (or impact predictions) for each facet option in the current query result. You can control the statistics depth, group ordering, and which data is fetched for facet entities or groups. Only one `EntityFetch` and one `EntityGroupFetch` are allowed. Filters and ordering apply uniformly across all references. For reference-specific customization, use `facetSummaryOfReference`.
+	 * Triggers calculation of a facet summary for all faceted references, providing counts or impact predictions for each facet option and group, ordered by the specified group ordering. Only one entity/group fetch constraint each is allowed; filters and ordering apply globally.  
 	 * ```evitaql
 	 * require(
 	 *     facetSummary(
@@ -10669,9 +10581,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("6a263c4a352c2bbf289d8331c03aa160")
+	@SourceHash("7504353e5411c528489e95721716ad5d")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10683,16 +10594,22 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a hierarchical summary of all faceted references in the result set, showing counts (or impact predictions) for each facet option, grouped by reference and group. You can filter or order facets/groups, and control which data is fetched for facet and group entities.
+	 * Triggers calculation of facet statistics for all faceted references in the entity schema, organizing results by reference, group, and facet. The `statisticsDepth` controls whether only counts or also impact predictions are computed. You can filter groups, order facets, and specify fetch requirements for returned facet and group entities. Used for building faceted navigation UIs reflecting the current query scope (excluding `userFilter`). 
+	 *
 	 * ```evitaql
-	 * facetSummary(IMPACT, filterGroupBy(attributeEquals("visible", true)), orderBy(attributeNatural("name", ASC)), entityFetch(attributeContent("name")))
+	 * facetSummary(
+	 *     IMPACT,
+	 *     filterGroupBy(attributeEquals("visible", true)),
+	 *     orderBy(attributeNatural("name", ASC)),
+	 *     entityFetch(attributeContent("name"))
+	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("7613d65b0566b0f38bb96b7c559445c2")
+	@SourceHash("d62c6217dbd2072452433a1bda4ae5b9")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10705,8 +10622,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary extra result, providing statistics for all faceted entity references in the current query scope. Lets you control statistics depth (`COUNTS` or `IMPACT`), filter or order facet groups, and fetch related entity data. Only one `EntityFetch` and one `EntityGroupFetch` can be attached; filters/orderings apply across all references. For reference-specific customization, use `facetSummaryOfReference`.
-	 *
+	 * Triggers calculation of facet statistics for all faceted references in the entity schema, returning counts (or impact predictions) for each facet/group, based on the current query minus its `userFilter`. Supports filtering, ordering, and entity fetch customization for facets and groups. Use filters to limit summary size; only one fetch constraint per type allowed.  
 	 * ```evitaql
 	 * require(
 	 *     facetSummary(
@@ -10717,13 +10633,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("943d0318a23a9bbc45252550352fb47d")
+	@SourceHash("006fb294ffaa80d8e46d0bfae71369d3")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10736,7 +10650,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of facet statistics for all faceted references in the current query scope, organizing results by reference, group, and facet option. Use `statisticsDepth` to control whether only counts or also impact predictions are computed. Attach group filters and ordering to limit or sort facet groups in the summary. Only one `EntityFetch` and one `EntityGroupFetch` may be supplied. For large datasets, filter or limit the summary for performance.
+	 * Triggers calculation of a facet summary extra result, providing statistics for all faceted references in the schema. Computes counts (or impact predictions) for each facet option, grouped by reference and group, based on the query scope minus the `userFilter`. You can filter or order facet groups, and attach fetch requirements for group entities. For reference-specific filtering or overrides, use `facetSummaryOfReference`.
 	 *
 	 * ```evitaql
 	 * require(
@@ -10744,16 +10658,15 @@ public interface QueryConstraints {
 	 *         IMPACT,
 	 *         filterGroupBy(attributeEquals("visible", true)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
+	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("e51ff0f5dabcfcfb48740903b6583070")
+	@SourceHash("efbb0593925a1434414eb22ba6a2b86a")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10766,27 +10679,27 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for all faceted references in the current query scope, returning counts (or impact predictions) for each facet option, grouped by reference and group. You can filter or order facets/groups, and control fetched data for facet and group entities. Use filters to limit summary size; cross-reference filters/orderings must target properties shared by all referenced types.
+	 * Triggers calculation of facet statistics for all faceted references, organizing results by reference, group, and facet, and counting entities as if the query's `userFilter` were omitted. Controls summary depth, filtering, ordering, and fetched data for facets and groups. Reference-specific overrides use `facetSummaryOfReference`.
 	 *
 	 * ```evitaql
 	 * require(
-	 *   facetSummary(
-	 *     IMPACT,
-	 *     filterBy(attributeStartsWith("code", "a")),
-	 *     filterGroupBy(attributeEquals("visible", true)),
-	 *     orderBy(attributeNatural("name", ASC)),
-	 *     orderGroupBy(attributeNatural("name", ASC)),
-	 *     entityFetch(attributeContent("name")),
-	 *     entityGroupFetch(attributeContent("name"))
-	 *   )
+	 *     facetSummary(
+	 *         IMPACT,
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("name"))
+	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("4c88bb0086094051cfd0dca10969c8a5")
+	@SourceHash("c6d6aac9cc81748e158c13edb5dce6f3")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10816,22 +10729,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary for all faceted references in the entity schema, providing counts (and optionally impact predictions) for each facet option within the current query result. Attach at most one entityFetch and/or entityGroupFetch to control which data is loaded for facet entities and their groups.
-	 *
-	 * ```evitaql
-	 * require(
-	 *     facetSummary(
-	 *         entityFetch(attributeContent("name"))
-	 *     )
-	 * )
-	 * ```
+	 * Triggers calculation of a facet summary with statistics for all faceted references, reflecting the current query scope except for `userFilter`. Attach at most one `entityFetch` and one `entityGroupFetch` to control which data is loaded for facet and group entities. For reference-specific filtering or ordering, use `facetSummaryOfReference` instead.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("eb5f7cca528cde1d94fac7368dda1b63")
+	@SourceHash("0fc60f75631570ddffbb08a942220886")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable EntityFetchRequire... requirements) {
@@ -10839,11 +10743,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for all faceted references in the query result, counting only entities matching the current filter. You can filter and order which facet options appear in the summary and fetch extra data for facet entities or groups.
+	 * Triggers calculation of a facet summary with statistics for all faceted references, applying the given filter and order to which facet options appear in the summary (not to counted entities). Attach at most one entityFetch and one entityGroupFetch; using more throws an error.  
 	 * ```evitaql
 	 * require(
 	 *     facetSummary(
-	 *         filterBy(attributeEquals("visible", true)),
+	 *         filterBy(attributeStartsWith("code", "a")),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -10852,9 +10756,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("4f94a019e1179ee56779f5a8056826e2")
+	@SourceHash("c46f12d3cb21965803c04d37ad4ff041")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10866,13 +10769,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary, providing statistics for all faceted references in the schema, scoped to the current query's result set. You can filter and order which facet options and groups appear in the summary using `filterBy`, `filterGroupBy`, and `orderGroupBy`, while controlling loaded data for facet entities via fetch requirements. Filters only affect the summary's contents, not the counted entities.
+	 * Calculates a facet summary for all faceted references in the entity schema, showing counts and stats for each facet option and group, based on the current query scope (excluding `userFilter`). You can filter and order which facets/groups appear, and specify what data to fetch for facet and group entities. Filters only affect the summary output, not the entity counts. For reference-specific customization, use `facetSummaryOfReference`.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     facetSummary(
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("2f32030f266096c171cd31b0e05d2124")
+	@SourceHash("2bbd2a90a66345668210e7bd5a1cd118")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10885,7 +10799,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary with statistics for all faceted references in the current query scope, applying optional group filtering, facet and group ordering, and fetch requirements for facet and group entities. Filtering and ordering apply only to the summary output, not the counted entities. Only one entity and one group fetch constraint may be supplied.
+	 * Triggers calculation of a facet summary with statistics for all faceted references, grouping options by reference and group, and allowing filtering and ordering of facet groups and options. Filters only affect which facets appear, not entity counts. Attach at most one entity/group fetch constraint each.
 	 *
 	 * ```evitaql
 	 * require(
@@ -10901,9 +10815,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("8b3c2e198f6187dc45a93a26becd98d6")
+	@SourceHash("846bec9422abf76ee3c3049e57a5eec6")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10916,8 +10829,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of facet statistics for all faceted references in the entity schema, reflecting only entities matching the current query. Allows filtering and ordering of facet options and groups, and controls which data is loaded for facet and group entities. Use to power faceted navigation UIs with accurate counts and customizable result structure.
-	 *
+	 * Triggers calculation of facet statistics for all faceted references, organizing results by reference, group, and facet option. Counts reflect entities matching the query minus any `userFilter`. You can filter and order which facets and groups appear, and fetch extra data for facet/group entities.  
 	 * ```evitaql
 	 * require(
 	 *     facetSummary(
@@ -10928,13 +10840,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("0a58ffb6515ee08d750599e11201c1be")
+	@SourceHash("a07e7d55b78ef9aec2f0ee979c067b16")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10947,7 +10857,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a hierarchical summary of all faceted references in the current query result, counting how many entities match each facet option and grouping them by reference and group. You can filter or order which facets and groups appear, and specify what data to fetch for facet entities and their groups. Filters only affect summary visibility, not entity counts. For reference-specific logic, use `facetSummaryOfReference`.
+	 * Calculates a facet summary for all faceted references in the schema, returning per-reference, per-group, and per-facet statistics for the current query scope (excluding `userFilter`). Use optional filters and ordering to control which facet options and groups appear in the summary and their order; entity and group fetch constraints specify which data to load for facet and group entities. Filters only affect summary content, not the counted entities. For reference-specific customization, use `facetSummaryOfReference`.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     facetSummary(
@@ -10961,9 +10872,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("f9d53f9ecd3487f6afa338477df4722d")
+	@SourceHash("2e8a309456646fd06a88826150340b19")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10976,13 +10886,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary extra result, providing statistics for all faceted references in the schema, filtered to entities matching the current query. Supports filtering and ordering of facet options/groups, and controls which data is loaded for facet/group entities. Use filters to limit summary size; filters only affect which facets are shown, not entity counts.
+	 * Triggers calculation of a facet summary for all faceted references, reporting counts (or impact predictions) for each selectable facet option and group, based on the current query scope minus the `userFilter`. You can filter or sort which facets and groups appear, and control which data is fetched for facet and group entities. Use reference-specific constraints for advanced scenarios.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     facetSummary(
-	 *         filterBy(attributeStartsWith("code", "a")),
-	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         filterBy(attributeEquals("visible", true)),
+	 *         filterGroupBy(attributeEquals("active", true)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
@@ -10991,9 +10901,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("f4d86828957f8b15f13364d7024cc351")
+	@SourceHash("3e754b04e2cfc81f786ce848d19cc008")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11005,14 +10914,21 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of facet statistics for all faceted references in the result set, organizing data by reference, group, and facet option. Allows sorting of facet options and groups, and can fetch additional data for facet entities or groups. Only one fetch constraint per type is allowed.
-	 *
+	 * Triggers calculation of facet statistics for all faceted references, organizing results by reference, group, and facet option. Allows sorting facet options and groups via `orderBy` and `orderGroupBy`, and supports entity/group fetch customization. Only one fetch constraint per type is allowed.  
+	 * ```evitaql
+	 * require(
+	 *     facetSummary(
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("e1871e1bf32ae260c57f403fb7a4de4b")
+	@SourceHash("e7f99baa04fbbd0c4851713da1ba70dc")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11024,7 +10940,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for all faceted references in the current query scope, counting only entities matching the main filter. You can filter, order, and control which data is fetched for facet entities or groups. Filters here affect only the summary, not the main result.
+	 * Triggers calculation of facet statistics for all faceted references, counting entities matching the current query except for the `userFilter` part. Optionally filters which facet options appear and controls which data is fetched for facet entities and groups.
 	 *
 	 * ```evitaql
 	 * require(
@@ -11038,9 +10954,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("c4762843267c315836c65b05e9558d67")
+	@SourceHash("01aa081531cfdd1b3772c01eb45e32f8")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11051,23 +10966,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary with statistics for all faceted references in the result, applying the given facet ordering and optional fetch/filter/group constraints. Only entities matching the current query are counted; see docs for cross-reference rules.
-	 *
-	 * ```evitaql
-	 * require(
-	 *     facetSummary(
-	 *         orderBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
-	 * )
-	 * ```
-	 *
+	 * Triggers calculation of facet statistics for all faceted references, organizing results by reference, group, and facet option. This variant lets you specify ordering of facet options and optionally attach fetch or filtering constraints to control which facet/group data is loaded.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("735697c3bfa23f9c815f657787ace946")
+	@SourceHash("405d27475a2ad1ff14dd78362e062369")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11078,14 +10982,22 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary for all faceted references, showing statistics (counts by default) for each facet group and option, but only for entities matching the current query. Use `facetGroupFilterBy` to filter which facet groups appear in the summary. Attach at most one `entityFetch` and one `entityGroupFetch` to control loaded data for facets and groups.
+	 * Triggers calculation of a facet summary extra result, providing statistics for all faceted references in the schema. The summary counts entities matching the query (excluding `userFilter`), is organized by references, groups, and facets, and can be filtered by group and customized with entity fetch requirements. Use this variant to filter which facet groups appear in the summary and to control loading of facet/group entity data.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     facetSummary(
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("a088b97fb0147df77153b6fcf7e4975a")
+	@SourceHash("48cafe4c779c26a15bc5d6fa089fbb52")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11096,21 +11008,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of facet statistics for all faceted references in the result, organizing them by reference and group, and allows sorting facet groups via `orderGroupBy`. Attach fetch or filter constraints to control loaded data or limit summary size.
-	 * ```evitaql
-	 * require(
-	 *     facetSummary(
-	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
-	 * )
-	 * ```
+	 * Triggers calculation of a facet summary with statistics for all faceted references, organizing results by reference, group, and facet. You can control the ordering of facet groups and specify fetch requirements for facet entities or groups. The summary reflects the current query scope (excluding `userFilter`).  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("1ebd4c7d2fe7d841e5b043c9bd6d2176")
+	@SourceHash("e1c53f2e0dea4092c854a895e875fab7")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11121,24 +11024,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of facet statistics for all faceted references in the current query scope, organizing results by reference, group, and option. Allows filtering facet groups, ordering facet options, and specifying fetch requirements for facet entities and groups.
-	 *
-	 * ```evitaql
-	 * require(
-	 *     facetSummary(
-	 *         filterGroupBy(attributeEquals("visible", true)),
-	 *         orderBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
-	 * )
-	 * ```
+	 * Triggers calculation of a facet summary extra result, returning statistics for all faceted references in the schema. The summary reflects the current query scope (excluding `userFilter`), is organized by reference, group, and facet, and can be filtered or ordered by group and facet properties. Attach at most one `entityFetch` and one `entityGroupFetch` to control loaded data; passing more throws an exception. Use reference-specific constraints for advanced filtering or ordering.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("64b5751fa5425f656a8b0f55a040b7fa")
+	@SourceHash("1b14fe191792400bda78fcfa2ff7c170")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11150,8 +11042,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of facet statistics for all faceted references in the entity schema, reflecting only entities matching the current query. Allows filtering and ordering of facet groups, and supports fetching additional data for facet/group entities. Use to power faceted navigation UIs.
-	 *
+	 * Triggers calculation of facet statistics for all faceted references, grouping options by reference and group, and counting matching entities as if the `userFilter` were omitted. You can filter or order facet groups, and fetch extra data for facets or groups.  
 	 * ```evitaql
 	 * require(
 	 *     facetSummary(
@@ -11161,13 +11052,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("c6ee01706e5e912dc76ab256ce5a4f02")
+	@SourceHash("2b3418117704be85dfbb884b5e8dd45b")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11179,7 +11068,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a summary of all faceted references in the result set, grouping facet options and groups, and allowing you to filter and order which facet groups appear in the summary. Attach at most one entity/group fetch constraint each; filters only affect summary visibility, not counts.
+	 * Triggers calculation of a facet summary extra result for all faceted references, grouping facet options by reference and group, and including only those groups and options matching the provided group filter and order. Use to control which facet groups appear and their order in the summary.  
 	 * ```evitaql
 	 * require(
 	 *     facetSummary(
@@ -11192,9 +11081,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("91839eb46ddb6234b40eac61e0c0f33c")
+	@SourceHash("39f77af451211ba13dd2349dd4b3db9b")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11206,25 +11094,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for all faceted references in the current query scope, returning statistics (counts by default) for each facet option and group. Optionally filters and orders facet options/groups, and fetches extra data for facet entities. Use filters to limit summary size; filters only affect which facets appear, not entity counts. For reference-specific customization, use `facetSummaryOfReference`.
-	 *
+	 * Calculates a facet summary with statistics for all faceted references, organizing results by reference, group, and facet option. You can filter or sort which facets and groups appear in the summary using `FilterBy`, `FilterGroupBy`, `OrderBy`, and `OrderGroupBy`. These filters only affect the summary's content, not the entity counts, and must use properties shared across all referenced types. Attach at most one `EntityFetch` and one `EntityGroupFetch` to control loaded data for facets and groups. For reference-specific customization, use `facetSummaryOfReference`.  
 	 * ```evitaql
-	 * facetSummary(
-	 *     filterBy(attributeStartsWith("code", "a")),
-	 *     filterGroupBy(attributeEquals("visible", true)),
-	 *     orderBy(attributeNatural("name", ASC)),
-	 *     orderGroupBy(attributeNatural("name", ASC)),
-	 *     entityFetch(attributeContent("name")),
-	 *     entityGroupFetch(attributeContent("name"))
+	 * require(
+	 *     facetSummary(
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("name"))
+	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("c6de73febd52604de3cbb21f8844bdcb")
+	@SourceHash("358ddf2cc8fcccae6c63151901c4ea91")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11249,14 +11136,22 @@ public interface QueryConstraints {
 		);
 	}
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Only the specified reference is affected; all filter, order, and fetch requirements target properties of the referenced entity. Use this to customize facet stats, filtering, and loading for one reference without impacting others.
+	 * Triggers calculation of the facet summary for a single named reference, replacing any generic `facetSummary` for that reference. All requirements (fetches, filters, ordering) must be specified explicitly, as nothing is inherited from the generic constraint. Use when you need custom facet statistics or fetches for a specific reference.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     facetSummaryOfReference(
+	 *         "brand",
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("4e78aea8ee1ee28e8902026726e66c9b")
+	@SourceHash("50b8e80409b415fe0e1375dbd2e5c082")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName,
@@ -11266,7 +11161,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify the statistics depth (`COUNTS` or `IMPACT`) and attach fetch requirements for facet or group entities. Only affects the targeted reference; other references remain unaffected unless they have their own `facetSummaryOfReference`. Filter and order constraints can reference any property of the referenced entity.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Specify the reference name, statistics depth (`COUNTS` or `IMPACT`), and fetch requirements for facet/group entities. All filter/order logic and fetches must be defined here, as nothing is inherited from the generic constraint.
 	 *
 	 * ```evitaql
 	 * require(
@@ -11281,9 +11176,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("5428761dbfd45b28757eda959aba0f9e")
+	@SourceHash("62de85c336578d85663ee7d5fc31ca94")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName,
@@ -11295,25 +11189,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), and apply filters, ordering, and fetch requirements specific to the referenced entity type. Use when you need per-reference facet control or want to filter/sort facet options by reference-specific properties.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Lets you specify statistics depth, filters, ordering, and fetch requirements tailored to the referenced entity type. No settings are inherited from the generic constraint; all requirements must be defined explicitly for the targeted reference.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     facetSummaryOfReference(
 	 *         "brand",
-	 *         IMPACT,
-	 *         filterBy(attributeEquals("country", "US")),
+	 *         COUNTS,
+	 *         filterBy(attributeEquals("origin", "EU")),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("6ab9542b9d85af05d91b60366c8a9f65")
+	@SourceHash("82fdc0595cba97a54353e031d6d8fc19")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11329,27 +11223,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify statistics depth, filters, group filters, group ordering, and fetch requirements targeting properties of the referenced entity only.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Specify the reference name, statistics depth, and custom filter/order constraints targeting properties of the referenced entity type. Use this to apply per-reference logic, including entity and group fetches, which are not inherited from generic settings.
 	 *
 	 * ```evitaql
-	 * require(
-	 *     facetSummaryOfReference(
-	 *         "parameterValues",
-	 *         IMPACT,
-	 *         filterBy(attributeContains("code", "memory")),
-	 *         filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
-	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("code", "name"))
-	 *     )
+	 * facetSummaryOfReference(
+	 *     "brand",
+	 *     IMPACT,
+	 *     filterBy(attributeEquals("country", "US")),
+	 *     filterGroupBy(attributeInSet("type", "premium")),
+	 *     orderGroupBy(attributeNatural("name", ASC)),
+	 *     entityFetch(attributeContent("name"))
 	 * )
 	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("ede4b947263da7ce86196d6c60e0357f")
+	@SourceHash("b821b05704b8842d8819b4d10c01c7c6")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11366,13 +11257,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify statistics depth, group filtering, and ordering using properties of the referenced entity. Filters and sorting apply only to the targeted reference, not others.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Specify the reference name, statistics depth, group filtering, ordering, and fetch requirements. Filters and ordering apply to properties of the referenced entity only; nothing is inherited from the generic constraint.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     facetSummaryOfReference(
 	 *         "brand",
-	 *         COUNTS,
+	 *         IMPACT,
 	 *         filterGroupBy(attributeInSet("code", "premium", "budget")),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
@@ -11384,9 +11275,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("d0617b06c20ac9a3e2d0f13bcb4b26c5")
+	@SourceHash("e7e6ab07f28232a72a0319224f9265b5")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11403,24 +11293,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you control statistics depth (`COUNTS` or `IMPACT`), filter and order facet options/groups using any property of the referenced entity, and specify fetch requirements for facet and group entities. Constraints are never merged—per-reference settings fully replace generic ones for the targeted reference.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Lets you specify statistics depth, filters, and ordering using properties unique to the referenced entity. All requirements must be defined explicitly; nothing is inherited from the generic constraint.
 	 *
 	 * ```evitaql
 	 * facetSummaryOfReference(
 	 *     "brand",
 	 *     IMPACT,
-	 *     filterBy(attributeContains("name", "eco")),
+	 *     filterBy(attributeEquals("country", "US")),
 	 *     orderBy(attributeNatural("name", ASC)),
 	 *     orderGroupBy(attributeNatural("name", ASC)),
 	 *     entityFetch(attributeContent("name"))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("176b2cdd5fc52b3f5a1ad62f8462afc0")
+	@SourceHash("c2e07561c9aa6a6bd201f3e9b1105439")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11437,27 +11327,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a specific reference (e.g., `"brand"`), overriding any generic `facetSummary` for that reference. Lets you set statistics depth (`COUNTS` or `IMPACT`), filter and order facet options/groups using properties of the referenced entity, and control which attributes are fetched. Filters/orderings apply only to the targeted reference; constraints are not merged with generic settings.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Lets you specify statistics depth, per-reference filters, ordering, and entity fetches—none of the generic settings are inherited or merged.
 	 *
 	 * ```evitaql
-	 * require(
-	 *     facetSummaryOfReference(
-	 *         "brand",
-	 *         IMPACT,
-	 *         filterBy(attributeContains("name", "eco")),
-	 *         null,
-	 *         orderBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
+	 * facetSummaryOfReference(
+	 *     "parameterValues",
+	 *     IMPACT,
+	 *     filterBy(attributeContains("code", "memory")),
+	 *     filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *     orderBy(attributeNatural("name", ASC)),
+	 *     entityFetch(attributeContent("code", "name"))
 	 * )
 	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("73f6e0a71ebf0b693819dff4a0cd0780")
+	@SourceHash("e8ccaa491d57944440faef85cb35ccfe")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11474,16 +11361,16 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify statistics depth, filters, and fetches tailored to the referenced entity type—ideal for fine-grained control over which facets and groups appear and what data is loaded.
+	 * Calculates the facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Lets you specify statistics depth, filters, ordering, and entity fetches specific to the targeted reference. No settings are inherited or merged from the generic constraint; all requirements must be defined explicitly. Useful for fine-grained control over which facets and groups appear, their order, and what data is fetched for each option or group.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     facetSummaryOfReference(
-	 *         "parameterValues",
-	 *         IMPACT,
-	 *         filterBy(attributeContains("code", "memory")),
-	 *         filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
-	 *         entityFetch(attributeContent("code", "name"))
+	 *         "brand",
+	 *         COUNTS,
+	 *         filterBy(attributeEquals("isActive", true)),
+	 *         filterGroupBy(attributeInSet("type", "premium")),
+	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
@@ -11491,9 +11378,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("5ef41365a00ff03111ceb4881cd13d82")
+	@SourceHash("b7323272c19a2488605568877e61e306")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11509,14 +11395,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify statistics depth, sorting of facet options and groups, and fetch requirements for facet and group entities. All filter/order constraints target properties of the referenced entity only.
+	 * Calculates facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Specify statistics depth (COUNTS or IMPACT), custom ordering for facets and groups, and fetch requirements for facet/group entities. No settings are inherited from the generic constraint; all requirements must be defined here.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     facetSummaryOfReference(
+	 *         "brand",
+	 *         COUNTS,
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("8c892f31d6e474ce5e89a913ea06e24e")
+	@SourceHash("9499b53fa8ba28df9c39a5f8a50595f2")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11532,23 +11429,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference; lets you specify statistics depth, filter and fetch constraints tailored to the referenced entity type, and supports custom filtering, ordering, and fetches for facet and group entities.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Specify the reference name, statistics depth, filters, and fetch requirements; nothing from the generic constraint is inherited or merged.
 	 *
 	 * ```evitaql
-	 * facetSummaryOfReference(
-	 *     "brand",
-	 *     IMPACT,
-	 *     filterBy(attributeContains("name", "eco")),
-	 *     entityFetch(attributeContent("name"))
+	 * require(
+	 *     facetSummaryOfReference(
+	 *         "parameterValues",
+	 *         IMPACT,
+	 *         filterBy(attributeContains("code", "memory")),
+	 *         entityFetch(attributeContent("code", "name"))
+	 *     )
 	 * )
 	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("1a58d772bd7fbf065ea3c99431655b24")
+	@SourceHash("60b6213b6ff103c3086c157b8c21a983")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11562,14 +11460,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify statistics depth, custom ordering, and fetch requirements for facet entities. Only affects the targeted reference; constraints are not merged with the generic summary.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Specify the reference name, statistics depth, ordering, and fetch requirements; filters and ordering can target any property of the referenced entity. No settings are inherited from the generic constraint—define all requirements explicitly for the targeted reference.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     facetSummaryOfReference(
+	 *         "brand",
+	 *         COUNTS,
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("35fd4a069541bd5f7274f0fabe2009b9")
+	@SourceHash("aedb66b3ddd54bad3add01ac1369292d")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11583,14 +11491,22 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates facet summary statistics for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify the statistics depth (COUNTS or IMPACT), filter groups, and fetch requirements for facet entities or groups. Other faceted references remain unaffected unless targeted by their own `facetSummaryOfReference`.
+	 * Calculates facet statistics for a single named reference, fully overriding any generic `facetSummary` for that reference. Specify the reference name, statistics depth, group filtering, and fetch requirements. All filtering and ordering targets properties of the referenced entity, not the relation. Use to customize facet summaries per reference; constraints are not merged with generic settings.
+	 *
+	 * ```evitaql
+	 * facetSummaryOfReference(
+	 *     "brand",
+	 *     COUNTS,
+	 *     filterGroupBy(attributeInSet("code", "premium", "budget")),
+	 *     entityFetch(attributeContent("name"))
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("af266a1d02473f5b090094185517ab59")
+	@SourceHash("7fa8108674505f49d7fb666922d4b100")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11605,14 +11521,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), group ordering, and fetch requirements for facet/group entities. Constraints are never merged with the generic summary; only the targeted reference is affected.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Specify the reference name, statistics depth, group ordering, and fetch requirements; all settings apply only to the targeted reference and are not merged with generic constraints.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("d7c25389f3bdb9bb2dcc8cf95c42f7ad")
+	@SourceHash("9ce08388ce44d6f4cbef900b8fa2fb8b")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11627,14 +11542,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify statistics depth, group filtering, ordering, and entity fetches tailored to the referenced entity type. Use for fine-grained, per-reference facet control.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. All filter, order, and fetch constraints apply only to the referenced entity type, not the relation. Define all requirements explicitly, as nothing is inherited from the generic constraint.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     facetSummaryOfReference(
 	 *         "brand",
 	 *         IMPACT,
-	 *         filterGroupBy(attributeInSet("code", "premium", "budget")),
+	 *         filterGroupBy(attributeInSet("popularity", "high")),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -11644,9 +11559,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("c6b5a5ac705187d90d04b303747a2449")
+	@SourceHash("275f1cfe3fc6278196e267a82bc0d7b8")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11662,14 +11576,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify the statistics depth, filter/group/order constraints, and fetch requirements tailored to properties of the referenced entity. Other references remain unaffected unless explicitly targeted.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Specify the reference name, statistics depth, and optional filters, group ordering, and fetch requirements. All settings are isolated—nothing is inherited from the generic summary.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     facetSummaryOfReference(
 	 *         "brand",
-	 *         IMPACT,
-	 *         filterBy(attributeEquals("country", "US")),
+	 *         COUNTS,
+	 *         filterBy(attributeEquals("origin", "EU")),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -11679,9 +11593,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("c58b1640e014dab92defe49ec6fe08ce")
+	@SourceHash("e678b3aef6c11b268953311c29055fa1")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11697,14 +11610,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates facet statistics for a single named reference, overriding any generic `facetSummary` for that reference. Lets you set the statistics depth, filter and order facet groups, and specify fetch requirements for facet/group entities. Other references remain unaffected unless they have their own `facetSummaryOfReference`.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Specify the reference name, statistics depth (COUNTS or IMPACT), group filtering and ordering, and fetch requirements for facet/group entities. All filter/order constraints apply only to properties of the referenced entity, not the relation itself. Nothing from the generic `facetSummary` is inherited for this reference.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     facetSummaryOfReference(
 	 *         "brand",
 	 *         IMPACT,
-	 *         filterGroupBy(attributeEquals("type", "premium")),
+	 *         filterGroupBy(attributeInSet("code", "premium", "budget")),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -11714,9 +11627,8 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("426705d57190ebf38a205f0dc0236ce0")
+	@SourceHash("5cc11eaba481ec6f231bfdacf0ea59f5")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11732,28 +11644,26 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify statistics depth, filter and order facet options/groups, and control which attributes are fetched for facet and group entities. Filters and ordering target properties of the referenced entity only. Use when you need per-reference facet logic or richer filtering than the generic summary allows.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Lets you specify statistics depth, filters, ordering, and fetch requirements unique to the referenced entity type. Constraints are not merged—define all requirements explicitly for the targeted reference.
 	 *
 	 * ```evitaql
-	 * require(
-	 *     facetSummaryOfReference(
-	 *         "parameterValues",
-	 *         IMPACT,
-	 *         filterBy(attributeContains("code", "memory")),
-	 *         filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
-	 *         orderBy(attributeNatural("name", ASC)),
-	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("code", "name")),
-	 *         entityGroupFetch(attributeContent("code"))
-	 *     )
+	 * facetSummaryOfReference(
+	 *     "parameterValues",
+	 *     IMPACT,
+	 *     filterBy(attributeContains("code", "memory")),
+	 *     filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *     orderBy(attributeNatural("name", ASC)),
+	 *     orderGroupBy(attributeNatural("name", ASC)),
+	 *     entityFetch(attributeContent("code", "name")),
+	 *     entityGroupFetch(attributeContent("code"))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("dcfe8f70833591fb61121d4bca919a25")
+	@SourceHash("51e9448764580ef9515a9fdd9fecee4b")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11786,24 +11696,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding or replacing any generic `facetSummary` for that reference. Allows custom filtering and ordering of facet options using any filterable/sortable property of the referenced entity. Attach at most one `EntityFetch` and one `EntityGroupFetch`. Other references are unaffected unless specified separately.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Filters and ordering can target any property of the referenced entity. Inherits nothing from the generic constraint—define all requirements explicitly.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     facetSummaryOfReference(
 	 *         "brand",
-	 *         filterBy(attributeEquals("code", "amazon")),
+	 *         filterBy(attributeEquals("active", true)),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("905fb2301a5afb116c26e9449495add1")
+	@SourceHash("d062211a817eac1c8276f9d7f50559ce")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11818,26 +11728,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you filter, group, and order facet options/groups using any property of the referenced entity, and attach fetch requirements for facet/group entities.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Filters and ordering can target any property of the referenced entity, and you must specify all requirements explicitly. Use when you need per-reference control over which facets and groups appear, their sort order, and which data is fetched for facet and group entities.
 	 *
 	 * ```evitaql
-	 * require(
-	 *     facetSummaryOfReference(
-	 *         "brand",
-	 *         filterBy(attributeEquals("country", "US")),
-	 *         filterGroupBy(attributeInSet("type", "premium")),
-	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
+	 * facetSummaryOfReference(
+	 *     "brand",
+	 *     filterBy(attributeEquals("origin", "EU")),
+	 *     filterGroupBy(attributeInSet("category", "premium")),
+	 *     orderGroupBy(attributeNatural("name", ASC)),
+	 *     entityFetch(attributeContent("name"))
 	 * )
 	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("486a5b3c38a00683af151e5bb61143d4")
+	@SourceHash("608e73b1263fdbfd5ce2bc4ece67d1f9")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11853,13 +11760,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you filter and order facet options/groups using any property of the referenced entity, and attach fetch requirements for facets or groups. Other references remain unaffected unless specified.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. All filters, ordering, and entity fetches apply only to the targeted reference and must be specified explicitly, as nothing is inherited from the generic constraint.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     facetSummaryOfReference(
+	 *         "brand",
+	 *         filterGroupBy(attributeInSet("type", "premium")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("12ecd008112f34be1dfd9f310c9e2232")
+	@SourceHash("f6dce78b9f36e679d7034e8605dd30b8")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11875,7 +11794,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Allows custom filtering and ordering of facet options/groups using properties of the referenced entity. Only one `EntityFetch` and one `EntityGroupFetch` allowed.
+	 * Calculates the facet summary for a single named reference, fully overriding any generic `facetSummary` settings for that reference. Filters and ordering can target any property of the referenced entity, and all requirements must be specified explicitly for this reference.
 	 *
 	 * ```evitaql
 	 * require(
@@ -11888,12 +11807,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("5de1172be901e054d321545897f1620a")
+	@SourceHash("3ce1b5ad8232bbc03944031901d5b4c6")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11909,14 +11828,22 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Allows custom filtering and ordering on properties of the referenced entity, and supports attaching fetch requirements for facet or group entities. Other faceted references remain unaffected unless explicitly targeted.
+	 * Calculates a facet summary for a single named reference, completely overriding any generic `facetSummary` for that reference. Specify the reference name and optionally filter, group filter, and order constraints targeting properties of the referenced entity. Only one `entityFetch` or `entityGroupFetch` can be attached. Use when you need per-reference facet statistics or custom filtering/sorting not possible with the generic constraint.
 	 *
+	 * ```evitaql
+	 * facetSummaryOfReference(
+	 *     "brand",
+	 *     filterBy(attributeEquals("country", "US")),
+	 *     filterGroupBy(attributeInSet("type", "premium")),
+	 *     orderBy(attributeNatural("name", ASC)),
+	 *     entityFetch(attributeContent("name"))
+	 * )
+	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("b93463f355149ed7151e950b091ec8e6")
+	@SourceHash("a706457701a5f92d96a82866a2f27064")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11932,14 +11859,22 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates the facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Allows custom filtering and grouping on properties of the referenced entity, and supports additional entity fetch requirements. Other faceted references remain unaffected unless explicitly targeted.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Filters and fetches apply only to the referenced entity, letting you target its specific properties. Other references are unaffected unless explicitly named.
+	 *
+	 * ```evitaql
+	 * facetSummaryOfReference(
+	 *     "brand",
+	 *     filterBy(attributeEquals("code", "apple")),
+	 *     filterGroupBy(attributeInSet("code", "premium")),
+	 *     entityFetch(attributeContent("name"))
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("418c09ce1e225ce245964b05e749ded5")
+	@SourceHash("f8f484481be449f95bedfa84bf00a48f")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11954,13 +11889,22 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify custom ordering of facet options and groups, plus entity fetch requirements, all targeting properties of the referenced entity type. Other references remain unaffected unless explicitly configured.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. All filter and order constraints apply only to properties of the referenced entity, not the reference relation. No settings are inherited from the generic constraint—define all requirements explicitly.
+	 *
+	 * ```evitaql
+	 * facetSummaryOfReference(
+	 *     "brand",
+	 *     orderBy(attributeNatural("name", ASC)),
+	 *     orderGroupBy(attributeNatural("name", ASC)),
+	 *     entityFetch(attributeContent("name"))
+	 * )
+	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("cc63437a2bf6810996f3d4af9d62adad")
+	@SourceHash("9aa36fd0c61f5df3f3ae5e8b8833b7d8")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11975,14 +11919,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a specific named reference, overriding any generic `facetSummary` for that reference. Lets you filter which facet options appear and control which attributes are fetched for facet entities. Only affects the targeted reference; others remain unchanged.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. All filtering, ordering, and entity fetches apply only to the specified reference's facet or group entities; nothing is inherited from generic settings.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     facetSummaryOfReference(
+	 *         "brand",
+	 *         filterBy(attributeEquals("code", "amazon")),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("c64dd53142a228f969efbe2f09512ee0")
+	@SourceHash("ef9cf5d137001123cd5c3287217ee0a2")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11996,14 +11949,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Allows custom ordering and fetch requirements specific to the referenced entity type. Filters and orders can only target properties of the referenced entity, not the reference relation itself.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Allows custom ordering and fetch requirements specific to the referenced entity type. Only properties of the referenced entity can be used for ordering or fetching; nothing is inherited from the generic constraint.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("e7fb5befe389be22453a614a76ff05a5")
+	@SourceHash("ca40fc3deea5fc3da0542e66fb4d1fef")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -12017,7 +11969,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you filter which facet groups appear and specify what data to fetch for facet or group entities. Other references are unaffected.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Filters and fetches apply only to the referenced entity type, allowing fine-grained control over which facet groups and options are included and what data is loaded. No settings are inherited from the generic constraint.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12028,12 +11980,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("a3263ecefbb83a89e409012c13a66fdf")
+	@SourceHash("907beab72b81a7f6dfbf322cb47798a7")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -12047,14 +11999,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Lets you specify group ordering and fetch requirements for facet/group entities, targeting only the referenced entity's properties. Other references remain unaffected unless explicitly configured.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. All filters, ordering, and fetches must be specified explicitly, as nothing is inherited from the generic constraint. Use this to apply custom sorting of facet groups and fetch requirements for a specific reference.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     facetSummaryOfReference(
+	 *         "brand",
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("26ec2cd37ebe49e23f82ec5f306c167b")
+	@SourceHash("b808b8cd2d28b26c43f889fd4aab158f")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -12068,14 +12029,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Allows custom filtering and ordering of facet options and groups using properties of the referenced entity. Only one `EntityFetch` and one `EntityGroupFetch` may be attached. Other references remain unaffected unless specified.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Filters and ordering can target any property of the referenced entity. All requirements must be specified explicitly; nothing is inherited from the generic constraint.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     facetSummaryOfReference(
+	 *         "brand",
+	 *         filterGroupBy(attributeInSet("code", "premium")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("0d722532dc70ce0b4a414e2442a6013e")
+	@SourceHash("f782d613c26e3e04a28ac22c8d3011a1")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -12090,14 +12061,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Allows filtering and ordering facet groups by properties of the referenced entity, and supports custom entity/group fetch requirements. Other faceted references are unaffected unless targeted separately.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. All filters, ordering, and fetches apply only to the targeted reference's entities or groups; nothing is inherited from the generic constraint. Use this to fully control which facets and groups appear, their order, and what data is fetched for a specific reference.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     facetSummaryOfReference(
+	 *         "brand",
+	 *         filterBy(attributeInSet("code", "sony", "kindle")),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("467570c5c779d8c4cc8feb9902abac4d")
+	@SourceHash("ba3e01798257b7ffc401c9d925dfef96")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -12112,14 +12093,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Allows fine-grained filtering and ordering of facet groups based on properties of the referenced entity, and supports entity/group fetch requirements for tailored data loading.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `facetSummary` for that reference. Filters and ordering can target any property of the referenced entity, and entity/group fetches are defined per reference. No settings are inherited from the generic constraint.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("cc477fcbfb6476dd21cf22770ee9d791")
+	@SourceHash("6d552923dab1e32289da904da1f96ccd")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -12134,25 +12114,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference and allowing custom filtering, grouping, and ordering on properties of the referenced entity. Use this to target one reference with unique rules and fetches.
+	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Specify filters and ordering on the referenced entity, and attach custom fetch requirements. No settings are inherited from the generic constraint.
 	 *
 	 * ```evitaql
 	 * facetSummaryOfReference(
-	 *     "brand",
-	 *     filterBy(attributeEquals("isActive", true)),
-	 *     filterGroupBy(attributeInSet("type", "premium")),
+	 *     "parameterValues",
+	 *     filterBy(attributeContains("code", "memory")),
+	 *     filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
 	 *     orderBy(attributeNatural("name", ASC)),
 	 *     orderGroupBy(attributeNatural("name", ASC)),
-	 *     entityFetch(attributeContent("name"))
+	 *     entityFetch(attributeContent("code", "name")),
+	 *     entityGroupFetch(attributeContent("code"))
 	 * )
 	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
-	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@SourceHash("89334d19a21bd5d49286428fbce66549")
+	@SourceHash("07805e517b66a4414a1ee89f69852ac8")
 	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -12181,20 +12161,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a summary of all faceted references in the result set, providing counts of matching entities for each reference option and group, reflecting the current query's filtering. Useful for building faceted navigation UIs. By default, only counts are computed; more detailed impact predictions can be requested. Supports filtering, sorting, and fetch customization for references and groups. For reference-specific filtering or overrides, use `referenceSummaryOfReference`.
-	 *
+	 * Calculates a summary of all faceted references in the result set, providing counts (and optionally impact predictions) for each selectable reference option and group, based on the current query scope excluding the `userFilter`. Use for building faceted navigation UIs.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("5445d91aec10f286aa3ca7ab60a96b76")
+	@SourceHash("e5ed9affc6cdd8fcd049aec786e0f275")
 	@Nonnull
 	static ReferenceSummary referenceSummary() {
 		return new ReferenceSummary();
 	}
 
 	/**
-	 * Triggers calculation of a reference summary with statistics for all faceted references in the current query scope, using the specified statistics depth (`COUNTS` or `IMPACT`). Supports filtering, ordering, and fetch customization for reference and group entities. Only one `EntityFetch` and one `EntityGroupFetch` may be attached; filters and ordering apply globally to all references. For reference-specific customization, use `referenceSummaryOfReference`.  
+	 * Triggers calculation of a reference summary extra result, providing statistics for all faceted references in the entity schema. Counts are computed for entities matching the query, omitting the `userFilter` part, with configurable detail level (`COUNTS` or `IMPACT`). Supports filtering, sorting, and fetching of referenced entities and groups; only one fetch constraint per type is allowed. For reference-specific customization, use `referenceSummaryOfReference`.  
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12207,20 +12186,20 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("f209ce85f3a3ad8c33b3cc43b03dcb6b")
+	@SourceHash("1fe031c58431ddfb6cd77490a026b8ab")
 	@Nonnull
 	static ReferenceSummary referenceSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
 		return referenceSummary(statisticsDepth, null, null, null, null, requirements);
 	}
 
 	/**
-	 * Triggers calculation of a reference summary for all faceted references in the entity schema, providing counts (or impact predictions) for each reference option and group, scoped to the current query result. Supports filtering, ordering, and fetch customization for reference entities and groups. Use filters to limit summary size and improve performance on large datasets.
+	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for all faceted references in the result set, excluding userFilter constraints. Supports filtering, ordering, and fetch customization for reference options and groups.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
 	 *         IMPACT,
-	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterBy(attributeEquals("visible", true)),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -12231,7 +12210,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("096d256f102ddbc9883c119d6db4fbc4")
+	@SourceHash("02ac76391ab5e009f21ab08a6616179a")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12243,7 +12222,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, providing counts (or impact predictions) for each reference option and group, reflecting only entities matching the current query. Supports filtering, ordering, and fetch customization for references and groups. Use filters to limit summary size; for per-reference logic, combine with `referenceSummaryOfReference`.
+	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for each faceted reference and group, filtered and ordered as specified. Filters only affect which options appear, not entity counts. Attach at most one entity/group fetch constraint each; using more throws. For large datasets, limit summary with filters for performance.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12260,7 +12239,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("eacc11252b2823d67dfb8b47084c983d")
+	@SourceHash("e0b635b90f7f1eb8b392a3e665ac675d")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12273,7 +12252,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary for all entities matching the current query, returning statistics (counts or impact predictions) for each faceted reference and group. You can filter and order reference options/groups and specify which data to fetch for referenced entities and groups. Filters and ordering apply uniformly across all references; for per-reference customization, use `referenceSummaryOfReference`. Only one `entityFetch` and one `entityGroupFetch` constraint are allowed. Performance may be impacted by the number of faceted references and options.
+	 * Triggers calculation of the reference summary extra result, providing statistics for all faceted references in the entity schema. Computes counts or impact predictions for reference options, supports filtering and ordering of options/groups, and allows fetching reference/group entity data. Useful for building faceted navigation UIs; filters/orderings apply only to summary content, not entity counts.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12290,7 +12269,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("ac4dd0da571b93c664209bfe8485f793")
+	@SourceHash("a67145bbb599981046feaac4251967e1")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12303,13 +12282,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, providing counts (or impact predictions) for each reference option and group, based on the entities matching the current query. Supports filtering, ordering, and fetch customization for reference entities and groups. Use filters to limit summary size; only properties shared by all referenced types can be used. For reference-specific behavior, use `referenceSummaryOfReference`.
+	 * Triggers calculation of a summary of all faceted references, providing counts (or impact predictions) for each selectable option and group, based on the current query scope minus any `userFilter`. Supports filtering, ordering, and fetch customization for reference and group entities. Use to power faceted navigation UIs with up-to-date option statistics.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
 	 *         IMPACT,
-	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterBy(attributeEquals("visible", true)),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
@@ -12320,7 +12299,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("a52dd08d5f03cb8ed96251ea0477bb57")
+	@SourceHash("0bd7f049fe75386bfb686e5d7a69cb38")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12333,7 +12312,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for each selectable reference option and group, scoped to the current query result. Supports filtering and ordering of options/groups, and fetch customization for referenced entities. Use filters to limit summary size; for reference-specific logic, use `referenceSummaryOfReference`.
+	 * Triggers calculation of a summary of all faceted references, providing counts (or impact predictions) for each selectable option and group, based on the current query minus any `userFilter`. Supports filtering and ordering of reference options/groups, and allows fetching reference/group entity data. Only one entity and one group fetch constraint are allowed; filters/orderings apply globally across all references. Use `ReferenceSummaryOfReference` for per-reference overrides.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12346,12 +12325,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("332b80d393ee05f2b9e04ed35d8a9c5c")
+	@SourceHash("f45b2881f9333d273f10da32aa293886")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12364,7 +12342,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary for the current query result, providing counts (or impact predictions) for each selectable reference option and group, filtered and ordered as specified. Only entities matching the main query are counted; filters and fetches can limit or enrich the summary. Overridden per-reference by `referenceSummaryOfReference` if both are present.
+	 * Triggers calculation of a summary of all faceted references, grouping options and groups with counts (or impact predictions) for each, based on the current query scope except for `userFilter`. Supports optional filtering, ordering, and fetch requirements for references and groups. Use to power faceted navigation UIs with reference statistics.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12372,7 +12350,8 @@ public interface QueryConstraints {
 	 *         IMPACT,
 	 *         filterBy(attributeStartsWith("code", "a")),
 	 *         filterGroupBy(attributeEquals("visible", true)),
-	 *         entityFetch(attributeContent("name"))
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
@@ -12380,7 +12359,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("7cc806096d52c2095443b54a9519fc34")
+	@SourceHash("539a23f6b25117828ad0e64608f14106")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12392,7 +12371,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, providing counts (or impact predictions) for each reference option and group, based on entities matching the current query. Use `statisticsDepth` to control detail level, and `orderBy`/`orderGroupBy` to sort options/groups. Only one `EntityFetch` and one `EntityGroupFetch` may be attached. Filters and ordering apply to the summary, not the main result set. For per-reference customization, use `referenceSummaryOfReference`.
+	 * Triggers calculation of reference statistics for all faceted references, organizing results by reference, group, and option. Controls depth (counts or impact), ordering, and fetches for referenced entities/groups. Filters and ordering apply across all references; use `referenceSummaryOfReference` for per-reference customizations.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12400,16 +12379,16 @@ public interface QueryConstraints {
 	 *         IMPACT,
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name")),
-	 *         entityGroupFetch(attributeContent("name"))
+	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("e47a86edd98523292bbb2bba7b59232f")
+	@SourceHash("12b2565b603ce7aa701f645c1289f6fb")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12421,13 +12400,15 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a reference summary containing statistics for all faceted references in the entity schema, reflecting only entities returned by the current query. The `statisticsDepth` argument controls whether only counts or also impact predictions are computed. Optional filters and fetch requirements can limit or enrich the summary, but only by properties shared across all referenced entity types. For reference-specific customization, use `referenceSummaryOfReference`. Performance may degrade with many faceted references or options.
+	 * Calculates a summary of all faceted references in the result set, providing counts (or impact predictions) for each selectable option and group, based on the current query minus the `userFilter`. You can filter, sort, and control fetched data for reference options and groups. Use this to power faceted navigation UIs with real-time option counts or impact estimates.
 	 *
 	 * ```evitaql
-	 * referenceSummary(
-	 *     IMPACT,
-	 *     filterBy(attributeStartsWith("code", "a")),
-	 *     entityFetch(attributeContent("name"))
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
 	 * )
 	 * ```
 	 *
@@ -12435,7 +12416,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("012149d0781c0ecca32ab610177ea281")
+	@SourceHash("f98b53dc17cdc8a20e8c0de18256101f")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12446,23 +12427,17 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of the reference summary extra result, providing faceted reference statistics for entities matching the current query. Lets you choose between simple counts or impact predictions, and order the reference/group options. Only one entityFetch and one entityGroupFetch may be attached. Use filters and ordering to control which reference options appear and in what order. For reference-specific filtering, use `referenceSummaryOfReference` instead.
-	 *
+	 * Calculates a summary of all faceted references in the result set, providing counts (or impact predictions) for each selectable option, grouped by reference and group, based on the query scope excluding the `userFilter`. Supports ordering of reference options and attaching fetch requirements for referenced entities or groups.  
 	 * ```evitaql
 	 * require(
-	 *     referenceSummary(
-	 *         IMPACT,
-	 *         orderBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
+	 *     referenceSummary(IMPACT, orderBy(attributeNatural("name", ASC)), entityFetch(attributeContent("name")))
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("1cfd64d3b21b5564f5968ae533260c49")
+	@SourceHash("6b15aa6baec9c42dc1f0c1b3ba4b58be")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12473,7 +12448,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a reference summary containing statistics for all faceted references in the current query result, organized by reference and group. The `statisticsDepth` controls whether only counts or also impact predictions are computed. You can filter which reference groups appear using `facetGroupFilterBy`, and attach at most one `EntityFetch` and one `EntityGroupFetch` to control loaded data for referenced entities and their groups. Filters only affect summary options, not the counted entities. For reference-specific filtering, use `referenceSummaryOfReference`.
+	 * Triggers calculation of a reference summary extra result for all faceted references, providing reference/group/option statistics for the current query scope (excluding `userFilter`). You can control statistics depth (`COUNTS` or `IMPACT`), filter groups, and fetch reference/group entity data. Use filters and ordering to limit or sort summary options, but these apply only to the summary, not to counted entities. For reference-specific customization, use `referenceSummaryOfReference`.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12484,12 +12459,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("4066ed06c237178dd7bfe5502377879e")
+	@SourceHash("c74ab6eda5d2965b98c6c92fba3ed7e9")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12500,23 +12474,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a reference summary containing statistics for all faceted references in the entity schema, reflecting only entities matching the current query. The `statisticsDepth` argument controls whether only counts or also impact predictions are computed. You can order groups with `facetGroupOrderBy` and fetch additional data for referenced entities or their groups via `EntityFetchRequire`. Use filters and ordering constraints to limit or sort the summary, but these only affect the summary output, not the main query results.
-	 *
-	 * ```evitaql
-	 * require(
-	 *     referenceSummary(
-	 *         IMPACT,
-	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
-	 * )
-	 * ```
+	 * Triggers calculation of reference statistics for all faceted references, providing counts or impact predictions for each selectable option and group, based on the current query scope (excluding `userFilter`). Supports ordering of groups and attaching fetch/filter constraints for reference and group entities. For details on advanced filtering, ordering, and performance considerations, see the documentation.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("80c3a97f31cdc16072d7a744c554981a")
+	@SourceHash("277665ca08d346e2cba7cf556e6c4c6c")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12527,7 +12491,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary for all faceted references in the entity schema, returning grouped option counts (and optionally impact predictions) for entities matching the current query. You can filter or sort groups/options, and control which data is fetched for referenced entities or their groups. Use filters to limit summary size; for per-reference customization, see `referenceSummaryOfReference`.
+	 * Triggers calculation of the reference summary extra result, providing statistics for all faceted references in the entity schema. Computes counts (or impact predictions) for each reference option, grouped and ordered as specified, and allows filtering of which options and groups appear in the summary. Entity and group fetch requirements can be attached. The summary reflects the query scope minus any `userFilter` constraints.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12539,11 +12503,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("2a97f98dca25f93175e99af7a8e5a33f")
+	@SourceHash("c9b246ba916518afe97da5a5a210aee8")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12555,7 +12520,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for all faceted references in the current query result. Supports filtering and ordering of reference options/groups, and fetch customization for referenced entities. Use filters to limit summary size; only properties shared by all referenced types can be used for cross-reference filtering or ordering.
+	 * Triggers calculation of a summary of all faceted references in the result set, providing counts (or impact predictions) for each option and group, based on the current query minus any `userFilter`. Supports filtering, ordering, and fetch customization for reference and group entities. Use filters/orderings only for properties shared by all referenced types.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12572,7 +12537,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("b6806ef0101a2d4583103e0380f39123")
+	@SourceHash("1011252dfe874b19f159da287f64676b")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12584,7 +12549,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, providing statistics (counts or impact predictions) for all faceted references in the current query scope. Supports filtering and ordering of reference groups, and allows fetching additional data for referenced entities or groups. Only one fetch constraint per type is allowed; filters/orderings apply across all references. For reference-specific customization, use `referenceSummaryOfReference`.  
+	 * Triggers calculation of a reference summary with the specified statistics depth (`COUNTS` or `IMPACT`), applying group-level filtering and ordering to faceted references. Attach entity/group fetches to control loaded data. Filters/orderings only affect summary display, not entity counts.  
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12599,7 +12564,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("bad1c11ae3db5dc962f1831b5ae42592")
+	@SourceHash("cb35a420d683e17370f9a8121acefbf2")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12611,7 +12576,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a summary with statistics for all faceted references in the entity schema, reflecting only entities matching the current query. Allows tuning the detail level (counts or impact), filtering and ordering of reference options/groups, and specifying which data to fetch for referenced entities or groups. Use filters to limit summary size; per-reference overrides are possible with `referenceSummaryOfReference`. For large datasets, keep faceted references minimal for best performance.
+	 * Triggers calculation of a reference summary with customizable statistics depth, filtering, and ordering for all faceted references in the entity schema. Counts reflect the current query scope without the `userFilter` part. Supports fine-grained control over which reference options and groups are included and how they are sorted, as well as what data is fetched for referenced entities and groups. Use filters and ordering only for properties shared by all referenced types. For reference-specific needs, use `referenceSummaryOfReference`.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12630,7 +12595,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("fcefab056a0806ed8c0d9804be324e7a")
+	@SourceHash("a3e78c2be3136ed62871f2f778c6323d")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12659,21 +12624,20 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of the reference summary extra result, providing statistics for all faceted references in the entity schema within the current query scope. Use this to retrieve counts (and optionally impact predictions) for each selectable reference option, enabling faceted navigation UIs. Attach at most one entityFetch and/or entityGroupFetch to control which data is loaded for referenced entities and their groups. Filtering and ordering of summary options can be customized, but only by properties shared across all referenced types.
+	 * Triggers calculation of a reference summary for all faceted references, providing counts (and optionally impact predictions) of matching entities per reference option and group, based on the current query scope minus any `userFilter`. Attach at most one `entityFetch` and one `entityGroupFetch` to control which data is loaded for referenced entities and their groups. Use filters and ordering to limit or sort the summary, but these apply uniformly across all references.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("0d6b887508f828665974df18084ec7a7")
+	@SourceHash("460f337350c5a4df6b6428ad4ae94d5e")
 	@Nonnull
 	static ReferenceSummary referenceSummary(@Nullable EntityFetchRequire... requirements) {
 		return referenceSummary(FacetStatisticsDepth.COUNTS, null, null, null, null, requirements);
 	}
 
 	/**
-	 * Computes a summary of all faceted references in the current query result, providing counts (and optionally impact predictions) for each selectable reference option, grouped and ordered as specified. You can filter or sort the summary using `FilterBy` and `OrderBy` constraints, and control which data is fetched for referenced entities. Only one `EntityFetch` and one `EntityGroupFetch` are allowed. Filters affect only the summary, not the underlying entity count. For reference-specific filtering, use `referenceSummaryOfReference`.
-	 *
+	 * Calculates a summary of all faceted references in the result set, showing counts (or impact predictions) for each reference option and group, based on the current query scope minus any `userFilter`. Use filters and ordering to limit or sort the summary; attach entity fetch requirements for reference and group details.  
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12687,7 +12651,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("464ccd79b860e04bcc12d0c7fe188b00")
+	@SourceHash("0eb2a3fa7772b9e11b1782ade6f13c59")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy facetFilterBy,
@@ -12698,8 +12662,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary for all entities matching the current query, providing counts (and optionally impact predictions) of matching entities per reference/group. Filters and ordering can be applied to limit and sort options/groups, and entity/group fetches can be specified. Use for building dynamic faceted navigation UIs; for reference-specific filtering, use `referenceSummaryOfReference`.
-	 *
+	 * Triggers calculation of a summary of all faceted references, showing counts (or impact predictions) for each option and group, filtered and ordered by the provided constraints. Filters only affect which options appear, not entity counts; fetches control loaded data.  
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12714,7 +12677,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("88db0f2bc725ecc31042bdb0de7fdcca")
+	@SourceHash("2c3d37b8c59a42f7dc4d827c6be6e19d")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy filterBy,
@@ -12726,7 +12689,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a summary of all faceted references in the result set, providing counts (and optionally impact predictions) for each selectable option, grouped and ordered as specified. You can filter or order both reference options and groups, and control which data is fetched for referenced entities and their groups. Filters only affect which options appear, not the counted entities. For reference-specific filtering, use `referenceSummaryOfReference`.
+	 * Triggers calculation of a faceted reference summary, providing counts (and optionally impact predictions) for each reference option and group, based on the current query minus the `userFilter`. You can filter and order reference options/groups, and specify which data to fetch for referenced entities and their groups. Use when you need aggregated stats for faceted navigation across all faceted references.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12734,17 +12697,15 @@ public interface QueryConstraints {
 	 *         filterGroupBy(attributeEquals("visible", true)),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name")),
-	 *         entityGroupFetch(attributeContent("name"))
+	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("982f9acd1c7808fbc3a7a20bbb851559")
+	@SourceHash("edd3c06c83b5c4d4c009f16dac0f27a4")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -12756,24 +12717,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary for all references marked as faceted in the entity schema, reflecting only entities in the current query result. Allows filtering and ordering of reference options and groups, and supports fetching additional data for referenced entities or groups. Only one EntityFetch and one EntityGroupFetch may be attached. Filters and ordering must target properties common to all referenced types. For reference-specific filtering or overrides, use `referenceSummaryOfReference`.
+	 * Triggers calculation of a reference summary containing statistics for all faceted references, using the current query scope (excluding `userFilter`). Allows filtering and ordering of reference options and groups, and specifying fetch requirements for referenced entities. Use to power faceted navigation UIs with counts or impact predictions for selectable options.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
-	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterBy(attributeEquals("visible", true)),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("b0b57b77df0faf6d04e183af2b7c2ae3")
+	@SourceHash("2261406abe77d8aac1cfe9666598b4b6")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy filterBy,
@@ -12785,7 +12745,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, providing counts (or impact predictions) for each selectable reference option and group, reflecting only entities matching the current query. You can filter and order which options/groups appear in the summary using `filterBy`, `filterGroupBy`, and `orderBy`. Attach at most one `entityFetch` and one `entityGroupFetch` to control loaded data. Filters only affect the summary, not the counted entities, and must target properties shared by all referenced types. For reference-specific customization, use `referenceSummaryOfReference`.
+	 * Triggers calculation of a reference summary with statistics for all faceted references, allowing you to filter and order both reference options and groups in the summary. Filters only affect which options appear, not entity counts. Attach at most one entityFetch and one entityGroupFetch. For reference-specific filtering, use `referenceSummaryOfReference` instead.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12797,11 +12757,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("1bb30640f0eaae62f2cb5cb5cac7b5e3")
+	@SourceHash("170a800df7111c17b8f2ec5f1bdaea66")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy filterBy,
@@ -12813,7 +12774,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a summary of all faceted references in the current query result, providing counts (and optionally impact predictions) for each reference option and group, filtered and ordered as specified. You can further control which reference/group entities are fetched and limit the summary with cross-reference filters. Use when building faceted navigation UIs or analytics.  
+	 * Triggers calculation of the reference summary extra result, providing statistics for all faceted references in the entity schema. Counts are based on the current query minus any `userFilter`, and you can filter or fetch reference/group data using child constraints.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12823,11 +12785,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("c238181a2ed5753d3d2b202365e4caff")
+	@SourceHash("175eb585e8ed299fc58ab6fd523acab7")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy filterBy,
@@ -12838,23 +12801,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a summary of all faceted references in the result set, returning counts and optionally impact predictions for each reference option and group, respecting the current query's filtering scope. You can specify ordering for both reference options and groups, and attach fetch requirements to control which data is loaded for referenced entities and their groups. For large or complex schemas, use filters and ordering to limit and organize the summary for performance and clarity.
+	 * Triggers calculation of a reference summary extra result, providing statistics for all faceted references in the entity schema. Allows sorting of both reference options and their groups, and can include fetch requirements for referenced entities or groups. Counts reflect the current query scope minus any userFilter, and summary can be filtered or customized further. Only one entityFetch and one entityGroupFetch may be attached.
 	 *
-	 * ```evitaql
-	 * require(
-	 *     referenceSummary(
-	 *         orderBy(attributeNatural("name", ASC)),
-	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name")),
-	 *         entityGroupFetch(attributeContent("name"))
-	 *     )
-	 * )
-	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("657457032dc320a62f4a21413093971f")
+	@SourceHash("6236ff4e74e6a41be41a3b7dd96af84d")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable OrderBy orderBy,
@@ -12865,7 +12818,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a reference summary extra result, providing statistics for all faceted references in the entity schema, scoped to the current query result. You can filter which reference options and groups appear in the summary using `filterBy`, while additional requirements (e.g., `entityFetch`, `entityGroupFetch`, ordering) control which data is loaded and how results are sorted. Filters only affect the summary's content, not which entities are counted. Use for faceted navigation UIs and to power option counts or impact predictions.
+	 * Triggers calculation of a summary with counts for all faceted references, grouping and filtering the options according to the provided `filterBy` and fetch requirements. The summary reflects the current query scope, omitting only the `userFilter` part, and is useful for building faceted navigation UIs.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12875,11 +12828,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("3be5c87debac4e0230717fe9c6e1a193")
+	@SourceHash("58a1847d749947a437630bea52b3f60b")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy filterBy,
@@ -12889,20 +12843,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a reference summary with statistics for all faceted references in the result set, organizing counts (and optionally impact predictions) by reference and group. You can control the sort order of reference options and attach fetch/child requirements to load additional data for referenced entities or groups. Only one `EntityFetch` and one `EntityGroupFetch` may be attached; passing more throws an exception. Filtering and ordering constraints apply uniformly across all references.  
-	 * ```evitaql
-	 * require(
-	 *     referenceSummary(
-	 *         orderBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
-	 * )
-	 * ```
+	 * Triggers calculation of a summary of all faceted references, providing counts (and optionally impact predictions) for each reference option and group, based on the current query scope minus the `userFilter`. You can specify ordering for reference options and fetch requirements for referenced entities or groups.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("db698d7f3d6d7a48031ba1fbc05bf401")
+	@SourceHash("c9effcd336077ff4edd12936f929d504")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable OrderBy orderBy,
@@ -12912,7 +12858,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a reference summary with statistics for all faceted references in the result set, applying an optional filter to reference groups and allowing control over which data is fetched for reference/group entities. Only entities matching the main query are counted.  
+	 * Triggers calculation of a summary of all faceted references, grouping options by reference and group, and counting matching entities as if the `userFilter` were omitted. You can filter which groups appear and control fetched data for referenced entities and groups.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12921,11 +12868,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("6895c05cf373d440c50b2d8dc1edad95")
+	@SourceHash("c9612953ffe77f903367465007fa414e")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -12935,7 +12883,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a summary of all faceted references in the result set, providing counts (and optionally impact predictions) for each selectable reference option, grouped and ordered by the specified group ordering. Attach fetch or filter constraints to control which reference/group data is loaded or included.  
+	 * Triggers calculation of a summary of all faceted references in the result set, returning counts (and optionally impact predictions) for each reference option and group, based on the current query scope minus any `userFilter`. Allows ordering of reference groups and fine-grained control over which reference/group data is fetched. Use filters and ordering constraints to limit or sort the summary; for reference-specific needs, use `referenceSummaryOfReference`.  
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12948,7 +12896,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("9eb3632498a7faca5bdeaa43ed711f57")
+	@SourceHash("e4e6297a97de77f34cd40e4d134bde68")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable OrderGroupBy facetGroupOrderBy,
@@ -12958,7 +12906,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of the reference summary extra result, providing statistics for all faceted references in the current query result. Lets you filter reference groups, order individual reference options, and fetch reference or group entity data. Useful for building faceted navigation UIs that reflect the current filtering scope.
+	 * Triggers calculation of a summary with statistics for all faceted references in the entity schema, organized by reference and group, reflecting the current query scope except for `userFilter`. Allows filtering and ordering of reference options and groups, and supports fetching extra data for referenced entities or groups. Use to power faceted navigation UIs with counts and optionally impact predictions.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12974,7 +12922,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("c582375ae1b9b87ba7d51430bd7b4241")
+	@SourceHash("cc6aa3a29f85248a80a8eb1a99d87550")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -12985,7 +12933,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a reference summary with statistics for all faceted references in the current query scope, organizing results by reference, group, and option. You can filter and order groups using `filterBy` and `orderGroupBy`, and fetch extra data for referenced entities. Only entities matching the main query are counted; filters here affect summary display, not entity counts. For large datasets, limit summary size for performance.  
+	 * Triggers calculation of a reference summary for all faceted references, providing counts (and optionally impact predictions) for each reference option and group, based on the current query minus any `userFilter`. You can filter or order the summary by reference/group attributes and control which data is fetched for referenced entities and groups. Use filters to limit summary size, but note they only affect summary contents, not entity counts.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12999,7 +12948,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("cc60c657e22cced76402b2c3054fcf0d")
+	@SourceHash("801014d87de048f1e67dfe07f5df2dd2")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy filterBy,
@@ -13010,23 +12959,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a summary of all faceted references in the query result, organized by reference and group, showing counts and optionally impact predictions for each selectable option. Allows filtering and ordering of groups, and attaching fetch requirements for referenced entities and groups. Only entities matching the current query are counted; filters here affect only which options appear in the summary, not the entity result set.
-	 *
-	 * ```evitaql
-	 * require(
-	 *     referenceSummary(
-	 *         filterGroupBy(attributeEquals("visible", true)),
-	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
-	 * )
-	 * ```
-	 *
+	 * Produces a reference summary extra result for all faceted references, grouping and ordering reference groups according to the provided filters and sorters. Entity fetch requirements can be attached for reference and group entities. Only one fetch constraint of each type may be included. Filtering and ordering apply to which reference options and groups are shown, but do not affect entity counts. For reference-specific filtering or overrides, use `referenceSummaryOfReference`.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("4929a031050b02de3065f5af89faada1")
+	@SourceHash("d2883f0687d867b1129385cde9ab862b")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -13037,17 +12975,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, providing counts (and optionally impact predictions) for each reference option and group, scoped to entities matching the current query. Supports filtering and ordering of reference options/groups, and allows fetching extra data for referenced entities and their groups. Use filters to limit summary size; only properties shared by all referenced types can be used for filtering or ordering. For reference-specific customization, use `referenceSummaryOfReference`.
-	 *
+	 * Triggers calculation of the reference summary extra result, providing counts and optional impact predictions for all faceted references in the current query scope (excluding `userFilter`). Supports filtering, ordering, and fetch customization for reference options and groups. Use filters to limit summary size; for reference-specific logic, prefer `referenceSummaryOfReference`.  
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
-	 *         filterBy(attributeStartsWith("code", "a")),
-	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         filterBy(attributeEquals("visible", true)),
 	 *         orderBy(attributeNatural("name", ASC)),
-	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name")),
-	 *         entityGroupFetch(attributeContent("name"))
+	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
@@ -13055,7 +12989,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("49c86f18e8903a34cde2ca799eef1932")
+	@SourceHash("6c3ed7b091a1c18458ddaa8967eaaffa")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy facetFilterBy,
@@ -13080,11 +13014,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a reference summary with statistics for all faceted references in the result set, including entity and group fetch details and optional histogram statistics per reference. Useful for building faceted navigation UIs with counts or impact predictions. [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 * Triggers calculation of reference summary statistics for all faceted references, including entity and group fetches, with the specified statistics depth (`COUNTS` or `IMPACT`). Also computes histograms for reference options if histogram statistics are provided.  
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("558114ed1dcbfb89582d5ecc63eacdbc")
+	@SourceHash("cf3164b2a7d83f54e7710d499789cfac")
 	@Nonnull
 	static ReferenceSummary referenceSummaryWithHistograms(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -13100,19 +13035,15 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of the reference summary extra result, providing detailed statistics for all faceted references in the current query scope. Supports configurable statistics depth (`COUNTS` or `IMPACT`), filtering, ordering, and custom entity/group fetches. Optionally includes histogram statistics for reference options or groups. Filters and ordering apply uniformly across all faceted references and only affect the summary, not the counted entities. For reference-specific customization, use `referenceSummaryOfReference`. Use with care on large datasets due to performance impact.
+	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for each reference option and group, filtered, ordered, and enriched per arguments. Optionally includes histogram statistics for reference options. Use to power faceted navigation UIs with advanced filtering and analytics.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
 	 *         IMPACT,
-	 *         filterBy(attributeStartsWith("code", "a")),
-	 *         filterGroupBy(attributeEquals("visible", true)),
-	 *         orderBy(attributeNatural("name", ASC)),
-	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         filterBy(attributeEquals("type", "premium")),
 	 *         entityFetch(attributeContent("name")),
-	 *         entityGroupFetch(attributeContent("name")),
-	 *         referenceHistogramStatistics(10)
+	 *         histogramStatistics(10)
 	 *     )
 	 * )
 	 * ```
@@ -13121,7 +13052,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("90f5c7fa403f1d2709f2d500cce7dca3")
+	@SourceHash("02e66a66d948c1666fb255f579c10f2b")
 	@Nonnull
 	static ReferenceSummary referenceSummaryWithHistograms(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -13175,7 +13106,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows fine-grained control over statistics depth, filtering, ordering, and entity fetches for the targeted reference only; constraints are never merged.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. All filter, order, and fetch requirements apply only to the targeted reference and must be fully specified, as nothing is inherited or merged from the generic constraint.
 	 *
 	 * ```evitaql
 	 * require(
@@ -13190,7 +13121,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("e1fe254a3a5b36cad555576a522ad6df")
+	@SourceHash("44a7a7dce5463e1ae0ee74e1ee4f67d9")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(@Nonnull String referenceName,
 		@Nullable EntityFetchRequire... requirements) {
@@ -13199,21 +13130,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`) and attach fetch requirements for referenced entities or groups. Filters and ordering can target any property of the referenced entity, enabling fine-grained control per reference. If both generic and per-reference constraints are present, the per-reference one fully replaces the generic for its target.
+	 * Calculates a reference summary for a single named reference, fully overriding any generic `referenceSummary` for that reference. Specify the reference name, statistics depth (`COUNTS` or `IMPACT`), and any fetch/filter/order constraints for the referenced entity or its group. Constraints are not merged: all requirements for this reference must be defined here. Use when you need per-reference control over statistics, filtering, or data fetching.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
 	 *         IMPACT,
+	 *         filterBy(attributeEquals("priority", "premium")),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("a3c2f98a6db6878c9760e01c17286b8c")
+	@SourceHash("3049a97819704990c90a0428dd875ee2")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
@@ -13224,14 +13158,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), filter and order constraints targeting properties of the referenced entity, and fetch requirements for reference entities. Other references remain unaffected unless explicitly targeted.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Specify the reference name, statistics depth (COUNTS or IMPACT), and optional filter/order constraints targeting properties of the referenced entity. All requirements for this reference must be defined here; nothing is inherited or merged from the generic constraint.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
-	 *         IMPACT,
-	 *         filterBy(attributeEquals("country", "US")),
+	 *         COUNTS,
+	 *         filterBy(attributeEquals("code", "apple")),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -13242,7 +13176,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("5f16f68585d1190e13ff7d2852874dc6")
+	@SourceHash("35d14a6006e2f03b5a930e583cf9c859")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13257,7 +13191,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), filters, and ordering specific to the referenced entity, plus fetch requirements for referenced entities and groups. All filter/order constraints target the referenced entity, not the reference relation. Use to tailor facet summaries per reference type.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Specify statistics depth, filters, ordering, and fetches unique to the targeted reference; settings are not merged with the generic constraint.
 	 *
 	 * ```evitaql
 	 * require(
@@ -13267,8 +13201,7 @@ public interface QueryConstraints {
 	 *         filterBy(attributeContains("code", "memory")),
 	 *         filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("code", "name")),
-	 *         entityGroupFetch(attributeContent("code"))
+	 *         entityFetch(attributeContent("code", "name"))
 	 *     )
 	 * )
 	 * ```
@@ -13277,7 +13210,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("9125a1f30fa02eb8be39504b7f07285e")
+	@SourceHash("892a13e3baff2966f9ef30fa763a5ef8")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13293,17 +13226,17 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), group filtering, and custom ordering for reference options and groups, plus fetch requirements for referenced entities or groups. Filter and order constraints can target any property of the referenced entity. Only one `EntityFetch` and one `EntityGroupFetch` are allowed.
+	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Specify the reference name, statistics depth (`COUNTS` or `IMPACT`), and fine-grained filters, ordering, and entity fetches for reference and group entities. Constraints are never merged with the generic summary—define all requirements explicitly here. Use when you need per-reference filtering, sorting, or fetch behavior not shared with other references.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
 	 *         IMPACT,
-	 *         filterGroupBy(attributeEquals("country", "DE")),
+	 *         filterGroupBy(attributeEquals("code", "premium")),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
+	 *         entityFetch(attributeContent("code", "name"))
 	 *     )
 	 * )
 	 * ```
@@ -13312,7 +13245,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("fc2d5fe5d29b1bea86c16b485664bf35")
+	@SourceHash("9d981632b6ce7fb6bec21a6d84b87fc7")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13328,7 +13261,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), and apply filters and ordering specific to the referenced entity type. Only one `EntityFetch` and one `EntityGroupFetch` can be attached. Use this to tailor facet summaries for individual references with custom filtering, sorting, and data loading.
+	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Specify the reference name, statistics depth, filters, and ordering—none of the generic settings are inherited. All filter/order constraints target properties of the referenced entity, not the relation. Attach at most one `EntityFetch` and one `EntityGroupFetch`. Use when you need per-reference customization of statistics, filtering, or fetched data.
 	 *
 	 * ```evitaql
 	 * require(
@@ -13338,7 +13271,8 @@ public interface QueryConstraints {
 	 *         filterBy(attributeContains("code", "memory")),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("code", "name"))
+	 *         entityFetch(attributeContent("code", "name")),
+	 *         entityGroupFetch(attributeContent("code"))
 	 *     )
 	 * )
 	 * ```
@@ -13347,7 +13281,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("5dcea4f9d88ee69727b88e90feefeb41")
+	@SourceHash("6c9c3e3b981d77f0200e22708f3fa606")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13363,18 +13297,15 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (COUNTS or IMPACT), and filter/order constraints on properties of the referenced entity. Only one `EntityFetch` and one `EntityGroupFetch` allowed. Use when you need per-reference customization of facet statistics, filtering, or ordering.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` constraints for that reference. All filtering, ordering, and entity fetch requirements must be specified explicitly, as nothing is inherited or merged from the generic constraint. Use this when you need per-reference statistics depth, filters, or fetches that differ from the baseline. Filters and ordering target properties of the referenced entity only.
 	 *
 	 * ```evitaql
-	 * require(
-	 *     referenceSummaryOfReference(
-	 *         "brand",
-	 *         IMPACT,
-	 *         filterBy(attributeEquals("active", true)),
-	 *         null,
-	 *         orderBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
+	 * referenceSummaryOfReference(
+	 *     "parameterValues",
+	 *     IMPACT,
+	 *     filterBy(attributeContains("code", "memory")),
+	 *     orderBy(attributeNatural("name", ASC)),
+	 *     entityFetch(attributeContent("code", "name"))
 	 * )
 	 * ```
 	 *
@@ -13382,7 +13313,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("ab325e253e772a24ff63fb2fedbd15d4")
+	@SourceHash("75bd52d94c40c95d0468b1c81ae9b35c")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13398,16 +13329,16 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), and apply filters, group filters, and fetch requirements specific to the referenced entity type. Constraints are never merged—this fully replaces the generic summary for the targeted reference.
+	 * Calculates a reference summary for a single named reference, fully overriding any generic `referenceSummary` constraints for that reference. Lets you specify statistics depth, filters, ordering, and fetch requirements tailored to the targeted reference. Filters and ordering apply to properties of the referenced entity only. Use when you need per-reference control over summary calculation; constraints are never merged with the generic baseline.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
 	 *         IMPACT,
-	 *         filterBy(attributeEquals("country", "US")),
-	 *         filterGroupBy(attributeInSet("type", "premium")),
-	 *         entityFetch(attributeContent("name", "logo"))
+	 *         filterBy(attributeEquals("origin", "EU")),
+	 *         filterGroupBy(attributeInSet("popularity", "high")),
+	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
@@ -13416,7 +13347,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("940e7ba1ed0fde3ce7f8dc4dded02561")
+	@SourceHash("b96578ce67c0707d19c6dd0f540bf19c")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13431,13 +13362,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify the statistics depth (COUNTS or IMPACT), custom ordering for reference options and groups, and fetch requirements for referenced entities or groups. Filters and ordering can target any property of the referenced entity type. Use this to customize summary behavior for specific references without affecting others.
+	 * Calculates a reference summary for a single named reference, fully overriding any generic `referenceSummary` for that reference. Specify statistics depth, custom ordering, and entity fetches; filters and ordering can use any property of the referenced entity. Nothing from the generic summary is inherited—define all requirements explicitly for this reference.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("priority", DESC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("564866182970c5a348339e1fdd887d65")
+	@SourceHash("89c6b4b6740d51617d6368ae895506a4")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13452,23 +13395,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Overrides the generic `referenceSummary` for a single named reference, computing statistics (counts or impact) and allowing fine-grained filtering, ordering, and entity fetch settings for that reference only. Filters and sorting target properties of the referenced entity, not the reference relation. Use to customize facet summaries per reference without affecting others.
+	 * Calculates a reference summary for a single named reference, fully overriding any generic `referenceSummary` constraints for that reference. Lets you specify statistics depth, filters, ordering, and entity fetches unique to the targeted reference; nothing is inherited from the generic constraint. Use when you need per-reference control over summary computation, filtering, and data loading.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
-	 *         "brand",
+	 *         "parameterValues",
 	 *         IMPACT,
-	 *         filterBy(attributeEquals("country", "DE")),
-	 *         entityFetch(attributeContent("name"))
+	 *         filterBy(attributeContains("code", "memory")),
+	 *         entityFetch(attributeContent("code", "name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("2c4bacf64431b67e0061757f7f8406f0")
+	@SourceHash("0db8ebe1f25216ed4a20a9a09b950320")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13481,13 +13425,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify the statistics depth (`COUNTS` or `IMPACT`), custom ordering for reference options, and fetch requirements for referenced entities. Only affects the targeted reference; constraints are not merged with generic settings.
+	 * Calculates a reference summary for a single named reference, fully overriding any generic `referenceSummary` for that reference. Specify the reference name, statistics depth (`COUNTS` or `IMPACT`), custom ordering, and entity fetch requirements. Filters and ordering can target any property of the referenced entity, and nothing is inherited from the generic summary. Use when you need per-reference control over statistics, filtering, ordering, or fetched data.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("code", "name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("fc746658f15a7de51b923d9cef077aad")
+	@SourceHash("cfea356ceaa4b2d9adf6f499b91f2ea4")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13500,13 +13455,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (COUNTS or IMPACT), group filtering, and entity fetch requirements, all targeting the referenced entity type. Other faceted references remain unaffected unless explicitly configured.
+	 * Calculates a reference summary for a single named reference, fully overriding any generic `referenceSummary` constraints for that reference. Specify the reference name, statistics depth (`COUNTS` or `IMPACT`), group filtering, and fetch requirements. All filters and ordering apply only to properties of the referenced entity or group, not the reference relation. Use when you need per-reference control over summary calculation, filters, sorting, or fetched data—nothing is inherited from the generic summary.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
-	 *         IMPACT,
+	 *         COUNTS,
 	 *         filterGroupBy(attributeInSet("code", "premium", "budget")),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -13517,7 +13472,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("787ff35c5e509865bf85cab310288939")
+	@SourceHash("5b818ba92548a7f1da2ff2041894cfeb")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13531,12 +13486,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` settings for that reference. Lets you specify the statistics depth (COUNTS or IMPACT), custom group ordering, and fetch requirements for referenced/group entities. Use when you need per-reference control over summary output and data loading.
+	 * Calculates a reference summary for a single named reference, fully overriding any generic `referenceSummary` for that reference. Specify the reference name, statistics depth (`COUNTS` or `IMPACT`), group ordering, and fetch requirements. Filters and ordering can target any property of the referenced entity, and nothing is inherited from the generic constraint. Use when you need per-reference control over summary calculation.
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("35e3b565c12b1040be3f528417d1891e")
+	@SourceHash("640b0f332096fca7d4298aa00575d6d3")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13550,14 +13506,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), group filtering, option ordering, and fetch requirements for the targeted reference only. Constraints apply to properties of the referenced entity, not the reference relation. Use when you need per-reference facet summaries with custom filters, ordering, or fetches.
+	 * Calculates a facet summary for a single named reference, fully overriding any generic `referenceSummary` for that reference. Specify the reference name, statistics depth (COUNTS or IMPACT), group filtering, ordering, and fetch requirements. Filters and ordering can target any property of the referenced entity, not just shared ones. This constraint never merges with the generic summary—define all requirements explicitly for the targeted reference.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
 	 *         IMPACT,
-	 *         filterGroupBy(attributeInSet("code", "premium", "budget")),
+	 *         filterGroupBy(attributeEquals("code", "premium")),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -13568,7 +13524,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("79bea86749ba28805bfea710700170ba")
+	@SourceHash("94f98ed4164e7ebdc981ff13c1df7efb")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13583,23 +13539,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), and apply filters, group ordering, and fetches specific to the referenced entity type. Constraints are never merged; this replaces the generic baseline for the targeted reference. Useful for per-reference customization of stats, filtering, or sorting.
+	 * Calculates a reference summary for a single named reference, fully overriding any generic `referenceSummary` constraints for that reference. Specify the reference, statistics depth (`COUNTS` or `IMPACT`), and custom filter/order constraints targeting properties of the referenced entity. Only one `entityFetch` and one `entityGroupFetch` are allowed. No settings from the generic summary are inherited—define all requirements explicitly for the targeted reference.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
 	 *         IMPACT,
-	 *         filterBy(attributeEquals("country", "US")),
+	 *         filterBy(attributeEquals("origin", "EU")),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("23ec097ee52f457bb20ab2c482e5af12")
+	@SourceHash("007bac32004d0a0b50b85f9a9c179ae2")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13614,24 +13572,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify the statistics depth (COUNTS or IMPACT), group filtering and ordering, and fetch requirements for referenced/group entities. Filters and ordering can target any property of the referenced entity. Use when you need custom summary logic for a specific reference type.
+	 * Calculates a reference summary for a single named reference, fully overriding any generic `referenceSummary` for that reference. Specify the reference name, statistics depth (`COUNTS` or `IMPACT`), group filtering and ordering, and fetch requirements. All filter/order constraints apply to properties of the referenced entity or group only. Use this to tailor statistics and data loading for one reference without inheriting settings from the generic summary.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
 	 *         IMPACT,
-	 *         filterGroupBy(attributeInSet("popularity")),
+	 *         filterGroupBy(attributeEquals("region", "EU")),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("5d9809403f3fa90c81396f2097259580")
+	@SourceHash("c216a349ab6950db0af3803f6f7623a9")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13646,7 +13605,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify the statistics depth (COUNTS or IMPACT), and apply filters, groupings, and ordering using properties of the referenced entity. Only one `EntityFetch` and one `EntityGroupFetch` can be attached. Use when you need per-reference facet control beyond the global baseline.
+	 * Produces a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. All filters, ordering, and entity fetches must be specified explicitly, as nothing is inherited or merged. Use this to apply custom statistics depth, filtering, ordering, and fetch requirements for one reference without affecting others.
 	 *
 	 * ```evitaql
 	 * require(
@@ -13662,11 +13621,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("eabdf4ac301e05fb60fcdbabccc47e94")
+	@SourceHash("d23a6d76817b0cf29d4e193969875f8d")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13698,13 +13658,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows filtering and ordering by any property of the referenced entity, and supports custom entity fetch requirements. Only affects the targeted reference; others remain unchanged.
+	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. All filtering, ordering, and entity fetches apply only to the targeted reference and must be specified explicitly—nothing is inherited or merged from the generic constraint.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
-	 *         filterBy(attributeEquals("country", "US")),
+	 *         filterBy(attributeEquals("code", "samsung")),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -13715,7 +13675,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("ccbd125e33327e81fafd3732c022c263")
+	@SourceHash("544c1ae91cdef3b0a6980ac9e45f7900")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13729,14 +13689,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you filter, group, and order reference options using properties of the referenced entity, and specify fetch requirements for entities or groups.
+	 * Calculates a reference summary for a single named reference, fully overriding any generic `referenceSummary` for that reference. Filters and ordering can target any property of the referenced entity. No requirements are inherited from the generic summary constraint.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
-	 *         filterBy(attributeEquals("country", "US")),
-	 *         filterGroupBy(attributeInSet("type", "premium")),
+	 *         filterBy(attributeEquals("code", "samsung")),
+	 *         filterGroupBy(attributeInSet("code", "premium")),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -13747,7 +13707,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("b0ae28cde4450e9c17b478be591f4fe4")
+	@SourceHash("a4a06ce3cefc714d7cb3cdaed4b19a10")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13762,13 +13722,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows custom filtering and ordering of reference options and groups using properties of the referenced entity. Only one `EntityFetch` and one `EntityGroupFetch` can be attached; duplicates throw an exception. Use to tailor facet stats and display for a specific reference without affecting others.
+	 * Calculates a reference summary for a specific named reference, overriding any generic `referenceSummary` constraints for that reference. All filters, ordering, and fetches apply only to the targeted reference and must be fully specified, as nothing is inherited or merged from the generic constraint. Use this to apply custom statistics, filtering, and sorting logic for a single reference, especially when its properties differ from others.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "parameterValues",
+	 *         filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("code", "name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("2ccf4501e8a694846a97530d3fa96df6")
+	@SourceHash("5f014b422ad9401c117905660d0a4de9")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13783,13 +13755,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you filter and order reference options and groups using any property of the referenced entity, and attach fetch requirements for entity/group data. Only affects the specified reference; others are unaffected unless targeted separately.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. All filter and order constraints apply only to the referenced entity's properties, and requirements are not merged with the generic constraint. Use this to customize statistics, filtering, ordering, and entity fetches for a specific reference; nothing from the generic summary is inherited.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         filterBy(attributeEquals("code", "apple")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("50eda46e18897738c04a7720ec23d2e2")
+	@SourceHash("0a45337668159531240f6d9d0f3d7f4d")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13804,14 +13788,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows custom filtering and ordering on the referenced entity, and supports attaching fetch requirements for reference or group entities. Use this to tailor facet statistics and output for a specific reference type without affecting others.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Specify the reference name and optionally filter, group, order, and fetch requirements for referenced entities. Constraints are not merged—this constraint fully replaces the generic baseline for the targeted reference. All filter/order constraints apply to the referenced entity, not the reference relation. Use when you need per-reference customization in facet summaries.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
-	 *         filterBy(attributeEquals("country", "US")),
-	 *         filterGroupBy(attributeInSet("type", "premium")),
+	 *         filterBy(attributeEquals("code", "sony")),
+	 *         null,
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -13822,7 +13806,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("82df988ac9c0d29d49dc1d6a067b601e")
+	@SourceHash("554dbe7c3c08603f4b5e9765425a47c5")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13837,13 +13821,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you filter and group reference options using any filterable property of the referenced entity, and attach fetch requirements for reference or group entities. Other faceted references remain unaffected unless explicitly targeted.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` constraints for that reference. Only the specified reference is affected, and all filters, ordering, and entity fetches must be defined explicitly—nothing is inherited or merged from the generic constraint. Filters and ordering can target any property of the referenced entity or group. Use this to apply custom summary logic to one reference while others use generic settings.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         filterBy(attributeEquals("active", true)),
+	 *         filterGroupBy(attributeInSet("category", "premium")),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("ae3473c2affb1edb03920eb107bea1b5")
+	@SourceHash("0f165dee22607c63e6eb0e124d930e1e")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13857,13 +13852,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows custom ordering of reference options and groups, plus fine-grained entity/group fetch requirements. Only affects the specified reference; constraints are not merged with generic settings.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. All filtering and ordering apply only to the referenced entity's properties, and entity fetches must be specified explicitly. This constraint never merges with the generic summary—its requirements are fully independent.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("77da54cabe5b4ec06642544f2a21de84")
+	@SourceHash("7893e10308613fe28fbcc0e2124665d1")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13877,13 +13883,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, fully overriding any generic `referenceSummary` for that reference. Only the specified reference is affected; others remain unchanged. Allows filtering and fetching data for the referenced entity using any of its filterable properties.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. All filtering, ordering, and entity fetches must be specified explicitly, as nothing is inherited or merged from the generic constraint. Use this to target a specific reference with custom filters or fetches; only that reference is affected.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         filterBy(attributeEquals("code", "sony")),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("18242def6a21362344b0fdb4118cc187")
+	@SourceHash("77f73625bc143b2e30c20aaedaa398f9")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13896,7 +13912,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Only the specified reference is affected; others remain unchanged. Allows custom ordering and fetch requirements for the referenced entity, with all filter/order constraints targeting properties of the referenced entity type.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Defines its own filters, ordering, and fetches—nothing is inherited or merged from the generic constraint. Use to target reference-specific properties and behaviors.
 	 *
 	 * ```evitaql
 	 * require(
@@ -13912,7 +13928,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("bc1b378ffddc7e8400d328368240add3")
+	@SourceHash("97f729221fcbe0e28053d255c3d238f3")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13925,13 +13941,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows custom group filtering and fetch requirements for the targeted reference, affecting only that reference and not others.
+	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Only the specified reference is affected; constraints are not merged, so all requirements (filters, ordering, fetches) must be defined here. Filters and ordering can target any property of the referenced entity or group entity. Use when you need per-reference customization of facet statistics and output.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         filterGroupBy(attributeInSet("code", "premium", "budget")),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("8e042fc24111ceaf0fddb06a4b27fadc")
+	@SourceHash("f37d1988e2206d7ae4ca1cdf9ff8591b")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13944,13 +13970,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you control group ordering and specify fetch requirements for referenced entities or groups. Only affects the targeted reference; other references remain unaffected.
+	 * Produces a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. All filtering, ordering, and entity fetches apply only to the targeted reference, and nothing is inherited from the generic constraint. Use this when you need custom statistics or fetches for a specific reference, such as applying group ordering or fetching different attributes than the baseline.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("code", "name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("947dfad132c4f2ad067cc6770b8bfca4")
+	@SourceHash("e7c5991d1055710fab059bade9dc1842")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13963,13 +13999,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows custom filter and order constraints targeting properties of the referenced entity, plus optional entity and group fetch requirements. Other faceted references remain unaffected unless explicitly configured.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Filters and ordering can target any property of the referenced entity. All requirements must be specified explicitly; nothing is inherited from the generic constraint.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         filterGroupBy(attributeEquals("code", "premium")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("22f6b20557463955947a0bd092f77339")
+	@SourceHash("29a12049ae2097130a743a614f901516")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -13983,13 +14030,22 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows filtering and ordering based on properties of the referenced entity or group, and supports custom entity/group fetch requirements. Other references remain unaffected unless individually targeted.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. All filters, ordering, and fetches apply only to the specified reference and do not inherit from the generic constraint. Use this to target reference-specific properties or behaviors that differ from the baseline. Only one `EntityFetch` and one `EntityGroupFetch` may be provided.
+	 *
+	 * ```evitaql
+	 * referenceSummaryOfReference(
+	 *     "brand",
+	 *     filterBy(attributeEquals("code", "amazon")),
+	 *     orderGroupBy(attributeNatural("name", ASC)),
+	 *     entityFetch(attributeContent("name"))
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("41c3c7ff73a2dd32e49f2493f0da44ac")
+	@SourceHash("33fcb9e381c9c475a94d50d80f090c67")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -14003,12 +14059,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Overrides generic facet summary settings for a single named reference, allowing custom group filtering and ordering for that reference only. Use this to target specific referenced entity or group properties with per-reference fetch requirements.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Filters and ordering can target any property of the referenced entity or group. Inherits nothing from the generic constraint—define all requirements explicitly.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         filterGroupBy(attributeEquals("type", "premium")),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("fd01baee54d5487cddecc4fc6aa2088b")
+	@SourceHash("ec07606833677e919f9c795908a2084d")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -14022,17 +14090,15 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify custom filters, group filters, and ordering for the referenced entity, plus fetch requirements for entities and groups. Use when you need per-reference facet stats or want to target reference-specific properties.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Defines its own filters, ordering, and fetches for the targeted reference type—nothing is inherited or merged. Use to customize statistics and data loading for a specific reference, with all filter/order constraints applying to the referenced entity only.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
-	 *         filterBy(attributeEquals("active", true)),
-	 *         filterGroupBy(attributeInSet("type", "premium")),
-	 *         orderBy(attributeNatural("name", ASC)),
-	 *         orderGroupBy(attributeNatural("type", DESC)),
-	 *         entityFetch(attributeContent("name"))
+	 *         filterBy(attributeEquals("code", "apple")),
+	 *         null,
+	 *         orderBy(attributeNatural("name", ASC))
 	 *     )
 	 * )
 	 * ```
@@ -14041,7 +14107,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("db13bf6a32c3cd9cacee726c72b836ca")
+	@SourceHash("b042675011fd6c9815b30c8bab585c98")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
 		@Nonnull String referenceName,
@@ -14069,13 +14135,25 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding generic `referenceSummary` settings for that reference. Allows specifying statistics depth, entity/group fetch, and histogram statistics. Only affects the targeted reference; constraints are not merged with generic settings.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` constraints for that reference. Specify the reference name, statistics depth, entity fetches, and optional histogram statistics; nothing from the generic constraint is inherited or merged. Use this to target reference-specific filtering, ordering, and fetch requirements, especially when you need different summary logic for a particular reference.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("code")),
+	 *         histogramStatistics(attributeHistogram("popularity", 5))
+	 *     )
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("fb27f7018c9e8b620d6bca379b1418ba")
+	@SourceHash("e36eee1e6618ab86a08f0ff6577722f2")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReferenceWithHistograms(
 		@Nonnull String referenceName,
@@ -14095,20 +14173,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows fine-grained control over statistics depth, filtering, ordering, and fetched data for the reference and its groups, plus attaches histogram statistics for advanced analytics. Filters and ordering target only the referenced entity's properties. Throws if multiple fetches of the same type are provided.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth, filters, ordering, entity fetches, and histogram statistics for the targeted reference only—these settings are not merged with the generic constraint. Use this when you need per-reference control over summary calculation, including histograms, filters, and fetches for reference or group entities.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummaryOfReference(
 	 *         "brand",
-	 *         COUNTS,
-	 *         filterBy(attributeEquals("country", "US")),
-	 *         null,
+	 *         IMPACT,
+	 *         filterBy(attributeEquals("origin", "domestic")),
 	 *         orderBy(attributeNatural("name", ASC)),
-	 *         null,
 	 *         entityFetch(attributeContent("name")),
-	 *         null,
-	 *         histogram(attributeHistogram("popularity", 5))
+	 *         entityGroupFetch(attributeContent("code")),
+	 *         histogramStatistics(10)
 	 *     )
 	 * )
 	 * ```
@@ -14117,7 +14193,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
-	@SourceHash("fc67f98fdb2559efeaf5965d1b7f7ef8")
+	@SourceHash("a403cd7e0cbe8d8448147b42c94c95a5")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReferenceWithHistograms(
 		@Nonnull String referenceName,
@@ -14183,12 +14259,12 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fetches the full entity body from storage, including locale, scope, and schema reference, but omits attributes, associated data, prices, and references unless specified by sub-requirements. Use to retrieve basic entity details beyond just primary keys.
+	 * Triggers loading of the full entity body, including all attributes, associated data, prices, references, and hierarchy information, for each matched entity. Use with care, as fetching all data increases I/O and network load.  
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#entity-fetch)
 	 *
 	 * @see io.evitadb.api.query.require.EntityFetch
 	 */
-	@SourceHash("e320ca1d7e1b3c7d5f8de55d0faba58f")
+	@SourceHash("f31b657fe14d5493cd66eaed5e8c8116")
 	@Nonnull
 	static EntityFetch entityFetchAll() {
 		return entityFetch(
@@ -14199,13 +14275,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Retrieves the bodies of group entities associated with references, analogous to `entityFetch` but for reference groups. Used within `referenceContent`, this variant loads only the group entity body, omitting attributes, associated data, prices, and other containers.
+	 * Retrieves the bodies of group entities associated with references, enabling access to group-level data (e.g., group names or attributes) for referenced items. Only meaningful inside `referenceContent`. With no arguments, loads just the group entity body.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#entity-group-fetch)
 	 *
 	 * @see io.evitadb.api.query.require.EntityGroupFetch
 	 */
-	@SourceHash("e148e3bff43d736d71b1f036c6165379")
+	@SourceHash("b31ef032cf1f35487b48463028e385da")
 	@Nonnull
 	static EntityGroupFetch entityGroupFetchAll() {
 		return entityGroupFetch(
