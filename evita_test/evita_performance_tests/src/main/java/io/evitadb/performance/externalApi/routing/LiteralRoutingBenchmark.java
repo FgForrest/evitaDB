@@ -39,8 +39,6 @@ import static io.evitadb.performance.externalApi.routing.RoutingBenchmarkFixture
  * Small static endpoint dispatchers: GraphQL root/schema, standalone system literals, and lab's lone wildcard.
  * requestShape identifies the route family, registration count and request; there is no hidden route-set default.
  *
- * FORK retains URI parsing and header injection; the new arms consume context captures and do less work.
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @State(Scope.Thread)
@@ -50,7 +48,7 @@ import static io.evitadb.performance.externalApi.routing.RoutingBenchmarkFixture
 @Measurement(iterations = 5, time = 1)
 @Fork(2)
 public class LiteralRoutingBenchmark {
-	@Param({"FORK", "REGION"})
+	@Param({"REGION"})
 	public String arm;
 	@Param({"GRAPHQL_6_ROOT", "GRAPHQL_6_SCHEMA", "SYSTEM_7_STATUS", "SYSTEM_7_LIVENESS", "LAB_2_ASSET"})
 	public String requestShape;

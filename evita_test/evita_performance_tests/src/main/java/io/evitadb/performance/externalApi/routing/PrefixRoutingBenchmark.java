@@ -37,11 +37,9 @@ import java.util.concurrent.TimeUnit;
 import static io.evitadb.performance.externalApi.routing.RoutingBenchmarkFixtures.*;
 
 /**
- * L2 prefix dispatch at catalog scale, including remainder rewriting. FORK and REGION use their public serve API;
- * HASHMAP is the plain substring reference. Prefix formatting cost is reported by PrefixFormattingBenchmark separately.
+ * L2 prefix dispatch at catalog scale, including remainder rewriting. REGION uses its public serve API;
+ * HASHMAP is the plain substring reference.
  * The middle catalog has a distinct response from every other catalog. MISS uses an unregistered catalog name.
- *
- * FORK retains URI parsing and header injection; the new arms consume context captures and do less work.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -52,7 +50,7 @@ import static io.evitadb.performance.externalApi.routing.RoutingBenchmarkFixture
 @Measurement(iterations = 5, time = 1)
 @Fork(2)
 public class PrefixRoutingBenchmark {
-	@Param({"FORK", "REGION", "HASHMAP"})
+	@Param({"REGION", "HASHMAP"})
 	public String arm;
 	@Param({"1", "10", "100"})
 	public int catalogs;
@@ -70,7 +68,7 @@ public class PrefixRoutingBenchmark {
 		HttpResponse expected = null;
 		for (int i = 0; i < this.catalogs; i++) {
 			final HttpResponse response = HttpResponse.of(HttpStatus.OK);
-			bindings.put("/" + catalogName(i), terminal(this.arm, response));
+			bindings.put("/" + catalogName(i), terminal(response));
 			if (i == this.catalogs / 2) {
 				expected = response;
 			}

@@ -27,7 +27,6 @@ import com.linecorp.armeria.common.*;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.externalApi.http.routing.PrefixRoutingService;
-import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.utils.CollectionUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
@@ -41,13 +40,11 @@ import java.util.concurrent.TimeUnit;
 import static io.evitadb.performance.externalApi.routing.RoutingBenchmarkFixtures.*;
 
 /**
- * Three stable readers traverse L2+L3 while one writer replaces a different catalog. FORK uses production's
- * remove/add pair; REGION uses replacePrefixPath. Both toggle between two prebuilt L3 routers and pay the same
- * bounded consumeCPU backoff after each update. The backoff bounds pressure; it does not enforce equal update rates.
+ * Three stable readers traverse L2+L3 while one writer replaces a different catalog using replacePrefixPath.
+ * The writer toggles between two prebuilt L3 routers and pays a bounded consumeCPU backoff after each update.
+ * The backoff bounds pressure.
  * Report the churn:reader secondary throughput, not the aggregate group score that includes writer operations.
  * Group GC allocation is reader plus writer allocation and cannot be interpreted as bytes per reader request.
- *
- * FORK retains URI parsing and header injection; the new arms consume context captures and do less work.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -64,7 +61,7 @@ public class ConcurrentRoutingBenchmark {
 	 */
 	@State(Scope.Group)
 	public static class ChurnState {
-		@Param({"FORK", "REGION"})
+		@Param({"REGION"})
 		public String arm;
 		@Param({"10", "100"})
 		public int catalogs;
@@ -138,9 +135,6 @@ public class ConcurrentRoutingBenchmark {
 			this.alternate = !this.alternate;
 			if (this.router instanceof PrefixRoutingService region) {
 				region.replacePrefixPath(this.changedPrefix, replacement);
-			} else if (this.router instanceof PathHandlingService fork) {
-				fork.removePrefixPath(this.changedPrefix);
-				fork.addPrefixPath(this.changedPrefix, replacement);
 			} else {
 				throw new IllegalStateException("Unexpected churn router: " + this.router);
 			}
@@ -177,7 +171,7 @@ public class ConcurrentRoutingBenchmark {
 		return shared.router.serve(reader.context, reader.request);
 	}
 
-	/** Replaces a different catalog and applies the same fixed, bounded writer backoff in both arms. */
+	/** Replaces a different catalog and applies a fixed, bounded writer backoff. */
 	@Benchmark
 	@Group("churn")
 	@GroupThreads(1)

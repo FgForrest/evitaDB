@@ -60,9 +60,6 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 	exports io.evitadb.externalApi.trace;
-	exports io.evitadb.externalApi.utils.path;
-	exports io.evitadb.externalApi.utils.path.routing;
-	exports io.evitadb.externalApi.utils.path.routing.cache;
 	exports io.evitadb.externalApi.serialization;
 	exports io.evitadb.externalApi.event;
 	exports io.evitadb.externalApi.api.system.resolver.mutation.engine;

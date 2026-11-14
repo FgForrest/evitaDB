@@ -37,12 +37,9 @@ import static io.evitadb.performance.externalApi.routing.RoutingBenchmarkFixture
 
 /**
  * One catalog's generated REST routes. Each collection has localized variants, schema/data routes and OPTIONS.
- * The Product collection sits in the middle of the generated inventory. WRONG_METHOD is informational only:
- * FORK returns 404 via its defective method-name probe, whereas REGION/HASHMAP search other method tries and
- * build a 405 with Allow. Its scores cannot establish old/new performance acceptance.
+ * The Product collection sits in the middle of the generated inventory. WRONG_METHOD searches other method tries
+ * and builds a 405 with Allow.
  * HASHMAP preserves the method trie topology but replaces literal region probes with HashMap/substring probes.
- *
- * FORK retains URI parsing and header injection; the new arms consume context captures and do less work.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -53,7 +50,7 @@ import static io.evitadb.performance.externalApi.routing.RoutingBenchmarkFixture
 @Measurement(iterations = 5, time = 1)
 @Fork(2)
 public class EndpointRoutingBenchmark {
-	@Param({"FORK", "REGION", "HASHMAP"})
+	@Param({"REGION", "HASHMAP"})
 	public String arm;
 	@Param({"5", "50", "500"})
 	public int collections;
@@ -89,7 +86,7 @@ public class EndpointRoutingBenchmark {
 		};
 		final boolean miss = this.requestShape.equals("NEAR_MISS") || this.requestShape.equals("WRONG_METHOD");
 		final HttpResponse expected = miss ? null : route(routes, method, template).response();
-		final HttpStatus status = this.requestShape.equals("WRONG_METHOD") && !this.arm.equals("FORK") ?
+		final HttpStatus status = this.requestShape.equals("WRONG_METHOD") ?
 			HttpStatus.METHOD_NOT_ALLOWED : HttpStatus.NOT_FOUND;
 		this.router = endpoints(this.arm, routes);
 		this.request = RoutingBenchmarkFixtures.request(method, path);

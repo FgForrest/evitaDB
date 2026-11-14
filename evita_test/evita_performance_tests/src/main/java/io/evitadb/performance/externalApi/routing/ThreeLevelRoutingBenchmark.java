@@ -38,13 +38,10 @@ import static io.evitadb.performance.externalApi.routing.RoutingBenchmarkFixture
 
 /**
  * Acceptance scenario: real L1 API prefix -> L2 catalog prefix -> L3 endpoint serve, including two :path rewrites,
- * capture headers and one original context query parameter. REST and GraphQL share the same pipeline fixture.
+ * context captures and one original context query parameter. REST and GraphQL share the same pipeline fixture.
  * Every setup checks the actual measured router's response identity, then constructs an identical verification
- * pipeline with a checking terminal to assert forwarded path, internal_* values and preserved context query.
+ * pipeline with a checking terminal to assert forwarded path, context captures and preserved context query.
  * Checking handlers are discarded after setup; measured terminals consume forwarding through a Blackhole.
- * FORK parses URI paths and builds query/capture headers; REGION retains encoded targets and context captures.
- *
- * FORK retains URI parsing and header injection; the new arms consume context captures and do less work.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -55,7 +52,7 @@ import static io.evitadb.performance.externalApi.routing.RoutingBenchmarkFixture
 @Measurement(iterations = 5, time = 1)
 @Fork(2)
 public class ThreeLevelRoutingBenchmark {
-	@Param({"FORK", "REGION"})
+	@Param({"REGION"})
 	public String arm;
 	@Param({"1", "10", "100"})
 	public int catalogs;
@@ -104,11 +101,10 @@ public class ThreeLevelRoutingBenchmark {
 			method, template, (ctx, req) -> {
 				if (!remainder.equals(req.headers().path()) || !target.equals(ctx.path()) ||
 					!"trace=one".equals(ctx.query()) ||
-					(this.arm.equals("FORK") && !"one".equals(req.headers().get("internal_trace"))) ||
 					(this.requestShape.startsWith("REST_") && !this.requestShape.equals("REST_LITERAL") &&
-						!"42".equals(parameter(this.arm, ctx, req, "primaryKey"))) ||
+						!"42".equals(parameter(ctx, "primaryKey"))) ||
 					(this.requestShape.equals("REST_LOCALIZED") &&
-						!"en".equals(parameter(this.arm, ctx, req, "locale")))) {
+						!"en".equals(parameter(ctx, "locale")))) {
 					throw new IllegalStateException("Incorrect three-level forwarding: " + req.headers());
 				}
 				return expected.response();

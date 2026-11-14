@@ -44,7 +44,7 @@ import static io.evitadb.performance.externalApi.routing.RoutingBenchmarkFixture
  * endpoints use one trie per method and the same literal-first backtracking and context-capture contract as REGION.
  * Only the generated REST grammar used by EndpointRoutingBenchmark is implemented (no wildcard or encoded targets).
  * Unlike a linear template scan, this keeps the matching topology constant while changing the table/key strategy.
- * There is no fork logger in this arm. Maps are writer-owned during setup and never changed after publication.
+ * Maps are writer-owned during setup and never changed after publication.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

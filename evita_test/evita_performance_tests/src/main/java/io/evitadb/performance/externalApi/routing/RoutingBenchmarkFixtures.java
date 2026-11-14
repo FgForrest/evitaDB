@@ -31,12 +31,8 @@ import io.evitadb.externalApi.http.routing.RouteParameters;
 import io.netty.util.AttributeKey;
 import org.openjdk.jmh.infra.Blackhole;
 import io.evitadb.externalApi.http.routing.PrefixRoutingService;
-import io.evitadb.externalApi.utils.path.PathHandlingService;
-import io.evitadb.externalApi.utils.path.RoutingHandlerService;
-import io.evitadb.externalApi.utils.path.routing.UndertowLogger;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
-import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,9 +47,8 @@ import java.util.Set;
  * Each route owns a distinct prebuilt response, so response identity proves selection of the expected handler.
  *
  * Requests and contexts are built once per thread (per group reader where applicable).
- * The fork parses req.uri() and injects query/capture headers; REGION/HASHMAP use encoded bounds and attach
- * named captures to context. The new arms deliberately do less work. Prefixes rewrite requests in every arm.
- * Measured terminals consume forwarded path, context query and arm-specific parameter transport through a JMH
+ * REGION/HASHMAP use encoded bounds and attach named captures to context. Prefixes rewrite requests in every arm.
+ * Measured terminals consume forwarded path, context query and context captures through a JMH
  * Blackhole supplied by each benchmark invocation. No benchmark or setup is executed during compile-only validation.
  * Trivial handlers return their prebuilt response without subscribing to it. Setup never aggregates a hit response,
  * so it remains unused; only fresh fallback responses are aggregated. This reuse is identical for every arm.
@@ -67,42 +62,32 @@ final class RoutingBenchmarkFixtures {
 	private RoutingBenchmarkFixtures() {
 	}
 
-	/** Supplies the pseudo-headers present on real incoming requests, including in the fork arm. */
+	/** Supplies the pseudo-headers present on real incoming requests. */
 	@Nonnull
 	static HttpRequest request(@Nonnull HttpMethod method, @Nonnull String pathAndQuery) {
 		return HttpRequest.of(RequestHeaders.builder(method, pathAndQuery)
 			.scheme("http").authority("localhost").build());
 	}
 
-	/** Builds a terminal that observes precisely the forwarded path and arm-specific parameter carrier. */
+	/** Builds a terminal that observes precisely the forwarded path and context captures. */
 	@Nonnull
-	static HttpService terminal(@Nonnull String arm, @Nonnull HttpResponse response) {
-		return consuming(arm, (ctx, req) -> response);
+	static HttpService terminal(@Nonnull HttpResponse response) {
+		return consuming((ctx, req) -> response);
 	}
 
 	/** Wraps once during setup; no lambda or sink is allocated on the measured request path. */
 	@Nonnull
-	private static HttpService consuming(@Nonnull String arm, @Nonnull HttpService delegate) {
-		final boolean fork = arm.equals("FORK");
+	private static HttpService consuming(@Nonnull HttpService delegate) {
 		return (ctx, req) -> {
 			final Blackhole sink = ctx.attr(BLACKHOLE);
 			if (sink != null) {
 				sink.consume(req.path());
 				sink.consume(ctx.query());
-				if (fork) {
-					for (final Map.Entry<io.netty.util.AsciiString, String> header : req.headers()) {
-						if (header.getKey().startsWith("internal_")) {
-							sink.consume(header.getKey());
-							sink.consume(header.getValue());
-						}
-					}
-				} else {
-					final RouteParameters parameters = ctx.attr(RouteParameters.KEY);
-					if (parameters != null) {
-						for (int i = 0; i < parameters.size(); i++) {
-							sink.consume(parameters.nameAt(i));
-							sink.consume(parameters.valueAt(i));
-						}
+				final RouteParameters parameters = ctx.attr(RouteParameters.KEY);
+				if (parameters != null) {
+					for (int i = 0; i < parameters.size(); i++) {
+						sink.consume(parameters.nameAt(i));
+						sink.consume(parameters.valueAt(i));
 					}
 				}
 			}
@@ -110,13 +95,9 @@ final class RoutingBenchmarkFixtures {
 		};
 	}
 
-	/** Reads one named capture using the transport consumed by this arm's production REST handler. */
+	/** Reads one named capture from the context carrier consumed by production REST handlers. */
 	@Nullable
-	static String parameter(@Nonnull String arm, @Nonnull ServiceRequestContext ctx,
-		@Nonnull HttpRequest req, @Nonnull String name) {
-		if (arm.equals("FORK")) {
-			return req.headers().get("internal_" + name);
-		}
+	static String parameter(@Nonnull ServiceRequestContext ctx, @Nonnull String name) {
 		final RouteParameters parameters = ctx.attr(RouteParameters.KEY);
 		if (parameters != null) {
 			for (int i = 0; i < parameters.size(); i++) {
@@ -128,13 +109,6 @@ final class RoutingBenchmarkFixtures {
 		return null;
 	}
 
-	/** Fails setup if the fork would emit log output rather than just pay its unconditional formatting cost. */
-	static void requireDebugOff() {
-		if (LoggerFactory.getLogger(UndertowLogger.LoggerAdapter.class).isDebugEnabled()) {
-			throw new IllegalStateException("Routing benchmarks require Undertow debug logging off.");
-		}
-	}
-
 	/** Produces varied catalog lengths, including the same length for multiple catalogs. */
 	@Nonnull
 	static String catalogName(int index) {
@@ -144,13 +118,7 @@ final class RoutingBenchmarkFixtures {
 	/** Builds the selected prefix implementation with exactly the supplied bindings. */
 	@Nonnull
 	static HttpService prefixes(@Nonnull String arm, @Nonnull Map<String, HttpService> bindings) {
-		requireDebugOff();
 		return switch (arm) {
-			case "FORK" -> {
-				final PathHandlingService router = new PathHandlingService();
-				bindings.forEach(router::addPrefixPath);
-				yield router;
-			}
 			case "REGION" -> {
 				final PrefixRoutingService router = new PrefixRoutingService();
 				bindings.forEach(router::addPrefixPath);
@@ -164,20 +132,12 @@ final class RoutingBenchmarkFixtures {
 	/** Builds the selected endpoint implementation from one common route inventory. */
 	@Nonnull
 	static HttpService endpoints(@Nonnull String arm, @Nonnull List<RoutingBenchmarkRoute> routes) {
-		requireDebugOff();
 		final List<RoutingBenchmarkRoute> consumed = new ArrayList<>(routes.size());
 		for (final RoutingBenchmarkRoute route : routes) {
 			consumed.add(new RoutingBenchmarkRoute(route.method(), route.template(),
-				consuming(arm, route.handler()), route.response()));
+				consuming(route.handler()), route.response()));
 		}
 		return switch (arm) {
-			case "FORK" -> {
-				final RoutingHandlerService router = new RoutingHandlerService();
-				for (final RoutingBenchmarkRoute route : consumed) {
-					router.add(route.method(), route.template(), route.handler());
-				}
-				yield router;
-			}
 			case "REGION" -> {
 				final EndpointRoutingService.Builder builder = new EndpointRoutingService.Builder();
 				for (final RoutingBenchmarkRoute route : consumed) {
@@ -295,7 +255,7 @@ final class RoutingBenchmarkFixtures {
 		for (int i = 0; i < catalogs; i++) {
 			// Non-target catalogs have distinct responses so an incorrect L2 choice cannot pass setup.
 			final HttpResponse other = HttpResponse.of(HttpStatus.OK);
-			final HttpService decoy = terminal(arm, other);
+			final HttpService decoy = terminal(other);
 			restCatalogs.put("/" + catalogName(i), i == catalogs / 2 ? rest : decoy);
 			graphQLCatalogs.put("/" + catalogName(i), i == catalogs / 2 ? graphQL : decoy);
 		}

@@ -78,8 +78,8 @@ case "${ABS_PATH}" in
 esac
 
 # Build output, and trees whose whitespace is deliberately not ours to normalise. Vendored upstream
-# code (evita_roaring_bitmap, the Undertow routing tree) must keep upstream's exact formatting or
-# every future upstream replay becomes a merge conflict. The documentation examples are editorial
+# code (evita_roaring_bitmap) must keep upstream's exact formatting or every future upstream replay
+# becomes a merge conflict. The documentation examples are editorial
 # and measurably space-indented (406 of 680 .java files), so tab enforcement there is pure noise --
 # this is a deliberate superset of .editorconfig's own carve-outs for the same paths.
 #
@@ -91,7 +91,6 @@ case "${REL_PATH}" in
 	*/generated/*) exit 0 ;;
 	evita_roaring_bitmap/*) exit 0 ;;
 	documentation/*) exit 0 ;;
-	evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/utils/path/*) exit 0 ;;
 esac
 
 # Only text sources this project actually formats.

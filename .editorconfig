@@ -1219,11 +1219,6 @@ indent_style = tab
 trim_trailing_whitespace = false
 max_line_length = off
 
-# Vendored Undertow routing code (JBoss/Red Hat, Apache-2.0) -- same reasoning as above.
-[evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/utils/path/**]
-trim_trailing_whitespace = false
-max_line_length = off
-
 # Documentation examples are embedded verbatim into the docs and the documentation tests match on
 # their content, so their formatting is editorial rather than code style. These files also MUST NOT
 # carry the BSL licence header that every product source carries -- they are snippets shown to
