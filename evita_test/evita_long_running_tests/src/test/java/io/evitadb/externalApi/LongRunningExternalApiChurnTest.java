@@ -73,8 +73,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * Lifecycle requests accept only checked data, the exact routing 404 body, or an error with an error code
  * in HTTP 400 JSON / HTTP 200 GraphQL errors. `lifecycleMessage` names the known ones; the rest is reported
- * as `other` in the outcome histogram, because the test guards routing, not engine lifecycle. A REST HTTP 500
- * "Session has been already closed" on a catalog being replaced is accepted until issue #1959 is fixed.
+ * as `other` in the outcome histogram, because the test guards routing, not engine lifecycle.
  * Every transport failure, malformed body, other error and every stable-catalog error fails.
  * A pair of refresh-only catalogs is never renamed/deleted. Once warmed, REST must remain 200 throughout.
  * A creation-only observation window closes under a fixture lock before rename/delete, so the GraphQL
@@ -112,8 +111,6 @@ class LongRunningExternalApiChurnTest implements EvitaTestSupport {
 	private static final String[] STABLE = {"stableAlpha", "stableBeta", "stableGamma"};
 	private static final String[] REFRESH = {"refreshAlpha", "refreshBeta"};
 	private static final String ROUTING_MISS = "404 Not Found: The requested resource could not be found.";
-	private static final String SESSION_CLOSED =
-		"Session has been already closed. No one should access the session!";
 	private static final ObjectMapper JSON = new ObjectMapper()
 		.enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 	private static final String GQL_QUERY =
@@ -748,15 +745,6 @@ class LongRunningExternalApiChurnTest implements EvitaTestSupport {
 		final int status = response.status().code();
 		if (lifecycle && status == 404 && ROUTING_MISS.equals(response.contentUtf8())) {
 			return "404/routing";
-		}
-		if (lifecycle && status == 500) {
-			// issue #1959: the engine terminates the session of a catalog being replaced under the REST handler,
-			// which reports it as an internal error; remove this branch when that issue is fixed
-			final JsonNode json = JSON.readTree(response.contentUtf8());
-			if (json.isObject() && json.path("errorCode").isTextual() &&
-				SESSION_CLOSED.equals(json.path("message").asText())) {
-				return "500/SessionClosed";
-			}
 		}
 		if (lifecycle && (status == 400 || (status == 200 && kind == 3))) {
 			final JsonNode json = JSON.readTree(response.contentUtf8());
