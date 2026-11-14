@@ -73,12 +73,14 @@ import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
+import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
 import lombok.extern.slf4j.Slf4j;
+import io.evitadb.roaringbitmap.PeekableIntIterator;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
@@ -86,6 +88,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -207,6 +210,142 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull ContributionVerdicts shouldBeIndexed,
 		@Nonnull ContributionVerdicts shouldNotBeIndexed
 	) {
+	}
+
+	/**
+	 * Identifies one stored value read by {@link StoredReferencedEntityValues}.
+	 *
+	 * @param entityType       the type of the referenced entity
+	 * @param entityPrimaryKey the primary key of the referenced entity
+	 * @param attributeName    the name of the attribute
+	 * @param locale           the locale of a localized attribute, or `null`
+	 */
+	private record StoredValueKey(
+		@Nonnull String entityType,
+		int entityPrimaryKey,
+		@Nonnull String attributeName,
+		@Nullable Locale locale
+	) {
+	}
+
+	/**
+	 * Reads the stored values of referenced entities' attributes for the histograms of one dispatched
+	 * {@link ReevaluateExpressionMutation}, through the storage-part executor the mutation carries
+	 * ({@link ReevaluateExpressionMutation#storageAccessor()}) and the very method the owner's own upsert reads the
+	 * same value with ({@link ContainerizedLocalMutationExecutor#readReferencedEntityAttribute}). The cross-entity path
+	 * reads an array-typed value this way, because the source `FilterIndex` cannot tell what the owner's upsert writes
+	 * for it: the index folds repeated elements onto one key, and it holds no record for an empty array.
+	 *
+	 * Each read is memoized by the entity, the attribute and the locale for the lifetime of one dispatch, so the
+	 * removal and the addition of every histogram of the mutation, and every entry of the same referenced entity, share
+	 * one read. The memo keeps the raw value the executor returns, `null` included, never a value expanded for one
+	 * histogram: two histograms may read the same attribute with different defaults, and each expands the raw value
+	 * with its own descriptor (`ReferenceIndexMutator#resolveHistogramValues`). The memo cannot go stale: it lives for
+	 * one dispatch, and a dispatch writes indexes only, so no stored value it reads changes while it runs.
+	 */
+	private static final class StoredReferencedEntityValues {
+		/**
+		 * The dispatched mutation, carrying the storage-part executor the values are read through.
+		 */
+		@Nonnull private final ReevaluateExpressionMutation mutation;
+		/**
+		 * The scope of the histograms; a referenced entity in another scope reads as having no value.
+		 */
+		@Nonnull private final Scope scope;
+		/**
+		 * An estimate of the number of distinct reads, used only to size the memo.
+		 */
+		private final int expectedReads;
+		/**
+		 * The raw values read so far, created on the first read; a key mapped to `null` is a read that found no value.
+		 */
+		@Nullable private Map<StoredValueKey, Serializable> values;
+
+		/**
+		 * Creates the reader of one dispatch.
+		 *
+		 * @param mutation      the dispatched mutation, carrying the storage-part executor the values are read through
+		 * @param scope         the scope of the histograms
+		 * @param expectedReads an estimate of the number of distinct reads, used only to size the memo
+		 */
+		StoredReferencedEntityValues(
+			@Nonnull ReevaluateExpressionMutation mutation,
+			@Nonnull Scope scope,
+			int expectedReads
+		) {
+			this.mutation = mutation;
+			this.scope = scope;
+			this.expectedReads = expectedReads;
+		}
+
+		/**
+		 * Returns the stored value of an attribute of a referenced entity, normalized as the owner's own upsert reads
+		 * it, reading it on the first request only.
+		 *
+		 * @param entityType       the type of the referenced entity
+		 * @param entityPrimaryKey the primary key of the referenced entity
+		 * @param attributeName    the name of the attribute
+		 * @param locale           the locale of a localized attribute, or `null`
+		 * @return the stored raw value, or `null` when the entity has no value there, is in another scope, does not
+		 *         exist (it reads as an empty body) or is removed within the same root mutation (its removal drops
+		 *         every attribute)
+		 * @throws GenericEvitaInternalError when the mutation carries no storage-part executor - the collector attaches
+		 *                                   one wherever its pre-pass captured the mutation, so a missing one means the
+		 *                                   pre-pass and the dispatch disagree on the mutations of the batch
+		 */
+		@Nullable
+		private Serializable read(
+			@Nonnull String entityType,
+			int entityPrimaryKey,
+			@Nonnull String attributeName,
+			@Nullable Locale locale
+		) {
+			final ContainerizedLocalMutationExecutor storageAccessor = this.mutation.storageAccessor();
+			if (storageAccessor == null) {
+				throw new GenericEvitaInternalError(
+					"The cross-entity mutation " + this.mutation + " carries no storage accessor, but the histogram " +
+						"value of attribute `" + attributeName + "` of `" + entityType + "` " + entityPrimaryKey +
+						" must be read from storage. The pre-pass of the collector did not capture this mutation."
+				);
+			}
+			final StoredValueKey key = new StoredValueKey(entityType, entityPrimaryKey, attributeName, locale);
+			if (this.values == null) {
+				this.values = CollectionUtils.createHashMap(this.expectedReads);
+			} else {
+				final Serializable memoized = this.values.get(key);
+				if (memoized != null || this.values.containsKey(key)) {
+					return memoized;
+				}
+			}
+			final Serializable value = storageAccessor.readReferencedEntityAttribute(
+				entityType, entityPrimaryKey, attributeName, locale, this.scope
+			);
+			this.values.put(key, value);
+			return value;
+		}
+
+		/**
+		 * Returns the histogram values the stored value of the histogram's source attribute of a referenced entity
+		 * contributes: the value {@link #read} returns, expanded with the histogram's own descriptor as the owner's own
+		 * upsert expands it (`ReferenceIndexMutator#resolveHistogramValues`).
+		 *
+		 * @param entityType       the type of the referenced entity
+		 * @param entityPrimaryKey the primary key of the referenced entity
+		 * @param resolution       the value resolution metadata of the histogram
+		 * @param locale           the locale of a localized attribute, or `null`
+		 * @return the histogram values, empty when the entity contributes nothing
+		 */
+		@Nonnull
+		Serializable[] readHistogramValues(
+			@Nonnull String entityType,
+			int entityPrimaryKey,
+			@Nonnull HistogramValueDescriptor resolution,
+			@Nullable Locale locale
+		) {
+			return ReferenceIndexMutator.resolveHistogramValues(
+				read(entityType, entityPrimaryKey, resolution.sourceAttributeName(), locale), resolution
+			);
+		}
 	}
 
 	/**
@@ -1073,6 +1212,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final ReferencedTypeEntityIndex rtei = findReferencedTypeEntityIndexForModification(
 			target, rteiType, scope, referenceName
 		);
+		// the stored values of referenced entities, created for the first histogram of this mutation reading an array
+		// and shared by all of them, so each value is read once per dispatch
+		StoredReferencedEntityValues storedValues = null;
 
 		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
 			final String histogramName = trigger.getHistogramIndexName();
@@ -1105,15 +1247,26 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				allAffectedOwnerPKs, mutation, histogramName
 			);
 			if (canUseScopedRemoval) {
+				// an array value is read from the referenced entity's storage, as the owner's own upsert reads it - the
+				// source FilterIndex folds repeated elements onto one key and holds no record for an empty array
+				final StoredReferencedEntityValues histogramStoredValues;
+				if (resolution.arrayType()) {
+					if (storedValues == null) {
+						storedValues = new StoredReferencedEntityValues(mutation, scope, affected.groups().size());
+					}
+					histogramStoredValues = storedValues;
+				} else {
+					histogramStoredValues = null;
+				}
 				// Scoped removal: deterministic remove using known values from source FilterIndex
 				// or pre-mutation captured values when the value source attribute itself changed.
 				scopedRemoveForReferencedEntityAttribute(
 					histogramName, resolution, ownerPKsToRemove,
-					affected, rtei, isGrouped, target, locales, mutation, scope
+					affected, rtei, isGrouped, target, locales, mutation, scope, histogramStoredValues
 				);
 				addHistogramEntries(
 					histogramName, trigger, split.shouldBeIndexed(), affected, rtei, isGrouped,
-					target, referenceName, scope, locales
+					target, referenceName, scope, locales, histogramStoredValues
 				);
 			} else {
 				// REFERENCE_ATTRIBUTE path: deterministic remove+re-add using values from the
@@ -1124,7 +1277,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				);
 				addHistogramEntries(
 					histogramName, trigger, split.shouldBeIndexed(), affected, rtei, isGrouped,
-					target, referenceName, scope, locales
+					target, referenceName, scope, locales, null
 				);
 			}
 		}
@@ -1411,10 +1564,11 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * Scoped removal for {@link HistogramValueSource#REFERENCED_ENTITY_ATTRIBUTE} sources. Instead
 	 * of scanning all histogram buckets and removing the owner PK from each (which destroys entries
 	 * contributed by non-affected references), this method only removes the specific value contributed
-	 * by each affected referenced entity, identified via the source collection's FilterIndex.
+	 * by each affected referenced entity, identified via the source collection's FilterIndex, or - for an array value,
+	 * which that index folds - via the referenced entity's stored value.
 	 *
-	 * When the affected entity's current value is NOT found in the histogram (indicating a value
-	 * change rather than a condition change), falls back to blanket removal for those owner PKs.
+	 * When the value source attribute itself changed, the captured pre-mutation value names the contribution instead
+	 * of the current one. A (value, owner) pair the histogram does not hold is skipped.
 	 *
 	 * @param histogramName    name of the histogram definition
 	 * @param resolution       value resolution metadata
@@ -1425,6 +1579,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param target           access to entity collection indexes
 	 * @param locales          locales for localized histograms; empty set for non-localized
 	 * @param mutation         the cross-entity re-evaluation signal carrying optional pre-mutation values
+	 * @param scope            scope of the entity collection
+	 * @param storedValues     the stored values of the referenced entities when the histogram reads an array, or
+	 *                         `null` when the current value comes from the source FilterIndex
 	 */
 	private static void scopedRemoveForReferencedEntityAttribute(
 		@Nonnull String histogramName,
@@ -1436,7 +1593,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull IndexMutationTarget target,
 		@Nonnull Set<Locale> locales,
 		@Nonnull ReevaluateExpressionMutation mutation,
-		@Nonnull Scope scope
+		@Nonnull Scope scope,
+		@Nullable StoredReferencedEntityValues storedValues
 	) {
 		if (ownerPKsToRemove.isEmpty()) {
 			return;
@@ -1453,13 +1611,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			for (final Locale locale : locales) {
 				scopedRemoveForRefEntityAttrForLocale(
 					histogramName, locale, resolution, ownerPKsToRemove,
-					affected, rtei, isGrouped, target, preMutationValues, scope
+					affected, rtei, isGrouped, target, preMutationValues, scope, storedValues
 				);
 			}
 		} else {
 			scopedRemoveForRefEntityAttrForLocale(
 				histogramName, null, resolution, ownerPKsToRemove,
-				affected, rtei, isGrouped, target, preMutationValues, scope
+				affected, rtei, isGrouped, target, preMutationValues, scope, storedValues
 			);
 		}
 	}
@@ -1485,10 +1643,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 
 	/**
 	 * Per-locale implementation of scoped histogram removal. For each affected reference group,
-	 * looks up the referenced entity's current value in the source FilterIndex and removes only
-	 * that specific (value, ownerPK) pair from the histogram. Owner PKs whose histogram entry
-	 * does not match the source value (indicating a value change) are collected for full re-index
-	 * by the caller.
+	 * looks up the referenced entity's current value in the source FilterIndex - or, for an array value, reads it from
+	 * storage and expands it as the owner's own upsert does - and removes only that specific (value, ownerPK) pair from
+	 * the histogram. A captured pre-mutation value takes precedence over the current one.
 	 *
 	 * @param histogramName    name of the histogram definition
 	 * @param locale           locale for localized histograms, or `null` for non-localized
@@ -1500,6 +1657,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param target             access to entity collection indexes
 	 * @param preMutationValues  per-locale pre-mutation raw values when the value source was mutated, or null;
 	 *                           a locale mapped to `null` was unset, a missing locale was not mutated
+	 * @param scope              scope of the entity collection
+	 * @param storedValues       the stored values of the referenced entities when the histogram reads an array, or
+	 *                           `null` when the current value comes from the source FilterIndex
 	 */
 	private static void scopedRemoveForRefEntityAttrForLocale(
 		@Nonnull String histogramName,
@@ -1511,7 +1671,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		boolean isGrouped,
 		@Nonnull IndexMutationTarget target,
 		@Nullable Map<Locale, Serializable> preMutationValues,
-		@Nonnull Scope scope
+		@Nonnull Scope scope,
+		@Nullable StoredReferencedEntityValues storedValues
 	) {
 		final String sourceEntityType = Objects.requireNonNull(resolution.sourceEntityType());
 
@@ -1529,9 +1690,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			knownOldValues = null;
 		}
 
-		final FilterIndex sourceFilterIndex = target.getSourceFilterIndex(
-			sourceEntityType, resolution.sourceAttributeName(), locale, scope
-		);
+		// an array value is read from storage below, so its source FilterIndex is not needed
+		final FilterIndex sourceFilterIndex = storedValues == null ?
+			target.getSourceFilterIndex(sourceEntityType, resolution.sourceAttributeName(), locale, scope) : null;
 		for (final AffectedReferenceGroup group : affected.groups()) {
 			final PersistentRoaringBitmap groupPKs = getRoaringBitmap(group.ownerPKs());
 			// the removal set is taken for *this* contribution: an owner that withdrew one reference's
@@ -1547,6 +1708,15 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				if (knownOldValues != null) {
 					// value source changed: use pre-captured old values for deterministic removal
 					valuesToRemove = knownOldValues.length > 0 ? List.of(knownOldValues) : List.of();
+				} else if (storedValues != null) {
+					// the array value was not captured, so the current stored value is the one contributed - expanded
+					// element by element as the owner's own upsert expands it: a repeated element counts as often as
+					// it is listed, an empty array contributes nothing and only a missing value takes the default
+					valuesToRemove = Arrays.asList(
+						storedValues.readHistogramValues(
+							sourceEntityType, group.referencedEntityPK(), resolution, locale
+						)
+					);
 				} else {
 					// condition-only change: current source values == old values (value is unchanged)
 					valuesToRemove = resolveAllRefEntityValues(
@@ -1670,6 +1840,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param referenceName            name of the reference
 	 * @param scope                    scope of the entity collection
 	 * @param locales                  locales for localized histograms; empty set for non-localized
+	 * @param storedValues             the stored values of the referenced entities when the histogram reads an array
+	 *                                 of a referenced entity, or `null` otherwise
 	 */
 	private static void addHistogramEntries(
 		@Nonnull String histogramName,
@@ -1681,14 +1853,15 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull IndexMutationTarget target,
 		@Nonnull String referenceName,
 		@Nonnull Scope scope,
-		@Nonnull Set<Locale> locales
+		@Nonnull Set<Locale> locales,
+		@Nullable StoredReferencedEntityValues storedValues
 	) {
 		if (!histogramShouldBeIndexed.isEmpty()) {
 			final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
 			if (resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE) {
 				addFromReferencedEntityAttribute(
 					histogramName, resolution, histogramShouldBeIndexed,
-					affected, rtei, isGrouped, target, locales, scope
+					affected, rtei, isGrouped, target, locales, scope, storedValues
 				);
 			} else {
 				addFromReferenceAttribute(
@@ -1701,8 +1874,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 
 	/**
 	 * Inserts histogram values sourced from a **referenced entity attribute**. Scans the source
-	 * collection's `FilterIndex` and applies default values for missing referenced entities.
-	 * For localized attributes, performs the scan-and-insert for each locale separately.
+	 * collection's `FilterIndex` and applies default values for missing referenced entities, or - for an array value -
+	 * reads the stored value of each referenced entity. For localized attributes, performs the insert for each locale
+	 * separately.
 	 *
 	 * @param histogramName            name of the histogram definition
 	 * @param resolution               value resolution metadata
@@ -1712,6 +1886,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param isGrouped                `true` when the reference has a group type
 	 * @param target                   access to cross-entity filter indexes
 	 * @param locales                  locales for localized histograms; empty set for non-localized
+	 * @param scope                    scope of the entity collection
+	 * @param storedValues             the stored values of the referenced entities when the histogram reads an array,
+	 *                                 or `null` when the values come from the source FilterIndex
 	 */
 	private static void addFromReferencedEntityAttribute(
 		@Nonnull String histogramName,
@@ -1722,7 +1899,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		boolean isGrouped,
 		@Nonnull IndexMutationTarget target,
 		@Nonnull Set<Locale> locales,
-		@Nonnull Scope scope
+		@Nonnull Scope scope,
+		@Nullable StoredReferencedEntityValues storedValues
 	) {
 		final String sourceEntityType = resolution.sourceEntityType();
 		if (sourceEntityType == null) {
@@ -1732,13 +1910,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			for (final Locale locale : locales) {
 				addFromReferencedEntityAttributeForLocale(
 					histogramName, locale, resolution, histogramShouldBeIndexed,
-					affected, rtei, isGrouped, target, scope
+					affected, rtei, isGrouped, target, scope, storedValues
 				);
 			}
 		} else {
 			addFromReferencedEntityAttributeForLocale(
 				histogramName, null, resolution, histogramShouldBeIndexed,
-				affected, rtei, isGrouped, target, scope
+				affected, rtei, isGrouped, target, scope, storedValues
 			);
 		}
 	}
@@ -1756,6 +1934,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param rtei                     the top-level referenced-type index
 	 * @param isGrouped                `true` when the reference has a group type
 	 * @param target                   access to cross-entity filter indexes
+	 * @param scope                    scope of the entity collection
+	 * @param storedValues             the stored values of the referenced entities when the histogram reads an array,
+	 *                                 or `null` when the values come from the source FilterIndex
 	 */
 	private static void addFromReferencedEntityAttributeForLocale(
 		@Nonnull String histogramName,
@@ -1766,8 +1947,18 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
 		@Nonnull IndexMutationTarget target,
-		@Nonnull Scope scope
+		@Nonnull Scope scope,
+		@Nullable StoredReferencedEntityValues storedValues
 	) {
+		if (storedValues != null) {
+			// the source FilterIndex has one bucket per distinct key and no record for an empty array, so neither the
+			// bucket scan nor the default of an entity found in no bucket would match what the owner's upsert writes
+			addStoredReferencedEntityValues(
+				histogramName, locale, resolution, histogramShouldBeIndexed, affected, rtei, isGrouped, target,
+				storedValues
+			);
+			return;
+		}
 		final String sourceEntityType = Objects.requireNonNull(resolution.sourceEntityType());
 		final FilterIndex sourceFilterIndex = target.getSourceFilterIndex(
 			sourceEntityType, resolution.sourceAttributeName(), locale, scope
@@ -1834,6 +2025,62 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 							target, plainType, resolution.indexedDecimalPlaces()
 						);
 					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Inserts the histogram values of an array-typed referenced entity attribute for a single locale (or `null` for
+	 * non-localized), reading each referenced entity's stored value and expanding it as the owner's own upsert does
+	 * (`ReferenceIndexMutator#resolveHistogramValues`): one value per element, a repeated element as often as it is
+	 * listed, nothing for an empty array, and the default only where the entity has no value. A referenced entity is
+	 * read only when the condition admits at least one of its owners.
+	 *
+	 * @param histogramName            name of the histogram definition
+	 * @param locale                   locale of the value and of the histogram, or `null` for non-localized
+	 * @param resolution               value resolution metadata
+	 * @param histogramShouldBeIndexed per-contribution owners that must have a histogram value
+	 * @param affected                 resolved affected groups
+	 * @param rtei                     the top-level referenced-type index
+	 * @param isGrouped                `true` when the reference has a group type
+	 * @param target                   access to entity collection indexes
+	 * @param storedValues             the stored values of the referenced entities
+	 */
+	private static void addStoredReferencedEntityValues(
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull HistogramValueDescriptor resolution,
+		@Nonnull ContributionVerdicts histogramShouldBeIndexed,
+		@Nonnull AffectedEntityResolution affected,
+		@Nonnull ReferencedTypeEntityIndex rtei,
+		boolean isGrouped,
+		@Nonnull IndexMutationTarget target,
+		@Nonnull StoredReferencedEntityValues storedValues
+	) {
+		final String sourceEntityType = Objects.requireNonNull(resolution.sourceEntityType());
+		final Class<? extends Serializable> plainType = resolution.plainType();
+		for (final AffectedReferenceGroup group : affected.groups()) {
+			// intersect *this contribution's* verdict with the group's owner PKs - an owner whose OTHER reference
+			// satisfies the condition must not be indexed on this one's behalf
+			final PersistentRoaringBitmap matched = and(
+				getRoaringBitmap(histogramShouldBeIndexed.forReferencedEntity(group.referencedEntityPK())),
+				getRoaringBitmap(group.ownerPKs())
+			);
+			if (matched.isEmpty()) {
+				continue;
+			}
+			final Serializable[] values = storedValues.readHistogramValues(
+				sourceEntityType, group.referencedEntityPK(), resolution, locale
+			);
+			final PeekableIntIterator ownerPKs = matched.getIntIterator();
+			while (ownerPKs.hasNext()) {
+				final int ownerPK = ownerPKs.next();
+				for (final Serializable value : values) {
+					insertHistogramValue(
+						histogramName, locale, value, ownerPK, group, rtei, isGrouped,
+						target, plainType, resolution.indexedDecimalPlaces()
+					);
 				}
 			}
 		}

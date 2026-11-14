@@ -34,11 +34,13 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExisten
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.HistogramCapableEntityIndex;
@@ -86,10 +88,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  * removing the owner's references one at a time. A unit counted twice survives the last removal. A withdrawal of the
  * cross-entity path that finds no unit of the owner is skipped without a trace, so a missing unit, or a unit withdrawn
  * once too often, shows only where the sibling holds the same value: it takes the sibling's unit, and the sibling's
- * value then disappears too early or the sibling's removal refuses. The scenario of an owner referencing itself has
- * no sibling holding the repeated value; it checks that replacing the owner's own array leaves the new value and
- * nothing of the old one, not how many units of the repeated value were written. A scenario named `CONTROL_` uses
- * distinct values, so it shows the fixture itself working.
+ * value then disappears too early or the sibling's removal refuses. An owner referencing itself has no sibling holding
+ * its repeated value: the scenario replacing its own array checks only that the new value replaces the old one, while
+ * the scenario removing the self-reference counts the units through that removal, which refuses a missing unit and
+ * leaves a surplus one behind. A scenario named `CONTROL_` reaches the kind of state its fixture's other scenarios
+ * reach along a path that does not depend on what they test - distinct values instead of repeated ones, or the
+ * owner's own upsert instead of the cross-entity path - so it shows the fixture itself working.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -103,11 +107,14 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_BRAND = "brand";
 	private static final String ENTITY_BRAND_GROUP = "brandGroup";
+	private static final String ENTITY_TAG = "tag";
 	private static final String REFERENCE_BRAND = "brand";
 	private static final String REFERENCE_RELATED = "related";
+	private static final String REFERENCE_TAGS = "tags";
 	private static final String ATTRIBUTE_SIZES = "sizes";
 	private static final String ATTRIBUTE_ACTIVE = "active";
 	private static final String ATTRIBUTE_LEVEL = "level";
+	private static final String ATTRIBUTE_WEIGHT = "weight";
 	private static final String HISTOGRAM_SIZE = "sizeHistogram";
 	private static final String HISTOGRAM_SECOND_SIZE = "secondSizeHistogram";
 	private static final String SIZES_VALUE = "$reference.referencedEntity?.attributes['" + ATTRIBUTE_SIZES + "']";
@@ -117,12 +124,23 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 		"($reference.referencedEntity?.attributes['" + ATTRIBUTE_ACTIVE + "'] ?? false) == true";
 	private static final String GROUP_ACTIVE =
 		"($reference.groupEntity?.attributes['" + ATTRIBUTE_ACTIVE + "'] ?? false) == true";
+	private static final String PARENT_ACTIVE =
+		"($entity.parentEntity?.attributes['" + ATTRIBUTE_ACTIVE + "'] ?? false) == true";
+	private static final String BRAND_HEAVILY_TAGGED =
+		"$reference.referencedEntity.references['" + REFERENCE_TAGS + "'].any(($.attributes['" + ATTRIBUTE_WEIGHT +
+			"'] ?? 0) > 5)";
 	private static final String LEVEL_ABOVE_ZERO = "($reference.attributes['" + ATTRIBUTE_LEVEL + "'] ?? 0) > 0";
 	private static final Scope[] ALL_SCOPES = Scope.values();
 	private static final int PRODUCT_PK = 1;
+	private static final int PARENT_PK = 200;
 	private static final int BRAND_PK = 10;
 	private static final int SIBLING_BRAND_PK = 11;
 	private static final int GROUP_PK = 1;
+	private static final int TAG_PK = 1;
+	/**
+	 * A `weight` of a brand's tag that makes the brand heavily tagged; the condition admits any weight above 5.
+	 */
+	private static final int HEAVY_WEIGHT = 10;
 	/**
 	 * The default of the histogram value where the brand has no `sizes`.
 	 */
@@ -333,14 +351,11 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 	@Nonnull
 	static Stream<Arguments> arrayScenarios() {
 		final List<Probe> live = List.of(typeIndexHistogram("live", REFERENCE_BRAND, Scope.LIVE, HISTOGRAM_SIZE, null));
+		final Step activate = new Step("BRAND_ACTIVATED", brandActive(true), "live {10=[1]}");
 		final Step deactivate = new Step("BRAND_DEACTIVATED", brandActive(false), "live {10=[1]}");
-		final Step removeSubject = new Step(
-			"SUBJECT_REFERENCE_REMOVED", removeBrandReference(BRAND_PK), "live {10=[1]}"
-		);
-		final Step removeSibling = new Step(
-			"SIBLING_REFERENCE_REMOVED", removeBrandReference(SIBLING_BRAND_PK), "live {}"
-		);
-		final List<Scenario> scenarios = new ArrayList<>(24);
+		final Step removeSubject = removeSubjectReference("live {10=[1]}");
+		final Step removeSibling = removeSiblingReference("live {}");
+		final List<Scenario> scenarios = new ArrayList<>(40);
 
 		// the brand admits or withdraws an array; the sibling holds an element of the subject's array
 		scenarios.add(scenario(
@@ -349,19 +364,90 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 			new Step("BRAND_ACTIVATED", brandActive(true), "live {10=[1], 11=[1]}"), removeSubject, removeSibling
 		));
 		scenarios.add(scenario(
+			"REPEATED_ARRAY_ELEMENT_ADMITTED_BY_BRAND",
+			conditionalIntegers(new Integer[]{10, 10}, false)::setUp, live, List.of(), "live {10=[1]}",
+			activate, removeSubject, removeSibling
+		));
+		scenarios.add(scenario(
 			"CONTROL_DISTINCT_ARRAY_ELEMENTS_WITHDRAWN_BY_BRAND",
 			conditionalIntegers(new Integer[]{10, 11}, true)::setUp, live, List.of(), "live {10=[1], 11=[1]}",
 			deactivate, removeSubject, removeSibling
 		));
+		final Scenario repeatedElementWithdrawnByBrand = scenario(
+			"REPEATED_ARRAY_ELEMENT_WITHDRAWN_BY_BRAND",
+			conditionalIntegers(new Integer[]{10, 10}, true)::setUp, live, List.of(), "live {10=[1]}",
+			deactivate, removeSubject, removeSibling
+		);
+		scenarios.add(repeatedElementWithdrawnByBrand);
+		// after a restart the brand's own executor reads its array from the disk
+		scenarios.add(restartedFirst(
+			"REPEATED_ARRAY_ELEMENT_WITHDRAWN_BY_BRAND_AFTER_A_RESTART", repeatedElementWithdrawnByBrand
+		));
 
 		// decimals with more places than the attribute indexes are rounded onto its keys; the sibling holds 1.00
+		final BigDecimal[] decimalsOnDistinctKeys = {new BigDecimal("1.001"), new BigDecimal("1.104")};
+		final BigDecimal[] decimalsOnOneKey = {new BigDecimal("1.001"), new BigDecimal("1.004")};
+		final Step removeDecimalSubject = removeSubjectReference("live {100=[1]}");
 		scenarios.add(scenario(
 			"CONTROL_DECIMALS_ON_DISTINCT_KEYS_ADMITTED_BY_BRAND",
-			conditionalDecimals(new BigDecimal[]{new BigDecimal("1.001"), new BigDecimal("1.104")})::setUp,
+			conditionalDecimals(decimalsOnDistinctKeys, false)::setUp,
 			live, List.of(storedSubjectSizes("[1.001, 1.104]")), "live {100=[1]}",
 			new Step("BRAND_ACTIVATED", brandActive(true), "live {100=[1], 110=[1]}"),
-			new Step("SUBJECT_REFERENCE_REMOVED", removeBrandReference(BRAND_PK), "live {100=[1]}"),
-			removeSibling
+			removeDecimalSubject, removeSibling
+		));
+		scenarios.add(scenario(
+			"DECIMALS_FOLDED_ONTO_ONE_KEY_ADMITTED_BY_BRAND",
+			conditionalDecimals(decimalsOnOneKey, false)::setUp,
+			live, List.of(storedSubjectSizes("[1.001, 1.004]")), "live {100=[1]}",
+			new Step("BRAND_ACTIVATED", brandActive(true), "live {100=[1]}"),
+			removeDecimalSubject, removeSibling
+		));
+		scenarios.add(scenario(
+			"CONTROL_DECIMALS_ON_DISTINCT_KEYS_WITHDRAWN_BY_BRAND",
+			conditionalDecimals(decimalsOnDistinctKeys, true)::setUp,
+			live, List.of(storedSubjectSizes("[1.001, 1.104]")), "live {100=[1], 110=[1]}",
+			new Step("BRAND_DEACTIVATED", brandActive(false), "live {100=[1]}"),
+			removeDecimalSubject, removeSibling
+		));
+		scenarios.add(scenario(
+			"DECIMALS_FOLDED_ONTO_ONE_KEY_WITHDRAWN_BY_BRAND",
+			conditionalDecimals(decimalsOnOneKey, true)::setUp,
+			live, List.of(storedSubjectSizes("[1.001, 1.004]")), "live {100=[1]}",
+			new Step("BRAND_DEACTIVATED", brandActive(false), "live {100=[1]}"),
+			removeDecimalSubject, removeSibling
+		));
+
+		// an array of ranges repeating a range; the sibling holds the repeated range
+		final IntegerNumberRange oneToFive = IntegerNumberRange.between(1, 5);
+		final IntegerNumberRange sixToNine = IntegerNumberRange.between(6, 9);
+		final Step removeRangeSubject = removeSubjectReference("live {[1,5]=[1]}");
+		scenarios.add(scenario(
+			"CONTROL_DISTINCT_RANGES_ADMITTED_BY_BRAND",
+			conditionalRanges(new IntegerNumberRange[]{oneToFive, sixToNine}, false)::setUp, live, List.of(),
+			"live {[1,5]=[1]}",
+			new Step("BRAND_ACTIVATED", brandActive(true), "live {[1,5]=[1], [6,9]=[1]}"),
+			removeRangeSubject, removeSibling
+		));
+		scenarios.add(scenario(
+			"REPEATED_RANGE_ADMITTED_BY_BRAND",
+			conditionalRanges(new IntegerNumberRange[]{oneToFive, oneToFive}, false)::setUp, live, List.of(),
+			"live {[1,5]=[1]}",
+			new Step("BRAND_ACTIVATED", brandActive(true), "live {[1,5]=[1]}"),
+			removeRangeSubject, removeSibling
+		));
+		scenarios.add(scenario(
+			"CONTROL_DISTINCT_RANGES_WITHDRAWN_BY_BRAND",
+			conditionalRanges(new IntegerNumberRange[]{oneToFive, sixToNine}, true)::setUp, live, List.of(),
+			"live {[1,5]=[1], [6,9]=[1]}",
+			new Step("BRAND_DEACTIVATED", brandActive(false), "live {[1,5]=[1]}"),
+			removeRangeSubject, removeSibling
+		));
+		scenarios.add(scenario(
+			"REPEATED_RANGE_WITHDRAWN_BY_BRAND",
+			conditionalRanges(new IntegerNumberRange[]{oneToFive, oneToFive}, true)::setUp, live, List.of(),
+			"live {[1,5]=[1]}",
+			new Step("BRAND_DEACTIVATED", brandActive(false), "live {[1,5]=[1]}"),
+			removeRangeSubject, removeSibling
 		));
 
 		// after a restart, one upsert of the brand changes the array and turns the condition on
@@ -376,18 +462,37 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 				removeSubject, removeSibling
 			)
 		));
+		scenarios.add(new Scenario(
+			"ARRAY_AND_CONDITION_CHANGED_IN_ONE_UPSERT",
+			conditionalIntegers(new Integer[]{10, 11}, false)::setUp, live, List.of(), true, "live {10=[1]}",
+			List.of(
+				new Step(
+					"SIZES_REPEATED_AND_BRAND_ACTIVATED", sizesAndBrandActivated(new Integer[]{10, 10}),
+					"live {10=[1]}"
+				),
+				removeSubject, removeSibling
+			)
+		));
+
+		// one session upserts the inactive brand twice: a new array, then the activation, which adds the array the
+		// first upsert wrote
+		scenarios.add(scenario(
+			"ARRAY_CHANGED_BY_AN_EARLIER_UPSERT_THEN_ADMITTED_IN_ONE_TRANSACTION",
+			conditionalIntegers(new Integer[]{10, 11}, false)::setUp, live, List.of(), "live {10=[1]}",
+			new Step(
+				"TWO_BRAND_UPSERTS_IN_ONE_SESSION", sizesChangedThenBrandActivated(new Integer[]{10, 12}),
+				"live {10=[1], 12=[1]}"
+			),
+			removeSubject, removeSibling
+		));
 
 		// one session upserts the brand twice: an English change, then a first German array and the activation
 		final List<Probe> localized = List.of(
 			typeIndexHistogram("en", REFERENCE_BRAND, Scope.LIVE, HISTOGRAM_SIZE, Locale.ENGLISH),
 			typeIndexHistogram("de", REFERENCE_BRAND, Scope.LIVE, HISTOGRAM_SIZE, Locale.GERMAN)
 		);
-		final Step removeLocalizedSubject = new Step(
-			"SUBJECT_REFERENCE_REMOVED", removeBrandReference(BRAND_PK), "en {6=[1]} | de {10=[1]}"
-		);
-		final Step removeLocalizedSibling = new Step(
-			"SIBLING_REFERENCE_REMOVED", removeBrandReference(SIBLING_BRAND_PK), "en {} | de {}"
-		);
+		final Step removeLocalizedSubject = removeSubjectReference("en {6=[1]} | de {10=[1]}");
+		final Step removeLocalizedSibling = removeSiblingReference("en {} | de {}");
 		scenarios.add(scenario(
 			"CONTROL_ARRAY_GAINS_LOCALE_WITH_DISTINCT_ELEMENTS_AFTER_AN_EARLIER_WRITE_IN_ONE_TRANSACTION",
 			ReferenceHistogramDispatchParityFunctionalTest::setUpLocalizedArrayCatalog, localized, List.of(),
@@ -398,6 +503,29 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 			),
 			removeLocalizedSubject, removeLocalizedSibling
 		));
+		scenarios.add(scenario(
+			"ARRAY_GAINS_LOCALE_AFTER_AN_EARLIER_WRITE_IN_ONE_TRANSACTION",
+			ReferenceHistogramDispatchParityFunctionalTest::setUpLocalizedArrayCatalog, localized, List.of(),
+			"en {6=[1]} | de {10=[1]}",
+			new Step(
+				"TWO_BRAND_UPSERTS_IN_ONE_SESSION", twoBrandUpsertsGainingGerman(new Integer[]{10, 10}),
+				"en {6=[1]} | de {10=[1]}"
+			),
+			removeLocalizedSubject, removeLocalizedSibling
+		));
+		// the brand is admitted in the only locale it has: the schema's other locale gets nothing, and reading the
+		// brand's value in a locale it lacks leaves the brand's locales as they were
+		final List<Probe> localizedWithBrandLocales = List.of(
+			localized.get(0), localized.get(1), subjectBrandLocales()
+		);
+		scenarios.add(scenario(
+			"LOCALIZED_ARRAY_ADMITTED_IN_ITS_ONLY_LOCALE",
+			ReferenceHistogramDispatchParityFunctionalTest::setUpLocalizedArrayCatalog, localizedWithBrandLocales,
+			List.of(), "en {6=[1]} | de {10=[1]} | brand locales [en]",
+			new Step("BRAND_ACTIVATED", brandActive(true), "en {5=[1], 6=[1]} | de {10=[1]} | brand locales [en]"),
+			removeSubjectReference("en {6=[1]} | de {10=[1]} | brand locales [en]"),
+			removeSiblingReference("en {} | de {} | brand locales [en]")
+		));
 
 		// the condition reads the group of the reference; the group's deactivation withdraws every brand in it
 		final List<Probe> group = List.of(groupStoreHistogram("group", HISTOGRAM_SIZE));
@@ -406,33 +534,106 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 			upsertOf(ENTITY_BRAND_GROUP, GROUP_PK, new UpsertAttributeMutation(ATTRIBUTE_ACTIVE, false)),
 			"group {}"
 		);
-		final Step removeGroupedSubject = new Step(
-			"SUBJECT_REFERENCE_REMOVED", removeBrandReference(BRAND_PK), "group {}"
-		);
-		final Step removeGroupedSibling = new Step(
-			"SIBLING_REFERENCE_REMOVED", removeBrandReference(SIBLING_BRAND_PK), "group {}"
-		);
+		final Step removeGroupedSubject = removeSubjectReference("group {}");
+		final Step removeGroupedSibling = removeSiblingReference("group {}");
 		scenarios.add(scenario(
 			"CONTROL_GROUP_CONDITION_WITHDRAWS_DISTINCT_ELEMENTS",
 			session -> setUpGroupArrayCatalog(session, new Integer[]{10, 11}), group, List.of(),
 			"group {10=[1], 11=[1]}",
 			deactivateGroup, removeGroupedSubject, removeGroupedSibling
 		));
+		final Scenario groupWithdrawsRepeatedElement = scenario(
+			"GROUP_CONDITION_WITHDRAWS_REPEATED_ELEMENT",
+			session -> setUpGroupArrayCatalog(session, new Integer[]{10, 10}), group, List.of(),
+			"group {10=[1]}",
+			deactivateGroup, removeGroupedSubject, removeGroupedSibling
+		);
+		scenarios.add(groupWithdrawsRepeatedElement);
+		// after a restart the group's executor reads the brands, which its upsert does not change, from the disk
+		scenarios.add(restartedFirst(
+			"GROUP_CONDITION_WITHDRAWS_REPEATED_ELEMENT_AFTER_A_RESTART", groupWithdrawsRepeatedElement
+		));
+
+		// the condition reads an attribute of the brand's own reference to a tag; the array itself does not change
+		final Step raiseTagWeight = new Step("TAG_WEIGHT_RAISED", brandTagWeight(HEAVY_WEIGHT), "live {10=[1]}");
+		final Step lowerTagWeight = new Step("TAG_WEIGHT_LOWERED", brandTagWeight(0), "live {10=[1]}");
+		scenarios.add(scenario(
+			"CONTROL_DISTINCT_ARRAY_ELEMENTS_ADMITTED_BY_BRAND_TAG",
+			session -> setUpTaggedArrayCatalog(session, new Integer[]{10, 11}, 0), live, List.of(), "live {10=[1]}",
+			new Step("TAG_WEIGHT_RAISED", brandTagWeight(HEAVY_WEIGHT), "live {10=[1], 11=[1]}"),
+			removeSubject, removeSibling
+		));
+		scenarios.add(scenario(
+			"REPEATED_ARRAY_ELEMENT_ADMITTED_BY_BRAND_TAG",
+			session -> setUpTaggedArrayCatalog(session, new Integer[]{10, 10}, 0), live, List.of(), "live {10=[1]}",
+			raiseTagWeight, removeSubject, removeSibling
+		));
+		scenarios.add(scenario(
+			"CONTROL_DISTINCT_ARRAY_ELEMENTS_WITHDRAWN_BY_BRAND_TAG",
+			session -> setUpTaggedArrayCatalog(session, new Integer[]{10, 11}, HEAVY_WEIGHT), live, List.of(),
+			"live {10=[1], 11=[1]}",
+			lowerTagWeight, removeSubject, removeSibling
+		));
+		scenarios.add(scenario(
+			"REPEATED_ARRAY_ELEMENT_WITHDRAWN_BY_BRAND_TAG",
+			session -> setUpTaggedArrayCatalog(session, new Integer[]{10, 10}, HEAVY_WEIGHT), live, List.of(),
+			"live {10=[1]}",
+			lowerTagWeight, removeSubject, removeSibling
+		));
+
+		// the condition reads the owner's parent; the parent's change admits or withdraws every brand of the owner
+		final Step removeWithdrawnSubject = removeSubjectReference("live {}");
+		scenarios.add(scenario(
+			"CONTROL_PARENT_CONDITION_ADMITS_DISTINCT_ELEMENTS",
+			session -> setUpParentArrayCatalog(session, new Integer[]{10, 11}, false), live, List.of(), "live {}",
+			new Step("PARENT_ACTIVATED", parentActive(true), "live {10=[1], 11=[1]}"),
+			removeSubject, removeSibling
+		));
+		final Scenario parentAdmitsRepeatedElement = scenario(
+			"PARENT_CONDITION_ADMITS_REPEATED_ELEMENT",
+			session -> setUpParentArrayCatalog(session, new Integer[]{10, 10}, false), live, List.of(), "live {}",
+			new Step("PARENT_ACTIVATED", parentActive(true), "live {10=[1]}"),
+			removeSubject, removeSibling
+		);
+		scenarios.add(parentAdmitsRepeatedElement);
+		// after a restart the parent's executor reads the brands, which its upsert does not change, from the disk
+		scenarios.add(restartedFirst(
+			"PARENT_CONDITION_ADMITS_REPEATED_ELEMENT_AFTER_A_RESTART", parentAdmitsRepeatedElement
+		));
+		scenarios.add(scenario(
+			"CONTROL_PARENT_CONDITION_WITHDRAWS_DISTINCT_ELEMENTS",
+			session -> setUpParentArrayCatalog(session, new Integer[]{10, 11}, true), live, List.of(),
+			"live {10=[1], 11=[1]}",
+			new Step("PARENT_DEACTIVATED", parentActive(false), "live {}"),
+			removeWithdrawnSubject, removeSibling
+		));
+		scenarios.add(scenario(
+			"PARENT_CONDITION_WITHDRAWS_REPEATED_ELEMENT",
+			session -> setUpParentArrayCatalog(session, new Integer[]{10, 10}, true), live, List.of(), "live {10=[1]}",
+			new Step("PARENT_DEACTIVATED", parentActive(false), "live {}"),
+			removeWithdrawnSubject, removeSibling
+		));
 
 		// an empty array written by a mutation, with a default: stored as an empty array, it holds no value, so the
 		// subject contributes nothing while the sibling holds the default
 		final Premise emptyArrayStored = storedSubjectSizes("[]");
-		final Step removeSiblingOfEmptyArray = new Step(
-			"SIBLING_REFERENCE_REMOVED", removeBrandReference(SIBLING_BRAND_PK), "live {}"
-		);
-		final Step removeSubjectOfEmptyArray = new Step(
-			"SUBJECT_REFERENCE_REMOVED", removeBrandReference(BRAND_PK), "live {}"
-		);
 		scenarios.add(scenario(
 			"CONTROL_EMPTY_ARRAY_WRITTEN_BY_MUTATION_OF_ACTIVE_BRAND_REFERENCED",
 			conditionalEmptyArray(true, false)::setUp, live, List.of(emptyArrayStored), "live {7=[1]}",
 			new Step("SUBJECT_REFERENCE_INSERTED", insertBrandReference(BRAND_PK), "live {7=[1]}"),
-			removeSiblingOfEmptyArray, removeSubjectOfEmptyArray
+			removeSibling, removeWithdrawnSubject
+		));
+		scenarios.add(scenario(
+			"EMPTY_ARRAY_WRITTEN_BY_MUTATION_ADMITTED_BY_CONDITION",
+			conditionalEmptyArray(false, true)::setUp, live, List.of(emptyArrayStored), "live {7=[1]}",
+			new Step("BRAND_ACTIVATED", brandActive(true), "live {7=[1]}"),
+			removeSibling, removeWithdrawnSubject
+		));
+		scenarios.add(scenario(
+			"EMPTY_ARRAY_WITHDRAWN_BY_CONDITION",
+			conditionalEmptyArray(true, true)::setUp, live, List.of(emptyArrayStored), "live {7=[1]}",
+			new Step("BRAND_DEACTIVATED", brandActive(false), "live {7=[1]}"),
+			removeSibling, removeWithdrawnSubject
 		));
 
 		// two histograms read the same optional array with different defaults; the subject has no array at all
@@ -452,12 +653,8 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 			)::setUp,
 			twoDefaults, List.of(storedSubjectSizes("null")), "default 7 {8=[1]} | default 9 {8=[1]}",
 			new Step("BRAND_ACTIVATED", brandActive(true), "default 7 {7=[1], 8=[1]} | default 9 {8=[1], 9=[1]}"),
-			new Step(
-				"SUBJECT_REFERENCE_REMOVED", removeBrandReference(BRAND_PK), "default 7 {8=[1]} | default 9 {8=[1]}"
-			),
-			new Step(
-				"SIBLING_REFERENCE_REMOVED", removeBrandReference(SIBLING_BRAND_PK), "default 7 {} | default 9 {}"
-			)
+			removeSubjectReference("default 7 {8=[1]} | default 9 {8=[1]}"),
+			removeSiblingReference("default 7 {} | default 9 {}")
 		));
 
 		// an unconditional array repeating an element is withdrawn as often as it was added when it is replaced; the
@@ -465,58 +662,75 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 		// too many takes the sibling's 10 at the replacement
 		scenarios.add(scenario(
 			"REPEATED_ELEMENTS_REPLACED",
-			new ArrayCatalog(
-				Integer[].class, 0, false, false, List.of(new ArrayHistogramDefinition(HISTOGRAM_SIZE, null)),
-				new Integer[]{10, 10}, false, true, true, new Integer[]{10}
-			)::setUp,
-			live, List.of(), "live {10=[1]}",
+			unconditionalIntegers(new Integer[]{10, 10})::setUp, live, List.of(), "live {10=[1]}",
 			new Step(
 				"BRAND_SIZES_REPLACED",
 				upsertOf(ENTITY_BRAND, BRAND_PK, new UpsertAttributeMutation(ATTRIBUTE_SIZES, new Integer[]{20})),
 				"live {10=[1], 20=[1]}"
 			),
-			new Step("SUBJECT_REFERENCE_REMOVED", removeBrandReference(BRAND_PK), "live {10=[1]}"),
+			removeSubject,
 			removeSibling
 		));
 
-		// the owner's own array becomes a repeated element, which the cross-entity path writes, and is replaced again;
-		// no sibling of the owner holds 10, so this checks that the replacement leaves the new value and nothing of the
-		// old one, not how many units of the repeated element were written
+		// the brand holding a repeated element is deleted while the owner keeps its reference to it: the withdrawal
+		// takes both of its units, the sibling's unit stays, and a brand that no longer exists contributes nothing
+		scenarios.add(scenario(
+			"REFERENCED_BRAND_WITH_REPEATED_ELEMENTS_REMOVED",
+			unconditionalIntegers(new Integer[]{10, 10})::setUp, live, List.of(), "live {10=[1]}",
+			new Step("SUBJECT_BRAND_REMOVED", session -> session.deleteEntity(ENTITY_BRAND, BRAND_PK), "live {10=[1]}"),
+			removeSubject,
+			removeSibling
+		));
+
+		// the owner's own array becomes a repeated element, which the cross-entity path writes
 		final List<Probe> self = List.of(
 			typeIndexHistogram("live", REFERENCE_RELATED, Scope.LIVE, HISTOGRAM_SIZE, null),
 			typeIndexHistogram("archived", REFERENCE_RELATED, Scope.ARCHIVED, HISTOGRAM_SIZE, null)
 		);
+		final Step repeatOwnSizes = new Step(
+			"OWN_SIZES_REPEATED",
+			upsertOf(ENTITY_PRODUCT, PRODUCT_PK, new UpsertAttributeMutation(ATTRIBUTE_SIZES, new Integer[]{10, 10})),
+			"live {9=[1], 10=[1], 20=[3]} | archived {9=[5]}"
+		);
+		final Step removeSelf = new Step(
+			"SELF_REFERENCE_REMOVED",
+			upsertOf(
+				ENTITY_PRODUCT, PRODUCT_PK, new RemoveReferenceMutation(new ReferenceKey(REFERENCE_RELATED, PRODUCT_PK))
+			),
+			"live {9=[1], 20=[3]} | archived {9=[5]}"
+		);
+		final Step removeLiveSibling = new Step(
+			"LIVE_SIBLING_REMOVED",
+			upsertOf(ENTITY_PRODUCT, PRODUCT_PK, new RemoveReferenceMutation(new ReferenceKey(REFERENCE_RELATED, 6))),
+			"live {20=[3]} | archived {9=[5]}"
+		);
+		// replaced again: no sibling of the owner holds 10, so this checks that the replacement leaves the new value
+		// and nothing of the old one, not how many units of the repeated element were written
 		scenarios.add(scenario(
 			"OWN_SIZES_REPEATED_THEN_REPLACED",
 			session -> setUpSelfReferenceArrayCatalog(session, new Integer[]{30}),
 			self, List.of(), "live {9=[1], 20=[3], 30=[1]} | archived {9=[5]}",
-			new Step(
-				"OWN_SIZES_REPEATED",
-				upsertOf(
-					ENTITY_PRODUCT, PRODUCT_PK, new UpsertAttributeMutation(ATTRIBUTE_SIZES, new Integer[]{10, 10})
-				),
-				"live {9=[1], 10=[1], 20=[3]} | archived {9=[5]}"
-			),
+			repeatOwnSizes,
 			new Step(
 				"OWN_SIZES_REPLACED",
 				upsertOf(ENTITY_PRODUCT, PRODUCT_PK, new UpsertAttributeMutation(ATTRIBUTE_SIZES, new Integer[]{20})),
 				"live {9=[1], 20=[1, 3]} | archived {9=[5]}"
 			),
-			new Step(
-				"SELF_REFERENCE_REMOVED",
-				upsertOf(
-					ENTITY_PRODUCT, PRODUCT_PK,
-					new RemoveReferenceMutation(new ReferenceKey(REFERENCE_RELATED, PRODUCT_PK))
-				),
-				"live {9=[1], 20=[3]} | archived {9=[5]}"
-			),
-			new Step(
-				"LIVE_SIBLING_REMOVED",
-				upsertOf(
-					ENTITY_PRODUCT, PRODUCT_PK, new RemoveReferenceMutation(new ReferenceKey(REFERENCE_RELATED, 6))
-				),
-				"live {20=[3]} | archived {9=[5]}"
-			)
+			removeSelf, removeLiveSibling
+		));
+		// the self-reference is removed instead: its withdrawal asserts both units of 10, so a missing unit refuses it
+		// and a surplus one stays behind
+		scenarios.add(scenario(
+			"OWN_SIZES_REPEATED_THEN_SELF_REFERENCE_REMOVED",
+			session -> setUpSelfReferenceArrayCatalog(session, new Integer[]{30}),
+			self, List.of(), "live {9=[1], 20=[3], 30=[1]} | archived {9=[5]}",
+			repeatOwnSizes, removeSelf, removeLiveSibling
+		));
+		scenarios.add(scenario(
+			"CONTROL_STORED_WITH_REPEATED_SIZES_THEN_SELF_REFERENCE_REMOVED",
+			session -> setUpSelfReferenceArrayCatalog(session, new Integer[]{10, 10}),
+			self, List.of(), "live {9=[1], 10=[1], 20=[3]} | archived {9=[5]}",
+			removeSelf, removeLiveSibling
 		));
 		return inBothStates(scenarios);
 	}
@@ -539,17 +753,49 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 
 	/**
 	 * Creates the fixture of a conditional histogram without a default over the brand's decimal array, indexed with two
-	 * decimal places, on a reference indexed for partitioning; the subject is inactive and referenced and the sibling
-	 * holds `[1.00]`.
+	 * decimal places, on a reference indexed for partitioning; the subject is referenced and the sibling holds
+	 * `[1.00]`.
+	 *
+	 * @param subjectSizes  the `sizes` of the subject brand
+	 * @param subjectActive the `active` flag of the subject brand
+	 * @return the fixture
+	 */
+	@Nonnull
+	private static ArrayCatalog conditionalDecimals(@Nonnull BigDecimal[] subjectSizes, boolean subjectActive) {
+		return new ArrayCatalog(
+			BigDecimal[].class, 2, true, true, List.of(new ArrayHistogramDefinition(HISTOGRAM_SIZE, null)),
+			subjectSizes, false, subjectActive, true, new BigDecimal[]{new BigDecimal("1.00")}
+		);
+	}
+
+	/**
+	 * Creates the fixture of a conditional histogram over the brand's array of integer ranges, on a reference indexed
+	 * for partitioning; a range-typed value has no default. The subject is referenced and the sibling holds `[[1,5]]`.
+	 *
+	 * @param subjectSizes  the `sizes` of the subject brand
+	 * @param subjectActive the `active` flag of the subject brand
+	 * @return the fixture
+	 */
+	@Nonnull
+	private static ArrayCatalog conditionalRanges(@Nonnull IntegerNumberRange[] subjectSizes, boolean subjectActive) {
+		return new ArrayCatalog(
+			IntegerNumberRange[].class, 0, true, true, List.of(new ArrayHistogramDefinition(HISTOGRAM_SIZE, null)),
+			subjectSizes, false, subjectActive, true, new IntegerNumberRange[]{IntegerNumberRange.between(1, 5)}
+		);
+	}
+
+	/**
+	 * Creates the fixture of an unconditional histogram without a default over the brand's integer array, on a
+	 * reference indexed for filtering; the subject is referenced and the sibling holds `[10]`.
 	 *
 	 * @param subjectSizes the `sizes` of the subject brand
 	 * @return the fixture
 	 */
 	@Nonnull
-	private static ArrayCatalog conditionalDecimals(@Nonnull BigDecimal[] subjectSizes) {
+	private static ArrayCatalog unconditionalIntegers(@Nonnull Integer[] subjectSizes) {
 		return new ArrayCatalog(
-			BigDecimal[].class, 2, true, true, List.of(new ArrayHistogramDefinition(HISTOGRAM_SIZE, null)),
-			subjectSizes, false, false, true, new BigDecimal[]{new BigDecimal("1.00")}
+			Integer[].class, 0, false, false, List.of(new ArrayHistogramDefinition(HISTOGRAM_SIZE, null)),
+			subjectSizes, false, true, true, new Integer[]{10}
 		);
 	}
 
@@ -666,6 +912,112 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 	}
 
 	/**
+	 * Defines the schemas of the tagged brand fixture and stores the tag, the brands and the product.
+	 *
+	 * The brand has the filterable integer array `sizes` and a reference to tags carrying the filterable `weight`. The
+	 * reference of the product to a brand is indexed for filtering and partitioning, faceted, and carries the histogram
+	 * of the brand's `sizes` without a default, admitted while the brand has a tag of `weight` above 5. The subject
+	 * brand 10 of `subjectSizes` has the tag 1 of `subjectWeight`; the sibling brand 11 of `[10]` has the tag 1 of a
+	 * heavy weight. The product 1 references both.
+	 *
+	 * @param session       the session of the catalog in warm-up
+	 * @param subjectSizes  the `sizes` of the subject brand
+	 * @param subjectWeight the `weight` of the subject brand's tag
+	 */
+	private static void setUpTaggedArrayCatalog(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Integer[] subjectSizes,
+		int subjectWeight
+	) {
+		session.defineEntitySchema(ENTITY_TAG).withoutGeneratedPrimaryKey().updateVia(session);
+		session.defineEntitySchema(ENTITY_BRAND)
+			.withoutGeneratedPrimaryKey()
+			.withAttribute(ATTRIBUTE_SIZES, Integer[].class, whichIs -> whichIs.filterable().nullable())
+			.withReferenceToEntity(
+				REFERENCE_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFiltering()
+					.withAttribute(ATTRIBUTE_WEIGHT, Integer.class, thatIs -> thatIs.filterable().nullable())
+			)
+			.updateVia(session);
+		session.defineEntitySchema(ENTITY_PRODUCT)
+			.withoutGeneratedPrimaryKey()
+			.withReferenceToEntity(
+				REFERENCE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioning()
+					.faceted()
+					.bucketed(HISTOGRAM_SIZE, ExpressionFactory.parse(SIZES_VALUE))
+					.bucketedPartially(ExpressionFactory.parse(BRAND_HEAVILY_TAGGED))
+			)
+			.updateVia(session);
+		session.upsertEntity(session.createNewEntity(ENTITY_TAG, TAG_PK));
+		session.createNewEntity(ENTITY_BRAND, BRAND_PK)
+			.setAttribute(ATTRIBUTE_SIZES, subjectSizes)
+			.setReference(REFERENCE_TAGS, TAG_PK, whichIs -> whichIs.setAttribute(ATTRIBUTE_WEIGHT, subjectWeight))
+			.upsertVia(session);
+		session.createNewEntity(ENTITY_BRAND, SIBLING_BRAND_PK)
+			.setAttribute(ATTRIBUTE_SIZES, new Integer[]{10})
+			.setReference(REFERENCE_TAGS, TAG_PK, whichIs -> whichIs.setAttribute(ATTRIBUTE_WEIGHT, HEAVY_WEIGHT))
+			.upsertVia(session);
+		session.createNewEntity(ENTITY_PRODUCT, PRODUCT_PK)
+			.setReference(REFERENCE_BRAND, BRAND_PK)
+			.setReference(REFERENCE_BRAND, SIBLING_BRAND_PK)
+			.upsertVia(session);
+	}
+
+	/**
+	 * Defines the schemas of the parent fixture and stores the brands, the parent product and the product.
+	 *
+	 * The brand has the filterable integer array `sizes`. The product is hierarchical and has the filterable flag
+	 * `active`; its reference to a brand is indexed for filtering, faceted, and carries the histogram of the brand's
+	 * `sizes` without a default, admitted while the product's parent is active. The parent product 200 has no
+	 * reference and is active where `parentActive` says so. The product 1, a child of the product 200, references the
+	 * subject brand 10 of `subjectSizes` and the sibling brand 11 of `[10]`.
+	 *
+	 * @param session      the session of the catalog in warm-up
+	 * @param subjectSizes the `sizes` of the subject brand
+	 * @param parentActive the `active` flag of the parent product
+	 */
+	private static void setUpParentArrayCatalog(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Integer[] subjectSizes,
+		boolean parentActive
+	) {
+		session.defineEntitySchema(ENTITY_BRAND)
+			.withoutGeneratedPrimaryKey()
+			.withAttribute(ATTRIBUTE_SIZES, Integer[].class, whichIs -> whichIs.filterable().nullable())
+			.updateVia(session);
+		session.defineEntitySchema(ENTITY_PRODUCT)
+			.withoutGeneratedPrimaryKey()
+			.withHierarchy()
+			.withAttribute(ATTRIBUTE_ACTIVE, Boolean.class, whichIs -> whichIs.filterable().nullable())
+			.withReferenceToEntity(
+				REFERENCE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFiltering()
+					.faceted()
+					.bucketed(HISTOGRAM_SIZE, ExpressionFactory.parse(SIZES_VALUE))
+					.bucketedPartially(ExpressionFactory.parse(PARENT_ACTIVE))
+			)
+			.updateVia(session);
+		session.createNewEntity(ENTITY_BRAND, BRAND_PK)
+			.setAttribute(ATTRIBUTE_SIZES, subjectSizes)
+			.upsertVia(session);
+		session.createNewEntity(ENTITY_BRAND, SIBLING_BRAND_PK)
+			.setAttribute(ATTRIBUTE_SIZES, new Integer[]{10})
+			.upsertVia(session);
+		session.createNewEntity(ENTITY_PRODUCT, PARENT_PK)
+			.setAttribute(ATTRIBUTE_ACTIVE, parentActive)
+			.upsertVia(session);
+		session.createNewEntity(ENTITY_PRODUCT, PRODUCT_PK)
+			.setParent(PARENT_PK)
+			.setReference(REFERENCE_BRAND, BRAND_PK)
+			.setReference(REFERENCE_BRAND, SIBLING_BRAND_PK)
+			.upsertVia(session);
+	}
+
+	/**
 	 * Defines the schema of a product referencing products, whose histogram reads the referenced product's integer
 	 * array, and stores the products.
 	 *
@@ -736,6 +1088,33 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 	}
 
 	/**
+	 * Creates the update setting the `weight` of the subject brand's reference to the tag 1.
+	 *
+	 * @param weight the new weight
+	 * @return the update
+	 */
+	@Nonnull
+	private static Consumer<EvitaSessionContract> brandTagWeight(int weight) {
+		return upsertOf(
+			ENTITY_BRAND, BRAND_PK,
+			new ReferenceAttributeMutation(
+				new ReferenceKey(REFERENCE_TAGS, TAG_PK), new UpsertAttributeMutation(ATTRIBUTE_WEIGHT, weight)
+			)
+		);
+	}
+
+	/**
+	 * Creates the update setting the parent product's `active` flag.
+	 *
+	 * @param active the new flag
+	 * @return the update
+	 */
+	@Nonnull
+	private static Consumer<EvitaSessionContract> parentActive(boolean active) {
+		return upsertOf(ENTITY_PRODUCT, PARENT_PK, new UpsertAttributeMutation(ATTRIBUTE_ACTIVE, active));
+	}
+
+	/**
 	 * Creates the update replacing the subject brand's `sizes` and activating it in one upsert.
 	 *
 	 * @param sizes the new `sizes`
@@ -748,6 +1127,21 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 			new UpsertAttributeMutation(ATTRIBUTE_SIZES, sizes),
 			new UpsertAttributeMutation(ATTRIBUTE_ACTIVE, true)
 		);
+	}
+
+	/**
+	 * Creates the update upserting the subject brand twice in one session: the first upsert replaces its `sizes`, the
+	 * second activates it.
+	 *
+	 * @param sizes the `sizes` of the first upsert
+	 * @return the update
+	 */
+	@Nonnull
+	private static Consumer<EvitaSessionContract> sizesChangedThenBrandActivated(@Nonnull Integer[] sizes) {
+		return session -> {
+			upsertOf(ENTITY_BRAND, BRAND_PK, new UpsertAttributeMutation(ATTRIBUTE_SIZES, sizes)).accept(session);
+			brandActive(true).accept(session);
+		};
 	}
 
 	/**
@@ -782,6 +1176,28 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 		return upsertOf(
 			ENTITY_PRODUCT, PRODUCT_PK, new RemoveReferenceMutation(new ReferenceKey(REFERENCE_BRAND, brandPk))
 		);
+	}
+
+	/**
+	 * Creates the step removing the product's reference to the subject brand.
+	 *
+	 * @param expected the expected state after the removal
+	 * @return the step
+	 */
+	@Nonnull
+	private static Step removeSubjectReference(@Nonnull String expected) {
+		return new Step("SUBJECT_REFERENCE_REMOVED", removeBrandReference(BRAND_PK), expected);
+	}
+
+	/**
+	 * Creates the step removing the product's reference to the sibling brand.
+	 *
+	 * @param expected the expected state after the removal
+	 * @return the step
+	 */
+	@Nonnull
+	private static Step removeSiblingReference(@Nonnull String expected) {
+		return new Step("SIBLING_REFERENCE_REMOVED", removeBrandReference(SIBLING_BRAND_PK), expected);
 	}
 
 	/**
@@ -865,6 +1281,33 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 	}
 
 	/**
+	 * Creates the probe of the locales the live subject brand holds data in, read through the public API.
+	 *
+	 * @return the probe, describing the sorted language tags, or `absent` when the brand does not exist
+	 */
+	@Nonnull
+	private static Probe subjectBrandLocales() {
+		return new Probe(
+			"brand locales",
+			evita -> evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.getEntity(ENTITY_BRAND, BRAND_PK, entityFetchAllContent())
+						.map(entity -> {
+							final List<String> languageTags = new ArrayList<>(entity.getAllLocales().size());
+							for (final Locale locale : entity.getAllLocales()) {
+								languageTags.add(locale.toLanguageTag());
+							}
+							languageTags.sort(null);
+							return languageTags.toString();
+						})
+						.orElse("absent");
+				}
+			)
+		);
+	}
+
+	/**
 	 * Creates the premise of what the live subject brand stores as its non-localized `sizes`, read through the public
 	 * API.
 	 *
@@ -915,6 +1358,19 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 		@Nonnull Step... steps
 	) {
 		return new Scenario(name, setUp, probes, premises, false, before, List.of(steps));
+	}
+
+	/**
+	 * Creates a variant of `base` that restarts the engine before the first step, so that the first step reads every
+	 * stored part from the disk; everything else, the expected states included, is the base's.
+	 *
+	 * @param name the name of the variant
+	 * @param base the scenario the variant repeats
+	 * @return the variant
+	 */
+	@Nonnull
+	private static Scenario restartedFirst(@Nonnull String name, @Nonnull Scenario base) {
+		return new Scenario(name, base.setUp(), base.probes(), base.premises(), true, base.before(), base.steps());
 	}
 
 	/**

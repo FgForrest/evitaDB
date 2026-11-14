@@ -25,10 +25,10 @@ package io.evitadb.index.mutation;
 
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serial;
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.Map;
@@ -56,11 +56,22 @@ import java.util.Map;
  * cardinality unit whenever two of an owner's references normalise to the same bucket key. The counter then reads
  * one where it should read two, and the next legitimate removal evicts the owner from the histogram entirely.
  *
+ * The optional `storageAccessor` field carries the storage-part executor of the entity whose mutation emitted this
+ * signal. The executor reads an attribute of a referenced entity through the same chain the owner's own upsert reads
+ * it: its own cached parts for the mutated entity, the executor of another entity mutated in the same root mutation,
+ * or the parts read once for an entity the root mutation does not change. The histogram executor reads stored values
+ * through it where the source `FilterIndex` cannot tell what the owner's upsert would write - an array repeating an
+ * element, which the index folds onto one key, or an empty array, which it does not record at all. The executor is
+ * live state: the field is valid only while {@code LocalMutationExecutorCollector} dispatches this mutation within
+ * the root mutation that created the executor, and the mutation is therefore never stored or serialized. Every
+ * dispatch path runs through the collector, WAL replay included, which regenerates these mutations.
+ *
  * Identity (equals/hashCode) is based solely on the 4 core fields (referenceName, mutatedEntityPK,
- * dependencyType, scope) — the `preMutationSourceValues` and `previouslyIndexedOwnerPKs` fields are excluded to
- * preserve deduplication semantics in {@code EntityIndexLocalMutationExecutor.collectEntityAttributeTriggers()}.
- * That exclusion is also what lets the pre-pass key its captured state by the mutation itself: the pre-pass and
- * dispatch copies differ only in these two payload fields and therefore compare equal.
+ * dependencyType, scope) — the `preMutationSourceValues`, `previouslyIndexedOwnerPKs` and `storageAccessor` fields
+ * are excluded to preserve deduplication semantics in
+ * {@code EntityIndexLocalMutationExecutor.collectEntityAttributeTriggers()}. That exclusion is also what lets the
+ * pre-pass key its captured state by the mutation itself: the pre-pass and dispatch copies differ only in these
+ * payload fields and therefore compare equal. {@link #toString()} prints the same 4 fields.
  *
  * @param referenceName          reference with the conditional expression
  * @param mutatedEntityPK        the group/referenced entity PK that changed
@@ -68,8 +79,11 @@ import java.util.Map;
  * @param scope                  scope of the expression to re-evaluate
  * @param preMutationSourceValues pre-mutation attribute values keyed by attribute name and locale, or null
  * @param previouslyIndexedOwnerPKs the condition's answer captured before the batch, keyed by histogram name,
- *                                  or null when no pre-pass ran (facet-only triggers, tests, WAL replay paths
- *                                  without a collector)
+ *                                  or null when no pre-pass ran (facet-only triggers, tests constructing the
+ *                                  mutation directly)
+ * @param storageAccessor        the storage-part executor of the entity whose mutation emitted this signal, or null
+ *                               when the collector attached no pre-pass state (facet-only triggers, tests
+ *                               constructing the mutation directly)
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record ReevaluateExpressionMutation(
@@ -78,10 +92,19 @@ public record ReevaluateExpressionMutation(
 	@Nonnull DependencyType dependencyType,
 	@Nonnull Scope scope,
 	@Nullable Map<String, Map<Locale, Serializable>> preMutationSourceValues,
-	@Nullable Map<String, ContributionVerdicts> previouslyIndexedOwnerPKs
-) implements IndexMutation, Serializable {
-	@Serial private static final long serialVersionUID = -1L;
+	@Nullable Map<String, ContributionVerdicts> previouslyIndexedOwnerPKs,
+	@Nullable ContainerizedLocalMutationExecutor storageAccessor
+) implements IndexMutation {
 
+	/**
+	 * Creates the signal carrying the pre-mutation values of the mutated entity, without any pre-pass state.
+	 *
+	 * @param referenceName           reference with the conditional expression
+	 * @param mutatedEntityPK         the group/referenced entity PK that changed
+	 * @param dependencyType          how the mutated entity relates to the owner
+	 * @param scope                   scope of the expression to re-evaluate
+	 * @param preMutationSourceValues pre-mutation attribute values keyed by attribute name and locale, or null
+	 */
 	public ReevaluateExpressionMutation(
 		@Nonnull String referenceName,
 		int mutatedEntityPK,
@@ -89,12 +112,18 @@ public record ReevaluateExpressionMutation(
 		@Nonnull Scope scope,
 		@Nullable Map<String, Map<Locale, Serializable>> preMutationSourceValues
 	) {
-		this(referenceName, mutatedEntityPK, dependencyType, scope, preMutationSourceValues, null);
+		this(referenceName, mutatedEntityPK, dependencyType, scope, preMutationSourceValues, null, null);
 	}
 
 	/**
 	 * Convenience factory for mutations that do not carry pre-mutation values (facet triggers,
 	 * condition-only changes, or scenarios where old values are not needed).
+	 *
+	 * @param referenceName   reference with the conditional expression
+	 * @param mutatedEntityPK the group/referenced entity PK that changed
+	 * @param dependencyType  how the mutated entity relates to the owner
+	 * @param scope           scope of the expression to re-evaluate
+	 * @return the signal without pre-mutation values and without pre-pass state
 	 */
 	@Nonnull
 	public static ReevaluateExpressionMutation withoutOldValues(
@@ -103,27 +132,40 @@ public record ReevaluateExpressionMutation(
 		@Nonnull DependencyType dependencyType,
 		@Nonnull Scope scope
 	) {
-		return new ReevaluateExpressionMutation(referenceName, mutatedEntityPK, dependencyType, scope, null, null);
-	}
-
-	/**
-	 * Returns a copy of this mutation carrying the supplied pre-pass condition state. Used by
-	 * {@code LocalMutationExecutorCollector} to attach the state it captured before the batch was applied,
-	 * without disturbing the mutation's identity.
-	 *
-	 * @param previouslyIndexedOwnerPKs the condition's answer captured before the batch, keyed by histogram name
-	 * @return a copy carrying the pre-pass state
-	 */
-	@Nonnull
-	public ReevaluateExpressionMutation withPreviouslyIndexedOwnerPKs(
-		@Nullable Map<String, ContributionVerdicts> previouslyIndexedOwnerPKs
-	) {
 		return new ReevaluateExpressionMutation(
-			this.referenceName, this.mutatedEntityPK, this.dependencyType, this.scope,
-			this.preMutationSourceValues, previouslyIndexedOwnerPKs
+			referenceName, mutatedEntityPK, dependencyType, scope, null, null, null
 		);
 	}
 
+	/**
+	 * Returns a copy of this mutation carrying the supplied pre-pass condition state and the storage-part executor
+	 * of the entity whose mutation emitted it. Used by {@code LocalMutationExecutorCollector} to attach, in one copy,
+	 * the state it captured before the batch was applied and the executor the dispatch reads stored values through,
+	 * without disturbing the mutation's identity.
+	 *
+	 * @param previouslyIndexedOwnerPKs the condition's answer captured before the batch, keyed by histogram name
+	 * @param storageAccessor           the storage-part executor of the entity whose mutation emitted this signal
+	 * @return a copy carrying the pre-pass state and the executor
+	 */
+	@Nonnull
+	public ReevaluateExpressionMutation withPreMutationState(
+		@Nullable Map<String, ContributionVerdicts> previouslyIndexedOwnerPKs,
+		@Nullable ContainerizedLocalMutationExecutor storageAccessor
+	) {
+		return new ReevaluateExpressionMutation(
+			this.referenceName, this.mutatedEntityPK, this.dependencyType, this.scope,
+			this.preMutationSourceValues, previouslyIndexedOwnerPKs, storageAccessor
+		);
+	}
+
+	/**
+	 * Unlike the record default, compares only the 4 identity fields (`referenceName`, `mutatedEntityPK`,
+	 * `dependencyType`, `scope`); the payload fields take no part, so a copy carrying captured state equals the
+	 * mutation it was made from.
+	 *
+	 * @param o the object to compare with
+	 * @return `true` when `o` is a mutation with the same 4 identity fields
+	 */
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
@@ -134,6 +176,11 @@ public record ReevaluateExpressionMutation(
 			&& this.scope == that.scope;
 	}
 
+	/**
+	 * Unlike the record default, hashes only the 4 identity fields {@link #equals(Object)} compares.
+	 *
+	 * @return the hash of the 4 identity fields
+	 */
 	@Override
 	public int hashCode() {
 		int result = this.referenceName.hashCode();
@@ -141,5 +188,20 @@ public record ReevaluateExpressionMutation(
 		result = 31 * result + this.dependencyType.hashCode();
 		result = 31 * result + this.scope.hashCode();
 		return result;
+	}
+
+	/**
+	 * Describes the mutation by the 4 core fields that make up its identity. The payload is left out: the captured
+	 * maps can be large, and the storage-part executor is live state with no meaningful text.
+	 *
+	 * @return the description
+	 */
+	@Nonnull
+	@Override
+	public String toString() {
+		return "ReevaluateExpressionMutation[referenceName=" + this.referenceName +
+			", mutatedEntityPK=" + this.mutatedEntityPK +
+			", dependencyType=" + this.dependencyType +
+			", scope=" + this.scope + "]";
 	}
 }
