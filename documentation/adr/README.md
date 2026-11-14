@@ -33,7 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
-| 2026-11-14 | [Reuse formula results by declared value identity, inject complete tuples at execution, and disable the owning cache on a verified mismatch](2026-11-14-formula-cache-redesign.md) | refactor | accepted | #37 |
+| 2026-11-14 | [Reuse formula results by declared value identity, inject complete tuples at execution, and disable the owning cache on a verified mismatch](2026-11-14-formula-cache-redesign.md) | refactor | accepted | #37, PR #1963 |
 | 2026-11-13 | [Cache parsed and validated GraphQL documents per GraphQL instance in a Caffeine cache bounded by bytes](2026-11-13-graphql-parsed-document-cache.md) | optimization | proposed | #1191 |
 | 2026-11-11 | [A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue](2026-11-11-reference-histogram-net-change-per-run.md) | fix | accepted | #1911, #1916, #1918 |
 | 2026-11-06 | [A catalog rename or replace waits for the commit pipeline on the caller's thread, then acts on the instance that wait found](2026-11-06-catalog-handover-waits-for-commit-pipeline.md) | fix | accepted | #1889, PR #1890 |

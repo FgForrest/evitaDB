@@ -1,11 +1,11 @@
 ---
 title: Reuse formula results by declared value identity, inject complete tuples at execution, and disable the owning cache on a verified mismatch
 date: 2026-11-14
-updated: 2026-11-14 01:07
+updated: 2026-11-14 12:20
 status: accepted
 kind: refactor
 issues: [37]
-prs: []
+prs: [1963]
 areas: [evita_engine/src/main/java/io/evitadb/core/cache, evita_engine/src/main/java/io/evitadb/core/query, evita_engine/src/main/java/io/evitadb/index/hierarchy, evita_engine/src/main/java/io/evitadb/core/metric/event/cache, evita_api/src/main/java/io/evitadb/api/configuration, evita_external_api/evita_external_api_observability/src/main/java/io/evitadb/externalApi/observability/metric]
 supersedes: []
 superseded-by: []
