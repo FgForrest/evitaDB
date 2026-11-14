@@ -1977,7 +1977,7 @@ class EvitaRequestTest {
 			final EvitaRequest root = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
 			final EvitaRequest owner = root.deriveCopyWith("b", null, null, null, Set.of(Scope.LIVE));
 
-			final EvitaRequest copy = owner.deriveCopyWithScopes("c", filterBy(), null,
+			final EvitaRequest copy = owner.deriveCopyWithScopes("c", new FilterBy(), null,
 				entityFetch(attributeContent("code"), attributeContent("label")),
 				Set.of(Scope.LIVE), Set.of(Scope.LIVE));
 
@@ -1993,7 +1993,7 @@ class EvitaRequestTest {
 			final EvitaRequest root = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
 			final EvitaRequest owner = root.deriveCopyWith("b", null, null, null, Set.of(Scope.LIVE));
 
-			final EvitaRequest copy = owner.deriveCopyWithScopes("c", filterBy(), null, entityFetch(),
+			final EvitaRequest copy = owner.deriveCopyWithScopes("c", new FilterBy(), null, entityFetch(),
 				Set.of(Scope.ARCHIVED), Set.of(Scope.values()));
 
 			assertEquals(Set.of(Scope.ARCHIVED), copy.getScopes());
@@ -2006,10 +2006,10 @@ class EvitaRequestTest {
 		void shouldInheritExplicitPairWhenDerivingWithoutScopes() {
 			final EvitaRequest root = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
 			final EvitaRequest owner = root.deriveCopyWith("b", null, null, null, Set.of(Scope.LIVE));
-			final EvitaRequest source = owner.deriveCopyWithScopes("c", filterBy(), null, entityFetch(),
+			final EvitaRequest source = owner.deriveCopyWithScopes("c", new FilterBy(), null, entityFetch(),
 				Set.of(Scope.ARCHIVED), Set.of(Scope.values()));
 
-			final EvitaRequest copy = source.deriveCopyWith("d", filterBy(), null, entityFetch());
+			final EvitaRequest copy = source.deriveCopyWith("d", new FilterBy(), null, entityFetch());
 
 			assertEquals(Set.of(Scope.ARCHIVED), copy.getScopes());
 			assertEquals(Set.of(Scope.values()), copy.getRequestedScopes());
