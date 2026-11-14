@@ -1,7 +1,7 @@
 ---
 title: Conditional histogram triggers answer per contribution, and the mutated entity's PK is pinned inside the scope container
 date: 2026-09-08
-updated: 2026-10-08 14:40
+updated: 2026-11-11 02:30
 status: accepted
 kind: fix
 issues: [1470]
@@ -10,7 +10,8 @@ areas: [evita_engine/src/main/java/io/evitadb/index/mutation, evita_engine/src/m
 supersedes: []
 superseded-by: []
 relates: [2026-08-31-cross-entity-histogram-removal-pre-pass, 2026-04-23-bucketed-histogram-indexing,
-  2026-10-08-cross-entity-condition-pins-only-what-it-reads]
+  2026-10-08-cross-entity-condition-pins-only-what-it-reads,
+  2026-11-11-reference-histogram-net-change-per-run]
 ---
 
 # A cross-entity condition is answered per `(referencedEntity, owner)` contribution, not per owner
@@ -334,6 +335,8 @@ ever shows up in a profile.
   `GENERATE_ATTRIBUTES`-is-benign claim was corrected in place while this work was under way.
 - [[2026-04-23-bucketed-histogram-indexing]] — the cardinality-gated insert/remove pair and the once-per-bucket
   invariant. This change restores that invariant on the paths where a fan-out could violate it.
+- [[2026-11-11-reference-histogram-net-change-per-run]] — the local path's counterpart: one withdrawal and one add
+  per reference per run, with a strict reference identity that this record's cross-entity path does not have.
 
 ## Timeline
 

@@ -32,8 +32,10 @@ import io.evitadb.core.executor.Interruptible;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.export.ExportFileCleanup;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.SizeCappedOutputStream;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -187,7 +189,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	/**
 	 * Method executes the backup logic for this catalog with particular settings.
 	 *
-	 * @return the path to the created backup file
+	 * @return the descriptor of the created backup archive
 	 */
 	@Nonnull
 	private FileForFetch doBackup() {
@@ -219,13 +221,17 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				this.getClass().getSimpleName()
 			);
 
+			final Path catalogStoragePath = defaultCatalogPersistenceService.getCatalogStoragePath();
+			final SizeCappedOutputStream cap = BackupExportCap.forBackup(
+				exportFileHandle, this.catalogName, catalogStoragePath
+			);
 			try {
 				try (final Closeables closeables = new Closeables()) {
 					final CatalogOffsetIndexStoragePartPersistenceService catalogOffsetIndexPersistenceService = thePastMoment == null && theHistoricalCatalogVersion == null ?
 						defaultCatalogPersistenceService.getStoragePartPersistenceService(catalogVersion) :
 						closeables.add(defaultCatalogPersistenceService.createCatalogOffsetIndexStoragePartService(this.bootstrapRecord));
 
-					try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
+					try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(cap))) {
 						zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/"));
 						zipOutputStream.closeEntry();
 
@@ -271,6 +277,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 							catalogVersion, catalogHeader.storageProtocolVersion(), zipOutputStream,
 							catalogDataFileDescriptor, defaultCatalogPersistenceService
 						);
+						// Only a finished body may close and publish the export handle.
+						cap.markFinished();
 					} catch (IOException e) {
 						throw new UnexpectedIOException(
 							"Failed to backup catalog `" + this.catalogName + "`!",
@@ -279,6 +287,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 						);
 					}
 				}
+
+				// a tripped cap never closes the handle, so the wait below would never end if the refusal got lost
+				cap.checkFailure();
 
 				log.info("Backup of catalog `{}` at version {} completed.", this.catalogName, catalogVersion);
 
@@ -297,13 +308,16 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				// signatures below declares a checked exception. They are reading the source; the exception is not in
 				// the source. The `@Interruptible` checkpoints woven into these helpers raise the *checked*
 				// InterruptedException straight from bytecode, long after javac has stopped looking, so narrowing this
-				// to RuntimeException lets an interrupted backup slip past the cleanup. What it leaves behind is not
-				// merely a stray temp file - closing the stream still writes a valid central directory and registers
-				// the file for fetch, so users are offered a backup missing most of its entries.
+				// to RuntimeException lets the interrupt slip past cleanup. The partial file stays unpublished and
+				// counts against the export limit until it expires.
 				// Covered by BackupTaskCancellationTest#shouldDeleteRegisteredExportFileWhenBackupInterrupted, which
 				// only fails against a freshly woven module - a stale jar reports it green
-				ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
-					.ifPresent(it -> exportService.deleteFile(it.fileId()));
+				ExportFileCleanup.abandon(
+					exportFileHandle, exportService, "a failed backup of catalog `" + this.catalogName + "`", exception
+				);
+
+				// the cap knows why the write stopped; the exception caught here may have replaced its refusal
+				cap.rethrowFailure(exception, isCancellationDriven(exception));
 
 				if (exception instanceof RuntimeException re) {
 					throw re;

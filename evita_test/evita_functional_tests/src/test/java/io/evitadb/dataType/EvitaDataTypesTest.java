@@ -114,6 +114,31 @@ class EvitaDataTypesTest {
 		}
 
 		@Test
+		@DisplayName("should escape the apostrophe and the backslash of a String value")
+		void shouldEscapeApostropheAndBackslashOfString() {
+			assertEquals("'it\\'s'", formatValue("it's"));
+			assertEquals("'C:\\\\new'", formatValue("C:\\new"));
+			assertEquals("'end\\\\'", formatValue("end\\"));
+		}
+
+		@Test
+		@DisplayName("should escape the control characters of a String value, which the grammar refuses raw")
+		void shouldEscapeControlCharactersOfString() {
+			assertEquals("'a\\bb\\fc\\nd\\re\\tf'", formatValue("a\bb\fc\nd\re\tf"));
+			assertEquals("'\\u0000\\u001f'", formatValue("\u0000\u001f"));
+			// the first character past the control range is written as it is
+			assertEquals("' '", formatValue(" "));
+		}
+
+		@Test
+		@DisplayName("should escape a char value the way it escapes a String value")
+		void shouldEscapeChar() {
+			assertEquals("'\\''", formatValue('\''));
+			assertEquals("'\\\\'", formatValue('\\'));
+			assertEquals("'\\n'", formatValue('\n'));
+		}
+
+		@Test
 		@DisplayName("should format BigDecimal value")
 		void shouldFormatBigDecimal() {
 			assertEquals(
@@ -1165,6 +1190,39 @@ class EvitaDataTypesTest {
 					"AB", Character.class
 				)
 			);
+		}
+
+		@Test
+		@DisplayName("should convert the literal formatValue writes for a char back to the same char")
+		void shouldConvertFormattedCharBack() {
+			for (final char character : new char[]{'A', '\'', '\\', '\n', (char) 1}) {
+				final String literal = formatValue(character);
+
+				assertEquals(
+					character,
+					EvitaDataTypes.toTargetType(literal, Character.class),
+					() -> "Literal: " + literal
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should convert the three-character literal older versions wrote for a backslash")
+		void shouldConvertUnescapedBackslashLiteral() {
+			assertEquals('\\', EvitaDataTypes.toTargetType("'\\'", Character.class));
+		}
+
+		@Test
+		@DisplayName("should fail to convert a malformed or multi-character escaped literal to Character")
+		void shouldFailToConvertMalformedEscapedCharLiteral() {
+			// an unknown escape, a Unicode escape cut short, and two escaped characters
+			for (final String literal : new String[]{"'\\x'", "'\\" + "u12'", "'\\n\\n'"}) {
+				assertThrows(
+					InconvertibleDataTypeException.class,
+					() -> EvitaDataTypes.toTargetType(literal, Character.class),
+					literal
+				);
+			}
 		}
 	}
 

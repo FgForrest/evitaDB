@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.evitadb.test.TestTags.COMPARATOR;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -75,7 +74,6 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 		name = "TransactionalObjectBPlusTreeTest should survive generational randomized test applying "
 			+ "modifications on it"
 	)
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("survives randomized insert/delete operations")
 	void generationalProofTest(@Nonnull GenerationalTestInput input) {
@@ -139,7 +137,6 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 		name = "TransactionalObjectBPlusTreeTest should survive generational randomized test under a reverse "
 			+ "comparator"
 	)
-	@Tag(SLOW)
 	@Tag(COMPARATOR)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("survives randomized insert/delete operations under a reverse comparator")
@@ -203,7 +200,6 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 	@ParameterizedTest(
 		name = "TransactionalObjectBPlusTreeTest should survive transactional generational insert/upsert/delete churn"
 	)
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("survives randomized transactional insert/upsert/delete churn swept cleanly on commit")
 	void generationalTransactionalProofTest(@Nonnull GenerationalTestInput input) {

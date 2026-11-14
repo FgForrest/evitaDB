@@ -1601,6 +1601,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 					ExistingEntityBuilderTest.this.initialEntity);
 
 			assertEquals(Scope.ARCHIVED, updatedEntity.getScope());
+			assertEquals(updatedEntity.getScope(), ExistingEntityBuilderTest.this.builder.toInstance().getScope());
 			assertEquals(ExistingEntityBuilderTest.this.initialEntity.version() + 1, updatedEntity.version());
 		}
 

@@ -32,6 +32,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.NumberUtils;
+import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,7 +52,6 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static io.evitadb.utils.MemoryMeasuringConstants.*;
 
@@ -214,16 +214,9 @@ public class EvitaDataTypes {
 	 */
 	private static final char CHAR_STRING_DELIMITER = '\'';
 	/**
-	 * String representation of the single-quote delimiter used in EvitaQL. Used in conjunction
-	 * with `STRING_DELIMITER_PATTERN` for escaping embedded quotes in string values.
+	 * The hexadecimal digits of the Unicode escape a control character without an escape of its own is written as.
 	 */
-	private static final String STRING_DELIMITER ="" + CHAR_STRING_DELIMITER;
-	/**
-	 * Compiled regex pattern for matching and escaping single-quote delimiters in string values.
-	 * Used by `formatValue()` to escape embedded quotes (e.g., `it's` becomes `it\'s`) when
-	 * formatting strings for EvitaQL query syntax.
-	 */
-	private static final Pattern STRING_DELIMITER_PATTERN = Pattern.compile(STRING_DELIMITER);
+	private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 	/**
 	 * Parser function that attempts to parse a string to `OffsetDateTime` using ISO-8601 format
 	 * (`DateTimeFormatter.ISO_OFFSET_DATE_TIME`). Returns `null` on parse failure rather than
@@ -341,10 +334,12 @@ public class EvitaDataTypes {
 	 * Conversion function for coercing arbitrary objects to `Character`. Returns `Character`
 	 * inputs unchanged. For `Number` inputs, converts to an integer and validates range
 	 * (0-65535, the valid Unicode code point range for char); throws if out of bounds. For string
-	 * inputs, accepts single-character strings, or three-character single-quoted literals like
-	 * `'A'` (strips quotes). Throws `InconvertibleDataTypeException` for multi-character strings
-	 * or out-of-range numeric values. Used by `convertSingleObject` when target type is
-	 * `Character` or `char`.
+	 * inputs, accepts single-character strings, three-character single-quoted literals like
+	 * `'A'` (strips quotes), and single-quoted literals of one escaped character as `formatValue`
+	 * writes them, like `'\\'` or `'\n'`. The three-character form is read first, because older
+	 * versions wrote the backslash unescaped as `'\'`. Throws `InconvertibleDataTypeException` for
+	 * multi-character strings, malformed escapes or out-of-range numeric values. Used by
+	 * `convertSingleObject` when target type is `Character` or `char`.
 	 */
 	private static final BiFunction<Class<?>, Serializable, Character>
 		CHAR_FUNCTION =
@@ -368,6 +363,21 @@ public class EvitaDataTypes {
 					// handle single-quoted character literal from EvitaQL, e.g., 'A'
 				} else if (str.length() == 3 && str.charAt(0) == '\'' && str.charAt(2) == '\'') {
 					return str.charAt(1);
+				} else if (
+					str.length() > 3 && str.charAt(0) == '\'' && str.charAt(1) == '\\' &&
+						str.charAt(str.length() - 1) == '\''
+				) {
+					// one escaped character, as `formatValue` writes a backslash, an apostrophe or a control character
+					final String unescaped;
+					try {
+						unescaped = StringUtils.translateEscapes(str.substring(1, str.length() - 1));
+					} catch (IllegalArgumentException | IndexOutOfBoundsException ex) {
+						throw new InconvertibleDataTypeException(requestedType, unknownObject);
+					}
+					if (unescaped.length() != 1) {
+						throw new InconvertibleDataTypeException(requestedType, unknownObject);
+					}
+					return unescaped.charAt(0);
 				} else {
 					throw new InconvertibleDataTypeException(requestedType, unknownObject);
 				}
@@ -1483,13 +1493,53 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Returns the text as a string literal of EvitaQL and EvitaEL: in apostrophes, with every character the grammar
+	 * does not take as it is written as an escape `StringUtils#translateEscapes` reads back - the apostrophe that would
+	 * end the literal, the backslash that would start an escape, and the control characters the grammar refuses raw.
+	 * Any other character is written as it is.
+	 *
+	 * @param text the text to write
+	 * @return the literal
+	 */
+	@Nonnull
+	private static String toStringLiteral(@Nonnull String text) {
+		final StringBuilder literal = new StringBuilder(text.length() + 2);
+		literal.append(CHAR_STRING_DELIMITER);
+		for (int i = 0; i < text.length(); i++) {
+			final char character = text.charAt(i);
+			switch (character) {
+				case '\'' -> literal.append("\\'");
+				case '\\' -> literal.append("\\\\");
+				case '\b' -> literal.append("\\b");
+				case '\f' -> literal.append("\\f");
+				case '\n' -> literal.append("\\n");
+				case '\r' -> literal.append("\\r");
+				case '\t' -> literal.append("\\t");
+				default -> {
+					if (character < ' ') {
+						// the other control characters have no escape of their own
+						literal.append("\\u00")
+							.append(HEX_DIGITS[character >> 4])
+							.append(HEX_DIGITS[character & 0xF]);
+					} else {
+						literal.append(character);
+					}
+				}
+			}
+		}
+		return literal.append(CHAR_STRING_DELIMITER).toString();
+	}
+
+	/**
 	 * Formats a serializable value for printing in EvitaQL query syntax. Produces string
 	 * representations suitable for embedding in queries, with appropriate quoting and escaping.
 	 * This method is used by query builders, logging, and debugging tools to generate readable
 	 * EvitaQL syntax from programmatic values.
 	 *
 	 * Formatting rules:
-	 * - String, Character: single-quoted, with embedded quotes escaped as `\'`
+	 * - String, Character: single-quoted, with the apostrophe escaped as `\'`, the backslash as `\\`, and the
+	 * control characters (U+0000 to U+001F) as `\b`, `\f`, `\n`, `\r`, `\t` or a Unicode escape, so that the
+	 * EvitaQL and EvitaEL parsers read the literal back as the same text
 	 * - BigDecimal: normalized to lowercase exponential notation (e.g., `2.5e8` not `2.5E+8`)
 	 * - Number: `toString()` representation
 	 * - Boolean: `true` or `false`
@@ -1512,13 +1562,9 @@ public class EvitaDataTypes {
 		@Nullable Serializable value
 	) {
 		if (value instanceof String stringValue) {
-			return CHAR_STRING_DELIMITER
-				+ STRING_DELIMITER_PATTERN.matcher(stringValue).replaceAll("\\\\'")
-				+ STRING_DELIMITER;
+			return toStringLiteral(stringValue);
 		} else if (value instanceof Character characterValue) {
-			return CHAR_STRING_DELIMITER
-				+ STRING_DELIMITER_PATTERN.matcher(characterValue.toString()).replaceAll("\\\\'")
-				+ STRING_DELIMITER;
+			return toStringLiteral(characterValue.toString());
 		} else if (value instanceof BigDecimal bigDecimalValue) {
 			// Value normalizations were taken from
 			// https://github.com/googleapis/googleapis/blob/master/google/type/decimal.proto

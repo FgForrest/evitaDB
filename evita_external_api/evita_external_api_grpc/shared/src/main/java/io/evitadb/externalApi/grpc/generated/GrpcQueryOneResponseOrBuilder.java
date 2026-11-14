@@ -34,7 +34,7 @@ public interface GrpcQueryOneResponseOrBuilder extends
   /**
    * <pre>
    * The matched entity as a reference (type + primary key only). See the message-level comment for when
-   * this field (vs. the other two) is populated.
+   * this field (vs. the other) is populated.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -44,7 +44,7 @@ public interface GrpcQueryOneResponseOrBuilder extends
   /**
    * <pre>
    * The matched entity as a reference (type + primary key only). See the message-level comment for when
-   * this field (vs. the other two) is populated.
+   * this field (vs. the other) is populated.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -54,7 +54,7 @@ public interface GrpcQueryOneResponseOrBuilder extends
   /**
    * <pre>
    * The matched entity as a reference (type + primary key only). See the message-level comment for when
-   * this field (vs. the other two) is populated.
+   * this field (vs. the other) is populated.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -63,8 +63,8 @@ public interface GrpcQueryOneResponseOrBuilder extends
 
   /**
    * <pre>
-   * The matched entity, fully fetched in structured (non-binary) form. See the message-level comment for
-   * when this field (vs. the other two) is populated.
+   * The matched entity, fully fetched in structured form. See the message-level comment for
+   * when this field (vs. the other) is populated.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
@@ -73,8 +73,8 @@ public interface GrpcQueryOneResponseOrBuilder extends
   boolean hasSealedEntity();
   /**
    * <pre>
-   * The matched entity, fully fetched in structured (non-binary) form. See the message-level comment for
-   * when this field (vs. the other two) is populated.
+   * The matched entity, fully fetched in structured form. See the message-level comment for
+   * when this field (vs. the other) is populated.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
@@ -83,41 +83,11 @@ public interface GrpcQueryOneResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getSealedEntity();
   /**
    * <pre>
-   * The matched entity, fully fetched in structured (non-binary) form. See the message-level comment for
-   * when this field (vs. the other two) is populated.
+   * The matched entity, fully fetched in structured form. See the message-level comment for
+   * when this field (vs. the other) is populated.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getSealedEntityOrBuilder();
-
-  /**
-   * <pre>
-   * The matched entity, fully fetched in the server's binary storage format. See the message-level comment
-   * for when this field (vs. the other two) is populated.
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
-   * @return Whether the binaryEntity field is set.
-   */
-  boolean hasBinaryEntity();
-  /**
-   * <pre>
-   * The matched entity, fully fetched in the server's binary storage format. See the message-level comment
-   * for when this field (vs. the other two) is populated.
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
-   * @return The binaryEntity.
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity getBinaryEntity();
-  /**
-   * <pre>
-   * The matched entity, fully fetched in the server's binary storage format. See the message-level comment
-   * for when this field (vs. the other two) is populated.
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder getBinaryEntityOrBuilder();
 }

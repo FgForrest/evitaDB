@@ -354,7 +354,7 @@ final class PickFirstReducedIndexFixture {
 	@Nonnull
 	PickFirstReducedIndexResolver resolver(boolean descending, @Nonnull Scope... scopes) {
 		return new PickFirstReducedIndexResolver(
-			this.queryContext, this.referenceSchema, scopes, null, descending, () -> new ReducedEntityIndex[0]
+			this.queryContext, this.referenceSchema, scopes, null, descending, Map.of(), () -> new ReducedEntityIndex[0]
 		);
 	}
 
@@ -373,7 +373,7 @@ final class PickFirstReducedIndexFixture {
 		@Nonnull Scope... scopes
 	) {
 		return new PickFirstReducedIndexResolver(
-			this.queryContext, this.referenceSchema, scopes, targetSorter, false, planningIndexes::get
+			this.queryContext, this.referenceSchema, scopes, targetSorter, false, Map.of(), planningIndexes::get
 		);
 	}
 

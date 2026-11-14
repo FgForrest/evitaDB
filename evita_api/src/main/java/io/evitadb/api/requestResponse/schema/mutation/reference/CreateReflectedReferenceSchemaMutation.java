@@ -24,15 +24,15 @@
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
-import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
@@ -56,9 +56,11 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -115,6 +117,66 @@ public class CreateReflectedReferenceSchemaMutation
 	}
 
 	/**
+	 * Returns the mutation that sets a property a reflected reference may inherit from its original, when the created
+	 * and the existing version declare it differently. Inheriting the property and declaring a value are different
+	 * definitions even when the value equals the inherited one. A value is read only from a version that declares it,
+	 * because an inherited value is not available while the reflected reference is not bound to its original, and the
+	 * mutation receives null to make the property inherited.
+	 *
+	 * @param createdInherits  whether the created version inherits the property
+	 * @param createdValue     supplies the value the created version declares
+	 * @param existingInherits whether the existing version inherits the property
+	 * @param existingValue    supplies the value the existing version declares
+	 * @param mutationCreator  creates the mutation setting the new value, null for inherited
+	 * @return the mutation, or null when both versions declare the property the same way
+	 */
+	@Nullable
+	private static <T> LocalEntitySchemaMutation makeMutationIfDeclaredDifferently(
+		boolean createdInherits,
+		@Nonnull Supplier<T> createdValue,
+		boolean existingInherits,
+		@Nonnull Supplier<T> existingValue,
+		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
+	) {
+		if (createdInherits) {
+			return existingInherits ? null : mutationCreator.apply(null);
+		} else {
+			final T newValue = createdValue.get();
+			return !existingInherits && Objects.equals(newValue, existingValue.get())
+				? null
+				: mutationCreator.apply(newValue);
+		}
+	}
+
+	/**
+	 * Returns the attributes the reflected reference declares itself.
+	 *
+	 * @param reference the reflected reference
+	 * @return the declared attributes by name
+	 */
+	@Nonnull
+	private static Map<String, AttributeSchemaContract> declaredAttributesOf(@Nonnull ReflectedReferenceSchemaContract reference) {
+		return reference instanceof ReflectedReferenceSchema reflectedReference
+			? reflectedReference.getDeclaredAttributes()
+			: reference.getAttributes();
+	}
+
+	/**
+	 * Returns the sortable attribute compounds the reflected reference declares itself.
+	 *
+	 * @param reference the reflected reference
+	 * @return the declared compounds by name
+	 */
+	@Nonnull
+	private static Map<String, SortableAttributeCompoundSchemaContract> declaredSortableAttributeCompoundsOf(
+		@Nonnull ReflectedReferenceSchemaContract reference
+	) {
+		return reference instanceof ReflectedReferenceSchema reflectedReference
+			? reflectedReference.getDeclaredSortableAttributeCompounds()
+			: reference.getSortableAttributeCompounds();
+	}
+
+	/**
 	 * Creates a single {@link SetReferenceSchemaFacetedMutation} carrying both faceted scopes and
 	 * facetedPartially expressions if either property differs between created and existing versions.
 	 * Emitting a single mutation avoids the Set+Set combining problem where a second
@@ -148,6 +210,69 @@ public class CreateReflectedReferenceSchemaMutation
 				.map(e -> new ScopedFacetedPartially(e.getKey(), e.getValue()))
 				.toArray(ScopedFacetedPartially[]::new)
 		);
+	}
+
+	/**
+	 * Returns the mutations that change the indexing of the existing reflected reference into the indexing of the
+	 * re-created one, in the order they must apply; a null element stands for no change.
+	 *
+	 * No single mutation makes both the index types and declared components inherited, so a re-created reference that
+	 * inherits both, in place of one that declares its components, takes two: the first makes the components inherited
+	 * beside index types it declares none of, the second makes the index types inherited and leaves the components.
+	 * Otherwise null components make them inherited beside declared index types, as the created reference has them;
+	 * passing the components the created reference reports would declare them instead.
+	 *
+	 * @param createdVersion  the reference as the creation defines it
+	 * @param existingVersion the reference as the entity holds it before the removal
+	 * @return the mutations, with null elements for the properties that stay as they are
+	 */
+	@Nonnull
+	private Stream<LocalEntitySchemaMutation> indexingMutationsOf(
+		@Nonnull ReflectedReferenceSchemaContract createdVersion,
+		@Nonnull ReflectedReferenceSchemaContract existingVersion
+	) {
+		if (createdVersion.isIndexedInherited() && createdVersion.isIndexedComponentsInherited()
+			&& !existingVersion.isIndexedComponentsInherited()) {
+			return Stream.of(
+				new SetReferenceSchemaIndexedMutation(this.name, ScopedReferenceIndexType.EMPTY, null),
+				new SetReferenceSchemaIndexedMutation(this.name, (Scope[]) null)
+			);
+		} else {
+			return Stream.of(
+				makeMutationIfDifferent(
+					createdVersion, existingVersion,
+					ref -> ref.isIndexedInherited()
+						? null
+						: Arrays.stream(Scope.values()).filter(ref::isIndexedInScope).toArray(Scope[]::new),
+					newValue -> new SetReferenceSchemaIndexedMutation(this.name, newValue)
+				),
+				makeMutationIfDifferent(
+					createdVersion, existingVersion,
+					ref -> ref.isIndexedComponentsInherited() ? null : ref.getIndexedComponentsInScopes(),
+					newValue -> new SetReferenceSchemaIndexedMutation(
+						this.name,
+						createdVersion.isIndexedInherited()
+							? null
+							: createdVersion.getReferenceIndexTypeInScopes()
+								.entrySet()
+								.stream()
+								.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+								.toArray(ScopedReferenceIndexType[]::new),
+						createdVersion.isIndexedComponentsInherited()
+							? null
+							: createdVersion.getIndexedComponentsInScopes()
+								.entrySet()
+								.stream()
+								.map(
+									it -> new ScopedReferenceIndexedComponents(
+										it.getKey(), it.getValue().toArray(ReferenceIndexedComponents[]::new)
+									)
+								)
+								.toArray(ScopedReferenceIndexedComponents[]::new)
+					)
+				)
+			);
+		}
 	}
 
 	/**
@@ -292,7 +417,13 @@ public class CreateReflectedReferenceSchemaMutation
 				Objects.equals(removeReferenceMutation.getName(), this.name) && currentReference.isPresent()
 		) {
 			// we can convert mutation to updates only if the reference type matches
-			if (currentReference.get() instanceof ReflectedReferenceSchemaContract existingVersion) {
+			if (
+				currentReference.get() instanceof ReflectedReferenceSchemaContract existingVersion &&
+					// no mutation can redirect a reflected reference to another original reference, so the removal
+					// and the creation both stay when the re-created reference reflects a different one
+					this.referencedEntityType.equals(existingVersion.getReferencedEntityType()) &&
+					this.reflectedReferenceName.equals(existingVersion.getReflectedReferenceName())
+			) {
 				final ReflectedReferenceSchemaContract createdVersion = Objects.requireNonNull(
 					(ReflectedReferenceSchemaContract) mutate(currentEntitySchema, null)
 				);
@@ -300,62 +431,44 @@ public class CreateReflectedReferenceSchemaMutation
 					null,
 					Stream.of(
 							Stream.of(
-								makeMutationIfDifferent(
-									createdVersion, existingVersion,
-									NamedSchemaContract::getDescription,
+								makeMutationIfDeclaredDifferently(
+									createdVersion.isDescriptionInherited(), createdVersion::getDescription,
+									existingVersion.isDescriptionInherited(), existingVersion::getDescription,
 									newValue -> new ModifyReferenceSchemaDescriptionMutation(this.name, newValue)
 								),
-								makeMutationIfDifferent(
-									createdVersion, existingVersion,
-									NamedSchemaWithDeprecationContract::getDeprecationNotice,
+								makeMutationIfDeclaredDifferently(
+									createdVersion.isDeprecatedInherited(), createdVersion::getDeprecationNotice,
+									existingVersion.isDeprecatedInherited(), existingVersion::getDeprecationNotice,
 									newValue -> new ModifyReferenceSchemaDeprecationNoticeMutation(this.name, newValue)
 								),
-								makeMutationIfDifferent(
-									createdVersion, existingVersion,
-									ReferenceSchemaContract::getCardinality,
+								makeMutationIfDeclaredDifferently(
+									createdVersion.isCardinalityInherited(), createdVersion::getCardinality,
+									existingVersion.isCardinalityInherited(), existingVersion::getCardinality,
 									newValue -> new ModifyReferenceSchemaCardinalityMutation(this.name, newValue)
 								),
-								makeMutationIfDifferent(
-									createdVersion, existingVersion,
-									ref -> ref.isIndexedInherited() ? null : Arrays.stream(Scope.values()).filter(ref::isIndexedInScope).toArray(Scope[]::new),
-									newValue -> new SetReferenceSchemaIndexedMutation(this.name, newValue)
-								),
-								makeMutationIfDifferent(
-									createdVersion, existingVersion,
-									ref -> ref.isIndexedComponentsInherited()
-										? null
-										: ref.getIndexedComponentsInScopes(),
-									newValue -> new SetReferenceSchemaIndexedMutation(
+								createdVersion.getAttributesInheritanceBehavior() == existingVersion.getAttributesInheritanceBehavior() &&
+									Arrays.equals(createdVersion.getAttributeInheritanceFilter(), existingVersion.getAttributeInheritanceFilter())
+									? null
+									: new ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
 										this.name,
-										createdVersion.isIndexedInherited()
-											? null
-											: createdVersion.getReferenceIndexTypeInScopes()
-												.entrySet()
-												.stream()
-												.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
-												.toArray(ScopedReferenceIndexType[]::new),
-										createdVersion.getIndexedComponentsInScopes()
-											.entrySet()
-											.stream()
-											.map(
-												it -> new ScopedReferenceIndexedComponents(
-													it.getKey(),
-													it.getValue().toArray(ReferenceIndexedComponents[]::new)
-												)
-											)
-											.toArray(ScopedReferenceIndexedComponents[]::new)
+										createdVersion.getAttributesInheritanceBehavior(),
+										createdVersion.getAttributeInheritanceFilter()
 									)
-								),
+							),
+							indexingMutationsOf(createdVersion, existingVersion),
+							Stream.of(
 								// emit a single mutation carrying both facetedInScopes and facetedPartially
 								createCombinedFacetedMutation(createdVersion, existingVersion),
 								// emit a single mutation carrying both bucketedInScopes and bucketedPartially
 								createCombinedBucketedMutation(createdVersion, existingVersion)
 							),
-							existingVersion.getAttributes()
+							// only the declared part: an inherited attribute cannot be removed, and the inherited ones are
+							// not available while the reflected reference is not bound to its original
+							declaredAttributesOf(existingVersion)
 								.values()
 								.stream()
 								.map(attribute -> new ModifyReferenceAttributeSchemaMutation(this.name, new RemoveAttributeSchemaMutation(attribute.getName()))),
-							existingVersion.getSortableAttributeCompounds()
+							declaredSortableAttributeCompoundsOf(existingVersion)
 								.values()
 								.stream()
 								.map(attribute -> new ModifyReferenceSortableAttributeCompoundSchemaMutation(this.name, new RemoveSortableAttributeCompoundSchemaMutation(attribute.getName())))

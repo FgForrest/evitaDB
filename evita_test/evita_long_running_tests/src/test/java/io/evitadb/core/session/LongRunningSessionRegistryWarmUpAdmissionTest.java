@@ -49,7 +49,6 @@ import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SESSION;
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -101,7 +100,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Slf4j
-@Tag(SLOW)
 @Tag(ENGINE)
 @Tag(SESSION)
 @DisplayName("Long-running single-session admission stress test")

@@ -125,6 +125,15 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	private long parseStarted;
 
 	/**
+	 * Whether the parsed and validated document was served from the document cache, i.e. the parse and validation
+	 * phases were skipped entirely and their durations are reported as zero.
+	 */
+	@Label("Document served from cache")
+	@Description("Whether the parsed and validated GraphQL document was served from the document cache and " +
+		"the parse and validation phases were skipped.")
+	private boolean documentCached;
+
+	/**
 	 * Time to validate the parsed request (query and variables) by the GraphQL server engine before execution in milliseconds.
 	 */
 	@Label("Validation duration")
@@ -315,6 +324,30 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 		);
 		final long now = System.currentTimeMillis();
 		this.validationDurationMilliseconds = now - this.validationStarted;
+		this.operationExecutionStarted = now;
+		return this;
+	}
+
+	/**
+	 * Measures duration of preparation from previous state for a request whose parsed and validated document was
+	 * served from the document cache - parse and validation did not happen, so their durations stay zero and the
+	 * operation execution starts right away. Replaces the {@link #finishPreparation()}, {@link #finishParse()} and
+	 * {@link #finishValidation()} sequence and should be called only once.
+	 * @return this
+	 */
+	@Nonnull
+	public ExecutedEvent skipParseAndValidation() {
+		Assert.isPremiseValid(
+			this.preparationStarted != 0,
+			() -> new GraphQLInternalError("Preparation has not started. Cannot measure preparation duration.")
+		);
+		Assert.isPremiseValid(
+			this.parseStarted == 0,
+			() -> new GraphQLInternalError("Parse already started. Cannot skip parse and validation.")
+		);
+		final long now = System.currentTimeMillis();
+		this.preparationDurationMilliseconds = now - this.preparationStarted;
+		this.documentCached = true;
 		this.operationExecutionStarted = now;
 		return this;
 	}

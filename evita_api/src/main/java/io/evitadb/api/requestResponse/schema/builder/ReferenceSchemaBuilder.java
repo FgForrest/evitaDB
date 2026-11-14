@@ -151,11 +151,16 @@ public final class ReferenceSchemaBuilder
 						.toArray(ScopedBucketedPartially[]::new)
 				)
 			);
+			// the creation comes first, the mutations queued by earlier calls apply to the created reference
+			copyQueuedMutations(name, mutations);
 		} else {
 			Assert.isPremiseValid(
 				existingSchema != null,
 				"When not creating new reference schema, the existing schema must be provided!"
 			);
+			// the mutations queued by earlier calls come first, so that the changes this call asks for apply after
+			// them - appended later, an earlier change would override the one this call makes
+			copyQueuedMutations(name, mutations);
 			// baseSchema is resolved in the super() call above — it uses the raw persisted
 			// reference, never the caller-supplied `existingSchema`. The caller builds
 			// `existingSchema` from `toInstance()`, so it already reflects every pending
@@ -186,14 +191,26 @@ public final class ReferenceSchemaBuilder
 				);
 			}
 		}
-		mutations.stream()
-			.filter(
-				it -> it instanceof ReferenceSchemaMutation referenceSchemaMutation &&
-						(name.equals(referenceSchemaMutation.getName()) &&
-						!(referenceSchemaMutation instanceof CreateReferenceSchemaMutation)) &&
-						!(referenceSchemaMutation instanceof RemoveReferenceSchemaMutation)
-			)
-			.forEach(this.mutations::add);
+	}
+
+	/**
+	 * Appends the entity-level mutations queued for the reference by earlier calls of the entity builder, except its
+	 * creation and removal, which the entity builder handles itself.
+	 *
+	 * @param name      the name of the reference
+	 * @param mutations the mutations queued in the entity builder
+	 */
+	private void copyQueuedMutations(@Nonnull String name, @Nonnull List<LocalEntitySchemaMutation> mutations) {
+		for (LocalEntitySchemaMutation mutation : mutations) {
+			if (
+				mutation instanceof ReferenceSchemaMutation referenceSchemaMutation &&
+					name.equals(referenceSchemaMutation.getName()) &&
+					!(referenceSchemaMutation instanceof CreateReferenceSchemaMutation) &&
+					!(referenceSchemaMutation instanceof RemoveReferenceSchemaMutation)
+			) {
+				this.mutations.add(mutation);
+			}
+		}
 	}
 
 	/**
@@ -360,6 +377,11 @@ public final class ReferenceSchemaBuilder
 		@Nonnull Scope scope,
 		@Nonnull Expression expression
 	) {
+		if (this.isFacetedInScope(scope) && Objects.equals(this.getFacetedPartiallyInScopes().get(scope), expression)) {
+			// the scope is already faceted partially by the same expression - nothing to change; expressions are
+			// compared as trees, because the text of a composed tree omits the parentheses its grouping implies
+			return this;
+		}
 		// compute complete state: current scopes + new scope, current expressions + new entry
 		final Set<Scope> currentFacetedScopes = this.getFacetedInScopes();
 		final EnumSet<Scope> allScopes = currentFacetedScopes.isEmpty()
@@ -423,6 +445,18 @@ public final class ReferenceSchemaBuilder
 		@Nullable Expression valueExpression,
 		@Nullable Expression assignedWhen
 	) {
+		final Map<String, HistogramIndexDefinition> currentScopeBucketed =
+			this.getAllHistogramIndexDefinitions().get(scope);
+		final HistogramIndexDefinition currentDefinition =
+			currentScopeBucketed == null ? null : currentScopeBucketed.get(nameOfTheIndex);
+		if (
+			currentDefinition != null &&
+				Objects.equals(currentDefinition.valueExpression(), valueExpression) &&
+				Objects.equals(currentDefinition.assignedWhen(), assignedWhen)
+		) {
+			// the scope already has the same histogram index - nothing to change
+			return this;
+		}
 		// compute complete state: current bucketed definitions + additive new entry
 		final Map<Scope, Map<String, HistogramIndexDefinition>> allBucketed =
 			deepCopyHistogramIndexDefinitions(this.getAllHistogramIndexDefinitions());
@@ -447,9 +481,13 @@ public final class ReferenceSchemaBuilder
 		@Nonnull Scope scope,
 		@Nonnull Expression expression
 	) {
+		final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
+		if (Objects.equals(currentPartially.get(scope), expression)) {
+			// the scope is already bucketed partially by the same expression - nothing to change
+			return this;
+		}
 		// compute complete state: current bucketed definitions unchanged, current expressions + new entry
 		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
-		final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
 		final Map<Scope, Expression> allPartially = currentPartially.isEmpty()
 			? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
 		allPartially.put(scope, expression);

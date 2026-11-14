@@ -24,6 +24,7 @@
 package io.evitadb.api.query.expression;
 
 import io.evitadb.api.query.expression.bool.ConjunctionOperator;
+import io.evitadb.api.query.expression.utility.NestedOperator;
 import io.evitadb.dataType.expression.Expression;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -91,6 +92,22 @@ class ExpressionFactoryTest {
 			// operand identity must be preserved -- the helper should not clone or re-parse
 			assertSame(left.getOperand(), conjunction.getLeftOperand());
 			assertSame(right.getOperand(), conjunction.getRightOperand());
+		}
+
+		@Test
+		@DisplayName("Should wrap operands binding looser than the conjunction in parentheses that keep their nodes")
+		void shouldWrapLooserOperandsInParenthesesKeepingTheirNodes() {
+			final Expression left = ExpressionFactory.parse("$a || $b");
+			final Expression right = ExpressionFactory.parse("$c || $d");
+
+			final Expression combined = ExpressionFactory.and(left, right);
+
+			assertNotNull(combined);
+			final ConjunctionOperator conjunction =
+				assertInstanceOf(ConjunctionOperator.class, combined.getOperand());
+			// the parentheses the parser would produce for this text, around the very nodes passed in
+			assertSame(left.getOperand(), assertInstanceOf(NestedOperator.class, conjunction.getLeftOperand()).getOperand());
+			assertSame(right.getOperand(), assertInstanceOf(NestedOperator.class, conjunction.getRightOperand()).getOperand());
 		}
 
 	}

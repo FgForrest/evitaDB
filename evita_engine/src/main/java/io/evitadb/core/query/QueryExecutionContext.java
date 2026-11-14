@@ -43,7 +43,6 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
@@ -286,42 +285,6 @@ public class QueryExecutionContext implements Closeable {
 					entityCollection.fetchEntities(entityPrimaryKeys, evitaRequest, evitaSession),
 				(entityCollection, prefetchedEntities, requestToUse) ->
 					entityCollection.limitAndFetchExistingEntities(prefetchedEntities, requestToUse, entityFetcher)
-			);
-		}
-	}
-
-	/**
-	 * Method will return full entity object for passed `entityPrimaryKey`. The input primary key may represent the
-	 * real {@link EntityContract#getPrimaryKey()} or it may represent key masked by {@link QueryPlanningContext#translateEntityReference(EntityReferenceContract[])}
-	 * method.
-	 *
-	 * Prefetched entities are of no help here beyond identifying which records to read: the binary form is a distinct
-	 * representation, so the contents have to be re-read from the collection either way.
-	 *
-	 * @param entityPrimaryKey primary keys - real or masked - of the entities to fetch
-	 * @return the entities that exist, in binary form
-	 */
-	@Nonnull
-	public List<BinaryEntity> fetchBinaryEntities(int... entityPrimaryKey) {
-		final String entityType = this.queryContext.getEntityType();
-		final EvitaRequest evitaRequest = this.queryContext.getEvitaRequest();
-		final EvitaSessionContract evitaSession = this.queryContext.getEvitaSession();
-		if (this.prefetchedEntities == null) {
-			final EntityCollection entityCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
-			return entityCollection.fetchBinaryEntities(entityPrimaryKey, evitaRequest, evitaSession);
-		} else {
-			// we need to reread the contents of the prefetched entity in binary form
-			return takeAdvantageOfPrefetchedEntities(
-				entityPrimaryKey,
-				entityType,
-				(entityCollection, entityPrimaryKeys, requestToUse) ->
-					entityCollection.fetchBinaryEntities(entityPrimaryKeys, evitaRequest, evitaSession),
-				(entityCollection, prefetchedEntities, requestToUse) -> entityCollection.fetchBinaryEntities(
-					prefetchedEntities.stream()
-						.mapToInt(EntityDecorator::getPrimaryKeyOrThrowException)
-						.toArray(),
-					evitaRequest, evitaSession
-				)
 			);
 		}
 	}
@@ -722,10 +685,6 @@ public class QueryExecutionContext implements Closeable {
 	@Nonnull
 	public EvitaRequest getEvitaRequest() {
 		return this.queryContext.getEvitaRequest();
-	}
-
-	public boolean isRequiresBinaryForm() {
-		return this.queryContext.isRequiresBinaryForm();
 	}
 
 	@Nonnull

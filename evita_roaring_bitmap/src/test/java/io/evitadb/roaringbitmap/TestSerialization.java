@@ -1,11 +1,20 @@
 package io.evitadb.roaringbitmap;
 
+import static io.evitadb.roaringbitmap.TestAdversarialInputs.hex;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import javax.annotation.Nonnull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import javax.crypto.CipherInputStream;
+import javax.crypto.NullCipher;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -283,5 +292,180 @@ public class TestSerialization {
 
 		boolean actual = target.intersects(26244001, 27293761);
 		assertEquals(actual, expected);
+	}
+
+	/**
+	 * Ports upstream #890: the 800-byte offset table crosses CipherInputStream's 512-byte buffer,
+	 * whose skip stops at that buffer boundary. Both DataInput overloads must consume the remainder.
+	 */
+	@ParameterizedTest(name = "buffered={0}")
+	@ValueSource(booleans = {false, true})
+	public void testDeserializeWhenSkipBytesFallsShort(final boolean buffered) throws IOException {
+		final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+		for (int i = 0; i < 200; i++) {
+			bitmap.add(i << 16);
+		}
+		final ByteArrayOutputStream output = new ByteArrayOutputStream();
+		bitmap.serialize(new DataOutputStream(output));
+		final byte[] bytes = output.toByteArray();
+		final PersistentRoaringBitmap restored = new PersistentRoaringBitmap();
+		try (final DataInputStream input = new DataInputStream(
+			new CipherInputStream(new ByteArrayInputStream(bytes), new NullCipher()))) {
+			if (buffered) {
+				restored.deserialize(input, new byte[8192]);
+			} else {
+				restored.deserialize(input);
+			}
+		}
+		assertEquals(bitmap, restored);
+	}
+
+	/**
+	 * Ports upstream #895's `toBytes` scenario.
+	 */
+	private static byte[] toBytes(@Nonnull final PersistentRoaringBitmap rb) {
+		ByteBuffer buffer = ByteBuffer.allocate(rb.serializedSizeInBytes());
+		rb.serialize(buffer);
+		return buffer.array();
+	}
+
+	/**
+	 * Ports upstream #895's `fromBytes` scenario.
+	 */
+	private static PersistentRoaringBitmap fromBytes(@Nonnull final byte[] bytes) throws IOException {
+		PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
+		rb.deserialize(ByteBuffer.wrap(bytes));
+		return rb;
+	}
+
+	/**
+	 * Ports upstream #895's `testGoldenBytesAroundTheNoOffsetThreshold` scenario.
+	 */
+	@Test
+	public void testGoldenBytesAroundTheNoOffsetThreshold() throws IOException {
+		// the same bytes are produced by CRoaring and Go
+		String[] expected = {
+			"3b3000000100000900010000000900",
+			"3b300100030000090001000900010000000900010000000900",
+			"3b30020007000009000100090002000900010000000900010000000900010000000900",
+			"3b3003000f00000900010009000200090003000900250000002b0000003100000037000000"
+					+ "010000000900010000000900010000000900010000000900"
+		};
+		for (int k = 1; k <= 5; k++) {
+			PersistentRoaringBitmap runs = new PersistentRoaringBitmap();
+			PersistentRoaringBitmap arrays = new PersistentRoaringBitmap();
+			for (int j = 0; j < k; j++) {
+				runs.add((long) j << 16, ((long) j << 16) + 10);
+				arrays.add((j << 16) + 7);
+			}
+			assertTrue(runs.runOptimize());
+			byte[] bytes = toBytes(runs);
+			// without offsets below 4 containers (NO_OFFSET_THRESHOLD), with offsets from then on
+			assertEquals(k < 4 ? 5 + 10 * k : 5 + 14 * k, bytes.length);
+			if (k <= expected.length) {
+				assertArrayEquals(hex(expected[k - 1]), bytes);
+			}
+			assertEquals(runs, fromBytes(bytes));
+			// without run containers, offsets are always present
+			assertEquals(8 + 10 * k, arrays.serializedSizeInBytes());
+			assertEquals(arrays, fromBytes(toBytes(arrays)));
+		}
+	}
+
+	/**
+	 * Ports upstream #895's `testEmptyBitmapGoldenBytes` scenario.
+	 */
+	@Test
+	public void testEmptyBitmapGoldenBytes() throws IOException {
+		byte[] bytes = toBytes(new PersistentRoaringBitmap());
+		assertArrayEquals(hex("3a30000000000000"), bytes);
+		PersistentRoaringBitmap rb = fromBytes(bytes);
+		assertTrue(rb.isEmpty());
+		assertTrue(rb.validate());
+		for (byte[] tooShort : new byte[][] {new byte[0], hex("3a300000"), hex("3a300000000000")}) {
+			assertThrows(
+					IOException.class,
+					() ->
+							new PersistentRoaringBitmap()
+									.deserialize(new DataInputStream(new ByteArrayInputStream(tooShort))));
+			assertThrows(RuntimeException.class, () -> fromBytes(tooShort));
+		}
+	}
+
+	/**
+	 * Ports upstream #895's `testArrayAndBitmapContainerBoundaryGoldenBytes` scenario.
+	 */
+	@Test
+	public void testArrayAndBitmapContainerBoundaryGoldenBytes() throws IOException {
+		PersistentRoaringBitmap array = new PersistentRoaringBitmap();
+		for (int i = 0; i < 4096; i++) {
+			array.add(2 * i);
+		}
+		PersistentRoaringBitmap bitmap = array.clone();
+		bitmap.add(2 * 4096);
+		byte[] arrayBytes = toBytes(array);
+		byte[] bitmapBytes = toBytes(bitmap);
+		assertEquals(8208, arrayBytes.length);
+		assertEquals(16 + 8192, bitmapBytes.length);
+		assertArrayEquals(hex("3A300000 01000000 0000 FF0F 10000000"), Arrays.copyOf(arrayBytes, 16));
+		assertArrayEquals(hex("3A300000 01000000 0000 0010 10000000"), Arrays.copyOf(bitmapBytes, 16));
+		PersistentRoaringBitmap arrayCopy = fromBytes(arrayBytes);
+		PersistentRoaringBitmap bitmapCopy = fromBytes(bitmapBytes);
+		assertTrue(arrayCopy.validate());
+		assertTrue(bitmapCopy.validate());
+		assertEquals(4096, arrayCopy.getCardinality());
+		assertEquals(4097, bitmapCopy.getCardinality());
+		assertArrayEquals(arrayBytes, toBytes(arrayCopy));
+		assertArrayEquals(bitmapBytes, toBytes(bitmapCopy));
+	}
+
+	/**
+	 * Ports upstream #895's `testTrailingBytesAreIgnored` scenario.
+	 */
+	@Test
+	public void testTrailingBytesAreIgnored() throws IOException {
+		byte[] bytes = hex("3A300000 01000000 0500 0000 10000000 0700 AABB");
+		PersistentRoaringBitmap rb = fromBytes(bytes);
+		assertEquals(PersistentRoaringBitmap.bitmapOf(327687), rb);
+		assertEquals(18, rb.serializedSizeInBytes());
+	}
+
+	/**
+	 * Ports upstream #895's `testPyRoaringBitMap124` scenario.
+	 */
+	@Test
+	public void testPyRoaringBitMap124() throws IOException {
+		// from CRoaring's toplevel_unit.c
+		byte[] bytes =
+				hex(
+						"3a300000 01000000 0000 0900 10000000"
+								+ "3200 3300 3400 3500 3600 3700 3800 3a00 3b00 3c00");
+		PersistentRoaringBitmap rb = fromBytes(bytes);
+		assertTrue(rb.validate());
+		assertEquals(
+				PersistentRoaringBitmap.bitmapOf(0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x3a, 0x3b, 0x3c), rb);
+	}
+
+	/**
+	 * Ports upstream #895's `testIssue245` scenario.
+	 */
+	@Test
+	public void testIssue245() throws IOException {
+		// CRoaring issue 245: one run, then 2047 isolated values, then one more (a bitmap container)
+		PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
+		rb.add(0L, 9L);
+		int offset = 10;
+		for (int count = 1; count < 2048; count++, offset += 2) {
+			rb.add(offset);
+		}
+		assertEquals(rb, fromBytes(toBytes(rb)));
+		rb.runOptimize();
+		assertEquals(rb, fromBytes(toBytes(rb)));
+		offset += 2;
+		rb.add(offset);
+		assertEquals(rb, fromBytes(toBytes(rb)));
+		rb.runOptimize();
+		assertEquals(rb, fromBytes(toBytes(rb)));
+		assertTrue(fromBytes(toBytes(rb)).validate());
 	}
 }

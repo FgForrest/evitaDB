@@ -54,7 +54,6 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
-import io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent;
 import io.evitadb.externalApi.grpc.generated.GrpcPrice;
 import io.evitadb.externalApi.grpc.generated.GrpcSealedEntity;
@@ -134,22 +133,6 @@ class EntityConverterTest {
 		final GrpcSealedEntity grpcEntity = EntityConverter.toGrpcSealedEntity(entity, new SemVer(2025, 4));
 
 		GrpcAssertions.assertEntity(entity, grpcEntity);
-	}
-
-	@Test
-	void buildBinaryEntity() {
-		final BinaryEntity binaryEntity = new BinaryEntity(
-			createEntitySchema(), 1,
-			new byte[]{1, 2, 3},
-			new byte[][]{new byte[]{1, 2, 3}, new byte[]{4, 5, 6}},
-			new byte[][]{new byte[]{1, 2, 3}, new byte[]{4, 5, 6}},
-			new byte[]{1, 2, 3},
-			new byte[]{1, 2, 3},
-			new BinaryEntity[0]
-		);
-		final GrpcBinaryEntity grpcBinaryEntity = EntityConverter.toGrpcBinaryEntity(binaryEntity);
-
-		GrpcAssertions.assertBinaryEntity(binaryEntity, grpcBinaryEntity);
 	}
 
 	@Test

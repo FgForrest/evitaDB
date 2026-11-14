@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -323,6 +324,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			new SchemaCapabilityUsageRegistry(),
 			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
+			MissingHistogramValueBehavior.REFUSE,
 			new PartitionReservations()
 		);
 	}
@@ -1259,6 +1261,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			new SchemaCapabilityUsageRegistry(),
 			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
+			MissingHistogramValueBehavior.REFUSE,
 			new PartitionReservations()
 		);
 	}

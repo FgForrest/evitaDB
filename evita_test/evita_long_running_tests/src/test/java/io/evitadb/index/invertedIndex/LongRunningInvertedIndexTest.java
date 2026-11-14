@@ -56,7 +56,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -129,14 +128,12 @@ class LongRunningInvertedIndexTest implements TimeBoundedTestSupport {
 	};
 
 	@ParameterizedTest(name = "InvertedIndex should survive generational randomized test applying modifications on it")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		doExecute(100, input, Long.class, Comparator.naturalOrder(), random -> (long) random.nextInt(200));
 	}
 
 	@ParameterizedTest(name = "InvertedIndex should survive generational randomized test applying localized modifications on it")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTestLocalized(GenerationalTestInput input) {
 		doExecute(
@@ -149,7 +146,6 @@ class LongRunningInvertedIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "InvertedIndex rollback discards every in-transaction mutation and leaves the base intact")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTest(GenerationalTestInput input) {
@@ -157,7 +153,6 @@ class LongRunningInvertedIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "InvertedIndex rollback discards every in-transaction localized mutation and leaves the base intact")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTestLocalized(GenerationalTestInput input) {

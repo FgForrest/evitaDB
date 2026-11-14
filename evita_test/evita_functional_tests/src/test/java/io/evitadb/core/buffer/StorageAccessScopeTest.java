@@ -464,8 +464,8 @@ class StorageAccessScopeTest {
 		@Test
 		@DisplayName("a read the scope never answered is billed as it comes")
 		void shouldBillReadTheScopeNeverAnswered() {
-			// binary fetches and reads issued with no scope in the way never pass through the scope at all, so they
-			// are physical by construction - two of them are two reads even when they carry equal records
+			// reads that bypass the scope cache are physical by construction - two of them are two reads
+			// even when they carry equal records
 			try (final StorageAccessScope scope = StorageAccessScope.install()) {
 				StorageAccessScope.noteRecordRead(new TestStoragePart(1L), 100);
 				StorageAccessScope.noteRecordRead(new TestStoragePart(1L), 100);

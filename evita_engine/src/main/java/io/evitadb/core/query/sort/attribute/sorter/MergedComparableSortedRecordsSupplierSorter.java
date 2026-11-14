@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,8 +35,6 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import io.evitadb.roaringbitmap.RoaringBatchIterator;
@@ -45,7 +43,6 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.function.IntConsumer;
@@ -54,11 +51,18 @@ import java.util.function.IntConsumer;
  * Implementation of the {@link SortedRecordsProvider} that merges multiple instances into a one discarding
  * the duplicate record primary keys. This operation is quite costly for large data sets and should be cached.
  *
+ * When at most one provider holds selected records - always the case for a single provider - its records are emitted
+ * straight from the position mask, without reading any value; only several contributing providers are merged.
+ *
  * A record is claimed by the first provider in array order that contains it, so the order of the providers decides
  * which value a record present in several of them is compared on. Records comparing equal on their values follow in
  * the order of their primary keys in the direction of the ordering - ascending for an ascending order, descending for
  * a descending one - which is the order a single provider already yields for them, so merging never changes the order
  * of equal records.
+ *
+ * The runs the contributing providers claimed are merged lazily: their current heads form a binary min-heap, each
+ * emitted record costs `O(log k)` for `k` contributing providers, a value is read only for a record the merge passes,
+ * and the merge stops at the end of the requested page.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -129,35 +133,17 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 						recordsToSort, recordsToSortCount, resolveBufferA, resolveBufferB, forcedResolution
 					);
 					SortResolutionStrategies.tally(strategyTally, resolution);
-					final RoaringBatchIterator maskIterator = resolution.mask().getBatchIterator();
-					while ((toRead > alreadyRead || toSkip > 0) && maskIterator.hasNext()) {
-						final int batchPeak = maskIterator.nextBatch(resolveBufferB);
-						if (batchPeak == 0) {
-							break;
-						}
-						for (int i = 0; i < batchPeak && (toRead > alreadyRead || toSkip > 0); i++) {
-							final int recordId = provider.recordAt(resolveBufferB[i]);
-							if (toSkip > 0) {
-								toSkip--;
-								if (skippedRecordsConsumer != null) {
-									skippedRecordsConsumer.accept(recordId);
-								}
-							} else {
-								result[peak + alreadyRead++] = recordId;
-							}
-						}
-					}
-					final PersistentRoaringBitmap notFound = resolution.notFoundRecords();
-					return sortingContext.createResultContext(
-						notFound.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(notFound),
-						alreadyRead,
-						startIndex - toSkip
+					return emitSingleMask(
+						sortingContext, provider, resolution.mask(), resolution.notFoundRecords(),
+						result, resolveBufferB, toRead, skippedRecordsConsumer
 					);
 				}
 
 				// first we need to create masks for all selected record ids using provided sorted record providers
 				final PositionResolution[] maskResults = new PositionResolution[this.sortedRecordsProviders.length];
 				int maskPeak = -1;
+				// the only provider whose mask is not empty, -1 for none, -2 once a second one is found
+				int contributingProvider = -1;
 				for (int i = 0; i < this.sortedRecordsProviders.length; i++) {
 					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[++maskPeak];
 					final PositionResolution resolution = sortedRecordsProvider.resolvePositions(
@@ -165,11 +151,29 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 					);
 					SortResolutionStrategies.tally(strategyTally, resolution);
 					maskResults[maskPeak] = resolution;
+					if (!resolution.mask().isEmpty()) {
+						contributingProvider = contributingProvider == -1 ? maskPeak : -2;
+					}
 					recordsToSort = resolution.notFoundRecords();
 					recordsToSortCount = resolution.notFoundRecordsCount();
 					if (recordsToSortCount == 0) {
 						break;
 					}
+				}
+
+				if (contributingProvider != -2) {
+					// at most one provider holds selected records - its mask positions are already in value-then-pk
+					// order, so they are emitted directly; the merge would read the value of every record through
+					// a seeker that may have to walk the provider's values from the start for nothing to compare
+					return contributingProvider == -1 ?
+						sortingContext.createResultContext(
+							recordsToSort.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(recordsToSort), 0, 0
+						) :
+						emitSingleMask(
+							sortingContext, this.sortedRecordsProviders[contributingProvider],
+							maskResults[contributingProvider].mask(), recordsToSort,
+							result, resolveBufferB, toRead, skippedRecordsConsumer
+						);
 				}
 
 				// next we need to fetch comparable values for head values from each mask and compare them
@@ -179,6 +183,10 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 				// init first values
 				for (int i = 0; i <= maskPeak; i++) {
 					final PositionResolution resolution = maskResults[i];
+					if (resolution.mask().isEmpty()) {
+						// a provider that claimed nothing gets no buffer - creating one borrows a buffer and a seeker
+						continue;
+					}
 					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[i];
 					final SortedRecordsProviderBuffer sortedRecordsProviderBuffer = new SortedRecordsProviderBuffer(
 						this.comparator, primaryKeysDescending,
@@ -191,11 +199,14 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 					}
 				}
 
-				// sort buffers
-				Arrays.sort(sortedRecordsProviderBuffers, 0, sortedRecordsProviderBufferPeak);
+				// the heads of the runs form a binary min-heap - one advance costs O(log k) comparisons and moves,
+				// where keeping the heads in a sorted array shifted up to k - 1 of them per emitted record
+				for (int i = (sortedRecordsProviderBufferPeak >>> 1) - 1; i >= 0; i--) {
+					siftDown(sortedRecordsProviderBuffers, sortedRecordsProviderBufferPeak, i);
+				}
 
 				while ((toRead > alreadyRead || toSkip > 0) && sortedRecordsProviderBufferPeak > 0) {
-					SortedRecordsProviderBuffer sortedPk = sortedRecordsProviderBuffers[0];
+					final SortedRecordsProviderBuffer sortedPk = sortedRecordsProviderBuffers[0];
 					if (toSkip > 0) {
 						toSkip--;
 						if (skippedRecordsConsumer != null) {
@@ -204,40 +215,16 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 					} else {
 						result[peak + alreadyRead++] = sortedPk.primaryKey();
 					}
-					// fetch next value for the used one
-					if (sortedPk.fetchNext()) {
-						if (sortedRecordsProviderBufferPeak > 1) {
-							final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-								sortedPk, sortedRecordsProviderBuffers, 1, sortedRecordsProviderBufferPeak
-							);
-							// when the position is zero, we don't need to do anything and the sortedPk is already in the right place
-							// it will produce next sorted PK in the next iteration
-							if (insertionPosition.position() > 0) {
-								if (insertionPosition.alreadyPresent()) {
-									if (sortedRecordsProviderBuffers[insertionPosition.position() - 1].primaryKey() > sortedPk.primaryKey()) {
-										// otherwise we need to perform copy of the existing values first
-										System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, insertionPosition.position() + 1);
-										// and then insert the new value
-										sortedRecordsProviderBuffers[insertionPosition.position() - 1] = sortedPk;
-									} else {
-										// otherwise we need to perform copy of the existing values first
-										System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, insertionPosition.position());
-										// and then insert the new value
-										sortedRecordsProviderBuffers[insertionPosition.position()] = sortedPk;
-									}
-								} else {
-									// otherwise we need to perform copy of the existing values first
-									System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, Math.min(sortedRecordsProviderBuffers.length - 1, insertionPosition.position()));
-									// and then insert the new value
-									sortedRecordsProviderBuffers[insertionPosition.position() - 1] = sortedPk;
-								}
-							}
-						}
-					} else {
-						// finalize the sorted record provider buffer
+					// fetch next value for the used one and restore the heap
+					if (!sortedPk.fetchNext()) {
+						// the run is exhausted - its last head takes the root and sinks
 						sortedPk.close();
-						// sorted record provider buffer is empty, we need to remove it from the array
-						System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, --sortedRecordsProviderBufferPeak);
+						sortedRecordsProviderBufferPeak--;
+						sortedRecordsProviderBuffers[0] = sortedRecordsProviderBuffers[sortedRecordsProviderBufferPeak];
+						sortedRecordsProviderBuffers[sortedRecordsProviderBufferPeak] = null;
+					}
+					if (sortedRecordsProviderBufferPeak > 1) {
+						siftDown(sortedRecordsProviderBuffers, sortedRecordsProviderBufferPeak, 0);
 					}
 				}
 
@@ -260,6 +247,89 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 		} else {
 			return sortingContext;
 		}
+	}
+
+	/**
+	 * Restores the min-heap property of the run heads below `slot`: the head there sinks until neither of its children
+	 * precedes it. The heads of different runs never compare equal - the runs hold disjoint records, and equal values
+	 * fall back to the primary keys - so the heap yields exactly the order of the merge.
+	 *
+	 * @param heap the run heads, a binary heap in `[0, size)`
+	 * @param size the number of heads in the heap
+	 * @param slot the slot whose head may violate the heap property
+	 */
+	private static void siftDown(@Nonnull SortedRecordsProviderBuffer[] heap, int size, int slot) {
+		final SortedRecordsProviderBuffer sinking = heap[slot];
+		int current = slot;
+		int child = (current << 1) + 1;
+		while (child < size) {
+			final int right = child + 1;
+			if (right < size && heap[right].compareTo(heap[child]) < 0) {
+				child = right;
+			}
+			if (heap[child].compareTo(sinking) >= 0) {
+				break;
+			}
+			heap[current] = heap[child];
+			current = child;
+			child = (current << 1) + 1;
+		}
+		heap[current] = sinking;
+	}
+
+	/**
+	 * Emits the records of the one provider holding selected records straight from its mask, whose positions are
+	 * already in the order of the values and then of the primary keys - no value is read. Honours the requested
+	 * slice: the records before it are skipped (and reported), the records after it are left out.
+	 *
+	 * @param sortingContext         the sorting context of the call
+	 * @param provider               the provider holding the selected records
+	 * @param mask                   positions of the selected records in the provider
+	 * @param notFound               the selected records no provider holds
+	 * @param result                 the array the records are written to
+	 * @param buffer                 scratch buffer for the mask batches
+	 * @param toRead                 how many records the slice asks for
+	 * @param skippedRecordsConsumer consumer of the skipped records, or `null`
+	 * @return the context carrying the records no provider holds
+	 */
+	@Nonnull
+	private static SortingContext emitSingleMask(
+		@Nonnull SortingContext sortingContext,
+		@Nonnull SortedRecordsProvider provider,
+		@Nonnull PersistentRoaringBitmap mask,
+		@Nonnull PersistentRoaringBitmap notFound,
+		@Nonnull int[] result,
+		@Nonnull int[] buffer,
+		int toRead,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
+		final int startIndex = sortingContext.recomputedStartIndex();
+		final int peak = sortingContext.peak();
+		int alreadyRead = 0;
+		int toSkip = startIndex;
+		final RoaringBatchIterator maskIterator = mask.getBatchIterator();
+		while ((toRead > alreadyRead || toSkip > 0) && maskIterator.hasNext()) {
+			final int batchPeak = maskIterator.nextBatch(buffer);
+			if (batchPeak == 0) {
+				break;
+			}
+			for (int i = 0; i < batchPeak && (toRead > alreadyRead || toSkip > 0); i++) {
+				final int recordId = provider.recordAt(buffer[i]);
+				if (toSkip > 0) {
+					toSkip--;
+					if (skippedRecordsConsumer != null) {
+						skippedRecordsConsumer.accept(recordId);
+					}
+				} else {
+					result[peak + alreadyRead++] = recordId;
+				}
+			}
+		}
+		return sortingContext.createResultContext(
+			notFound.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(notFound),
+			alreadyRead,
+			startIndex - toSkip
+		);
 	}
 
 	/**

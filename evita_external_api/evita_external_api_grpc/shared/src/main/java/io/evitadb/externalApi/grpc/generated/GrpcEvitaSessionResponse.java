@@ -122,8 +122,7 @@ private static final long serialVersionUID = 0L;
   private int sessionType_ = 0;
   /**
    * <pre>
-   * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
-   * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
+   * Type of the created session - read-only vs. read-write. See `GrpcSessionType`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -134,8 +133,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
-   * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
+   * Type of the created session - read-only vs. read-write. See `GrpcSessionType`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -762,8 +760,7 @@ private static final long serialVersionUID = 0L;
     private int sessionType_ = 0;
     /**
      * <pre>
-     * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
-     * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
+     * Type of the created session - read-only vs. read-write. See `GrpcSessionType`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -774,8 +771,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
-     * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
+     * Type of the created session - read-only vs. read-write. See `GrpcSessionType`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -790,8 +786,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
-     * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
+     * Type of the created session - read-only vs. read-write. See `GrpcSessionType`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -804,8 +799,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
-     * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
+     * Type of the created session - read-only vs. read-write. See `GrpcSessionType`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -823,8 +817,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
-     * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
+     * Type of the created session - read-only vs. read-write. See `GrpcSessionType`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>

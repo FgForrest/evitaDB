@@ -585,7 +585,14 @@ class ReferenceRowFilterCompilerTest {
 		@UseDataSet(ROW_FILTER)
 		void shouldAcceptEveryRowWithoutCondition(Evita evita) {
 			assertVerdicts(evita, null, null, expected(true, true, true, true));
-			assertVerdicts(evita, filterBy(scope(Scope.LIVE, Scope.ARCHIVED)), null, expected(true, true, true, true));
+			for (final FilterBy filter : List.of(
+				filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+				filterBy(and(scope(Scope.LIVE, Scope.ARCHIVED))),
+				filterBy(and(and(scope(Scope.LIVE, Scope.ARCHIVED)))),
+				filterBy(or(and(scope(Scope.LIVE, Scope.ARCHIVED))))
+			)) {
+				assertVerdicts(evita, filter, null, expected(true, true, true, true));
+			}
 			// non-applicable containers are dropped as the query model drops them, and a container left empty with them
 			assertVerdicts(evita, new FilterBy(new Not(new And())), null, expected(true, true, true, true));
 			assertVerdicts(
@@ -1212,16 +1219,35 @@ class ReferenceRowFilterCompilerTest {
 		@UseDataSet(ROW_FILTER)
 		void shouldRefuseScopeBelowRoot(Evita evita) {
 			final Fixture fixture = new Fixture(evita);
-			for (FilterBy filterBy : List.of(
+			for (final FilterBy filterBy : List.of(
 				filterBy(or(scope(Scope.LIVE), attributeEquals(ATTR_WEIGHT, 5))),
 				filterBy(not(scope(Scope.LIVE))),
-				filterBy(inScope(Scope.LIVE, scope(Scope.LIVE))),
-				filterBy(and(scope(Scope.LIVE), attributeEquals(ATTR_WEIGHT, 5)))
+				filterBy(inScope(Scope.LIVE, scope(Scope.LIVE)))
 			)) {
 				final EvitaInvalidUsageException exception = assertThrows(
 					EvitaInvalidUsageException.class, () -> fixture.compile(filterBy, null), filterBy::toString
 				);
-				assertTrue(exception.getMessage().contains("only directly in its `filterBy`"), exception.getMessage());
+				assertEquals(
+					"Constraint `scope(LIVE)` can be used in the filter of the fetched references `" + REF_BRANDS +
+						"` only at the root of its `filterBy` or in `and` - it selects the scopes the references are " +
+						"looked up in and has no meaning on a single reference.",
+					exception.getMessage()
+				);
+			}
+		}
+
+		/** Root conjunctions retain the same real row condition as direct children. */
+		@Test
+		@DisplayName("accept scope on root conjunction and singleton or paths")
+		@UseDataSet(ROW_FILTER)
+		void shouldAcceptScopeWhenOnRootPath(@Nonnull Evita evita) {
+			for (final FilterBy filter : List.of(
+				filterBy(scope(Scope.LIVE), attributeEquals(ATTR_WEIGHT, 5)),
+				filterBy(and(scope(Scope.LIVE), attributeEquals(ATTR_WEIGHT, 5))),
+				filterBy(and(and(scope(Scope.LIVE)), and(attributeEquals(ATTR_WEIGHT, 5)))),
+				filterBy(or(and(scope(Scope.LIVE), attributeEquals(ATTR_WEIGHT, 5))))
+			)) {
+				assertVerdicts(evita, filter, null, expected(true, false, true, false));
 			}
 		}
 

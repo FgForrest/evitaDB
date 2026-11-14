@@ -127,9 +127,10 @@ public class TargetIndexes<T extends Index<?>> {
 	/**
 	 * The partitions of the nodes of a hierarchy option split by representation, `null` for any other option. The
 	 * translation of the hierarchy constraint reads them rather than {@link #getIndexes()}: the registered single-owner
-	 * partitions of the nodes contribute their owners read out of the registry, and a block-by-block ordering narrowed
-	 * by the option walks them as their virtual handles, while {@link #getIndexes()} stays the object-only resolution
-	 * of every partition for the consumers that need the objects.
+	 * partitions of the nodes contribute their owners read out of the registry. Only implicit pick-first chains also
+	 * consume these candidates for ordering, using virtual handles for single-owner partitions, while
+	 * {@link #getIndexes()} stays the object-only resolution for consumers that need index objects.
+	 * Traversal resolves its partitions independently from the memoized hierarchy bounds.
 	 */
 	@Nullable private final SplitTargetPartitions splitTargetPartitions;
 
@@ -407,9 +408,10 @@ public class TargetIndexes<T extends Index<?>> {
 		 * whole query matches nothing" regardless of its eligibility, while an empty narrowed set says nothing about
 		 * the other scopes - so index selection skips it instead.
 		 *
-		 * Eligibility governs the choice of the plan only. Ordering still consults registered candidates without
-		 * looking at their obstacles (`ReferencePropertyTranslator#selectReducedEntityIndexSet`), so a narrowed set
-		 * keeps feeding reference ordering exactly as before it was marked.
+		 * Eligibility governs the choice of the plan only. Only implicit pick-first chains consult registered
+		 * candidates for ordering without checking their obstacles
+		 * (`ReferencePropertyTranslator#selectReducedEntityIndexSet`). Traversal resolves its partitions
+		 * independently from the memoized hierarchy bounds.
 		 */
 		PARTIAL_SCOPE_COVERAGE
 

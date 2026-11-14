@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -450,6 +451,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.catalogUsageRegistry,
 						new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 						true,
+						MissingHistogramValueBehavior.REFUSE,
 						new PartitionReservations()
 					),
 					null,
@@ -483,6 +485,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.catalogUsageRegistry,
 						new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 						true,
+						MissingHistogramValueBehavior.REFUSE,
 						new PartitionReservations()
 					),
 					null,
@@ -521,6 +524,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.catalogUsageRegistry,
 				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 				true,
+				MissingHistogramValueBehavior.REFUSE,
 				new PartitionReservations()
 			),
 			null,
@@ -549,6 +553,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.catalogUsageRegistry,
 				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 				true,
+				MissingHistogramValueBehavior.REFUSE,
 				new PartitionReservations()
 			),
 			null,
@@ -684,6 +689,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.catalogUsageRegistry,
 				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 				true,
+				MissingHistogramValueBehavior.REFUSE,
 				new PartitionReservations()
 			),
 			null,

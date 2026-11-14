@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
@@ -171,6 +172,7 @@ abstract class AbstractMutatorTestBase {
 			this.catalogUsageRegistry,
 			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
+			MissingHistogramValueBehavior.REFUSE,
 			new PartitionReservations()
 		);
 

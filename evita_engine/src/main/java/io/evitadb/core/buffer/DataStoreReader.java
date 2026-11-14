@@ -66,21 +66,7 @@ public interface DataStoreReader {
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 */
 	@Nullable
-	<T extends StoragePart> byte[] fetchBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType);
-
-	/**
-	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
-	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
-	 */
-	@Nullable
 	<T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer);
-
-	/**
-	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
-	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
-	 */
-	@Nullable
-	<T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer);
 
 	/**
 	 * Returns {@link EntityIndex} by key if it already exists in change set. If the index is no present there

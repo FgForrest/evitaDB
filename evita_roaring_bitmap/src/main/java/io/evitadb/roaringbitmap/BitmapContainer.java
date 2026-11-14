@@ -200,7 +200,7 @@ public final class BitmapContainer extends Container implements Cloneable {
 	@Nonnull
 	@Override
 	public ArrayContainer and(@Nonnull final ArrayContainer value2) {
-		final ArrayContainer answer = new ArrayContainer(value2.content.length);
+		final ArrayContainer answer = new ArrayContainer(value2.cardinality);
 		int c = value2.cardinality;
 		for (int k = 0; k < c; ++k) {
 			char v = value2.content[k];
@@ -543,7 +543,7 @@ public final class BitmapContainer extends Container implements Cloneable {
 		for (int i = 0; i < runContainer.numberOfRuns(); ++i) {
 			int start = (runContainer.getValue(i));
 			int length = (runContainer.getLength(i));
-			if (!contains(start, start + length)) {
+			if (!contains(start, start + length + 1)) {
 				return false;
 			}
 		}

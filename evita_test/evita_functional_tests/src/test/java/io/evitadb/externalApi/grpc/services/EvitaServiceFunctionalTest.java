@@ -261,42 +261,6 @@ class EvitaServiceFunctionalTest {
 	}
 
 	@Test
-	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
-	@DisplayName("Should get BinaryReadOnly session when asked")
-	void shouldGetBinaryReadOnlySession(GrpcClientBuilder clientBuilder) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceBlockingStub.class);
-
-		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
-
-		final Executable executable = () ->
-			response.set(evitaBlockingStub.createBinaryReadOnlySession(GrpcEvitaSessionRequest.newBuilder()
-				.setCatalogName(TEST_CATALOG)
-				.build()));
-
-		assertDoesNotThrow(executable);
-
-		assertEquals(GrpcSessionType.BINARY_READ_ONLY, response.get().getSessionType());
-	}
-
-	@Test
-	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
-	@DisplayName("Should get BinaryReadWrite session when asked")
-	void shouldGetBinaryReadWriteSession(GrpcClientBuilder clientBuilder) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceBlockingStub.class);
-
-		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
-
-		final Executable executable = () ->
-			response.set(evitaBlockingStub.createBinaryReadWriteSession(GrpcEvitaSessionRequest.newBuilder()
-				.setCatalogName(TEST_CATALOG)
-				.build()));
-
-		assertDoesNotThrow(executable);
-
-		assertEquals(GrpcSessionType.BINARY_READ_WRITE, response.get().getSessionType());
-	}
-
-	@Test
 	@UseDataSet(value = GRPC_THOUSAND_PRODUCTS, destroyAfterTest = true)
 	@DisplayName("Should be able to create new catalog")
 	void shouldBeAbleToCreateNewCatalog(Evita evita, GrpcClientBuilder clientBuilder) {

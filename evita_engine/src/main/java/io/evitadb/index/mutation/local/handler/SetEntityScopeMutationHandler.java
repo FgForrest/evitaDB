@@ -41,6 +41,11 @@ import java.util.Set;
  * triggers depend on **before** the removal, because the source `FilterIndex` is the only place
  * those values are reachable after `removeEntityFromIndexes` runs.
  *
+ * The facet and histogram re-evaluations the preceding local mutations of the same upsert queued are run before
+ * the entity leaves its scope - see {@link EntityIndexLocalMutationExecutor#executeDeferredReEvaluations()}. Each of
+ * them writes into the scope it was queued in, so if they ran any later, they would write into the scope the entity
+ * has left.
+ *
  * Does not fit the single-scope fan-out helpers (`AttributeMutationFanOut`, `PriceMutationFanOut`,
  * ...) — those run inside one resolved scope, whereas this mutation drives full
  * `removeEntityFromIndexes` / `addEntityToIndexes` cycles across both source and target scopes.
@@ -69,6 +74,10 @@ public final class SetEntityScopeMutationHandler implements LocalMutationHandler
 		if (entity.getScope() == mutation.getScope()) {
 			return;
 		}
+		// the re-evaluations queued by the preceding local mutations target the scope the entity is about to leave
+		// - run them while it is still there, so the removal below takes their result out of that scope with the
+		// rest of the entity
+		executor.executeDeferredReEvaluations();
 		// capture only the attribute values that cross-entity triggers actually reference
 		final CatalogExpressionTriggerRegistry registry = executor.getCatalogExpressionTriggerRegistry();
 		if (registry != null) {

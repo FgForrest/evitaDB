@@ -33,7 +33,10 @@
 		<version>2026.3-SNAPSHOT</version>
 	</parent>
 	<properties>
-		<!-- Coverage report: not published to Maven Central. -->
+		<!--
+			Coverage report: not published to Maven Central. A skipping module must never end a deploy reactor:
+			see the ADR 2026-10-26-maven-central-publishing-budget.
+		-->
 		<maven.deploy.skip>true</maven.deploy.skip>
 		<skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
 	</properties>

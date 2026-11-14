@@ -929,6 +929,9 @@ public final class Evita implements EvitaContract {
 	 * incarnation of a name from another, and it is only meaningful within the process that captured it. See
 	 * {@link EngineMutationPrecondition} for why the token is the identity used and what bounds that carries.
 	 *
+	 * The operation waits briefly for sessions and commits in progress and can be refused, on the terms described at
+	 * {@link EvitaContract#replaceCatalogWithProgress(String, String)}.
+	 *
 	 * @param catalogNameToBeReplacedWith name of the catalog that will take the other one's place
 	 * @param catalogNameToBeReplaced     name of the catalog that will be replaced
 	 * @param preconditions               what each name must still be bound to for the swap to go ahead
@@ -1356,17 +1359,6 @@ public final class Evita implements EvitaContract {
 	@Nonnull
 	public Optional<Progress<?>> getEngineMutationProgress(@Nonnull String catalogName) {
 		return this.engineTransactionManager.getEngineMutationProgress(catalogName);
-	}
-
-	/**
-	 * Discards the suspension state of the session registry associated with the given catalog name, if present.
-	 * The method resumes operations for the session registry if it exists for the provided catalog name.
-	 *
-	 * @param catalogName The name of the catalog whose suspension state should be discarded. Must not be null.
-	 */
-	public void discardSuspension(@Nonnull String catalogName) {
-		ofNullable(this.catalogSessionRegistries.get(catalogName))
-			.ifPresent(SessionRegistry::resumeOperations);
 	}
 
 	/**
@@ -1962,9 +1954,6 @@ public final class Evita implements EvitaContract {
 		}
 
 		final boolean schemaAdvanced = snapshot.replaceCatalogReference(catalog);
-
-		// discard suspension of the session registry for the catalog, if present
-		discardSuspension(catalog.getName());
 
 		// notify callback that it's now a live snapshot
 		catalog.notifyCatalogPresentInLiveView();

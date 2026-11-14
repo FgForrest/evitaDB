@@ -37,7 +37,6 @@ import java.util.zip.CRC32C;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -68,7 +67,6 @@ class LongRunningCrc32CWrapperTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "Crc32CWrapper should survive generational randomized test verifying CRC state injection")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final Crc32CWrapper calculator = new Crc32CWrapper();

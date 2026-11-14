@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -74,26 +75,28 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 			);
 		}
 
-		// if prefetch happens we need to prefetch prices so that the attribute comparator can work
-		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
-
 		// are filtered prices used in the filtering?
 		final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.find(
 			orderByVisitor.getFilteringFormula(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
 		);
-
-		final Sorter thisSorter;
-		if (!filteredPriceRecordAccessors.isEmpty()) {
-			// if so, create filtered prices sorter
-			thisSorter = new FilteredPricesSorter(
-					priceNatural.getOrderDirection(),
-					orderByVisitor.getQueryPriceMode(),
-					filteredPriceRecordAccessors
-			);
-		} else {
-			// otherwise, we cannot sort the entities by price
-			thisSorter = NoSorter.INSTANCE;
+		if (filteredPriceRecordAccessors.isEmpty()) {
+			// without a price filter there is no price for sale to sort by on either route - the prefetched entities
+			// carry no price context either, so no prefetch comparator is registered and no price is prefetched;
+			// outside a segment every entity of the ordered scopes keeps its ascending primary key order, a segment
+			// takes none of them
+			return orderByVisitor.isWithinSegment() ?
+				Stream.empty() : Stream.of(orderByVisitor.restrictToOrderedScopes(NoSorter.INSTANCE));
 		}
+
+		// if prefetch happens we need to prefetch prices so that the attribute comparator can work
+		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
+
+		// create filtered prices sorter
+		final Sorter thisSorter = new FilteredPricesSorter(
+			priceNatural.getOrderDirection(),
+			orderByVisitor.getQueryPriceMode(),
+			filteredPriceRecordAccessors
+		);
 
 		final EntityComparator entityComparator;
 		final Function<PriceContract, BigDecimal> priceExtractor = orderByVisitor.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
@@ -104,9 +107,10 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 			entityComparator = new PriceForSaleEntityComparator(priceExtractor, Comparator.reverseOrder());
 		}
 
+		// an `inScope` ordering sorts only the entities of its scope on either route, the others are passed on
 		return Stream.of(
-			new PrefetchedRecordsSorter(entityComparator),
-			thisSorter
+			orderByVisitor.restrictToOrderedScopes(new PrefetchedRecordsSorter(entityComparator)),
+			orderByVisitor.restrictToOrderedScopes(thisSorter)
 		);
 	}
 
@@ -114,7 +118,8 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 	 * The PriceForSaleEntityComparator class is responsible for comparing two EntityContract objects based on their prices.
 	 * It implements the EntityComparator and Serializable interfaces.
 	 * It uses a provided priceExtractor function to extract BigDecimal prices from PriceContract objects and a provided
-	 * priceComparator to compare these prices. If an entity doesn't have a price for sale, it falls back to BigDecimal.ZERO.
+	 * priceComparator to compare these prices. An entity without a price for sale is classified as not sortable and
+	 * passed on to the next sorter.
 	 */
 	@RequiredArgsConstructor
 	private static class PriceForSaleEntityComparator implements EntityComparator, Serializable {
@@ -122,6 +127,25 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 		private final Function<PriceContract, BigDecimal> priceExtractor;
 		private final Comparator<BigDecimal> priceComparator;
 		private final IntObjectMap<BigDecimal> memoizedPrices = new IntObjectHashMap<>(64);
+
+		/**
+		 * Classifies the entity as sortable when it has a price for sale, memoizing the price for the comparisons that
+		 * follow. An entity without one - selected by another branch of an `or` next to the price filter - is passed
+		 * on to the next sorter, as the index route does.
+		 *
+		 * @param entity the entity to classify
+		 * @return `true` when the entity has a price for sale
+		 */
+		@Override
+		public boolean canSort(@Nonnull EntityContract entity) {
+			final Optional<PriceContract> priceForSale = entity.getPriceForSaleIfAvailable();
+			if (priceForSale.isPresent()) {
+				this.memoizedPrices.put(entity.getPrimaryKey(), this.priceExtractor.apply(priceForSale.get()));
+				return true;
+			} else {
+				return false;
+			}
+		}
 
 		@Nonnull
 		@Override

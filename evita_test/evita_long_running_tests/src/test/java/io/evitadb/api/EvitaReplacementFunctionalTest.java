@@ -50,7 +50,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.dataInLocales;
-import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -62,7 +61,6 @@ import static io.evitadb.test.TestTags.QUERY;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Evita catalog replacement under load")
-@Tag(SLOW)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 @Tag(CONTRACT)

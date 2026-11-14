@@ -2,23 +2,15 @@
 {
   "data" : [
     {
+      "primaryKey" : 66572,
+      "type" : "Product"
+    },
+    {
+      "primaryKey" : 66573,
+      "type" : "Product"
+    },
+    {
       "primaryKey" : 66574,
-      "type" : "Product"
-    },
-    {
-      "primaryKey" : 66575,
-      "type" : "Product"
-    },
-    {
-      "primaryKey" : 66576,
-      "type" : "Product"
-    },
-    {
-      "primaryKey" : 66577,
-      "type" : "Product"
-    },
-    {
-      "primaryKey" : 66578,
       "type" : "Product"
     }
   ],
@@ -30,10 +22,10 @@
   "hasNext" : true,
   "singlePage" : false,
   "empty" : false,
-  "pageSize" : 5,
-  "pageNumber" : 4,
-  "lastPageNumber" : 833,
-  "firstPageItemNumber" : 15,
-  "lastPageItemNumber" : 19
+  "pageSize" : 3,
+  "pageNumber" : 5,
+  "lastPageNumber" : 834,
+  "firstPageItemNumber" : 12,
+  "lastPageItemNumber" : 14
 }
 ```

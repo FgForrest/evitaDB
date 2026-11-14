@@ -1124,43 +1124,27 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 			final int[] primaryKeys;
 			final DataChunk<S> recordPage;
-			if (grpcResponse.getRecordPage().getBinaryEntitiesList().isEmpty()) {
-				primaryKeys = grpcResponse.getRecordPage().getSealedEntitiesList().stream()
-					.mapToInt(GrpcSealedEntity::getPrimaryKey)
-					.toArray();
-				// convert to Sealed entities
-				recordPage = ResponseConverter.convertToDataChunk(
-					grpcResponse,
-					grpcRecordPage -> EntityConverter.toEntities(
-						grpcRecordPage.getSealedEntitiesList(),
-						new EvitaRequest(
-							finalQuery,
-							OffsetDateTime.now(),
-							expectedType,
-							expectedEntityType
-						),
-						(entityType, schemaVersion) -> this.schemaCache.getEntitySchemaOrThrowException(
-							entityType, schemaVersion, this::fetchEntitySchema, this::getCatalogSchema
-						),
+			primaryKeys = grpcResponse.getRecordPage().getSealedEntitiesList().stream()
+				.mapToInt(GrpcSealedEntity::getPrimaryKey)
+				.toArray();
+			// convert to Sealed entities
+			recordPage = ResponseConverter.convertToDataChunk(
+				grpcResponse,
+				grpcRecordPage -> EntityConverter.toEntities(
+					grpcRecordPage.getSealedEntitiesList(),
+					new EvitaRequest(
+						finalQuery,
+						OffsetDateTime.now(),
 						expectedType,
-						this::createEntityProxy
-					)
-				);
-			} else {
-				primaryKeys = grpcResponse.getRecordPage().getBinaryEntitiesList().stream()
-					.mapToInt(GrpcBinaryEntity::getPrimaryKey)
-					.toArray();
-				// parse the entities
-				//noinspection unchecked
-				recordPage = ResponseConverter.convertToDataChunk(
-					grpcResponse,
-					grpcRecordPage -> grpcRecordPage.getBinaryEntitiesList()
-						.stream()
-						.map(EntityConverter::parseBinaryEntity)
-						.map(it -> (S) it)
-						.toList()
-				);
-			}
+						expectedEntityType
+					),
+					(entityType, schemaVersion) -> this.schemaCache.getEntitySchemaOrThrowException(
+						entityType, schemaVersion, this::fetchEntitySchema, this::getCatalogSchema
+					),
+					expectedType,
+					this::createEntityProxy
+				)
+			);
 
 			//noinspection unchecked
 			return (T) new EvitaEntityResponse<>(
@@ -2225,11 +2209,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	@Override
-	public boolean isBinaryFormat() {
-		return this.sessionTraits.isBinary();
-	}
-
-	@Override
 	public boolean isDryRun() {
 		return this.sessionTraits.isDryRun();
 	}
@@ -2454,26 +2433,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 			//noinspection unchecked
 			return (List<S>) EntityConverter.toEntityReferences(entityReferencesList);
 		} else {
-			if (grpcResponse.getBinaryEntitiesList().isEmpty()) {
-				// convert to Sealed entities
-				return EntityConverter.toEntities(
-					grpcResponse.getSealedEntitiesList(),
-					evitaRequest,
-					(entityType, schemaVersion) -> this.schemaCache.getEntitySchemaOrThrowException(
-						entityType, schemaVersion, this::fetchEntitySchema, this::getCatalogSchema
-					),
-					expectedType,
-					typeConverter
-				);
-			} else {
-				// parse the entities
-				//noinspection unchecked
-				return grpcResponse.getBinaryEntitiesList()
-					.stream()
-					.map(EntityConverter::parseBinaryEntity)
-					.map(it -> (S) it)
-					.toList();
-			}
+			// convert to Sealed entities
+			return EntityConverter.toEntities(
+				grpcResponse.getSealedEntitiesList(),
+				evitaRequest,
+				(entityType, schemaVersion) -> this.schemaCache.getEntitySchemaOrThrowException(
+					entityType, schemaVersion, this::fetchEntitySchema, this::getCatalogSchema
+				),
+				expectedType,
+				typeConverter
+			);
 		}
 	}
 
@@ -2673,25 +2642,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 				entityReference.getPrimaryKey()
 			));
 		} else {
-			if (grpcResponse.hasBinaryEntity()) {
-				// parse the entity!
-				return of(EntityConverter.parseBinaryEntity(grpcResponse.getBinaryEntity()));
-			} else {
-				if (!grpcResponse.hasSealedEntity()) {
-					return empty();
-				}
-				// convert to Sealed entity
-				final GrpcSealedEntity sealedEntity = grpcResponse.getSealedEntity();
-				return of(EntityConverter.toEntity(
-					entity -> this.schemaCache.getEntitySchemaOrThrowException(
-						entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
-					),
-					evitaRequest,
-					sealedEntity,
-					expectedType,
-					typeConverter
-				));
+			if (!grpcResponse.hasSealedEntity()) {
+				return empty();
 			}
+			// convert to Sealed entity
+			final GrpcSealedEntity sealedEntity = grpcResponse.getSealedEntity();
+			return of(EntityConverter.toEntity(
+				entity -> this.schemaCache.getEntitySchemaOrThrowException(
+					entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
+				),
+				evitaRequest,
+				sealedEntity,
+				expectedType,
+				typeConverter
+			));
 		}
 	}
 

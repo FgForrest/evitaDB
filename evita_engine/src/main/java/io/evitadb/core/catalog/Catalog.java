@@ -23,8 +23,6 @@
 
 package io.evitadb.core.catalog;
 
-import com.carrotsearch.hppc.ObjectObjectIdentityHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
@@ -55,6 +53,7 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CatalogNotAliveException;
 import io.evitadb.api.exception.CollectionNotFoundException;
@@ -260,8 +259,8 @@ public final class Catalog
 	 * (e.g. histogram value expressions referencing attributes on other entities) thus only sees
 	 * the final, consistent schema at the end of the batch.
 	 *
-	 * Nesting is supported: the recursive `updateSchema` call at the end of `updateSchema` (which
-	 * applies cascading `ModifyEntitySchemaMutation`s) pushes its own frame and drains it before
+	 * Nesting is supported: the recursive `updateSchema` call right after a catalog mutation (which
+	 * applies the `ModifyEntitySchemaMutation`s it cascades) pushes its own frame and drains it before
 	 * returning, so outer / inner frames never interfere.
 	 */
 	private static final ThreadLocal<Deque<Set<String>>> PENDING_TRIGGER_REBUILDS =
@@ -483,6 +482,12 @@ public final class Catalog
 	 * Last persisted schema version of the catalog.
 	 */
 	private long lastPersistedSchemaVersion;
+	/**
+	 * Headers the latest {@link #flushCollections(long)} produced, by collection primary key, waiting for the merge of
+	 * the same round to consume them. The flush and the merge of a round run one after the other on the same thread
+	 * and the same instance; `null` whenever no flush is pending.
+	 */
+	@Nullable private Map<Integer, EntityCollectionHeader> flushedHeadersByPrimaryKey;
 	/**
 	 * The failure that made this catalog's in-memory state impossible to publish - a warm-up flush or rollback, a
 	 * {@link #goLive()} that threw after publishing its ALIVE bootstrap record, or a warm-up schema change refused
@@ -827,8 +832,8 @@ public final class Catalog
 		this.transactionalExecutor = evita.getTransactionExecutor();
 
 		final CatalogSchema internalCatalogSchema = CatalogSchema._internalBuild(
-			catalogName, catalogSchema.getNameVariants(), null, catalogSchema.getCatalogEvolutionMode(),
-			getEntitySchemaAccessor()
+			catalogName, catalogSchema.getNameVariants(), catalogSchema.getConflictResolution().orElse(null),
+			catalogSchema.getCatalogEvolutionMode(), getEntitySchemaAccessor()
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
 		//noinspection unchecked
@@ -1208,23 +1213,32 @@ public final class Catalog
 		this.entityCollections.values().forEach(collection ->
 			originalCollectionPolicies.put(collection, collection.getNormalizationPolicy()));
 		final AtomicReference<MutationApplicationRecord> record = new AtomicReference<>();
+		final Optional<Transaction> transactionRef = Transaction.getTransaction();
+		// whether a mutation of the batch reached the transaction, which cannot take it back
+		boolean mutationRegistered = false;
 		// collect entity types whose cross-entity trigger registry must be rebuilt, deferring
 		// the rebuild until the entire batch is applied — intermediate states may be transiently
 		// inconsistent (e.g. entity B declares a histogram referencing an attribute on entity A
-		// that a later mutation in the same batch will add). `LazyHashSet` avoids allocating the
-		// backing `HashSet` for batches that touch no entity schemas (single-mutation catalog-level
-		// calls), which is the common case.
+		// that a later mutation in the same batch will add). The cascades of a catalog mutation are
+		// a batch of their own: the nested call applying them drains its own frame, so the entity
+		// types they touch are rebuilt right after that mutation, before the rest of this batch.
+		// `LazyHashSet` avoids allocating the backing `HashSet` for batches that touch no entity
+		// schemas (single-mutation catalog-level calls), which is the common case.
 		final Deque<Set<String>> rebuildStack = PENDING_TRIGGER_REBUILDS.get();
 		final Set<String> rebuildFrame = new LazyHashSet<>(4);
 		rebuildStack.push(rebuildFrame);
 		try {
-			final Optional<Transaction> transactionRef = Transaction.getTransaction();
-			ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
+			// refuse the whole batch before a single schema is exchanged - see the method's own documentation for why
+			// a mid-cascade refusal cannot be undone
+			verifyEntitySchemaMutationsApplicable(schemaMutation);
+			final Transaction transaction = transactionRef.orElse(null);
 			CatalogSchema currentSchema = originalSchema;
 			CatalogSchemaContract updatedSchema = originalSchema;
-			final Transaction transaction = transactionRef.orElse(null);
 			for (LocalCatalogSchemaMutation theMutation : schemaMutation) {
+				// Registration may append WAL continuation frames before serialization fails.
+				mutationRegistered = true;
 				transactionRef.ifPresent(it -> it.registerMutation(theMutation));
+				ModifyEntitySchemaMutation[] cascadedMutations = null;
 
 				// record the mutation
 				if (sessionId != null) {
@@ -1267,32 +1281,46 @@ public final class Catalog
 					final CatalogSchemaWithImpactOnEntitySchemas schemaWithImpactOnEntitySchemas = modifyCatalogSchema(
 						theMutation, updatedSchema);
 					updatedSchema = schemaWithImpactOnEntitySchemas.updatedCatalogSchema();
-					modifyEntitySchemaMutations = modifyEntitySchemaMutations == null || ArrayUtils.isEmpty(
-						schemaWithImpactOnEntitySchemas.entitySchemaMutations()) ?
-						schemaWithImpactOnEntitySchemas.entitySchemaMutations() :
-						ArrayUtils.mergeArrays(
-							modifyEntitySchemaMutations, schemaWithImpactOnEntitySchemas.entitySchemaMutations());
+					cascadedMutations = schemaWithImpactOnEntitySchemas.entitySchemaMutations();
 				}
 
-				// finish the recording
+				// finish the recording; forget it so that a failure after this mutation cannot record it again
 				if (sessionId != null) {
 					record.get().finish();
+					record.set(null);
 				}
 
 				// exchange the current catalog schema so that additional entity schema mutations can take advantage of
 				// previous catalog mutations when validated
 				currentSchema = exchangeCatalogSchema(updatedSchema, currentSchema);
-			}
-			// alter affected entity schemas
-			if (modifyEntitySchemaMutations != null) {
-				updateSchema(evita, sessionId, modifyEntitySchemaMutations);
+
+				// apply what the catalog mutation cascades into the entity schemas - for example a removed global
+				// attribute leaving every entity schema that uses it - right away, before the mutations that follow:
+				// the replay of the WAL applies every mutation as an update of its own, so the session must see the
+				// same order; cascades applied at the end of the batch let a session accept a batch its replay then
+				// refused, and could hit an attribute or an entity the batch had replaced or renamed meanwhile
+				if (!ArrayUtils.isEmpty(cascadedMutations)) {
+					updateSchema(evita, sessionId, cascadedMutations);
+					currentSchema = getInternalSchema();
+					updatedSchema = currentSchema;
+				}
 			}
 			// drain deferred trigger rebuilds inside the try block so any cross-entity
 			// validation failure (e.g. a histogram value expression referencing a missing
 			// attribute) propagates into the revert branch just like an eager rebuild would
 			drainTriggerRebuildFrame(rebuildFrame);
-		} catch (RuntimeException ex) {
-			// revert all changes in the schema (for current transaction) if anything failed
+			// store the updated catalog schema inside the try, so that a failed write is handled like any refusal
+			final CatalogSchema schemaToStore = getInternalSchema();
+			if (schemaToStore.version() > originalSchema.version()) {
+				this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(schemaToStore));
+			}
+		} catch (RuntimeException | Error ex) {
+			// Earlier collection changes cannot be undone here, and registered mutations must not reach the shared WAL.
+			// A preflight refusal remains recoverable unless an enclosing batch already registered its parent mutation.
+			if (mutationRegistered) {
+				transactionRef.ifPresent(it -> it.setRollbackOnlyWithException(ex));
+			}
+			// Restore the catalog schema; collection changes may remain until the transaction rolls back.
 			this.schema.set(new CatalogSchemaDecorator(originalSchema));
 			adoptGlobalNormalizationRows(originalNormalizationRows);
 			originalCollectionPolicies.forEach(EntityCollection::adoptNormalizationPolicy);
@@ -1313,11 +1341,6 @@ public final class Catalog
 			if (rebuildStack.isEmpty()) {
 				PENDING_TRIGGER_REBUILDS.remove();
 			}
-			// finally, store the updated catalog schema to disk
-			final CatalogSchema currentSchema = getInternalSchema();
-			if (currentSchema.version() > originalSchema.version()) {
-				this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(currentSchema));
-			}
 		}
 		return getSchema();
 	}
@@ -1325,7 +1348,9 @@ public final class Catalog
 	/**
 	 * Rebuilds expression triggers for every entity type collected in the given batch frame.
 	 * Called at the end of a `updateSchema(...)` batch, after every mutation in the batch has
-	 * been applied and before exceptions can escape the enclosing `try` block.
+	 * been applied and before exceptions can escape the enclosing `try` block. The cascades of a
+	 * catalog mutation are applied as a nested batch, so their frame is drained right after that
+	 * mutation, before the enclosing batch goes on.
 	 *
 	 * @param frame the batch frame holding deferred entity type names
 	 */
@@ -1504,6 +1529,26 @@ public final class Catalog
 			});
 	}
 
+	/**
+	 * Waits for commits in progress to finish live-view notification before a catalog handover. The contract is that
+	 * of {@link TransactionManager#waitUntilPipelineDrained()}.
+	 *
+	 * @throws io.evitadb.api.exception.TransactionTimedOutException when the commits outlast the bounded wait
+	 * @throws TransactionException when the pipeline is suspended with commits still behind it
+	 */
+	public void waitUntilPipelineDrained() {
+		this.transactionManager.waitUntilPipelineDrained();
+	}
+
+	/**
+	 * Relabels this catalog and replaces the optional target. The caller must first drain its commit pipeline:
+	 * this method acts on `this`, so it must be the newest instance and no round may still have data to publish. A
+	 * round in its schema notification may still be running, since that writes nothing to storage.
+	 *
+	 * @param updatedSchema schema carrying the resulting name
+	 * @param catalogToBeReplaced optional catalog whose contents are discarded
+	 * @return progress of the handover
+	 */
 	@Nonnull
 	@Override
 	public ProgressingFuture<CatalogContract> replace(
@@ -2634,6 +2679,19 @@ public final class Catalog
 	}
 
 	/**
+	 * What a write in this catalog does when it must withdraw a reference-histogram value the index does not hold for
+	 * the entity - the server-wide `server.missingHistogramValueBehavior` switch, answered here so that every site
+	 * withdrawing a histogram value reads the one value rather than each reaching for the configuration. The switch
+	 * cannot change under a running catalog.
+	 *
+	 * @return the behavior on a missing histogram value
+	 */
+	@Nonnull
+	public MissingHistogramValueBehavior getMissingHistogramValueBehavior() {
+		return this.evitaConfiguration.server().missingHistogramValueBehavior();
+	}
+
+	/**
 	 * Returns {@link EntitySchema} for passed `entityType` or throws {@link IllegalArgumentException} if schema for
 	 * this type is not yet known.
 	 */
@@ -2754,52 +2812,90 @@ public final class Catalog
 
 		final MapChanges<String, EntityCollection> collectionChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(
 			this.entityCollections);
-		if (collectionChanges != null) {
-			// recognize renamed collections
-			final Map<String, EntityCollection> originalCollectionContents = collectionChanges.getMapDelegate();
-			final ObjectObjectIdentityHashMap<EntityCollection, String> originalCollections = new ObjectObjectIdentityHashMap<>(
-				collectionChanges.getRemovedKeys().size());
-			for (String removedKey : collectionChanges.getRemovedKeys()) {
-				originalCollections.put(collectionChanges.getMapDelegate().get(removedKey), removedKey);
+		// the headers of the flush that preceded this merge, if there was one; they alone know about a compaction
+		final Map<Integer, EntityCollectionHeader> flushedHeaders = this.flushedHeadersByPrimaryKey;
+		this.flushedHeadersByPrimaryKey = null;
+		if (collectionChanges == null) {
+			if (flushedHeaders != null) {
+				// no collection was created, renamed or dropped, but a flush may still have compacted one
+				final EntityCollectionHeader[] headers = new EntityCollectionHeader[this.entityCollections.size()];
+				int headerIndex = 0;
+				for (EntityCollection entityCollection : this.entityCollections.values()) {
+					headers[headerIndex++] = flushedHeaders.getOrDefault(
+						entityCollection.getEntityTypePrimaryKey(), entityCollection.getEntityCollectionHeader());
+				}
+				this.persistenceService.updateEntityCollectionHeaders(newCatalogVersionId, headers);
 			}
+		} else {
+			// A collection is identified by its primary key, never by its name: names are what a transaction moves
+			// around (swaps them through a temporary one, chains them, reuses a freed one for a new collection),
+			// and the key is the only thing that stays with the collection throughout.
+			final Map<String, EntityCollection> originalCollectionContents = collectionChanges.getMapDelegate();
+			final Map<Integer, String> originalNamesByPrimaryKey = CollectionUtils.createHashMap(
+				originalCollectionContents.size());
+			for (Entry<String, EntityCollection> original : originalCollectionContents.entrySet()) {
+				originalNamesByPrimaryKey.put(original.getValue().getEntityTypePrimaryKey(), original.getKey());
+			}
+			// the collections the transaction leaves behind, by name
+			final Map<String, EntityCollection> survivingCollections = CollectionUtils.createHashMap(
+				originalCollectionContents.size() + collectionChanges.getModifiedKeys().size());
+			survivingCollections.putAll(originalCollectionContents);
+			collectionChanges.getRemovedKeys().forEach(survivingCollections::remove);
+			survivingCollections.putAll(collectionChanges.getModifiedKeys());
+			final Set<Integer> survivingPrimaryKeys = CollectionUtils.createHashSet(survivingCollections.size());
+			for (EntityCollection survivor : survivingCollections.values()) {
+				survivingPrimaryKeys.add(survivor.getEntityTypePrimaryKey());
+			}
+
+			// headers of the collections whose files this merge has just produced; every other collection keeps the
+			// header its last flush stored, which is the only one that names its newest data file
+			final Map<String, EntityCollectionHeader> producedHeaders = CollectionUtils.createHashMap(
+				collectionChanges.getModifiedKeys().size());
 			for (Entry<String, EntityCollection> updatedKey : collectionChanges.getModifiedKeys().entrySet()) {
 				final EntityCollection updatedCollection = updatedKey.getValue();
-				final String removedEntityType = originalCollections.get(updatedCollection);
 				final String newEntityType = updatedKey.getKey();
-				if (removedEntityType != null) {
+				final String originalEntityType = originalNamesByPrimaryKey.get(updatedCollection.getEntityTypePrimaryKey());
+				if (originalEntityType == null) {
+					// a collection created by this transaction
+					producedHeaders.put(newEntityType, updatedCollection.getEntityCollectionHeader());
+				} else if (!originalEntityType.equals(newEntityType)) {
 					final EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> newPersistenceService =
 						this.persistenceService.replaceCollectionWith(
-							newCatalogVersionId, removedEntityType,
+							newCatalogVersionId, originalEntityType,
 							updatedCollection.getEntityTypePrimaryKey(),
 							newEntityType
 						);
-					this.entityCollections.put(
-						updatedKey.getKey(),
-						updatedKey.getValue().createCopyWithNewPersistenceService(
-							newCatalogVersionId, CatalogState.ALIVE, newPersistenceService
-						)
+					final EntityCollection renamedCollection = updatedCollection.createCopyWithNewPersistenceService(
+						newCatalogVersionId, CatalogState.ALIVE, newPersistenceService
 					);
-					originalCollections.remove(updatedCollection);
-					ofNullable(originalCollectionContents.get(newEntityType)).ifPresent(
-						it -> it.removeLayer(transactionalLayer));
+					this.entityCollections.put(newEntityType, renamedCollection);
+					survivingCollections.put(newEntityType, renamedCollection);
+					producedHeaders.put(newEntityType, renamedCollection.getEntityCollectionHeader());
 				}
 			}
-			for (ObjectObjectCursor<EntityCollection, String> originalItem : originalCollections) {
-				this.persistenceService.deleteEntityCollection(
-					newCatalogVersionId,
-					originalItem.key.getEntityCollectionHeader()
-				);
-				originalCollectionContents.get(originalItem.value).removeLayer(transactionalLayer);
+			for (Entry<String, EntityCollection> original : originalCollectionContents.entrySet()) {
+				final EntityCollection droppedCollection = original.getValue();
+				if (!survivingPrimaryKeys.contains(droppedCollection.getEntityTypePrimaryKey())) {
+					// the header the collection was last flushed with names its newest file; the collection object
+					// may still hold the service from before a compaction
+					this.persistenceService.deleteEntityCollection(
+						newCatalogVersionId,
+						lastKnownHeader(newCatalogVersionId, droppedCollection, flushedHeaders)
+					);
+					droppedCollection.removeLayer(transactionalLayer);
+				}
 			}
 
 			// update catalog header with new entity collection headers
-			this.persistenceService.updateEntityCollectionHeaders(
-				newCatalogVersionId,
-				this.entityCollections.values()
-					.stream()
-					.map(EntityCollection::getEntityCollectionHeader)
-					.toArray(EntityCollectionHeader[]::new)
-			);
+			final EntityCollectionHeader[] survivingHeaders = new EntityCollectionHeader[survivingCollections.size()];
+			int headerIndex = 0;
+			for (Entry<String, EntityCollection> survivor : survivingCollections.entrySet()) {
+				final EntityCollectionHeader producedHeader = producedHeaders.get(survivor.getKey());
+				survivingHeaders[headerIndex++] = producedHeader != null ?
+					producedHeader :
+					lastKnownHeader(newCatalogVersionId, survivor.getValue(), flushedHeaders);
+			}
+			this.persistenceService.updateEntityCollectionHeaders(newCatalogVersionId, survivingHeaders);
 		}
 
 		final Map<String, EntityCollection> possiblyUpdatedCollections = transactionalLayer.getStateCopyWithCommittedChanges(
@@ -3131,17 +3227,18 @@ public final class Catalog
 	 * operation flushes mid-session, so the state that comes back is the newest one that reached the disk rather
 	 * than the newest closed session.
 	 *
-	 * The parameter is the whole {@link EvitaInvalidUsageException} family rather than
-	 * {@link SchemaAlteringException} alone, because `validate()` refuses in both vocabularies: a rule it evaluates
-	 * throws the schema-altering kind, while a getter it reaches on a half-built schema simply refuses to answer.
-	 * Both mean the same thing here - the schema as it stands is not acceptable and cannot be un-applied.
+	 * The parameter is any {@link Throwable} rather than {@link SchemaAlteringException} alone. `validate()` refuses in
+	 * two vocabularies: a rule it evaluates throws the schema-altering kind, while a getter it reaches on a half-built
+	 * schema simply refuses to answer. And an exception outside both - an engine defect the walk uncovers - leaves the
+	 * schema unvalidated. All of them mean the same thing here - the schema as it stands cannot be vouched for and
+	 * cannot be un-applied.
 	 *
-	 * @param cause the validation failure that refused the schema change
+	 * @param cause the validation failure that refused the schema change, or the exception the validation failed with
 	 */
-	public void markUnpublishableDueToInvalidSchema(@Nonnull EvitaInvalidUsageException cause) {
+	public void markUnpublishableDueToInvalidSchema(@Nonnull Throwable cause) {
 		if (recordUnpublishableCause(cause)) {
 			log.error(
-				"Catalog `{}` holds a schema that failed validation and cannot be un-applied in the warm-up " +
+				"Catalog `{}` holds a schema that did not pass validation and cannot be un-applied in the warm-up " +
 					"phase, so it will be deactivated. Its stored data is intact at the last version it published; " +
 					"activating the catalog again loads exactly that state, and everything written since then has " +
 					"to be replayed once the schema change is corrected.",
@@ -3383,21 +3480,36 @@ public final class Catalog
 	}
 
 	/**
-	 * This method writes all changed storage parts into the file offset index of {@link EntityCollection} and then stores
-	 * {@link CatalogHeader} marking the catalog version as committed.
+	 * Writes all changed storage parts of every {@link EntityCollection} and of the catalog itself into their file
+	 * offset indexes. It is the first half of publishing a round; the second half is
+	 * {@link #publishHeader(long, TransactionMutation, FlushOutcome)}.
+	 *
+	 * **Nothing is published here.** The catalog header and the bootstrap record are deliberately left to the second
+	 * half, because the round is not finished when the data is flushed: the merge that follows it still copies
+	 * the files of renamed collections, retires the files of dropped ones and rewrites the collection headers. A
+	 * record published before it would name the state from before the merge while claiming to cover the round, and
+	 * the write-ahead log - told the round is processed - would never repair it.
+	 *
+	 * @param catalogVersion the version of the round being flushed
+	 * @return what the flush found out, for {@link #publishHeader(long, TransactionMutation, FlushOutcome)}
 	 */
-	public void flush(long catalogVersion, @Nonnull TransactionMutation lastProcessedTransaction) {
+	@Nonnull
+	public FlushOutcome flushCollections(long catalogVersion) {
 		Assert.isPremiseValid(getCatalogState() == CatalogState.ALIVE, "Catalog is not in ALIVE state!");
 		// the last APPLIED version, not the last checkpointed one: with a checkpoint interval configured the latter
 		// lags by up to that interval, which would make every round in between look like a change
 		boolean changeOccurred = this.persistenceService.getLastAppliedCatalogVersion() != catalogVersion ||
 			getInternalSchema().version() != this.lastPersistedSchemaVersion;
-		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
+		final Map<Integer, EntityCollectionHeader> flushedHeaders = CollectionUtils.createHashMap(
+			this.entityCollections.size());
 		for (EntityCollection entityCollection : this.entityCollections.values()) {
 			final long lastSeenVersion = entityCollection.getVersion();
-			entityHeaders.add(entityCollection.flush(catalogVersion));
+			flushedHeaders.put(entityCollection.getEntityTypePrimaryKey(), entityCollection.flush(catalogVersion));
 			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
 		}
+		// handed to the merge of the same round, which runs next on this very instance: the headers the flush has
+		// just produced are the only ones that name a compaction's target, and nothing else is stored yet
+		this.flushedHeadersByPrimaryKey = flushedHeaders;
 
 		if (changeOccurred) {
 			this.persistenceService.flushTrappedUpdates(
@@ -3405,6 +3517,49 @@ public final class Catalog
 				this.dataStoreBuffer.popTrappedChanges(),
 				Functions.noOpIntConsumer()
 			);
+			this.lastPersistedSchemaVersion = getInternalSchema().version();
+		}
+		return new FlushOutcome(changeOccurred);
+	}
+
+	/**
+	 * Returns the newest header of a collection that this merge has not itself produced: the one its flush of this
+	 * round returned, or - when there was no flush - the one stored for it. The collection object is no source for it,
+	 * because it may still hold the persistence service from before a compaction.
+	 */
+	@Nonnull
+	private EntityCollectionHeader lastKnownHeader(
+		long catalogVersion,
+		@Nonnull EntityCollection collection,
+		@Nullable Map<Integer, EntityCollectionHeader> flushedHeaders
+	) {
+		final EntityCollectionHeader flushedHeader = flushedHeaders == null ?
+			null : flushedHeaders.get(collection.getEntityTypePrimaryKey());
+		return flushedHeader != null ?
+			flushedHeader :
+			this.persistenceService.getEntityCollectionHeader(catalogVersion, collection.getEntityTypePrimaryKey());
+	}
+
+	/**
+	 * Stores the {@link CatalogHeader} that marks the catalog version as committed, and with it publishes (or defers
+	 * the publication of) the bootstrap record. Called on the catalog produced by the merge of the round, so the
+	 * headers it stores are those of the collections the merge left behind - renamed, created and compacted ones
+	 * included.
+	 *
+	 * @param catalogVersion           the version of the round being published
+	 * @param lastProcessedTransaction the last transaction the round incorporated
+	 * @param outcome                  the outcome of {@link #flushCollections(long)} on the catalog the round started from
+	 */
+	public void publishHeader(
+		long catalogVersion,
+		@Nonnull TransactionMutation lastProcessedTransaction,
+		@Nonnull FlushOutcome outcome
+	) {
+		if (outcome.changeOccurred()) {
+			final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
+			for (EntityCollection entityCollection : this.entityCollections.values()) {
+				entityHeaders.add(entityCollection.getEntityCollectionHeader());
+			}
 			this.persistenceService.storeHeader(
 				this.catalogId,
 				CatalogState.ALIVE,
@@ -3414,9 +3569,15 @@ public final class Catalog
 				entityHeaders,
 				this.dataStoreBuffer
 			);
-			this.lastPersistedSchemaVersion = getInternalSchema().version();
 		}
 	}
+
+	/**
+	 * Result of {@link #flushCollections(long)}.
+	 *
+	 * @param changeOccurred whether the round changed anything that has to be published
+	 */
+	public record FlushOutcome(boolean changeOccurred) {}
 
 	/**
 	 * Creates an isolated WAL (Write-Ahead Log) service for the specified transaction ID.
@@ -3876,6 +4037,56 @@ public final class Catalog
 			flushMidSessionIfSchemaValid();
 		}
 		return result;
+	}
+
+	/**
+	 * Preflights every {@link ModifyEntitySchemaMutation} in a batch against the collection it targets, so that a
+	 * refusal is raised **before** any schema is exchanged. It also runs before any mutation of the batch is
+	 * registered with the transaction, so its refusal leaves the transaction usable - unless an enclosing batch has
+	 * already registered the catalog mutation that fanned out into this one.
+	 *
+	 * The problem this solves is failure atomicity, not validation coverage. A catalog-level change to a global
+	 * attribute fans out into one entity mutation per consuming collection, and the loop below applies them one at a
+	 * time - each exchanging its schema and writing its storage part. If the fourth collection refuses, the `catch`
+	 * restores only {@link #schema}: the three collections already updated keep the change, in memory and on disk,
+	 * while the catalog schema says the operation failed. Checking all of them first is what makes the cascade
+	 * all-or-nothing without holding a rollback log of exchanged schemas.
+	 *
+	 * Collections that do not exist yet are skipped - a batch may create one and then modify it, and there is nothing
+	 * to preflight against until it exists.
+	 *
+	 * Every collection is preflighted against the state before the batch, while the real pass applies the batch in
+	 * order. Each collection therefore learns which entity types the mutations before its own create, remove, rename
+	 * or modify, so that it raises a refusal depending on another collection's state only when nothing earlier in
+	 * the batch changed that state.
+	 *
+	 * @param schemaMutations the batch about to be applied
+	 * @throws io.evitadb.api.exception.InvalidSchemaMutationException when any affected collection refuses its share
+	 */
+	private void verifyEntitySchemaMutationsApplicable(
+		@Nonnull LocalCatalogSchemaMutation[] schemaMutations
+	) {
+		final CatalogSchema currentCatalogSchema = getInternalSchema();
+		final Set<String> entityTypesChangedEarlier = new HashSet<>(schemaMutations.length);
+		for (final LocalCatalogSchemaMutation theMutation : schemaMutations) {
+			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
+				final EntityCollection entityCollection =
+					this.entityCollections.get(modifyEntitySchemaMutation.getName());
+				if (entityCollection != null) {
+					entityCollection.verifySchemaMutationsApplicable(
+						currentCatalogSchema, entityTypesChangedEarlier, modifyEntitySchemaMutation.getSchemaMutations()
+					);
+				}
+				entityTypesChangedEarlier.add(modifyEntitySchemaMutation.getName());
+			} else if (theMutation instanceof CreateEntitySchemaMutation createEntitySchemaMutation) {
+				entityTypesChangedEarlier.add(createEntitySchemaMutation.getName());
+			} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
+				entityTypesChangedEarlier.add(removeEntitySchemaMutation.getName());
+			} else if (theMutation instanceof ModifyEntitySchemaNameMutation renameEntitySchemaMutation) {
+				entityTypesChangedEarlier.add(renameEntitySchemaMutation.getName());
+				entityTypesChangedEarlier.add(renameEntitySchemaMutation.getNewName());
+			}
+		}
 	}
 
 	/**

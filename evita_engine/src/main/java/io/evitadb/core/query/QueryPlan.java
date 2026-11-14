@@ -28,7 +28,6 @@ import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.requestResponse.EvitaBinaryEntityResponse;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
 import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -38,7 +37,6 @@ import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
 import io.evitadb.api.requestResponse.chunk.Slicer;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
@@ -91,7 +89,7 @@ import static java.util.Optional.ofNullable;
 public class QueryPlan {
 	/**
 	 * Converter placeholder used for result forms that cannot convert a {@link SealedEntity} into a client-requested
-	 * custom type - i.e. entity references and binary entities, where no {@link SealedEntity} can ever reach the
+	 * custom type - i.e. entity references, where no {@link SealedEntity} can ever reach the
 	 * converter. Reaching it therefore signals a planning error rather than an unsupported client request.
 	 */
 	public static final Function<SealedEntity, ?> CONVERSION_NOT_SUPPORTED = (sealedEntity) -> {
@@ -246,8 +244,8 @@ public class QueryPlan {
 	 * {@link QueryExecutionContext#isDryRun()}.
 	 *
 	 * @param frozenRandom the frozen random state to use (non-null for deterministic results, null for random results)
-	 * @return the response of the form the {@link EvitaRequest} asked for - entity references, full entity bodies or
-	 *         binary entities - carrying the requested page, the total record count and all requested extra results
+	 * @return the response of the form the {@link EvitaRequest} asked for - entity references or full entity bodies -
+	 *         carrying the requested page, the total record count and all requested extra results
 	 * @see RandomUtils#getFrozenRandom()
 	 */
 	@Nonnull
@@ -312,47 +310,25 @@ public class QueryPlan {
 				if (evitaRequest.isRequiresEntity()) {
 					executionContext.pushStep(QueryPhase.FETCHING);
 					try {
-						if (executionContext.isRequiresBinaryForm()) {
-							// transform PKs to rich SealedEntities
-							//noinspection unchecked
-							final DataChunk<BinaryEntity> dataChunk = createDataChunk(
-								expectedType,
-								evitaRequest.getResultForm(),
-								offsetAndLimit,
-								this.totalRecordCount,
-								executionContext.fetchBinaryEntities(this.primaryKeys),
-								CONVERSION_NOT_SUPPORTED
-							);
+						// transform PKs to rich SealedEntities
+						//noinspection unchecked
+						final DataChunk<SealedEntity> dataChunk = createDataChunk(
+							expectedType,
+							evitaRequest.getResultForm(),
+							offsetAndLimit,
+							this.totalRecordCount,
+							executionContext.fetchEntities(this.primaryKeys),
+							sealedEntity -> executionContext.convertToRequestedType(expectedType, sealedEntity)
+						);
 
-							// this may produce ClassCast exception if client assigns variable to different result than requests
-							//noinspection unchecked
-							result = (T) new EvitaBinaryEntityResponse(
-								evitaRequest.getQuery(),
-								dataChunk,
-								this.primaryKeys,
-								extraResults
-							);
-						} else {
-							// transform PKs to rich SealedEntities
-							//noinspection unchecked
-							final DataChunk<SealedEntity> dataChunk = createDataChunk(
-								expectedType,
-								evitaRequest.getResultForm(),
-								offsetAndLimit,
-								this.totalRecordCount,
-								executionContext.fetchEntities(this.primaryKeys),
-								sealedEntity -> executionContext.convertToRequestedType(expectedType, sealedEntity)
-							);
-
-							// this may produce ClassCast exception if client assigns variable to different result than requests
-							//noinspection unchecked
-							result = (T) new EvitaEntityResponse<>(
-								evitaRequest.getQuery(),
-								dataChunk,
-								this.primaryKeys,
-								extraResults
-							);
-						}
+						// this may produce ClassCast exception if client assigns variable to different result than requests
+						//noinspection unchecked
+						result = (T) new EvitaEntityResponse<>(
+							evitaRequest.getQuery(),
+							dataChunk,
+							this.primaryKeys,
+							extraResults
+						);
 					} finally {
 						executionContext.popStep();
 					}
@@ -567,9 +543,6 @@ public class QueryPlan {
 			.append(entityType)
 			.append("` entities using ")
 			.append(this.description);
-		if (this.queryContext.isRequiresBinaryForm()) {
-			result.append(" (in binary form)");
-		}
 		for (ExtraResultProducer extraResultProducer : this.extraResultProducers) {
 			result.append(" + ").append(extraResultProducer.getDescription());
 		}

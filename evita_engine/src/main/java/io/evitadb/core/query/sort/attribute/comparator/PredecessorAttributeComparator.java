@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.function.Consumer;
-import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
 
 /**
@@ -89,6 +88,29 @@ public class PredecessorAttributeComparator implements EntityComparator {
 		this.nonSortedEntities = null;
 	}
 
+	/**
+	 * Classifies the entity as sortable when any of the sorted-records providers holds it. The positions resolved
+	 * on the way are memoized for the comparisons that follow; an entity no provider holds is not reported through
+	 * {@link #getNonSortedEntities()}, because it is never compared - the caller passes it on by itself.
+	 *
+	 * @param entity the entity to classify
+	 * @return `true` when a provider places the entity
+	 */
+	@Override
+	public boolean canSort(@Nonnull EntityContract entity) {
+		final SortedRecordsProvider[] sortedRecordsProviders = getSortedRecordsProviders();
+		if (this.cache == null) {
+			this.cache = new IntIntMap[sortedRecordsProviders.length];
+		}
+		final int primaryKey = entity.getPrimaryKeyOrThrowException();
+		for (int i = 0; i < sortedRecordsProviders.length; i++) {
+			if (cachedPositionOf(sortedRecordsProviders, this.cache, i, this.estimatedCount, primaryKey) >= 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	@Override
 	public int compare(EntityContract o1, EntityContract o2) {
 		final SortedRecordsProvider[] sortedRecordsProviders = getSortedRecordsProviders();
@@ -138,8 +160,9 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	 * following the predecessor-ordering contract:
 	 *
 	 * - both entities found in the same provider: ordered by their positions,
-	 * - only one found: that one sorts first,
-	 * - found in different providers: the earlier (lower-index) provider wins.
+	 * - only one found: that one sorts first, whichever provider holds it,
+	 * - found in different providers: the earlier (lower-index) provider wins,
+	 * - found in none: they are equal.
 	 *
 	 * Every entity not found in any scanned provider is handed to `unsortedCollector` so the caller can park it at
 	 * the end of the sorted result.
@@ -168,30 +191,22 @@ public class PredecessorAttributeComparator implements EntityComparator {
 		int o1FoundInProvider = -1;
 		int o2FoundInProvider = -1;
 		for (int i = fromIndex; i < toIndex; i++) {
-			final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders[i];
-			if (cache[i] == null) {
-				// let's create the cache with estimated size multiply 5 expected steps for binary search
-				//noinspection ObjectAllocationInLoop
-				cache[i] = new IntIntHashMap(estimatedCount * 5);
-			}
 			// resolve each entity's sorted position directly (tree-direct or array-backed, per the provider);
 			// the cache stores the resolved position and POSITION_NOT_FOUND (-1) for absent records
-			final int o1Position = o1FoundInProvider > -1 ? -1
-				: computeIfAbsent(cache[i], o1.getPrimaryKeyOrThrowException(), sortedRecordsProvider::positionOf);
-			final int o2Position = o2FoundInProvider > -1 ? -1
-				: computeIfAbsent(cache[i], o2.getPrimaryKeyOrThrowException(), sortedRecordsProvider::positionOf);
+			final int o1Position = o1FoundInProvider > -1 ? -1 : cachedPositionOf(
+				sortedRecordsProviders, cache, i, estimatedCount, o1.getPrimaryKeyOrThrowException()
+			);
+			final int o2Position = o2FoundInProvider > -1 ? -1 : cachedPositionOf(
+				sortedRecordsProviders, cache, i, estimatedCount, o2.getPrimaryKeyOrThrowException()
+			);
 			// if both entities are found in the same provider, compare their positions
 			if (o1Position >= 0 && o2Position >= 0) {
 				result = Integer.compare(o1Position, o2Position);
 				o1FoundInProvider = i;
 				o2FoundInProvider = i;
 			} else if (o1Position >= 0) {
-				// if only one entity is found, it is considered to be smaller than the other one
-				result = result == 0 ? 1 : result;
 				o1FoundInProvider = i;
 			} else if (o2Position >= 0) {
-				// if only one entity is found, it is considered to be smaller than the other one
-				result = result == 0 ? -1 : result;
 				o2FoundInProvider = i;
 			}
 			// if both entities are found, we can stop searching
@@ -206,38 +221,54 @@ public class PredecessorAttributeComparator implements EntityComparator {
 		if (o2FoundInProvider == -1) {
 			unsortedCollector.accept(o2);
 		}
-		// when the entities were found in different providers, order them by provider precedence
+		// when the entities were not found in the same provider, the one no provider holds sorts last, otherwise
+		// the earlier provider wins
 		if (o1FoundInProvider != o2FoundInProvider) {
-			result = Integer.compare(o1FoundInProvider, o2FoundInProvider);
+			if (o1FoundInProvider == -1) {
+				return 1;
+			} else if (o2FoundInProvider == -1) {
+				return -1;
+			} else {
+				return Integer.compare(o1FoundInProvider, o2FoundInProvider);
+			}
 		}
 		return result;
 	}
 
 	/**
-	 * Memoizes each entity's resolved sorted position per provider, so a primary key is located only
-	 * once per sort. A resolved position of `0` is stored as the reserved `Integer.MIN_VALUE` remap
-	 * to stay distinct from the HPPC map's absent-default `0`, and decoded back to `0` on read;
-	 * `POSITION_NOT_FOUND` (`-1`) and positive positions are stored verbatim and memoized.
+	 * Resolves the sorted position of the primary key in the provider at `providerIndex`, memoized in the provider's
+	 * cache so a primary key is located only once per sort. The cache of the provider is created on first use, sized
+	 * for five binary-search steps per expected entity. A resolved position of `0` is stored as the reserved
+	 * `Integer.MIN_VALUE` remap to stay distinct from the HPPC map's absent-default `0`, and decoded back to `0` on
+	 * read; `POSITION_NOT_FOUND` (`-1`) and positive positions are stored verbatim. The primary key is never boxed and
+	 * no method reference is captured, so the lookup allocates nothing once the cache exists.
 	 *
-	 * @param cache        cache to use
-	 * @param primaryKey   primary key of the entity to find
-	 * @param indexLocator function to compute the sorted position of the entity
-	 * @return sorted position of the entity
+	 * @param sortedRecordsProviders providers ordered by precedence
+	 * @param cache                  per-provider position cache, lazily populated
+	 * @param providerIndex          index of the provider to look into
+	 * @param estimatedCount         expected entity count, used to size a freshly created cache
+	 * @param primaryKey             primary key of the entity to find
+	 * @return sorted position of the entity in the provider or a negative number when the provider does not hold it
 	 */
-	static int computeIfAbsent(@Nonnull IntIntMap cache, @Nonnull Integer primaryKey, @Nonnull IntUnaryOperator indexLocator) {
-		final int result = cache.get(primaryKey);
-		// when the value was not found 0 is returned
+	static int cachedPositionOf(
+		@Nonnull SortedRecordsProvider[] sortedRecordsProviders,
+		@Nonnull IntIntMap[] cache,
+		int providerIndex,
+		int estimatedCount,
+		int primaryKey
+	) {
+		IntIntMap providerCache = cache[providerIndex];
+		if (providerCache == null) {
+			providerCache = new IntIntHashMap(estimatedCount * 5);
+			cache[providerIndex] = providerCache;
+		}
+		final int result = providerCache.get(primaryKey);
 		if (result == 0) {
-			final int computedIndex = indexLocator.applyAsInt(primaryKey);
-			// if the index was computed as 0 we need to remap it to some other "rare" value to distinguish it from NULL value
-			cache.put(primaryKey, computedIndex == 0 ? Integer.MIN_VALUE : computedIndex);
+			final int computedIndex = sortedRecordsProviders[providerIndex].positionOf(primaryKey);
+			providerCache.put(primaryKey, computedIndex == 0 ? Integer.MIN_VALUE : computedIndex);
 			return computedIndex;
-		} else if (result == Integer.MIN_VALUE) {
-			// when the "rare" value was found - we know it represents index 0
-			return 0;
 		} else {
-			// otherwise cached value was found
-			return result;
+			return result == Integer.MIN_VALUE ? 0 : result;
 		}
 	}
 

@@ -25,6 +25,7 @@ package io.evitadb.api.query.expression.bool;
 
 
 import io.evitadb.api.query.expression.AbstractUnaryOperator;
+import io.evitadb.api.query.expression.ExpressionPrecedence;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
@@ -63,6 +64,6 @@ public class InverseOperator extends AbstractUnaryOperator implements BooleanOpe
 
 	@Override
 	public String toString() {
-		return "!" + getOperand();
+		return "!" + ExpressionPrecedence.prefixOperandText(getOperand());
 	}
 }

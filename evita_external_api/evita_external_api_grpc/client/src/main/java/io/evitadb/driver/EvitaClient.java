@@ -990,33 +990,17 @@ public class EvitaClient implements EvitaContract {
 			if (traits.commitBehaviour() != null) {
 				sessionBuilder.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(traits.commitBehaviour()));
 			}
-			if (traits.isBinary()) {
-				grpcResponse = executeWithEvitaFutureService(
-					evitaService -> evitaService.createBinaryReadWriteSession(
-						sessionBuilder.build()
-					)
-				);
-			} else {
-				grpcResponse = executeWithEvitaFutureService(
-					evitaService -> evitaService.createReadWriteSession(
-						sessionBuilder.build()
-					)
-				);
-			}
+			grpcResponse = executeWithEvitaFutureService(
+				evitaService -> evitaService.createReadWriteSession(
+					sessionBuilder.build()
+				)
+			);
 		} else {
-			if (traits.isBinary()) {
-				grpcResponse = executeWithEvitaFutureService(
-					evitaService -> evitaService.createBinaryReadOnlySession(
-						sessionBuilder.build()
-					)
-				);
-			} else {
-				grpcResponse = executeWithEvitaFutureService(
-					evitaService -> evitaService.createReadOnlySession(
-						sessionBuilder.build()
-					)
-				);
-			}
+			grpcResponse = executeWithEvitaFutureService(
+				evitaService -> evitaService.createReadOnlySession(
+					sessionBuilder.build()
+				)
+			);
 		}
 		final EvitaClientSession evitaClientSession = new EvitaClientSession(
 			this,

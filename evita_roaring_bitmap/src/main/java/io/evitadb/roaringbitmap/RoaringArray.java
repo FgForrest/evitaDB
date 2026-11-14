@@ -381,31 +381,31 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 		if ((cookie & 0xFFFF) != SERIAL_COOKIE && cookie != SERIAL_COOKIE_NO_RUNCONTAINER) {
 			throw new InvalidRoaringFormat("I failed to find a valid cookie.");
 		}
-		this.size =
+		final int size =
 			((cookie & 0xFFFF) == SERIAL_COOKIE)
 				? (cookie >>> 16) + 1
 				: Integer.reverseBytes(in.readInt());
 		// logically we cannot have more than (1<<16) containers.
-		if (this.size > (1 << 16)) {
+		if (size < 0 || size > (1 << 16)) {
 			throw new InvalidRoaringFormat("Size too large");
 		}
-		if ((this.keys == null) || (this.keys.length < this.size) || this.frozen) {
-			this.keys = new char[this.size];
-			this.values = new Container[this.size];
+		if ((this.keys == null) || (this.keys.length < size) || this.frozen) {
+			this.keys = new char[size];
+			this.values = new Container[size];
 			this.frozen = false;
 		}
 
 		byte[] bitmapOfRunContainers = null;
 		boolean hasrun = (cookie & 0xFFFF) == SERIAL_COOKIE;
 		if (hasrun) {
-			bitmapOfRunContainers = new byte[(this.size + 7) / 8];
+			bitmapOfRunContainers = new byte[(size + 7) / 8];
 			in.readFully(bitmapOfRunContainers);
 		}
 
-		final char[] keys = new char[this.size];
-		final int[] cardinalities = new int[this.size];
-		final boolean[] isBitmap = new boolean[this.size];
-		for (int k = 0; k < this.size; ++k) {
+		final char[] keys = new char[size];
+		final int[] cardinalities = new int[size];
+		final boolean[] isBitmap = new boolean[size];
+		for (int k = 0; k < size; ++k) {
 			keys[k] = Character.reverseBytes(in.readChar());
 			cardinalities[k] = 1 + (0xFFFF & Character.reverseBytes(in.readChar()));
 
@@ -414,12 +414,12 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 				isBitmap[k] = false;
 			}
 		}
-		if ((!hasrun) || (this.size >= NO_OFFSET_THRESHOLD)) {
+		if ((!hasrun) || (size >= NO_OFFSET_THRESHOLD)) {
 			// skipping the offsets
-			in.skipBytes(this.size * 4);
+			Util.skipFully(in, size * 4);
 		}
 		// Reading the containers
-		for (int k = 0; k < this.size; ++k) {
+		for (int k = 0; k < size; ++k) {
 			Container val;
 			if (isBitmap[k]) {
 				final long[] bitmapArray = new long[BitmapContainer.MAX_CAPACITY / 64];
@@ -448,6 +448,8 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 			this.keys[k] = keys[k];
 			this.values[k] = val;
 		}
+		// Publish the size only after every container is read; failures leave an empty bitmap.
+		this.size = size;
 	}
 
 	/**
@@ -462,6 +464,7 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	 * @throws InvalidRoaringFormat if a Roaring Bitmap cookie is missing.
 	 */
 	public void deserialize(@Nonnull final DataInput in, @Nullable byte[] buffer) throws IOException {
+		this.clear();
 		if (buffer != null && buffer.length == 0) {
 			// Get rid of this useless buffer
 			buffer = null;
@@ -472,37 +475,36 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 				"We need a buffer with a length multiple of 8. was length=" + buffer.length);
 		}
 
-		this.clear();
 		// little endian
 		final int cookie = Integer.reverseBytes(in.readInt());
 		if ((cookie & 0xFFFF) != SERIAL_COOKIE && cookie != SERIAL_COOKIE_NO_RUNCONTAINER) {
 			throw new InvalidRoaringFormat("I failed to find a valid cookie.");
 		}
-		this.size =
+		final int size =
 			((cookie & 0xFFFF) == SERIAL_COOKIE)
 				? (cookie >>> 16) + 1
 				: Integer.reverseBytes(in.readInt());
 		// logically we cannot have more than (1<<16) containers.
-		if (this.size > (1 << 16)) {
+		if (size < 0 || size > (1 << 16)) {
 			throw new InvalidRoaringFormat("Size too large");
 		}
-		if ((this.keys == null) || (this.keys.length < this.size) || this.frozen) {
-			this.keys = new char[this.size];
-			this.values = new Container[this.size];
+		if ((this.keys == null) || (this.keys.length < size) || this.frozen) {
+			this.keys = new char[size];
+			this.values = new Container[size];
 			this.frozen = false;
 		}
 
 		byte[] bitmapOfRunContainers = null;
 		boolean hasrun = (cookie & 0xFFFF) == SERIAL_COOKIE;
 		if (hasrun) {
-			bitmapOfRunContainers = new byte[(this.size + 7) / 8];
+			bitmapOfRunContainers = new byte[(size + 7) / 8];
 			in.readFully(bitmapOfRunContainers);
 		}
 
-		final char[] keys = new char[this.size];
-		final int[] cardinalities = new int[this.size];
-		final boolean[] isBitmap = new boolean[this.size];
-		for (int k = 0; k < this.size; ++k) {
+		final char[] keys = new char[size];
+		final int[] cardinalities = new int[size];
+		final boolean[] isBitmap = new boolean[size];
+		for (int k = 0; k < size; ++k) {
 			keys[k] = Character.reverseBytes(in.readChar());
 			cardinalities[k] = 1 + (0xFFFF & Character.reverseBytes(in.readChar()));
 
@@ -511,13 +513,13 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 				isBitmap[k] = false;
 			}
 		}
-		if ((!hasrun) || (this.size >= NO_OFFSET_THRESHOLD)) {
+		if ((!hasrun) || (size >= NO_OFFSET_THRESHOLD)) {
 			// skipping the offsets
-			in.skipBytes(this.size * 4);
+			Util.skipFully(in, size * 4);
 		}
 
 		// Reading the containers
-		for (int k = 0; k < this.size; ++k) {
+		for (int k = 0; k < size; ++k) {
 			Container val;
 			if (isBitmap[k]) {
 				final long[] bitmapArray = new long[BitmapContainer.MAX_CAPACITY / 64];
@@ -630,6 +632,8 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 			this.keys[k] = keys[k];
 			this.values[k] = val;
 		}
+		// Publish the size only after every container is read; failures leave an empty bitmap.
+		this.size = size;
 	}
 
 	/**
@@ -660,30 +664,30 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 			throw new InvalidRoaringFormat("I failed to find one of the right cookies. " + cookie);
 		}
 		boolean hasRunContainers = (cookie & 0xFFFF) == SERIAL_COOKIE;
-		this.size = hasRunContainers ? (cookie >>> 16) + 1 : buffer.getInt();
+		final int size = hasRunContainers ? (cookie >>> 16) + 1 : buffer.getInt();
 		// For now, we consider the limit is already set by the caller
 
 		// logically we cannot have more than (1<<16) containers.
-		if (this.size > (1 << 16)) {
+		if (size < 0 || size > (1 << 16)) {
 			throw new InvalidRoaringFormat("Size too large");
 		}
-		if ((this.keys == null) || (this.keys.length < this.size) || this.frozen) {
-			this.keys = new char[this.size];
-			this.values = new Container[this.size];
+		if ((this.keys == null) || (this.keys.length < size) || this.frozen) {
+			this.keys = new char[size];
+			this.values = new Container[size];
 			this.frozen = false;
 		}
 
 		byte[] bitmapOfRunContainers = null;
 		boolean hasrun = (cookie & 0xFFFF) == SERIAL_COOKIE;
 		if (hasrun) {
-			bitmapOfRunContainers = new byte[(this.size + 7) / 8];
+			bitmapOfRunContainers = new byte[(size + 7) / 8];
 			buffer.get(bitmapOfRunContainers);
 		}
 
-		final char[] keys = new char[this.size];
-		final int[] cardinalities = new int[this.size];
-		final boolean[] isBitmap = new boolean[this.size];
-		for (int k = 0; k < this.size; ++k) {
+		final char[] keys = new char[size];
+		final int[] cardinalities = new int[size];
+		final boolean[] isBitmap = new boolean[size];
+		for (int k = 0; k < size; ++k) {
 			keys[k] = buffer.getChar();
 			cardinalities[k] = 1 + (0xFFFF & buffer.getChar());
 
@@ -692,13 +696,13 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 				isBitmap[k] = false;
 			}
 		}
-		if ((!hasrun) || (this.size >= NO_OFFSET_THRESHOLD)) {
+		if ((!hasrun) || (size >= NO_OFFSET_THRESHOLD)) {
 			// skipping the offsets
-			buffer.position(buffer.position() + this.size * 4);
+			buffer.position(buffer.position() + size * 4);
 		}
 
 		// Reading the containers
-		for (int k = 0; k < this.size; ++k) {
+		for (int k = 0; k < size; ++k) {
 			Container val;
 			if (isBitmap[k]) {
 				final long[] bitmapArray = new long[BitmapContainer.MAX_CAPACITY / 64];
@@ -728,6 +732,8 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 			this.keys[k] = keys[k];
 			this.values[k] = val;
 		}
+		// Publish the size only after every container is read; failures leave an empty bitmap.
+		this.size = size;
 	}
 
 	// size/keys/values are mutable by design (append-in-place storage); comparing them is intentional

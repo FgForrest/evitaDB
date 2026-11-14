@@ -769,13 +769,10 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("should keep the original attribute when one carrying the capability is renamed")
-		void shouldKeepOriginalAttributeWhenOneCarryingTheCapabilityIsRenamed() {
-			// `ModifyAttributeSchemaNameMutation` does not remove what it renames.
-			// `EntityAttributeSchemaMutation#replaceAttributeIfDifferent` filters the existing attributes by the
-			// *updated* name, so for a rename nothing is filtered out and the schema ends up carrying both. That is a
-			// pre-existing defect of the rename mutation and has nothing to do with filter accelerators - pinned here
-			// because the next test reasons about the duplicate it creates
+		@DisplayName("should move an attribute carrying the capability to its new name on an empty collection")
+		void shouldMoveAttributeCarryingTheCapabilityToItsNewNameOnEmptyCollection() {
+			// the counterpart of the test below: over an empty collection there is no stored data the index of the
+			// new name would miss, so the rename is accepted and moves the capability with the attribute
 			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -808,9 +805,7 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 							.contains(AttributeFilterAccelerator.SUBSTRING_SEARCH)
 					);
 					assertTrue(
-						schema.getAttribute(ATTRIBUTE_CODE).isPresent(),
-						"the renamed-from attribute is gone - the rename mutation no longer duplicates, so the test " +
-							"below no longer exercises a second accelerated attribute and needs revisiting"
+						schema.getAttribute(ATTRIBUTE_CODE).isEmpty(), "the rename must not leave the original behind"
 					);
 				}
 			);
@@ -819,8 +814,8 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should accept renaming an attribute that declares the capability on a populated collection")
 		void shouldAcceptRenamingAnAttributeThatDeclaresTheCapabilityOnPopulatedCollection() {
-			// the duplicating rename creates a second accelerated attribute on a populated collection - accepted, and
-			// the stored value keeps being found through the attribute that actually holds it
+			// Rename moves the schema definition, while existing values remain under the old name (#409).
+			// Dormancy prevents unsafe value-id attachment when the new name already has stored values.
 			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -863,7 +858,18 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 					);
 				}
 			);
-			assertEquals(Set.of(1), productsWhose(ATTRIBUTE_CODE, "phone"));
+			assertEquals(Set.of(), productsWhose("productCode", "phone"));
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 2).setAttribute("productCode", "new-phone")
+					);
+				}
+			);
+			assertEquals(Set.of(2), productsWhose("productCode", "phone"));
+			reopenOverTheSameStorage();
+			assertEquals(Set.of(2), productsWhose("productCode", "phone"));
 		}
 	}
 

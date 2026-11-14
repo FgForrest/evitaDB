@@ -394,4 +394,17 @@ public interface HierarchyIndexContract {
 	 */
 	boolean isHierarchyIndexEmpty();
 
+	/**
+	 * Tells whether this hierarchy holds a node for `nodeId` - a root, a child, or an orphan waiting for its parent.
+	 *
+	 * It is the non-throwing presence test for the parent that
+	 * {@link #listHierarchyNodesFromParentDownTo(int, int, HierarchyFilteringPredicate)} rejects when absent. Not every
+	 * entity of a hierarchical collection has a node: an entity not stored yet, one in a scope the hierarchy is not
+	 * indexed in, and one that sat in a scope before the hierarchy was indexed there all hold none.
+	 *
+	 * @param nodeId the primary key of the entity to look up
+	 * @return true when this hierarchy holds a node for the entity
+	 */
+	boolean containsHierarchyNode(int nodeId);
+
 }

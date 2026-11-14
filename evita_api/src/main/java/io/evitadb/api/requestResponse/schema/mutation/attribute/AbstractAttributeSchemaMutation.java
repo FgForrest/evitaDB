@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.Scope;
@@ -48,6 +49,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -106,6 +108,31 @@ abstract class AbstractAttributeSchemaMutation implements NamedSchemaMutation {
 		return context.isEntityTypePresent() ?
 			Stream.of(new CollectionConflictKey(context.getEntityType())) :
 			Stream.of(new CatalogConflictKey(context.getCatalogName()));
+	}
+
+	/**
+	 * Returns the mutation that changes the type of this attribute from the existing version to the created one, or
+	 * null when both versions have the same type and index the same number of decimal places. The type mutation
+	 * carries the indexed decimal places too, so a change of either of them is a change of the type.
+	 *
+	 * @param createdVersion       the attribute as a creating mutation defines it
+	 * @param existingVersion      the attribute as it exists
+	 * @param indexedDecimalPlaces the indexed decimal places the type mutation sets
+	 * @return the type mutation, or null when the type stays the same
+	 */
+	@Nullable
+	protected ModifyAttributeSchemaTypeMutation makeTypeMutationIfDifferent(
+		@Nonnull AttributeSchemaContract createdVersion,
+		@Nonnull AttributeSchemaContract existingVersion,
+		int indexedDecimalPlaces
+	) {
+		if (
+			Objects.equals(createdVersion.getType(), existingVersion.getType()) &&
+				createdVersion.getIndexedDecimalPlaces() == existingVersion.getIndexedDecimalPlaces()
+		) {
+			return null;
+		}
+		return new ModifyAttributeSchemaTypeMutation(this.name, createdVersion.getType(), indexedDecimalPlaces);
 	}
 
 	/**

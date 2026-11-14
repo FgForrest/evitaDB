@@ -62,7 +62,6 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.SLOW;
 import static java.util.Optional.ofNullable;
 import static org.apache.commons.io.FileUtils.byteCountToDisplaySize;
 import static org.apache.commons.io.FileUtils.sizeOfDirectory;
@@ -252,7 +251,6 @@ class LongRunningEvitaGenerationalTest implements EvitaTestSupport, TimeBoundedT
 	}
 
 	@ParameterizedTest(name = "Evita should survive generational randomized test upserting the values in transaction")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalTransactionalModificationProofTest(GenerationalTestInput input) {
 		final int maximumAmountOfRemovedEntities = 50;

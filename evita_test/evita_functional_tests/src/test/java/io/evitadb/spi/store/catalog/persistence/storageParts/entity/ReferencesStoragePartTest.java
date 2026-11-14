@@ -513,8 +513,8 @@ class ReferencesStoragePartTest {
 	}
 
 	@Test
-	@DisplayName("should return referenced ids, distinct ids and group ids and ignore dropped")
-	void shouldReturnReferencedIdsAndDistinctIdsAndGroupIdsAndIgnoreDropped() {
+	@DisplayName("should return referenced ids and ignore dropped")
+	void shouldReturnReferencedIdsAndIgnoreDropped() {
 		final io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart part = new io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart(
 			6, 0, new Reference[]{
 			newRef("A", 1, 10, group(2), false),
@@ -527,20 +527,10 @@ class ReferencesStoragePartTest {
 		);
 
 		assertArrayEquals(new int[]{1, 2}, part.getReferencedIds("A"));
-		assertArrayEquals(new int[]{1, 2}, part.getDistinctReferencedIds("A"));
-		assertArrayEquals(new int[]{1, 2}, part.getDistinctReferencedGroupIds("A"));
 		assertArrayEquals(new int[]{1, 1}, part.getReferencedIds("B"));
-		assertArrayEquals(new int[]{1}, part.getDistinctReferencedIds("B"));
-		assertArrayEquals(new int[]{2, 3}, part.getDistinctReferencedGroupIds("B"));
 		assertArrayEquals(new int[]{}, part.getReferencedIds("C"));
-		assertArrayEquals(new int[]{}, part.getDistinctReferencedIds("C"));
-		assertArrayEquals(new int[]{}, part.getDistinctReferencedGroupIds("C"));
 		assertArrayEquals(new int[]{}, part.getReferencedIds("D"));
-		assertArrayEquals(new int[]{}, part.getDistinctReferencedIds("D"));
-		assertArrayEquals(new int[]{}, part.getDistinctReferencedGroupIds("D"));
 		assertArrayEquals(new int[]{}, part.getReferencedIds("1"));
-		assertArrayEquals(new int[]{}, part.getDistinctReferencedIds("1"));
-		assertArrayEquals(new int[]{}, part.getDistinctReferencedGroupIds("1"));
 	}
 
 	@Test
@@ -612,13 +602,9 @@ class ReferencesStoragePartTest {
 		// isEmpty must report true when only dropped references are present
 		assertTrue(part.isEmpty());
 
-		// all getters must ignore dropped references and return empty arrays
+		// getReferencedIds must ignore dropped references and return an empty array for every name
 		assertArrayEquals(new int[0], part.getReferencedIds("A"));
 		assertArrayEquals(new int[0], part.getReferencedIds("B"));
-		assertArrayEquals(new int[0], part.getDistinctReferencedIds("A"));
-		assertArrayEquals(new int[0], part.getDistinctReferencedIds("B"));
-		assertArrayEquals(new int[0], part.getDistinctReferencedGroupIds("A"));
-		assertArrayEquals(new int[0], part.getDistinctReferencedGroupIds("B"));
 	}
 
 	@Test
@@ -1069,8 +1055,6 @@ class ReferencesStoragePartTest {
 			final ReferencesStoragePart narrowed = narrowedPart();
 
 			assertArrayEquals(new int[]{100, 101}, narrowed.getReferencedIds(DECODED));
-			assertArrayEquals(new int[]{100, 101}, narrowed.getDistinctReferencedIds(DECODED));
-			assertArrayEquals(new int[]{900, 901}, narrowed.getDistinctReferencedGroupIds(DECODED));
 			assertTrue(narrowed.contains(new ReferenceKey(DECODED, 100, 1)));
 			assertTrue(narrowed.findReference(new ReferenceKey(DECODED, 100, 1)).isPresent());
 		}
@@ -1108,8 +1092,6 @@ class ReferencesStoragePartTest {
 			final ReferencesStoragePart narrowed = narrowedPart();
 
 			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getReferencedIds(UNDECODED));
-			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedIds(UNDECODED));
-			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedGroupIds(UNDECODED));
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> narrowed.contains(new ReferenceKey(UNDECODED, 100, 1))

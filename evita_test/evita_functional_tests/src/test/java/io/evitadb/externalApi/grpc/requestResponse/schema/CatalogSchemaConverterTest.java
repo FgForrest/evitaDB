@@ -119,7 +119,8 @@ class CatalogSchemaConverterTest {
 					new Scope[] { Scope.LIVE },
 					true,
 					true,
-					false,
+					// representative - a non-default value so the round trip proves the flag is carried over
+					true,
 					String.class,
 					null,
 					0,
@@ -167,6 +168,7 @@ class CatalogSchemaConverterTest {
 		assertEquals(expected.isFilterable(), actual.isFilterable());
 		assertEquals(expected.isSortable(), actual.isSortable());
 		assertEquals(expected.isNullable(), actual.isNullable());
+		assertEquals(expected.isRepresentative(), actual.isRepresentative());
 		assertSame(expected.getType(), actual.getType());
 		assertSame(expected.getPlainType(), actual.getPlainType());
 		assertEquals(expected.getDefaultValue(), actual.getDefaultValue());

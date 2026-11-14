@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema.mutation.attribute;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
@@ -36,6 +37,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -84,6 +86,14 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 	/**
 	 * Replaces existing attribute schema with updated one but only when those schemas differ. Otherwise,
 	 * the non-changed, original catalog schema is returned.
+	 *
+	 * The existing attribute is taken out by its own name, so a rename moves the attribute to the new name rather
+	 * than adding it next to the original. A rename to a name another global attribute holds is refused, and so is a
+	 * rename any entity schema using the attribute refuses - verified for all of them before the catalog schema
+	 * changes.
+	 *
+	 * @throws InvalidSchemaMutationException when the rename is refused by the catalog or by an entity schema using
+	 *                                        the attribute
 	 */
 	@Nonnull
 	default CatalogSchemaWithImpactOnEntitySchemas replaceAttributeIfDifferent(
@@ -97,6 +107,21 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 			// we don't need to update entity schema - the attribute already contains the requested change
 			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
+			final String existingName = existingAttributeSchema.getName();
+			final List<EntitySchemaContract> usingEntitySchemas =
+				AttributeSchemaMutationVerifier.entitySchemasUsingGlobalAttribute(entitySchemaAccessor, existingName);
+			if (!existingName.equals(updatedAttributeSchema.getName())) {
+				AttributeSchemaMutationVerifier.verifyRenameInCatalog(
+					catalogSchema, usingEntitySchemas, existingName, updatedAttributeSchema.getName()
+				);
+			}
+			final ModifyEntitySchemaMutation[] entitySchemaMutations =
+				new ModifyEntitySchemaMutation[usingEntitySchemas.size()];
+			for (int i = 0; i < entitySchemaMutations.length; i++) {
+				entitySchemaMutations[i] = new ModifyEntitySchemaMutation(
+					usingEntitySchemas.get(i).getName(), attributeSchemaMutation
+				);
+			}
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
 					catalogSchema.version() + 1,
@@ -109,7 +134,7 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 							catalogSchema.getAttributes()
 								.values()
 								.stream()
-								.filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
+								.filter(it -> !existingName.equals(it.getName())),
 							Stream.of(updatedAttributeSchema)
 						)
 						.collect(
@@ -120,15 +145,7 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 						),
 					entitySchemaAccessor
 				),
-				entitySchemaAccessor
-					.getEntitySchemas()
-					.stream()
-					.filter(it -> it.getAttributes().containsKey(existingAttributeSchema.getName()))
-					.map(it -> new ModifyEntitySchemaMutation(
-						it.getName(),
-						attributeSchemaMutation
-					))
-					.toArray(ModifyEntitySchemaMutation[]::new)
+				entitySchemaMutations
 			);
 		}
 	}

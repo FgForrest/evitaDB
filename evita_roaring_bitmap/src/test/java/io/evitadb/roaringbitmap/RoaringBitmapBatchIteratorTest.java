@@ -1,5 +1,6 @@
 package io.evitadb.roaringbitmap;
 
+import javax.annotation.Nonnull;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -377,5 +378,21 @@ public class RoaringBitmapBatchIteratorTest {
 		n = it.nextBatch(buffer, 8, 10);
 		assertEquals(10, n);
 		assertArrayEquals(IntStream.range(110, 120).toArray(), Arrays.copyOfRange(buffer, 8, 18));
+	}
+
+	/**
+	 * Ports upstream #895's `batchWithAnEmptyBufferDoesNotAdvance` scenario.
+	 */
+	@Test
+	public void batchWithAnEmptyBufferDoesNotAdvance() {
+		// from CRoaring (read_uint32_iterator_zero_count)
+		PersistentRoaringBitmap r = PersistentRoaringBitmap.bitmapOfRange(0, 10000);
+		BatchIterator it = r.getBatchIterator();
+		assertEquals(0, it.nextBatch(new int[0]));
+		assertTrue(it.hasNext());
+		int[] buffer = new int[10000];
+		assertEquals(10000, it.nextBatch(buffer));
+		assertArrayEquals(IntStream.range(0, 10000).toArray(), buffer);
+		assertFalse(it.hasNext());
 	}
 }

@@ -62,7 +62,7 @@ import java.util.Set;
  */
 @NotThreadSafe
 public abstract sealed class EvitaResponse<T extends Serializable>
-	permits EvitaBinaryEntityResponse, EvitaEntityReferenceResponse, EvitaEntityResponse {
+	permits EvitaEntityReferenceResponse, EvitaEntityResponse {
 	/**
 	 * The input query that produced this response.
 	 */

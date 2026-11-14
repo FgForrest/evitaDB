@@ -26,6 +26,7 @@ package io.evitadb.api.query.parser.visitor;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.parser.ParseContext;
+import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
@@ -55,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.FILTER;
@@ -178,7 +180,8 @@ class EvitaQLFilterConstraintVisitorTest {
 			final FilterConstraint constraint3 = parseFilterConstraintUnsafe("and ( attributeEquals('a',1), attributeEquals('b','c') )");
 			assertEquals(and(attributeEquals("a", 1L), attributeEquals("b", "c")), constraint3);
 
-			final FilterConstraint constraint4 = parseFilterConstraintUnsafe("and()");
+			final FilterConstraint constraint4 = DefaultQueryParser.getInstance()
+				.parseFilterConstraintListUnsafe("and()").get(0);
 			assertEquals(and(), constraint4);
 		}
 
@@ -201,7 +204,8 @@ class EvitaQLFilterConstraintVisitorTest {
 			final FilterConstraint constraint3 = parseFilterConstraintUnsafe("or ( attributeEquals('a',1) , attributeEquals('b','c') )");
 			assertEquals(or(attributeEquals("a", 1L), attributeEquals("b", "c")), constraint3);
 
-			final FilterConstraint constraint4 = parseFilterConstraintUnsafe("or()");
+			final FilterConstraint constraint4 = DefaultQueryParser.getInstance()
+				.parseFilterConstraintListUnsafe("or()").get(0);
 			assertEquals(or(), constraint4);
 		}
 
@@ -243,7 +247,8 @@ class EvitaQLFilterConstraintVisitorTest {
 			final FilterConstraint constraint3 = parseFilterConstraintUnsafe("userFilter ( attributeEquals('a',1)  , attributeEquals('b','c') )");
 			assertEquals(userFilter(attributeEquals("a", 1L), attributeEquals("b", "c")), constraint3);
 
-			final FilterConstraint constraint4 = parseFilterConstraintUnsafe("userFilter()");
+			final FilterConstraint constraint4 = DefaultQueryParser.getInstance()
+				.parseFilterConstraintListUnsafe("userFilter()").get(0);
 			assertEquals(userFilter(), constraint4);
 		}
 
@@ -1601,20 +1606,19 @@ class EvitaQLFilterConstraintVisitorTest {
 		@Test
 		@DisplayName("Should reject histogramHaving with only a classifier — at least one bound is required")
 		void shouldNotParseHistogramHavingWithOnlyClassifier() {
-			// The HistogramHaving constructor enforces that at least one of `from` / `to` is
-			// non-null. A classifier-only call fails inside the constructor, so the thrown type
-			// is an EvitaInvalidUsageException (wrapped by the parser) rather than a grammar-
-			// level EvitaSyntaxException — hence the broader `Exception.class` assertion.
-			assertThrows(Exception.class, () -> parseFilterConstraintUnsafe("histogramHaving('parameterValues')"));
+			final EvitaSyntaxException exception = assertThrows(EvitaSyntaxException.class,
+				() -> DefaultQueryParser.getInstance().parseQueryUnsafe(
+					"query(collection('Product'), filterBy(histogramHaving('parameterValues')))"));
+			assertTrue(exception.getMessage().contains("requires at least one of from / to to be non-null"));
 		}
 
 		@Test
 		@DisplayName("Should reject histogramHaving with classifier and histogramName but no bounds")
 		void shouldNotParseHistogramHavingWithClassifierAndHistogramNameButNoBounds() {
-			// Same at-least-one-bound invariant as the classifier-only form — failure originates
-			// in the HistogramHaving constructor, not in the grammar, so we assert the broader
-			// `Exception.class`.
-			assertThrows(Exception.class, () -> parseFilterConstraintUnsafe("histogramHaving('parameterValues','basicValue')"));
+			final EvitaSyntaxException exception = assertThrows(EvitaSyntaxException.class,
+				() -> DefaultQueryParser.getInstance().parseQueryUnsafe(
+					"query(collection('Product'), filterBy(histogramHaving('parameterValues','basicValue')))"));
+			assertTrue(exception.getMessage().contains("requires at least one of from / to to be non-null"));
 		}
 
 		@Test

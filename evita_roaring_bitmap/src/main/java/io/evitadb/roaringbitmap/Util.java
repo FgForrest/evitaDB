@@ -7,6 +7,8 @@ package io.evitadb.roaringbitmap;
 import io.evitadb.roaringbitmap.kernel.VectorKernels;
 
 import javax.annotation.Nonnull;
+import java.io.DataInput;
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -32,6 +34,21 @@ public final class Util {
 	 * scan; kept as a flag so the two strategies can be benchmarked against each other.
 	 */
 	public static final boolean USE_HYBRID_BINSEARCH = true;
+
+	/**
+	 * Skips exactly `n` bytes. {@link DataInput#skipBytes} may skip fewer bytes than requested
+	 * (for example with a `javax.crypto.CipherInputStream`); reads consume the remainder.
+	 *
+	 * @param in the input
+	 * @param n the number of bytes to skip
+	 * @throws java.io.EOFException if the input ends before `n` bytes are skipped
+	 * @throws IOException if an I/O error occurs
+	 */
+	public static void skipFully(@Nonnull final DataInput in, final int n) throws IOException {
+		for (int remaining = n - in.skipBytes(n); remaining > 0; remaining--) {
+			in.readByte();
+		}
+	}
 
 	/**
 	 * Adds the unsigned constant `offsets` to every value of `source`, producing two fresh
