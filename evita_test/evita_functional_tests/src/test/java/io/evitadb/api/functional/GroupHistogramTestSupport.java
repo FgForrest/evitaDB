@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.params.provider.Arguments;
 
 import javax.annotation.Nonnull;
@@ -124,6 +125,28 @@ interface GroupHistogramTestSupport {
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Consumer<ReferenceSchemaBuilder> histograms
 	) {
+		defineProduct(session, Integer.class, 0, new Scope[]{Scope.LIVE}, histograms);
+	}
+
+	/**
+	 * Defines the product as {@link #defineProduct(EvitaSessionContract, Consumer)} does, with the `share` attribute of
+	 * the type `shareType` indexed with `shareIndexedDecimalPlaces` decimal places, and with the reference and its
+	 * attributes indexed in each of `scopes` instead of the live scope alone.
+	 *
+	 * @param session                   the session of the catalog in warm-up
+	 * @param shareType                 the type of the `share` attribute
+	 * @param shareIndexedDecimalPlaces the decimal places the `share` attribute is indexed with, `0` unless it is a
+	 *                                  `BigDecimal`
+	 * @param scopes                    the scopes the reference is indexed, faceted and filterable in
+	 * @param histograms                defines the histograms of the reference
+	 */
+	static void defineProduct(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Class<? extends Number> shareType,
+		int shareIndexedDecimalPlaces,
+		@Nonnull Scope[] scopes,
+		@Nonnull Consumer<ReferenceSchemaBuilder> histograms
+	) {
 		session.defineEntitySchema(ENTITY_PRODUCT)
 			.withoutGeneratedPrimaryKey()
 			.withReferenceToEntity(
@@ -132,14 +155,25 @@ interface GroupHistogramTestSupport {
 				whichIs -> {
 					whichIs
 						.withGroupTypeRelatedToEntity(ENTITY_BRAND_GROUP)
-						.indexedForFiltering()
-						.faceted()
-						.indexedWithComponents(
+						.indexedForFilteringInScope(scopes)
+						.facetedInScope(scopes);
+					for (final Scope scope : scopes) {
+						whichIs.indexedWithComponentsInScope(
+							scope,
 							ReferenceIndexedComponents.REFERENCED_ENTITY,
 							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						);
+					}
+					whichIs
+						.withAttribute(
+							ATTRIBUTE_SHARE, shareType,
+							thatIs -> thatIs.filterableInScope(scopes)
+								.nullable()
+								.indexDecimalPlaces(shareIndexedDecimalPlaces)
 						)
-						.withAttribute(ATTRIBUTE_SHARE, Integer.class, thatIs -> thatIs.filterable().nullable())
-						.withAttribute(ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.filterable().representative());
+						.withAttribute(
+							ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.filterableInScope(scopes).representative()
+						);
 					histograms.accept(whichIs);
 				}
 			)
@@ -180,7 +214,7 @@ interface GroupHistogramTestSupport {
 		int brandPk,
 		int groupPk,
 		int rank,
-		@Nullable Integer share
+		@Nullable Number share
 	) {
 		// the predicate matches no stored reference, so a new one is created - the only form a reference that allows
 		// duplicates accepts
@@ -235,7 +269,7 @@ interface GroupHistogramTestSupport {
 	static Consumer<EvitaSessionContract> everyReferenceAttribute(
 		int ownerPk,
 		@Nonnull String attributeName,
-		int value
+		@Nonnull Number value
 	) {
 		return session -> {
 			final Collection<ReferenceContract> references = storedReferences(session, ownerPk);
