@@ -32,7 +32,7 @@ There should be only classes that are generic and used by several APIs.
 ### API server
 
 The HTTP server (`io.evitadb.externalApi.http.ExternalApiServer`) is implemented using the
-[Undertow server](https://undertow.io/documentation.html) and is responsible
+[Armeria server](https://armeria.dev/docs/server-basics) and is responsible
 for initializing an HTTP communication base as well as starting up all registered APIs. The server is configured
 using the `io.evitadb.externalApi.configuration.ApiOptions` which contains common server options and specific options
 for each API.
@@ -43,8 +43,12 @@ stored in server's memory for further initialization and API lifecycle managemen
 
 Then, the server initializes all needed HTTP listeners for registered APIs. The server has support for initializing and
 managing multiple HTTP/HTTPS listeners for APIs, because each API may
-need separate port or host or both (or end-user can define so). Each such listener has its own router
-(`io.undertow.server.handlers.PathHandler`) into which APIs own routers are automatically registered.
+need separate port or host or both (or end-user can define so). A service that routes requests by itself
+(`PathHandlingMode.FIXED_PATH_HANDLING`, e.g. gRPC) is registered directly on the Armeria server. The other services
+(`PathHandlingMode.DYNAMIC_PATH_HANDLING`) are registered under their path prefix in a
+`io.evitadb.externalApi.http.routing.PrefixRoutingService`, which can add, replace and remove prefixes at runtime
+without disturbing the other ones; APIs dispatch their own endpoints through an immutable
+`io.evitadb.externalApi.http.routing.EndpointRoutingService`.
 
 ### API model
 
@@ -153,7 +157,7 @@ client's YAML configuration during the evitaDB initialization.
 
 ### Registering API
 
-To tell the Undertow server to load the new API, the factory class must be specified in resources in file
+To tell the API server to load the new API, the factory class must be specified in resources in file
 `META-INF/services/io.evitadb.externalApi.http.ExternalApiProviderRegistrar` in API's module. Also, because we use
 Java modules, the factory class must be registered in `module-info.java` with:
 

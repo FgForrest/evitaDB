@@ -1,7 +1,7 @@
 ---
 title: Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure
 date: 2026-11-14
-updated: 2026-11-14 17:30
+updated: 2026-11-14 17:48
 status: accepted
 kind: refactor
 issues: [1956, 1959]
@@ -64,7 +64,10 @@ trie per HTTP method, built by a `Builder`.
   configuration. One catalog's change rebuilds the routes, decorators and virtual host of every catalog, turns
   the JVM-wide route cache cold for all of them, and publishes the new configuration before `serviceAdded` runs —
   a window Armeria itself fixed twice as a 500 in stock decorators (#6832, #7008). That contradicts the hard
-  requirement. Revisit only if Armeria gains a per-route add/remove API.
+  requirement. Judged from source only (no load probe): unchanged routes see no 404 window, but the swap takes no
+  lock and goes through a non-volatile field, replaced configurations are never closed (one TLS provider leaks per
+  call), stale route-cache entries keep a replaced catalog's API reachable, and the API is `@UnstableApi`.
+  Revisit only if Armeria gains a per-route add/remove API.
 
 ### Option C — own prefix dispatcher, Armeria `Route#apply` for templates (declined)
 
@@ -94,6 +97,9 @@ measurements below show it is faster and less allocating than what it replaces. 
   a catalog's data and schema endpoints together, so there is no lock, no volatile and no copy-on-write `add`.
 - **Match on the encoded path.** Delimiters are found before decoding (RFC 3986); a segment is decoded only when
   it contains `%`, once, as strict UTF-8, and `+` stays a plus. Captures are decoded after the route is chosen.
+  Registrations stay decoded: matching encoded bytes against encoded registrations was declined because it would
+  have to reproduce Armeria's internal normaliser (`DefaultRequestTarget`) exactly. The design relies on Armeria
+  keeping `%2F` / `%3F` escaped, decoding unreserved characters and collapsing raw `//` — recheck on upgrade.
 - **Parameters travel in a request-context attribute** (`RouteParameters`), not in request headers.
 
 ## Key technical details
@@ -103,18 +109,27 @@ measurements below show it is faster and less allocating than what it replaces. 
   substring), `RoutingPath` (scan, split and decode), `RouteParameters`.
 - Invariant: a published table and everything reachable from it is never written again. A writer must build a
   complete new table and assign the field once; assigning twice in one call reintroduces the missing-route window
-  (the long-running test's calibration mutation).
+  (the long-running test's calibration mutation). Removing `volatile` from the table field is not reliably caught
+  by any test.
 - Invariant: a new table re-uses the handler instances of every path not named in the call. Rebuilding or
   re-decorating them breaks isolation without failing any status-code assertion — the unit tests compare
   identity for this reason.
 - The prefix router rewrites `:path` to the encoded remainder for the nested level and drops the query there;
-  handlers read the query from `ctx.query()`. Lab and system file serving depend on the rewritten `:path`.
+  handlers read the query from `ctx.query()`. The rewritten `:path` is read by lab's `GuiHandler`, the Prometheus
+  adapter and error logging; certificate download and `FileService` (JFR dump) select their file without it.
+  The Prometheus adapter reads the query of the rewritten request, so its query parameters are lost (the old
+  router dropped them the same way; by reading, not tested).
 - Looks like a bug but is intended: literal > parameter > wildcard with backtracking; an identical template
   registered twice for one method silently keeps the first handler, while an equivalent template with different
   parameter names throws; a `CONNECT` entry that exists only through the WebSocket auto-registration neither
-  appears in `Allow` nor turns a 404 into a 405; a malformed escape or invalid UTF-8 answers 404.
+  appears in `Allow` nor turns a 404 into a 405; a malformed escape or invalid UTF-8 answers 404 in-process.
+  Over the wire Armeria 1.43 answers 400 for a malformed `%` triplet before routing (by reading its source), so a
+  client sees our 404 only for invalid UTF-8.
 - A custom TLS certificate whose file name equals a fixed system route (`status`, `liveness`, `readiness`,
   `server-name`) fails start-up instead of shadowing or being shadowed.
+- Path-traversal safety rests on Armeria rejecting dot segments (also `%2e%2e`) before routing and on lab's
+  `GuiHandler` checking the remainder against an ASCII whitelist; the routers resolve no dot segments and pass
+  escaped control characters such as TAB through to captures.
 
 ## Verification
 
@@ -122,7 +137,8 @@ Functional: `PrefixRoutingServiceTest`, `EndpointRoutingServiceTest`, `RegionRou
 `RestRouterTest`, `GraphQLRouterTest`, `CatalogRenameRoutingTest`, `RestParameterRoutingTest`,
 `CustomCertificateDownloadTest`. Until its
 deletion a differential test fed the old and the new routers the same generated route sets and requests; the only
-permitted difference was the 405 oracle.
+permitted difference was the 405 oracle. The churn test's opt-in saturation ramp (`api.churn.mode=ramp`) has never
+been run, so no latency-under-load comparison of the two routers exists.
 
 Long-running: `LongRunningPrefixRoutingPublicationTest` was calibrated by two mutations (publish an empty table
 first; remove before replace) — each turned it red with a 404 within its 25-second sweep.
@@ -143,6 +159,11 @@ router in the same invocation, background load of about 1.7 cores (ratios are th
 | Catalog replacement, 10 / 100 catalogs | 19–21 / 23–25 µs | 19 / 29 µs |
 | Wrong method | 1,680–1,776 B/op (404) | 1,840–1,944 B/op (405 with `Allow`) |
 
+One endpoint router, old → new, ops/µs (B/op): parameter 2.7–3.1 → 8.1–8.3 (~1,490 → 96); localized REST at 5 /
+50 / 500 collections 1.12 / 0.19 / 0.023 → 6.3–6.6 (3.3k–138k → 144); near miss 0.72 / 0.12 / 0.012 → 1.9–2.0
+(4.2k–139k → ~1,580); prefix miss 2.9–3.2 → 3.2–3.9 (~2,120 → ~1,590). The old router formatted a debug message on
+every prefix match, which cost as much as the match itself.
+
 The new routers were faster and less allocating in all 45 full-path configurations (3.3–83×, geometric mean
 5.1×). Two places are worse than before: a catalog replacement at 100 catalogs is 15–28 % slower, and a
 wrong-method request allocates 130–190 B more.
@@ -150,27 +171,40 @@ wrong-method request allocates 130–190 B more.
 ## Consequences & open follow-ups
 
 - **Behaviour changes for clients** (upgrade notes are on issue #1956): 405 with `Allow` instead of 404 for a
-  known path with an unsupported method; a malformed escape or invalid UTF-8 answers 404; `internal_*` request
+  known path with an unsupported method; an escape that decodes to invalid UTF-8 answers 404; `internal_*` request
   headers and the `?internal_<name>` query alias no longer supply parameters; a custom certificate is served at
   `/system/<file>` (it was registered with a doubled slash and could not be downloaded).
 - **A write rebuilds the prefix table**, so its cost grows with the number of catalogs (29 µs at 100). Writes
   happen only on catalog lifecycle and schema changes. The cause of the slowdown at 100 catalogs was not isolated
-  from reader pressure; a writer-only benchmark would settle it if catalog counts grow by orders of magnitude.
+  from reader pressure; a writer-only benchmark would settle it if catalog counts grow by orders of magnitude. The
+  comparison is not like for like: the old writer removed and added, the new one replaces once, and only the
+  target catalog had a full route set (the others were decoys), so all rows describe warm repeated hits.
 - **The region-hashed table is not faster than a plain `HashMap` with `substring`** (equal within error, about
   9 % slower on a hit at 100 catalogs); it allocates 8–16 % less on a hit. It stays for the allocation; the
   `HASHMAP` benchmark arm is kept so the choice can be re-measured.
 - **About 1.7–1.9 kB per request remain** on the full path. Each prefix level copies the request headers to
-  rewrite `:path`. Passing an offset in the request context instead would remove the copies, but lab and system
-  file serving read the rewritten `:path`; not attributed by a profile and not attempted.
-- **Rename and overwrite publish the new name before removing the old one.** The observers reuse the refresh
-  path: REST replaces the target's prefix in one publication; GraphQL builds both instances and then swaps the
-  references behind its stable routes (two adjacent writes, so data can briefly be newer than schema), which is
-  what lets handlers of open WebSocket connections see a refreshed instance. A failed build removes target and
-  source, because the catalogs they served no longer exist. `CatalogRenameRoutingTest` and `GraphQLRouterTest`
-  guard ordering, failure cleanup and the instance swap for requests routed before a refresh; that an open
-  WebSocket sees the swap, and the failed-registration cleanup in `GraphQLManager`, rest on reading the code.
-  The churn test fails on a routing 404 of a replace target: 589 misses in one run with the old order restored,
-  none in 961 probes without.
+  rewrite `:path`. Passing an offset in the request context instead would remove the copies, but lab's
+  `GuiHandler`, the Prometheus adapter and error logging read the rewritten `:path` and would each need an adapter;
+  not attributed by a profile and not attempted.
+- **Levels that never change after start-up** (server-wide, system, lab, observability) could use stock Armeria
+  routes, as gRPC does with `serviceUnder`; left for a separate change. GraphQL WebSockets still need the single
+  root `WebSocketEnablingService`.
+- **Manager bookkeeping is unsynchronised.** `RestManager` and `GraphQLManager` keep plain sets and maps and rely on
+  the change-capture subscription running each observer's callbacks one at a time; a second caller would need a
+  lifecycle owner with its own lock. Cleanup after a failure is not transactional.
+- **Rename and overwrite publish the new name before removing the old one.** The observers reuse the refresh path: REST
+  replaces the target's prefix in one publication; GraphQL builds both instances and then swaps the references behind
+  its stable routes (two adjacent writes, so data can briefly be newer than schema), which is what lets handlers of open
+  WebSocket connections see a refreshed instance. Replacing the GraphQL prefix once, which would make data and schema
+  atomic as REST is, was built and reverted: handlers obtained before the refresh kept serving the old instance
+  (`GraphQLRouterTest` red; open WebSockets by reading). A failed build removes target and source, because the catalogs
+  they served no longer exist. `CatalogRenameRoutingTest` and `GraphQLRouterTest` guard ordering, failure cleanup and
+  the instance swap for requests routed before a refresh; that an open WebSocket sees the swap, and the
+  failed-registration cleanup in `GraphQLManager`, rest on reading the code. The churn test fails on a routing 404 of a
+  replace target: 589 misses in 1,918 protected probes in one run with the old order restored, none in 976 (and in 961
+  on the final tree) without. The guarantee is routing continuity, not query success: while a rename is built the old
+  name stays routed but its sessions fail with "catalog not found" (400), and an overwritten target briefly serves its
+  previous API over the new catalog's data (by reading).
 - **A late "inactive" or "removed" host event no longer unregisters a newer catalog of the same name.** Host
   events and engine mutations reach a CDC subscriber as separate executor tasks, so one drain can deliver
   "deactivate B" and "replace B with A" before the older INACTIVE(B) event; the observers used to unregister the
@@ -183,6 +217,7 @@ wrong-method request allocates 130–190 B more.
   emits a second ALIVE event that would repair it, and no run has shown it.
 - **A REST request whose session the engine terminates now answers HTTP 400 with an error code**, fixed in
   PR #1957 for #1959 by throwing `InstanceTerminatedException("session")` from the inactive-session check.
+  GraphQL already reports a terminated session as a coded error in an HTTP 200 response (by reading).
   `RestEndpointExecutionContextTest` guards the real session drain and the REST error response. A later run
   also saw one HTTP 400 "Schema for entity with name `Product` was not found!" on a catalog being replaced;
   not analysed. The test accepts any error

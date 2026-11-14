@@ -26,10 +26,10 @@ other classes from the shared module, and it is essentially wrapped gRPC client.
 
 ## Initialization
 
-The gRPC Java library comes with custom HTTP server based on Netty, and thus it cannot run on the main HTTP server which runs
-on Undertow. Therefore, the gRPC provider (`io.evitadb.externalApi.grpc.GrpcProvider`) is responsible for starting and
-stopping the custom server set up by the `io.evitadb.externalApi.grpc.GrpcProviderRegistrar`. Actual server setup
-is happening in the `io.evitadb.externalApi.grpc.utils.GrpcServer`.
+The gRPC API runs on the main Armeria HTTP server. The `io.evitadb.externalApi.grpc.GrpcProviderRegistrar` builds an
+Armeria `GrpcService` with all evitaDB gRPC services, and the gRPC provider (`io.evitadb.externalApi.grpc.GrpcProvider`)
+registers it (and the optional gRPC documentation service) as a service that routes requests by itself
+(`PathHandlingMode.FIXED_PATH_HANDLING`).
 
 ## Extending the gRPC schema
 
