@@ -82,10 +82,11 @@ A locale specified only inside a nested entity level does not set the main query
 `referenceHaving` and `facetHaving` use the owner's locale, including their localized reference attributes.
 
 In a `referenceContent` filter, the direct children use the reference filter's locale, falling back to the owner.
-Referenced entity bodies and their ordering use the `entityHaving` level's locale when specified, otherwise the
-reference filter's locale, otherwise the owner. Group filters and bodies resolve their `groupHaving` level the same
-way. A reference-level `cs` and a nested entity-level `en` may therefore coexist. Summary entity and group filters
-also supply the locale for their fetched bodies and ordering.
+Referenced entity bodies and their ordering use the locale of an `entityHaving` that no `or`, `not` or `inScope` of
+the reference filter encloses, otherwise the reference filter's locale, otherwise the owner. Group bodies resolve their
+`groupHaving` level the same way, and a group filter uses its own `groupHaving` locale. A reference-level `cs` and a
+nested entity-level `en` may therefore coexist. Summary entity and group filters also supply the locale for their
+fetched bodies and ordering.
 
 It is not possible to omit the language specification for a localized attribute and ask questions like: *find
 a product whose name in any language is "screwdriver"*.

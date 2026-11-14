@@ -360,6 +360,30 @@ public class EvitaRequest {
 		@Nullable OrderBy orderBy,
 		@Nonnull EntityFetchRequire requirements
 	) {
+		this(evitaRequest, entityType, filterBy, orderBy, requirements, null, null);
+	}
+
+	/**
+	 * Derives a content request with an optional explicit scope pair. Supplying the pair bypasses scope lookup in
+	 * the filter, preserving distinct searched and admitted scopes. Without it the original derivation is retained.
+	 *
+	 * @param evitaRequest source request
+	 * @param entityType entity type of the copy
+	 * @param filterBy filter override, NULL to retain the source filter
+	 * @param orderBy ordering override
+	 * @param requirements reduced content requirements
+	 * @param scopes explicit searched scopes, NULL for the original filter-based derivation
+	 * @param requestedScopes explicit admitted scopes, supplied together with searched scopes
+	 */
+	private EvitaRequest(
+		@Nonnull EvitaRequest evitaRequest,
+		@Nullable String entityType,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nonnull EntityFetchRequire requirements,
+		@Nullable Set<Scope> scopes,
+		@Nullable Set<Scope> requestedScopes
+	) {
 		this.requiresEntity = true;
 		// the fetch is reduced before it is stored and before it is written into the derived query, so that every
 		// consumer - including the nested query built below - sees at most one requirement of each kind
@@ -525,18 +549,24 @@ public class EvitaRequest {
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = evitaRequest.debugModes;
 
-		final EntityScope overriddenScopes = QueryUtils.findFilter(
-			this.query, EntityScope.class, SeparateEntityScopeContainer.class
-		);
-		if (overriddenScopes == null) {
-			this.requestedScopes = evitaRequest.requestedScopes;
-			this.scopes = evitaRequest.scopes;
-			this.scopesAsArray = evitaRequest.scopesAsArray;
+		if (scopes != null) {
+			this.scopes = scopes;
+			this.scopesAsArray = scopes.toArray(Scope[]::new);
+			this.requestedScopes = Objects.requireNonNull(requestedScopes);
 		} else {
-			// only a filter of this copy can name a new scope, the filter of the source keeps what the source admits
-			this.requestedScopes = filterBy == null ? evitaRequest.requestedScopes : null;
-			this.scopes = overriddenScopes.getScope();
-			this.scopesAsArray = overriddenScopes.getScopesInRequestedOrder();
+			final EntityScope overriddenScopes = QueryUtils.findFilter(
+				this.query, EntityScope.class, SeparateEntityScopeContainer.class
+			);
+			if (overriddenScopes == null) {
+				this.requestedScopes = evitaRequest.requestedScopes;
+				this.scopes = evitaRequest.scopes;
+				this.scopesAsArray = evitaRequest.scopesAsArray;
+			} else {
+				// Only a filter override replaces admission; the retained source filter keeps the source admission.
+				this.requestedScopes = filterBy == null ? evitaRequest.requestedScopes : null;
+				this.scopes = overriddenScopes.getScope();
+				this.scopesAsArray = overriddenScopes.getScopesInRequestedOrder();
+			}
 		}
 	}
 
@@ -1956,6 +1986,31 @@ public class EvitaRequest {
 			this,
 			entityType, filterBy, orderBy, requirements
 		);
+	}
+
+	/**
+	 * Derives a content request with explicit searched and admitted scopes, without reading a scope from its filter.
+	 * Other metadata and requirement reduction follow
+	 * {@link #deriveCopyWith(String, FilterBy, OrderBy, EntityFetchRequire)}.
+	 *
+	 * @param entityType entity type of the copy
+	 * @param filterBy body metadata filter, NULL to retain the source filter
+	 * @param orderBy ordering override
+	 * @param requirements entity content to fetch
+	 * @param scopes scopes searched for bodies
+	 * @param requestedScopes scopes admitted below the bodies
+	 * @return the derived content request
+	 */
+	@Nonnull
+	public EvitaRequest deriveCopyWithScopes(
+		@Nullable String entityType,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nonnull EntityFetchRequire requirements,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull Set<Scope> requestedScopes
+	) {
+		return new EvitaRequest(this, entityType, filterBy, orderBy, requirements, scopes, requestedScopes);
 	}
 
 	/**

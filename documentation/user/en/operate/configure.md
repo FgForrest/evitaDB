@@ -143,6 +143,7 @@ api:                                              # [see API configuration](#api
       tlsMode: null
       keepAlive: null
       parallelize: true
+      documentCacheSizeInBytes: 16MB
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -1393,6 +1394,21 @@ This allows you to set common settings for all endpoints in one place.
     <dd>
         <p>**Default:** `true`</p>
         <p>Controls whether queries that fetch data from evitaDB engine will be executed in parallel.</p>
+    </dd>
+    <dt>documentCacheSizeInBytes</dt>
+    <dd>
+        <p>**Default:** `16MB`</p>
+        <p>Approximate memory budget of the cache of parsed and validated GraphQL documents. When the same query text
+        is sent repeatedly (typically a front store sending static queries with values passed as variables), it is
+        lexed, parsed and validated only once and the cached document is reused by subsequent requests. Only
+        successfully validated documents are cached, invalid queries are processed on every request.</p>
+        <p>The budget applies to **each GraphQL instance separately** - i.e. to the data API and the schema API of
+        every catalog and to the system API - so the total memory used may be a multiple of this value. The size of
+        a cached document is estimated as 1 KB plus 8 times the length of its query text (measured on real
+        e-commerce queries, a parsed document retains roughly 6.3-7.4 times the size of its text, tiny documents
+        are dominated by a fixed cost of several hundred bytes). The cache of a catalog is
+        discarded whenever its GraphQL schema is rebuilt (e.g. after a catalog schema change).</p>
+        <p>Set to `0` to disable the cache. Negative values are rejected.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>
