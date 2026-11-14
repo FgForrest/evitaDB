@@ -23,6 +23,7 @@ server:
   readOnly: ${server.readOnly:false}
   quiet: ${server.quiet:false}
   usageStatisticsTracking: ${server.usageStatisticsTracking:true}
+  missingHistogramValueBehavior: ${server.missingHistogramValueBehavior:REFUSE}
   trafficRecording:
     enabled: ${server.trafficRecording.enabled:false}
     sourceQueryTracking: ${server.trafficRecording.sourceQueryTracking:false}
@@ -130,6 +131,7 @@ api:
       tlsMode: ${api.endpoints.graphQL.tlsMode:null}
       keepAlive: ${api.endpoints.graphQL.keepAlive:null}
       parallelize: ${api.endpoints.graphQL.parallelize:true}
+      documentCacheSizeInBytes: ${api.endpoints.graphQL.documentCacheSizeInBytes:16MB}
       mTLS:
         enabled: ${api.endpoints.graphQL.mTLS.enabled:null}
         allowedClientCertificatePaths: ${api.endpoints.graphQL.mTLS.allowedClientCertificatesPaths:null}

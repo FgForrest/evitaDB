@@ -53,7 +53,7 @@ import java.util.function.IntPredicate;
  * - `entityLocaleEquals` tests the only owner of the row against the locales of the owner collection in the scope;
  * - `groupHaving` looks the row up among the reduced group indexes of the matching groups;
  * - `inScope` compares the scope it names with the scope of the rows: naming it, the container is its children,
- *   naming another scope it is unmet.
+ *   naming another scope it is satisfied by every row, as it restricts the rows of its own scope only.
  *
  * A negation and `attributeIs` need no override: a single-owner partition holds one row, so the subtraction the
  * referenced-type entity index answers in place is the per-partition answer once it is intersected with `U`.
