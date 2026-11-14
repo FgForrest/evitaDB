@@ -28,14 +28,15 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextIndexModel;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
-import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
+import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -46,6 +47,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -122,11 +124,11 @@ class LongRunningGlobalEntityIndexTest implements TimeBoundedTestSupport {
 	/**
 	 * The index-slot analyzer of every locale of {@link #FULLTEXT_LOCALES}.
 	 */
-	private static Map<Locale, FulltextAnalyzer> analyzers;
+	private static Map<Locale, CompiledFulltextAnalyzer> analyzers;
 
 	@BeforeAll
 	static void setUpAnalyzers() {
-		registry = new FulltextAnalyzerRegistry();
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 		analyzers = indexAnalyzersOf(registry);
 	}
 
@@ -279,7 +281,7 @@ class LongRunningGlobalEntityIndexTest implements TimeBoundedTestSupport {
 		@Nonnull Set<Integer> referencePks,
 		@Nonnull Map<Locale, Set<Integer>> referenceLocales,
 		@Nonnull Map<Locale, FulltextIndexModel> referenceFulltext,
-		@Nonnull Map<Locale, FulltextAnalyzer> analyzers,
+		@Nonnull Map<Locale, CompiledFulltextAnalyzer> analyzers,
 		@Nonnull EntitySchemaContract schema
 	) {
 		final int ops = random.nextInt(5) + 1;
@@ -318,7 +320,7 @@ class LongRunningGlobalEntityIndexTest implements TimeBoundedTestSupport {
 		}
 		for (final Map.Entry<Locale, FulltextIndexModel> entry : referenceFulltext.entrySet()) {
 			entry.getValue().replayInto(
-				index.getOrCreateFulltextIndex(entry.getKey(), analyzers.get(entry.getKey()))
+				index.getOrCreateFulltextIndex(entry.getKey())
 			);
 		}
 		return index;
@@ -383,7 +385,7 @@ class LongRunningGlobalEntityIndexTest implements TimeBoundedTestSupport {
 		@Nonnull Set<Integer> referencePks,
 		@Nonnull Map<Locale, Set<Integer>> referenceLocales,
 		@Nonnull Map<Locale, FulltextIndexModel> referenceFulltext,
-		@Nonnull Map<Locale, FulltextAnalyzer> analyzers,
+		@Nonnull Map<Locale, CompiledFulltextAnalyzer> analyzers,
 		@Nonnull EntitySchemaContract schema
 	) {
 		final int operation = random.nextInt(8);
@@ -443,11 +445,11 @@ class LongRunningGlobalEntityIndexTest implements TimeBoundedTestSupport {
 		@Nonnull Random random,
 		@Nonnull GlobalEntityIndex index,
 		@Nonnull Map<Locale, FulltextIndexModel> referenceFulltext,
-		@Nonnull Map<Locale, FulltextAnalyzer> analyzers
+		@Nonnull Map<Locale, CompiledFulltextAnalyzer> analyzers
 	) {
 		final Locale locale = FULLTEXT_LOCALES[random.nextInt(FULLTEXT_LOCALES.length)];
-		final FulltextAnalyzer analyzer = analyzers.get(locale);
-		final FulltextIndex fulltextIndex = index.getOrCreateFulltextIndex(locale, analyzer);
+		final CompiledFulltextAnalyzer analyzer = analyzers.get(locale);
+		final FulltextIndex fulltextIndex = index.getOrCreateFulltextIndex(locale);
 		final FulltextIndexModel model = referenceFulltext.computeIfAbsent(
 			locale, l -> new FulltextIndexModel(analyzer, FULLTEXT_KEYS, FULLTEXT_PRIMARY_KEYS)
 		);
@@ -481,10 +483,10 @@ class LongRunningGlobalEntityIndexTest implements TimeBoundedTestSupport {
 	 * @return the analyzer of every locale of {@link #FULLTEXT_LOCALES}
 	 */
 	@Nonnull
-	static Map<Locale, FulltextAnalyzer> indexAnalyzersOf(@Nonnull FulltextAnalyzerRegistry registry) {
-		final Map<Locale, FulltextAnalyzer> analyzers = CollectionUtils.createHashMap(FULLTEXT_LOCALES.length);
+	static Map<Locale, CompiledFulltextAnalyzer> indexAnalyzersOf(@Nonnull FulltextAnalyzerRegistry registry) {
+		final Map<Locale, CompiledFulltextAnalyzer> analyzers = CollectionUtils.createHashMap(FULLTEXT_LOCALES.length);
 		for (final Locale locale : FULLTEXT_LOCALES) {
-			analyzers.put(locale, registry.getIndexAnalyzer(ENTITY_TYPE, locale));
+			analyzers.put(locale, registry.getCompiledAnalyzer(FulltextIndexModel.ANALYSIS_SCHEMA, "text", locale));
 		}
 		return analyzers;
 	}

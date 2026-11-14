@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
@@ -156,7 +157,9 @@ public final class ReflectedReferenceSchemaBuilder
 						.map(it -> new ScopedBucketedPartially(it.getKey(), it.getValue()))
 						.toArray(ScopedBucketedPartially[]::new),
 					this.baseSchema.getAttributesInheritanceBehavior(),
-					this.baseSchema.getAttributeInheritanceFilter()
+					this.baseSchema.getAttributeInheritanceFilter(),
+					ReferenceSchema.toScopedSearchModes(this.baseSchema.getSearchableThroughInScopes()),
+					this.baseSchema.getSearchableThroughWeight()
 				)
 			);
 		} else {
@@ -200,7 +203,10 @@ public final class ReflectedReferenceSchemaBuilder
 	) {
 		if (createNew) {
 			return existingSchema == null ?
-				ReflectedReferenceSchema._internalBuild(name, entityType, reflectedReferenceName) :
+				ReflectedReferenceSchema._internalBuild(
+					name, entityType, reflectedReferenceName, null,
+					ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
+				) :
 				(ReflectedReferenceSchema) existingSchema;
 		} else {
 			final ReferenceSchemaContract persistedReference = entitySchema.getReference(name)
@@ -770,7 +776,8 @@ public final class ReflectedReferenceSchemaBuilder
 
 	/**
 	 * Builds new instance of immutable {@link ReferenceSchemaContract} filled with updated configuration and performs
-	 * consistency checks.
+	 * consistency checks for bound references. For unbound references, searchable-through checks that do not require
+	 * the original reference are performed; other consistency checks wait until binding.
 	 */
 	@Nonnull
 	public ReferenceSchemaBuilderResult toResult() {
@@ -785,6 +792,7 @@ public final class ReflectedReferenceSchemaBuilder
 				)
 			);
 		}
+		SetReferenceSchemaSearchableThroughMutation.verifyRequirements(this.entitySchema, currentSchema);
 		return new ReferenceSchemaBuilderResult(currentSchema, mutations);
 	}
 
@@ -794,12 +802,22 @@ public final class ReflectedReferenceSchemaBuilder
 		@Nonnull ReflectedReferenceSchema currentSchema,
 		@Nonnull LocalEntitySchemaMutation mutation
 	) {
+		// mutations replay with SKIP, as their other checks need a bound original; a composition declaration is the
+		// exception and is checked at once - its check itself defers what only the original can settle
 		final ReflectedReferenceSchema result = (ReflectedReferenceSchema)
 			((ReferenceSchemaMutation) mutation).mutate(
-				this.entitySchema, currentSchema, ReferenceSchemaMutator.ConsistencyChecks.SKIP
+				this.entitySchema, currentSchema,
+				mutation instanceof SetReferenceSchemaSearchableThroughMutation
+					? ReferenceSchemaMutator.ConsistencyChecks.APPLY
+					: ReferenceSchemaMutator.ConsistencyChecks.SKIP
 			);
 		if (result == null) {
 			throw new GenericEvitaInternalError("Reflected reference unexpectedly removed from inside!");
+		}
+		if (mutation instanceof CreateReflectedReferenceSchemaMutation create &&
+			(create.getSearchableThroughInScopes() != null || create.getSearchableThroughWeight() != null)) {
+			// a declaration folded into the creation was not checked by the SKIP replay above
+			SetReferenceSchemaSearchableThroughMutation.verifyRequirements(this.entitySchema, result);
 		}
 		return result;
 	}

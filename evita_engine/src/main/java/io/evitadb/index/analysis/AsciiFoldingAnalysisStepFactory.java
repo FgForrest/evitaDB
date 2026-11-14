@@ -27,24 +27,58 @@ package io.evitadb.index.analysis;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
+import io.evitadb.spi.analysis.FulltextAnalysisContext;
+import io.evitadb.spi.analysis.FulltextAnalysisSide;
+import io.evitadb.spi.analysis.FulltextAnalysisTrait;
+import io.evitadb.spi.analysis.FulltextWordsAnalysisOperation;
+import io.evitadb.spi.analysis.FulltextWordsAnalysisStepFactory;
 import io.evitadb.spi.analysis.NormalizingAnalysisStepFactory;
 import io.evitadb.spi.analysis.StringNormalizationStep;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Folds supported Unicode characters through Lucene's ASCII table without creating a token stream.
  * Folding can expand one character into several ASCII characters and does not perform lowercasing.
  * Characters outside the table are preserved, independently of the value tree's locale.
+ *
+ * In a fulltext analyzer the same table folds every word in place: Lucene's `ASCIIFoldingFilter` calls
+ * `ASCIIFoldingFilter.foldToASCII` on the term buffer, without a `String` per word.
  */
-public final class AsciiFoldingAnalysisStepFactory implements NormalizingAnalysisStepFactory {
+public final class AsciiFoldingAnalysisStepFactory
+	implements NormalizingAnalysisStepFactory, FulltextWordsAnalysisStepFactory {
+	/**
+	 * The traits of the fulltext operation: the words leave it without diacritics.
+	 */
+	private static final Set<FulltextAnalysisTrait> FOLDING_TRAITS = EnumSet.of(FulltextAnalysisTrait.FOLDS_DIACRITICS);
+	/**
+	 * The fulltext operation, stateless and shared: every call wraps the words in a new folding filter. It declares
+	 * the fold, so that a step deciding by the diacritics refuses it before itself.
+	 */
+	private static final FulltextWordsAnalysisOperation FOLDING = new FulltextWordsAnalysisOperation() {
+		@Nonnull
+		@Override
+		public TokenStream wrap(@Nonnull TokenStream words, @Nonnull FulltextAnalysisSide side) {
+			return new ASCIIFoldingFilter(words);
+		}
+
+		@Nonnull
+		@Override
+		public Set<FulltextAnalysisTrait> getTraits(@Nonnull FulltextAnalysisSide side) {
+			return FOLDING_TRAITS;
+		}
+	};
+
 	/**
 	 * Creates a stateless provider for JPMS and classpath ServiceLoader discovery.
 	 * Per-declaration parameters belong to the operation returned by `create`, so this instance retains no catalog state.
@@ -84,5 +118,32 @@ public final class AsciiFoldingAnalysisStepFactory implements NormalizingAnalysi
 			}
 			return new String(output, 0, length);
 		};
+	}
+
+	@Nonnull
+	@Override
+	public Set<FulltextAnalysisSide> getSides() {
+		return EnumSet.allOf(FulltextAnalysisSide.class);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getIndexSideParameters() {
+		return Set.of();
+	}
+
+	@Override
+	public int getBehaviourVersion() {
+		return 1;
+	}
+
+	@Nonnull
+	@Override
+	public FulltextWordsAnalysisOperation create(
+		@Nonnull Map<String, Serializable> parameters,
+		@Nonnull FulltextAnalysisContext context
+	) {
+		validate(parameters);
+		return FOLDING;
 	}
 }

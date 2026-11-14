@@ -25,13 +25,15 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceSearchMode;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -48,9 +50,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import org.junit.jupiter.api.Tag;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
@@ -623,5 +625,28 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 		assertEquals(0, convertedMutation.getBucketedInScopes().length);
 		assertNotNull(convertedMutation.getBucketedPartiallyInScopes());
 		assertEquals(0, convertedMutation.getBucketedPartiallyInScopes().length);
+	}
+
+	/** Scoped composition modes reflect as scope/mode objects; a present weight is a decimal. */
+	@Test
+	@DisplayName("should serialize searchable-through modes and weight")
+	void shouldSerializeSearchableThroughModesAndWeight() {
+		final CreateReflectedReferenceSchemaMutation mutation = new CreateReflectedReferenceSchemaMutation(
+			"products", null, null, Cardinality.ZERO_OR_MORE, "Product", "tags",
+			ScopedReferenceIndexType.DEFAULT, null, null, null, null, null,
+			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED, null,
+			new ScopedReferenceSearchMode[]{
+				new ScopedReferenceSearchMode(Scope.LIVE, ReferenceSearchMode.COMPOSITION),
+				new ScopedReferenceSearchMode(Scope.ARCHIVED, ReferenceSearchMode.COMPOSITION)
+			}, 0.75f
+		);
+		assertThat(this.converter.convertToOutput(mutation))
+			.isInstanceOfSatisfying(Map.class, output -> {
+				assertEquals("0.75", output.get("searchableThroughWeight"));
+				assertEquals(List.of(
+					Map.of("scope", "LIVE", "mode", "COMPOSITION"),
+					Map.of("scope", "ARCHIVED", "mode", "COMPOSITION")
+				), output.get("searchableThroughInScopes"));
+			});
 	}
 }

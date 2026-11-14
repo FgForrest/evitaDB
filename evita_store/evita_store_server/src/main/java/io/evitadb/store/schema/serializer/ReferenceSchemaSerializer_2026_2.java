@@ -111,7 +111,8 @@ public class ReferenceSchemaSerializer_2026_2 extends Serializer<ReferenceSchema
 			facetedPartiallyInScopes,
 			bucketedInScopes,
 			bucketedPartiallyInScopes,
-			attributes, sortableAttributeCompounds, ConflictResolutionOverride.INHERITED
+			attributes, sortableAttributeCompounds, ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

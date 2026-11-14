@@ -133,7 +133,11 @@ public class CreateGlobalAttributeSchemaMutationConverter
 			input.getOptionalProperty(CreateGlobalAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE, ConflictResolutionOverride.INHERITED),
-			readNormalization(input)
+			readNormalization(input),
+			// the fulltext field settings have no GraphQL/REST mirror yet, so the defaults apply
+			null,
+			null,
+			null
 		);
 	}
 
@@ -141,6 +145,7 @@ public class CreateGlobalAttributeSchemaMutationConverter
 	@Override
 	protected void convertToOutput(@Nonnull CreateGlobalAttributeSchemaMutation mutation, @Nonnull Output output) {
 		writeNormalization(mutation.getNormalization(), output);
+		writeSearchWeight("searchWeight", mutation.getSearchWeight(), output);
 		super.convertToOutput(mutation, output);
 	}
 }

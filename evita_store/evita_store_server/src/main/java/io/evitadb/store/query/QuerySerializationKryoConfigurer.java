@@ -219,6 +219,11 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		// a registration added anywhere higher renumbers every one below it
 		kryo.register(HierarchyParentsBehaviour.class, new EnumSerializer(HierarchyParentsBehaviour.class), index++);
 
+		// the fulltext constraints are appended at the very tail for the same reason as everything above them
+		kryo.register(TextMatches.class, new TextMatchesSerializer(), index++);
+		kryo.register(InAttribute.class, new InAttributeSerializer(), index++);
+		kryo.register(RelevanceText.class, new RelevanceTextSerializer(), index++);
+
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}
 

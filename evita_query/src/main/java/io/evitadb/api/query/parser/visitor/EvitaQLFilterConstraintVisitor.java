@@ -36,9 +36,12 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenH
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FilterInScopeConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.GroupHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.HierarchyAnyHavingConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.InAttributeConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.TextMatchesConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
@@ -808,6 +811,31 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 					.stream()
 					.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
 					.toArray(FilterConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public FilterConstraint visitTextMatchesConstraint(TextMatchesConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new TextMatches(
+				ctx.args.text.accept(this.stringValueTokenVisitor).asString(),
+				ctx.args.constraints
+					.stream()
+					.map(fc -> visitChildConstraint(fc, TextMatchesSpecificationFilterConstraint.class))
+					.toArray(TextMatchesSpecificationFilterConstraint[]::new)
+			)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public FilterConstraint visitInAttributeConstraint(@Nonnull InAttributeConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new InAttribute(
+				ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArrayRetainingNulls()
 			)
 		);
 	}

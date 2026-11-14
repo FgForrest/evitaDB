@@ -38,7 +38,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.NormalizingAnalysisStep;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.analysis.AnalysisStepRegistry;
@@ -117,7 +117,7 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 	 * @param name short label that also prefixes the names of the attributes declared with this policy
 	 * @param steps normalization steps declared, in order, on every attribute of this policy
 	 */
-	private record Policy(@Nonnull String name, @Nonnull List<AnalysisStep> steps) {
+	private record Policy(@Nonnull String name, @Nonnull List<NormalizingAnalysisStep> steps) {
 		/**
 		 * These chains can change an already produced key, so reload must preserve every route verbatim.
 		 *
@@ -269,8 +269,9 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 							continue;
 						}
 						final String name = attributeName(policy, localized, control);
-						final UnaryOperator<String> key = this.registry.compile(control ? List.of() : policy.steps(),
-							localized ? TR : null);
+						final UnaryOperator<String> key = this.registry.compile(
+							control ? List.of() : List.copyOf(policy.steps()), localized ? TR : null
+						);
 						final Comparator<String> comparator = comparator(localized);
 						final String label = type + "/" + policy.name() + "/" + name;
 						for (final FilterCase filter : filters(key, comparator)) {
@@ -612,8 +613,8 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 						continue;
 					}
 					final String name = attributeName(policy, localized, control);
-					final AnalysisStep[] steps = control ? new AnalysisStep[0] :
-						policy.steps().toArray(AnalysisStep[]::new);
+					final NormalizingAnalysisStep[] steps = control ? new NormalizingAnalysisStep[0] :
+						policy.steps().toArray(NormalizingAnalysisStep[]::new);
 					schema = schema.withAttribute(name, String.class, a -> configure(a, localized, steps).sortable())
 						.withAttribute(name + "Fast", String.class, a -> configure(a, localized, steps)
 							.acceleratedFor(SUBSTRING_SEARCH))
@@ -664,8 +665,8 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 						continue;
 					}
 					final String name = attributeName(policy, localized, control);
-					final AnalysisStep[] steps = control ? new AnalysisStep[0] :
-						policy.steps().toArray(AnalysisStep[]::new);
+					final NormalizingAnalysisStep[] steps = control ? new NormalizingAnalysisStep[0] :
+						policy.steps().toArray(NormalizingAnalysisStep[]::new);
 					reference.withAttribute(name, String.class, a -> configure(a, localized, steps).sortable())
 						.withAttribute(name + "Fast", String.class, a -> configure(a, localized, steps))
 						.withAttribute(name + "Array", String[].class, a -> configure(a, localized, steps))
@@ -715,7 +716,7 @@ class DeclaredNormalizationQueryFunctionalTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private static <T extends AttributeSchemaEditor<T>> T configure(
-		@Nonnull T attribute, boolean localized, @Nonnull AnalysisStep[] steps
+		@Nonnull T attribute, boolean localized, @Nonnull NormalizingAnalysisStep[] steps
 	) {
 		attribute.filterable().nullable().normalized(steps);
 		if (localized) {

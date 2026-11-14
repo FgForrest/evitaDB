@@ -66,7 +66,7 @@ class SchemaJsonSerializerNormalizationTest {
 		return Stream.of(
 			List.of(),
 			List.of(removeCharacters("- "), trim(), lowercase(), asciiFolding()),
-			List.of(new AnalysisStep("custom", Map.of("limit", 3, "enabled", true, "values", new String[]{"a", "b"})))
+			List.of(AnalysisStep.of("custom", Map.of("limit", 3, "enabled", true, "values", new String[]{"a", "b"})))
 		);
 	}
 

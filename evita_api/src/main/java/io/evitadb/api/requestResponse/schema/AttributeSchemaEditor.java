@@ -24,7 +24,7 @@
 package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.requestResponse.data.Versioned;
-import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.NormalizingAnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -61,18 +61,18 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return this editor
 	 */
 	@Nonnull
-	T normalized(@Nonnull AnalysisStep... steps);
+	T normalized(@Nonnull NormalizingAnalysisStep... steps);
 
 	/**
-	 * Conditional counterpart of {@link #normalized(AnalysisStep...)}. A false decision removes normalization.
-	 * The same String-only, scope-independent, single-pass and reindexing rules apply.
+	 * Conditional counterpart of {@link #normalized(NormalizingAnalysisStep...)}. A false decision removes
+	 * normalization. The same String-only, scope-independent, single-pass and reindexing rules apply.
 	 *
 	 * @param decider determines whether to apply the steps or remove normalization
 	 * @param steps ordered normalization descriptions
 	 * @return this editor
 	 */
 	@Nonnull
-	default T normalized(@Nonnull BooleanSupplier decider, @Nonnull AnalysisStep... steps) {
+	default T normalized(@Nonnull BooleanSupplier decider, @Nonnull NormalizingAnalysisStep... steps) {
 		return decider.getAsBoolean() ? normalized(steps) : normalized();
 	}
 
@@ -264,7 +264,11 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 *
 	 * **On a reference attribute**, the entity is searchable by the **set union** of the attribute's values over all
 	 * of its references of that reference type. A change of a reference attribute that adds no value missing from that
-	 * union and removes no value no other reference still holds changes nothing in the fulltext index at all.
+	 * union and removes no value no other reference still holds changes nothing in the fulltext index at all. The
+	 * reference must be indexed in every scope the attribute is searchable in, because a reference that is not indexed
+	 * keeps no fulltext data; the attributes a reflected reference inherits are held to the same rule. Like a
+	 * filterable attribute, one that breaks it is refused as soon as the schema change is applied; an inherited one is
+	 * refused when the session that changed either reference closes.
 	 *
 	 * The declaration is accepted on a collection that already holds entities, but their stored values are not
 	 * indexed retroactively - each becomes searchable when it is written again.
@@ -328,6 +332,38 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	T nonSearchableInScope(@Nonnull Scope... inScope);
+
+	/**
+	 * Sets the fulltext analyzer that turns the attribute's values into words while it is searchable - see
+	 * {@link AttributeSchemaContract#getAnalyzer()}. It leaves the scopes the attribute is searchable in as they are,
+	 * so it may precede or follow {@link #searchable()}.
+	 *
+	 * @param analyzerName the name of a built-in analyzer or of one declared in the catalog schema
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T analyzer(@Nonnull String analyzerName);
+
+	/**
+	 * Sets the length pivot of the attribute's fulltext field - see {@link AttributeSchemaContract#getLengthPivot()}.
+	 * It leaves the scopes the attribute is searchable in as they are, so it may precede or follow
+	 * {@link #searchable()}.
+	 *
+	 * @param lengthPivot the number of words a value of normal length has, positive
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T lengthPivot(int lengthPivot);
+
+	/**
+	 * Sets the fulltext ranking weight in every scope, preserving the current searchability settings.
+	 * Zero preserves matches while contributing no ranking strength. A weight change does not rebuild the field.
+	 *
+	 * @param searchWeight finite, non-negative ranking weight
+	 * @return this editor
+	 */
+	@Nonnull
+	T searchWeight(float searchWeight);
 
 	/**
 	 * When attribute value is unique it is automatically filterable, and it is ensured there is exactly one single entity

@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
@@ -61,6 +62,13 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
+	 *
+	 * @param name schema name
+	 * @param type stored value type
+	 * @param localized whether values are localized
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param normalization ordered normalization steps, or `null` for defaults
+	 * @return new schema with the default analyzer, length pivot and ranking weight
 	 */
 	@Nonnull
 	public static EntityAttributeSchema _internalBuild(
@@ -78,15 +86,35 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			type, null,
 			0,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			FulltextAnalyzerSchemaContract.TEXT, DEFAULT_LENGTH_PIVOT, DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * Reconstructs a schema, including its fulltext ranking settings, for internal use only. Not for client code.
 	 *
-	 * Do not use this method from in the client code!
+	 * @param name schema name
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param uniqueInScopes scoped uniqueness declarations, or `null` for defaults
+	 * @param filterableInScopes scopes with filtering enabled
+	 * @param acceleratorsInScopes scoped filter accelerators
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param sortableInScopes scopes with sorting enabled
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param representative whether the attribute represents the entity
+	 * @param type stored value type
+	 * @param defaultValue value used when absent, or `null`
+	 * @param indexedDecimalPlaces decimal places retained by numeric indexes
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param normalization ordered normalization steps
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param <T> stored value type
+	 * @return immutable schema carrying all supplied settings
 	 */
 	@Nonnull
 	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
@@ -105,7 +133,10 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot,
+		float searchWeight
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -123,15 +154,35 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot, searchWeight
 		);
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * Reconstructs a schema, including its fulltext ranking settings, for internal use only. Not for client code.
 	 *
-	 * Do not use this method from in the client code!
+	 * @param name schema name
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param uniqueInScopes scoped uniqueness declarations, or `null` for defaults
+	 * @param filterableInScopes scopes with filtering enabled
+	 * @param acceleratorsInScopes scoped filter accelerators
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param sortableInScopes scopes with sorting enabled
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param representative whether the attribute represents the entity
+	 * @param type stored value type
+	 * @param defaultValue value used when absent, or `null`
+	 * @param indexedDecimalPlaces decimal places retained by numeric indexes
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param normalization ordered normalization steps
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param <T> stored value type
+	 * @return immutable schema carrying all supplied settings
 	 */
 	@Nonnull
 	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
@@ -150,7 +201,10 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot,
+		float searchWeight
 	) {
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
@@ -164,15 +218,36 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot, searchWeight
 		);
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * Reconstructs a schema, including its fulltext ranking settings, for internal use only. Not for client code.
 	 *
-	 * Do not use this method from in the client code!
+	 * @param name schema name
+	 * @param nameVariants names in supported naming conventions
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param uniqueInScopes scoped uniqueness declarations, or `null` for defaults
+	 * @param filterableInScopes scopes with filtering enabled
+	 * @param acceleratorsInScopes scoped filter accelerators
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param sortableInScopes scopes with sorting enabled
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param representative whether the attribute represents the entity
+	 * @param type stored value type
+	 * @param defaultValue value used when absent, or `null`
+	 * @param indexedDecimalPlaces decimal places retained by numeric indexes
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param normalization ordered normalization steps
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param <T> stored value type
+	 * @return immutable schema carrying all supplied settings
 	 */
 	@Nonnull
 	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
@@ -192,7 +267,10 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot,
+		float searchWeight
 	) {
 		return new EntityAttributeSchema(
 			name, nameVariants,
@@ -206,15 +284,36 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot, searchWeight
 		);
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * Reconstructs a schema, including its fulltext ranking settings, for internal use only. Not for client code.
 	 *
-	 * Do not use this method from in the client code!
+	 * @param name schema name
+	 * @param nameVariants names in supported naming conventions
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param uniqueInScopes scoped uniqueness declarations, or `null` for defaults
+	 * @param filterableInScopes scopes with filtering enabled
+	 * @param acceleratorsInScopes scoped filter accelerators
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param sortableInScopes scopes with sorting enabled
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param representative whether the attribute represents the entity
+	 * @param type stored value type
+	 * @param defaultValue value used when absent, or `null`
+	 * @param indexedDecimalPlaces decimal places retained by numeric indexes
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param normalization ordered normalization steps
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param <T> stored value type
+	 * @return immutable schema carrying all supplied settings
 	 */
 	@Nonnull
 	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
@@ -234,7 +333,10 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot,
+		float searchWeight
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -252,11 +354,36 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			type, defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot, searchWeight
 		);
 	}
 
-	/** Creates an immutable attribute schema, including its ordered normalization descriptions. */
+	/**
+	 * Creates an immutable schema including its fulltext ranking settings.
+	 *
+	 * @param name schema name
+	 * @param nameVariants names in supported naming conventions
+	 * @param description human-readable description, or `null`
+	 * @param deprecationNotice deprecation notice, or `null`
+	 * @param uniqueInScopes scoped uniqueness declarations, or `null` for defaults
+	 * @param filterableInScopes scopes with filtering enabled
+	 * @param acceleratorsInScopes scoped filter accelerators
+	 * @param searchableInScopes scopes with fulltext indexing enabled
+	 * @param sortableInScopes scopes with sorting enabled
+	 * @param localized whether values are localized
+	 * @param nullable whether values may be absent
+	 * @param representative whether the attribute represents the entity
+	 * @param type stored value type
+	 * @param defaultValue value used when absent, or `null`
+	 * @param indexedDecimalPlaces decimal places retained by numeric indexes
+	 * @param conflictResolutionOverride per-item conflict resolution override
+	 * @param normalization ordered normalization steps
+	 * @param analyzer fulltext analyzer name
+	 * @param lengthPivot positive fulltext length pivot
+	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param <T> stored value type
+	 */
 	<T extends Serializable> EntityAttributeSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -274,7 +401,10 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable List<AnalysisStep> normalization
+		@Nullable List<AnalysisStep> normalization,
+		@Nonnull String analyzer,
+		int lengthPivot,
+		float searchWeight
 	) {
 		super(
 			name, nameVariants, description, deprecationNotice,
@@ -282,7 +412,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			localized, nullable, representative,
 			type, defaultValue, indexedDecimalPlaces,
 			conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot, searchWeight
 		);
 	}
 
@@ -300,6 +431,9 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			", sortable=" +
 			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
 			", normalization=" + this.normalization +
+			", analyzer=" + this.analyzer +
+			", lengthPivot=" + this.lengthPivot +
+			", searchWeight=" + this.searchWeight +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

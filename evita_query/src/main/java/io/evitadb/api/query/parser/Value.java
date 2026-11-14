@@ -371,6 +371,29 @@ public class Value {
 	}
 
 	/**
+	 * Returns the value as a String array whose null items are retained, for a constraint that reports a missing item
+	 * with a diagnostic of its own instead of failing on the missing item's type, as {@link #asStringArray()} does.
+	 *
+	 * @return the items in their original order, null items included
+	 * @throws EvitaInvalidUsageException when an item is neither null nor a String
+	 */
+	@Nonnull
+	public String[] asStringArrayRetainingNulls() {
+		return asArray(
+			v -> {
+				if (v == null || v instanceof String) {
+					return (String) v;
+				}
+				throw new EvitaInvalidUsageException(
+					"Expected variadic value items of type `" + String.class.getName() + "` but got `"
+						+ v.getClass().getName() + "`."
+				);
+			},
+			String.class
+		);
+	}
+
+	/**
 	 * Returns the value as a Serializable array.
 	 */
 	@Nonnull

@@ -26,6 +26,7 @@ package io.evitadb.index.fulltext.analysis;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.KeywordAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.util.ArrayUtil;
 
@@ -36,7 +37,8 @@ import java.io.IOException;
  * Replaces every token with the full set of stem variants a {@link VariantStemmer} derives from it, all emitted
  * **at one position**: the first variant keeps the token's incoming position increment, every further variant
  * gets increment `0`. That is the same shape Lucene's synonym filter uses, and it carries the same meaning —
- * the variants are alternatives for one query word, not a sequence of words.
+ * the variants are alternatives for one query word, not a sequence of words. A token the keyword attribute marks - a
+ * protected word - is the exception: it passes through unchanged, as the only variant of itself.
  *
  * **The query pipeline must therefore OR the terms of one position.** A consumer that ANDs them, or that treats
  * them as consecutive words, asks the index for a word that was never written and finds nothing. This filter
@@ -71,6 +73,10 @@ final class VariantStemFilter extends TokenFilter {
 	 */
 	@Nonnull private final PositionIncrementAttribute positionIncrementAttribute =
 		addAttribute(PositionIncrementAttribute.class);
+	/**
+	 * Marks a protected word, which passes through as the only variant of itself.
+	 */
+	@Nonnull private final KeywordAttribute keywordAttribute = addAttribute(KeywordAttribute.class);
 	/**
 	 * Reusable copy of the current token's original text — the buffer every variant is materialized over,
 	 * kept because emitting one variant overwrites the term attribute the next one needs.
@@ -109,6 +115,12 @@ final class VariantStemFilter extends TokenFilter {
 		}
 		if (!this.input.incrementToken()) {
 			return false;
+		}
+		if (this.keywordAttribute.isKeyword()) {
+			// a protected word is looked up as it is, never as the stems it could come from
+			this.variantCount = 0;
+			this.nextVariant = 0;
+			return true;
 		}
 		this.tokenLength = this.termAttribute.length();
 		if (this.tokenBuffer.length < this.tokenLength) {

@@ -43,6 +43,7 @@ import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.utils.CollectionUtils;
@@ -54,6 +55,7 @@ import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -196,26 +198,11 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 	@Nonnull
 	private EntityIndexLocalMutationExecutor createExecutor(@Nonnull PartitionReservations reservations) {
 		final AtomicInteger sequencer = new AtomicInteger(1);
-		return new EntityIndexLocalMutationExecutor(
-			this.containerAccessor,
-			OWNER_PK,
-			this.indexMaintainer,
-			new MockEntityIndexCreator<>(this.catalogIndex),
-			() -> this.productSchema,
-			sequencer::getAndIncrement,
+		return new EntityIndexLocalMutationExecutor(this.containerAccessor, OWNER_PK, this.indexMaintainer,
+			new MockEntityIndexCreator<>(this.catalogIndex), () -> this.productSchema, sequencer::getAndIncrement,
 			() -> {
 				throw new UnsupportedOperationException("Not supported in the test.");
-			},
-			null,
-			null,
-			null,
-			this.classifierResolver,
-			this.usageRegistry,
-			this.catalogUsageRegistry,
-			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
-			true,
-			reservations
-		);
+			}, null, null, null, this.classifierResolver, this.usageRegistry, this.catalogUsageRegistry, new FulltextAnalyzerRegistry(new AnalysisStepRegistry()), () -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA, AttributeNormalizationResolver.LEGACY_NFD, true, reservations);
 	}
 
 	/**

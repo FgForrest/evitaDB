@@ -56,12 +56,14 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaSearchableThroughMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -101,6 +103,11 @@ public interface InternalSchemaBuilderHelper {
 	 * and a mutation whose combiner judges it against the base schema is not combined at all once its name was
 	 * renamed (see {@link #isJudgedAgainstBaseSchema(SchemaMutation)}).
 	 *
+	 * A combination that would move a statement across a later mutation whose validity depends on their order is
+	 * skipped as well (see {@link #isOrderedSince(List, int, SchemaMutation)}): the collected mutation keeps its
+	 * position, and when it would have been absorbed into the new one, the merged statement is appended in place of
+	 * the new one, so the replay keeps both the order and the accumulated effect.
+	 *
 	 * @param mutationType      type class required for Java generics array creation
 	 * @param combiner          function that combines an existing mutation with a new mutation
 	 * @param existingMutations set of existing mutations in the pipeline
@@ -132,6 +139,8 @@ public interface InternalSchemaBuilderHelper {
 					boolean discarded = false;
 					for (int i = 0; i < mutationsToGoThrough.length; i++) {
 						T examinedMutation = mutationsToGoThrough[i];
+						// the merged statement of the latest combination skipped to keep a dependent mutation in order
+						T orderedReplacement = null;
 						// a combiner judging against the base schema must not see a name the pipeline renames
 						final boolean combinable = !isJudgedAgainstBaseSchema(examinedMutation) ||
 							!isRenamedSince(existingMutations, 0, examinedMutation);
@@ -148,6 +157,15 @@ public interface InternalSchemaBuilderHelper {
 							final MutationCombinationResult<T> combinationResult = combiner.apply(
 								existingMutation, examinedMutation
 							);
+							if (combinationResult != null &&
+								isOrderedSince(existingMutations, index + 1, examinedMutation)) {
+								// a mutation collected in between depends on the order, so the existing one stays put;
+								// only a statement added by the caller may stand in for the merge, a re-examined one
+								// already carries the state collected after the existing mutation
+								orderedReplacement = examinedMutation == newMutation ?
+									getMergedStatement(combinationResult) : null;
+								continue;
+							}
 							if (combinationResult != null) {
 								discarded = combinationResult.discarded();
 								// now check the result
@@ -190,7 +208,9 @@ public interface InternalSchemaBuilderHelper {
 							replacements.clear();
 							// and if the new mutation still applies, append it to the end
 							if (examinedMutation != null) {
-								existingMutations.add(examinedMutation);
+								existingMutations.add(
+									orderedReplacement == null ? examinedMutation : orderedReplacement
+								);
 								schemaUpdated = updateMutationImpactInternal(schemaUpdated, MutationImpact.ADDED);
 							}
 						}
@@ -277,6 +297,84 @@ public interface InternalSchemaBuilderHelper {
 		} else {
 			return false;
 		}
+	}
+
+	/**
+	 * Tests whether the mutation at `fromIndex`, or any collected after it, must stay on the same side of `newMutation`
+	 * as it was collected. A text composition declaration of a reference is valid only while the reference is indexed
+	 * with its referenced entity and targets a managed entity, and the builders validate it in the order the mutations
+	 * were collected:
+	 *
+	 * - an index or target change combined with an earlier one would move that earlier change after a declaration
+	 *   relying on it;
+	 * - a declaration combined with an earlier creation would move ahead of an index or target change it relies on.
+	 *
+	 * @param existingMutations the collected mutations
+	 * @param fromIndex         the index of the first collected mutation to inspect
+	 * @param newMutation       the mutation being added
+	 * @param <T>               mutation type parameter required by Java generics constraints
+	 * @return true if a mutation whose order against `newMutation` matters is collected at or after `fromIndex`
+	 */
+	private static <T extends SchemaMutation> boolean isOrderedSince(
+		@Nonnull List<T> existingMutations,
+		int fromIndex,
+		@Nonnull T newMutation
+	) {
+		for (final T collectedMutation : existingMutations.subList(fromIndex, existingMutations.size())) {
+			if (isOrderedAgainst(collectedMutation, newMutation)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Tests whether `candidate` and `mutation` address the same reference, one of them declaring its text composition
+	 * and the other changing a prerequisite of it - the indexed scopes and components, or the target entity type.
+	 *
+	 * @param candidate the collected mutation
+	 * @param mutation  the mutation being added
+	 * @return true if the two mutations must keep their relative order
+	 */
+	private static boolean isOrderedAgainst(@Nonnull SchemaMutation candidate, @Nonnull SchemaMutation mutation) {
+		if (candidate instanceof ReferenceSchemaMutation candidateReference &&
+			mutation instanceof ReferenceSchemaMutation referenceMutation &&
+			candidateReference.getName().equals(referenceMutation.getName())) {
+			return (candidate instanceof SetReferenceSchemaSearchableThroughMutation &&
+				isSearchableThroughPrerequisiteChange(mutation)) ||
+				(mutation instanceof SetReferenceSchemaSearchableThroughMutation &&
+					isSearchableThroughPrerequisiteChange(candidate));
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Tests whether the mutation changes what a text composition declaration of its reference requires.
+	 *
+	 * @param mutation the tested mutation
+	 * @return true for a change of the indexed scopes and components or of the target entity type
+	 */
+	private static boolean isSearchableThroughPrerequisiteChange(@Nonnull SchemaMutation mutation) {
+		return mutation instanceof SetReferenceSchemaIndexedMutation ||
+			mutation instanceof ModifyReferenceSchemaRelatedEntityMutation;
+	}
+
+	/**
+	 * Returns the statement a combination wants appended when it makes the collected mutation obsolete - the merge of
+	 * both mutations.
+	 *
+	 * @param combinationResult the result of combining the collected mutation with the mutation being added
+	 * @param <T>               mutation type parameter required by Java generics constraints
+	 * @return the single merged mutation, or null when the combination keeps or rewrites the collected mutation
+	 */
+	@Nullable
+	private static <T extends SchemaMutation> T getMergedStatement(
+		@Nonnull MutationCombinationResult<T> combinationResult
+	) {
+		final T[] current = combinationResult.current();
+		return combinationResult.origin() == null && !combinationResult.discarded() &&
+			current != null && current.length == 1 ? current[0] : null;
 	}
 
 	/**

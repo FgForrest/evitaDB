@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaClassInvalidException;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -39,10 +40,14 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
+import io.evitadb.api.requestResponse.schema.model.evolution.GetterBasedEntityFulltextFieldSettings;
 import io.evitadb.api.requestResponse.schema.model.*;
 import io.evitadb.api.requestResponse.schema.model.evolution.*;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator.ConsistencyChecks;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
@@ -77,6 +82,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -91,6 +98,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -5176,6 +5184,14 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 						.getAttribute("label").orElseThrow();
 					assertTrue(label.isSearchableInScope(Scope.LIVE));
 					assertFalse(label.isSearchableInScope(Scope.ARCHIVED));
+					// associated data: a String is searchable as it is, a POJO through its text expression
+					final AssociatedDataSchemaContract body = schema.getAssociatedData("body").orElseThrow();
+					assertTrue(body.isSearchableInScope(Scope.LIVE));
+					assertFalse(body.isSearchableInScope(Scope.ARCHIVED));
+					assertNull(body.getTextExpression());
+					final AssociatedDataSchemaContract article = schema.getAssociatedData("article").orElseThrow();
+					assertTrue(article.isSearchable());
+					assertEquals(ExpressionFactory.parse("$value.title"), article.getTextExpression());
 				}
 			);
 		}
@@ -5239,6 +5255,10 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 							.getAttribute("label").orElseThrow()
 							.isSearchable()
 					);
+					assertFalse(schema.getAssociatedData("body").orElseThrow().isSearchableInAnyScope());
+					final AssociatedDataSchemaContract article = schema.getAssociatedData("article").orElseThrow();
+					assertFalse(article.isSearchableInAnyScope());
+					assertNull(article.getTextExpression());
 				}
 			);
 		}
@@ -5296,6 +5316,73 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				current = current.getCause();
 			}
 			assertNotNull(current, "Expected a refusal saying `" + expectedMessagePart + "`, got: " + thrown);
+		}
+
+	}
+
+	/**
+	 * Covers the fulltext field settings the annotations carry next to `searchable`: the analyzer and the length pivot,
+	 * on entity, global and reference attributes and on associated data.
+	 */
+	@Nested
+	@DisplayName("Fulltext analyzer and length pivot declared by annotation")
+	class FulltextFieldSettings {
+
+		@DisplayName("the analyzer and the length pivot reach every kind of field schema, defaults where left out")
+		@Test
+		void shouldSetupAnalyzerAndLengthPivot() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(GetterBasedEntityFulltextFieldSettings.class);
+					final SealedEntitySchema schema = session.getEntitySchema(
+						GetterBasedEntityFulltextFieldSettings.ENTITY_NAME).orElseThrow();
+
+					final AttributeSchemaContract name = schema.getAttribute("name").orElseThrow();
+					assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, name.getAnalyzer());
+					assertEquals(8, name.getLengthPivot());
+					assertEquals(2.5f, name.getSearchWeight());
+					final AttributeSchemaContract plainName = schema.getAttribute("plainName").orElseThrow();
+					assertEquals(FulltextAnalyzerSchemaContract.TEXT, plainName.getAnalyzer());
+					assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, plainName.getLengthPivot());
+					assertEquals(1.0f, plainName.getSearchWeight());
+
+					final AttributeSchemaContract globalTitle = session.getCatalogSchema()
+						.getAttribute("fieldSettingsGlobalTitle").orElseThrow();
+					assertEquals(FulltextAnalyzerSchemaContract.TEXT, globalTitle.getAnalyzer());
+					assertEquals(12, globalTitle.getLengthPivot());
+					assertEquals(3.5f, globalTitle.getSearchWeight());
+					final AttributeSchemaContract label = schema.getReference("marketingBrand").orElseThrow()
+						.getAttribute("label").orElseThrow();
+					assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, label.getAnalyzer());
+					assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, label.getLengthPivot());
+					assertEquals(4.5f, label.getSearchWeight());
+
+					final AssociatedDataSchemaContract body = schema.getAssociatedData("body").orElseThrow();
+					assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, body.getAnalyzer());
+					assertEquals(400, body.getLengthPivot());
+					assertEquals(0.0f, body.getSearchWeight());
+					assertEquals(5.5f, schema.getAssociatedData("paragraphs").orElseThrow().getSearchWeight());
+					assertEquals(6.5f, schema.getAssociatedData("article").orElseThrow().getSearchWeight());
+				}
+			);
+		}
+
+		@DisplayName("re-analyzing an unchanged model produces no mutations")
+		@Test
+		void shouldProduceNoMutationsWhenReanalyzedUnchanged() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(GetterBasedEntityFulltextFieldSettings.class);
+
+					final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+						session, GetterBasedEntityFulltextFieldSettings.class
+					);
+
+					assertEquals(0, mutations.length, "Expected no mutations but got: " + Arrays.toString(mutations));
+				}
+			);
 		}
 
 	}
@@ -5390,6 +5477,273 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			@Nonnull EntitySchemaContract entity,
 			@Nonnull LocalCatalogSchemaMutation[] mutations
 		) {
+		}
+	}
+
+	/** Verifies both annotation shapes, replacement scopes and the shared composition weight. */
+	@Nested
+	@DisplayName("Reference searchableThrough annotations")
+	class SearchableThroughAnnotations {
+
+		/** Without scope entries the general mode lands in LIVE and carries the general weight. */
+		@Test
+		@DisplayName("general reference composition applies to LIVE with its explicit weight")
+		void shouldApplyGeneralSearchableThroughToLive() {
+			final CreateReferenceSchemaMutation mutation =
+				analyzeReference(SearchableThroughAnnotationFixtures.General.class);
+			assertSearchableThrough(mutation, 0.75f, Scope.LIVE);
+		}
+
+		/** An annotation silent on composition creates an empty declaration with the default weight. */
+		@Test
+		@DisplayName("empty mode defaults to none with the default shared weight")
+		void shouldKeepEmptySearchableThroughByDefault() {
+			final CreateReferenceSchemaMutation mutation =
+				analyzeReference(SearchableThroughAnnotationFixtures.Defaults.class);
+			assertSearchableThrough(mutation, ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT);
+		}
+
+		/** Scope entries win over the general weight, and scopes they leave out get no mode. */
+		@Test
+		@DisplayName("scope declarations replace general settings and leave unlisted scopes empty")
+		void shouldReplaceGeneralSearchableThroughWithScopedSettings() {
+			final CreateReferenceSchemaMutation mutation =
+				analyzeReference(SearchableThroughAnnotationFixtures.Scoped.class);
+			assertSearchableThrough(mutation, 0.3f, Scope.ARCHIVED);
+		}
+
+		/** Differing weights in scope entries ask for per-scope weights, which the single shared weight cannot hold. */
+		@Test
+		@DisplayName("scope entries declaring different weights are refused by the analyzer")
+		void shouldRefuseConflictingScopedWeights() {
+			final SchemaClassInvalidException exception = assertThrows(SchemaClassInvalidException.class,
+				() -> analyzeReference(SearchableThroughAnnotationFixtures.ConflictingScopedWeights.class));
+			assertInstanceOf(InvalidSchemaMutationException.class, exception.getCause());
+			assertTrue(exception.getCause().getMessage().contains("`blocks`"));
+			assertTrue(exception.getCause().getMessage().contains("0.2"));
+			assertTrue(exception.getCause().getMessage().contains("0.8"));
+		}
+
+		/** Scope entries repeating one weight agree on it, and it applies to every declared scope. */
+		@Test
+		@DisplayName("scope entries repeating the same weight share it across all declared scopes")
+		void shouldShareRepeatedScopedWeightAcrossScopes() {
+			final CreateReferenceSchemaMutation mutation =
+				analyzeReference(SearchableThroughAnnotationFixtures.RepeatedScopedWeight.class);
+			assertSearchableThrough(mutation, 0.8f, Scope.LIVE, Scope.ARCHIVED);
+		}
+
+		/** A scope entry leaving the weight at its default does not reset a weight an earlier entry declares. */
+		@Test
+		@DisplayName("a later scope entry with the default weight keeps the weight an earlier entry declares")
+		void shouldKeepEarlierScopedWeightWhenLaterEntryLeavesDefault() {
+			final CreateReferenceSchemaMutation mutation =
+				analyzeReference(SearchableThroughAnnotationFixtures.EarlierScopedWeight.class);
+			assertSearchableThrough(mutation, 0.8f, Scope.LIVE);
+		}
+
+		/** A weight is declared even without a mode, so it is in place once a mode is added. */
+		@Test
+		@DisplayName("weight is declared even when no scope has a mode")
+		void shouldApplyWeightWithoutSearchableThroughMode() {
+			final CreateReferenceSchemaMutation mutation =
+				analyzeReference(SearchableThroughAnnotationFixtures.WeightOnly.class);
+			assertSearchableThrough(mutation, 0.0f);
+		}
+
+		/** A reflected annotation declares its own composition instead of inheriting the original one. */
+		@Test
+		@DisplayName("general reflected composition is explicitly declared in LIVE")
+		void shouldDeclareOwnReflectedSearchableThrough() {
+			final ReferenceSchemaContract reference =
+				analyzeReflectedReferenceSchema(SearchableThroughAnnotationFixtures.ReflectedGeneral.class);
+			assertEquals(Map.of(Scope.LIVE, ReferenceSearchMode.COMPOSITION), reference.getSearchableThroughInScopes());
+			assertEquals(0.4f, reference.getSearchableThroughWeight());
+		}
+
+		/** Scope entries of a reflected annotation declare composition only in the scopes they list. */
+		@Test
+		@DisplayName("scoped reflected composition uses only the supplied scope")
+		void shouldDeclareScopedReflectedSearchableThrough() {
+			final ReferenceSchemaContract reference =
+				analyzeReflectedReferenceSchema(SearchableThroughAnnotationFixtures.ReflectedScoped.class);
+			assertEquals(
+				Map.of(Scope.ARCHIVED, ReferenceSearchMode.COMPOSITION), reference.getSearchableThroughInScopes()
+			);
+			assertEquals(0.6f, reference.getSearchableThroughWeight());
+		}
+
+		/** A reflected annotation without composition creates an explicit empty declaration, not an inherited one. */
+		@Test
+		@DisplayName("reflected annotation defaults to its own empty mode map")
+		void shouldDefaultReflectedSearchableThroughToNone() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				analyzeReflectedReference(SearchableThroughAnnotationFixtures.ReflectedDefaults.class);
+			assertEquals(0, mutation.getSearchableThroughInScopes().length);
+			assertEquals(ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT,
+				mutation.getSearchableThroughWeight());
+		}
+
+		/** The general annotation array may carry one mode at most. */
+		@Test
+		@DisplayName("multiple general modes are refused by the analyzer")
+		void shouldRefuseMultipleGeneralModes() {
+			assertInvalidModes(SearchableThroughAnnotationFixtures.TooManyGeneral.class);
+		}
+
+		/** Each scope entry may carry one mode at most. */
+		@Test
+		@DisplayName("multiple scoped modes are refused by the analyzer")
+		void shouldRefuseMultipleScopedModes() {
+			assertInvalidModes(SearchableThroughAnnotationFixtures.TooManyScoped.class);
+		}
+
+		/** The reflected annotation array may carry one mode at most. */
+		@Test
+		@DisplayName("multiple reflected modes are refused by the analyzer")
+		void shouldRefuseMultipleReflectedModes() {
+			assertInvalidModes(SearchableThroughAnnotationFixtures.TooManyReflected.class);
+		}
+
+		/** A general mode next to scope entries would be dropped silently, so the analysis refuses it. */
+		@Test
+		@DisplayName("a general mode cannot be mixed with scope declarations")
+		void shouldRefuseMixedGeneralAndScopedModes() {
+			assertThrows(SchemaClassInvalidException.class,
+				() -> analyzeReference(SearchableThroughAnnotationFixtures.MixedGeneralAndScoped.class));
+		}
+
+		/** A negative weight surfaces as a schema mutation error wrapped by the class analysis. */
+		@Test
+		@DisplayName("invalid annotation weights are refused during analysis")
+		void shouldRefuseInvalidAnnotationWeight() {
+			final SchemaClassInvalidException exception = assertThrows(SchemaClassInvalidException.class,
+				() -> analyzeReference(SearchableThroughAnnotationFixtures.InvalidWeight.class));
+			assertInstanceOf(InvalidSchemaMutationException.class, exception.getCause());
+		}
+
+		/** Negative zero reaches the mutation with the bit pattern of positive zero. */
+		@Test
+		@DisplayName("negative zero annotation weight is stored as positive zero")
+		void shouldNormalizeNegativeZeroAnnotationWeight() {
+			final CreateReferenceSchemaMutation mutation =
+				analyzeReference(SearchableThroughAnnotationFixtures.NegativeZero.class);
+			assertEquals(Float.floatToIntBits(0.0f), Float.floatToIntBits(mutation.getSearchableThroughWeight()));
+		}
+
+		/** Annotation evolution preserves the clear before index withdrawal, including a shared weight change. */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("annotation evolution can withdraw composition and its index while changing the weight")
+		void shouldRemoveCompositionBeforeWithdrawingIndex(boolean changeWeight) {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.defineEntitySchema(SearchableThroughAnnotationFixtures.TARGET).updateVia(session);
+				session.defineEntitySchema(SearchableThroughAnnotationFixtures.OWNER)
+					.withReferenceToEntity(
+						"blocks", SearchableThroughAnnotationFixtures.TARGET, Cardinality.ZERO_OR_MORE,
+						reference -> reference.indexed().searchableThrough(ReferenceSearchMode.COMPOSITION))
+					.updateVia(session);
+				session.defineEntitySchemaFromModelClass(changeWeight
+					? SearchableThroughAnnotationFixtures.WeightOnly.class
+					: SearchableThroughAnnotationFixtures.Defaults.class);
+				final ReferenceSchemaContract reference = session
+					.getEntitySchema(SearchableThroughAnnotationFixtures.OWNER)
+					.orElseThrow().getReference("blocks").orElseThrow();
+				assertTrue(reference.getSearchableThroughInScopes().isEmpty());
+				assertFalse(reference.isIndexed());
+				assertEquals(changeWeight ? 0.0f : 0.5f, reference.getSearchableThroughWeight());
+			});
+		}
+
+		/** Annotation evolution withdraws composition before retargeting the reference to an unmanaged type. */
+		@Test
+		@DisplayName("annotation evolution can withdraw composition while retargeting to an unmanaged entity type")
+		void shouldWithdrawCompositionWhenRetargetingToUnmanagedEntity() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.defineEntitySchema(SearchableThroughAnnotationFixtures.TARGET).updateVia(session);
+				session.defineEntitySchema(SearchableThroughAnnotationFixtures.OWNER)
+					.withReferenceToEntity(
+						"blocks", SearchableThroughAnnotationFixtures.TARGET, Cardinality.ZERO_OR_MORE,
+						reference -> reference.indexed().searchableThrough(ReferenceSearchMode.COMPOSITION))
+					.updateVia(session);
+				session.defineEntitySchemaFromModelClass(SearchableThroughAnnotationFixtures.UnmanagedTarget.class);
+				final ReferenceSchemaContract reference = session
+					.getEntitySchema(SearchableThroughAnnotationFixtures.OWNER)
+					.orElseThrow().getReference("blocks").orElseThrow();
+				assertEquals("ExternalBlock", reference.getReferencedEntityType());
+				assertFalse(reference.isReferencedEntityTypeManaged());
+				assertTrue(reference.getSearchableThroughInScopes().isEmpty());
+			});
+		}
+
+		/** Checks the exact declared scope map and the one shared weight. */
+		private void assertSearchableThrough(CreateReferenceSchemaMutation mutation, float weight, Scope... scopes) {
+			assertArrayEquals(scopes, Arrays.stream(mutation.getSearchableThroughInScopes())
+				.map(entry -> entry.scope()).toArray(Scope[]::new));
+			assertTrue(Arrays.stream(mutation.getSearchableThroughInScopes())
+				.allMatch(entry -> entry.mode() == ReferenceSearchMode.COMPOSITION));
+			assertEquals(weight, mutation.getSearchableThroughWeight());
+		}
+
+		/** Extracts the normal reference creation from real schema analysis. */
+		private CreateReferenceSchemaMutation analyzeReference(Class<?> model) {
+			final AtomicReference<CreateReferenceSchemaMutation> result = new AtomicReference<>();
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				final ClassSchemaAnalyzer.AnalysisResult analysis = new ClassSchemaAnalyzer(model,
+					ReflectionLookup.NO_CACHE_INSTANCE).analyze(session, session.getCatalogSchema().openForWrite());
+				result.set(streamEntitySchemaMutations(analysis.entityMutations(), CreateReferenceSchemaMutation.class)
+					.filter(mutation -> "blocks".equals(mutation.getName())).findFirst().orElseThrow());
+			});
+			return result.get();
+		}
+
+		/** Extracts the reflected reference creation from real schema analysis. */
+		private CreateReflectedReferenceSchemaMutation analyzeReflectedReference(Class<?> model) {
+			final AtomicReference<CreateReflectedReferenceSchemaMutation> result = new AtomicReference<>();
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				final ClassSchemaAnalyzer.AnalysisResult analysis = new ClassSchemaAnalyzer(model,
+					ReflectionLookup.NO_CACHE_INSTANCE).analyze(session, session.getCatalogSchema().openForWrite());
+				result.set(streamEntitySchemaMutations(
+						analysis.entityMutations(), CreateReflectedReferenceSchemaMutation.class
+					)
+					.filter(mutation -> "blocks".equals(mutation.getName())).findFirst().orElseThrow());
+			});
+			return result.get();
+		}
+
+		/**
+		 * Replays every mutation the analysis emits for the reflected reference. The declaration folds into the
+		 * creation only when no index change follows it, so the effective reference is what the annotation decides.
+		 */
+		private ReferenceSchemaContract analyzeReflectedReferenceSchema(Class<?> model) {
+			final AtomicReference<ReferenceSchemaContract> result = new AtomicReference<>();
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				final ClassSchemaAnalyzer.AnalysisResult analysis = new ClassSchemaAnalyzer(model,
+					ReflectionLookup.NO_CACHE_INSTANCE).analyze(session, session.getCatalogSchema().openForWrite());
+				final EntitySchemaContract owner =
+					EntitySchema._internalBuild(SearchableThroughAnnotationFixtures.OWNER);
+				ReferenceSchemaContract reference = null;
+				for (final ReferenceSchemaMutation mutation : streamEntitySchemaMutations(
+					analysis.entityMutations(), ReferenceSchemaMutation.class
+				).filter(it -> "blocks".equals(it.getName())).toList()) {
+					reference = mutation.mutate(owner, reference, ConsistencyChecks.SKIP);
+				}
+				result.set(reference);
+			});
+			return Objects.requireNonNull(result.get());
+		}
+
+		/** More than one annotation mode is a schema mutation error wrapped by class analysis. */
+		private void assertInvalidModes(Class<?> model) {
+			final SchemaClassInvalidException exception = assertThrows(SchemaClassInvalidException.class, () -> {
+				if (model == SearchableThroughAnnotationFixtures.TooManyReflected.class) {
+					analyzeReflectedReference(model);
+				} else {
+					analyzeReference(model);
+				}
+			});
+			assertInstanceOf(InvalidSchemaMutationException.class, exception.getCause());
+			assertTrue(exception.getCause().getMessage().contains("more than one searchableThrough mode"));
 		}
 	}
 

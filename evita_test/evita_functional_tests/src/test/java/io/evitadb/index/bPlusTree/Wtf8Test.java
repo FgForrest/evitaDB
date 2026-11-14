@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -389,6 +390,72 @@ class Wtf8Test {
 				}
 			}
 			return false;
+		}
+
+	}
+
+	@Nested
+	@DisplayName("appending decoded keys to reusable character storage")
+	class AppendDecoding {
+
+		@Test
+		@DisplayName("every encoder output appends exactly what decode returns")
+		void shouldAppendWhatDecodeReturns() {
+			// Lane lookups compare these characters against probes, so the append path must agree with decode on
+			// every shape the encoder writes - control characters, all three multi-byte widths and lone surrogates.
+			final String[] values = {"\u0000", "\u0001", "a\u0000b\u0001c", "café", "你好", "a😀c"};
+			for (final String[] group : new String[][]{values, WELL_FORMED, UNPAIRED}) {
+				for (final String value : group) {
+					final byte[] encoded = Wtf8.encode(value);
+					final StringBuilder target = new StringBuilder(16);
+
+					Wtf8.appendDecoded(encoded, encoded.length, target);
+
+					assertEquals(Wtf8.decode(encoded, 0, encoded.length), target.toString(),
+						"must append the decoded form of " + describe(value));
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("the existing prefix is kept and bytes past the length are ignored")
+		void shouldKeepPrefixAndHonourLength() {
+			// The column decodes out of a reused scratch buffer whose tail holds stale bytes from a longer key.
+			final byte[] value = Wtf8.encode("a\ud800c");
+			final byte[] padded = Arrays.copyOf(value, value.length + 4);
+			Arrays.fill(padded, value.length, padded.length, (byte) 'X');
+			final StringBuilder target = new StringBuilder(16).append("prefix:");
+
+			Wtf8.appendDecoded(padded, value.length, target);
+
+			assertEquals("prefix:a\ud800c", target.toString());
+		}
+
+		@Test
+		@DisplayName("malformed bytes are refused rather than decoded into a different key")
+		void shouldRefuseMalformedBytes() {
+			final int[][] malformed = {
+				{0xe2, 0x82},                   // a three-byte sequence cut short
+				{0xe2, 0x28, 0xa1},             // a continuation byte that is not one
+				{0xc1, 0xbf},                   // a lead byte only an overlong two-byte form uses
+				{0x80},                         // a continuation byte in lead position
+				{0xe0, 0x80, 0x80},             // an overlong three-byte form
+				{0xf0, 0x80, 0x80, 0x80},       // an overlong four-byte form
+				{0xf4, 0x90, 0x80, 0x80},       // a code point above U+10FFFF
+				{0xf5, 0x80, 0x80, 0x80}        // a lead byte past the four-byte range
+			};
+			for (final int[] sequence : malformed) {
+				final byte[] bytes = new byte[sequence.length];
+				for (int i = 0; i < sequence.length; i++) {
+					bytes[i] = (byte) sequence[i];
+				}
+				final StringBuilder target = new StringBuilder(16);
+
+				final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class,
+					() -> Wtf8.appendDecoded(bytes, bytes.length, target), Arrays.toString(sequence));
+
+				assertTrue(error.getMessage().startsWith("Invalid WTF-8"), error.getMessage());
+			}
 		}
 
 	}

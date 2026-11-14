@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.annotation;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
@@ -62,6 +63,27 @@ public @interface ScopeReferenceSettings {
 	 * Propagates to {@link ReferenceSchemaContract#getIndexedComponents(Scope)}.
 	 */
 	ReferenceIndexedComponents[] indexedComponents() default { ReferenceIndexedComponents.REFERENCED_ENTITY };
+
+	/**
+	 * Declares how searchable text of referenced entities participates in the owner's fulltext search.
+	 * Empty means this reference is not searched through; exactly one mode may be supplied.
+	 * The target must be managed and the scope must index the referenced entity component.
+	 * This declaration is independent of the original reference on reflected references.
+	 *
+	 * @return zero or one search mode
+	 */
+	ReferenceSearchMode[] searchableThrough() default {};
+
+	/**
+	 * Sets the single ranking weight shared by all scopes. Zero preserves matches without adding rank strength.
+	 * The weight must be finite and non-negative; either signed zero is stored as positive zero.
+	 * An entry whose weight differs from the default declares this shared value, and an entry leaving the default
+	 * declares nothing, so it never resets a weight another entry declares. Entries declaring a non-default weight
+	 * must agree on it; different values are refused, as one weight serves all scopes.
+	 *
+	 * @return shared ranking weight, defaulting to 0.5
+	 */
+	float searchableThroughWeight() default ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT;
 
 	/**
 	 * Enables facet computation for reference of this name.

@@ -28,6 +28,8 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
+import io.evitadb.api.requestResponse.schema.analysis.FulltextResourceContent;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 
@@ -112,6 +114,95 @@ public interface CatalogSchemaEditor<S extends CatalogSchemaEditor<S>> extends
 	 */
 	@Nonnull
 	S withoutConflictResolution();
+
+	/**
+	 * Declares how text in one language is split into words for fulltext, replacing any previous declaration of the
+	 * language. Splitting is shared by every searchable field in the language. A language never declared is split by
+	 * {@link AnalysisSteps#standardTokenizer()} alone; declaring one is how
+	 * {@link FulltextLanguageSchemaEditor#wordNumberSplit()} is turned on:
+	 *
+	 * ```
+	 * catalog.withFulltextLanguage("cs", l -> l.wordNumberSplit());
+	 * ```
+	 *
+	 * A change of a language's splitting changes the terms of every field indexed in it: such fields stop answering
+	 * queries until they are reindexed.
+	 *
+	 * @param language the ISO 639 language code, as {@link java.util.Locale#getLanguage()} returns it
+	 * @param whichIs  defines the splitting; it starts from the standard tokenizer
+	 * @return this builder to allow method chaining
+	 */
+	@Nonnull
+	S withFulltextLanguage(@Nonnull String language, @Nonnull Consumer<FulltextLanguageSchemaEditor> whichIs);
+
+	/**
+	 * Removes the declaration of a language, which then falls back to {@link AnalysisSteps#standardTokenizer()}.
+	 * Nothing happens when the language is not declared.
+	 *
+	 * @param language the ISO 639 language code
+	 * @return this builder to allow method chaining
+	 */
+	@Nonnull
+	S withoutFulltextLanguage(@Nonnull String language);
+
+	/**
+	 * Declares a named fulltext resource - a list that analysis steps read by name - replacing any previous content of
+	 * the name:
+	 *
+	 * ```
+	 * catalog
+	 *     .withFulltextResource("brands", wordList("puma", "nike"))
+	 *     .withFulltextResource("phones", synonymList(synonymGroup("mobil", "telefon")));
+	 * ```
+	 *
+	 * A resource read only on the query side (synonyms) takes effect on the next query; a resource read on the index
+	 * side (stop words, protected words) changes the terms of the fields whose analyzers read it, which then stop
+	 * answering queries until they are reindexed.
+	 *
+	 * @param name    the name, not one of {@link AnalysisSteps#BUILT_IN_RESOURCES}
+	 * @param content the content, created by {@link AnalysisSteps#wordList(String...)} or
+	 *                {@link AnalysisSteps#synonymList(io.evitadb.api.requestResponse.schema.analysis.SynonymGroup...)}
+	 * @return this builder to allow method chaining
+	 */
+	@Nonnull
+	S withFulltextResource(@Nonnull String name, @Nonnull FulltextResourceContent content);
+
+	/**
+	 * Removes a fulltext resource. The schema update is refused while an analyzer still reads the resource - checked on
+	 * the schema the whole update produces, so an update that re-points those analyzers may remove the resource too.
+	 * Nothing happens when the resource is not declared.
+	 *
+	 * @param name the name of the resource
+	 * @return this builder to allow method chaining
+	 */
+	@Nonnull
+	S withoutFulltextResource(@Nonnull String name);
+
+	/**
+	 * Declares a named fulltext analyzer, replacing any previous definition of the name - see
+	 * {@link FulltextAnalyzerSchemaContract} for how its phases resolve and {@link FulltextAnalyzerSchemaEditor} for
+	 * examples. Searchable fields name the analyzer they use.
+	 *
+	 * A change to the index side of an analyzer changes the terms of the fields that use it, which then stop answering
+	 * queries until they are reindexed; a change to the query side only takes effect on the next query.
+	 *
+	 * @param name    the name, not one of {@link FulltextAnalyzerSchemaContract#BUILT_IN_ANALYZERS}
+	 * @param whichIs defines the analyzer; it starts empty
+	 * @return this builder to allow method chaining
+	 */
+	@Nonnull
+	S withFulltextAnalyzer(@Nonnull String name, @Nonnull Consumer<FulltextAnalyzerSchemaEditor> whichIs);
+
+	/**
+	 * Removes a fulltext analyzer. The schema update is refused while a searchable field or another analyzer still
+	 * names it - checked on the schema the whole update produces, so an update that re-points those fields and
+	 * analyzers may remove the analyzer too. Nothing happens when the analyzer is not declared.
+	 *
+	 * @param name the name of the analyzer
+	 * @return this builder to allow method chaining
+	 */
+	@Nonnull
+	S withoutFulltextAnalyzer(@Nonnull String name);
 
 	/**
 	 * Interface that simply combines {@link CatalogSchemaEditor} and {@link CatalogSchemaContract} entity contracts

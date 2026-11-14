@@ -2488,7 +2488,7 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Applies limit & enrich logic on provided collection of entities fetched in unknown richness so that they conform
+	 * Applies limit and enrich logic on provided collection of entities fetched in unknown richness so that they conform
 	 * to passed fetch request. For deep fetching of references, the reference fetcher is used.
 	 *
 	 * @param entities The collection of sealed entities to be processed.
@@ -3999,6 +3999,7 @@ public final class EntityCollection implements
 			// their counters belong to the catalog rather than to whichever collection happened to write one
 			this.catalog.getUsageRegistry(),
 			this.catalog.getFulltextAnalyzerRegistry(),
+			() -> this.catalog.getSchema(),
 			getAttributeNormalizationResolver(),
 			this.catalog.isUsageStatisticsTracked(),
 			// the collector is shared by the whole root mutation, so its executors share the reservations too

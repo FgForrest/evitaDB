@@ -31,6 +31,7 @@ import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.TlsKeyPair;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.ExportOptions;
+import io.evitadb.api.configuration.FulltextOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
@@ -65,6 +66,8 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -97,6 +100,7 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
+@DisplayName("Server configuration and lifecycle")
 @Tag(SERVER)
 @Tag(MANAGEMENT)
 class EvitaServerTest implements TestConstants, EvitaTestSupport {
@@ -900,6 +904,92 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/** Fulltext uses the same YAML and substitution paths as the existing configuration sections. */
+	@Nested
+	@DisplayName("Fulltext configuration loading")
+	class FulltextConfiguration {
+		/** Bundled defaults bind every new option. */
+		@Test
+		@DisplayName("Binds the bundled fulltext defaults")
+		void shouldBindFulltextDefaults() {
+			final EvitaServer server = new EvitaServer(getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+				constructTestArguments());
+			try {
+				server.run();
+				assertEquals(new FulltextOptions(), server.getEvita().getConfiguration().fulltext());
+			} finally {
+				closeServerAndEvita(server);
+			}
+		}
+
+		/** A partial YAML overlay inherits other keys, including a changed typo threshold. */
+		@Test
+		@DisplayName("Overrides one item through a system property and preserves its neighbours")
+		void shouldOverrideFulltextItem() {
+			EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(DIR_EVITA_SERVER_TEST,
+				"/testData/evita-configuration-fulltext.yaml", "evita-configuration-fulltext.yaml");
+			final String previous = System.getProperty("fulltext.digitsExact");
+			try {
+				System.setProperty("fulltext.digitsExact", "false");
+				final EvitaServer server = new EvitaServer(getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+					constructTestArguments());
+				try {
+					server.run();
+					assertEquals(new FulltextOptions(6, 8, 1, true, false, true, 4, 4),
+						server.getEvita().getConfiguration().fulltext());
+				} finally {
+					closeServerAndEvita(server);
+				}
+			} finally {
+				if (previous == null) {
+					System.clearProperty("fulltext.digitsExact");
+				} else {
+					System.setProperty("fulltext.digitsExact", previous);
+				}
+			}
+		}
+
+		/** Invocation arguments use the same placeholder names. */
+		@Test
+		@DisplayName("Applies a fulltext application argument")
+		void shouldOverrideFulltextArgument() {
+			final Map<String, String> arguments = constructTestArguments();
+			arguments.put("fulltext.prefixLeg", "false");
+			final EvitaServer server = new EvitaServer(getPathInTargetDirectory(DIR_EVITA_SERVER_TEST), arguments);
+			try {
+				server.run();
+				assertEquals(FulltextOptions.builder().prefixLeg(false).build(),
+					server.getEvita().getConfiguration().fulltext());
+			} finally {
+				closeServerAndEvita(server);
+			}
+		}
+
+		/** Every item has its own placeholder key; distinct numbers expose two keys bound to each other's item. */
+		@Test
+		@DisplayName("Applies all fulltext items given as application arguments")
+		void shouldOverrideEveryFulltextArgument() {
+			final Map<String, String> arguments = constructTestArguments();
+			arguments.put("fulltext.minLengthOneTypo", "3");
+			arguments.put("fulltext.minLengthTwoTypos", "9");
+			arguments.put("fulltext.nonFuzzyPrefix", "2");
+			arguments.put("fulltext.transpositions", "false");
+			arguments.put("fulltext.digitsExact", "false");
+			arguments.put("fulltext.prefixLeg", "false");
+			arguments.put("fulltext.minFragmentLength", "5");
+			arguments.put("fulltext.openEndedStartLength", "6");
+			final EvitaServer server = new EvitaServer(getPathInTargetDirectory(DIR_EVITA_SERVER_TEST), arguments);
+			try {
+				server.run();
+
+				assertEquals(new FulltextOptions(3, 9, 2, false, false, false, 5, 6),
+					server.getEvita().getConfiguration().fulltext());
+			} finally {
+				closeServerAndEvita(server);
+			}
+		}
+	}
+
 	@Test
 	void shouldResolveMillisecondNamedPropertiesFromBundledDefaultsCorrectly() {
 		// regression guard: SpecialConfigInputFormatsHandler must scale the seconds-based TIME_FORMAT shorthand
@@ -1083,7 +1173,9 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			);
 			fail("The server should have failed to start due to unknown properties in the configuration file.");
 		} catch (Exception ex) {
-			// this is okey
+			// The constructor is expected to refuse the configuration before a server exists to close.
+		} finally {
+			getPortManager().releasePorts(DIR_EVITA_SERVER_TEST);
 		}
 	}
 

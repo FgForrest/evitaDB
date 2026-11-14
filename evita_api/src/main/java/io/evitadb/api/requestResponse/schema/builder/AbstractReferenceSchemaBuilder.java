@@ -33,8 +33,10 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.*;
@@ -265,6 +267,61 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new ModifyReferenceSchemaDeprecationNoticeMutation(getName(), deprecationNotice)
+			)
+		);
+		return (T) this;
+	}
+
+	@Nonnull
+	@Override
+	public T searchableThroughInScope(@Nonnull ReferenceSearchMode mode, @Nonnull Scope... inScope) {
+		Assert.notNull(mode, "Search mode must not be null");
+		return applySearchableThrough(mode, null, inScope);
+	}
+
+	@Nonnull
+	@Override
+	public T searchableThroughInScope(
+		@Nonnull ReferenceSearchMode mode, float weight, @Nonnull Scope... inScope
+	) {
+		Assert.notNull(mode, "Search mode must not be null");
+		return applySearchableThrough(mode, weight, inScope);
+	}
+
+	@Nonnull
+	@Override
+	public T nonSearchableThroughInScope(@Nonnull Scope... inScope) {
+		return applySearchableThrough(null, null, inScope);
+	}
+
+	/**
+	 * Emits the complete scope map after adding or removing the supplied scopes.
+	 *
+	 * @param mode mode to set, or null to remove the mode
+	 * @param weight shared ranking weight, or null to preserve it
+	 * @param inScope scopes affected by this edit
+	 * @return this editor
+	 */
+	@Nonnull
+	private T applySearchableThrough(
+		@Nullable ReferenceSearchMode mode, @Nullable Float weight, @Nonnull Scope... inScope
+	) {
+		final Map<Scope, ReferenceSearchMode> modes = new EnumMap<>(Scope.class);
+		modes.putAll(toInstance().getSearchableThroughInScopes());
+		for (final Scope scope : inScope) {
+			if (mode == null) {
+				modes.remove(scope);
+			} else {
+				modes.put(scope, mode);
+			}
+		}
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaSearchableThroughMutation(
+					getName(), ReferenceSchema.toScopedSearchModes(modes), weight
+				)
 			)
 		);
 		return (T) this;

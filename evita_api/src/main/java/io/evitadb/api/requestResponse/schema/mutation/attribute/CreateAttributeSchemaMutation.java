@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -63,6 +64,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -111,6 +113,19 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
 	/** Ordered normalization descriptions, or `null` for Unicode NFD only. */
 	@Nullable private final AnalysisStep[] normalization;
+	/**
+	 * The name of the fulltext analyzer of the created attribute, see {@link AttributeSchemaContract#getAnalyzer()}, or
+	 * `null` for {@link FulltextAnalyzerSchemaContract#TEXT}.
+	 */
+	@Getter @Nullable private final String analyzer;
+	/**
+	 * The length pivot of the created attribute, see {@link AttributeSchemaContract#getLengthPivot()}, or `null` for
+	 * {@link AttributeSchemaContract#DEFAULT_LENGTH_PIVOT}.
+	 */
+	@Getter @Nullable private final Integer lengthPivot;
+
+	/** Ranking weight, or `null` to use the default. */
+	@Getter @Nullable private final Float searchWeight;
 
 	/** Creates an attribute using the default scope and Unicode NFD-only normalization. */
 	public CreateAttributeSchemaMutation(
@@ -292,7 +307,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			defaultValue,
 			indexedDecimalPlaces,
 			conflictResolutionOverride,
-			null
+			null,
+			null, null, null
 		);
 	}
 
@@ -318,6 +334,9 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	 * @param conflictResolutionOverride the per-item override of the conflict resolution granularity
 	 *                                   applied to this attribute (never `null`)
 	 * @param normalization              ordered normalization descriptions
+	 * @param analyzer                   the name of the fulltext analyzer, or `null` for the default one
+	 * @param lengthPivot                the length pivot, or `null` for the default one
+	 * @param searchWeight               finite, non-negative ranking weight, or `null` to use the default
 	 */
 	@SerializableCreator
 	public CreateAttributeSchemaMutation(
@@ -336,10 +355,16 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		@Nullable Serializable defaultValue,
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
-		@Nullable AnalysisStep[] normalization
+		@Nullable AnalysisStep[] normalization,
+		@Nullable String analyzer,
+		@Nullable Integer lengthPivot,
+		@Nullable Float searchWeight
 	) {
 		super(name);
 		this.normalization = normalization == null ? null : normalization.clone();
+		this.analyzer = analyzer;
+		this.lengthPivot = lengthPivot;
+		this.searchWeight = searchWeight == null ? null : AttributeSchemaContract.normalizeSearchWeight(searchWeight);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
 		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
@@ -483,10 +508,16 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 						makeMutationIfDifferent(
 							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
-							schema -> Arrays.stream(Scope.values())
-								.filter(schema::isSearchableInScope)
-								.toArray(Scope[]::new),
-							newValue -> new SetAttributeSchemaSearchableMutation(this.name, newValue)
+							// one mutation carries the scopes, the analyzer, pivot and ranking weight
+							schema -> List.of(
+								schema.getSearchableInScopes(), schema.getAnalyzer(), schema.getLengthPivot(),
+								schema.getSearchWeight()
+							),
+							newValue -> new SetAttributeSchemaSearchableMutation(
+								this.name, createdVersion.getSearchableInScopes().toArray(Scope[]::new),
+								createdVersion.getAnalyzer(), createdVersion.getLengthPivot(),
+								createdVersion.getSearchWeight()
+							)
 						),
 						makeMutationIfDifferent(
 							AttributeSchemaContract.class,
@@ -553,7 +584,10 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 				(Class) this.type, this.defaultValue,
 				this.indexedDecimalPlaces,
 				this.conflictResolutionOverride,
-				this.normalization == null ? null : Arrays.asList(this.normalization)
+				this.normalization == null ? null : Arrays.asList(this.normalization),
+				this.analyzer == null ? FulltextAnalyzerSchemaContract.TEXT : this.analyzer,
+				this.lengthPivot == null ? AttributeSchemaContract.DEFAULT_LENGTH_PIVOT : this.lengthPivot,
+				this.searchWeight == null ? AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT : this.searchWeight
 			);
 		} else if (AttributeSchemaContract.class.isAssignableFrom(schemaType)) {
 			//noinspection unchecked,rawtypes
@@ -565,7 +599,10 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 				(Class) this.type, this.defaultValue,
 				this.indexedDecimalPlaces,
 				this.conflictResolutionOverride,
-				this.normalization == null ? null : Arrays.asList(this.normalization)
+				this.normalization == null ? null : Arrays.asList(this.normalization),
+				this.analyzer == null ? FulltextAnalyzerSchemaContract.TEXT : this.analyzer,
+				this.lengthPivot == null ? AttributeSchemaContract.DEFAULT_LENGTH_PIVOT : this.lengthPivot,
+				this.searchWeight == null ? AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT : this.searchWeight
 			);
 		} else {
 			throw new InvalidSchemaMutationException("Unsupported schema type: " + schemaType);
@@ -638,7 +675,10 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			(Class) this.type, this.defaultValue,
 			this.indexedDecimalPlaces,
 			this.conflictResolutionOverride,
-			this.normalization == null ? null : Arrays.asList(this.normalization)
+			this.normalization == null ? null : Arrays.asList(this.normalization),
+			this.analyzer == null ? FulltextAnalyzerSchemaContract.TEXT : this.analyzer,
+			this.lengthPivot == null ? AttributeSchemaContract.DEFAULT_LENGTH_PIVOT : this.lengthPivot,
+			this.searchWeight == null ? AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT : this.searchWeight
 		);
 		final Optional<AttributeSchemaContract> existingAttributeSchema = getReferenceAttributeSchema(referenceSchema, this.name);
 		if (existingAttributeSchema.isEmpty()) {
@@ -686,7 +726,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 							)
 						),
 					referenceSchema.getSortableAttributeCompounds(),
-					referenceSchema.getConflictResolutionOverride()
+					referenceSchema.getConflictResolutionOverride(),
+					referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 				);
 			}
 		} else if (existingAttributeSchema.get().equals(newAttributeSchema)) {
@@ -722,6 +763,9 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			(isSearchable() ? "(in scopes: " + Arrays.toString(this.searchableInScopes) + ")" : "no") +
 			", sortable=" + (isSortable() ? "(in scopes: " + Arrays.toString(this.sortableInScopes) + ")" : "no") +
 			", normalization=" + Arrays.toString(this.normalization) +
+			(this.analyzer == null ? "" : ", analyzer=" + this.analyzer) +
+			(this.lengthPivot == null ? "" : ", lengthPivot=" + this.lengthPivot) +
+			(this.searchWeight == null ? "" : ", searchWeight=" + this.searchWeight) +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

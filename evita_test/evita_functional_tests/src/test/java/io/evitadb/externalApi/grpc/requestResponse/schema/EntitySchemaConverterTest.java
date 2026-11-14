@@ -29,6 +29,8 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.*;
@@ -139,15 +141,23 @@ class EntitySchemaConverterTest {
 					null,
 					0,
 					ConflictResolutionOverride.ENTITY,
-					List.of(lowercase(), asciiFolding(), removeCharacters("- "), trim())
+					List.of(lowercase(), asciiFolding(), removeCharacters("- "), trim()),
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				)
 			),
 			Map.of(
 				"test1", AssociatedDataSchema._internalBuild(
 					"test1", "Lorem ipsum", "Alert", Integer.class, false, true,
-					ConflictResolutionOverride.GRANULAR
+					null,
+					null,
+					ConflictResolutionOverride.GRANULAR,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
-				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, ConflictResolutionOverride.INHERITED)
+				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, null, null, ConflictResolutionOverride.INHERITED,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT)
 			),
 			Map.of(
 				"test1", ReferenceSchema._internalBuild(
@@ -158,7 +168,8 @@ class EntitySchemaConverterTest {
 					Entities.PARAMETER_GROUP,
 					false,
 					new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) },
-					new Scope[]{Scope.LIVE}
+					new Scope[]{Scope.LIVE},
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				),
 				"test2", ReferenceSchema._internalBuild(
 					"test2",
@@ -208,7 +219,9 @@ class EntitySchemaConverterTest {
 							null,
 							0,
 							ConflictResolutionOverride.INHERITED,
-							List.of(removeCharacters("- "), trim(), lowercase(), asciiFolding())
+							List.of(removeCharacters("- "), trim(), lowercase(), asciiFolding()),
+							FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+							AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 						),
 						"priority", EntityAttributeSchema._internalBuild(
 							"code",
@@ -236,7 +249,8 @@ class EntitySchemaConverterTest {
 							)
 						)
 					),
-					ConflictResolutionOverride.ENTITY
+					ConflictResolutionOverride.ENTITY,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				)
 			),
 			Set.of(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_ATTRIBUTES),
@@ -406,7 +420,9 @@ class EntitySchemaConverterTest {
 					false, false, false,
 					String.class, null, 0,
 					ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				)
 			),
 			Map.of(),
@@ -588,7 +604,8 @@ class EntitySchemaConverterTest {
 					ScopedBucketedPartially.EMPTY,
 					Collections.emptyMap(),
 					Collections.emptyMap(),
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				)
 			),
 			Collections.emptySet(),

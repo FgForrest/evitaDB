@@ -23,6 +23,10 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -43,9 +47,13 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -53,6 +61,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.Tag;
@@ -96,7 +105,9 @@ class CreateAttributeSchemaMutationTest {
 			null,
 			2,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
@@ -123,7 +134,9 @@ class CreateAttributeSchemaMutationTest {
 			null,
 			2,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
@@ -147,7 +160,9 @@ class CreateAttributeSchemaMutationTest {
 			null,
 			2,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
@@ -177,7 +192,9 @@ class CreateAttributeSchemaMutationTest {
 			false, false, false,
 			type, null, 0,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
@@ -206,7 +223,9 @@ class CreateAttributeSchemaMutationTest {
 			false, false, false,
 			String.class, null, 0,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
@@ -226,7 +245,9 @@ class CreateAttributeSchemaMutationTest {
 			false, false, false,
 			String.class, null, 0,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
@@ -672,7 +693,8 @@ class CreateAttributeSchemaMutationTest {
 			final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 				ATTRIBUTE_NAME, null, null, null, null, null, null, null,
 				false, false, false, Integer.class, null, 0, ConflictResolutionOverride.INHERITED,
-				new AnalysisStep[]{lowercase()}
+				new AnalysisStep[]{lowercase()},
+				null, null, null
 			);
 			assertTrue(mutation.mutate(null, null, EntityAttributeSchemaContract.class)
 				.validate().anyMatch(error -> error.contains("normalization")));
@@ -688,8 +710,47 @@ class CreateAttributeSchemaMutationTest {
 		private CreateAttributeSchemaMutation createWithNormalization(@Nullable AnalysisStep[] steps) {
 			return new CreateAttributeSchemaMutation(
 				ATTRIBUTE_NAME, null, null, null, null, null, null, null,
-				false, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, steps
+				false, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, steps, null, null,
+				null
 			);
+		}
+	}
+
+	/** Create null means default; remove/create emits searchability only for an actual weight difference. */
+	@ParameterizedTest
+	@NullSource
+	@ValueSource(floats = {0.0f, -0.0f, 2.5f, 3.5f})
+	@DisplayName("should default create weights and include only real weight differences")
+	void shouldDefaultSearchWeightAndDetectWeightDifferences(@Nullable Float weight) {
+		final CatalogSchema catalog = CatalogSchema._internalBuild(
+			"test", Map.of(), null, Set.of(),
+			EmptyEntitySchemaAccessor.INSTANCE
+		);
+		final EntitySchemaContract owner = new InternalEntitySchemaBuilder(catalog,
+			EntitySchema._internalBuild("product"))
+			.withAttribute(ATTRIBUTE_NAME, String.class,
+				a -> a.localized().searchable().searchWeight(3.5f)).toInstance();
+		final CreateAttributeSchemaMutation create = new CreateAttributeSchemaMutation(
+			ATTRIBUTE_NAME, null, null, null, null, null, Scope.DEFAULT_SCOPES, null, true, false, false,
+			String.class, null, 0, ConflictResolutionOverride.INHERITED, null, null, null, weight
+		);
+		final float expected = weight == null ? 1.0f : weight + 0.0f;
+		final float created = create.mutate(catalog, null, EntityAttributeSchemaContract.class).getSearchWeight();
+		assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(created));
+		if (weight != null) {
+			assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(create.getSearchWeight()));
+		}
+		final MutationCombinationResult<LocalEntitySchemaMutation> combined = create.combineWith(
+			catalog, owner, new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME)
+		);
+		assertNotNull(combined);
+		if (expected == 3.5f) {
+			assertNull(combined.current());
+		} else {
+			assertEquals(1, combined.current().length);
+			assertTrue(combined.current()[0] instanceof SetAttributeSchemaSearchableMutation);
+			assertEquals(expected,
+				((SetAttributeSchemaSearchableMutation) combined.current()[0]).getSearchWeight());
 		}
 	}
 

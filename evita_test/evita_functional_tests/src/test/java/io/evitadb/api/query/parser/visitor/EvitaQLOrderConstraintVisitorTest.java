@@ -277,6 +277,31 @@ class EvitaQLOrderConstraintVisitorTest {
     }
 
     @Test
+    @DisplayName("Should parse relevanceText constraint")
+    void shouldParseRelevanceTextConstraint() {
+        final OrderConstraint constraint1 = parseOrderConstraint("relevanceText()");
+        assertEquals(relevanceText(), constraint1);
+
+        final OrderConstraint constraint2 = parseOrderConstraint("relevanceText (  )");
+        assertEquals(relevanceText(), constraint2);
+
+        final OrderConstraint constraint3 = parseOrderConstraint("orderBy(relevanceText(), random())");
+        assertEquals(orderBy(relevanceText(), random()), constraint3);
+
+        // relevanceText is allowed inside a segment, the filtering formula is available there
+        final OrderConstraint constraint4 = parseOrderConstraint("segments(segment(orderBy(relevanceText())))");
+        assertEquals(segments(segment(orderBy(relevanceText()))), constraint4);
+    }
+
+    @Test
+    @DisplayName("Should not parse invalid relevanceText constraint")
+    void shouldNotParseRelevanceTextConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("relevanceText"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("relevanceText('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("relevanceText(random())"));
+    }
+
+    @Test
     void shouldParseReferencePropertyConstraint() {
         final OrderConstraint constraint1 = parseOrderConstraint("referenceProperty(?,attributeNatural(?))", "a", "b");
         assertEquals(

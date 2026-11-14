@@ -27,13 +27,14 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.Scope;
@@ -41,6 +42,8 @@ import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
+import javax.annotation.Nonnull;
+import java.util.EnumMap;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -65,6 +68,9 @@ import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeSor
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
+ *
+ * The layout ends with the text composition mode of each scope followed by the shared weight; the layout without
+ * that tail is the one {@link ReferenceSchemaSerializer_2026_2_2} reads.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -120,6 +126,8 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 		writeSortableAttributeCompounds(kryo, output, referenceSchema.getSortableAttributeCompounds().values());
 
 		kryo.writeObject(output, referenceSchema.getConflictResolutionOverride());
+		writeSearchModes(kryo, output, referenceSchema.getSearchableThroughInScopes());
+		output.writeFloat(referenceSchema.getSearchableThroughWeight());
 	}
 
 	@Override
@@ -151,6 +159,9 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 
 		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
 
+		final Map<Scope, ReferenceSearchMode> searchModes = readSearchModes(kryo, input);
+		final float searchWeight = input.readFloat();
+
 		return ReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			cardinality,
@@ -162,8 +173,42 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			facetedPartiallyInScopes,
 			bucketedInScopes,
 			bucketedPartiallyInScopes,
-			attributes, sortableAttributeCompounds, conflictResolutionOverride
+			attributes, sortableAttributeCompounds, conflictResolutionOverride, searchModes, searchWeight
 		);
+	}
+
+	/**
+	 * Writes the complete, non-null composition scope map.
+	 *
+	 * @param kryo Kryo providing name-based enum serialization
+	 * @param output destination for the declaration
+	 * @param modes composition mode in each declared scope
+	 */
+	static void writeSearchModes(
+		@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull Map<Scope, ReferenceSearchMode> modes
+	) {
+		output.writeVarInt(modes.size(), true);
+		for (final Map.Entry<Scope, ReferenceSearchMode> mode : modes.entrySet()) {
+			kryo.writeObject(output, mode.getKey());
+			kryo.writeObject(output, mode.getValue());
+		}
+	}
+
+	/**
+	 * Reads the complete composition scope map.
+	 *
+	 * @param kryo Kryo providing name-based enum serialization
+	 * @param input source of the declaration
+	 * @return declared composition modes, empty when disabled everywhere
+	 */
+	@Nonnull
+	static Map<Scope, ReferenceSearchMode> readSearchModes(@Nonnull Kryo kryo, @Nonnull Input input) {
+		final int count = input.readVarInt(true);
+		final Map<Scope, ReferenceSearchMode> modes = new EnumMap<>(Scope.class);
+		for (int i = 0; i < count; i++) {
+			modes.put(kryo.readObject(input, Scope.class), kryo.readObject(input, ReferenceSearchMode.class));
+		}
+		return modes;
 	}
 
 }

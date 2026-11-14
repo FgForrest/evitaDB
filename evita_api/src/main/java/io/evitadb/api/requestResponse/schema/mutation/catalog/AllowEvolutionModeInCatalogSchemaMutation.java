@@ -88,6 +88,9 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 						)
 						.collect(Collectors.toSet()),
 					catalogSchema.getAttributes(),
+					catalogSchema.getFulltextLanguages(),
+					catalogSchema.getFulltextResources(),
+					catalogSchema.getFulltextAnalyzers(),
 					entitySchemaAccessor
 				)
 			);

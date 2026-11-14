@@ -24,11 +24,11 @@
 package io.evitadb.store.index;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.Scope;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -45,7 +45,8 @@ import io.evitadb.store.entity.serializer.PriceWithInternalIdsSerializer_2024_11
 import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.index.serializer.*;
 import io.evitadb.utils.Assert;
-import lombok.RequiredArgsConstructor;
+
+import javax.annotation.Nonnull;
 
 import java.util.function.Consumer;
 
@@ -78,7 +79,6 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@RequiredArgsConstructor
 public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 	/** Resolves the compressed keys the index parts persist instead of their full identities. */
 	private final KeyCompressor keyCompressor;
@@ -89,6 +89,15 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 	 * without first moving the neighbour it would collide with.
 	 */
 	private static final int INDEX_BASE = 600;
+
+	/**
+	 * Creates index-part serializers sharing the persisted key compressor.
+	 *
+	 * @param keyCompressor compressor assigning the persisted locale and stream identities
+	 */
+	public IndexStoragePartConfigurer(@Nonnull KeyCompressor keyCompressor) {
+		this.keyCompressor = keyCompressor;
+	}
 
 	@Override
 	public void accept(Kryo kryo) {
@@ -422,6 +431,14 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(GlobalAttributeNormalizationStoragePart.class,
 			new SerialVersionBasedSerializer<>(new GlobalAttributeNormalizationStoragePartSerializer(),
 				GlobalAttributeNormalizationStoragePart.class), index++);
+
+		kryo.register(FulltextSurfaceFormLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new FulltextSurfaceFormLeafPagePartSerializer(),
+				FulltextSurfaceFormLeafPagePart.class), index++);
+
+		kryo.register(FulltextReferenceValueLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new FulltextReferenceValueLeafPagePartSerializer(),
+				FulltextReferenceValueLeafPagePart.class), index++);
 
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}

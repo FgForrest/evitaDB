@@ -103,6 +103,9 @@ public class ModifyCatalogSchemaConflictResolutionMutation implements Combinable
 					this.conflictResolution,
 					catalogSchema.getCatalogEvolutionMode(),
 					catalogSchema.getAttributes(),
+					catalogSchema.getFulltextLanguages(),
+					catalogSchema.getFulltextResources(),
+					catalogSchema.getFulltextAnalyzers(),
 					entitySchemaAccessor
 				)
 			);

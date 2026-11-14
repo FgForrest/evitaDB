@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
@@ -98,7 +99,9 @@ class AttributeSchemaAcceleratorsDataFetcherTest {
 			false, false, false,
 			String.class, null, 0,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 
 		assertEquals(
@@ -124,7 +127,9 @@ class AttributeSchemaAcceleratorsDataFetcherTest {
 			false, false, false,
 			String.class, null, 0,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 
 		assertTrue(fetch(attributeSchema).isEmpty());

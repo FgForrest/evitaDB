@@ -1938,7 +1938,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							// revalidates - so validating after the flush would report a refusal about a schema that
 							// is already on disk and from then on permanent
 							validateCatalogSchema(this.catalog);
-						} catch (EvitaInvalidUsageException ex) {
+						} catch (Throwable ex) {
 							// keeping THIS session from writing is not enough. The exchange stays in the
 							// running catalog - EntityCollection#updateSchema has already swapped it into
 							// every collection the change reached - so every later publisher would write
@@ -1950,10 +1950,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							// activating it again loads the last published state - whose schema validates,
 							// because it was published by a session that closed successfully.
 							//
-							// Caught as the whole EvitaInvalidUsageException family rather than as
-							// SchemaAlteringException. validate() refuses in two vocabularies: a rule it evaluates
-							// throws the schema-altering kind, while a getter it reaches on a schema it cannot
-							// resolve simply refuses to answer - ReflectedReferenceSchema#isIndexedInScope throwing
+							// Caught as any exception rather than as SchemaAlteringException alone. validate()
+							// refuses in two vocabularies: a rule it evaluates throws the schema-altering kind,
+							// while a getter it reaches on a schema it cannot resolve simply refuses to answer -
+							// ReflectedReferenceSchema#isIndexedInScope throwing
 							// "the reflected reference is not available" is the demonstrated case, and it is what
 							// Catalog#isSchemaValid had to widen its own catch for. Whether a schema can still be
 							// in that shape HERE, at the close, was not demonstrated: every attempt to build one
@@ -1962,7 +1962,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							// publish exactly the state this guard exists to stop, while the cost of catching one
 							// that did not need catching is a deactivation of a catalog whose schema was already
 							// exchanged and whose operation already failed, which is the answer this design gives
-							// everywhere else
+							// everywhere else.
+							//
+							// The same asymmetry decides an exception outside the family - an engine defect the
+							// walk uncovers. It is not a refusal, but it leaves the schema unvalidated, and the
+							// shutdown flush would publish it all the same; the barrier refuses that publication,
+							// while the exception still propagates and surfaces the defect
 							this.catalog.markUnpublishableDueToInvalidSchema(ex);
 							throw ex;
 						}
@@ -2121,20 +2126,27 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	/**
-	 * Validates the schema of the given catalog.
+	 * Validates the schema of the given catalog through {@link Catalog#validateSchema()} - its rules and its fulltext
+	 * analyzers - and marks the open transaction rollback-only when the validation does not pass. A session that has
+	 * not raised the catalog schema version skips the validation, the analyzer check included.
+	 *
+	 * Whatever the validation throws marks it, not only a {@link SchemaAlteringException}. `validateSchema()` refuses
+	 * in two vocabularies (see the warm-up branch of {@link #closeInternal(CommitBehavior)}), and an exception outside
+	 * both - an engine defect the walk uncovers - means the schema was never validated at all. The transaction
+	 * commits when it closes unless it is marked, so a narrower catch would publish exactly the schema the validation
+	 * could not vouch for. The exception still propagates, so the failure surfaces as before.
 	 *
 	 * @param theCatalog the catalog to be validated, must not be null
 	 */
 	private void validateCatalogSchema(
-		@Nonnull CatalogContract theCatalog
+		@Nonnull Catalog theCatalog
 	) throws SchemaAlteringException {
 		try {
-			final SealedCatalogSchema catalogSchema = theCatalog.getSchema();
-			final int catalogVersion = catalogSchema.version();
+			final int catalogVersion = theCatalog.getSchema().version();
 			if (catalogVersion > this.startCatalogSchemaVersion) {
-				catalogSchema.validate();
+				theCatalog.validateSchema();
 			}
-		} catch (SchemaAlteringException ex) {
+		} catch (Throwable ex) {
 			/* if validation fails and transaction is available, mark it as rollback only */
 			ofNullable(this.transactionAccessor.get())
 				.ifPresent(it -> it.setRollbackOnlyWithException(ex));

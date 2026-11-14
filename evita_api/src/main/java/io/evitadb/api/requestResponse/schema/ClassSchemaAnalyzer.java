@@ -38,15 +38,16 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSche
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStepParameter;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
+import io.evitadb.api.requestResponse.schema.analysis.NormalizingAnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
@@ -381,16 +382,26 @@ public class ClassSchemaAnalyzer {
 			}
 
 			applyAttributeScopedProperties(editor, attributeAnnotation);
-			final AnalysisStep[] normalization = Arrays.stream(attributeAnnotation.normalized())
-				.map(definition -> AnalysisSteps.step(
+			final NormalizingAnalysisStep[] normalization = Arrays.stream(attributeAnnotation.normalized())
+				.map(definition -> AnalysisSteps.normalizingStep(
 					definition.step(),
 					Arrays.stream(definition.parameters())
 						.map(parameter -> AnalysisSteps.parameter(parameter.name(), parameter.value()))
 						.toArray(AnalysisStepParameter[]::new)
 				))
-				.toArray(AnalysisStep[]::new);
+				.toArray(NormalizingAnalysisStep[]::new);
 			if (!editor.getNormalization().equals(Arrays.asList(normalization))) {
 				editor.normalized(normalization);
+			}
+			// fulltext field settings - reconcile with annotation
+			if (!attributeAnnotation.analyzer().equals(editor.getAnalyzer())) {
+				editor.analyzer(attributeAnnotation.analyzer());
+			}
+			if (attributeAnnotation.lengthPivot() != editor.getLengthPivot()) {
+				editor.lengthPivot(attributeAnnotation.lengthPivot());
+			}
+			if (Float.compare(attributeAnnotation.searchWeight(), editor.getSearchWeight()) != 0) {
+				editor.searchWeight(attributeAnnotation.searchWeight());
 			}
 
 			// representative - reconcile with annotation
@@ -670,6 +681,10 @@ public class ClassSchemaAnalyzer {
 		@Nonnull Reference reference
 	) {
 		final ScopeReferenceSettings[] scopedDefinition = reference.scope();
+		final Map<Scope, ReferenceSearchMode> searchableThrough = collectSearchableThroughModes(
+			editor.getName(), reference.searchableThrough(), scopedDefinition
+		);
+		withdrawSearchableThroughModes(editor, searchableThrough);
 		final Histogram[] bucketedProperty = reference.bucketed();
 		if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
 			// general settings apply to DEFAULT_SCOPE
@@ -771,6 +786,156 @@ public class ClassSchemaAnalyzer {
 				}
 			}
 		}
+		applySearchableThroughModes(
+			editor, searchableThrough,
+			resolveSearchableThroughWeight(editor.getName(), reference.searchableThroughWeight(), scopedDefinition)
+		);
+	}
+
+	/**
+	 * Collects the complete annotation declaration. Scope entries replace the general LIVE declaration.
+	 *
+	 * @param name reference named in validation messages
+	 * @param general zero or one general mode, used only without scope entries
+	 * @param scopedDefinition per-scope declarations
+	 * @return complete scope map of desired modes
+	 */
+	@Nonnull
+	private static Map<Scope, ReferenceSearchMode> collectSearchableThroughModes(
+		@Nonnull String name,
+		@Nonnull ReferenceSearchMode[] general,
+		@Nonnull ScopeReferenceSettings[] scopedDefinition
+	) {
+		final Map<Scope, ReferenceSearchMode> result = new EnumMap<>(Scope.class);
+		final ReferenceSearchMode generalMode = readSearchableThroughMode(name, Scope.DEFAULT_SCOPE, general);
+		if (scopedDefinition.length == 0) {
+			if (generalMode != null) {
+				result.put(Scope.DEFAULT_SCOPE, generalMode);
+			}
+		} else {
+			Assert.isTrue(
+				generalMode == null,
+				"When `scope` is defined in a reference annotation, the general `searchableThrough` " +
+					"property is not taken into account and must remain empty!"
+			);
+			for (final ScopeReferenceSettings settings : scopedDefinition) {
+				final ReferenceSearchMode mode = readSearchableThroughMode(
+					name, settings.scope(), settings.searchableThrough()
+				);
+				if (mode == null) {
+					result.remove(settings.scope());
+				} else {
+					result.put(settings.scope(), mode);
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Resolves the single ranking weight shared by all scopes. Without scope entries the general weight applies; with
+	 * them, an entry whose weight differs from the default declares it, so an entry leaving the weight at its default
+	 * does not reset a weight another entry declares. Entries declaring different weights ask for per-scope weights,
+	 * which the single shared weight cannot hold, and are refused.
+	 *
+	 * @param name reference named in validation messages
+	 * @param general weight of the general settings, used only when there are no scope entries
+	 * @param scopedDefinition per-scope declarations
+	 * @return shared ranking weight the annotation declares
+	 * @throws InvalidSchemaMutationException when two scope entries declare different non-default weights
+	 */
+	private static float resolveSearchableThroughWeight(
+		@Nonnull String name,
+		float general,
+		@Nonnull ScopeReferenceSettings[] scopedDefinition
+	) {
+		if (scopedDefinition.length == 0) {
+			return general;
+		}
+		final float defaultWeight = ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT;
+		float weight = defaultWeight;
+		for (final ScopeReferenceSettings settings : scopedDefinition) {
+			// compare normalized values, so that both signed zeros count as one weight
+			final float declared = AttributeSchemaContract.normalizeSearchWeight(settings.searchableThroughWeight());
+			if (Float.compare(declared, defaultWeight) != 0) {
+				final float alreadyDeclared = weight;
+				Assert.isTrue(
+					Float.compare(alreadyDeclared, defaultWeight) == 0 || Float.compare(alreadyDeclared, declared) == 0,
+					() -> new InvalidSchemaMutationException(
+						"Reference `" + name + "` declares different searchableThrough weights `" + alreadyDeclared +
+							"` and `" + declared + "` in its scope entries! The weight is shared by all scopes, " +
+							"so the entries must agree on it."
+					)
+				);
+				weight = declared;
+			}
+		}
+		return weight;
+	}
+
+	/**
+	 * Reads the optional annotation enum and refuses arrays that cannot represent a single mode.
+	 *
+	 * @param name reference named in validation messages
+	 * @param scope scope named in validation messages
+	 * @param modes zero or one declared mode
+	 * @return declared mode, or null for none
+	 */
+	@Nullable
+	private static ReferenceSearchMode readSearchableThroughMode(
+		@Nonnull String name, @Nonnull Scope scope, @Nonnull ReferenceSearchMode[] modes
+	) {
+		Assert.isTrue(
+			modes.length <= 1,
+			() -> new InvalidSchemaMutationException(
+				"Reference `" + name + "` declares more than one searchableThrough mode in scope `" + scope +
+					"`! At most one mode may be declared."
+			)
+		);
+		return modes.length == 0 ? null : modes[0];
+	}
+
+	/**
+	 * Withdraws modes before index reconciliation so an annotation may remove both a mode and its required index.
+	 *
+	 * @param editor reference being reconciled
+	 * @param desired complete desired scope map
+	 */
+	private static void withdrawSearchableThroughModes(
+		@Nonnull ReferenceSchemaEditor<?> editor,
+		@Nonnull Map<Scope, ReferenceSearchMode> desired
+	) {
+		final Set<Scope> withdrawn = EnumSet.noneOf(Scope.class);
+		withdrawn.addAll(editor.getSearchableThroughInScopes().keySet());
+		withdrawn.removeAll(desired.keySet());
+		if (!withdrawn.isEmpty()) {
+			editor.nonSearchableThroughInScope(withdrawn.toArray(Scope[]::new));
+		}
+	}
+
+	/**
+	 * Declares modes once index settings are ready and sets the shared weight, even when no scope declares a mode.
+	 *
+	 * @param editor reference being reconciled
+	 * @param desired complete desired scope map
+	 * @param weight shared ranking weight from the general settings or the scope entries
+	 */
+	private static void applySearchableThroughModes(
+		@Nonnull ReferenceSchemaEditor<?> editor,
+		@Nonnull Map<Scope, ReferenceSearchMode> desired,
+		float weight
+	) {
+		for (final Map.Entry<Scope, ReferenceSearchMode> entry : desired.entrySet()) {
+			if (editor.getSearchableThrough(entry.getKey()) != entry.getValue()) {
+				editor.searchableThroughInScope(entry.getValue(), entry.getKey());
+			}
+		}
+		if (Float.compare(
+			editor.getSearchableThroughWeight(), AttributeSchemaContract.normalizeSearchWeight(weight)
+		) != 0) {
+			// with no scope supplied the mode is not declared anywhere - the call only sets the shared weight
+			editor.searchableThroughInScope(ReferenceSearchMode.COMPOSITION, weight, Scope.NO_SCOPE);
+		}
 	}
 
 	/**
@@ -863,6 +1028,10 @@ public class ClassSchemaAnalyzer {
 		@Nonnull ReflectedReference reference
 	) {
 		final ScopeReferenceSettings[] scopedDefinition = reference.scope();
+		final Map<Scope, ReferenceSearchMode> searchableThrough = collectSearchableThroughModes(
+			editor.getName(), reference.searchableThrough(), scopedDefinition
+		);
+		withdrawSearchableThroughModes(editor, searchableThrough);
 		if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
 			// general settings apply to DEFAULT_SCOPE
 			final ReferenceIndexType currentIndexType = editor.isIndexedInherited() ?
@@ -925,6 +1094,10 @@ public class ClassSchemaAnalyzer {
 				}
 			}
 		}
+		applySearchableThroughModes(
+			editor, searchableThrough,
+			resolveSearchableThroughWeight(editor.getName(), reference.searchableThroughWeight(), scopedDefinition)
+		);
 	}
 
 	/**
@@ -1697,6 +1870,30 @@ public class ClassSchemaAnalyzer {
 				} else if (!associatedDataAnnotation.localized() && whichIs.isLocalized()) {
 					whichIs.localized(() -> false);
 				}
+				// searchable and its text expression - reconcile DEFAULT_SCOPE and the expression with annotation
+				final Expression textExpression = parseTextExpression(associatedDataName, associatedDataAnnotation);
+				if (associatedDataAnnotation.searchable()) {
+					if (!whichIs.isSearchableInScope(Scope.DEFAULT_SCOPE) ||
+						!Objects.equals(textExpression, whichIs.getTextExpression())) {
+						if (textExpression == null) {
+							whichIs.searchable();
+						} else {
+							whichIs.searchable(textExpression);
+						}
+					}
+				} else if (whichIs.isSearchableInScope(Scope.DEFAULT_SCOPE)) {
+					whichIs.nonSearchableInScope(Scope.DEFAULT_SCOPE);
+				}
+				// fulltext field settings - reconcile with annotation
+				if (!associatedDataAnnotation.analyzer().equals(whichIs.getAnalyzer())) {
+					whichIs.analyzer(associatedDataAnnotation.analyzer());
+				}
+				if (associatedDataAnnotation.lengthPivot() != whichIs.getLengthPivot()) {
+					whichIs.lengthPivot(associatedDataAnnotation.lengthPivot());
+				}
+				if (Float.compare(associatedDataAnnotation.searchWeight(), whichIs.getSearchWeight()) != 0) {
+					whichIs.searchWeight(associatedDataAnnotation.searchWeight());
+				}
 				// conflict resolution granularity override - reconcile with annotation. A defaulted (INHERITED)
 				// annotation carries no opinion and must never overwrite an explicit override set through the
 				// fluent builder, otherwise an idempotent re-derivation would silently reset it to INHERITED.
@@ -1706,6 +1903,33 @@ public class ClassSchemaAnalyzer {
 				}
 			}
 		);
+	}
+
+	/**
+	 * Parses the text expression of a searchable associated data annotation.
+	 *
+	 * @param associatedDataName       the name of the associated data, for the error message
+	 * @param associatedDataAnnotation the annotation
+	 * @return the parsed expression, or `null` when the annotation declares none
+	 * @throws InvalidSchemaMutationException when the expression cannot be parsed
+	 */
+	@Nullable
+	private static Expression parseTextExpression(
+		@Nonnull String associatedDataName,
+		@Nonnull AssociatedData associatedDataAnnotation
+	) {
+		final String textExpression = associatedDataAnnotation.textExpression();
+		if (textExpression.isBlank()) {
+			return null;
+		}
+		try {
+			return ExpressionFactory.parse(textExpression);
+		} catch (RuntimeException e) {
+			throw new InvalidSchemaMutationException(
+				"The text expression `" + textExpression + "` of associated data `" + associatedDataName +
+					"` cannot be parsed: " + e.getMessage()
+			);
+		}
 	}
 
 	/**
@@ -1802,6 +2026,7 @@ public class ClassSchemaAnalyzer {
 				"but `" + targetEntity.managed() + "` on reference definition in `" + definer + "`."
 		);
 
+		withdrawSearchableThroughBeforeRetarget(entityBuilder, reference, referenceName, targetEntity);
 		if (targetEntity.managed()) {
 			entityBuilder.withReferenceToEntity(
 				referenceName, targetEntity.entityType(), cardinality,
@@ -1812,6 +2037,48 @@ public class ClassSchemaAnalyzer {
 				referenceName, targetEntity.entityType(), cardinality,
 				referenceBuilder
 			);
+		}
+	}
+
+	/**
+	 * Withdraws, in an edit of its own, the text composition modes the annotation drops from a reference whose target
+	 * entity type it changes. The reference builder emits the target change before the annotation callback runs, so
+	 * withdrawing the modes inside the callback comes too late: the target change is refused while a composition it
+	 * invalidates is still declared.
+	 *
+	 * @param entityBuilder builder of the entity owning the reference
+	 * @param reference     annotation describing the desired reference
+	 * @param referenceName name of the reference
+	 * @param targetEntity  target entity type, and whether it is managed, the annotation declares
+	 */
+	private static void withdrawSearchableThroughBeforeRetarget(
+		@Nonnull EntitySchemaBuilder entityBuilder,
+		@Nonnull Reference reference,
+		@Nonnull String referenceName,
+		@Nonnull TargetEntity targetEntity
+	) {
+		final ReferenceSchemaContract existing = entityBuilder.getReference(referenceName).orElse(null);
+		if (existing == null || existing instanceof ReflectedReferenceSchemaContract ||
+			existing.getSearchableThroughInScopes().isEmpty() ||
+			(existing.isReferencedEntityTypeManaged() == targetEntity.managed() &&
+				existing.getReferencedEntityType().equals(targetEntity.entityType()))) {
+			return;
+		}
+		final Map<Scope, ReferenceSearchMode> desired = collectSearchableThroughModes(
+			referenceName, reference.searchableThrough(), reference.scope()
+		);
+		if (!desired.keySet().containsAll(existing.getSearchableThroughInScopes().keySet())) {
+			final Consumer<ReferenceSchemaBuilder> withdrawal =
+				editor -> withdrawSearchableThroughModes(editor, desired);
+			if (existing.isReferencedEntityTypeManaged()) {
+				entityBuilder.withReferenceToEntity(
+					referenceName, existing.getReferencedEntityType(), existing.getCardinality(), withdrawal
+				);
+			} else {
+				entityBuilder.withReferenceTo(
+					referenceName, existing.getReferencedEntityType(), existing.getCardinality(), withdrawal
+				);
+			}
 		}
 	}
 

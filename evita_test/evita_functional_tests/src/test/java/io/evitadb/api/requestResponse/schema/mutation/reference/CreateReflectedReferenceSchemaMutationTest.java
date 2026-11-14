@@ -136,7 +136,8 @@ class CreateReflectedReferenceSchemaMutationTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			// Create a mutation with DIFFERENT description but same inherited
 			// indexed/faceted/components
@@ -401,7 +402,8 @@ class CreateReflectedReferenceSchemaMutationTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			// Create mutation with inherited bucketed (both null)
 			final CreateReflectedReferenceSchemaMutation mutation =
@@ -469,7 +471,8 @@ class CreateReflectedReferenceSchemaMutationTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final ReferenceSchemaContract existingReflected = inheritedBase.withBucketed(
 				Map.of(

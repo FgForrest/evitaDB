@@ -31,10 +31,12 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -307,11 +309,14 @@ class SetReferenceSchemaIndexedMutationTest {
 							false, false, false,
 							Integer.class, null, 0,
 							ConflictResolutionOverride.INHERITED,
-							null
+							null,
+							FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+							AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 						)
 					),
 					Collections.emptyMap(),
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				);
 			// Mutate with different indexed scopes to trigger verification
 			final SetReferenceSchemaIndexedMutation mutation =
@@ -384,11 +389,14 @@ class SetReferenceSchemaIndexedMutationTest {
 							false, false, false,
 							Integer.class, null, 0,
 							ConflictResolutionOverride.INHERITED,
-							null
+							null,
+							FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+							AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 						)
 					),
 					Collections.emptyMap(),
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				);
 			// Mutation changes LIVE from FOR_FILTERING to NONE — should reject because
 			// the NEW state has NONE for LIVE but a filterable attribute exists there
@@ -417,6 +425,81 @@ class SetReferenceSchemaIndexedMutationTest {
 			assertTrue(
 				exception.getMessage().contains("filterableAttr"),
 				"Exception message should contain 'filterableAttr', got: " + exception.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should throw when mutation changes indexed scope to NONE with searchable attribute")
+		void shouldThrowWhenMutationChangesIndexedScopeToNoneWithSearchableAttribute() {
+			// a reference indexed in LIVE with a searchable attribute there - a valid state, like the filterable one
+			final ReferenceSchemaContract indexedReferenceWithSearchable =
+				ReferenceSchema._internalBuild(
+					REFERENCE_NAME,
+					NamingConvention.generate(REFERENCE_NAME),
+					"description", null,
+					Cardinality.ZERO_OR_MORE,
+					"category",
+					NamingConvention.generate("category"),
+					false,
+					null,
+					Collections.emptyMap(),
+					false,
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+					ReferenceSchema.defaultIndexedComponents(
+						Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					),
+					Collections.emptySet(),
+					Collections.emptyMap(),
+					Collections.emptyMap(),
+					Collections.emptyMap(),
+					Map.of(
+						"searchableAttr",
+						AttributeSchema._internalBuild(
+							"searchableAttr",
+							null, null,
+							null,
+							Scope.NO_SCOPE,
+							null,
+							new Scope[]{Scope.LIVE},
+							Scope.NO_SCOPE,
+							true, true, false,
+							String.class, null, 0,
+							ConflictResolutionOverride.INHERITED,
+							null,
+							FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+							AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
+						)
+					),
+					Collections.emptyMap(),
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
+				);
+			// a reference that is not indexed keeps no fulltext data, so withdrawing the index in LIVE is refused
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.LIVE, ReferenceIndexType.NONE
+						)
+					}
+				);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getName()).thenReturn("product");
+
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> mutation.mutate(
+					entitySchema, indexedReferenceWithSearchable, ConsistencyChecks.APPLY
+				)
+			);
+			assertTrue(
+				exception.getMessage().contains("single searchable attribute in scope `LIVE`"),
+				"Exception message should name the searchable attribute kind, got: " + exception.getMessage()
+			);
+			assertTrue(
+				exception.getMessage().contains("searchableAttr"),
+				"Exception message should contain 'searchableAttr', got: " + exception.getMessage()
 			);
 		}
 
@@ -459,11 +542,14 @@ class SetReferenceSchemaIndexedMutationTest {
 							false, false, false,
 							Integer.class, null, 0,
 							ConflictResolutionOverride.INHERITED,
-							null
+							null,
+							FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+							AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 						)
 					),
 					Collections.emptyMap(),
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				);
 			// Same mutation but with SKIP — should NOT throw
 			final SetReferenceSchemaIndexedMutation mutation =
@@ -792,7 +878,8 @@ class SetReferenceSchemaIndexedMutationTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			assertFalse(unbound.isReflectedReferenceAvailable(), "The premise is a reflected reference not bound yet");
 			assertTrue(unbound.isIndexedInherited(), "The premise is a reflected reference inheriting its scopes");
@@ -1044,7 +1131,8 @@ class SetReferenceSchemaIndexedMutationTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(), Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			// mutation sets LIVE to NONE but carries explicit LIVE components
 			final SetReferenceSchemaIndexedMutation mutation =
@@ -1099,7 +1187,8 @@ class SetReferenceSchemaIndexedMutationTest {
 					Collections.emptyMap(), Collections.emptyMap(),
 					ReflectedReferenceSchemaContract.AttributeInheritanceBehavior
 						.INHERIT_ONLY_SPECIFIED,
-					null
+					null,
+					null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				);
 			// mutation sets LIVE to NONE — components should be stripped even though
 			// the mutation's components are the same as the schema's defaults
@@ -1156,7 +1245,8 @@ class SetReferenceSchemaIndexedMutationTest {
 					null,
 					null, null,
 					Collections.emptyMap(), Collections.emptyMap(),
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				)
 			);
 		}
@@ -1191,7 +1281,8 @@ class SetReferenceSchemaIndexedMutationTest {
 				null,
 				null, null,
 				Collections.emptyMap(), Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertNotNull(schema);

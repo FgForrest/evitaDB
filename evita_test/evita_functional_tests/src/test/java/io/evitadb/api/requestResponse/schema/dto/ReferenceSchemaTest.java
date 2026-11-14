@@ -85,7 +85,8 @@ class ReferenceSchemaTest {
 				new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
-				null
+				null,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertEquals("brand", schema.getName());
@@ -123,7 +124,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertEquals("Category reference", schema.getDescription());
@@ -148,7 +150,8 @@ class ReferenceSchemaTest {
 				new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
-				null
+				null,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isIndexedInScope(Scope.LIVE));
@@ -181,7 +184,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isFacetedInScope(Scope.LIVE));
@@ -206,7 +210,8 @@ class ReferenceSchemaTest {
 				new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
-				null
+				null,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertEquals("productBrand", schema.getNameVariant(NamingConvention.CAMEL_CASE));
@@ -225,7 +230,8 @@ class ReferenceSchemaTest {
 				new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
-				null
+				null,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			// Non-managed group type should have name variants
@@ -392,7 +398,8 @@ class ReferenceSchemaTest {
 				new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
-				null
+				null,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Set<ReferenceIndexedComponents> components = schema.getIndexedComponents(Scope.LIVE);
@@ -417,7 +424,8 @@ class ReferenceSchemaTest {
 				new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
-				null
+				null,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Set<ReferenceIndexedComponents> components = schema.getIndexedComponents(Scope.ARCHIVED);
@@ -456,7 +464,8 @@ class ReferenceSchemaTest {
 				null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Set<ReferenceIndexedComponents> components = schema.getIndexedComponents(Scope.LIVE);
@@ -496,7 +505,8 @@ class ReferenceSchemaTest {
 				null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Set<ReferenceIndexedComponents> components = schema.getIndexedComponents(Scope.LIVE);
@@ -542,7 +552,8 @@ class ReferenceSchemaTest {
 				null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Map<Scope, Set<ReferenceIndexedComponents>> allComponents = schema.getIndexedComponentsInScopes();
@@ -565,7 +576,8 @@ class ReferenceSchemaTest {
 				new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 				},
-				null
+				null,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Set<ReferenceIndexedComponents> components = schema.getIndexedComponents();
@@ -611,7 +623,8 @@ class ReferenceSchemaTest {
 				null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Expression actual = schema.getFacetedPartiallyInScope(Scope.LIVE);
@@ -720,7 +733,8 @@ class ReferenceSchemaTest {
 				null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final ReferenceSchema withoutPartially = ReferenceSchema._internalBuild(
 				"brand",
@@ -744,7 +758,8 @@ class ReferenceSchemaTest {
 				null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertNotEquals(withPartially, withoutPartially);
@@ -775,7 +790,8 @@ class ReferenceSchemaTest {
 				new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
-				null
+				null,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final ReferenceSchema b = ReferenceSchema._internalBuild(
 				"category", "Brand", true,
@@ -784,7 +800,8 @@ class ReferenceSchemaTest {
 				new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
-				null
+				null,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertNotEquals(a, b);
@@ -808,7 +825,8 @@ class ReferenceSchemaTest {
 				new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
-				null
+				null,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		}
 
@@ -843,7 +861,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				override
+				override,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		}
 	}
@@ -881,7 +900,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final EntitySchema entitySchema = EntitySchema._internalBuild("TestEntity");
@@ -944,7 +964,8 @@ class ReferenceSchemaTest {
 				Map.of(Scope.LIVE, expression), // but bucketedPartially is set for LIVE
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final EntitySchema entitySchema = EntitySchema._internalBuild("TestEntity");
@@ -1037,7 +1058,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isBucketedInScope(Scope.LIVE));
@@ -1087,7 +1109,8 @@ class ReferenceSchemaTest {
 				},
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertNotNull(schema.getBucketedPartiallyInScope(Scope.LIVE));
@@ -1132,7 +1155,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isBucketedInScope(Scope.LIVE));
@@ -1156,7 +1180,8 @@ class ReferenceSchemaTest {
 				new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
-				null
+				null,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertFalse(schema.isBucketedInScope(Scope.LIVE));
@@ -1205,7 +1230,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isBucketedInScope(Scope.LIVE));
@@ -1262,7 +1288,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final ReferenceSchema withoutBucketed = ReferenceSchema._internalBuild(
 				"brand",
@@ -1284,7 +1311,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertNotEquals(withBucketed, withoutBucketed);
@@ -1310,7 +1338,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			assertEquals(withBucketed, withBucketed2);
 			assertEquals(withBucketed.hashCode(), withBucketed2.hashCode());
@@ -1347,7 +1376,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertFalse(
@@ -1387,7 +1417,8 @@ class ReferenceSchemaTest {
 				Map.of(Scope.LIVE, expression),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final ReferenceSchema withoutPartially = ReferenceSchema._internalBuild(
 				"brand",
@@ -1409,7 +1440,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertNotEquals(withPartially, withoutPartially);
@@ -1827,7 +1859,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		}
 
@@ -1866,7 +1899,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		}
 	}
@@ -1995,7 +2029,8 @@ class ReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		}
 	}

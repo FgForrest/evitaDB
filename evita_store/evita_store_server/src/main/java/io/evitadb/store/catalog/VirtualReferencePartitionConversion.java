@@ -42,7 +42,6 @@ import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.component.loader.VirtualReferencePartitionLoader;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
@@ -316,14 +315,11 @@ final class VirtualReferencePartitionConversion {
 		int converted = 0;
 		int shared = 0;
 		int ownerless = 0;
-		// the registry supplies the analyzers of fulltext indexes, and a partition carries none - only the global index
-		// does - so this registry of the built-in analyzers is never asked
-		final FulltextAnalyzerRegistry fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry();
 		final OfInt it = partitions.iterator();
 		while (it.hasNext()) {
 			final int partitionPrimaryKey = it.nextInt();
 			final EntityIndex index = collectionService.readEntityIndex(
-				catalogVersion, partitionPrimaryKey, entitySchema, false, fulltextAnalyzerRegistry,
+				catalogVersion, partitionPrimaryKey, entitySchema, false,
 				AttributeNormalizationResolver.LEGACY_NFD
 			);
 			final ReferencePartition partition = ReferencePartitions.asPartition(index);

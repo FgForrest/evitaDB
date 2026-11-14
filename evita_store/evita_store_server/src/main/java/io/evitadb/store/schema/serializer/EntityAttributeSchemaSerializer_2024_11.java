@@ -28,8 +28,10 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
@@ -89,7 +91,9 @@ public class EntityAttributeSchemaSerializer_2024_11 extends Serializer<EntityAt
 			localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

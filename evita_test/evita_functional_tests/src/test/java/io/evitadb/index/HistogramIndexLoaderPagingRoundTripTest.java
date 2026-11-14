@@ -35,6 +35,7 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -43,8 +44,8 @@ import io.evitadb.index.component.EntityIndexManifest;
 import io.evitadb.index.component.HistogramIndexMapComponent;
 import io.evitadb.index.component.loader.HistogramIndexMapLoader;
 import io.evitadb.index.component.loader.LoadContext;
-import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.LoadedComponentBundle.Histograms;
+import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.map.TransactionalMap;
@@ -71,8 +72,8 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
-import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
+import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.OffsetIndexSerializationService.FileLocationAndWrittenBytes;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
@@ -95,6 +96,7 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -147,7 +149,7 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 	 * The analyzer registry every load context carries. These manifests list no fulltext index, so it is never asked
 	 * for an analyzer and holds nothing that would need closing.
 	 */
-	private static final FulltextAnalyzerRegistry ANALYZER_REGISTRY = new FulltextAnalyzerRegistry();
+	private static final FulltextAnalyzerRegistry ANALYZER_REGISTRY = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 	private static final String ENTITY_TYPE = "product";
 	private static final String REFERENCE_NAME = "categories";
 	private static final String HISTOGRAM_NAME = "price";
@@ -1400,21 +1402,9 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 			ENTITY_INDEX_PK, 1, ENTITY_INDEX_KEY,
 			Set.of(), Set.of(), false, Set.of(), manifestKeys, Set.of()
 		);
-		return new LoadContext(
-			catalogVersion,
-			ENTITY_INDEX_PK,
-			EntitySchema._internalBuild(ENTITY_TYPE),
-			ENTITY_INDEX_KEY,
-			manifest,
-			manifest.getVersion(),
-			EmptyBitmap.INSTANCE,
-			Map.of(),
-			service,
-			null,
-			true,
-			ANALYZER_REGISTRY,
-			AttributeNormalizationResolver.LEGACY_NFD
-		);
+		return new LoadContext(catalogVersion, ENTITY_INDEX_PK, EntitySchema._internalBuild(ENTITY_TYPE),
+			ENTITY_INDEX_KEY, manifest, manifest.getVersion(), EmptyBitmap.INSTANCE, Map.of(), service, null, true,
+			AttributeNormalizationResolver.LEGACY_NFD);
 	}
 
 	/**

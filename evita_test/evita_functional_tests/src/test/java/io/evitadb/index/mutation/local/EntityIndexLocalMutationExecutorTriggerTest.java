@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -38,36 +39,38 @@ import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
+import io.evitadb.core.expression.trigger.DependencyType;
+import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
+import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.core.expression.trigger.DependencyType;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.mutation.EntityIndexMutation;
-import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
-import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Currency;
@@ -80,8 +83,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SCHEMA;
@@ -308,23 +309,14 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		);
 		final CatalogIndex catalogIndex = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 		final AtomicInteger sequencer = new AtomicInteger(1);
-		return new EntityIndexLocalMutationExecutor(
-			containerAccessor, entityPK,
-			new MockEntityIndexCreator<>(globalIndex),
-			new MockEntityIndexCreator<>(catalogIndex),
-			() -> schema,
+		return new EntityIndexLocalMutationExecutor(containerAccessor, entityPK,
+			new MockEntityIndexCreator<>(globalIndex), new MockEntityIndexCreator<>(catalogIndex), () -> schema,
 			sequencer::getAndIncrement,
-			() -> { throw new UnsupportedOperationException("Not used in trigger test."); },
-			registrySupplier,
-			null,
-			null,
-			NOOP_CLASSIFIER_RESOLVER,
-			new SchemaCapabilityUsageRegistry(),
-			new SchemaCapabilityUsageRegistry(),
-			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
-			true,
-			new PartitionReservations()
-		);
+			() -> { throw new UnsupportedOperationException("Not used in trigger test."); }, registrySupplier,
+			null, null, NOOP_CLASSIFIER_RESOLVER, new SchemaCapabilityUsageRegistry(),
+			new SchemaCapabilityUsageRegistry(), new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
+			() -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
+			AttributeNormalizationResolver.LEGACY_NFD, true, new PartitionReservations());
 	}
 
 	/**
@@ -1244,23 +1236,14 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		);
 		final CatalogIndex catalogIndex = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 		final AtomicInteger sequencer = new AtomicInteger(1);
-		return new EntityIndexLocalMutationExecutor(
-			containerAccessor, ENTITY_PK,
-			new MockEntityIndexCreator<>(globalIndex),
-			new MockEntityIndexCreator<>(catalogIndex),
-			() -> schema,
+		return new EntityIndexLocalMutationExecutor(containerAccessor, ENTITY_PK,
+			new MockEntityIndexCreator<>(globalIndex), new MockEntityIndexCreator<>(catalogIndex), () -> schema,
 			sequencer::getAndIncrement,
-			() -> { throw new UnsupportedOperationException("Not used in trigger test."); },
-			registrySupplier,
-			localTriggerSupplier,
-			null,
-			NOOP_CLASSIFIER_RESOLVER,
-			new SchemaCapabilityUsageRegistry(),
-			new SchemaCapabilityUsageRegistry(),
-			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
-			true,
-			new PartitionReservations()
-		);
+			() -> { throw new UnsupportedOperationException("Not used in trigger test."); }, registrySupplier,
+			localTriggerSupplier, null, NOOP_CLASSIFIER_RESOLVER, new SchemaCapabilityUsageRegistry(),
+			new SchemaCapabilityUsageRegistry(), new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
+			() -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
+			AttributeNormalizationResolver.LEGACY_NFD, true, new PartitionReservations());
 	}
 
 	/**

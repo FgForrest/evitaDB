@@ -60,6 +60,10 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreCombiner;
+import io.evitadb.core.query.algebra.fulltext.ReferenceFulltextScoreAccessor;
+import io.evitadb.core.query.algebra.fulltext.ReferenceOwnerFulltextScoreAccessor;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
@@ -85,6 +89,8 @@ import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanEq
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanTranslator;
 import io.evitadb.core.query.filter.translator.entity.alternative.ScopeEntityToBitmapFilter;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
+import io.evitadb.core.query.filter.translator.fulltext.InAttributeTranslator;
+import io.evitadb.core.query.filter.translator.fulltext.TextMatchesTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.core.query.filter.translator.histogram.HistogramHavingTranslator;
@@ -134,6 +140,7 @@ import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.PrimitiveIterator.OfInt;
@@ -227,6 +234,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		TRANSLATORS.put(UserFilter.class, new UserFilterTranslator());
 		TRANSLATORS.put(FilterInScope.class, new FilterInScopeTranslator());
 		TRANSLATORS.put(EntityScope.class, FilteringConstraintTranslator.noOpTranslator());
+		TRANSLATORS.put(TextMatches.class, new TextMatchesTranslator());
+		TRANSLATORS.put(InAttribute.class, new InAttributeTranslator());
 
 		CONJUNCTIVE_FORMULAS = new HashSet<>(16);
 		CONJUNCTIVE_FORMULAS.add(AndFormula.class);
@@ -300,6 +309,13 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nonnull
 	private final List<ResolvedHistogramHaving> resolvedHistogramHavings = new ArrayList<>(4);
+	/**
+	 * Fulltext score sources of nested `entityHaving` / `groupHaving` queries, carried over to the owners - see
+	 * {@link #registerReferencedFulltextScores}. Per visitor for the same reason as {@link #resolvedHistogramHavings}:
+	 * every alternative plan translates the filter with its own visitor, and its sorter reads its own registry.
+	 */
+	@Nonnull
+	private final List<ReferencedFulltextScores> referencedFulltextScores = new ArrayList<>(2);
 	/**
 	 * True when this visitor translates a filter only to check it against the schemas and its formula is thrown away
 	 * - see {@link #createConstraintCheckVisitor(QueryPlanningContext)}. Such a visitor looks into no index holding
@@ -666,6 +682,88 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
+	 * Records a fulltext score source of a nested `entityHaving` / `groupHaving` query, answering in the primary-key
+	 * space of the owners this visitor filters. The nested query's formula is never visible in this visitor's filter
+	 * tree, so this is the only way the `relevanceText()` sorter of the plan learns about it - see
+	 * {@link ReferenceOwnerFulltextScoreAccessor}.
+	 *
+	 * A place is the reference, the nested text kind, the mapping kind and the originating constraint compared by
+	 * structural equality; direct reference text registers through {@link #registerOwnerFulltextScores} instead. A
+	 * registration repeating both the place and the very same target filter instance is dropped, so a nested filter
+	 * translated once per reduced index is recorded once. Other target filters of the same place are kept and
+	 * collapse to their best scores when the sources are requested.
+	 *
+	 * @param referenceName name of the reference the owners reach the targets through
+	 * @param mappingKind whether the target keys denote referenced entities or groups
+	 * @param origin the originating nested filter constraint, compared by structural equality
+	 * @param accessor the score source in the owner primary-key space
+	 */
+	public void registerReferencedFulltextScores(
+		@Nonnull String referenceName,
+		@Nonnull EntityIndexType mappingKind,
+		@Nonnull FilterConstraint origin,
+		@Nonnull ReferenceOwnerFulltextScoreAccessor accessor
+	) {
+		final ReferencedFulltextPlace place = new ReferencedFulltextPlace(
+			referenceName, ReferenceTextPlaceKind.NESTED_REFERENCE_TEXT, mappingKind, origin);
+		for (final ReferencedFulltextScores registered : this.referencedFulltextScores) {
+			if (registered.accessor() instanceof ReferenceOwnerFulltextScoreAccessor nested &&
+				nested.getTargetFilter() == accessor.getTargetFilter() &&
+				registered.place().equals(place)) {
+				return;
+			}
+		}
+		this.referencedFulltextScores.add(new ReferencedFulltextScores(place, null, accessor));
+	}
+
+	/**
+	 * Registers already-owner-space scores of a direct reference text place, outside membership memoization.
+	 * Equal constraints share a place; repeated row visits in one scope accumulate their positive masks.
+	 * @param origin direct text constraint compared by structural equality
+	 * @param scope owner scope of the union impacts and matched rows
+	 * @param accessor masked reference-attribute score source with its own search weights
+	 */
+	public void registerOwnerFulltextScores(
+		@Nonnull TextMatches origin, @Nonnull Scope scope, @Nonnull ReferenceFulltextScoreAccessor accessor
+	) {
+		final ReferenceSchemaContract reference = getProcessingScope().getReferenceSchema();
+		Assert.isPremiseValid(reference != null, "Owner reference text scores require a reference scope!");
+		final ReferencedFulltextPlace place = new ReferencedFulltextPlace(
+			reference.getName(), ReferenceTextPlaceKind.DIRECT_REFERENCE_TEXT, null, origin);
+		for (final ReferencedFulltextScores registered : this.referencedFulltextScores) {
+			if (registered.place().equals(place) && registered.scope() == scope &&
+				registered.accessor() instanceof ReferenceFulltextScoreAccessor direct) {
+				direct.merge(accessor);
+				return;
+			}
+		}
+		this.referencedFulltextScores.add(new ReferencedFulltextScores(place, scope, accessor));
+	}
+
+	/**
+	 * Returns one source per reference name, text kind, target mapping kind and originating constraint
+	 * value. Equal constraints and scope/index copies of that place collapse. Nested sources carry their 0.5
+	 * reference weight; direct text uses reference attribute weights. Different places combine by best + t × others.
+	 *
+	 * @return the score sources in the owner primary-key space; empty when no reference body searched fulltext
+	 */
+	@Nonnull
+	public List<FulltextScoreAccessor> getAdditionalFulltextScores() {
+		final Map<ReferencedFulltextPlace, List<FulltextScoreAccessor>> places = CollectionUtils.createLinkedHashMap(
+			this.referencedFulltextScores.size()
+		);
+		for (final ReferencedFulltextScores registered : this.referencedFulltextScores) {
+			places.computeIfAbsent(registered.place(),
+				ignored -> new ArrayList<>(2)).add(registered.accessor());
+		}
+		final List<FulltextScoreAccessor> result = new ArrayList<>(places.size());
+		for (final List<FulltextScoreAccessor> place : places.values()) {
+			result.add(FulltextScoreCombiner.collapseSources(place.toArray(FulltextScoreAccessor[]::new)));
+		}
+		return result;
+	}
+
+	/**
 	 * Returns an unmodifiable view of all `histogramHaving` carriers resolved during this visitor's
 	 * filter translation pass. Consumers filter the list by their own `(referenceName, histogramName)`
 	 * tuple to locate the slot(s) they care about.
@@ -743,13 +841,27 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * {@link io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula} they're about
 	 * to construct should collect the per-inner-record histogram side-output — the rule is "outer LP
 	 * only", so an LP being built under `userFilter(priceBetween(...))` must remain un-flagged to avoid
-	 * double-counting in the histogram bypass.
+	 * double-counting in the histogram bypass. `textMatches` uses it to refuse a search under `userFilter`.
+	 *
+	 * A reference body is translated in a processing scope of its own, whose constraint stack starts at the body,
+	 * so the enclosing scopes are searched too: `userFilter(or(referenceHaving(..., textMatches(...))))` is under
+	 * `userFilter` although the body's own stack does not show it.
+	 *
+	 * @return `true` when no processing scope of this visitor holds a `userFilter` above the current constraint
 	 */
 	public boolean isOutsideUserFilter() {
-		for (FilterConstraint ancestor : getProcessingScope().getProcessedConstraintParents()) {
-			if (ancestor instanceof UserFilter) {
-				return false;
+		boolean currentScope = true;
+		// the deque iterates from the current scope outwards; an enclosing scope's own current constraint is the
+		// container being translated, so it counts as an ancestor too
+		for (final ProcessingScope<? extends Index<?>> processingScope : this.scope) {
+			final Iterable<FilterConstraint> ancestors = currentScope ?
+				processingScope.getProcessedConstraintParents() : processingScope.processedConstraints;
+			for (final FilterConstraint ancestor : ancestors) {
+				if (ancestor instanceof UserFilter) {
+					return false;
+				}
 			}
+			currentScope = false;
 		}
 		return true;
 	}
@@ -2185,6 +2297,38 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		final FormulaDeduplicator deduplicator = new FormulaDeduplicator(finalFormula);
 		deduplicator.visit(finalFormula);
 		return deduplicator.getPostProcessedFormula();
+	}
+
+	/** Distinguishes reference-attribute impacts from scores carried from a target entity or group. */
+	private enum ReferenceTextPlaceKind {
+		/** Already-owner-space reference attribute scores with their schema search weights. */
+		DIRECT_REFERENCE_TEXT,
+		/** Target scores mapped to owners with the existing reference strength factor. */
+		NESTED_REFERENCE_TEXT
+	}
+
+	/**
+	 * Structural key of one reference text place, independent of scope and membership memoization.
+	 * @param referenceName name of the reference
+	 * @param textKind direct reference attributes or a nested target query
+	 * @param mappingKind original entity/group mapping kind, null for direct text
+	 * @param origin originating filter constraint, compared by structural equality
+	 */
+	private record ReferencedFulltextPlace(
+		@Nonnull String referenceName, @Nonnull ReferenceTextPlaceKind textKind,
+		@Nullable EntityIndexType mappingKind, @Nonnull FilterConstraint origin
+	) {
+	}
+
+	/**
+	 * A fulltext score source of one reference place in one scope.
+	 * @param place reference name, text kind, mapping kind (nested text only) and originating constraint value
+	 * @param scope direct-text owner scope, null for a nested target source
+	 * @param accessor score source in the owner primary-key space
+	 */
+	private record ReferencedFulltextScores(
+		@Nonnull ReferencedFulltextPlace place, @Nullable Scope scope, @Nonnull FulltextScoreAccessor accessor
+	) {
 	}
 
 	/**

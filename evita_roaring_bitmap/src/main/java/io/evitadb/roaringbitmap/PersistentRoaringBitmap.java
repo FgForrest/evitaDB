@@ -2249,6 +2249,26 @@ public class PersistentRoaringBitmap
 	}
 
 	/**
+	 * Returns an iterator over the set values in ascending unsigned order that also reports the rank of the value it
+	 * stands on, so a caller skipping through the bitmap learns each value's position in it without a separate
+	 * {@link #rankLong(int)} per value, which re-sums the cardinalities of every preceding container.
+	 *
+	 * Upstream offers this only on `FastRankRoaringBitmap`, which precomputes the cumulative cardinalities and is not
+	 * vendored (`CLOSURE.md`); this iterator sums them as it passes each container instead, so every container's
+	 * cardinality is read at most once per iterator.
+	 *
+	 * The bitmap must hold no lazy container - one left mid-way through a lazy union, whose cardinality is unknown
+	 * (`-1`) until it is repaired: every rank after such a container would be off. A finished bitmap, such as a
+	 * stored posting list, never holds one.
+	 *
+	 * @return a rank-aware iterator positioned at the smallest value
+	 */
+	@Nonnull
+	public PeekableIntRankIterator getIntRankIterator() {
+		return new RoaringIntRankIterator();
+	}
+
+	/**
 	 * Estimate of the memory usage of this data structure. This can be expected to be within 1% of
 	 * the true memory usage in common usage scenarios.
 	 * If exact measures are needed, we recommend using dedicated libraries
@@ -2726,14 +2746,30 @@ public class PersistentRoaringBitmap
 	@Override
 	public int[] toArray() {
 		final int[] array = new int[this.getCardinality()];
+		decodeInto(array);
+		return array;
+	}
+
+	/**
+	 * Writes the set values into the prefix of `target` in sorted (unsigned) order - the order of {@link #toArray()} -
+	 * and returns how many it wrote. It is {@link #toArray()} for a caller that decodes many bitmaps one after another
+	 * into one reused array instead of allocating a fresh array per bitmap; {@link #toArray()} itself fills through it,
+	 * so the two share one fill loop.
+	 *
+	 * @param target the array to write to, at least {@link #getCardinality()} long; the values occupy its prefix and
+	 *               the rest is left as it was
+	 * @return how many values were written - the cardinality of this bitmap
+	 * @throws ArrayIndexOutOfBoundsException when `target` is shorter than the cardinality
+	 */
+	public int decodeInto(@Nonnull int[] target) {
 		int pos = 0, pos2 = 0;
 		while (pos < this.highLowContainer.size()) {
 			final int hs = this.highLowContainer.getKeyAtIndex(pos) << 16;
 			Container c = this.highLowContainer.getContainerAtIndex(pos++);
-			c.fillLeastSignificant16bits(array, pos2, hs);
+			c.fillLeastSignificant16bits(target, pos2, hs);
 			pos2 += c.getCardinality();
 		}
-		return array;
+		return pos2;
 	}
 
 	/**
@@ -4460,6 +4496,117 @@ public class PersistentRoaringBitmap
 				final int index = (this.pos + this.startingContainerIndex) % containerSize;
 				this.iter = PersistentRoaringBitmap.this.highLowContainer.getContainerAtIndex(index).getCharIterator();
 				this.hs = PersistentRoaringBitmap.this.highLowContainer.getKeyAtIndex(index) << 16;
+			}
+		}
+	}
+
+	/**
+	 * Forward {@link PeekableIntRankIterator} over set values in ascending unsigned order. Each container is walked by
+	 * its own {@link PeekableCharRankIterator}, which knows the rank inside the container; the values of the containers
+	 * already left behind are summed into {@link #cumulatedCardinality} as the iterator leaves each of them.
+	 */
+	private final class RoaringIntRankIterator implements PeekableIntRankIterator {
+		/**
+		 * High 16 bits of the current container, pre-shifted into the top half.
+		 */
+		private int hs = 0;
+		/**
+		 * Cursor over the current container; stale once {@link #pos} passes the last container.
+		 */
+		private PeekableCharRankIterator iter;
+		/**
+		 * Index of the current container.
+		 */
+		private int pos = 0;
+		/**
+		 * Number of values held by the containers before the current one.
+		 */
+		private int cumulatedCardinality = 0;
+
+		/**
+		 * Creates an iterator positioned at the smallest value.
+		 */
+		RoaringIntRankIterator() {
+			nextContainer();
+		}
+
+		@Nonnull
+		@Override
+		public PeekableIntRankIterator clone() {
+			try {
+				final RoaringIntRankIterator x = (RoaringIntRankIterator) super.clone();
+				if (this.iter != null) {
+					x.iter = this.iter.clone();
+				}
+				return x;
+			} catch (CloneNotSupportedException e) {
+				throw new IllegalStateException(e); // unreachable, this iterator implements Cloneable
+			}
+		}
+
+		@Override
+		public int peekNextRank() {
+			return this.cumulatedCardinality + this.iter.peekNextRank();
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.pos < PersistentRoaringBitmap.this.highLowContainer.size();
+		}
+
+		@Override
+		public int next() {
+			final int x = this.iter.nextAsInt() | this.hs;
+			if (!this.iter.hasNext()) {
+				leaveContainer();
+			}
+			return x;
+		}
+
+		@Override
+		public void advanceIfNeeded(int minval) {
+			if (hasNext() && (this.hs >>> 16) < (minval >>> 16)) {
+				// the containers wholly below minval only add their cardinality; a cursor is bound for the
+				// container the iterator lands on alone, not for each one it passes
+				final RoaringArray containers = PersistentRoaringBitmap.this.highLowContainer;
+				final int targetKey = minval >>> 16;
+				do {
+					this.cumulatedCardinality += containers.getContainerAtIndex(this.pos).getCardinality();
+					++this.pos;
+				} while (this.pos < containers.size() && containers.getKeyAtIndex(this.pos) < targetKey);
+				nextContainer();
+			}
+			if (hasNext() && (this.hs >>> 16) == (minval >>> 16)) {
+				this.iter.advanceIfNeeded(Util.lowbits(minval));
+				if (!this.iter.hasNext()) {
+					leaveContainer();
+				}
+			}
+		}
+
+		@Override
+		public int peekNext() {
+			return (this.iter.peekNext()) | this.hs;
+		}
+
+		/**
+		 * Adds the current container's values to the cumulated cardinality and moves to the next container.
+		 */
+		private void leaveContainer() {
+			this.cumulatedCardinality +=
+				PersistentRoaringBitmap.this.highLowContainer.getContainerAtIndex(this.pos).getCardinality();
+			++this.pos;
+			nextContainer();
+		}
+
+		/**
+		 * Binds {@link #iter} and {@link #hs} to the container at {@link #pos}, if there is one.
+		 */
+		private void nextContainer() {
+			if (this.pos < PersistentRoaringBitmap.this.highLowContainer.size()) {
+				this.iter = PersistentRoaringBitmap.this.highLowContainer.getContainerAtIndex(this.pos)
+					.getCharRankIterator();
+				this.hs = PersistentRoaringBitmap.this.highLowContainer.getKeyAtIndex(this.pos) << 16;
 			}
 		}
 	}

@@ -29,6 +29,11 @@ import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
+import io.evitadb.index.fulltext.FulltextIndex.SurfaceFormPage;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ChildKind;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ValueManifest;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ValuePage;
 import io.evitadb.index.map.MapHeapSize;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.page.PageEmission;
@@ -40,6 +45,10 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextField
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart.FieldEntry;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextReferenceValueLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextReferenceValueLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextSurfaceFormLeafPageRemoval;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.VMLayout;
 
@@ -56,7 +65,8 @@ import java.util.Objects;
  *
  * ## Flush
  *
- * A dirty index writes its changed dictionary pages and their removals, then its changed length blocks and their
+ * A dirty index writes its changed dictionary pages and their removals, then its changed surface dictionary pages and
+ * their removals, then, field by field, its changed length blocks and reference value dictionary pages and their
  * removals, then its {@link FulltextIndexStoragePart} root - pages before the root that lists them - and is reset
  * clean. The reset happens here, inside the collect, because nothing on the flush path resets it afterwards, and the
  * next collect must find the index clean, or it would stage its pages again.
@@ -78,12 +88,12 @@ import java.util.Objects;
  * ## Reclaim
  *
  * The root of a vanished index is reclaimed by the manifest diff in {@link io.evitadb.index.EntityIndex}, but its
- * dictionary pages and length blocks are this component's: the dropped index's own flush never runs again. So, as
- * {@link HistogramIndexMapComponent} does for its histograms, the component keeps a snapshot of what each index has
- * on disk, refreshed at every collect, and removes the footprint of every index that left the map. An index replaced
- * by a new one under the same locale - told apart by its {@link PageStreamRegistry}, which every merged copy of one
- * index shares - loses only the pages and blocks its replacement does not overwrite, because the replacement numbers
- * its pages from scratch under the same stream keys.
+ * dictionary pages, surface dictionary pages, length blocks and reference value dictionary pages are this component's:
+ * the dropped index's own flush never runs again. So, as {@link HistogramIndexMapComponent} does for its histograms,
+ * the component keeps a snapshot of what each index has on disk, refreshed at every collect, and removes the
+ * footprint of every index that left the map. An index replaced by a new one under the same locale - told apart by
+ * its {@link PageStreamRegistry}, which every merged copy of one index shares - loses only the pages and blocks its
+ * replacement does not overwrite, because the replacement numbers its pages from scratch under the same stream keys.
  */
 public final class FulltextIndexMapComponent implements IndexComponent {
 
@@ -105,16 +115,23 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 	 *
 	 * @param pageStreamRegistry the index's page bookkeeping, the identity of the logical index across merged copies
 	 * @param dictionaryPages    sequences of its dictionary pages, ascending
+	 * @param surfacePages       sequences of its surface dictionary pages, ascending
 	 * @param lengthBlocks       keys of the length blocks of each field on disk, ascending, the i-th for field id `i`
+	 * @param referencePages     sequences of each reference field's value dictionary pages by field id, then by child
+	 *                           kind, ascending; `null` for a field that is not a reference attribute
 	 */
 	private record PersistedFootprint(
 		@Nonnull PageStreamRegistry pageStreamRegistry,
 		@Nonnull int[] dictionaryPages,
-		@Nonnull int[][] lengthBlocks
+		@Nonnull int[] surfacePages,
+		@Nonnull int[][] lengthBlocks,
+		@Nonnull int[][][] referencePages
 	) {
 	}
 
 	/**
+	 * Wraps the locale indexes and snapshots their existing persisted page footprint.
+	 *
 	 * @param fulltextIndexes the wrapped per-locale map; an index in it may hold changes no flush has collected yet -
 	 *                        see "Construction over an unflushed index" in the class documentation
 	 */
@@ -142,12 +159,28 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 				if (dictionaryPages.length > 0) {
 					// the pending set comes out of a hash set, the reclaim looks pages up by binary search
 					Arrays.sort(dictionaryPages);
+					// a flushed index lists at least one page of each dictionary, so the dictionary pages alone tell
+					// whether it was flushed
+					final int[] surfacePages = index.getPersistedSurfaceFormPages();
+					Arrays.sort(surfacePages);
+					final PageStreamRegistry registry = index.getPageStreamRegistry();
 					final int[][] lengthBlocks = new int[index.getFieldCount()][];
+					final int[][][] referencePages = new int[lengthBlocks.length][][];
 					for (int fieldId = 0; fieldId < lengthBlocks.length; fieldId++) {
 						lengthBlocks[fieldId] = index.getPersistedLengthBlocks(fieldId);
+						if (index.getReferenceValues(fieldId) != null) {
+							referencePages[fieldId] = new int[ChildKind.values().length][];
+							for (final ChildKind kind : ChildKind.values()) {
+								final int[] sequences = registry.pendingLivePageSequences(
+									ReferenceFulltextValueIndex.streamNumber(fieldId, kind));
+								Arrays.sort(sequences);
+								referencePages[fieldId][kind.ordinal()] = sequences;
+							}
+						}
 					}
 					snapshot.put(
-						locale, new PersistedFootprint(index.getPageStreamRegistry(), dictionaryPages, lengthBlocks)
+						locale, new PersistedFootprint(
+							registry, dictionaryPages, surfacePages, lengthBlocks, referencePages)
 					);
 				}
 			}
@@ -186,6 +219,30 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 					);
 				}
 			}
+			for (final int sequence : previous.surfacePages()) {
+				if (replacement == null || Arrays.binarySearch(replacement.surfacePages(), sequence) < 0) {
+					trappedChanges.addChangeToStore(
+						new FulltextSurfaceFormLeafPageRemoval(entityIndexPrimaryKey, locale, sequence));
+				}
+			}
+			for (int field = 0; field < previous.referencePages().length; field++) {
+				final int[][] children = previous.referencePages()[field];
+				if (children == null) {
+					continue;
+				}
+				final int[][] replacementChildren = replacement == null || field >= replacement.referencePages().length
+					? null : replacement.referencePages()[field];
+				for (final ChildKind kind : ChildKind.values()) {
+					for (final int sequence : children[kind.ordinal()]) {
+						if (replacementChildren == null ||
+							Arrays.binarySearch(replacementChildren[kind.ordinal()], sequence) < 0) {
+							trappedChanges.addChangeToStore(new FulltextReferenceValueLeafPageRemoval(
+								entityIndexPrimaryKey, locale, field, kind, sequence));
+						}
+					}
+				}
+			}
+
 			for (int fieldId = 0; fieldId < previous.lengthBlocks().length; fieldId++) {
 				final int[] replacementBlocks = replacement == null || fieldId >= replacement.lengthBlocks().length
 					? null : replacement.lengthBlocks()[fieldId];
@@ -201,8 +258,9 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 	}
 
 	/**
-	 * Writes what a dirty index changed: its dictionary pages and their removals, its length blocks and their removals,
-	 * and its root, in that order.
+	 * Writes what a dirty index changed: its dictionary pages and their removals, its surface dictionary pages and
+	 * their removals, then per field its length blocks and its reference value dictionary pages with their removals,
+	 * and its root last, in that order.
 	 *
 	 * @param entityIndexPrimaryKey the owning entity index's primary key
 	 * @param locale                the locale of the index
@@ -228,6 +286,14 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 				new FulltextDictionaryLeafPageRemoval(entityIndexPrimaryKey, locale, freedPageSequence)
 			);
 		}
+		final PageEmission<SurfaceFormPage> surfaces = index.collectChangedSurfaceFormPages();
+		for (final SurfaceFormPage page : surfaces.changedPages()) {
+			trappedChanges.addChangeToStore(new FulltextSurfaceFormLeafPagePart(entityIndexPrimaryKey, locale, page));
+		}
+		for (final int sequence : surfaces.freedPageSequences()) {
+			trappedChanges.addChangeToStore(
+				new FulltextSurfaceFormLeafPageRemoval(entityIndexPrimaryKey, locale, sequence));
+		}
 		final LengthBlockEmission[] lengths = index.collectChangedLengthBlocks();
 		final FieldEntry[] fields = new FieldEntry[lengths.length];
 		for (int fieldId = 0; fieldId < lengths.length; fieldId++) {
@@ -242,17 +308,39 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 					new FulltextFieldLengthBlockRemoval(entityIndexPrimaryKey, locale, fieldId, removedBlockKey)
 				);
 			}
+			final ReferenceFulltextValueIndex referenceValues = index.getReferenceValues(fieldId);
+			ValueManifest referenceManifest = null;
+			if (referenceValues != null) {
+				final PageStreamRegistry registry = index.getPageStreamRegistry();
+				int child = 0;
+				for (final PageEmission<ValuePage> leaves : referenceValues.collectChangedPages(fieldId, registry)) {
+					final ChildKind kind = ChildKind.values()[child++];
+					for (final ValuePage page : leaves.changedPages()) {
+						trappedChanges.addChangeToStore(
+							new FulltextReferenceValueLeafPagePart(entityIndexPrimaryKey, locale, fieldId, page));
+					}
+					for (final int sequence : leaves.freedPageSequences()) {
+						trappedChanges.addChangeToStore(new FulltextReferenceValueLeafPageRemoval(
+							entityIndexPrimaryKey, locale, fieldId, kind, sequence));
+					}
+				}
+				referenceManifest = referenceValues.manifest(fieldId, registry);
+			}
+
 			fields[fieldId] = new FieldEntry(
 				Objects.requireNonNull(index.getFieldKey(fieldId)),
+				index.getAnalyzerName(fieldId), index.getIndexFingerprint(fieldId), index.getWordPhaseId(fieldId),
 				index.getLengthPivot(fieldId),
+				index.getTextExpression(fieldId),
 				index.isFieldRetired(fieldId),
-				emission.blockKeys()
+				emission.blockKeys(), referenceManifest
 			);
 		}
 		trappedChanges.addChangeToStore(
 			new FulltextIndexStoragePart(
-				entityIndexPrimaryKey, locale, index.getAnalyzerName(), index.getDefaultLengthPivot(), fields,
-				pages.highWaterPageSequence(), pages.orderedPageSequences(), null
+				entityIndexPrimaryKey, locale, fields,
+				pages.highWaterPageSequence(), pages.orderedPageSequences(), index.getWordPhaseIds(),
+				surfaces.highWaterPageSequence(), surfaces.orderedPageSequences(), null
 			)
 		);
 	}
@@ -335,10 +423,31 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 		return shell + MapHeapSize.sizeOf(
 			this.persistedFootprints,
 			locale -> 0L,
-			footprint -> layout.sizeOfObject(3L * layout.referenceSize())
+			footprint -> layout.sizeOfObject(5L * layout.referenceSize())
 				+ layout.sizeOfArray(footprint.dictionaryPages().length, Integer.BYTES)
+				+ layout.sizeOfArray(footprint.surfacePages().length, Integer.BYTES)
 				+ layout.sizeOfArray(footprint.lengthBlocks().length, layout.referenceSize())
+				+ referenceFootprintHeap(footprint.referencePages(), layout)
 		);
+	}
+
+	/**
+	 * Prices the owned child footprint arrays, including retired generations.
+	 * @param fields footprint by field and child
+	 * @param layout running VM layout
+	 * @return owned array heap in bytes
+	 */
+	private static long referenceFootprintHeap(@Nonnull int[][][] fields, @Nonnull VMLayout layout) {
+		long size = layout.sizeOfArray(fields.length, layout.referenceSize());
+		for (final int[][] children : fields) {
+			if (children != null) {
+				size += layout.sizeOfArray(children.length, layout.referenceSize());
+				for (final int[] sequences : children) {
+					size += layout.sizeOfArray(sequences.length, Integer.BYTES);
+				}
+			}
+		}
+		return size;
 	}
 
 }

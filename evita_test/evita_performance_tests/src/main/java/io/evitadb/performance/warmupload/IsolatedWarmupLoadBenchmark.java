@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.ClientTlsOptions;
@@ -77,6 +78,7 @@ import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.scope;
 
 /**
  * Single-threaded WARM_UP bulk-load benchmark that reads from an **embedded** source catalog and writes
@@ -131,6 +133,10 @@ import static io.evitadb.api.query.QueryConstraints.require;
  *
  * The source archive is never touched - the pristine snapshot directory is copied into a disposable
  * working directory on every run and the embedded engine only ever opens that copy.
+ *
+ * Entities are copied in every scope, archived ones included, each into the scope it has in the source - a query
+ * that names no scope reads only live entities, and a rebuild short of the archived ones fails every replayed
+ * transaction that touches one.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -212,6 +218,13 @@ public class IsolatedWarmupLoadBenchmark {
 	 * System property keeping the working directory on disk after the run instead of deleting it.
 	 */
 	public static final String KEEP_WORK_DIR_PROPERTY = "evita.warmup.keepWorkDir";
+	/**
+	 * System property enabling storage compression in the embedded engine (default `false`). A snapshot taken from
+	 * a server running with `storage.compress=true` holds compressed records, which only an engine with compression
+	 * enabled can read - uncompressed records read unchanged either way. In `embedded` target mode the target
+	 * catalog lives in that same engine, so it is then written compressed too.
+	 */
+	public static final String COMPRESS_PROPERTY = "evita.warmup.compress";
 
 	/**
 	 * Exit code for a run whose load completed and was reported, but whose entity counts could not be
@@ -239,6 +252,10 @@ public class IsolatedWarmupLoadBenchmark {
 	 * Default number of entities read from the source per fetch.
 	 */
 	private static final int DEFAULT_BATCH_SIZE = 1_000;
+	/**
+	 * Every query on a collection reads all scopes - see the class documentation.
+	 */
+	private static final Scope[] ALL_SCOPES = Scope.values();
 	/**
 	 * Default number of upserts between two intra-collection progress lines.
 	 */
@@ -325,6 +342,7 @@ public class IsolatedWarmupLoadBenchmark {
 		final int holdOpenSeconds = Integer.parseInt(System.getProperty(HOLD_OPEN_SECONDS_PROPERTY, "0"));
 		final boolean skipVerification = Boolean.parseBoolean(System.getProperty(SKIP_VERIFICATION_PROPERTY, "false"));
 		final boolean keepWorkDir = Boolean.parseBoolean(System.getProperty(KEEP_WORK_DIR_PROPERTY, "false"));
+		final boolean compress = Boolean.parseBoolean(System.getProperty(COMPRESS_PROPERTY, "false"));
 		final Path perEntityCsv = System.getProperty(PER_ENTITY_CSV_PROPERTY) == null ?
 			null : Path.of(System.getProperty(PER_ENTITY_CSV_PROPERTY));
 		final Set<String> requestedCollections = parseCollections(System.getProperty(COLLECTIONS_PROPERTY));
@@ -348,7 +366,7 @@ public class IsolatedWarmupLoadBenchmark {
 		log.info("Working copy ready in {} ms.", (System.nanoTime() - prepareStart) / 1_000_000);
 
 		int exitCode = 0;
-		final Evita source = bootSourceEngine(workDataDir);
+		final Evita source = bootSourceEngine(workDataDir, compress);
 		// `try (source)` rather than a plain close in the finally: when the measured block and the close both
 		// fail, try-with-resources attaches the close failure as suppressed instead of letting it replace the
 		// original one - and a verification mismatch is precisely the failure that must survive teardown.
@@ -493,10 +511,11 @@ public class IsolatedWarmupLoadBenchmark {
 	 * effectively disabled because one source read session is held open for the entire run.
 	 *
 	 * @param workDataDir storage directory holding the working copy of the source catalog
+	 * @param compress    whether the engine reads and writes compressed records - see {@link #COMPRESS_PROPERTY}
 	 * @return the booted instance
 	 */
 	@Nonnull
-	private static Evita bootSourceEngine(@Nonnull final Path workDataDir) {
+	private static Evita bootSourceEngine(@Nonnull final Path workDataDir, final boolean compress) {
 		log.info(
 			"Booting embedded source engine against `{}` (reader max heap {})...",
 			workDataDir, formatBytes(Runtime.getRuntime().maxMemory())
@@ -511,7 +530,7 @@ public class IsolatedWarmupLoadBenchmark {
 						.closeSessionsAfterSecondsOfInactivity(Integer.MAX_VALUE)
 						.build()
 				)
-				.storage(StorageOptions.builder().storageDirectory(workDataDir).build())
+				.storage(StorageOptions.builder().storageDirectory(workDataDir).compress(compress).build())
 				.cache(CacheOptions.builder().build())
 				// The export directory defaults to `./export` RELATIVE TO THE WORKING DIRECTORY, and evitaDB
 				// takes an exclusive folder lock on it. The target server is normally launched from the same
@@ -761,6 +780,9 @@ public class IsolatedWarmupLoadBenchmark {
 		// reflected references are read-only projections auto-maintained from the owning (plain) reference on
 		// the other entity; they must not be fetched or written here - copying the plain reference rebuilds them
 		final EntityFetch contentRequirement = CatalogCopySupport.buildContentRequirement(schema);
+		// the target may declare associated data localized that the source keeps without a locale - see
+		// `CatalogCopySupport#createCopyBuilder`
+		final EntitySchemaContract targetSchema = targetSession.getEntitySchemaOrThrowException(entityType);
 		int[] primaryKeys = fetchAllPrimaryKeys(sourceSession, entityType);
 		if (maxPerCollection > 0 && primaryKeys.length > maxPerCollection) {
 			primaryKeys = Arrays.copyOf(primaryKeys, maxPerCollection);
@@ -783,7 +805,7 @@ public class IsolatedWarmupLoadBenchmark {
 			final List<SealedEntity> entities = sourceSession.queryListOfSealedEntities(
 				Query.query(
 					collection(entityType),
-					filterBy(entityPrimaryKeyInSet(batch)),
+					filterBy(entityPrimaryKeyInSet(batch), scope(ALL_SCOPES)),
 					require(page(1, limit), contentRequirement)
 				)
 			);
@@ -791,7 +813,7 @@ public class IsolatedWarmupLoadBenchmark {
 
 			for (int i = 0; i < entities.size(); i++) {
 				final SealedEntity entity = entities.get(i);
-				final CopyExistingEntityBuilder builder = new CopyExistingEntityBuilder(entity);
+				final CopyExistingEntityBuilder builder = CatalogCopySupport.createCopyBuilder(entity, targetSchema);
 				final long upsertStart = System.nanoTime();
 				targetSession.upsertEntity(builder);
 				final long upsertNanos = System.nanoTime() - upsertStart;
@@ -836,7 +858,7 @@ public class IsolatedWarmupLoadBenchmark {
 			return new int[0];
 		}
 		final List<EntityReferenceContract> references = sourceSession.queryListOfEntityReferences(
-			Query.query(collection(entityType), require(page(1, total)))
+			Query.query(collection(entityType), filterBy(scope(ALL_SCOPES)), require(page(1, total)))
 		);
 		final int[] primaryKeys = new int[references.size()];
 		for (int i = 0; i < references.size(); i++) {
@@ -857,7 +879,7 @@ public class IsolatedWarmupLoadBenchmark {
 		@Nonnull final String entityType
 	) {
 		return session.queryEntityReference(
-			Query.query(collection(entityType), require(page(1, 1)))
+			Query.query(collection(entityType), filterBy(scope(ALL_SCOPES)), require(page(1, 1)))
 		).getTotalRecordCount();
 	}
 

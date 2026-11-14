@@ -24,6 +24,7 @@
 package io.evitadb.index.bPlusTree;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 
@@ -208,6 +209,51 @@ public final class Wtf8 {
 			}
 		}
 		return new String(out, 0, outLength);
+	}
+
+	/**
+	 * Appends an encoder-produced WTF-8 key to reusable character storage without a temporary string or array.
+	 * Three-byte surrogate encodings are retained as individual UTF-16 units, as in {@link #decode}.
+	 *
+	 * @param bytes encoded key bytes, produced by this codec
+	 * @param length occupied bytes from offset zero
+	 * @param target caller-owned destination, whose existing prefix is retained
+	 */
+	static void appendDecoded(@Nonnull byte[] bytes, int length, @Nonnull StringBuilder target) {
+		for (int i = 0; i < length;) {
+			final int lead = bytes[i++] & 0xff;
+			if (lead < 0x80) {
+				target.append((char) lead);
+				continue;
+			}
+			final int width;
+			final int mask;
+			final int minimum;
+			if (lead >= 0xf0) {
+				width = 4;
+				mask = 7;
+				minimum = 0x10000;
+			} else if (lead >= 0xe0) {
+				width = 3;
+				mask = 15;
+				minimum = 0x800;
+			} else {
+				width = 2;
+				mask = 31;
+				minimum = 0x80;
+			}
+			Assert.isPremiseValid(lead >= 0xc2 && lead <= 0xf4 && i + width - 1 <= length,
+				"Invalid WTF-8 key encoding!");
+			int codePoint = lead & mask;
+			for (int j = 1; j < width; j++) {
+				final int continuation = bytes[i++] & 0xff;
+				Assert.isPremiseValid((continuation & 0xc0) == 0x80, "Invalid WTF-8 continuation!");
+				codePoint = (codePoint << 6) | (continuation & 0x3f);
+			}
+			Assert.isPremiseValid(codePoint >= minimum && codePoint <= Character.MAX_CODE_POINT,
+				"Invalid WTF-8 code point!");
+			target.appendCodePoint(codePoint);
+		}
 	}
 
 	/**

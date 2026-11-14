@@ -30,10 +30,10 @@ import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import javax.annotation.Nonnull;
 
 /**
- * Handler for `UpsertAssociatedDataMutation`. Associated data is not directly indexed; the only
- * indexing side-effect is to re-evaluate facet expressions that reference the mutated associated
- * data key — and even that is deferred so the expression evaluation observes post-write storage
- * state.
+ * Handler for `UpsertAssociatedDataMutation`. Associated data enters no index but the fulltext
+ * index of searchable associated data; the other indexing side-effect is to re-evaluate facet
+ * expressions that reference the mutated associated data key — deferred so the expression
+ * evaluation observes post-write storage state. See `AssociatedDataMutationFanOut`.
  */
 public final class UpsertAssociatedDataMutationHandler implements LocalMutationHandler<UpsertAssociatedDataMutation> {
 
@@ -55,7 +55,7 @@ public final class UpsertAssociatedDataMutationHandler implements LocalMutationH
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
-		AssociatedDataMutationFanOut.apply(mutation.getAssociatedDataKey().associatedDataName(), executor, globalIndex);
+		AssociatedDataMutationFanOut.apply(mutation, executor, globalIndex);
 	}
 
 }

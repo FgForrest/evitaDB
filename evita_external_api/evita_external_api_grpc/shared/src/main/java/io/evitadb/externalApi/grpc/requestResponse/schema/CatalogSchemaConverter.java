@@ -24,11 +24,13 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
 import com.google.protobuf.StringValue;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
@@ -52,6 +54,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
@@ -126,6 +129,11 @@ public class CatalogSchemaConverter {
 					Entry::getKey,
 					it -> toGlobalAttributeSchema(it.getValue())
 				)),
+			// the gRPC catalog schema does not carry the fulltext languages, resources and analyzers yet - the client
+			// sees a catalog without them until the gRPC mirror of the fulltext schema lands
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
 			entitySchemaProvider
 		);
 	}
@@ -240,7 +248,8 @@ public class CatalogSchemaConverter {
 		// absent on the wire for an older server - proto3 renders that as an empty list, which converts to `null`
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
 			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratedList());
-		// searchability has no gRPC mirror, so a schema converted from the wire reports no attribute as searchable
+		// searchability and the fulltext field settings have no gRPC mirror, so a schema converted from the wire
+		// reports no attribute as searchable and the default analyzer and length pivot
 		final Scope[] searchableInScopes = null;
 		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
 
@@ -261,7 +270,9 @@ public class CatalogSchemaConverter {
 			attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 			attributeSchema.getIndexedDecimalPlaces(),
 			EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
-			toAnalysisSteps(attributeSchema.getNormalizedList())
+			toAnalysisSteps(attributeSchema.getNormalizedList()),
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

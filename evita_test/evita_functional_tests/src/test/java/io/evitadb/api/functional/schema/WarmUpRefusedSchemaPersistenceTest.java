@@ -58,8 +58,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.asciiFolding;
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.czechStemming;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.SCHEMA;
@@ -112,6 +115,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 
 	private static final String ATTRIBUTE_CODE = "code";
+	/** Name of a fulltext analyzer the catalog declares. */
+	private static final String ANALYZER_NAMES = "names";
 	private static final String REFERENCE_BRAND = "brand";
 	/** An entity type deliberately never defined in the catalog, so a managed reference to it cannot validate. */
 	private static final String NON_EXISTING_ENTITY_TYPE = "nonExistingEntityType";
@@ -324,6 +329,101 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 				reopenedSchema.getReference(REFERENCE_BRAND).isPresent(),
 				"An accepted reference must survive the reopen - otherwise the assertion above proves nothing"
 			);
+		}
+	}
+
+	/** An analyzer the catalog schema's own validation accepts, refused only once it is compiled. */
+	@Nested
+	@DisplayName("refused by the fulltext analyzer check")
+	class FulltextAnalyzerCheck {
+
+		/** A collection defined after the analyzer in the same session must not publish the analyzer mid-session. */
+		@Test
+		@Tag(FULLTEXT)
+		@DisplayName("should not publish an analyzer that does not compile when the session then defines a collection")
+		void shouldNotPublishAnAnalyzerThatDoesNotCompileMidSession() {
+			// the analyzer check needs the installed analysis steps, so the catalog schema's own `validate()` accepts
+			// this schema and only `Catalog#validateSchema()` refuses it. A mid-session publication asking `validate()`
+			// alone would write the analyzer into a bootstrap record the load-time check of the analyzers then refuses.
+			//
+			// CALIBRATED (2026-11-03): pointing `Catalog#isSchemaValid` back at `getSchema().validate()` alone fails
+			// this test; `FulltextAnalyzerValidationSchemaTest` passes either way and will not notice
+			final InvalidSchemaMutationException exception =
+				CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+					WarmUpRefusedSchemaPersistenceTest.this.evita, TEST_CATALOG,
+					InvalidSchemaMutationException.class,
+					() -> WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+						TEST_CATALOG,
+						session -> {
+							// a fold before the Czech stemmer does not compile in any language
+							session.getCatalogSchema()
+								.openForWrite()
+								.withFulltextAnalyzer(ANALYZER_NAMES, a -> a.words(asciiFolding(), czechStemming()))
+								.updateVia(session);
+							// the mid-session publication, in the very same session as the analyzer
+							session.defineEntitySchema(Entities.BRAND)
+								.withoutGeneratedPrimaryKey()
+								.updateVia(session);
+						}
+					)
+				);
+			assertTrue(
+				exception.getMessage().contains("Fulltext analyzer `" + ANALYZER_NAMES + "`"),
+				() -> "The refusal must name the analyzer, but was: " + exception.getMessage()
+			);
+
+			WarmUpRefusedSchemaPersistenceTest.this.reopenCatalog();
+			assertFalse(
+				WarmUpRefusedSchemaPersistenceTest.this.readEntityTypes().contains(Entities.BRAND),
+				"A collection defined after the analyzer must not publish the analyzer with it"
+			);
+			final boolean analyzerGone = WarmUpRefusedSchemaPersistenceTest.this.evita.queryCatalog(
+				TEST_CATALOG, session -> {
+					return session.getCatalogSchema().getFulltextAnalyzer(ANALYZER_NAMES).isEmpty();
+				}
+			);
+			assertTrue(analyzerGone, "The refused analyzer must not survive the reopen");
+		}
+
+		/** The go-live operator compiles the analyzers before it publishes, and raises the barrier when one fails. */
+		@Test
+		@Tag(FULLTEXT)
+		@DisplayName("should not publish an analyzer that does not compile when the session goes live")
+		void shouldNotPublishAnAnalyzerThatDoesNotCompileWhenTheSessionGoesLive() {
+			// `goLiveAndClose` terminates its session without `EvitaSession#closeInternal`, so the only check between
+			// this analyzer and the ALIVE bootstrap record is `Catalog#validateSchema()` in the go-live operator.
+			//
+			// CALIBRATED (2026-11-03): pointing `MakeCatalogAliveMutationOperator` back at `getSchema().validate()`
+			// alone fails this test; `shouldNotPublishTheRefusedSchemaWhenTheSameSessionGoesLive` refuses a rule that
+			// `validate()` covers and passes either way
+			final InvalidSchemaMutationException exception =
+				CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+					WarmUpRefusedSchemaPersistenceTest.this.evita, TEST_CATALOG,
+					InvalidSchemaMutationException.class,
+					() -> WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+						TEST_CATALOG,
+						session -> {
+							// a fold before the Czech stemmer does not compile in any language
+							session.getCatalogSchema()
+								.openForWrite()
+								.withFulltextAnalyzer(ANALYZER_NAMES, a -> a.words(asciiFolding(), czechStemming()))
+								.updateVia(session);
+							session.goLiveAndClose();
+						}
+					)
+				);
+			assertTrue(
+				exception.getMessage().contains("Fulltext analyzer `" + ANALYZER_NAMES + "`"),
+				() -> "The refusal must name the analyzer, but was: " + exception.getMessage()
+			);
+
+			WarmUpRefusedSchemaPersistenceTest.this.reopenCatalog();
+			final boolean analyzerGone = WarmUpRefusedSchemaPersistenceTest.this.evita.queryCatalog(
+				TEST_CATALOG, session -> {
+					return session.getCatalogSchema().getFulltextAnalyzer(ANALYZER_NAMES).isEmpty();
+				}
+			);
+			assertTrue(analyzerGone, "Going live must not publish the refused analyzer");
 		}
 	}
 

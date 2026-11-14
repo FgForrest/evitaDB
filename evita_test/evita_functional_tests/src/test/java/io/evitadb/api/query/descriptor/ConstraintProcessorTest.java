@@ -42,7 +42,10 @@ import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.AttributeStartsWith;
 import io.evitadb.api.query.filter.HierarchySpecificationFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.filter.InAttribute;
+import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.RelevanceText;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.exception.EvitaInternalError;
 import lombok.SneakyThrows;
@@ -58,6 +61,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -116,6 +120,51 @@ class ConstraintProcessorTest {
 				ConstraintWithConstructorAndFactoryMethod.def(),
 				descriptors2.get(1).creator().instantiateConstraint(new Object[]{}, "")
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Not yet registered fulltext constraints")
+	class FulltextConstraintsTest {
+
+		@Test
+		@DisplayName("should process the annotations of the fulltext constraints")
+		void shouldProcessAnnotationsOfFulltextConstraints() {
+			// the fulltext constraints are kept out of `ConstraintRegistry` until their external API shape is
+			// designed, so their annotations are validated here instead of at registry processing
+			final List<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(
+					Set.of(TextMatches.class, InAttribute.class, RelevanceText.class)
+				)
+				.stream()
+				.sorted(Comparator.comparing(ConstraintDescriptor::fullName))
+				.toList();
+
+			assertEquals(
+				List.of("inAttribute", "relevanceText", "textMatches"),
+				descriptors.stream().map(ConstraintDescriptor::fullName).toList()
+			);
+
+			final ConstraintDescriptor inAttribute = descriptors.get(0);
+			assertEquals(ConstraintType.FILTER, inAttribute.type());
+			assertEquals(ConstraintPropertyType.GENERIC, inAttribute.propertyType());
+			assertEquals(ConstraintValueStructure.PRIMITIVE, inAttribute.creator().valueStructure());
+
+			final ConstraintDescriptor relevanceText = descriptors.get(1);
+			assertEquals(ConstraintType.ORDER, relevanceText.type());
+			assertEquals(ConstraintPropertyType.GENERIC, relevanceText.propertyType());
+			assertEquals(Set.of(ConstraintDomain.ENTITY), relevanceText.supportedIn());
+			assertEquals(ConstraintValueStructure.NONE, relevanceText.creator().valueStructure());
+
+			final ConstraintDescriptor textMatches = descriptors.get(2);
+			assertEquals(ConstraintType.FILTER, textMatches.type());
+			assertEquals(ConstraintPropertyType.GENERIC, textMatches.propertyType());
+			assertEquals(Set.of(ConstraintDomain.ENTITY), textMatches.supportedIn());
+			assertEquals(ConstraintValueStructure.COMPLEX, textMatches.creator().valueStructure());
+			final List<ChildParameterDescriptor> childParameters = textMatches.creator().childParameters();
+			assertEquals(1, childParameters.size());
+			// several `inAttribute` children must be allowed, so the children must not be unique by type
+			assertFalse(childParameters.get(0).uniqueChildren());
+			assertFalse(childParameters.get(0).required());
 		}
 	}
 

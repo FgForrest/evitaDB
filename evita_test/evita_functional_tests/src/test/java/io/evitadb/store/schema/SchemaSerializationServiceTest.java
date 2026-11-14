@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
@@ -286,7 +288,7 @@ class SchemaSerializationServiceTest {
 			.withAttribute("description", String.class, whichIs -> whichIs.localized().searchable())
 			.withReferenceToEntity(
 				Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.withAttribute(
+				whichIs -> whichIs.indexedForFiltering().withAttribute(
 					"brandName", String[].class, thatIs -> thatIs.localized().searchable()
 				)
 			)
@@ -317,7 +319,9 @@ class SchemaSerializationServiceTest {
 			true, false, false,
 			String.class, null, 0,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 		final CatalogSchema createdCatalogSchema = CatalogSchema._internalBuild(
 			1,
@@ -327,6 +331,9 @@ class SchemaSerializationServiceTest {
 			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			Map.of("title", globalAttribute),
+			Map.of(),
+			Map.of(),
+			Map.of(),
 			EmptyEntitySchemaAccessor.INSTANCE
 		);
 
@@ -381,6 +388,9 @@ class SchemaSerializationServiceTest {
 			null,
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			attributes,
+			Map.of(),
+			Map.of(),
+			Map.of(),
 			EmptyEntitySchemaAccessor.INSTANCE
 		);
 
@@ -1151,7 +1161,8 @@ class SchemaSerializationServiceTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			Collections.emptyMap(),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -1208,7 +1219,8 @@ class SchemaSerializationServiceTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-			null
+			null,
+			null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -1354,7 +1366,8 @@ class SchemaSerializationServiceTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-			null
+			null,
+			null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

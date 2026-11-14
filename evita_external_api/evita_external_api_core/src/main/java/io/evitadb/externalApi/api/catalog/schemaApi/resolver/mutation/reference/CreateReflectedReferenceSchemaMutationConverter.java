@@ -141,6 +141,7 @@ public class CreateReflectedReferenceSchemaMutationConverter
 		serializeFacetedPartially(mutation.getFacetedPartiallyInScopes(), output);
 		serializeBucketedHistogram(mutation.getBucketedInScopes(), output);
 		serializeBucketedPartially(mutation.getBucketedPartiallyInScopes(), output);
+		writeSearchWeight("searchableThroughWeight", mutation.getSearchableThroughWeight(), output);
 		super.convertToOutput(mutation, output);
 	}
 }

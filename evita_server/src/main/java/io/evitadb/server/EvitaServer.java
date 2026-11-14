@@ -602,7 +602,8 @@ public class EvitaServer {
 			evitaServerConfig.storage(),
 			evitaServerConfig.transaction(),
 			evitaServerConfig.cache(),
-			evitaServerConfig.export()
+			evitaServerConfig.export(),
+			evitaServerConfig.fulltext()
 		);
 
 		if (this.evitaConfiguration.server().quiet()) {
@@ -646,7 +647,8 @@ public class EvitaServer {
 			this.evitaConfiguration.transaction(),
 			this.evitaConfiguration.cache(),
 			this.evitaConfiguration.export(),
-			apiOptions
+			apiOptions,
+			this.evitaConfiguration.fulltext()
 		);
 	}
 

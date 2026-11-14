@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.resolver.mutation.Input;
+import io.evitadb.externalApi.api.resolver.mutation.Output;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
@@ -68,5 +69,11 @@ public class CreateAssociatedDataSchemaMutationConverter extends AssociatedDataS
 			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE, false),
 			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE, ConflictResolutionOverride.INHERITED)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull CreateAssociatedDataSchemaMutation mutation, @Nonnull Output output) {
+		writeSearchWeight("searchWeight", mutation.getSearchWeight(), output);
+		super.convertToOutput(mutation, output);
 	}
 }

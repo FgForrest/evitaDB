@@ -101,12 +101,15 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 			output.writeBoolean(false);
 		}
 		kryo.writeObject(output, attributeSchema.getConflictResolutionOverride());
-		// three sections appended last, in this fixed order - the accelerators, the searchable scopes, then the
-		// normalization - mirroring how the conflict-resolution override was added; the release-2026.2 reader
-		// (GlobalAttributeSchemaSerializer_2026_2) simply stops before all three
+		// four sections appended last, in this fixed order - the accelerators, the searchable scopes, the
+		// normalization, then the fulltext field settings (analyzer, length pivot, ranking weight); the release-2026.2
+		// reader (GlobalAttributeSchemaSerializer_2026_2) simply stops before all four
 		EntitySchemaSerializer.writeAccelerators(kryo, output, attributeSchema.getAcceleratorsInScopes());
 		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSearchableInScopes());
 		writeAnalysisSteps(kryo, output, attributeSchema.getNormalization());
+		output.writeString(attributeSchema.getAnalyzer());
+		output.writeVarInt(attributeSchema.getLengthPivot(), true);
+		output.writeFloat(attributeSchema.getSearchWeight());
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
@@ -146,6 +149,9 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 			EntitySchemaSerializer.readAccelerators(kryo, input);
 		final EnumSet<Scope> searchable = EntitySchemaSerializer.readScopeSet(kryo, input);
 		final List<AnalysisStep> normalization = readAnalysisSteps(kryo, input);
+		final String analyzer = input.readString();
+		final int lengthPivot = input.readVarInt(true);
+		final float searchWeight = input.readFloat();
 		return GlobalAttributeSchema._internalBuild(
 			name, description, deprecationNotice,
 			unique,
@@ -156,7 +162,8 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 			sortable,
 			localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride,
-			normalization
+			normalization,
+			analyzer, lengthPivot, searchWeight
 		);
 	}
 

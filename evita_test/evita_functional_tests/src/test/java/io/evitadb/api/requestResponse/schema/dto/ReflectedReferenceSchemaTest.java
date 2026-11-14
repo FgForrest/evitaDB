@@ -108,7 +108,8 @@ class ReflectedReferenceSchemaTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			Collections.emptyMap(),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -145,7 +146,8 @@ class ReflectedReferenceSchemaTest {
 			Map.of(Scope.LIVE, bucketedPartiallyExpr),
 			Collections.emptyMap(),
 			Collections.emptyMap(),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -180,7 +182,8 @@ class ReflectedReferenceSchemaTest {
 			Collections.emptyMap(),
 			attributes,
 			Collections.emptyMap(),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -203,7 +206,8 @@ class ReflectedReferenceSchemaTest {
 		@DisplayName("should build minimal reflected reference schema")
 		void shouldBuildMinimalSchema() {
 			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertEquals("reflected", schema.getName());
@@ -241,7 +245,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-				new String[]{"excluded"}
+				new String[]{"excluded"},
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertFalse(schema.isDescriptionInherited());
@@ -289,7 +294,8 @@ class ReflectedReferenceSchemaTest {
 				true,  // facetedInherited
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
-				null   // no reflected reference
+				null,  // no reflected reference
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isDescriptionInherited());
@@ -324,7 +330,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isDescriptionInherited());
@@ -349,7 +356,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertFalse(schema.isDescriptionInherited());
@@ -373,7 +381,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isCardinalityInherited());
@@ -395,7 +404,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isIndexedInherited());
@@ -419,7 +429,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isFacetedInherited());
@@ -442,7 +453,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isIndexedComponentsInherited());
@@ -457,7 +469,8 @@ class ReflectedReferenceSchemaTest {
 		@DisplayName("should throw when description inherited and no reflected reference")
 		void shouldThrowWhenDescriptionInheritedAndNoReflectedRef() {
 			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isDescriptionInherited());
@@ -468,7 +481,8 @@ class ReflectedReferenceSchemaTest {
 		@DisplayName("should throw when deprecation inherited and no reflected reference")
 		void shouldThrowWhenDeprecationInheritedAndNoReflectedRef() {
 			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isDeprecatedInherited());
@@ -479,7 +493,8 @@ class ReflectedReferenceSchemaTest {
 		@DisplayName("should throw when cardinality inherited and no reflected reference")
 		void shouldThrowWhenCardinalityInheritedAndNoReflectedRef() {
 			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isCardinalityInherited());
@@ -490,7 +505,8 @@ class ReflectedReferenceSchemaTest {
 		@DisplayName("should throw when group type accessed without reflected reference")
 		void shouldThrowWhenGroupTypeAccessedWithoutReflectedRef() {
 			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			// getReferencedGroupType always requires reflected reference
@@ -501,7 +517,8 @@ class ReflectedReferenceSchemaTest {
 		@DisplayName("should throw when indexed inherited and no reflected reference")
 		void shouldThrowWhenIndexedInheritedAndNoReflectedRef() {
 			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isIndexedInherited());
@@ -512,7 +529,8 @@ class ReflectedReferenceSchemaTest {
 		@DisplayName("should throw when faceted inherited and no reflected reference")
 		void shouldThrowWhenFacetedInheritedAndNoReflectedRef() {
 			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isFacetedInherited());
@@ -538,7 +556,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-				new String[]{}
+				new String[]{},
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertThrows(Exception.class, schema::getAttributes);
@@ -549,7 +568,8 @@ class ReflectedReferenceSchemaTest {
 		void shouldNotThrowForAttributesWhenInheritOnlySpecifiedEmpty() {
 			// INHERIT_ONLY_SPECIFIED with empty filter effectively means no inheritance
 			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			// Should not throw because no attributes are actually inherited
@@ -579,7 +599,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReference();
@@ -606,7 +627,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReference();
@@ -632,7 +654,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReference();
@@ -662,7 +685,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReference();
@@ -694,7 +718,8 @@ class ReflectedReferenceSchemaTest {
 				Map.of("ownAttr", ownAttr),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-				new String[]{}
+				new String[]{},
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReferenceWithAttributes(
@@ -730,7 +755,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				new String[]{"attrA"}
+				new String[]{"attrA"},
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReferenceWithAttributes(
@@ -761,7 +787,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-				new String[]{"attrB"}
+				new String[]{"attrB"},
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReferenceWithAttributes(
@@ -792,7 +819,8 @@ class ReflectedReferenceSchemaTest {
 				Map.of("ownAttr", ownAttr),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-				new String[]{}
+				new String[]{},
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReferenceWithAttributes(
@@ -821,7 +849,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReference();
@@ -849,7 +878,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-				new String[]{}
+				new String[]{},
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReferenceWithAttributes(
@@ -887,7 +917,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertFalse(schema.isDescriptionInherited());
@@ -902,7 +933,8 @@ class ReflectedReferenceSchemaTest {
 		@DisplayName("should set description explicit when provided")
 		void shouldSetDescriptionExplicitWhenProvided() {
 			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertTrue(schema.isDescriptionInherited());
@@ -931,7 +963,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertFalse(schema.isCardinalityInherited());
@@ -960,7 +993,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertFalse(schema.isIndexedInherited());
@@ -989,7 +1023,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertFalse(schema.isFacetedInherited());
@@ -1009,10 +1044,12 @@ class ReflectedReferenceSchemaTest {
 		@DisplayName("should be equal for same parameters")
 		void shouldBeEqualForSameParameters() {
 			final ReflectedReferenceSchema a = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final ReflectedReferenceSchema b = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertEquals(a, b);
@@ -1023,10 +1060,12 @@ class ReflectedReferenceSchemaTest {
 		@DisplayName("should not be equal when reflected reference name differs")
 		void shouldNotBeEqualWhenReflectedReferenceNameDiffers() {
 			final ReflectedReferenceSchema a = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final ReflectedReferenceSchema b = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "otherRef"
+				"reflected", "Brand", "otherRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertNotEquals(a, b);
@@ -1052,7 +1091,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			// schema with explicit description
@@ -1072,7 +1112,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertNotEquals(inherited, explicit);
@@ -1096,7 +1137,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final ReflectedReferenceSchema b = ReflectedReferenceSchema._internalBuild(
 				"reflected",
@@ -1113,7 +1155,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertNotEquals(a, b);
@@ -1181,7 +1224,8 @@ class ReflectedReferenceSchemaTest {
 		@DisplayName("should throw on withUpdatedReferencedGroupType")
 		void shouldThrowOnUpdatedReferencedGroupType() {
 			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			assertThrows(
@@ -1199,7 +1243,8 @@ class ReflectedReferenceSchemaTest {
 		@DisplayName("should report empty inherited attributes when no reflected reference")
 		void shouldReportEmptyInheritedAttributesWhenNoReflectedRef() {
 			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
+				"reflected", "Brand", "brandRef",
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Set<String> inherited = schema.getInheritedAttributes();
@@ -1223,7 +1268,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				new String[]{"attrA"}
+				new String[]{"attrA"},
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReferenceWithAttributes(
@@ -1324,7 +1370,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			// Build reflected reference with facetedPartially in LIVE but NOT faceted
@@ -1353,7 +1400,8 @@ class ReflectedReferenceSchemaTest {
 				false, // facetedInherited = false
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
-				originalReference
+				originalReference,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Object[] schemas = buildCatalogAndSchemas("Category", originalReference);
@@ -1401,7 +1449,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			// Build reflected reference with facetedInherited=true but different facetedPartially
@@ -1430,7 +1479,8 @@ class ReflectedReferenceSchemaTest {
 				true, // facetedInherited = true
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
-				originalReference
+				originalReference,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Object[] schemas = buildCatalogAndSchemas("Category", originalReference);
@@ -1475,7 +1525,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			// Build reflected reference with facetedInherited=true but NO faceted scopes (differs from original)
@@ -1502,7 +1553,8 @@ class ReflectedReferenceSchemaTest {
 				true, // facetedInherited = true
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
-				originalReference
+				originalReference,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Object[] schemas = buildCatalogAndSchemas("Category", originalReference);
@@ -1547,7 +1599,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			// Build reflected reference with indexedInherited=true but different indexed scopes
@@ -1577,7 +1630,8 @@ class ReflectedReferenceSchemaTest {
 				false,
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
-				originalReference
+				originalReference,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Object[] schemas = buildCatalogAndSchemas("Category", originalReference);
@@ -1622,7 +1676,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			// Build reflected reference with indexedComponentsInherited=true but different components
@@ -1656,7 +1711,8 @@ class ReflectedReferenceSchemaTest {
 				false,
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
-				originalReference
+				originalReference,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final Object[] schemas = buildCatalogAndSchemas("Category", originalReference);
@@ -1708,7 +1764,8 @@ class ReflectedReferenceSchemaTest {
 				true,
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReferenceWithBucketed();
@@ -1754,7 +1811,8 @@ class ReflectedReferenceSchemaTest {
 				true,
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			final ReferenceSchema original = createOriginalReferenceWithBucketed();
@@ -1790,7 +1848,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
-				original
+				original,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			// bucketed is always explicit — null means empty, not inherited
@@ -1834,7 +1893,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			// Reflected reference: inherited indexed, explicit bucketed in LIVE
@@ -1864,7 +1924,8 @@ class ReflectedReferenceSchemaTest {
 				true,
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 
 			// withReferencedSchema resolves indexed from original (ARCHIVED only)
@@ -1909,7 +1970,8 @@ class ReflectedReferenceSchemaTest {
 					Collections.emptyMap(),
 					Collections.emptyMap(),
 					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-					null
+					null,
+					null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				),
 				"Expected InvalidSchemaMutationException because bucketed LIVE scope has index type NONE"
 			);

@@ -92,7 +92,8 @@ class ReferenceIndexMutatorDecisionMatrixTest {
 			new ScopedReferenceIndexType[]{
 				new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 			},
-			new Scope[]{Scope.DEFAULT_SCOPE}
+			new Scope[]{Scope.DEFAULT_SCOPE},
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

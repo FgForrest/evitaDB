@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
+import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -80,12 +81,17 @@ public class ModifyAssociatedDataSchemaNameMutation
 		Assert.isPremiseValid(associatedDataSchema != null, "Associated data schema is mandatory!");
 		return AssociatedDataSchema._internalBuild(
 			this.newName,
+			NamingConvention.generate(this.newName),
 			associatedDataSchema.getDescription(),
 			associatedDataSchema.getDeprecationNotice(),
 			associatedDataSchema.getType(),
 			associatedDataSchema.isLocalized(),
 			associatedDataSchema.isNullable(),
-			associatedDataSchema.getConflictResolutionOverride()
+			associatedDataSchema.getSearchableInScopes(),
+			associatedDataSchema.getTextExpression(),
+			associatedDataSchema.getConflictResolutionOverride(),
+			associatedDataSchema.getAnalyzer(), associatedDataSchema.getLengthPivot(),
+			associatedDataSchema.getSearchWeight()
 		);
 	}
 

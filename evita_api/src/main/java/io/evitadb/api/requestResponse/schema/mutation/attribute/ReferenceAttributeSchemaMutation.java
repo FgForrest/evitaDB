@@ -189,7 +189,8 @@ public interface ReferenceAttributeSchemaMutation extends
 							)
 						),
 					referenceSchema.getSortableAttributeCompounds(),
-					referenceSchema.getConflictResolutionOverride()
+					referenceSchema.getConflictResolutionOverride(),
+					referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 				);
 			}
 		}

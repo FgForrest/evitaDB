@@ -152,7 +152,8 @@ class ReferencesStoragePartSerializerTest {
 				)
 			),
 			Collections.emptyMap(),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

@@ -142,7 +142,8 @@ public class SetReferenceSchemaConflictResolutionOverrideMutation
 			referenceSchema.getBucketedPartiallyInScopes(),
 			referenceSchema.getAttributes(),
 			referenceSchema.getSortableAttributeCompounds(),
-			this.conflictResolutionOverride
+			this.conflictResolutionOverride,
+			referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 		);
 	}
 

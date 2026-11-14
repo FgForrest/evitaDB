@@ -73,6 +73,27 @@ import java.util.stream.Stream;
 public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContract, ConflictResolutionOverrideAwareSchemaContract {
 
 	/**
+	 * The {@link #getLengthPivot() length pivot} of an attribute or associated data that declares none.
+	 */
+	int DEFAULT_LENGTH_PIVOT = 25;
+
+	/** Default fulltext ranking weight; every matching place contributes equally. */
+	float DEFAULT_SEARCH_WEIGHT = 1.0f;
+
+	/**
+	 * Canonicalizes a ranking weight so both signs of zero have the same stored representation.
+	 * Validation of finite, non-negative values remains part of assembled-schema validation.
+	 *
+	 * @param weight the supplied ranking weight
+	 * @return positive zero for either zero, otherwise the supplied weight
+	 */
+	static float normalizeSearchWeight(float weight) {
+		// IEEE 754 addition: -0.0f + 0.0f is +0.0f, while every other value - NaN and the infinities included - is
+		// returned unchanged, so this is not a no-op that can be simplified away
+		return weight + 0.0f;
+	}
+
+	/**
 	 * Ordered normalization steps for `String` and `String[]` attributes, shared by all scopes.
 	 * An empty list means no custom normalization: the engine applies only Unicode NFD.
 	 *
@@ -346,13 +367,15 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * of its references of that reference type - an entity referencing three brands is found by the name of any of
 	 * them, and a name two of its references share counts once. A change of a reference attribute that adds no value
 	 * missing from that union and removes no value no other reference still holds changes nothing in the fulltext
-	 * index at all.
+	 * index at all. The reference must be indexed in every scope the attribute is searchable in - for the attributes
+	 * a reflected reference inherits too - otherwise the reference schema is refused.
 	 *
-	 * **Over stored data**, declaring an attribute searchable is never refused, but values stored before the
-	 * declaration are not indexed retroactively - stored data is not reindexed yet - so a search returns incomplete
-	 * results until such a value is written again. Withdrawing searchability takes effect lazily, at the next write of
-	 * the attribute in the scope and locale, and the space its old values took in the index is not reclaimed; a later
-	 * re-declaration starts from an empty field. Results are only ever incomplete, never phantom.
+	 * **Over stored data**, declaring an attribute searchable is never refused because of the data already stored,
+	 * but values stored before the declaration are not indexed retroactively - stored data is not reindexed yet - so
+	 * a search returns incomplete results until such a value is written again. Withdrawing searchability takes effect
+	 * lazily, at the next write of the attribute in the scope and locale, and the space its old values took in the
+	 * index is not reclaimed; a later re-declaration starts from an empty field. Results are only ever incomplete,
+	 * never phantom.
 	 *
 	 * This method returns true only if the attribute is searchable in the default (i.e. {@link Scope#LIVE}) scope.
 	 *
@@ -389,6 +412,37 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 */
 	@Nonnull
 	Set<Scope> getSearchableInScopes();
+
+	/**
+	 * Returns the name of the fulltext analyzer that turns the attribute's values into words while it is
+	 * {@link #isSearchable() searchable}: a built-in one ({@link FulltextAnalyzerSchemaContract#TEXT},
+	 * {@link FulltextAnalyzerSchemaContract#HTML_TEXT}) or one declared in the catalog schema
+	 * ({@link CatalogSchemaContract#getFulltextAnalyzers()}). The analyzer must exist in the catalog; the reference is
+	 * checked on the schema an update produces as a whole, so one update may declare an analyzer and point the
+	 * attribute to it, or point the attribute elsewhere and remove the analyzer.
+	 *
+	 * @return the name of the analyzer, {@link FulltextAnalyzerSchemaContract#TEXT} unless declared otherwise
+	 */
+	@Nonnull
+	String getAnalyzer();
+
+	/**
+	 * Returns the length pivot of the attribute's fulltext field: the number of words a value of normal length has.
+	 * A word found in a value shorter than the pivot weighs more, in a longer one less, so that short values such as
+	 * titles are not outranked by long texts that merely mention the word.
+	 *
+	 * @return the length pivot, {@link #DEFAULT_LENGTH_PIVOT} unless declared otherwise
+	 */
+	int getLengthPivot();
+
+	/**
+	 * Returns the fulltext ranking weight of this attribute. The value must be finite and
+	 * non-negative. Zero preserves matches while contributing no ranking strength. This setting applies in every
+	 * scope and changing it does not rebuild the fulltext field.
+	 *
+	 * @return the ranking weight, {@link AttributeSchemaContract#DEFAULT_SEARCH_WEIGHT} unless declared otherwise
+	 */
+	float getSearchWeight();
 
 	/**
 	 * Collects the schema-consistency errors of this attribute, one message per problem, **without throwing**.
@@ -450,6 +504,30 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				);
 			}
 		}
+		if (getAnalyzer().isBlank()) {
+			errors = Stream.concat(
+				errors, Stream.of("Attribute `" + getName() + "` names a blank fulltext analyzer.")
+			);
+		}
+		if (!Float.isFinite(getSearchWeight()) || getSearchWeight() < 0) {
+			errors = Stream.concat(
+				errors,
+				Stream.of(
+					"Attribute `" + getName() + "` declares the search weight " + getSearchWeight() +
+						"! The search weight must be finite and non-negative."
+				)
+			);
+		}
+
+		if (getLengthPivot() <= 0) {
+			errors = Stream.concat(
+				errors,
+				Stream.of(
+					"Attribute `" + getName() + "` declares the length pivot " + getLengthPivot() +
+						"! The length pivot must be positive."
+				)
+			);
+		}
 		if (!getNormalization().isEmpty() && !String.class.equals(getPlainType())) {
 			errors = Stream.concat(
 				errors,
@@ -459,8 +537,8 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				)
 			);
 		}
-		// Records validate individual descriptions at construction; keep the assembled contract responsible
-		// for structure too, including alternate contract implementations and deserialized schemas.
+		// a description validates itself when created; the assembled contract checks the steps again, because an
+		// alternate contract implementation or a deserialized schema may hold any list
 		for (final AnalysisStep step : getNormalization()) {
 			if (step == null) {
 				errors = Stream.concat(
@@ -468,7 +546,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				);
 			} else {
 				try {
-					new AnalysisStep(step.name(), step.parameters());
+					AnalysisStep.of(step.name(), step.parameters());
 				} catch (final IllegalArgumentException ex) {
 					errors = Stream.concat(
 						errors, Stream.of(

@@ -24,8 +24,12 @@
 package io.evitadb.test.builder;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -35,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
@@ -49,14 +54,18 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.builder.SortableAttributeCompoundSchemaBuilder;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Currency;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -72,7 +81,9 @@ import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttribut
 
 /**
  * Shared, transport-agnostic building blocks for copying one catalog into another: faithful schema
- * reconstruction and the full-content fetch requirement used to read the entities being copied.
+ * reconstruction, the full-content fetch requirement used to read the entities being copied, and the builder that
+ * writes each of them into the target - the step that moves the associated data `evita.warmup.localize` names under
+ * its locale.
  *
  * Extracted so both target modes of the `IsolatedWarmupLoadBenchmark` - `remote`, which drives a
  * separate server over gRPC, and `embedded`, which drives an in-process engine - share exactly one
@@ -92,6 +103,28 @@ import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttribut
 public class CatalogCopySupport {
 
 	/**
+	 * Separates the segments of a searchable-field path: entity type, reference and field name.
+	 */
+	private static final String PATH_SEPARATOR = ".";
+	/**
+	 * Path prefix of a catalog-level global attribute - the flag lives on the global schema, so it applies to every
+	 * entity type that uses the attribute.
+	 */
+	private static final String GLOBAL_ATTRIBUTE_PREFIX = "*" + PATH_SEPARATOR;
+	/**
+	 * Marks the last path segment as associated data rather than an attribute - the two may share a name.
+	 */
+	private static final String ASSOCIATED_DATA_MARKER = "@";
+	/**
+	 * Separates an associated data path from the EvitaEL expression selecting the text of its complex values.
+	 */
+	private static final String TEXT_EXPRESSION_SEPARATOR = "=";
+	/**
+	 * Separates a searchable path from the name of the analyzer the copy assigns to it.
+	 */
+	private static final String ANALYZER_SEPARATOR = ":";
+
+	/**
 	 * Reference names promoted from `FOR_FILTERING` to `FOR_FILTERING_AND_PARTITIONING` on the target schema,
 	 * parsed once from the `evita.warmup.raiseReferences` system property. A single `*` promotes every plain
 	 * reference; an empty value (the default) replicates the source index types faithfully.
@@ -102,6 +135,33 @@ public class CatalogCopySupport {
 	 * afterwards, which is precisely the full-reindex path that *is* supported.
 	 */
 	private static final Set<String> RAISED_REFERENCES = parseRaisedReferences();
+	/**
+	 * Fields made searchable on the target schema, keyed by their path, parsed once from the
+	 * `evita.warmup.searchable` system property - see {@link #parseSearchableFields()} for the notation. Empty (the
+	 * default) replicates the source faithfully.
+	 *
+	 * This exists to measure what fulltext maintenance costs the write path of a real catalog whose schema predates
+	 * the fulltext index. Declaring a field searchable on a populated catalog does not index the values it already
+	 * holds (issue #409), but the target catalog here is created empty and populated afterwards, so every copied value
+	 * is indexed - the same reasoning as for {@link #RAISED_REFERENCES}.
+	 */
+	private static final Map<String, SearchableField> SEARCHABLE_FIELDS = parseSearchableFields();
+	/**
+	 * Associated data given a locale on the target schema, keyed by path (`entityType.@associatedData`), parsed
+	 * once from the `evita.warmup.localize` system property - see {@link #parseLocalizedAssociatedData(String)}. Empty
+	 * (the default) replicates the source faithfully.
+	 *
+	 * This exists because a searchable field must carry a locale, and a catalog whose text predates that rule may keep
+	 * it without one - the migration the fulltext decision record names as the accepted cost of the rule. The copy
+	 * declares the associated data localized, adds the locale to the entity type, and writes every value of it under
+	 * the given locale, so the field can be made searchable in the same copy. It also declares the moved associated
+	 * data and every other localized field of the catalog nullable: a localized value is mandatory in every locale of
+	 * an entity, an entity that gains the locale holds no value of its other localized fields in it, and an entity with
+	 * other locales holds only the one value of the moved associated data the source had.
+	 */
+	private static final Map<String, Locale> LOCALIZED_ASSOCIATED_DATA = parseLocalizedAssociatedData(
+		System.getProperty("evita.warmup.localize", "")
+	);
 
 	/**
 	 * Purely static helper - never instantiated.
@@ -126,17 +186,59 @@ public class CatalogCopySupport {
 		@Nonnull final CatalogSchemaContract sourceCatalogSchema,
 		@Nonnull final Collection<EntitySchemaContract> sourceEntitySchemas
 	) {
-		replicateGlobalAttributes(sourceCatalogSchema, session);
+		replicateSchema(session, sourceCatalogSchema, sourceEntitySchemas, LOCALIZED_ASSOCIATED_DATA);
+	}
+
+	/**
+	 * Reconstructs the source schema on the target catalog as {@link #replicateSchema(EvitaSessionContract,
+	 * CatalogSchemaContract, Collection)} does, with the associated data to localize given explicitly rather than
+	 * read from the `evita.warmup.localize` system property - which is parsed once per JVM, so a test cannot vary it.
+	 *
+	 * @param session                 open read-write session of the target catalog (in WARM_UP)
+	 * @param sourceCatalogSchema     the source catalog schema (for global attributes)
+	 * @param sourceEntitySchemas     the source entity schemas to reproduce
+	 * @param localizedAssociatedData the locale of each associated data path the copy localizes, in the shape
+	 *                                {@link #parseLocalizedAssociatedData(String)} returns
+	 */
+	static void replicateSchema(
+		@Nonnull final EvitaSessionContract session,
+		@Nonnull final CatalogSchemaContract sourceCatalogSchema,
+		@Nonnull final Collection<EntitySchemaContract> sourceEntitySchemas,
+		@Nonnull final Map<String, Locale> localizedAssociatedData
+	) {
+		replicateSchema(session, sourceCatalogSchema, sourceEntitySchemas, localizedAssociatedData, SEARCHABLE_FIELDS);
+	}
+
+	/**
+	 * Rebuilds the schema with explicitly parsed searchable fields, allowing tests to vary the one-time property.
+	 * @param session target warm-up session
+	 * @param sourceCatalogSchema source global schema
+	 * @param sourceEntitySchemas source collection schemas
+	 * @param localizedAssociatedData paths to move under a locale
+	 * @param searchableFields searchable paths and optional analyzer assignments
+	 */
+	static void replicateSchema(
+		@Nonnull final EvitaSessionContract session,
+		@Nonnull final CatalogSchemaContract sourceCatalogSchema,
+		@Nonnull final Collection<EntitySchemaContract> sourceEntitySchemas,
+		@Nonnull final Map<String, Locale> localizedAssociatedData,
+		@Nonnull final Map<String, SearchableField> searchableFields
+	) {
+		verifySearchableFieldsExist(sourceCatalogSchema, sourceEntitySchemas, searchableFields);
+		verifySearchableAnalyzersExist(session, searchableFields);
+		verifyLocalizedAssociatedDataExist(sourceEntitySchemas, localizedAssociatedData);
+		final boolean addsLocales = !localizedAssociatedData.isEmpty();
+		replicateGlobalAttributes(sourceCatalogSchema, session, addsLocales, searchableFields);
 		// pass 1 - entity bodies without references
 		for (final EntitySchemaContract source : sourceEntitySchemas) {
 			final EntitySchemaBuilder builder = session.defineEntitySchema(source.getName());
-			replicateEntityBase(source, builder);
+			replicateEntityBase(source, builder, localizedAssociatedData, searchableFields);
 			builder.updateVia(session);
 		}
 		// pass 2 - plain references
 		for (final EntitySchemaContract source : sourceEntitySchemas) {
 			final EntitySchemaBuilder builder = session.defineEntitySchema(source.getName());
-			replicatePlainReferences(source, builder);
+			replicatePlainReferences(source, builder, addsLocales, searchableFields);
 			builder.updateVia(session);
 		}
 		// pass 3 - reflected references
@@ -189,15 +291,81 @@ public class CatalogCopySupport {
 	}
 
 	/**
+	 * Creates the builder that writes one source entity into the target catalog. An entity type none of whose
+	 * associated data {@link #LOCALIZED_ASSOCIATED_DATA} names is copied verbatim; otherwise every value of the named
+	 * associated data that carries no locale is moved under the configured one, and the copy is validated against
+	 * the target's schema, which declares the associated data localized.
+	 *
+	 * @param entity       the source entity, fetched with {@link #buildContentRequirement}
+	 * @param targetSchema schema of the entity type in the target catalog
+	 * @return the builder to upsert into the target catalog
+	 */
+	@Nonnull
+	public static CopyExistingEntityBuilder createCopyBuilder(
+		@Nonnull final EntityContract entity,
+		@Nonnull final EntitySchemaContract targetSchema
+	) {
+		return createCopyBuilder(entity, targetSchema, LOCALIZED_ASSOCIATED_DATA);
+	}
+
+	/**
+	 * Creates the builder that writes one source entity into the target catalog as
+	 * {@link #createCopyBuilder(EntityContract, EntitySchemaContract)} does, with the associated data to localize given
+	 * explicitly rather than read from the `evita.warmup.localize` system property.
+	 *
+	 * @param entity                  the source entity, fetched with {@link #buildContentRequirement}
+	 * @param targetSchema            schema of the entity type in the target catalog
+	 * @param localizedAssociatedData the locale of each associated data path the copy localizes, in the shape
+	 *                                {@link #parseLocalizedAssociatedData(String)} returns
+	 * @return the builder to upsert into the target catalog
+	 */
+	@Nonnull
+	static CopyExistingEntityBuilder createCopyBuilder(
+		@Nonnull final EntityContract entity,
+		@Nonnull final EntitySchemaContract targetSchema,
+		@Nonnull final Map<String, Locale> localizedAssociatedData
+	) {
+		if (localizedAssociatedData.isEmpty()) {
+			return new CopyExistingEntityBuilder(entity);
+		}
+		final String pathPrefix = associatedDataPathPrefix(entity.getType());
+		final Collection<AssociatedDataValue> sourceValues = entity.getAssociatedDataValues();
+		final List<AssociatedDataValue> targetValues = new ArrayList<>(sourceValues.size());
+		boolean localized = false;
+		for (final AssociatedDataValue value : sourceValues) {
+			final AssociatedDataKey key = value.key();
+			final Locale locale = key.localized() ?
+				null : localizedAssociatedData.get(pathPrefix + key.associatedDataName());
+			if (locale == null) {
+				targetValues.add(value);
+			} else {
+				targetValues.add(
+					new AssociatedDataValue(
+						value.version(), new AssociatedDataKey(key.associatedDataName(), locale), value.value()
+					)
+				);
+				localized = true;
+			}
+		}
+		return localized ?
+			new CopyExistingEntityBuilder(entity, targetSchema, targetValues) :
+			new CopyExistingEntityBuilder(entity);
+	}
+
+	/**
 	 * Copies every catalog-level global attribute (including its global-uniqueness settings) onto the
 	 * target catalog schema.
 	 *
 	 * @param sourceCatalogSchema the source catalog schema
 	 * @param session             open WARM_UP session of the target catalog
+	 * @param addsLocales         whether the copy moves associated data under a locale, which may add it to entities
+	 * @param searchableFields searchable paths and optional analyzer assignments
 	 */
 	private static void replicateGlobalAttributes(
 		@Nonnull final CatalogSchemaContract sourceCatalogSchema,
-		@Nonnull final EvitaSessionContract session
+		@Nonnull final EvitaSessionContract session,
+		final boolean addsLocales,
+		@Nonnull final Map<String, SearchableField> searchableFields
 	) {
 		if (sourceCatalogSchema.getAttributes().isEmpty()) {
 			return;
@@ -209,6 +377,10 @@ public class CatalogCopySupport {
 				attribute.getType(),
 				editor -> {
 					applyAttribute(attribute, editor);
+					applySearchable(GLOBAL_ATTRIBUTE_PREFIX + attribute.getName(), editor, searchableFields);
+					if (addsLocales) {
+						applyNullableInAddedLocale(GLOBAL_ATTRIBUTE_PREFIX + attribute.getName(), attribute, editor);
+					}
 					final List<Scope> uniqueGlobally = new ArrayList<>(2);
 					final List<Scope> uniqueGloballyWithinLocale = new ArrayList<>(2);
 					for (final Scope scope : Scope.values()) {
@@ -236,12 +408,16 @@ public class CatalogCopySupport {
 	 * associated data and (entity-level) sortable attribute compounds of the source entity schema - but no
 	 * references.
 	 *
-	 * @param source  the source entity schema
-	 * @param builder the target entity schema builder
+	 * @param source                  the source entity schema
+	 * @param builder                 the target entity schema builder
+	 * @param localizedAssociatedData the locale of each associated data path the copy localizes
+	 * @param searchableFields searchable paths and optional analyzer assignments
 	 */
 	private static void replicateEntityBase(
 		@Nonnull final EntitySchemaContract source,
-		@Nonnull final EntitySchemaBuilder builder
+		@Nonnull final EntitySchemaBuilder builder,
+		@Nonnull final Map<String, Locale> localizedAssociatedData,
+		@Nonnull final Map<String, SearchableField> searchableFields
 	) {
 		final Set<EvolutionMode> evolutionModes = source.getEvolutionMode();
 		if (evolutionModes.isEmpty()) {
@@ -278,9 +454,12 @@ public class CatalogCopySupport {
 			}
 		}
 
-		if (!source.getLocales().isEmpty()) {
-			builder.withLocale(source.getLocales().toArray(new Locale[0]));
+		final Set<Locale> locales = new LinkedHashSet<>(source.getLocales());
+		locales.addAll(getAddedLocales(source.getName(), localizedAssociatedData));
+		if (!locales.isEmpty()) {
+			builder.withLocale(locales.toArray(new Locale[0]));
 		}
+		final boolean addsLocales = !localizedAssociatedData.isEmpty();
 
 		for (final AttributeSchemaContract attribute : source.getAttributes().values()) {
 			if (attribute instanceof GlobalAttributeSchemaContract) {
@@ -290,21 +469,52 @@ public class CatalogCopySupport {
 				builder.withAttribute(
 					attribute.getName(),
 					attribute.getType(),
-					editor -> applyAttribute(attribute, editor)
+					editor -> {
+						final String path = source.getName() + PATH_SEPARATOR + attribute.getName();
+						applyAttribute(attribute, editor);
+						applySearchable(path, editor, searchableFields);
+						if (addsLocales) {
+							applyNullableInAddedLocale(path, attribute, editor);
+						}
+					}
 				);
 			}
 		}
 
 		for (final AssociatedDataSchemaContract associatedData : source.getAssociatedData().values()) {
+			final String path = associatedDataPathPrefix(source.getName()) + associatedData.getName();
 			builder.withAssociatedData(
 				associatedData.getName(),
 				associatedData.getType(),
 				editor -> {
-					if (associatedData.isLocalized()) {
+					final Locale addedLocale = localizedAssociatedData.get(path);
+					if (associatedData.isLocalized() || addedLocale != null) {
 						editor.localized();
 					}
-					if (associatedData.isNullable()) {
+					if (addedLocale != null) {
+						System.out.println(
+							"[localized] " + path + " under " + addedLocale.toLanguageTag() + ", nullable"
+						);
+					}
+					// a localized value is mandatory in every locale of an entity - the source holds one value of the
+					// moved data, and an entity gaining the locale holds no value of the other localized data in it
+					if (associatedData.isNullable() || addedLocale != null) {
 						editor.nullable();
+					} else if (addsLocales && associatedData.isLocalized()) {
+						editor.nullable();
+						printNullableInAddedLocale(path);
+					}
+					final SearchableField searchable = searchableFields.get(path);
+					if (searchable != null) {
+						if (searchable.textExpression() == null) {
+							editor.searchable();
+						} else {
+							editor.searchable(ExpressionFactory.parse(searchable.textExpression()));
+						}
+						if (searchable.analyzer() != null) {
+							editor.analyzer(searchable.analyzer());
+						}
+						printSearchable(searchable);
 					}
 				}
 			);
@@ -320,12 +530,16 @@ public class CatalogCopySupport {
 	 * reproducing cardinality, group type, per-scope index type, faceting, reference attributes and
 	 * reference-level sortable attribute compounds.
 	 *
-	 * @param source  the source entity schema
-	 * @param builder the target entity schema builder
+	 * @param source      the source entity schema
+	 * @param builder     the target entity schema builder
+	 * @param addsLocales whether the copy moves associated data under a locale, which may add it to entities
+	 * @param searchableFields searchable paths and optional analyzer assignments
 	 */
 	private static void replicatePlainReferences(
 		@Nonnull final EntitySchemaContract source,
-		@Nonnull final EntitySchemaBuilder builder
+		@Nonnull final EntitySchemaBuilder builder,
+		final boolean addsLocales,
+		@Nonnull final Map<String, SearchableField> searchableFields
 	) {
 		for (final ReferenceSchemaContract reference : source.getReferences().values()) {
 			if (reference instanceof ReflectedReferenceSchemaContract) {
@@ -336,14 +550,14 @@ public class CatalogCopySupport {
 					reference.getName(),
 					reference.getReferencedEntityType(),
 					reference.getCardinality(),
-					editor -> applyReference(reference, editor)
+					editor -> applyReference(source.getName(), reference, editor, addsLocales, searchableFields)
 				);
 			} else {
 				builder.withReferenceTo(
 					reference.getName(),
 					reference.getReferencedEntityType(),
 					reference.getCardinality(),
-					editor -> applyReference(reference, editor)
+					editor -> applyReference(source.getName(), reference, editor, addsLocales, searchableFields)
 				);
 			}
 		}
@@ -445,6 +659,375 @@ public class CatalogCopySupport {
 	}
 
 	/**
+	 * Parses {@link #SEARCHABLE_FIELDS} from the `evita.warmup.searchable` system property. Entries are separated by
+	 * `;` rather than `,`, because an EvitaEL text expression may itself contain commas. Each entry is a path:
+	 *
+	 * - `*.name` - the catalog-level global attribute `name`
+	 * - `product.name` - the attribute `name` of entity type `product`
+	 * - `product.brand.name` - the attribute `name` of the reference `brand` of entity type `product`
+	 * - `product.name:html-text` - attribute with an explicit analyzer
+	 * - `product.@body:html-text` - associated data with an explicit analyzer
+	 * - `product.@description` - the `String` / `String[]` associated data `description`
+	 * - `product.@content=$value.blocks.*[$.text]` - complex associated data with the expression selecting its text
+	 *
+	 * @return the fields keyed by their bare path (the entry without its analyzer and expression), empty when the
+	 *         property is unset
+	 */
+	@Nonnull
+	private static Map<String, SearchableField> parseSearchableFields() {
+		return parseSearchableFields(System.getProperty("evita.warmup.searchable", ""));
+	}
+
+	/**
+	 * Parses searchable paths with optional `:analyzer` before the optional `=textExpression`. A colon in the
+	 * expression belongs to the expression. Empty analyzer names are refused; unknown names fail at schema time.
+	 * Assigned analyzers must exist in the target catalog (built-ins always do); source-defined analyzers are
+	 * not copied.
+	 * Examples: `article.title:html-text;article.@body:html-text=$value.blocks.*[$.text]`.
+	 * @param raw semicolon-separated field entries, empty to leave all fields unchanged
+	 * @return fields keyed by the bare path
+	 */
+	@Nonnull
+	static Map<String, SearchableField> parseSearchableFields(@Nonnull final String raw) {
+		if (raw.isBlank()) {
+			return Map.of();
+		}
+		final String[] entries = raw.split(";");
+		final Map<String, SearchableField> result = CollectionUtils.createLinkedHashMap(entries.length);
+		for (final String entry : entries) {
+			final String trimmed = entry.trim();
+			if (trimmed.isEmpty()) {
+				continue;
+			}
+			final int expressionStart = trimmed.indexOf(TEXT_EXPRESSION_SEPARATOR);
+			final String qualifiedPath = expressionStart < 0 ? trimmed : trimmed.substring(0, expressionStart).trim();
+			final int analyzerStart = qualifiedPath.indexOf(ANALYZER_SEPARATOR);
+			final String path = analyzerStart < 0 ? qualifiedPath : qualifiedPath.substring(0, analyzerStart).trim();
+			final String analyzer = analyzerStart < 0 ? null : qualifiedPath.substring(analyzerStart + 1).trim();
+			if (analyzer != null && analyzer.isEmpty()) {
+				throw new GenericEvitaInternalError("Searchable field analyzer must not be empty.");
+			}
+			final String expression = expressionStart < 0 ? null : trimmed.substring(expressionStart + 1).trim();
+			if (expression != null && !path.contains(PATH_SEPARATOR + ASSOCIATED_DATA_MARKER)) {
+				throw new GenericEvitaInternalError(
+					"Searchable field `" + trimmed + "` carries a text expression, which only associated data takes.",
+					"Only associated data takes a text expression."
+				);
+			}
+			result.put(path, new SearchableField(path, expression, analyzer));
+		}
+		return result;
+	}
+
+	/**
+	 * Fails the copy before anything is written when a path in {@link #SEARCHABLE_FIELDS} names no field of the
+	 * source schema. A misspelt path would otherwise be ignored silently, and the run would measure a catalog with
+	 * less fulltext maintenance than it claims.
+	 *
+	 * @param sourceCatalogSchema the source catalog schema (for global attributes)
+	 * @param sourceEntitySchemas the source entity schemas
+	 * @param searchableFields searchable paths and optional analyzer assignments
+	 */
+	private static void verifySearchableFieldsExist(
+		@Nonnull final CatalogSchemaContract sourceCatalogSchema,
+		@Nonnull final Collection<EntitySchemaContract> sourceEntitySchemas,
+		@Nonnull final Map<String, SearchableField> searchableFields
+	) {
+		if (searchableFields.isEmpty()) {
+			return;
+		}
+		final Map<String, EntitySchemaContract> byName = CollectionUtils.createHashMap(sourceEntitySchemas.size());
+		for (final EntitySchemaContract schema : sourceEntitySchemas) {
+			byName.put(schema.getName(), schema);
+		}
+		final List<String> unresolved = new ArrayList<>(searchableFields.size());
+		for (final String path : searchableFields.keySet()) {
+			if (!searchableFieldExists(path, sourceCatalogSchema, byName)) {
+				unresolved.add(path);
+			}
+		}
+		if (!unresolved.isEmpty()) {
+			throw new GenericEvitaInternalError(
+				"Searchable fields " + unresolved + " name no field of the source schema. A global attribute is " +
+					"named `*.<attribute>`, an entity attribute `<entityType>.<attribute>` (only when it is not " +
+					"global), a reference attribute `<entityType>.<reference>.<attribute>` and associated data " +
+					"`<entityType>.@<associatedData>`.",
+				"Searchable fields name no field of the source schema."
+			);
+		}
+	}
+
+	/**
+	 * Fails the copy before anything is written when a searchable field assigns an analyzer the target catalog lacks.
+	 * Built-in analyzers always exist; analyzers defined only in the source catalog are not copied.
+	 *
+	 * @param session          the target warm-up session whose catalog schema must hold the analyzers
+	 * @param searchableFields searchable paths and optional analyzer assignments
+	 */
+	private static void verifySearchableAnalyzersExist(
+		@Nonnull final EvitaSessionContract session,
+		@Nonnull final Map<String, SearchableField> searchableFields
+	) {
+		for (final SearchableField field : searchableFields.values()) {
+			if (field.analyzer() != null &&
+				!FulltextAnalyzerSchemaContract.BUILT_IN_ANALYZERS.contains(field.analyzer()) &&
+				session.getCatalogSchema().getFulltextAnalyzer(field.analyzer()).isEmpty()) {
+				throw new GenericEvitaInternalError("Unknown searchable-field analyzer `" + field.analyzer() + "`.");
+			}
+		}
+	}
+
+	/**
+	 * Parses {@link #LOCALIZED_ASSOCIATED_DATA} from the value of the `evita.warmup.localize` system property. Entries
+	 * are separated by `;`, each `entityType.@associatedData=language-tag` - for example `article.@body=cs`.
+	 *
+	 * @param raw the property value, blank when the property is unset
+	 * @return the locale of each associated data path, empty when the value is blank
+	 */
+	@Nonnull
+	static Map<String, Locale> parseLocalizedAssociatedData(@Nonnull final String raw) {
+		if (raw.isBlank()) {
+			return Map.of();
+		}
+		final String[] entries = raw.split(";");
+		final Map<String, Locale> result = CollectionUtils.createLinkedHashMap(entries.length);
+		for (final String entry : entries) {
+			final String trimmed = entry.trim();
+			if (trimmed.isEmpty()) {
+				continue;
+			}
+			final int localeStart = trimmed.indexOf(TEXT_EXPRESSION_SEPARATOR);
+			final String path = localeStart < 0 ? trimmed : trimmed.substring(0, localeStart).trim();
+			final String languageTag = localeStart < 0 ? "" : trimmed.substring(localeStart + 1).trim();
+			if (languageTag.isEmpty() || !path.contains(PATH_SEPARATOR + ASSOCIATED_DATA_MARKER)) {
+				throw new GenericEvitaInternalError(
+					"Localized associated data `" + trimmed + "` must read `<entityType>.@<associatedData>=<locale>`.",
+					"Localized associated data must name an associated data path and a locale."
+				);
+			}
+			// an ill-formed tag parses to as much of it as is well-formed - `cs_CZ` to the root locale - so only a tag
+			// that survives the round trip names the locale it reads as
+			final Locale locale = Locale.forLanguageTag(languageTag);
+			if (locale.getLanguage().isEmpty() || !locale.toLanguageTag().equalsIgnoreCase(languageTag)) {
+				throw new GenericEvitaInternalError(
+					"Localized associated data `" + trimmed + "` names `" + languageTag + "`, which is not a " +
+						"well-formed BCP 47 language tag with a language - write it like `cs` or `cs-CZ`.",
+					"Localized associated data must name a well-formed language tag."
+				);
+			}
+			result.put(path, locale);
+		}
+		return result;
+	}
+
+	/**
+	 * Fails the copy before anything is written when a path of the associated data to localize names no associated
+	 * data of the source schema, or names one that is localized already - neither would be moved, and the run would
+	 * copy something other than it claims.
+	 *
+	 * @param sourceEntitySchemas     the source entity schemas
+	 * @param localizedAssociatedData the locale of each associated data path the copy localizes
+	 */
+	private static void verifyLocalizedAssociatedDataExist(
+		@Nonnull final Collection<EntitySchemaContract> sourceEntitySchemas,
+		@Nonnull final Map<String, Locale> localizedAssociatedData
+	) {
+		if (localizedAssociatedData.isEmpty()) {
+			return;
+		}
+		final List<String> unresolved = new ArrayList<>(localizedAssociatedData.size());
+		for (final String path : localizedAssociatedData.keySet()) {
+			final int separator = path.indexOf(PATH_SEPARATOR + ASSOCIATED_DATA_MARKER);
+			final String entityType = path.substring(0, separator);
+			final String name = path.substring(separator + PATH_SEPARATOR.length() + ASSOCIATED_DATA_MARKER.length());
+			if (!isNonLocalizedAssociatedData(sourceEntitySchemas, entityType, name)) {
+				unresolved.add(path);
+			}
+		}
+		if (!unresolved.isEmpty()) {
+			throw new GenericEvitaInternalError(
+				"Localized associated data " + unresolved + " name no associated data of the source schema that " +
+					"is not localized already.",
+				"Localized associated data name no non-localized associated data of the source schema."
+			);
+		}
+	}
+
+	/**
+	 * Lists the locales the copy moves associated data of an entity type under. The target schema must support them,
+	 * or it would refuse the moved values.
+	 *
+	 * @param entityType              name of the entity type
+	 * @param localizedAssociatedData the locale of each associated data path the copy localizes
+	 * @return the locales, empty when no associated data of the type is localized by the copy
+	 */
+	@Nonnull
+	private static Set<Locale> getAddedLocales(
+		@Nonnull final String entityType,
+		@Nonnull final Map<String, Locale> localizedAssociatedData
+	) {
+		if (localizedAssociatedData.isEmpty()) {
+			return Set.of();
+		}
+		final String pathPrefix = associatedDataPathPrefix(entityType);
+		final Set<Locale> locales = CollectionUtils.createLinkedHashSet(4);
+		for (final Map.Entry<String, Locale> entry : localizedAssociatedData.entrySet()) {
+			if (entry.getKey().startsWith(pathPrefix)) {
+				locales.add(entry.getValue());
+			}
+		}
+		return locales;
+	}
+
+	/**
+	 * Tells whether the source schema of an entity type declares the associated data without a locale - the only
+	 * kind the copy can move under one.
+	 *
+	 * @param sourceEntitySchemas the source entity schemas
+	 * @param entityType          name of the entity type
+	 * @param name                name of the associated data
+	 * @return true when the entity type exists and declares the associated data, not localized
+	 */
+	private static boolean isNonLocalizedAssociatedData(
+		@Nonnull final Collection<EntitySchemaContract> sourceEntitySchemas,
+		@Nonnull final String entityType,
+		@Nonnull final String name
+	) {
+		for (final EntitySchemaContract schema : sourceEntitySchemas) {
+			if (schema.getName().equals(entityType)) {
+				return schema.getAssociatedData(name)
+					.filter(associatedData -> !associatedData.isLocalized())
+					.isPresent();
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Returns the start every associated data path of an entity type shares, in the notation of
+	 * {@link #parseSearchableFields()} and {@link #parseLocalizedAssociatedData(String)}.
+	 *
+	 * @param entityType name of the entity type
+	 * @return `entityType.@`, to which the associated data name is appended
+	 */
+	@Nonnull
+	private static String associatedDataPathPrefix(@Nonnull final String entityType) {
+		return entityType + PATH_SEPARATOR + ASSOCIATED_DATA_MARKER;
+	}
+
+	/**
+	 * Tells whether a searchable-field path names a field of the source schema - see
+	 * {@link #parseSearchableFields()} for the notation.
+	 *
+	 * @param path                the searchable-field path
+	 * @param sourceCatalogSchema the source catalog schema (for global attributes)
+	 * @param entitySchemas       the source entity schemas keyed by entity type
+	 * @return true when the path names an existing field of the kind its shape implies
+	 */
+	private static boolean searchableFieldExists(
+		@Nonnull final String path,
+		@Nonnull final CatalogSchemaContract sourceCatalogSchema,
+		@Nonnull final Map<String, EntitySchemaContract> entitySchemas
+	) {
+		if (path.startsWith(GLOBAL_ATTRIBUTE_PREFIX)) {
+			return sourceCatalogSchema.getAttribute(path.substring(GLOBAL_ATTRIBUTE_PREFIX.length())).isPresent();
+		}
+		// keep trailing empty segments - `Product.name.` must not pass for `Product.name`, under which it is never
+		// looked up when the flag is applied
+		final String[] segments = path.split("\\" + PATH_SEPARATOR, -1);
+		for (final String segment : segments) {
+			if (segment.isEmpty()) {
+				return false;
+			}
+		}
+		final EntitySchemaContract entitySchema = entitySchemas.get(segments[0]);
+		if (entitySchema == null) {
+			return false;
+		}
+		if (segments.length == 2 && segments[1].startsWith(ASSOCIATED_DATA_MARKER)) {
+			return entitySchema.getAssociatedData(segments[1].substring(ASSOCIATED_DATA_MARKER.length())).isPresent();
+		} else if (segments.length == 2) {
+			// a global attribute is flagged on the catalog schema, so an entity-level path would never be applied
+			return entitySchema.getAttribute(segments[1])
+				.filter(attribute -> !(attribute instanceof GlobalAttributeSchemaContract))
+				.isPresent();
+		} else if (segments.length == 3) {
+			return entitySchema.getReference(segments[1])
+				.filter(reference -> !(reference instanceof ReflectedReferenceSchemaContract))
+				.flatMap(reference -> reference.getAttribute(segments[2]))
+				.isPresent();
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Makes the attribute being replicated searchable when {@link #SEARCHABLE_FIELDS} names its path.
+	 *
+	 * @param path   the path of the attribute in the notation of {@link #parseSearchableFields()}
+	 * @param editor the target attribute editor
+	 * @param searchableFields searchable paths and optional analyzer assignments
+	 */
+	private static void applySearchable(
+		@Nonnull final String path, @Nonnull final AttributeSchemaEditor<?> editor,
+		@Nonnull final Map<String, SearchableField> searchableFields
+	) {
+		final SearchableField searchable = searchableFields.get(path);
+		if (searchable != null) {
+			editor.searchable();
+			if (searchable.analyzer() != null) {
+				editor.analyzer(searchable.analyzer());
+			}
+			printSearchable(searchable);
+		}
+	}
+
+	/**
+	 * Prints that a field was made searchable on the target, so a measurement run proves the flag actually applied
+	 * rather than assuming it did - the same purpose as the `[raise]` line.
+	 *
+	 * @param searchable the field that was made searchable
+	 */
+	private static void printSearchable(@Nonnull final SearchableField searchable) {
+		System.out.println(
+			"[searchable] " + searchable.path() +
+				(searchable.analyzer() == null ? "" : " with analyzer " + searchable.analyzer()) +
+				(searchable.textExpression() == null ? "" : " with text expression " + searchable.textExpression())
+		);
+	}
+
+	/**
+	 * Declares a localized attribute the source makes mandatory nullable on the target, for a copy that moves
+	 * associated data under a locale. An entity that gains the locale holds no value of the attribute in it, while a
+	 * localized attribute that is not nullable is mandatory in every locale of the entity - the engine would refuse
+	 * the copy.
+	 *
+	 * @param path      the path of the attribute in the notation of {@link #parseSearchableFields()}
+	 * @param attribute the source attribute schema
+	 * @param editor    the target attribute editor
+	 */
+	private static void applyNullableInAddedLocale(
+		@Nonnull final String path,
+		@Nonnull final AttributeSchemaContract attribute,
+		@Nonnull final AttributeSchemaEditor<?> editor
+	) {
+		if (attribute.isLocalized() && !attribute.isNullable()) {
+			editor.nullable();
+			printNullableInAddedLocale(path);
+		}
+	}
+
+	/**
+	 * Prints that a localized field was declared nullable because the copy moves associated data under a locale, so a
+	 * measurement run shows which fields lost their mandatory check - the same purpose as the `[searchable]` line.
+	 *
+	 * @param path the path of the field in the notation of {@link #parseSearchableFields()}
+	 */
+	private static void printNullableInAddedLocale(@Nonnull final String path) {
+		System.out.println("[localized] " + path + " nullable, the copy adds locales");
+	}
+
+	/**
 	 * Copies the per-scope index type of the source reference onto the target editor.
 	 *
 	 * @param reference the source reference schema
@@ -523,12 +1106,18 @@ public class CatalogCopySupport {
 	 * Applies the group type, per-scope index type, indexed components, faceting (including partial faceting),
 	 * attributes and sortable attribute compounds of a plain reference onto its target reference builder.
 	 *
-	 * @param reference the source reference schema
-	 * @param editor    the target reference builder
+	 * @param entityType  name of the entity type owning the reference, for the searchable-field lookup
+	 * @param reference   the source reference schema
+	 * @param editor      the target reference builder
+	 * @param addsLocales whether the copy moves associated data under a locale, which may add it to entities
+	 * @param searchableFields searchable paths and optional analyzer assignments
 	 */
 	private static void applyReference(
+		@Nonnull final String entityType,
 		@Nonnull final ReferenceSchemaContract reference,
-		@Nonnull final ReferenceSchemaBuilder editor
+		@Nonnull final ReferenceSchemaBuilder editor,
+		final boolean addsLocales,
+		@Nonnull final Map<String, SearchableField> searchableFields
 	) {
 		if (reference.getReferencedGroupType() != null) {
 			if (reference.isReferencedGroupTypeManaged()) {
@@ -559,7 +1148,15 @@ public class CatalogCopySupport {
 			editor.withAttribute(
 				attribute.getName(),
 				attribute.getType(),
-				attributeEditor -> applyAttribute(attribute, attributeEditor)
+				attributeEditor -> {
+					final String path =
+						entityType + PATH_SEPARATOR + reference.getName() + PATH_SEPARATOR + attribute.getName();
+					applyAttribute(attribute, attributeEditor);
+					applySearchable(path, attributeEditor, searchableFields);
+					if (addsLocales) {
+						applyNullableInAddedLocale(path, attribute, attributeEditor);
+					}
+				}
 			);
 		}
 
@@ -665,6 +1262,20 @@ public class CatalogCopySupport {
 			}
 		}
 		return matching.toArray(Scope.NO_SCOPE);
+	}
+
+	/**
+	 * A field the target schema makes searchable although the source schema does not.
+	 *
+	 * @param path           the field's path in the notation of {@link #parseSearchableFields()}
+	 * @param textExpression the EvitaEL expression selecting the text of complex associated data, or null
+	 * @param analyzer       the analyzer to assign, or null to retain the editor's default
+	 */
+	record SearchableField(
+		@Nonnull String path,
+		@Nullable String textExpression,
+		@Nullable String analyzer
+	) {
 	}
 
 	/**

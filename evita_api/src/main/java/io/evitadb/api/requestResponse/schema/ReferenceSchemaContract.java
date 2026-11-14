@@ -79,6 +79,44 @@ public interface ReferenceSchemaContract extends
 	SortableAttributeCompoundSchemaProvider<AttributeSchemaContract, SortableAttributeCompoundSchemaContract>,
 	ConflictResolutionOverrideAwareSchemaContract
 {
+	/** Default ranking strength of text composed through a reference, shared by all scopes. */
+	float DEFAULT_SEARCHABLE_THROUGH_WEIGHT = 0.5f;
+
+	/**
+	 * Returns the search mode in the default scope. Reflected references declare their own mode.
+	 *
+	 * @return the mode, or null when this reference is not searched through
+	 */
+	@Nullable
+	default ReferenceSearchMode getSearchableThrough() {
+		return getSearchableThrough(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns the mode in a scope. Composition is query-time metadata and never rebuilds an index.
+	 * The scope must index the referenced entity component and the target must be managed by evitaDB.
+	 *
+	 * @param scope scope to inspect
+	 * @return the mode, or null when this reference is not searched through there
+	 */
+	@Nullable
+	ReferenceSearchMode getSearchableThrough(@Nonnull Scope scope);
+
+	/**
+	 * Returns the declared search modes; absent scopes are not searched through.
+	 *
+	 * @return immutable map of scopes to modes
+	 */
+	@Nonnull
+	Map<Scope, ReferenceSearchMode> getSearchableThroughInScopes();
+
+	/**
+	 * Returns the ranking weight shared by all scopes. Zero preserves matches without adding rank strength.
+	 *
+	 * @return shared weight, defaulting to 0.5; finite and non-negative in validated schemas
+	 */
+	float getSearchableThroughWeight();
+
 
 	/**
 	 * Name of the reference is propagated to the client API schemas and distinguish multiple different relations that

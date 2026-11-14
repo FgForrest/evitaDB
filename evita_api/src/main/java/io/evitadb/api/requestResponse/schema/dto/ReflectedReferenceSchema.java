@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
-
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
@@ -35,11 +34,12 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.ClassifierType;
@@ -77,7 +77,7 @@ import static java.util.Optional.ofNullable;
 @Immutable
 @ThreadSafe
 public final class ReflectedReferenceSchema extends ReferenceSchema implements ReflectedReferenceSchemaContract {
-	@Serial private static final long serialVersionUID = -3727686823037358036L;
+	@Serial private static final long serialVersionUID = -3727686823037358035L;
 
 	/**
 	 * Contains name of the original reference of the {@link #getReferencedEntityType()} this reference reflects.
@@ -137,12 +137,22 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
+	 * Creates an internal reference schema with explicit text composition metadata.
+	 *
+	 * @param name reference name
+	 * @param entityType referenced entity type
+	 * @param reflectedReferenceName name of the original reference
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight ranking weight shared by every scope
+	 * @return newly created reference schema
 	 */
 	@Nonnull
 	public static ReflectedReferenceSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull String entityType,
-		@Nonnull String reflectedReferenceName
+		@Nonnull String reflectedReferenceName,
+		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
+		float searchableThroughWeight
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 
@@ -157,7 +167,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 			ArrayUtils.EMPTY_STRING_ARRAY,
-			null
+			null,
+			searchableThroughInScopes, searchableThroughWeight
 		);
 	}
 
@@ -166,6 +177,26 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
+	 *
+	 * @param name reference name
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param entityType referenced entity type
+	 * @param reflectedReferenceName name of the original reference
+	 * @param cardinality reference cardinality
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param attributes declared attributes
+	 * @param sortableAttributeCompounds declared sortable attribute compounds
+	 * @param attributesInherited attribute inheritance behavior
+	 * @param attributesExcludedFromInheritance attribute inheritance filter, or null for no entries
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight ranking weight shared by every scope
+	 * @return reconstructed reference schema
 	 */
 	@Nonnull
 	public static ReflectedReferenceSchema _internalBuild(
@@ -184,7 +215,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		@Nonnull AttributeInheritanceBehavior attributesInherited,
-		@Nullable String[] attributesExcludedFromInheritance
+		@Nullable String[] attributesExcludedFromInheritance,
+		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
+		float searchableThroughWeight
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 		// we cannot validate here that all faceted scopes are
@@ -228,7 +261,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			sortableAttributeCompounds,
 			attributesInherited,
 			attributesExcludedFromInheritance == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributesExcludedFromInheritance,
-			null
+			null,
+			searchableThroughInScopes, searchableThroughWeight
 		);
 	}
 
@@ -237,6 +271,27 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
+	 *
+	 * @param name reference name
+	 * @param nameVariants reference name variants
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param entityType referenced entity type
+	 * @param reflectedReferenceName name of the original reference
+	 * @param cardinality reference cardinality
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param attributes declared attributes
+	 * @param sortableAttributeCompounds declared sortable attribute compounds
+	 * @param attributesInherited attribute inheritance behavior
+	 * @param attributesExcludedFromInheritance attribute inheritance filter, or null for no entries
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight ranking weight shared by every scope
+	 * @return reconstructed reference schema
 	 */
 	@Nonnull
 	public static ReflectedReferenceSchema _internalBuild(
@@ -256,7 +311,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		@Nonnull AttributeInheritanceBehavior attributesInherited,
-		@Nullable String[] attributesExcludedFromInheritance
+		@Nullable String[] attributesExcludedFromInheritance,
+		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
+		float searchableThroughWeight
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 		// we cannot validate here that all faceted scopes are also indexed, in case indexed scopes are inherited
@@ -286,7 +343,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			sortableAttributeCompounds,
 			attributesInherited,
 			attributesExcludedFromInheritance == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributesExcludedFromInheritance,
-			null
+			null,
+			searchableThroughInScopes, searchableThroughWeight
 		);
 	}
 
@@ -295,6 +353,36 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
+	 *
+	 * @param name reference name
+	 * @param nameVariants reference name variants
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param entityType referenced entity type
+	 * @param entityTypeVariants referenced type name variants
+	 * @param referencedGroupType referenced group type, or null
+	 * @param groupTypeVariants group type name variants
+	 * @param referencedGroupManaged whether the group type is managed
+	 * @param reflectedReferenceName name of the original reference
+	 * @param cardinality reference cardinality
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param attributes declared attributes
+	 * @param sortableAttributeCompounds declared sortable attribute compounds
+	 * @param descriptionInherited true when the description is taken from the original reference
+	 * @param deprecatedInherited true when the deprecation notice is taken from the original reference
+	 * @param cardinalityInherited true when the cardinality is taken from the original reference
+	 * @param indexedInherited true when the indexed scopes are taken from the original reference
+	 * @param indexedComponentsInherited true when the indexed components are taken from the original reference
+	 * @param facetedInherited true when the faceted scopes are taken from the original reference
+	 * @param attributesInherited attribute inheritance behavior
+	 * @param attributesExcludedFromInheritance attribute inheritance filter, or null for no entries
+	 * @param reflectedReference original reference, or null before binding
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight ranking weight shared by every scope
+	 * @return reconstructed reference schema
 	 */
 	@Nonnull
 	public static ReflectedReferenceSchema _internalBuild(
@@ -323,7 +411,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		boolean facetedInherited,
 		@Nonnull AttributeInheritanceBehavior attributesInherited,
 		@Nullable String[] attributesExcludedFromInheritance,
-		@Nullable ReferenceSchemaContract reflectedReference
+		@Nullable ReferenceSchemaContract reflectedReference,
+		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
+		float searchableThroughWeight
 	) {
 		return _internalBuild(
 			name, nameVariants,
@@ -339,7 +429,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			indexedInherited, indexedComponentsInherited,
 			facetedInherited,
 			attributesInherited, attributesExcludedFromInheritance,
-			reflectedReference
+			reflectedReference, searchableThroughInScopes, searchableThroughWeight
 		);
 	}
 
@@ -348,6 +438,38 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
+	 *
+	 * @param name reference name
+	 * @param nameVariants reference name variants
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param entityType referenced entity type
+	 * @param entityTypeVariants referenced type name variants
+	 * @param referencedGroupType referenced group type, or null
+	 * @param groupTypeVariants group type name variants
+	 * @param referencedGroupManaged whether the group type is managed
+	 * @param reflectedReferenceName name of the original reference
+	 * @param cardinality reference cardinality
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param attributes declared attributes
+	 * @param sortableAttributeCompounds declared sortable attribute compounds
+	 * @param descriptionInherited true when the description is taken from the original reference
+	 * @param deprecatedInherited true when the deprecation notice is taken from the original reference
+	 * @param cardinalityInherited true when the cardinality is taken from the original reference
+	 * @param indexedInherited true when the indexed scopes are taken from the original reference
+	 * @param indexedComponentsInherited true when the indexed components are taken from the original reference
+	 * @param facetedInherited true when the faceted scopes are taken from the original reference
+	 * @param attributesInherited attribute inheritance behavior
+	 * @param attributesExcludedFromInheritance attribute inheritance filter, or null for no entries
+	 * @param reflectedReference original reference, or null before binding
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight ranking weight shared by every scope
+	 * @return reconstructed reference schema
 	 */
 	@Nonnull
 	public static ReflectedReferenceSchema _internalBuild(
@@ -378,7 +500,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		boolean facetedInherited,
 		@Nonnull AttributeInheritanceBehavior attributesInherited,
 		@Nullable String[] attributesExcludedFromInheritance,
-		@Nullable ReferenceSchemaContract reflectedReference
+		@Nullable ReferenceSchemaContract reflectedReference,
+		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
+		float searchableThroughWeight
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 
@@ -421,7 +545,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			facetedInherited,
 			attributesInherited,
 			attributesExcludedFromInheritance == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributesExcludedFromInheritance,
-			reflectedReference
+			reflectedReference,
+			searchableThroughInScopes, searchableThroughWeight
 		);
 	}
 
@@ -526,8 +651,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 *
 	 * @param indexedComponentsInScopes explicit components,
 	 *        or null to inherit
+	 *
 	 * @param reflectedReference the original reference being
 	 *        reflected, may be null
+	 *
 	 * @param indexedInScopes the explicit indexed scopes,
 	 *        or null if inherited
 	 * @return resolved indexed components map
@@ -564,6 +691,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 *
 	 * @param indexedComponentsInScopes explicit components array,
 	 *        or null
+	 *
 	 * @param indexedScopesMap the resolved indexed scopes map,
 	 *        or null if inherited
 	 * @return resolved indexed components map, or null if both
@@ -586,6 +714,30 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		return ReferenceSchema.defaultIndexedComponents(indexedScopesMap);
 	}
 
+	/**
+	 * Reconstructs an immutable reference schema with its declared text composition metadata.
+	 *
+	 * @param name reference name
+	 * @param nameVariants reference name variants
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param reflectedReferenceName name of the original reference
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param attributes declared attributes
+	 * @param sortableAttributeCompounds declared sortable attribute compounds
+	 * @param attributesInheritanceBehavior attribute inheritance behavior
+	 * @param attributeInheritanceFilter attribute inheritance filter, or null for no entries
+	 * @param reflectedReference original reference, or null before binding
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight ranking weight shared by every scope
+	 */
 	public ReflectedReferenceSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -604,7 +756,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter,
-		@Nullable ReferenceSchemaContract reflectedReference
+		@Nullable ReferenceSchemaContract reflectedReference,
+		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
+		float searchableThroughWeight
 	) {
 		super(
 			name, nameVariants,
@@ -686,7 +840,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				),
 			// a reflected reference always inherits its conflict resolution; the override is never
 			// declared on the reflected side (see ReflectedReferenceSchemaBuilder)
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			searchableThroughInScopes, searchableThroughWeight
 		);
 		Assert.isTrue(
 			reflectedReference == null || reflectedReference.getName().equals(reflectedReferenceName),
@@ -737,6 +892,40 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		}
 	}
 
+	/**
+	 * Reconstructs an immutable reference schema with its declared text composition metadata.
+	 *
+	 * @param name reference name
+	 * @param nameVariants reference name variants
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param entityTypeVariants referenced type name variants
+	 * @param referencedGroupType referenced group type, or null
+	 * @param groupTypeVariants group type name variants
+	 * @param referencedGroupManaged whether the group type is managed
+	 * @param reflectedReferenceName name of the original reference
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param attributes declared attributes
+	 * @param sortableAttributeCompounds declared sortable attribute compounds
+	 * @param descriptionInherited true when the description is taken from the original reference
+	 * @param deprecatedInherited true when the deprecation notice is taken from the original reference
+	 * @param cardinalityInherited true when the cardinality is taken from the original reference
+	 * @param indexedInherited true when the indexed scopes are taken from the original reference
+	 * @param indexedComponentsInherited true when the indexed components are taken from the original reference
+	 * @param facetedInherited true when the faceted scopes are taken from the original reference
+	 * @param attributesInheritanceBehavior attribute inheritance behavior
+	 * @param attributeInheritanceFilter attribute inheritance filter, or null for no entries
+	 * @param reflectedReference original reference, or null before binding
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight ranking weight shared by every scope
+	 */
 	ReflectedReferenceSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -765,7 +954,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		boolean facetedInherited,
 		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter,
-		@Nullable ReferenceSchemaContract reflectedReference
+		@Nullable ReferenceSchemaContract reflectedReference,
+		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
+		float searchableThroughWeight
 	) {
 		super(
 			name, nameVariants,
@@ -788,7 +979,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			sortableAttributeCompounds,
 			// a reflected reference always inherits its conflict resolution; the override is never
 			// declared on the reflected side (see ReflectedReferenceSchemaBuilder)
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			searchableThroughInScopes, searchableThroughWeight
 		);
 		this.reflectedReferenceName = reflectedReferenceName;
 		this.reflectedReference = reflectedReference;
@@ -964,7 +1156,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	public void validate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchema entitySchema) throws SchemaAlteringException {
 		final String referencedEntityType = this.getReferencedEntityType();
 		final Optional<EntitySchemaContract> referencedEntityTypeSchema = catalogSchema.getEntitySchema(referencedEntityType);
-		Stream<String> referenceErrors = Stream.empty();
+		Stream<String> referenceErrors = validateSearchableThrough(entitySchema.getName());
 		if (referencedEntityTypeSchema.isEmpty()) {
 			referenceErrors = Stream.concat(
 				referenceErrors,
@@ -1165,7 +1357,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		) {
 			referenceErrors = Stream.concat(
 				referenceErrors,
-				validateAttributes(this.getAttributes())
+				validateAttributes(catalogSchema, this.getAttributes())
 			);
 		}
 
@@ -1247,7 +1439,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			collectAttributeCompoundSchemas(),
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1343,6 +1536,44 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		return super.getSortableAttributeCompound(name);
 	}
 
+	@Override
+	@Nonnull
+	public ReflectedReferenceSchema withSearchableThrough(
+		@Nonnull Map<Scope, ReferenceSearchMode> modes, float weight
+	) {
+		return new ReflectedReferenceSchema(
+			this.name,
+			this.nameVariants,
+			this.description,
+			this.deprecationNotice,
+			this.cardinality,
+			this.referencedEntityType,
+			this.entityTypeNameVariants,
+			this.referencedGroupType,
+			this.groupTypeNameVariants,
+			this.referencedGroupTypeManaged,
+			this.reflectedReferenceName,
+			this.indexedInScopes,
+			this.indexedComponentsInScopes,
+			this.facetedInScopes,
+			this.facetedPartiallyInScopes,
+			this.bucketedInScopes,
+			this.bucketedPartiallyInScopes,
+			collectAttributeSchemas(),
+			collectAttributeCompoundSchemas(),
+			this.descriptionInherited,
+			this.deprecatedInherited,
+			this.cardinalityInherited,
+			this.indexedInherited,
+			this.indexedComponentsInherited,
+			this.facetedInherited,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
+			this.reflectedReference,
+			modes, weight
+		);
+	}
+
 	/**
 	 * Creates a copy of this instance with different settings for:
 	 *
@@ -1380,7 +1611,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1420,7 +1652,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1460,7 +1693,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1500,7 +1734,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1620,7 +1855,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1666,7 +1902,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1712,7 +1949,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			facetedInScopes == null,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1754,7 +1992,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1797,7 +2036,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1839,7 +2079,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1883,7 +2124,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			inheritanceBehavior,
 			attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1932,7 +2174,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -1981,7 +2224,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			this.reflectedReference
+			this.reflectedReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -2196,7 +2440,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
-			originalReference
+			originalReference,
+			this.searchableThroughInScopes, this.searchableThroughWeight
 		);
 	}
 
@@ -2216,6 +2461,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * we don't control their indexing / faceting settings - they are controlled by the original reference schema.
 	 * But we still allow the reference to be non-indexed and then the index is not present on the reflected reference
 	 * either. We enforce reference to be indexed only when there is new explicitly defined attribute that needs indexing.
+	 * Searchability is the exception: {@link ReferenceSchema#validateAttributes} checks it for inherited attributes
+	 * too, because fulltext data is written for a searchable attribute whether the reference is indexed or not.
 	 *
 	 * @param attributeSchema the attribute schema contract to be checked for validation
 	 * @return true if the attribute should be validated, false otherwise

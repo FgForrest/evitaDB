@@ -111,7 +111,8 @@ public class ReflectedReferenceSchemaSerializer_2026_1 extends Serializer<Reflec
 			facetedInScopes,
 			null, null, null,
 			attributes, sortableAttributeCompounds,
-			attributeInheritanceBehavior, attributesExcludedFromInheritance
+			attributeInheritanceBehavior, attributesExcludedFromInheritance,
+			null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

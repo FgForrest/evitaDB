@@ -93,7 +93,8 @@ public final class EntityAttributeSchemaBuilder
 				this.baseSchema.getDefaultValue(),
 				this.baseSchema.getIndexedDecimalPlaces(),
 				ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				null, null, null
 			)
 		);
 	}

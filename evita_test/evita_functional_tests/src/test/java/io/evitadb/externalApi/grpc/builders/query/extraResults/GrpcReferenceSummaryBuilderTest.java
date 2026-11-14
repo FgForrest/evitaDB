@@ -79,21 +79,24 @@ public class GrpcReferenceSummaryBuilderTest {
 				new ScopedReferenceIndexType[] {
 					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 				},
-				new Scope[] { Scope.LIVE }
+				new Scope[] { Scope.LIVE },
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			),
 			ReferenceSchema._internalBuild(
 				"test2", "test2", false, Cardinality.ONE_OR_MORE, "testGroup2", false,
 				new ScopedReferenceIndexType[] {
 					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 				},
-				new Scope[] { Scope.LIVE }
+				new Scope[] { Scope.LIVE },
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			),
 			ReferenceSchema._internalBuild(
 				"test3", "test3", false, Cardinality.ONE_OR_MORE, null, false,
 				new ScopedReferenceIndexType[] {
 					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 				},
-				new Scope[] { Scope.LIVE }
+				new Scope[] { Scope.LIVE },
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			),
 		};
 
@@ -176,21 +179,24 @@ public class GrpcReferenceSummaryBuilderTest {
 				new ScopedReferenceIndexType[] {
 					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 				},
-				new Scope[] { Scope.LIVE }
+				new Scope[] { Scope.LIVE },
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			),
 			ReferenceSchema._internalBuild(
 				"test2", "test2", false, Cardinality.ONE_OR_MORE, "testGroup2", false,
 				new ScopedReferenceIndexType[] {
 					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 				},
-				new Scope[] { Scope.LIVE }
+				new Scope[] { Scope.LIVE },
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			),
 			ReferenceSchema._internalBuild(
 				"test3", "test3", false, Cardinality.ONE_OR_MORE, null, false,
 				new ScopedReferenceIndexType[] {
 					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 				},
-				new Scope[] { Scope.LIVE }
+				new Scope[] { Scope.LIVE },
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			),
 		};
 

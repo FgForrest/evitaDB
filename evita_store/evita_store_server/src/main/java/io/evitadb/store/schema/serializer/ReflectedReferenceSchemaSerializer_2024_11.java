@@ -107,7 +107,8 @@ public class ReflectedReferenceSchemaSerializer_2024_11 extends Serializer<Refle
 			null, null, null,
 			attributes,
 			sortableAttributeCompounds,
-			attributeInheritanceBehavior, attributesExcludedFromInheritance
+			attributeInheritanceBehavior, attributesExcludedFromInheritance,
+			null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

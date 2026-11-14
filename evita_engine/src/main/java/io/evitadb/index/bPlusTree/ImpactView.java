@@ -30,6 +30,8 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Supplier;
 
 /**
  * A read-only view of the impacts of one bucket of an impact-carrying {@link TransactionalBucketBPlusTree}, one byte
@@ -46,6 +48,10 @@ import java.util.Arrays;
  * because its stored form is an unaligned delta.
  *
  * The wrapped arrays are the tree's own storage; the view never hands them out, which is what keeps it read-only.
+ *
+ * A query can also build a view over impacts it derives itself, with {@link #deferred(int, Supplier)}. Its size is
+ * known up front, so cardinality checks cost nothing; the bytes are computed on the first read and published once,
+ * shared by every later reader. Such a view wraps no tree storage.
  *
  * ## Reading
  *
@@ -72,12 +78,20 @@ public final class ImpactView {
 		}
 	}
 
+	/** Publishes a lazily produced flat view without locking readers. */
+	private static final AtomicReferenceFieldUpdater<ImpactView, byte[]> MATERIALIZED =
+		AtomicReferenceFieldUpdater.newUpdater(ImpactView.class, byte[].class, "materialized");
+	/** Deferred query-time impacts, absent for stored bucket views. */
+	@Nullable private final Supplier<byte[]> deferred;
+	/** Published deferred impacts; readers share the immutable winning array. */
+	@Nullable private volatile byte[] materialized;
+
 	/**
-	 * The impacts as one array, or `null` when they are chunked.
+	 * The impacts as one array, or `null` when they are chunked or deferred.
 	 */
 	@Nullable private final byte[] flat;
 	/**
-	 * The impacts as chunks whose concatenation is the record order, or `null` when they are flat.
+	 * The impacts as chunks whose concatenation is the record order, or `null` when they are flat or deferred.
 	 */
 	@Nullable private final byte[][] chunks;
 	/**
@@ -91,9 +105,50 @@ public final class ImpactView {
 	 * @param size   how many impacts the view holds
 	 */
 	private ImpactView(@Nullable byte[] flat, @Nullable byte[][] chunks, int size) {
+		this.deferred = null;
 		this.flat = flat;
 		this.chunks = chunks;
 		this.size = size;
+	}
+
+	/**
+	 * Creates a lazy query-time view whose cardinality is known without computing its impacts.
+	 * @param size number of aligned postings
+	 * @param deferred computes immutable impacts on the first read; may be called speculatively by concurrent readers
+	 */
+	private ImpactView(int size, @Nonnull Supplier<byte[]> deferred) {
+		this.flat = null;
+		this.chunks = null;
+		this.size = size;
+		this.deferred = deferred;
+	}
+
+	/**
+	 * Defers impact aggregation until a scorer actually opens the view. Cardinality checks read no impact bytes.
+	 * @param size number of aligned postings
+	 * @param deferred supplies exactly `size` immutable impact bytes in posting order
+	 * @return a lazy view, or the empty singleton for no postings
+	 */
+	@Nonnull
+	public static ImpactView deferred(int size, @Nonnull Supplier<byte[]> deferred) {
+		return size == 0 ? EMPTY : new ImpactView(size, deferred);
+	}
+
+	/**
+	 * Materializes deferred impacts and returns the published array.
+	 * @return immutable impacts, shared across readers
+	 */
+	@Nonnull
+	private byte[] materialize() {
+		final byte[] result = this.materialized;
+		if (result != null) {
+			return result;
+		}
+		Assert.isPremiseValid(this.deferred != null, "Only deferred views materialize impacts!");
+		final byte[] candidate = this.deferred.get();
+		Assert.isPremiseValid(candidate.length == this.size, "Deferred impacts must align with their postings!");
+		MATERIALIZED.compareAndSet(this, null, candidate);
+		return this.materialized;
 	}
 
 	/**
@@ -132,7 +187,8 @@ public final class ImpactView {
 	}
 
 	/**
-	 * Returns how many impacts the view holds - the cardinality of the bucket it was taken of.
+	 * Returns how many impacts the view holds - the cardinality of the bucket it was taken of, or of the postings a
+	 * deferred view is aligned with.
 	 *
 	 * @return the number of impacts
 	 */
@@ -157,12 +213,15 @@ public final class ImpactView {
 	 */
 	@Nonnull
 	public byte[] toArray() {
+		if (this.deferred != null) {
+			return materialize().clone();
+		}
 		if (this.flat != null) {
 			return this.flat.clone();
 		}
 		final byte[] result = new byte[this.size];
 		int to = 0;
-		//noinspection DataFlowIssue - exactly one of `flat` and `chunks` is set
+		//noinspection DataFlowIssue - a stored view sets exactly one of `flat` and `chunks`
 		for (final byte[] chunk : this.chunks) {
 			System.arraycopy(chunk, 0, result, to, chunk.length);
 			to += chunk.length;
@@ -193,7 +252,7 @@ public final class ImpactView {
 		 */
 		private int chunkStart;
 		/**
-		 * The chunk read last - the whole array of a flat view.
+		 * The chunk read last - the whole array of a flat or deferred view.
 		 */
 		@Nonnull private byte[] chunk;
 
@@ -201,8 +260,14 @@ public final class ImpactView {
 		 * Opens the reader at the first impact.
 		 */
 		private Reader() {
-			//noinspection DataFlowIssue - exactly one of `flat` and `chunks` is set
-			this.chunk = ImpactView.this.flat != null ? ImpactView.this.flat : ImpactView.this.chunks[0];
+			if (ImpactView.this.deferred != null) {
+				this.chunk = ImpactView.this.materialize();
+			} else if (ImpactView.this.flat != null) {
+				this.chunk = ImpactView.this.flat;
+			} else {
+				//noinspection DataFlowIssue - a stored view sets exactly one of `flat` and `chunks`
+				this.chunk = ImpactView.this.chunks[0];
+			}
 		}
 
 		/**

@@ -41,8 +41,10 @@ import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializabl
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -195,12 +197,28 @@ class EntityConverterTest {
 				)
 			),
 			Map.of(
-				"test1", AssociatedDataSchema._internalBuild("test1", "Lorem ipsum", "Alert", Integer.class, false, true, ConflictResolutionOverride.INHERITED),
-				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, ConflictResolutionOverride.INHERITED)
+				"test1", AssociatedDataSchema._internalBuild("test1", "Lorem ipsum", "Alert", Integer.class, false, true, null, null, ConflictResolutionOverride.INHERITED,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT),
+				"test2", AssociatedDataSchema._internalBuild("test2", "Lorem ipsum", "Alert", String[].class, true, true, null, null, ConflictResolutionOverride.INHERITED,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT)
 			),
 			Map.of(
-				"test1", ReferenceSchema._internalBuild("test1", Entities.PARAMETER, true, Cardinality.ZERO_OR_MORE, Entities.PARAMETER_GROUP, false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE }),
-				"test2", ReferenceSchema._internalBuild("test2", Entities.CATEGORY, false, Cardinality.ONE_OR_MORE, null, false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE })
+				"test1", ReferenceSchema._internalBuild(
+					"test1", Entities.PARAMETER, true, Cardinality.ZERO_OR_MORE, Entities.PARAMETER_GROUP, false,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+					}, new Scope[]{Scope.LIVE},
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
+				),
+				"test2", ReferenceSchema._internalBuild(
+					"test2", Entities.CATEGORY, false, Cardinality.ONE_OR_MORE, null, false,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+					}, new Scope[]{Scope.LIVE},
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
+				)
 			),
 			Set.of(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_ATTRIBUTES),
 			Map.of(

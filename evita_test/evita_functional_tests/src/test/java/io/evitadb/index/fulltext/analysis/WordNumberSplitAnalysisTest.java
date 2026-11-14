@@ -23,18 +23,12 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.FlattenGraphFilter;
-import org.apache.lucene.analysis.core.LowerCaseFilter;
-import org.apache.lucene.analysis.core.StopFilter;
-import org.apache.lucene.analysis.cz.CzechAnalyzer;
-import org.apache.lucene.analysis.cz.CzechStemFilter;
-import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.test.fulltext.AnalyzedTerm;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter;
-import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,13 +38,13 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
+
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -73,7 +67,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * meets the term the same word produces on its own, and once the stemmer has changed the token's length the
  * parts' offsets cannot be adjusted. The comparison is recorded in `p5-word-number-split-comparison.md`.
  *
- * The chains are built here rather than in {@link BuiltInAnalyzers} on purpose: the accepted placement cannot
+ * The split chain is compiled from a catalog language definition: the accepted placement cannot
  * be reached by wrapping a Lucene language analyzer, so wiring it means composing the built-in chains from their
  * components, and the per-attribute switch that turns the step on arrives with the analyzer parameters
  * (`schema-design.md` §6.5). Until both exist the filter has no production caller; these tests are the contract it
@@ -88,17 +82,7 @@ class WordNumberSplitAnalysisTest {
 
 	private static final String ENTITY_TYPE = "PRODUCT";
 	private static final Locale CZECH = new Locale("cs");
-	/**
-	 * The step's configuration: split where a letter meets a digit, emit both kinds of part, and keep the original
-	 * token so that an exact query for the whole code still matches. No splitting on case change — `iPhone` is
-	 * one word — and no catenation.
-	 */
-	private static final int SPLIT_FLAGS = WordDelimiterGraphFilter.GENERATE_WORD_PARTS
-		| WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
-		| WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
-		| WordDelimiterGraphFilter.PRESERVE_ORIGINAL;
 
-	private final List<FulltextAnalyzer> builtChains = new ArrayList<>(4);
 	private FulltextAnalyzerRegistry registry;
 	/**
 	 * The built-in Czech chain as the registry hands it out today.
@@ -111,79 +95,20 @@ class WordNumberSplitAnalysisTest {
 
 	@BeforeEach
 	void setUp() {
-		this.registry = new FulltextAnalyzerRegistry();
-		this.production = this.registry.getIndexAnalyzer(ENTITY_TYPE, CZECH);
-		this.splitInChain = chain("czech-split-in-chain", splittingCzechChain());
+		this.registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+		this.production = this.registry.getCompiledAnalyzer(
+			FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).indexSurface();
+		final CatalogSchemaContract schema =
+			new InternalCatalogSchemaBuilder(
+				FulltextAnalysisTestSupport.SCHEMA)
+				.withFulltextLanguage("cs", language -> language.wordNumberSplit()).toInstance();
+		this.splitInChain = this.registry.getCompiledAnalyzer(schema, "text", CZECH).indexSurface();
 	}
 
 	@AfterEach
 	void tearDown() {
-		this.builtChains.forEach(FulltextAnalyzer::close);
-		this.builtChains.clear();
 		this.registry.close();
 	}
-
-	/**
-	 * Wraps a Lucene chain into the engine's analyzer holder — so that the terms come through exactly the code
-	 * path production uses, NFC normalization included — and registers it for closing.
-	 *
-	 * @param name     name the chain is reported under
-	 * @param analyzer the Lucene chain
-	 * @return the wrapped analyzer
-	 */
-	@Nonnull
-	private FulltextAnalyzer chain(@Nonnull String name, @Nonnull Analyzer analyzer) {
-		final FulltextAnalyzer wrapped = new FulltextAnalyzer(name, AnalysisMode.ALL, analyzer);
-		this.builtChains.add(wrapped);
-		return wrapped;
-	}
-
-	/**
-	 * Appends the split step to `in`.
-	 *
-	 * `adjustInternalOffsets` is on so that each part's offsets point at the part itself — that is what
-	 * {@link AnalyzedTerm#surfaceForm()} is cut from. The graph the filter emits is flattened right away, because
-	 * the term contract carries a position increment only and no position length.
-	 *
-	 * @param in stream to split
-	 * @return the split stream
-	 */
-	@Nonnull
-	private static TokenStream split(@Nonnull TokenStream in) {
-		return new FlattenGraphFilter(
-			new WordDelimiterGraphFilter(
-				in, true, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE, SPLIT_FLAGS, null
-			)
-		);
-	}
-
-	/**
-	 * Builds the Czech chain from its components with the split step directly after the tokenizer. Apart from
-	 * that step the chain is `CzechAnalyzer` plus the folding {@link BuiltInAnalyzers} puts after it.
-	 *
-	 * @return the Lucene chain
-	 */
-	@Nonnull
-	private static Analyzer splittingCzechChain() {
-		return new Analyzer() {
-			@Override
-			protected TokenStreamComponents createComponents(String fieldName) {
-				final Tokenizer source = new StandardTokenizer();
-				TokenStream stream = split(source);
-				stream = new LowerCaseFilter(stream);
-				stream = new StopFilter(stream, CzechAnalyzer.getDefaultStopSet());
-				stream = new CzechStemFilter(stream);
-				stream = new ASCIIFoldingFilter(stream);
-				return new TokenStreamComponents(source, stream);
-			}
-
-			@Override
-			protected TokenStream normalize(String fieldName, TokenStream in) {
-				return new ASCIIFoldingFilter(new LowerCaseFilter(in));
-			}
-		};
-	}
-
 
 	/**
 	 * Analyses `text` and returns only the terms.
@@ -194,7 +119,7 @@ class WordNumberSplitAnalysisTest {
 	 */
 	@Nonnull
 	private static List<String> terms(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
-		return analyzer.getTerms(text).stream().map(AnalyzedTerm::term).toList();
+		return collectTerms(analyzer, text).stream().map(AnalyzedTerm::term).toList();
 	}
 
 	/**
@@ -206,7 +131,7 @@ class WordNumberSplitAnalysisTest {
 	 */
 	@Nonnull
 	private static List<String> surfaceForms(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
-		return analyzer.getTerms(text).stream().map(AnalyzedTerm::surfaceForm).toList();
+		return collectTerms(analyzer, text).stream().map(AnalyzedTerm::surfaceForm).toList();
 	}
 
 	@Nested
@@ -299,7 +224,7 @@ class WordNumberSplitAnalysisTest {
 		@Test
 		@DisplayName("Points each part's offsets at the part, so its surface form is the part")
 		void shouldReportOffsetsOfTheParts() {
-			final List<AnalyzedTerm> analyzed = WordNumberSplitAnalysisTest.this.splitInChain.getTerms("iPhone15");
+			final List<AnalyzedTerm> analyzed = collectTerms(WordNumberSplitAnalysisTest.this.splitInChain, "iPhone15");
 			assertEquals(new AnalyzedTerm("iphone15", "iPhone15", 0, 8, 1), analyzed.get(0));
 			assertEquals(new AnalyzedTerm("iphon", "iPhone", 0, 6, 0), analyzed.get(1));
 			assertEquals(new AnalyzedTerm("15", "15", 6, 8, 1), analyzed.get(2));
@@ -313,11 +238,13 @@ class WordNumberSplitAnalysisTest {
 			// the spaced-out query align position for position, which a phrase query depends on
 			assertIterableEquals(
 				List.of(1, 0, 1, 1),
-				WordNumberSplitAnalysisTest.this.splitInChain.getTerms("boty42 kožené").stream().map(AnalyzedTerm::positionIncrement).toList()
+				collectTerms(WordNumberSplitAnalysisTest.this.splitInChain, "boty42 kožené")
+					.stream().map(AnalyzedTerm::positionIncrement).toList()
 			);
 			assertIterableEquals(
 				List.of(1, 1, 1),
-				WordNumberSplitAnalysisTest.this.splitInChain.getTerms("boty 42 kožené").stream().map(AnalyzedTerm::positionIncrement).toList()
+				collectTerms(WordNumberSplitAnalysisTest.this.splitInChain, "boty 42 kožené")
+					.stream().map(AnalyzedTerm::positionIncrement).toList()
 			);
 		}
 
@@ -330,7 +257,9 @@ class WordNumberSplitAnalysisTest {
 			// token, and that is carried by the offsets: every part's span nests inside its original's span, and
 			// the next term whose span does not nest opens a new group. Position increments alone would NOT do -
 			// the flattened graph gives the second part an increment of 1, as if it were a new word
-			final List<AnalyzedTerm> analyzed = WordNumberSplitAnalysisTest.this.splitInChain.getTerms("TV UHD7800");
+			final List<AnalyzedTerm> analyzed = collectTerms(
+				WordNumberSplitAnalysisTest.this.splitInChain,
+				"TV UHD7800");
 			assertIterableEquals(List.of("tv", "uhd7800", "uhd", "7800"), analyzed.stream().map(AnalyzedTerm::term).toList());
 			assertIterableEquals(List.of(1, 1, 0, 1), analyzed.stream().map(AnalyzedTerm::positionIncrement).toList());
 			final AnalyzedTerm original = analyzed.get(1);
@@ -375,32 +304,6 @@ class WordNumberSplitAnalysisTest {
 			// so the value yields `3` and `5` rather than `3.5`. Symmetric analysis keeps it harmless - the query
 			// is cut the same way - and the legacy client produced `3` and `.5mm` here, which was worse
 			assertIterableEquals(List.of("3.5mm", "3", "5", "mm"), terms(WordNumberSplitAnalysisTest.this.splitInChain, "3.5mm"));
-		}
-
-		@Test
-		@DisplayName("Registers and resolves through the registry like any other chain")
-		void shouldComposeWithRegistry() {
-			final String name = "czech-with-word-number-split";
-			try (
-				final FulltextAnalyzerRegistry custom = new FulltextAnalyzerRegistry(
-					(entityType, locale) -> ENTITY_TYPE.equals(entityType) && "cs".equals(locale.getLanguage())
-						? Optional.of(AnalyzerAssignment.uniform(name))
-						: Optional.empty()
-				)
-			) {
-				// stateless on both sides, hence no mode restriction: the value and the query must be split
-				// identically, so the step belongs to every slot
-				custom.register(name, WordNumberSplitAnalysisTest::splittingCzechChain);
-
-				final FulltextAnalyzer index = custom.getIndexAnalyzer(ENTITY_TYPE, CZECH);
-				assertEquals(name, index.getAnalyzerName());
-				assertEquals(AnalysisMode.ALL, index.getMode());
-				assertIterableEquals(List.of("iphone15", "iphon", "15"), terms(index, "iPhone15"));
-				assertIterableEquals(
-					terms(index, "iPhone15"),
-					terms(custom.getSearchAnalyzer(ENTITY_TYPE, CZECH), "iPhone15")
-				);
-			}
 		}
 
 	}

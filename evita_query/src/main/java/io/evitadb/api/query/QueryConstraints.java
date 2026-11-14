@@ -1565,6 +1565,58 @@ public interface QueryConstraints {
 		return ArrayUtils.isEmptyOrItsValuesNull(scope) ? null : new EntityScope(scope);
 	}
 
+	/**
+	 * Fulltext search: matches entities whose searchable fields contain every word of the text, analyzed the same way
+	 * the fields were indexed. Without `inAttribute` children every searchable field is searched. Requires the query
+	 * locale and is forbidden inside `userFilter`. A `null` or blank text drops the constraint from the query.
+	 *
+	 * ```evitaql
+	 * filterBy(
+	 *     entityLocaleEquals("en"),
+	 *     textMatches("black leather jacket", inAttribute("name"))
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/fulltext#text-matches)
+	 *
+	 * @param text the text to search for; null or blank omits the constraint
+	 * @param specifications optional refinements restricting the fulltext search
+	 * @return the fulltext constraint, or null for null or blank text
+	 * @see io.evitadb.api.query.filter.TextMatches
+	 */
+	@Nullable
+	static TextMatches textMatches(
+		@Nullable String text,
+		@Nullable TextMatchesSpecificationFilterConstraint... specifications
+	) {
+		return text == null || text.isBlank() ? null : new TextMatches(text, specifications);
+	}
+
+	/**
+	 * Restricts the enclosing `textMatches` search to the union of one or more searchable attributes. Repeated names
+	 * within this selector or across sibling selectors are ignored, including when scoring. Usable only as a child
+	 * of `textMatches`; any selector disables composition through referenced entities.
+	 *
+	 * Searchable attribute names are application settings, so the factory never omits the selector: a null or empty
+	 * array, and a null or blank name, are refused. Omitting it would widen the search to every searchable place.
+	 *
+	 * ```evitaql
+	 * textMatches('black leather jacket', inAttribute('name', 'description'))
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/fulltext#in-attribute)
+	 *
+	 * @param attributeNames searchable attribute names, at least one and none null or blank
+	 * @return the selector
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the array is null or empty, or a name is null or
+	 *                                                         blank
+	 * @see io.evitadb.api.query.filter.InAttribute
+	 */
+	@Nonnull
+	static InAttribute inAttribute(@Nonnull String... attributeNames) {
+		return new InAttribute(attributeNames);
+	}
+
 	/*
 		ORDERING
 	 */
@@ -2182,6 +2234,26 @@ public interface QueryConstraints {
 	@Nonnull
 	static Random randomWithSeed(long seed) {
 		return new Random(seed);
+	}
+
+	/**
+	 * Sorts entities by the fulltext relevance computed by the `textMatches` filter, most relevant first. Without
+	 * a `textMatches` filter it passes all entities on to the next ordering constraint unchanged. Not usable inside
+	 * ordering containers that sort by properties of referenced entities.
+	 *
+	 * ```evitaql
+	 * orderBy(
+	 *     relevanceText()
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/relevance#relevance-text)
+	 *
+	 * @see io.evitadb.api.query.order.RelevanceText
+	 */
+	@Nonnull
+	static RelevanceText relevanceText() {
+		return new RelevanceText();
 	}
 
 	/*

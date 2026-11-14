@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
@@ -42,9 +43,9 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
@@ -54,6 +55,7 @@ import io.evitadb.utils.NamingConvention;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Optional;
@@ -154,25 +156,11 @@ abstract class AbstractMutatorTestBase {
 		this.productIndex = new GlobalEntityIndex(1, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
 		this.entityIndexCreator = new MockEntityIndexCreator<>(this.productIndex);
 		final AtomicInteger sequencer = new AtomicInteger(1);
-		this.executor = new EntityIndexLocalMutationExecutor(
-			this.containerAccessor, 1,
-			this.entityIndexCreator,
-			new MockEntityIndexCreator<>(this.catalogIndex),
-			() -> this.productSchema,
-			sequencer::getAndIncrement,
+		this.executor = new EntityIndexLocalMutationExecutor(this.containerAccessor, 1, this.entityIndexCreator,
+			new MockEntityIndexCreator<>(this.catalogIndex), () -> this.productSchema, sequencer::getAndIncrement,
 			() -> {
 				throw new UnsupportedOperationException("Not supported in the test.");
-			},
-			null,
-			null,
-			null,
-			this.classifierResolver,
-			this.usageRegistry,
-			this.catalogUsageRegistry,
-			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
-			true,
-			new PartitionReservations()
-		);
+			}, null, null, null, this.classifierResolver, this.usageRegistry, this.catalogUsageRegistry, new FulltextAnalyzerRegistry(new AnalysisStepRegistry()), () -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA, AttributeNormalizationResolver.LEGACY_NFD, true, new PartitionReservations());
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);
 		Mockito.when(this.catalog.getCollectionForEntityOrThrowException(this.productSchema.getName())).thenReturn(productCollection);
