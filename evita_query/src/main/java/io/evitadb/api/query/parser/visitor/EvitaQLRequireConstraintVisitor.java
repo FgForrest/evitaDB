@@ -23,10 +23,11 @@
 
 package io.evitadb.api.query.parser.visitor;
 
+import io.evitadb.api.query.ConstraintArguments;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderBy;
@@ -48,10 +49,9 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -108,7 +108,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	protected final EvitaQLValueTokenVisitor queryPriceModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(QueryPriceMode.class);
 	protected final EvitaQLValueTokenVisitor queryTelemetryContentValueTokenVisitor =
 		EvitaQLValueTokenVisitor.withAllowedTypes(QueryTelemetryContent.class);
-	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class, StatisticsType.class);
+	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor =
+		EvitaQLValueTokenVisitor.withAllowedTypes(
+			StatisticsBase.class, StatisticsType.class, StatisticsType[].class, Iterable.class
+		);
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor stringValueListTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		String.class,
@@ -135,9 +138,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new Require();
+					return QueryConstraints.require();
 				}
-				return new Require(
+				return QueryConstraints.require(
 					ctx.args.requirements
 						.stream()
 						.map(hc -> visitChildConstraint(hc, RequireConstraint.class))
@@ -149,22 +152,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 	@Override
 	public RequireConstraint visitPageConstraint(PageConstraintContext ctx) {
-		final int pageNumber = ctx.args.pageNumber.accept(this.intValueTokenVisitor).asInt();
-		final int pageSize = ctx.args.pageSize.accept(this.intValueTokenVisitor).asInt();
+		final Integer pageNumber = ctx.args.pageNumber.accept(this.intValueTokenVisitor).asInt();
+		final Integer pageSize = ctx.args.pageSize.accept(this.intValueTokenVisitor).asInt();
 		final Spacing spacing = ctx.args.requireConstraint() == null ?
 			null :
-			of(ctx.args.requireConstraint().accept(this))
-				.map(it -> {
-					if (it instanceof final Spacing theSpacing) {
-						return theSpacing;
-					} else {
-						throw new EvitaSyntaxException(ctx, "Only `spacing` is accepted as third parameter of `page` require constraint!");
-					}
-				})
-				.orElseThrow(() -> new EvitaSyntaxException(ctx, "Only `spacing` is accepted as third parameter of `page` require constraint!"));
+			parseSpacing(ctx);
 		return parse(
 			ctx,
-			() -> new Page(
+			() -> QueryConstraints.page(
 				pageNumber,
 				pageSize,
 				spacing
@@ -176,16 +171,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitSpacingConstraint(SpacingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new Spacing(
+			() -> QueryConstraints.spacing(
 				ctx.args.constraints.stream()
-					.map(it -> it.accept(this))
-					.map(it -> {
-						if (it instanceof SpacingGap theGap) {
-							return theGap;
-						} else {
-							throw new EvitaSyntaxException(ctx, "Only `gap` is accepted as parameter of `spacing` require constraint!");
-						}
-					})
+					.map(it -> visitChildConstraint(it, SpacingGap.class))
 					.toArray(SpacingGap[]::new)
 			)
 		);
@@ -195,9 +183,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitGapConstraint(GapConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new SpacingGap(
-				ctx.args.size.accept(this.intValueTokenVisitor).asInt(),
-				ExpressionFactory.parse(ctx.args.expression.accept(this.stringValueTokenVisitor).asString())
+			() -> QueryConstraints.gap(
+				ctx.args.size.accept(this.intValueTokenVisitor).asRequiredInt(),
+				ctx.args.expression.accept(this.stringValueTokenVisitor).asString()
 			)
 		);
 	}
@@ -206,7 +194,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitStripConstraint(StripConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new Strip(
+			() -> QueryConstraints.strip(
 				ctx.args.offset.accept(this.intValueTokenVisitor).asInt(),
 				ctx.args.limit.accept(this.intValueTokenVisitor).asInt()
 			)
@@ -219,9 +207,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new EntityFetch();
+					return QueryConstraints.entityFetch();
 				}
-				return new EntityFetch(
+				return QueryConstraints.entityFetch(
 					ctx.args.requirements
 						.stream()
 						.map(c -> visitChildConstraint(c, EntityContentRequire.class))
@@ -237,9 +225,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new EntityGroupFetch();
+					return QueryConstraints.entityGroupFetch();
 				}
-				return new EntityGroupFetch(
+				return QueryConstraints.entityGroupFetch(
 					ctx.args.requirements
 						.stream()
 						.map(c -> visitChildConstraint(c, EntityContentRequire.class))
@@ -255,9 +243,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new AttributeContent();
+					return QueryConstraints.attributeContent();
 				}
-				return new AttributeContent(
+				return QueryConstraints.attributeContent(
 					ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArray()
 				);
 			}
@@ -268,7 +256,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitPriceContentConstraint(PriceContentConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new PriceContent(
+			() -> QueryConstraints.priceContent(
 				ctx.args.contentMode.accept(this.priceContentModeValueTokenVisitor).asEnum(PriceContentMode.class),
 				ctx.args.priceLists != null
 					? ctx.args.priceLists.accept(this.stringValueListTokenVisitor).asStringArray()
@@ -280,7 +268,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	@Nullable
 	@Override
 	public RequireConstraint visitPriceContentAllConstraint(PriceContentAllConstraintContext ctx) {
-		return parse(ctx, () -> new PriceContent(PriceContentMode.ALL));
+		return parse(ctx, () -> QueryConstraints.priceContent(PriceContentMode.ALL));
 	}
 
 	@Override
@@ -289,9 +277,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new PriceContent(PriceContentMode.RESPECTING_FILTER);
+					return QueryConstraints.priceContent(PriceContentMode.RESPECTING_FILTER);
 				}
-				return new PriceContent(
+				return QueryConstraints.priceContent(
 					PriceContentMode.RESPECTING_FILTER,
 					ctx.args.values != null
 						? ctx.args.values.accept(this.stringValueListTokenVisitor).asStringArray()
@@ -307,9 +295,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new AssociatedDataContent();
+					return QueryConstraints.associatedDataContent();
 				}
-				return new AssociatedDataContent(
+				return QueryConstraints.associatedDataContent(
 					ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArray()
 				);
 			}
@@ -387,6 +375,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifiers
 						.accept(this.stringValueListTokenVisitor)
 						.asStringArray();
+				ConstraintArguments.requireNonNullItems(referenceNames, "referenceNames");
 
 				if (ctx.args.requirement == null && ctx.args.entityRequirement == null && ctx.args.groupEntityRequirement == null) {
 					return new ReferenceContent(managedReferencesBehaviour, referenceNames);
@@ -457,6 +446,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				return new ReferenceContent(
 					managedReferencesBehaviour,
@@ -481,6 +471,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class, ChunkingRequireConstraint.class);
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class, ChunkingRequireConstraint.class);
@@ -524,6 +515,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
@@ -569,6 +561,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
@@ -611,6 +604,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
@@ -656,6 +650,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
@@ -698,6 +693,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
@@ -744,6 +740,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
@@ -789,7 +786,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				);
 
 				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
-					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.map(c -> (RequireConstraint) visitChildConstraint(c, AttributeContent.class,
+						EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class))
 					.orElse(null);
 
 				if (requirement == null) {
@@ -831,6 +829,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
 				Assert.isTrue(
+					requirement1 == null || requirement2 == null ||
 					!requirement1.getClass().equals(requirement2.getClass()),
 					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
 				);
@@ -908,6 +907,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
 
@@ -949,6 +949,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				return new ReferenceContent(
 					managedReferencesBehaviour, referenceName, null, null, AttributeContent.ALL_ATTRIBUTES, null, null, null
@@ -972,10 +973,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
 				Assert.isTrue(
+					requirement1 == null || requirement2 == null ||
 					!requirement1.getClass().equals(requirement2.getClass()),
 					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
 				);
@@ -1026,6 +1029,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
 				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
@@ -1067,6 +1071,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
@@ -1116,12 +1121,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
 				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
 				Assert.isTrue(
+					requirement1 == null || requirement2 == null ||
 					!requirement1.getClass().equals(requirement2.getClass()),
 					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
 				);
@@ -1172,6 +1179,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
@@ -1215,6 +1223,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
@@ -1264,12 +1273,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
 				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class, ChunkingRequireConstraint.class);
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class, ChunkingRequireConstraint.class);
 				Assert.isTrue(
+					requirement1 == null || requirement2 == null ||
 					!requirement1.getClass().equals(requirement2.getClass()),
 					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
 				);
@@ -1320,6 +1331,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
@@ -1363,6 +1375,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
@@ -1413,6 +1426,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
@@ -1420,6 +1434,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
 				Assert.isTrue(
+					requirement1 == null || requirement2 == null ||
 					!requirement1.getClass().equals(requirement2.getClass()),
 					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
 				);
@@ -1470,6 +1485,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.classifier
 						.accept(this.stringValueTokenVisitor)
 						.asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 
 				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
@@ -1501,7 +1517,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 	@Override
 	public RequireConstraint visitEmptyHierarchyContentConstraint(EmptyHierarchyContentConstraintContext ctx) {
-		return parse(ctx, HierarchyContent::new);
+		return parse(ctx, QueryConstraints::hierarchyContent);
 	}
 
 	@Override
@@ -1512,13 +1528,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final HierarchyParentsBehaviour parentsBehaviour = getParentsBehaviour(ctx.args.parentsBehaviour);
 				// the behaviour may stand on its own - `hierarchyContent(COMPLETE)` carries no child constraint
 				if (ctx.args.requirement == null) {
-					return new HierarchyContent(parentsBehaviour);
+					return QueryConstraints.hierarchyContent(parentsBehaviour);
 				}
-				final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, RequireConstraint.class);
-				if (requirement instanceof final HierarchyStopAt stopAt) {
-					return new HierarchyContent(parentsBehaviour, stopAt);
+				final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement,
+					HierarchyStopAt.class, EntityFetch.class);
+				if (requirement == null) {
+					return QueryConstraints.hierarchyContent(parentsBehaviour);
+				} else if (requirement instanceof final HierarchyStopAt stopAt) {
+					return QueryConstraints.hierarchyContent(parentsBehaviour, stopAt);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new HierarchyContent(parentsBehaviour, entityFetch);
+					return QueryConstraints.hierarchyContent(parentsBehaviour, entityFetch);
 				} else {
 					throw new EvitaSyntaxException(ctx, "Unsupported requirement constraint. Only `stopAt` and `entityFetch` are supported.");
 				}
@@ -1534,7 +1553,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final HierarchyParentsBehaviour parentsBehaviour = getParentsBehaviour(ctx.args.parentsBehaviour);
 				final HierarchyStopAt stopAt = visitChildConstraint(ctx.args.stopAt, HierarchyStopAt.class);
 				final EntityFetch entityFetch = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class);
-				return new HierarchyContent(parentsBehaviour, stopAt, entityFetch);
+				return QueryConstraints.hierarchyContent(parentsBehaviour, stopAt, entityFetch);
 			}
 		);
 	}
@@ -1543,7 +1562,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitPriceTypeConstraint(PriceTypeConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new PriceType(
+			() -> QueryConstraints.priceType(
 				ctx.args.value
 					.accept(this.queryPriceModeValueTokenVisitor)
 					.asEnum(QueryPriceMode.class)
@@ -1555,7 +1574,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitDefaultAccompanyingPriceListsConstraint(DefaultAccompanyingPriceListsConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new DefaultAccompanyingPriceLists(
+			() -> QueryConstraints.defaultAccompanyingPriceLists(
 				ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArray()
 			)
 		);
@@ -1565,7 +1584,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitAccompanyingPriceContentDefaultConstraint(AccompanyingPriceContentDefaultConstraintContext ctx) {
 		return parse(
 			ctx,
-			AccompanyingPriceContent::new
+			QueryConstraints::accompanyingPriceContentDefault
 		);
 	}
 
@@ -1575,11 +1594,11 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				if (ctx.args.values == null) {
-					return new AccompanyingPriceContent(
+					return QueryConstraints.accompanyingPriceContent(
 						ctx.args.classifier.accept(this.stringValueListTokenVisitor).asString()
 					);
 				} else {
-					return new AccompanyingPriceContent(
+					return QueryConstraints.accompanyingPriceContent(
 						ctx.args.classifier.accept(this.stringValueListTokenVisitor).asString(),
 						ctx.args.values.accept(this.stringValueListTokenVisitor).asStringArray()
 					);
@@ -1590,14 +1609,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 	@Override
 	public RequireConstraint visitDataInLocalesAllConstraint(DataInLocalesAllConstraintContext ctx) {
-		return parse(ctx, DataInLocales::new);
+		return parse(ctx, QueryConstraints::dataInLocales);
 	}
 
 	@Override
 	public RequireConstraint visitDataInLocalesConstraint(DataInLocalesConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new DataInLocales(
+			() -> QueryConstraints.dataInLocales(
 				ctx.args.values.accept(this.localeValueTokenVisitor).asLocaleArray()
 			)
 		);
@@ -1609,9 +1628,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new FacetSummary();
+					return QueryConstraints.facetSummary();
 				}
-				return new FacetSummary(
+				return QueryConstraints.facetSummary(
 					ctx.args.depth.accept(this.facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class)
 				);
 			}
@@ -1683,9 +1702,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			.flatMap(filter -> ofNullable(filter.filterGroupBy))
 			.map(c -> visitChildConstraint(this.filterConstraintVisitor, c, FilterGroupBy.class))
 			.orElse(null);
-		if (filterBy2 != null) {
+		if (filterArg != null && filterArg.filterGroupBy != null) {
 			Assert.isTrue(
-				filterBy1 instanceof FilterBy,
+				filterArg.filterBy.getStart().getText().equals("filterBy"),
 				() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
 			);
 		}
@@ -1698,14 +1717,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			.flatMap(order -> ofNullable(order.orderGroupBy))
 			.map(c -> visitChildConstraint(this.orderConstraintVisitor, c, OrderGroupBy.class))
 			.orElse(null);
-		if (orderBy2 != null) {
+		if (orderArg != null && orderArg.orderGroupBy != null) {
 			Assert.isTrue(
-				orderBy1 instanceof OrderBy,
+				orderArg.orderBy.getStart().getText().equals("orderBy"),
 				() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
 			);
 		}
 
-		return new FacetSummary(
+		return QueryConstraints.facetSummary(
 			depth,
 			filterBy1 instanceof FilterBy f ? f : null,
 			filterBy1 instanceof FilterGroupBy f ? f : filterBy2,
@@ -1719,7 +1738,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitFacetSummaryOfReference1Constraint(FacetSummaryOfReference1ConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FacetSummaryOfReference(
+			() -> QueryConstraints.facetSummaryOfReference(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString()
 			)
 		);
@@ -1731,6 +1750,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				final String referenceName = ctx.args.referenceName.accept(this.stringValueTokenVisitor).asString();
+				ConstraintArguments.requireName(referenceName, "referenceName");
 				final FacetStatisticsDepth depth = ofNullable(ctx.args.depth)
 					.map(it -> it.accept(this.facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class))
 					.orElse(FacetStatisticsDepth.COUNTS);
@@ -1743,9 +1763,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.flatMap(filter -> ofNullable(filter.filterGroupBy))
 					.map(c -> visitChildConstraint(this.filterConstraintVisitor, c, FilterGroupBy.class))
 					.orElse(null);
-				if (filterBy2 != null) {
+				if (ctx.args.filter != null && ctx.args.filter.filterGroupBy != null) {
 					Assert.isTrue(
-						filterBy1 instanceof FilterBy,
+						ctx.args.filter.filterBy.getStart().getText().equals("filterBy"),
 						() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
 					);
 				}
@@ -1758,14 +1778,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.flatMap(order -> ofNullable(order.orderGroupBy))
 					.map(c -> visitChildConstraint(this.orderConstraintVisitor, c, OrderGroupBy.class))
 					.orElse(null);
-				if (orderBy2 != null) {
+				if (ctx.args.order != null && ctx.args.order.orderGroupBy != null) {
 					Assert.isTrue(
-						orderBy1 instanceof OrderBy,
+						ctx.args.order.orderBy.getStart().getText().equals("orderBy"),
 						() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
 					);
 				}
 
-				return new FacetSummaryOfReference(
+				return QueryConstraints.facetSummaryOfReference(
 					referenceName,
 					depth,
 					filterBy1 instanceof FilterBy f ? f : null,
@@ -1784,9 +1804,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new ReferenceSummary();
+					return QueryConstraints.referenceSummary();
 				}
-				return new ReferenceSummary(
+				return QueryConstraints.referenceSummary(
 					ctx.args.depth.accept(this.facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class)
 				);
 			}
@@ -1858,9 +1878,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			.flatMap(filter -> ofNullable(filter.filterGroupBy))
 			.map(c -> visitChildConstraint(this.filterConstraintVisitor, c, FilterGroupBy.class))
 			.orElse(null);
-		if (filterBy2 != null) {
+		if (filterArg != null && filterArg.filterGroupBy != null) {
 			Assert.isTrue(
-				filterBy1 instanceof FilterBy,
+				filterArg.filterBy.getStart().getText().equals("filterBy"),
 				() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
 			);
 		}
@@ -1873,15 +1893,15 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			.flatMap(order -> ofNullable(order.orderGroupBy))
 			.map(c -> visitChildConstraint(this.orderConstraintVisitor, c, OrderGroupBy.class))
 			.orElse(null);
-		if (orderBy2 != null) {
+		if (orderArg != null && orderArg.orderGroupBy != null) {
 			Assert.isTrue(
-				orderBy1 instanceof OrderBy,
+				orderArg.orderBy.getStart().getText().equals("orderBy"),
 				() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
 			);
 		}
 
 		return new ReferenceSummary(
-			depth,
+			depth == null ? FacetStatisticsDepth.COUNTS : depth,
 			filterBy1 instanceof FilterBy f ? f : null,
 			filterBy1 instanceof FilterGroupBy f ? f : filterBy2,
 			orderBy1 instanceof OrderBy o ? o : null,
@@ -1896,9 +1916,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new ReferenceSummary();
+					return QueryConstraints.referenceSummary();
 				}
-				return new ReferenceSummary(
+				return QueryConstraints.referenceSummary(
 					ctx.args.depth.accept(this.facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class)
 				);
 			}
@@ -1957,7 +1977,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitReferenceSummaryOfReference1Constraint(ReferenceSummaryOfReference1ConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new ReferenceSummaryOfReference(
+			() -> QueryConstraints.referenceSummaryOfReference(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString()
 			)
 		);
@@ -1975,7 +1995,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitReferenceSummaryOfReferenceWithHistograms1Constraint(ReferenceSummaryOfReferenceWithHistograms1ConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new ReferenceSummaryOfReference(
+			() -> QueryConstraints.referenceSummaryOfReference(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString()
 			)
 		);
@@ -2001,6 +2021,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		@Nonnull ReferenceSummaryOfReference2ArgsContext args
 	) {
 		final String referenceName = args.referenceName.accept(this.stringValueTokenVisitor).asString();
+		ConstraintArguments.requireName(referenceName, "referenceName");
 		final FacetStatisticsDepth depth = ofNullable(args.depth)
 			.map(it -> it.accept(this.facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class))
 			.orElse(FacetStatisticsDepth.COUNTS);
@@ -2013,9 +2034,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			.flatMap(filter -> ofNullable(filter.filterGroupBy))
 			.map(c -> visitChildConstraint(this.filterConstraintVisitor, c, FilterGroupBy.class))
 			.orElse(null);
-		if (filterBy2 != null) {
+		if (args.filter != null && args.filter.filterGroupBy != null) {
 			Assert.isTrue(
-				filterBy1 instanceof FilterBy,
+				args.filter.filterBy.getStart().getText().equals("filterBy"),
 				() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
 			);
 		}
@@ -2028,16 +2049,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			.flatMap(order -> ofNullable(order.orderGroupBy))
 			.map(c -> visitChildConstraint(this.orderConstraintVisitor, c, OrderGroupBy.class))
 			.orElse(null);
-		if (orderBy2 != null) {
+		if (args.order != null && args.order.orderGroupBy != null) {
 			Assert.isTrue(
-				orderBy1 instanceof OrderBy,
+				args.order.orderBy.getStart().getText().equals("orderBy"),
 				() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
 			);
 		}
 
 		return new ReferenceSummaryOfReference(
 			referenceName,
-			depth,
+			depth == null ? FacetStatisticsDepth.COUNTS : depth,
 			filterBy1 instanceof FilterBy f ? f : null,
 			filterBy1 instanceof FilterGroupBy f ? f : filterBy2,
 			orderBy1 instanceof OrderBy o ? o : null,
@@ -2070,16 +2091,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	/**
 	 * Common builder for {@link ReferenceHistogramStatistics}. The variadic value list may carry an
 	 * optional {@link HistogramBehavior} enum as its first element (matching the in-memory constructor
-	 * shape shared with {@link AttributeHistogram}), followed by one or more histogram index names.
+	 * shape shared with {@link AttributeHistogram}), followed by histogram index names. An empty bound list
+	 * omits the requirement. A leading null in an explicit argument sequence stands for the default behaviour.
 	 */
-	@Nonnull
+	@Nullable
 	private ReferenceHistogramStatistics buildHistogramStatistics(
 		@Nonnull RequireConstraintContext ctx,
 		@Nonnull ValueTokenContext requestedBucketCountArg,
 		@Nullable EntityFetch entityFetch,
 		@Nonnull VariadicValueTokensContext valuesArg
 	) {
-		final int requestedBucketCount = requestedBucketCountArg.accept(this.intValueTokenVisitor).asInt();
+		final int requestedBucketCount = requestedBucketCountArg.accept(this.intValueTokenVisitor).asRequiredInt();
 
 		final LinkedList<Serializable> args = Arrays.stream(valuesArg
 				.accept(this.attributeHistogramArgValueTokenVisitor)
@@ -2087,6 +2109,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			.collect(Collectors.toCollection(LinkedList::new));
 
 		final HistogramBehavior behavior;
+		final boolean hasNullBehavior = consumeLeadingNullEnumDefault(valuesArg, args);
 		final Serializable firstArgument = args.peekFirst();
 		if (firstArgument instanceof HistogramBehavior) {
 			behavior = castArgument(ctx, args.pop(), HistogramBehavior.class);
@@ -2096,32 +2119,18 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			behavior = null;
 		}
 
-		final Serializable indexNamesArgument = args.peekFirst();
-		final String[] indexNames;
-		if (indexNamesArgument == null) {
-			indexNames = new String[0];
-		} else if (indexNamesArgument instanceof Iterable<?>) {
-			indexNames = StreamSupport.stream(((Iterable<?>) args.pop()).spliterator(), false)
-				.map(it -> castArgument(ctx, it, String.class))
-				.toArray(String[]::new);
-		} else if (indexNamesArgument.getClass().isArray()) {
-			indexNames = Arrays.stream((Object[]) args.pop())
-				.map(it -> castArgument(ctx, it, String.class))
-				.toArray(String[]::new);
-		} else {
-			indexNames = args.stream()
-				.map(it -> castArgument(ctx, it, String.class))
-				.toArray(String[]::new);
-		}
+		final String[] indexNames = parseVariadicTail(ctx, args,
+			EvitaQLValueTokenVisitor.withAllowedTypes(String.class), hasNullBehavior || behavior != null)
+			.asStringArray();
 
-		return new ReferenceHistogramStatistics(requestedBucketCount, behavior, entityFetch, indexNames);
+		return QueryConstraints.histogramStatistics(requestedBucketCount, behavior, entityFetch, indexNames);
 	}
 
 	@Override
 	public RequireConstraint visitFacetGroupsConjunctionConstraint(FacetGroupsConjunctionConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FacetGroupsConjunction(
+			() -> QueryConstraints.facetGroupsConjunction(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.facetGroupRelationLevel == null ?
 					null : ctx.args.facetGroupRelationLevel.accept(this.facetGroupRelationLevelValueTokenVisitor).asEnum(FacetGroupRelationLevel.class),
@@ -2135,7 +2144,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitFacetGroupsDisjunctionConstraint(FacetGroupsDisjunctionConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FacetGroupsDisjunction(
+			() -> QueryConstraints.facetGroupsDisjunction(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.facetGroupRelationLevel == null ?
 					null : ctx.args.facetGroupRelationLevel.accept(this.facetGroupRelationLevelValueTokenVisitor).asEnum(FacetGroupRelationLevel.class),
@@ -2149,7 +2158,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitFacetGroupsNegationConstraint(FacetGroupsNegationConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FacetGroupsNegation(
+			() -> QueryConstraints.facetGroupsNegation(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.facetGroupRelationLevel == null ?
 					null : ctx.args.facetGroupRelationLevel.accept(this.facetGroupRelationLevelValueTokenVisitor).asEnum(FacetGroupRelationLevel.class),
@@ -2163,7 +2172,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitFacetGroupsExclusivityConstraint(FacetGroupsExclusivityConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FacetGroupsExclusivity(
+			() -> QueryConstraints.facetGroupsExclusivity(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.facetGroupRelationLevel == null ?
 					null : ctx.args.facetGroupRelationLevel.accept(this.facetGroupRelationLevelValueTokenVisitor).asEnum(FacetGroupRelationLevel.class),
@@ -2177,7 +2186,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitFacetCalculationRulesConstraint(FacetCalculationRulesConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FacetCalculationRules(
+			() -> QueryConstraints.facetCalculationRules(
 				ctx.args.facetsWithSameGroup.accept(this.facetRelationTypeValueTokenVisitor).asEnum(FacetRelationType.class),
 				ctx.args.facetsWithDifferentGroups.accept(this.facetRelationTypeValueTokenVisitor).asEnum(FacetRelationType.class)
 			)
@@ -2189,7 +2198,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				final int requestedBucketCount = ctx.args.requestedBucketCount.accept(this.intValueTokenVisitor).asInt();
+				final int requestedBucketCount =
+					ctx.args.requestedBucketCount.accept(this.intValueTokenVisitor).asRequiredInt();
 
 				final LinkedList<Serializable> args = Arrays.stream(ctx.args.values
 						.accept(this.attributeHistogramArgValueTokenVisitor)
@@ -2197,6 +2207,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.collect(Collectors.toCollection(LinkedList::new));
 
 				final HistogramBehavior behavior;
+				final boolean hasNullBehavior = consumeLeadingNullEnumDefault(ctx.args.values, args);
 				final Serializable secondArgument = args.peekFirst();
 				if (secondArgument instanceof HistogramBehavior) {
 					behavior = castArgument(ctx, args.pop(), HistogramBehavior.class);
@@ -2206,25 +2217,11 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					behavior = null;
 				}
 
-				final Serializable attributeNamesArgument = args.peekFirst();
-				final String[] attributesNames;
-				if (attributeNamesArgument == null) {
-					attributesNames = new String[0];
-				} else if (attributeNamesArgument instanceof Iterable<?>) {
-					attributesNames = StreamSupport.stream(((Iterable<?>) args.pop()).spliterator(), false)
-						.map(it -> castArgument(ctx, it, String.class))
-						.toArray(String[]::new);
-				} else if (attributeNamesArgument.getClass().isArray()) {
-					attributesNames = Arrays.stream((Object[]) args.pop())
-						.map(it -> castArgument(ctx, it, String.class))
-						.toArray(String[]::new);
-				} else {
-					attributesNames = args.stream()
-						.map(it -> castArgument(ctx, it, String.class))
-						.toArray(String[]::new);
-				}
+				final String[] attributesNames = parseVariadicTail(ctx, args,
+					EvitaQLValueTokenVisitor.withAllowedTypes(String.class), hasNullBehavior || behavior != null)
+					.asStringArray();
 
-				return new AttributeHistogram(
+				return QueryConstraints.attributeHistogram(
 					requestedBucketCount,
 					behavior,
 					attributesNames
@@ -2237,8 +2234,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitPriceHistogramConstraint(PriceHistogramConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new PriceHistogram(
-				ctx.args.requestedBucketCount.accept(this.intValueTokenVisitor).asInt(),
+			() -> QueryConstraints.priceHistogram(
+				ctx.args.requestedBucketCount.accept(this.intValueTokenVisitor).asRequiredInt(),
 				ctx.args.behaviour != null ? ctx.args.behaviour.accept(this.histogramBehaviorValueTokenVisitor).asEnum(HistogramBehavior.class) : null
 			)
 		);
@@ -2248,7 +2245,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitHierarchyDistanceConstraint(HierarchyDistanceConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyDistance(ctx.args.value.accept(this.intValueTokenVisitor).asInt())
+			() -> QueryConstraints.distance(ctx.args.value.accept(this.intValueTokenVisitor).asInt())
 		);
 	}
 
@@ -2256,7 +2253,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitHierarchyLevelConstraint(HierarchyLevelConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyLevel(ctx.args.value.accept(this.intValueTokenVisitor).asInt())
+			() -> QueryConstraints.level(ctx.args.value.accept(this.intValueTokenVisitor).asInt())
 		);
 	}
 
@@ -2264,7 +2261,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitHierarchyNodeConstraint(HierarchyNodeConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyNode(visitChildConstraint(this.filterConstraintVisitor, ctx.args.filter, FilterBy.class))
+			() -> QueryConstraints.node(visitChildConstraint(this.filterConstraintVisitor, ctx.args.filter,
+				FilterBy.class))
 		);
 	}
 
@@ -2272,7 +2270,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitHierarchyStopAtConstraint(HierarchyStopAtConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyStopAt(visitChildConstraint(ctx.args.requirement, HierarchyStopAtRequireConstraint.class))
+			() -> QueryConstraints.stopAt(visitChildConstraint(ctx.args.requirement,
+				HierarchyStopAtRequireConstraint.class))
 		);
 	}
 
@@ -2282,56 +2281,55 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new HierarchyStatistics();
+					return QueryConstraints.statistics();
 				}
 				final LinkedList<Serializable> settings = Arrays.stream(ctx.args.settings
 						.accept(this.statisticsArgValueTokenVisitor)
 						.asSerializableArray())
 					.collect(Collectors.toCollection(LinkedList::new));
-
-				// due to the varargs of any value in QL, we don't know which enum is where, on top of that it can be
-				// enum directly or just wrapper
-				final Serializable firstSettings = settings.peekFirst();
-				if (firstSettings instanceof StatisticsBase) {
-					return new HierarchyStatistics(
-						castArgument(ctx, settings.pop(), StatisticsBase.class),
-						settings.stream()
-							.map(it -> {
-								if (it instanceof EnumWrapper enumWrapper) {
-									return enumWrapper.toEnum(StatisticsType.class);
-								}
-								return castArgument(ctx, it, StatisticsType.class);
-							})
-							.toArray(StatisticsType[]::new)
-					);
+				final boolean hasNullBase = consumeLeadingNullEnumDefault(ctx.args.settings, settings);
+				final Serializable first = hasNullBase ? null : settings.peekFirst();
+				final StatisticsBase base;
+				final boolean hasBase;
+				if (first instanceof StatisticsBase statisticsBase) {
+					base = statisticsBase;
+					hasBase = true;
+				} else if (first instanceof EnumWrapper wrapper && wrapper.canBeMappedTo(StatisticsBase.class)) {
+					base = wrapper.toEnum(StatisticsBase.class);
+					hasBase = true;
+				} else {
+					base = StatisticsBase.WITHOUT_USER_FILTER;
+					hasBase = hasNullBase;
 				}
-				if (firstSettings instanceof EnumWrapper enumWrapper && enumWrapper.canBeMappedTo(StatisticsBase.class)) {
-					return new HierarchyStatistics(
-						castArgument(ctx, settings.pop(), EnumWrapper.class)
-							.toEnum(StatisticsBase.class),
-						settings.stream()
-							.map(it -> {
-								if (it instanceof EnumWrapper statisticsType) {
-									return statisticsType.toEnum(StatisticsType.class);
-								}
-								return castArgument(ctx, it, StatisticsType.class);
-							})
-							.toArray(StatisticsType[]::new)
-					);
+				if (hasBase && !hasNullBase) {
+					settings.removeFirst();
 				}
-				return new HierarchyStatistics(
-					StatisticsBase.WITHOUT_USER_FILTER,
-					settings.stream()
-						.map(it -> {
-							if (it instanceof EnumWrapper enumWrapper) {
-								return enumWrapper.toEnum(StatisticsType.class);
-							}
-							return castArgument(ctx, it, StatisticsType.class);
-						})
-						.toArray(StatisticsType[]::new)
-				);
+				return QueryConstraints.statistics(base, parseVariadicTail(ctx, settings,
+					EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsType.class, EnumWrapper.class), hasBase)
+					.asEnumArray(StatisticsType.class));
 			}
 		);
+	}
+
+	/**
+	 * Interprets a leading scalar null as the optional enum's default, the meaning a null enum has in the Java
+	 * factories. This applies only to explicit argument sequences; null items inside a bound list keep their list
+	 * meaning.
+	 *
+	 * @param ctx argument syntax; only an explicit sequence of arguments can carry a leading null enum
+	 * @param arguments remaining arguments, from which the default enum placeholder is consumed
+	 * @return true when a leading null selected the optional enum's default
+	 */
+	private boolean consumeLeadingNullEnumDefault(
+		@Nonnull VariadicValueTokensContext ctx,
+		@Nonnull Deque<?> arguments
+	) {
+		if (ctx instanceof ExplicitVariadicValueTokensContext && !arguments.isEmpty()
+			&& arguments.peekFirst() == null) {
+			arguments.removeFirst();
+			return true;
+		}
+		return false;
 	}
 
 	@Override
@@ -2342,14 +2340,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final String outputName = ctx.args.outputName.accept(this.stringValueTokenVisitor).asString();
 				final Deque<RequireConstraint> requirements = ctx.args.requirements
 					.stream()
-					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.map(c -> (RequireConstraint) visitChildConstraint(c,
+						EntityFetch.class, HierarchyOutputRequireConstraint.class))
+					.filter(Objects::nonNull)
 					.collect(Collectors.toCollection(LinkedList::new));
 
 				if (requirements.isEmpty()) {
-					return new HierarchyFromRoot(outputName);
+					return QueryConstraints.fromRoot(outputName);
 				}
 				if (requirements.peekFirst() instanceof EntityFetch) {
-					return new HierarchyFromRoot(
+					return QueryConstraints.fromRoot(
 						outputName,
 						(EntityFetch) requirements.pop(),
 						requirements.stream()
@@ -2357,7 +2357,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 							.toArray(HierarchyOutputRequireConstraint[]::new)
 					);
 				}
-				return new HierarchyFromRoot(
+				return QueryConstraints.fromRoot(
 					outputName,
 					requirements.stream()
 						.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
@@ -2376,17 +2376,19 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final HierarchyNode node = visitChildConstraint(ctx.args.node, HierarchyNode.class);
 				final Deque<RequireConstraint> requirements = ctx.args.requirements
 					.stream()
-					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.map(c -> (RequireConstraint) visitChildConstraint(c,
+						EntityFetch.class, HierarchyOutputRequireConstraint.class))
+					.filter(Objects::nonNull)
 					.collect(Collectors.toCollection(LinkedList::new));
 
 				if (requirements.isEmpty()) {
-					return new HierarchyFromNode(
+					return QueryConstraints.fromNode(
 						outputName,
 						node
 					);
 				}
 				if (requirements.peekFirst() instanceof EntityFetch) {
-					return new HierarchyFromNode(
+					return QueryConstraints.fromNode(
 						outputName,
 						node,
 						(EntityFetch) requirements.pop(),
@@ -2395,7 +2397,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 							.toArray(HierarchyOutputRequireConstraint[]::new)
 					);
 				}
-				return new HierarchyFromNode(
+				return QueryConstraints.fromNode(
 					outputName,
 					node,
 					requirements.stream()
@@ -2414,14 +2416,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final String outputName = ctx.args.outputName.accept(this.stringValueTokenVisitor).asString();
 				final Deque<RequireConstraint> requirements = ctx.args.requirements
 					.stream()
-					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.map(c -> (RequireConstraint) visitChildConstraint(c,
+						EntityFetch.class, HierarchyOutputRequireConstraint.class))
+					.filter(Objects::nonNull)
 					.collect(Collectors.toCollection(LinkedList::new));
 
 				if (requirements.isEmpty()) {
-					return new HierarchyChildren(outputName);
+					return QueryConstraints.children(outputName);
 				}
 				if (requirements.peekFirst() instanceof EntityFetch) {
-					return new HierarchyChildren(
+					return QueryConstraints.children(
 						outputName,
 						(EntityFetch) requirements.pop(),
 						requirements.stream()
@@ -2429,7 +2433,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 							.toArray(HierarchyOutputRequireConstraint[]::new)
 					);
 				}
-				return new HierarchyChildren(
+				return QueryConstraints.children(
 					outputName,
 					requirements.stream()
 						.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
@@ -2441,7 +2445,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 	@Override
 	public RequireConstraint visitEmptyHierarchySiblingsConstraint(EmptyHierarchySiblingsConstraintContext ctx) {
-		return parse(ctx, () -> new HierarchySiblings(null));
+		return parse(ctx, () -> QueryConstraints.siblings());
 	}
 
 	@Override
@@ -2451,23 +2455,23 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			() -> {
 				final Deque<RequireConstraint> requirements = ctx.args.requirements
 					.stream()
-					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.map(c -> (RequireConstraint) visitChildConstraint(c,
+						EntityFetch.class, HierarchyOutputRequireConstraint.class))
+					.filter(Objects::nonNull)
 					.collect(Collectors.toCollection(LinkedList::new));
 
 				if (requirements.isEmpty()) {
-					return new HierarchySiblings(null);
+					return QueryConstraints.siblings();
 				}
 				if (requirements.peekFirst() instanceof EntityFetch) {
-					return new HierarchySiblings(
-						null,
+					return QueryConstraints.siblings(
 						(EntityFetch) requirements.pop(),
 						requirements.stream()
 							.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
 							.toArray(HierarchyOutputRequireConstraint[]::new)
 					);
 				}
-				return new HierarchySiblings(
-					null,
+				return QueryConstraints.siblings(
 					requirements.stream()
 						.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
 						.toArray(HierarchyOutputRequireConstraint[]::new)
@@ -2484,14 +2488,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final String outputName = ctx.args.outputName.accept(this.stringValueTokenVisitor).asString();
 				final Deque<RequireConstraint> requirements = ctx.args.requirements
 					.stream()
-					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.map(c -> (RequireConstraint) visitChildConstraint(c,
+						EntityFetch.class, HierarchyOutputRequireConstraint.class))
+					.filter(Objects::nonNull)
 					.collect(Collectors.toCollection(LinkedList::new));
 
 				if (requirements.isEmpty()) {
-					return new HierarchySiblings(outputName);
+					return QueryConstraints.siblings(outputName);
 				}
 				if (requirements.peekFirst() instanceof EntityFetch) {
-					return new HierarchySiblings(
+					return QueryConstraints.siblings(
 						outputName,
 						(EntityFetch) requirements.pop(),
 						requirements.stream()
@@ -2499,7 +2505,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 							.toArray(HierarchyOutputRequireConstraint[]::new)
 					);
 				}
-				return new HierarchySiblings(
+				return QueryConstraints.siblings(
 					outputName,
 					requirements.stream()
 						.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
@@ -2517,11 +2523,13 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final String outputName = ctx.args.outputName.accept(this.stringValueTokenVisitor).asString();
 				final Deque<RequireConstraint> requirements = ctx.args.requirements
 					.stream()
-					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.map(c -> (RequireConstraint) visitChildConstraint(c,
+						EntityFetch.class, HierarchySiblings.class, HierarchyOutputRequireConstraint.class))
+					.filter(Objects::nonNull)
 					.collect(Collectors.toCollection(LinkedList::new));
 
 				if (requirements.isEmpty()) {
-					return new HierarchyParents(outputName);
+					return QueryConstraints.parents(outputName);
 				}
 
 				if (requirements.peekFirst() instanceof EntityFetch) {
@@ -2530,7 +2538,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					if (requirements.peekFirst() instanceof HierarchySiblings) {
 						final HierarchySiblings siblings = (HierarchySiblings) requirements.pop();
 
-						return new HierarchyParents(
+						return QueryConstraints.parents(
 							outputName,
 							entityFetch,
 							siblings,
@@ -2540,7 +2548,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 						);
 					}
 
-					return new HierarchyParents(
+					return QueryConstraints.parents(
 						outputName,
 						entityFetch,
 						requirements.stream()
@@ -2550,7 +2558,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				}
 
 				if (requirements.peekFirst() instanceof HierarchySiblings) {
-					return new HierarchyParents(
+					return QueryConstraints.parents(
 						outputName,
 						(HierarchySiblings) requirements.pop(),
 						requirements.stream()
@@ -2559,7 +2567,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					);
 				}
 
-				return new HierarchyParents(
+				return QueryConstraints.parents(
 					outputName,
 					requirements.stream()
 						.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
@@ -2573,7 +2581,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitBasicHierarchyOfSelfConstraint(BasicHierarchyOfSelfConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyOfSelf(
+			() -> QueryConstraints.hierarchyOfSelf(
 				ctx.args.requirements
 					.stream()
 					.map(c -> visitChildConstraint(c, HierarchyRequireConstraint.class))
@@ -2586,7 +2594,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitFullHierarchyOfSelfConstraint(FullHierarchyOfSelfConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyOfSelf(
+			() -> QueryConstraints.hierarchyOfSelf(
 				visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class),
 				ctx.args.requirements
 					.stream()
@@ -2600,7 +2608,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitBasicHierarchyOfReferenceConstraint(BasicHierarchyOfReferenceConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyOfReference(
+			() -> QueryConstraints.hierarchyOfReference(
 				// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 				ctx.args.referenceName.accept(this.stringValueTokenVisitor).asString(),
 				EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
@@ -2616,7 +2624,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitBasicHierarchyOfReferenceWithBehaviourConstraint(BasicHierarchyOfReferenceWithBehaviourConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyOfReference(
+			() -> QueryConstraints.hierarchyOfReference(
 				// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 				ctx.args.referenceName.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.emptyHierarchicalEntityBehaviour
@@ -2634,7 +2642,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitFullHierarchyOfReferenceConstraint(FullHierarchyOfReferenceConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyOfReference(
+			() -> QueryConstraints.hierarchyOfReference(
 				// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 				ctx.args.referenceName.accept(this.stringValueTokenVisitor).asString(),
 				EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
@@ -2651,7 +2659,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitFullHierarchyOfReferenceWithBehaviourConstraint(FullHierarchyOfReferenceWithBehaviourConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyOfReference(
+			() -> QueryConstraints.hierarchyOfReference(
 				// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 				ctx.args.referenceName.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.emptyHierarchicalEntityBehaviour
@@ -2672,8 +2680,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> ctx.args == null ?
 				// `queryTelemetry()` - timings only, and the overwhelmingly common form
-				new QueryTelemetry() :
-				new QueryTelemetry(
+				QueryConstraints.queryTelemetry() :
+				QueryConstraints.queryTelemetry(
 					ctx.args.value
 						.accept(this.queryTelemetryContentValueTokenVisitor)
 						.asEnum(QueryTelemetryContent.class)
@@ -2681,7 +2689,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		);
 	}
 
-	@Nonnull
+	@Nullable
 	private Serializable getManagedReferencesBehaviour(@Nullable ValueTokenContext managedReferencesBehaviour) {
 		return managedReferencesBehaviour == null || managedReferencesBehaviour.isEmpty() ?
 			ManagedReferencesBehaviour.ANY :
@@ -2690,7 +2698,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				.asSerializable();
 	}
 
-	@Nonnull
+	@Nullable
 	private ManagedReferencesBehaviour getManagedReferencesBehaviourAsEnum(@Nullable ValueTokenContext managedReferencesBehaviour) {
 		return managedReferencesBehaviour == null || managedReferencesBehaviour.isEmpty() ?
 			ManagedReferencesBehaviour.ANY :
@@ -2709,9 +2717,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	 * {@link io.evitadb.api.query.parser.Value#asEnum(Class)}.
 	 *
 	 * @param parentsBehaviour the value token holding the behaviour, may be null when the argument was omitted
-	 * @return the parsed behaviour, never null
+	 * @return the parsed behaviour, or null when a bound null selects the factory's default
 	 */
-	@Nonnull
+	@Nullable
 	private HierarchyParentsBehaviour getParentsBehaviour(@Nullable ValueTokenContext parentsBehaviour) {
 		return parentsBehaviour == null || parentsBehaviour.isEmpty() ?
 			HierarchyContent.DEFAULT_PARENTS_BEHAVIOUR :
@@ -2723,9 +2731,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	/**
 	 * Parses the variadic requirements list of {@link ReferenceSummary} /
 	 * {@link ReferenceSummaryOfReference}. Each element must resolve to an {@link EntityFetch},
-	 * {@link EntityGroupFetch}, or {@link ReferenceHistogramStatistics} — the constraint constructors
-	 * enforce the same shape at runtime, so we let any {@link RequireConstraint} through here and
-	 * let the constructor validate.
+	 * {@link EntityGroupFetch}, or {@link ReferenceHistogramStatistics}, including when a child is omitted.
 	 */
 	@Nonnull
 	private RequireConstraint[] parseReferenceSummaryRequirementsArgs(@Nullable ReferenceSummaryRequirementsArgsContext ctx) {
@@ -2733,7 +2739,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			return new RequireConstraint[0];
 		}
 		return ctx.requirements.stream()
-			.map(rc -> visitChildConstraint(rc, RequireConstraint.class))
+			.map(rc -> (RequireConstraint) visitChildConstraint(rc,
+				EntityFetch.class, EntityGroupFetch.class, ReferenceHistogramStatistics.class))
+			.filter(Objects::nonNull)
 			.toArray(RequireConstraint[]::new);
 	}
 
@@ -2762,7 +2770,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitRequireInScopeConstraint(RequireInScopeConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new RequireInScope(
+			() -> QueryConstraints.inScope(
 				ctx.args.scope.accept(this.scopeValueTokenVisitor).asEnum(Scope.class),
 				ctx.args.requireConstraints
 					.stream()
@@ -2770,6 +2778,22 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.toArray(RequireConstraint[]::new)
 			)
 		);
+	}
+
+	/**
+	 * Parses optional page spacing while preserving type validation for omitted children.
+	 *
+	 * @param ctx page syntax with a third child
+	 * @return parsed spacing, or null when all gaps were omitted
+	 */
+	@Nullable
+	private Spacing parseSpacing(@Nonnull PageConstraintContext ctx) {
+		Assert.isTrue(
+			ctx.args.requireConstraint().getStart().getText().equals("spacing"),
+			() -> new EvitaSyntaxException(ctx, "Only `spacing` is accepted as third parameter of `page` "
+				+ "require constraint!")
+		);
+		return visitChildConstraint(ctx.args.requireConstraint(), Spacing.class);
 	}
 
 }

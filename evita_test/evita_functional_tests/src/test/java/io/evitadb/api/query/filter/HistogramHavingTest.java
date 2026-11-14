@@ -143,15 +143,29 @@ class HistogramHavingTest {
 			assertSame(selector, constraint.getGroupHaving());
 		}
 
+		/**
+		 * A reference name comes from the application, so every arity refuses a null one instead of dropping the
+		 * filter.
+		 */
 		@Test
-		@DisplayName("should return null when reference name is null across all factory arities")
-		void shouldReturnNullWhenReferenceNameIsNullAcrossAllFactoryArities() {
-			// factory null-guard is what lets call sites pass through conditional filter assembly;
-			// exercise all four arities with a concrete bound type so overload resolution is unambiguous
-			assertNull(histogramHaving(null, 50, 120));
-			assertNull(histogramHaving(null, "name", 50, 120));
-			assertNull(histogramHaving(null, 50, 120, groupSelector("height")));
-			assertNull(histogramHaving(null, "name", 50, 120, groupSelector("height")));
+		@DisplayName("should reject null reference names across all factory arities")
+		void shouldRejectNullReferenceNameAcrossAllFactoryArities() {
+			// Names are mandatory in all four arities, even when optional bounds or children are absent.
+			assertThrows(EvitaInvalidUsageException.class, () -> histogramHaving(null, 50, 120));
+			assertThrows(EvitaInvalidUsageException.class, () -> histogramHaving(null, "name", 50, 120));
+			assertThrows(EvitaInvalidUsageException.class,
+				() -> histogramHaving(null, 50, 120, groupSelector("height")));
+			assertThrows(EvitaInvalidUsageException.class, () -> histogramHaving(null, "name", 50, 120,
+				groupSelector("height")));
+		}
+
+		/**
+		 * A blank histogram name is an application bug that the factory refuses; only the constructor normalises it.
+		 */
+		@Test
+		@DisplayName("should reject an empty histogram name in the factory")
+		void shouldRejectBlankHistogramNameInFactory() {
+			assertThrows(EvitaInvalidUsageException.class, () -> histogramHaving("parameterValues", "", 50, 120));
 		}
 
 		@Test
@@ -228,12 +242,10 @@ class HistogramHavingTest {
 		@DisplayName("should normalise empty histogram name to null")
 		void shouldNormaliseEmptyHistogramNameToNull() {
 			// empty string must be normalised so downstream consumers only ever see null-or-populated
-			final HistogramHaving viaFactory = histogramHaving("parameterValues", "", 50, 120);
 			final HistogramHaving viaConstructor = new HistogramHaving(
 				"parameterValues", "", new BigDecimal("50"), new BigDecimal("120"), null
 			);
 
-			assertNull(viaFactory.getHistogramName());
 			assertNull(viaConstructor.getHistogramName());
 		}
 

@@ -69,13 +69,17 @@ class EntityPrimaryKeyInSetTest {
 			assertArrayEquals(new int[]{1, 7}, constraint.getPrimaryKeys());
 		}
 
+		/**
+		 * A null item is an undefined value and is dropped; the filter stays and matches nothing instead of widening
+		 * the result.
+		 */
 		@Test
-		@DisplayName("should return null for null variable")
-		void shouldReturnNullForNullVariable() {
+		@DisplayName("should match nothing for a null value item")
+		void shouldMatchNothingWhenValueItemIsNull() {
 			final Integer nullInteger = null;
 			final EntityPrimaryKeyInSet constraint = entityPrimaryKeyInSet(nullInteger);
 
-			assertNull(constraint);
+			assertArrayEquals(new int[0], constraint.getPrimaryKeys());
 		}
 
 		@Test

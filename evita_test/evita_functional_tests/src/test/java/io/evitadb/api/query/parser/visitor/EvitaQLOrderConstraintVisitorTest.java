@@ -28,6 +28,7 @@ import io.evitadb.api.query.order.PickFirstByEntityProperty;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.parser.ParseContext;
+import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
@@ -71,7 +72,8 @@ class EvitaQLOrderConstraintVisitorTest {
         final OrderConstraint constraint3 = parseOrderConstraintUnsafe("orderBy( attributeNatural('a') ,  attributeNatural('b',  DESC ) )");
         assertEquals(orderBy(attributeNatural("a"), attributeNatural("b", DESC)), constraint3);
 
-        final OrderConstraint constraint4 = parseOrderConstraint("orderBy()");
+		final OrderConstraint constraint4 = DefaultQueryParser.getInstance()
+			.parseOrderConstraintListUnsafe("orderBy()").get(0);
         assertEquals(orderBy(), constraint4);
     }
 
@@ -93,7 +95,8 @@ class EvitaQLOrderConstraintVisitorTest {
         final OrderConstraint constraint3 = parseOrderConstraintUnsafe("orderGroupBy( attributeNatural('a') ,  attributeNatural('b',  DESC ) )");
         assertEquals(orderGroupBy(attributeNatural("a"), attributeNatural("b", DESC)), constraint3);
 
-        final OrderConstraint constraint4 = parseOrderConstraint("orderGroupBy()");
+		final OrderConstraint constraint4 = DefaultQueryParser.getInstance()
+			.parseOrderConstraintListUnsafe("orderGroupBy()").get(0);
         assertEquals(orderGroupBy(), constraint4);
     }
 

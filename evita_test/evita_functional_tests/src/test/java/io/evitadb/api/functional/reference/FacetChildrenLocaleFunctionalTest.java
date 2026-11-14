@@ -29,6 +29,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -49,6 +50,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FACET;
+import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -94,6 +96,24 @@ class FacetChildrenLocaleFunctionalTest {
 	@Nested
 	@DisplayName("Child category locale levels")
 	class ChildLocales {
+		/**
+		 * Preserves client validation after undefined main filters leave only a hierarchy expansion.
+		 *
+		 * @param evita database with hierarchical facets
+		 */
+		@Test
+		@Tag(QUERY)
+		@UseDataSet(DATA_SET)
+		@DisplayName("rejects a facet expansion without a main filter")
+		void shouldRejectFacetWhenAllMainFiltersAreOmitted(@Nonnull Evita evita) {
+			try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+				final EvitaInvalidUsageException exception = assertThrows(EvitaInvalidUsageException.class,
+					() -> session.queryListOfSealedEntities(query(collection("Product"), filterBy(
+						facetHaving("category", attributeEquals("match", null), includingChildren())))));
+				assertTrue(exception.getMessage().contains("at least one filter constraint"));
+			}
+		}
+
 		/** An explicit child locale differs from the product locale without conflicting or filtering owners. */
 		@Test
 		@UseDataSet(DATA_SET)

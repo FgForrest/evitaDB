@@ -25,6 +25,7 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -81,12 +82,14 @@ class ReferenceHavingTest {
 			assertEquals("code", ((AttributeEquals) constraint.getChildren()[0]).getAttributeName());
 		}
 
+		/**
+		 * A reference name comes from the application, so a null one is a bug that must surface instead of dropping the
+		 * filter.
+		 */
 		@Test
-		@DisplayName("should return null when reference name is null")
-		void shouldReturnNullWhenReferenceNameIsNull() {
-			final ReferenceHaving constraint = referenceHaving(null);
-
-			assertNull(constraint);
+		@DisplayName("should throw when reference name is null")
+		void shouldThrowWhenReferenceNameIsNull() {
+			assertThrows(EvitaInvalidUsageException.class, () -> referenceHaving(null));
 		}
 
 		@Test

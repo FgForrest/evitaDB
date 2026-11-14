@@ -69,17 +69,21 @@ class AttributeSetInFilterTest {
 			assertEquals("age", constraint.getAttributeName());
 		}
 
+		/**
+		 * An attribute name comes from the application, so a null one is a bug that must surface instead of dropping
+		 * the ordering.
+		 */
 		@Test
-		@DisplayName("should return null from factory when attribute name is null")
-		void shouldReturnNullWhenNameIsNull() {
-			assertNull(attributeSetInFilter(null));
+		@DisplayName("should reject a null attribute name")
+		void shouldRejectNullNameInFactory() {
+			assertThrows(EvitaInvalidUsageException.class, () -> attributeSetInFilter(null));
 		}
 
 		@Test
-		@DisplayName("should return null from factory when attribute name is blank")
-		void shouldReturnNullWhenNameIsBlank() {
-			assertNull(attributeSetInFilter(""));
-			assertNull(attributeSetInFilter("   "));
+		@DisplayName("should reject a blank attribute name")
+		void shouldRejectBlankNameInFactory() {
+			assertThrows(EvitaInvalidUsageException.class, () -> attributeSetInFilter(""));
+			assertThrows(EvitaInvalidUsageException.class, () -> attributeSetInFilter("   "));
 		}
 	}
 
@@ -231,7 +235,7 @@ class AttributeSetInFilterTest {
 		@Test
 		@DisplayName("should not be equal to non-applicable instance")
 		void shouldNotBeEqualToNonApplicable() {
-			assertNotEquals(attributeSetInFilter("age"), attributeSetInFilter(null));
+			assertNotEquals(attributeSetInFilter("age"), new AttributeSetInFilter(null));
 			assertNotEquals(
 				attributeSetInFilter("age").hashCode(),
 				new AttributeSetInFilter(null).hashCode()

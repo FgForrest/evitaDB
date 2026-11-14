@@ -91,12 +91,14 @@ class ReferencePropertyTest implements EvitaTestSupport {
 			assertEquals(2, constraint.getChildrenCount());
 		}
 
+		/**
+		 * A reference name comes from the application, so a null one is a bug that must surface instead of dropping the
+		 * ordering.
+		 */
 		@Test
-		@DisplayName("should return null when factory receives null reference name")
-		void shouldReturnNullWhenFactoryReceivesNullReferenceName() {
-			final ReferenceProperty result = referenceProperty(null, attributeNatural("code"));
-
-			assertNull(result);
+		@DisplayName("should throw when factory receives null reference name")
+		void shouldThrowWhenFactoryReceivesNullReferenceName() {
+			assertThrows(EvitaInvalidUsageException.class, () -> referenceProperty(null, attributeNatural("code")));
 		}
 
 		@Test

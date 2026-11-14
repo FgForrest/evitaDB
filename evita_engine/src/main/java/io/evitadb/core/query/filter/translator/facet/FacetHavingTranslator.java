@@ -152,7 +152,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 			}
 
 			final FilterBy mainFiltering = excludedIndexes == null ?
-				filterBy(children) : createCopyExcludingIndexes(children, excludedIndexes);
+				new FilterBy(children) : createCopyExcludingIndexes(children, excludedIndexes);
 
 			Assert.isTrue(
 				mainFiltering.getChildrenCount() > 0,
@@ -245,7 +245,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				result[resultIndex++] = children[i];
 			}
 		}
-		return filterBy(result);
+		return new FilterBy(result);
 	}
 
 	@Nonnull

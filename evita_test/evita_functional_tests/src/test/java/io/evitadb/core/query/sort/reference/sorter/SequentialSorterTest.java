@@ -41,6 +41,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -205,6 +206,32 @@ class SequentialSorterTest {
 			() -> assertEquals(2, afterFallback.peak(), "the next sorter filled the page"),
 			() -> assertArrayEquals(new int[]{7, 8}, result)
 		);
+	}
+
+
+	/**
+	 * Traversal with only its default owner ordering must still emit each block in traversal order.
+	 */
+	@Nested
+	@DisplayName("Default owner ordering")
+	class DefaultOrdering {
+		/**
+		 * Verifies natural owner ordering within reversed traversal blocks and propagation of unreferenced owners.
+		 */
+		@Test
+		@DisplayName("Natural owner ordering preserves traversal blocks with an immutable sorter list")
+		void shouldPreserveBlockOrderWhenOnlyDefaultSorterIsPresent() {
+			final SequentialSorter sorter = new SequentialSorter(
+				new ReducedEntityIndex[][]{blocks[2], blocks[1], blocks[0]}, List.of(NoSorter.INSTANCE)
+			);
+			final int[] result = new int[4];
+			final SortingContext remaining = sorter.sortAndSlice(
+				new SortingContext(primedExecutionContext(), new BaseBitmap(1, 2, 3, 4, 7), 0, 4, 0, 0),
+				result, null
+			);
+			assertArrayEquals(new int[]{4, 1, 2, 3}, result);
+			assertArrayEquals(new int[]{7}, remaining.nonSortedKeys().getArray());
+		}
 	}
 
 

@@ -226,7 +226,7 @@ class AttributeBetweenTest {
 			assertEquals(attributeBetween("abc", "def", "def"), attributeBetween("abc", "def", "def"));
 			assertNotEquals(attributeBetween("abc", "def", "def"), attributeBetween("abc", "defe", "defe"));
 			assertNotEquals(attributeBetween("abc", "def", "def"), attributeBetween("abc", null, null));
-			assertNotEquals(attributeBetween("abc", "def", "def"), attributeBetween(null, "abc", "abc"));
+			assertNotEquals(attributeBetween("abc", "def", "def"), new AttributeBetween(null, "abc", "abc"));
 			assertEquals(attributeBetween("abc", null, "def"), attributeBetween("abc", null, "def"));
 			assertEquals(
 				attributeBetween("abc", "def", "def").hashCode(),

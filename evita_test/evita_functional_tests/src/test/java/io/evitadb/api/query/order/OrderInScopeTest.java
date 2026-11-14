@@ -96,12 +96,11 @@ class OrderInScopeTest {
 			);
 		}
 
+		/** `inScope` has no default scope to fall back to, so a null scope is refused. */
 		@Test
-		@DisplayName("should return null when factory receives null scope")
-		void shouldReturnNullWhenFactoryReceivesNullScope() {
-			final OrderInScope result = inScope(null, attributeNatural("code", ASC));
-
-			assertNull(result);
+		@DisplayName("should throw when factory receives null scope")
+		void shouldThrowWhenFactoryReceivesNullScope() {
+			assertThrows(EvitaInvalidUsageException.class, () -> inScope(null, attributeNatural("code", ASC)));
 		}
 
 		@Test

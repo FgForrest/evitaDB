@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data.annotation;
 
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.require.AccompanyingPriceContent;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
@@ -67,10 +68,9 @@ class AccompanyingPriceTest {
     }
 
     @Test
-    void shouldCreateViaFactoryClassWorkAsExpectedForNullVariable() {
+	void shouldRejectNullAccompanyingPriceNameInFactory() {
         final String nullString = null;
-        final AccompanyingPriceContent accompanyingPrice = accompanyingPriceContent(nullString);
-        assertNull(accompanyingPrice);
+		assertThrows(EvitaInvalidUsageException.class, () -> accompanyingPriceContent(nullString));
     }
 
     @Test
