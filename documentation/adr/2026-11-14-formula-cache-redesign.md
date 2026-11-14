@@ -1,7 +1,7 @@
 ---
 title: Reuse formula results by declared value identity, inject complete tuples at execution, and disable the owning cache on a verified mismatch
 date: 2026-11-14
-updated: 2026-11-14 00:50
+updated: 2026-11-14 01:07
 status: accepted
 kind: refactor
 issues: [37]
@@ -61,6 +61,8 @@ that would never reach the cache. Marker interfaces protected structure that sub
 | Compare prices only by amount or existing record equality | Fewer differences from ties | **Rejected because** equal amounts or internal IDs can conceal different physical records, SUM components and discount behavior. Full tuples and observable order are checked. The separate deterministic price tie fix is related work, not a weaker comparison rule. |
 | Disable every cache in the JVM after a mismatch | Wider containment | **Rejected because** cache ownership and configured state are per engine. A global switch would disable unrelated embedded engines; the owning instance alone is disabled for its lifetime. |
 | Automatically replan and retry after a mismatch | Hides the detecting error from the caller | **Rejected because** plan construction may already record capabilities and index activity, and ordinary execution has traffic-recording effects. Retrying can duplicate accounting and risks continuing with injected memos. Fail the detecting query; an explicit repeat bypasses the disabled cache. |
+| Run cache maintenance on the engine's service executor | Keeps maintenance work off query threads | **Rejected because** the cache amortizes maintenance in small batches, and a starved low-priority service pool would let the write buffer fill until the work lands on the caller anyway; the calling thread also keeps tests deterministic. The starvation concern was not verified by a run. Revisit if a replay shows maintenance time on query threads. |
+| Reclaim idle entries with the cache library's JVM-wide system scheduler | No engine timer to arm | **Rejected because** it adds a JVM-wide thread the engine does not otherwise use and gives the same best-effort promise. One periodic task on the engine scheduler calls the cache's cleanup instead; a starved pool or expiry `0` gives no wall-clock bound. |
 | Purge on each commit; maintain a reverse invalidation index | Reclaims dead entries immediately | **Rejected because** a purge discards unaffected operands' entries and adds cache work to the write path; a reverse index adds shared bookkeeping on every store. Expiry and weighted eviction reclaim unused entries. Revisit with measured dead retained weight. |
 | Allow-list source/bytecode guards | Fails on unapproved structural sites | **Rejected because** harmless refactors break the list and an added list entry can clear a failure without proving behavior. Keep abstract identity contracts, runtime class-id checks, field-driven contract fixtures and counterfactual behavioral tests. |
 | Deprecate obsolete cache options for one release | Preserves builder source compatibility temporarily | **Rejected because** the owner chose one configuration break instead of accepted-but-ignored options followed by another removal. The three anteroom options are removed; strict YAML rejects them and non-strict YAML warns and ignores them. |
@@ -123,7 +125,12 @@ fails the detecting request; it does not undo already injected results in other 
 
 The implementation log records the full functional gate on **1cf0115023: 34,319 tests, 0 failures, 0 errors**.
 That gate includes the complete result cache and sampled verification; it predates the final metrics/lifecycle
-test bulk. At **df0333bfe8** the latter bulk records **244 tests, 0 failures, 0 errors**, with repeated targeted runs.
+test bulk. At **df0333bfe8** the latter bulk records **244 tests, 0 failures, 0 errors** in targeted runs. The full
+gate on that revision ran 34,347 tests with three timeout errors and no assertion failure: both seeds of
+`FormulaCacheOracleTest` exceeded their own 60-second limit while the whole suite ran in parallel, and one REST
+change-capture test timed out waiting for a condition. The oracle's limit was removed because its fixed step count
+already bounds it, and the full gate on **14575048fd** passed: **34,347 tests, 0 failures, 0 errors**. Under that
+parallel load the oracle class takes about 650 seconds against about 35 seconds alone.
 Documentation regeneration ran `JfrDocumentation` and `JfrDocumentationStaticMetricsParityTest`: **1 test each,
 2 total, 0 failures, 0 errors, 0 skipped**. The generated pages contain both new events, all **19 statistics metrics
 and the mismatch invocation counter**, and none of the removed cache events or metrics. These are correctness runs,
@@ -186,7 +193,10 @@ reduced indexes or referenced/group collections need not change that ID. Any com
 own freshness proof. Existing direct and named derived producer tokens do not implement that postponed proposal.
 
 The measurement obligation also covers interleaved no-cache/default-floor/zero-floor/100,000-floor arms, read-only
-and commit-stream runs; planning versus execution cost, latency distributions, throughput and allocation; key and
+and commit-stream runs, on a production corpus and never on the demo dataset. The baseline for the cache comparison
+is the revision immediately before the cross-query cache landed (989c251636); the baseline for the identity
+comparison is the revision immediately before declared identity landed. One replay arm verifies every hit
+(`verifyOneHitIn = 1`) and mismatches must remain zero. The obligation further covers planning versus execution cost, latency distributions, throughput and allocation; key and
 payload sizes, refusal causes, duplicate work, eviction/dead retained weight, query-local identities and maintenance
 cost. Measure the disabled path and wide reference/filter-heavy planning before drawing performance conclusions.
 No such traffic replay, benchmark or quiet-machine comparison has been performed. Enabling by default remains a
@@ -254,5 +264,6 @@ open cache findings.
   decision; comparison-scoped equality replaced the persistent memo design.
 - **2026-11-13** — consumers switched, legacy hashes removed, plan detector and result cache implemented and
   counterfactually checked; full functional cache gate passed at 1cf0115023; metrics and lifecycle/oracle tests added.
-- **2026-11-14** — final metrics/lifecycle strengthening recorded at df0333bfe8; accepted decisions consolidated in
+- **2026-11-14** — final metrics/lifecycle strengthening recorded at df0333bfe8, full functional gate passed at
+  14575048fd; accepted decisions consolidated in
   this record. Pull request not yet open; performance and query-scoped sharing decisions remain deferred.

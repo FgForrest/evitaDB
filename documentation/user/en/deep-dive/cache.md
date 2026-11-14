@@ -5,9 +5,9 @@ date: '14.11.2026'
 author: 'Ing. Jan Novotný'
 ---
 
-The formula result cache retains intermediate query computations in memory for reuse by later queries. Each engine
-instance owns one cache shared by its catalogs. It is **disabled by default** and can be enabled through
-[cache configuration](../operate/configure.md#cache-configuration).
+The formula result cache retains intermediate query computations in memory for reuse by later queries. It is **disabled by default** and can be
+enabled through [cache configuration](../operate/configure.md#cache-configuration). When enabled, each engine
+instance owns one formula result cache shared by its catalogs.
 
 ## What is cached
 
