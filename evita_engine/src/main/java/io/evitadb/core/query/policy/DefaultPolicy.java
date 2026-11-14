@@ -23,18 +23,13 @@
 
 package io.evitadb.core.query.policy;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.require.EntityFetchRequire;
-import io.evitadb.core.cache.CacheSupervisor;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
-import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 /**
- * This implementation returns the input computer without any caching.
+ * Allows prefetch and estimates its cost from the requested entity content.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -73,26 +68,4 @@ public class DefaultPolicy implements PlanningPolicy {
 		return preferredByUser ? Long.MIN_VALUE : prefetchedEntityCount * requirements.getRequirements().length * 148L;
 	}
 
-	@Nonnull
-	@Override
-	public Formula analyse(
-		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull EvitaSessionContract session,
-		@Nonnull String entityType,
-		@Nonnull Formula formula
-	) {
-		// delegate to current cache supervisor
-		return cacheSupervisor.analyse(session, entityType, formula);
-	}
-
-	@Nonnull
-	@Override
-	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
-		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull EvitaSessionContract evitaSession, @Nonnull String entityType,
-		@Nonnull T computer
-	) {
-		// delegate to current cache supervisor
-		return cacheSupervisor.analyse(evitaSession, entityType, computer);
-	}
 }

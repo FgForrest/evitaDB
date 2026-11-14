@@ -42,6 +42,12 @@ import static java.util.Optional.ofNullable;
 /**
  * Range type that envelopes {@link Number} types.
  *
+ * Equality - `equals`, `hashCode` and `compareTo` - compares the bounds encoded to comparable longs only and is the
+ * identity the indexes rely on, so `[1.0,2.0]` equals `[10,20]`. Whether two ranges are the very same value - same
+ * class, same precise bounds and, for a {@link BigDecimalNumberRange}, the same effective number of retained decimal
+ * places - is answered by
+ * {@link EvitaDataTypes#rangeRepresentationDiffers(Serializable, Serializable)}.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(of = {"fromToCompare", "toToCompare"}, cacheStrategy = CacheStrategy.LAZY)

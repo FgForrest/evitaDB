@@ -23,21 +23,22 @@
 
 package io.evitadb.core.query.algebra.price.priceIndex;
 
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.identity.TokenRole;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.LazyEvaluatedEntityPriceRecords;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.price.AbstractPriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.function.Consumer;
 
 /**
  * Simple delegating formula that doesn't compute anything (computational logic is delegated to {@link #getDelegate()}
@@ -50,7 +51,7 @@ import java.util.function.Consumer;
  */
 public class PriceIndexContainerFormula extends AbstractCacheableFormula implements PriceIndexProvidingFormula, Formula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 1785319770058715404L;
 
@@ -69,8 +70,7 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	 * For a super {@link #priceIndex} this is that very index; for a reduced (ref) one it is the super index of the same
 	 * price-list / currency combination, resolved by the caller that built this formula from the GLOBAL entity index it
 	 * is already pinned to. Keeping it as a separate field is what lets a reduced index stop holding a super-index
-	 * pointer of its own - and it matches what the formula cache has always done, since restoring a flattened price
-	 * formula resolves its price indexes straight from the current GLOBAL entity index.
+	 * pointer of its own.
 	 */
 	@Getter private final PriceListAndCurrencyPriceIndex<?> lowestPriceRecordsSource;
 
@@ -79,19 +79,6 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 		@Nonnull PriceListAndCurrencyPriceIndex<?> lowestPriceRecordsSource,
 		@Nonnull Formula delegate
 	) {
-		super(null);
-		this.priceIndex = priceIndex;
-		this.lowestPriceRecordsSource = lowestPriceRecordsSource;
-		this.initFields(delegate);
-	}
-
-	private PriceIndexContainerFormula(
-		@Nullable Consumer<CacheableFormula> computationCallback,
-		@Nonnull PriceListAndCurrencyPriceIndex<?> priceIndex,
-		@Nonnull PriceListAndCurrencyPriceIndex<?> lowestPriceRecordsSource,
-		@Nonnull Formula delegate
-	) {
-		super(computationCallback);
 		this.priceIndex = priceIndex;
 		this.lowestPriceRecordsSource = lowestPriceRecordsSource;
 		this.initFields(delegate);
@@ -109,15 +96,6 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	@Override
 	public long getOperationCost() {
 		return 1;
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
-		return new PriceIndexContainerFormula(
-			selfOperator, this.priceIndex, this.lowestPriceRecordsSource, innerFormulas[0]
-		);
 	}
 
 	@Nonnull
@@ -149,12 +127,43 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	}
 
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
-	}
-
-	@Override
 	protected long getClassId() {
 		return CLASS_ID;
 	}
+
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(new IdentityToken.ProducerId(
+				((AbstractPriceListAndCurrencyPriceIndex<?>) this.priceIndex).getId(), TokenRole.DIRECT
+			),
+			new IdentityToken.ProducerId(
+				((AbstractPriceListAndCurrencyPriceIndex<?>) this.lowestPriceRecordsSource).getId(), TokenRole.DIRECT
+			));
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param priceIndex version token of the price index read by the formula
+	 * @param lowestPriceRecordsSource version token of the index supplying entity price records
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull IdentityToken priceIndex,
+		@Nonnull IdentityToken lowestPriceRecordsSource) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.priceIndex);
+			accumulator.add(this.lowestPriceRecordsSource);
+		}
+	}
+
 }

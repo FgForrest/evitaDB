@@ -27,6 +27,12 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.identity.TokenList;
+import io.evitadb.core.query.algebra.identity.TokenRole;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
@@ -34,14 +40,13 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
+
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
@@ -72,15 +77,9 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 {
 
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 2738491562847195632L;
-	/**
-	 * Placeholder transactional id recorded for a scope whose GLOBAL index does not exist yet. It makes the
-	 * cache-invalidation hash (see {@link #includeAdditionalHash(LongHashFunction)}) change once the index is
-	 * created later, so a cached empty superset is not incorrectly reused when the referenced entity appears.
-	 */
-	private static final long INDEX_ABSENT_TRANSACTIONAL_ID = -1L;
 	/**
 	 * Error message thrown when {@link #getCloneWithInnerFormulas(Formula...)} receives more than one inner formula.
 	 */
@@ -92,19 +91,19 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	 * queried entity). When {@code null} the referenced type is not managed and no restriction
 	 * applies; for a managed type the superset is always present (possibly empty).
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DERIVED)
 	private final Bitmap referencedEntitySuperSet;
 	/**
-	 * Contains the transactional id of the {@link GlobalEntityIndex} of the referenced entity. Because we need to be
-	 * able to declare {@link #includeAdditionalHash(LongHashFunction)} before the {@link #computeInternal()} happens
-	 * we cannot use only the relevant transactional ids because we just don't know which will be relevant until we
-	 * compute the result of the delegate formula. That's why we use "catch-all" transactional id that changes everytime
-	 * anything in target entity type index changes.
+	 * Ordered global index versions used by the identity; zero denotes an absent scope index, preserving every
+	 * legal producer id, including minus one.
 	 */
-	private final long[] referencedEntityTypeSuperSetTransactionalIds;
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
+	private final long[] referencedEntityTypeSuperSetIdentityIds;
 	/**
 	 * Target index that knows how to translate referenced entity primary keys into its own
 	 * primary keys.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final ReferencedTypeEntityIndex referencedEntityTypeIndex;
 	/**
 	 * Worst-case estimate of the result cardinality that must be available before evaluation. The result
@@ -117,33 +116,37 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	 * carries representative attribute values alongside the reference key - so taking the smaller of the two
 	 * counts can land below the true worst case.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private final int worstCardinality;
 	/**
 	 * Optional expansion function that will expand the inner formula result before applying the translation.
 	 */
-	private final UnaryOperator<Bitmap> expansionFunction;
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
+	@Nullable private final UnaryOperator<Bitmap> expansionFunction;
 
 	/**
-	 * Internal constructor used by cloning and tests.
+	 * Internal constructor used by cloning and tests. The caller guarantees that the superset is a deterministic
+	 * function of the supplied global index versions. The identity records those versions instead of the bitmap.
 	 *
-	 * @param referencedEntitySuperSet                    optional superset of referenced entity primary keys to limit
-	 *                                                    the translation; may be {@code null}
-	 * @param referencedEntityTypeSuperSetTransactionalId transactional ids of contributing
-	 *                                                    {@link GlobalEntityIndex} instances used for cache-key hashing
-	 * @param referencedEntityTypeIndex                   target index for the translation
-	 * @param worstCardinality                            worst-case estimate of the result cardinality
-	 * @param innerFormula                                inner formula producing referenced entity primary keys
+	 * @param referencedEntitySuperSet               optional superset of referenced entity primary keys to limit the
+	 *                                               translation; may be {@code null}
+	 * @param referencedEntityTypeSuperSetIdentityIds versions of the contributing {@link GlobalEntityIndex} instances
+	 *                                               in scope order, recorded in the detached identity; zero marks an
+	 *                                               absent scope index
+	 * @param referencedEntityTypeIndex              target index for the translation
+	 * @param worstCardinality                       worst-case estimate of the result cardinality
+	 * @param innerFormula                           inner formula producing referenced entity primary keys
 	 */
 	ReferencedEntityIndexPrimaryKeyTranslatingFormula(
 		@Nullable Bitmap referencedEntitySuperSet,
-		@Nonnull long[] referencedEntityTypeSuperSetTransactionalId,
+		@Nonnull long[] referencedEntityTypeSuperSetIdentityIds,
 		@Nonnull ReferencedTypeEntityIndex referencedEntityTypeIndex,
 		int worstCardinality,
-		@Nonnull UnaryOperator<Bitmap> expansionFunction,
+		@Nullable UnaryOperator<Bitmap> expansionFunction,
 		@Nonnull Formula innerFormula
 	) {
 		this.referencedEntitySuperSet = referencedEntitySuperSet;
-		this.referencedEntityTypeSuperSetTransactionalIds = referencedEntityTypeSuperSetTransactionalId;
+		this.referencedEntityTypeSuperSetIdentityIds = referencedEntityTypeSuperSetIdentityIds;
 		this.referencedEntityTypeIndex = referencedEntityTypeIndex;
 		this.worstCardinality = worstCardinality;
 		this.expansionFunction = expansionFunction;
@@ -160,8 +163,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	 * point to an entity living in a different scope (e.g. an archived product referencing a live
 	 * category), so the existence check must not be limited to the scopes the query is evaluated in.
 	 * The union of these bitmaps is used to filter the inner result during evaluation. Transactional
-	 * ids of the contributing indices are captured so that {@link #includeAdditionalHash(LongHashFunction)}
-	 * can properly invalidate caches when any of them changes.
+	 * ids of the contributing indices are captured in the detached identity.
 	 *
 	 * @param referenceSchema schema of the processed reference
 	 * @param targetEntityType the entity type to resolve the superset for (referenced entity type
@@ -184,23 +186,20 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 		if (isTargetManaged) {
 			final Scope[] allScopes = Scope.values();
 			PersistentRoaringBitmap bitmap = null;
-			final long[] transactionalIds = new long[allScopes.length];
-			int transactionalIdIndex = 0;
-			for (Scope theScope : allScopes) {
+			final long[] identityIds = new long[allScopes.length];
+			for (int i = 0; i < allScopes.length; i++) {
+				final Scope theScope = allScopes[i];
 				// the scope of the query constrains only the queried entities - a reference may point to an entity
 				// living in a different scope (e.g. an archived product referencing a live category), so the
 				// existence check must span all scopes, not just the scopes the query is evaluated in
 				final Optional<GlobalEntityIndex> globalEntityIndex = referencedEntitySuperSetSupplier
 					.apply(targetEntityType, theScope);
 				if (globalEntityIndex.isEmpty()) {
-					// the GLOBAL index for this scope does not exist yet - record a deterministic placeholder so the
-					// cache-invalidation hash changes once the index is created later (otherwise a cached empty
-					// superset could be reused after the referenced entity appears)
-					transactionalIds[transactionalIdIndex++] = INDEX_ABSENT_TRANSACTIONAL_ID;
+					// an absent scope index leaves its slot at zero
 					continue;
 				}
 				final Bitmap allPrimaryKeys = globalEntityIndex.get().getAllPrimaryKeys();
-				transactionalIds[transactionalIdIndex++] = globalEntityIndex.get().getId();
+				identityIds[i] = globalEntityIndex.get().getId();
 				if (allPrimaryKeys.isEmpty()) {
 					// an empty contribution would not change the union - skipping it keeps the common
 					// single-contributing-scope case zero-copy (no OR with an empty bitmap)
@@ -213,15 +212,13 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 			// for a managed referenced type the superset always applies - when no scope contributed any primary
 			// keys the superset is empty (no referenced entity exists anywhere), never unrestricted
 			this.referencedEntitySuperSet = bitmap == null ? EmptyBitmap.INSTANCE : new BaseBitmap(bitmap);
-			this.referencedEntityTypeSuperSetTransactionalIds = transactionalIdIndex == transactionalIds.length
-				? transactionalIds
-				: Arrays.copyOfRange(transactionalIds, 0, transactionalIdIndex);
+			this.referencedEntityTypeSuperSetIdentityIds = identityIds;
 		} else {
 			this.referencedEntitySuperSet = null;
-			this.referencedEntityTypeSuperSetTransactionalIds = ArrayUtils.EMPTY_LONG_ARRAY;
+			this.referencedEntityTypeSuperSetIdentityIds = ArrayUtils.EMPTY_LONG_ARRAY;
 		}
 
-		this.expansionFunction = expansionFunction != null ? expansionFunction : UnaryOperator.identity();
+		this.expansionFunction = expansionFunction;
 		this.referencedEntityTypeIndex = referencedTypeEntityIndex;
 		// the records this index accommodates - reduced index primary keys, which is what a filter evaluated
 		// against it yields and therefore the right ceiling for this formula
@@ -229,38 +226,13 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 		this.initFields(innerFormula);
 	}
 
-	/**
-	 * Includes a hash that ensures cache invalidation when any of the indices involved in the
-	 * translation changes. If no superset was constructed, the id of the target
-	 * {@link ReferencedTypeEntityIndex} is used. Otherwise, a combined hash of all transactional ids
-	 * of contributing {@link GlobalEntityIndex} instances and the target index id is used.
-	 */
+	/** Captures the detached semantic inputs without evaluating the holder. */
+	@Nonnull
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return this.referencedEntityTypeSuperSetTransactionalIds.length == 0 ?
-			hashFunction.hashLong(this.referencedEntityTypeIndex.getId()) :
-			hashFunction.hashLongs(
-				mergeArrays(
-					this.referencedEntityTypeSuperSetTransactionalIds,
-					this.referencedEntityTypeIndex.getId()
-				)
-			);
-	}
-
-	/**
-	 * Merges the given array of long values with an additional long value.
-	 * The method creates a new array, copies all elements of the input array,
-	 * and adds the new long value at the end.
-	 *
-	 * @param array the input array of long values to be merged; must not be null
-	 * @param anotherLong a long value to be added to the merged array
-	 * @return a new array containing all elements of the input array and the additional long value
-	 */
-	private static long[] mergeArrays(@Nonnull long[] array, long anotherLong) {
-		final long[] result = new long[array.length + 1];
-		System.arraycopy(array, 0, result, 0, array.length);
-		result[array.length] = anotherLong;
-		return result;
+	protected IdentityRecord identity() {
+		return new Identity(TokenList.ofProducerIds(this.referencedEntityTypeSuperSetIdentityIds, false),
+			new IdentityToken.ProducerId(this.referencedEntityTypeIndex.getId(), TokenRole.DIRECT),
+			this.expansionFunction == null ? null : IdentityToken.OPAQUE);
 	}
 
 	@Override
@@ -271,7 +243,9 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		final Bitmap referencedEntityIds = this.expansionFunction.apply(this.innerFormulas[0].compute());
+		final Bitmap innerResult = this.innerFormulas[0].compute();
+		final Bitmap referencedEntityIds = this.expansionFunction == null ?
+			innerResult : this.expansionFunction.apply(innerResult);
 		final int cnt = referencedEntityIds.size();
 		if (cnt == 0) {
 			return EmptyBitmap.INSTANCE;
@@ -294,7 +268,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
 		return new ReferencedEntityIndexPrimaryKeyTranslatingFormula(
 			this.referencedEntitySuperSet,
-			this.referencedEntityTypeSuperSetTransactionalIds,
+			this.referencedEntityTypeSuperSetIdentityIds,
 			this.referencedEntityTypeIndex,
 			this.worstCardinality,
 			this.expansionFunction,
@@ -316,6 +290,34 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	@Override
 	public String toString() {
 		return "TRANSLATE TO REFERENCED ENTITY INDEX PRIMARY KEYS";
+	}
+
+	/**
+	 * Detached semantic inputs of the holder.
+	 *
+	 * @param referencedEntityTypeSuperSetTransactionalIds global index versions in scope order
+	 * @param referencedEntityTypeIndex target referenced-type index version
+	 * @param expansionFunction opaque expansion marker, absent without expansion
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		@Nonnull TokenList referencedEntityTypeSuperSetTransactionalIds,
+		@Nonnull IdentityToken referencedEntityTypeIndex,
+		@Nullable IdentityToken expansionFunction
+	) implements IdentityRecord {
+		/** Returns the holder's class identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every semantic input in the structural hash and retained weight. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.referencedEntityTypeSuperSetTransactionalIds);
+			accumulator.add(this.referencedEntityTypeIndex);
+			accumulator.add(this.expansionFunction);
+		}
 	}
 
 }

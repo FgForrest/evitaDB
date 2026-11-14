@@ -25,9 +25,10 @@ package io.evitadb.core.query.algebra.filter;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -45,7 +46,7 @@ import javax.annotation.Nonnull;
  */
 public class HistogramHavingFormula extends AbstractFormula implements AttributeRangeCarrierFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 5381325896905773047L;
 	/**
@@ -88,9 +89,11 @@ public class HistogramHavingFormula extends AbstractFormula implements Attribute
 		return this.innerFormulas[0].getEstimatedCost();
 	}
 
+	/** Identifies the wrapper; its single child carries all computation inputs. */
+	@Nonnull
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
+	protected IdentityRecord identity() {
+		return new Identity();
 	}
 
 	@Override
@@ -114,5 +117,23 @@ public class HistogramHavingFormula extends AbstractFormula implements Attribute
 	@Override
 	public String toStringVerbose() {
 		return "HISTOGRAM HAVING (" + this.innerFormulas[0].toStringVerbose() + ")";
+	}
+
+	/**
+	 * Detached identity of the pass-through wrapper, whose inputs are its single child.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity() implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** The wrapper has no inputs outside its child. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+		}
 	}
 }

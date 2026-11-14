@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.filter.translator.attribute;
 
-
 import io.evitadb.api.query.filter.AbstractAttributeFilterStringSearchConstraintLeaf;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
@@ -70,7 +69,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
-
 
 /**
  * AbstractAttributeStringSearchTranslator is an abstract class that extends the AbstractAttributeTranslator.
@@ -467,7 +465,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 			List.of(globalEntityIndex),
 			attributeConstraint,
 			// EAGER assembly - the one place in this path that presupposes eager evaluation
-			() -> sharedValueTree.toFormula(matched, TrigramSubstringSearch.versionIdsOf(trigramIndex)),
+			() -> sharedValueTree.toFormula(matched),
 			trigramIndex.getId()
 		);
 	}
@@ -532,7 +530,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
 					filteringFormula,
-					translator.createAlternativeBitmapFilter(attributeConstraint, filterByVisitor, matcher)
+					translator.createAlternativeBitmapFilter(attributeConstraint, filterByVisitor, attributeDefinition, matcher)
 				);
 			} else {
 				return filteringFormula;

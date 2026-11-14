@@ -1424,7 +1424,7 @@ class ValueIdTest {
 		}
 
 		/**
-		 * Asserts two answers hold the same buckets, in the same order, with the same staleness token set.
+		 * Asserts two answers hold the same buckets, in the same order.
 		 *
 		 * @param expected the answer to compare against
 		 * @param actual   the answer under test
@@ -1437,10 +1437,6 @@ class ValueIdTest {
 					"bucket " + i + " differs"
 				);
 			}
-			assertArrayEquals(
-				expected.leafVersionIds(), actual.leafVersionIds(),
-				"the two forms must depend on exactly the same leaves, or they would not share a cache entry"
-			);
 		}
 	}
 

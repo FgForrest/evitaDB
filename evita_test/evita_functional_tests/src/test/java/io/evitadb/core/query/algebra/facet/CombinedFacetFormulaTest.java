@@ -41,7 +41,7 @@ import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link CombinedFacetFormula} verifying computation, memoization, cloning,
- * hashing, accessor methods and edge case behavior.
+ * key identity, accessor methods and edge case behavior.
  *
  * @author evitaDB
  */
@@ -170,13 +170,19 @@ class CombinedFacetFormulaTest {
 		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticallyConstructedFormulas() {
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedFormulas() {
 			final CombinedFacetFormula formulaA = new CombinedFacetFormula(
 				new ConstantFormula(new ArrayBitmap(10, 20)),
 				new ConstantFormula(new ArrayBitmap(30, 40))
@@ -186,12 +192,13 @@ class CombinedFacetFormulaTest {
 				new ConstantFormula(new ArrayBitmap(30, 40))
 			);
 
-			assertEquals(formulaA.getHash(), formulaB.getHash());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce different hash for different inner formulas")
-		void shouldProduceDifferentHashForDifferentInnerFormulas() {
+		@DisplayName("should produce different key for different inner formulas")
+		void shouldProduceDifferentKeyForDifferentInnerFormulas() {
 			final CombinedFacetFormula formulaA = new CombinedFacetFormula(
 				new ConstantFormula(new ArrayBitmap(10, 20)),
 				new ConstantFormula(new ArrayBitmap(30, 40))
@@ -201,7 +208,7 @@ class CombinedFacetFormulaTest {
 				new ConstantFormula(new ArrayBitmap(50, 60))
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 	}
 

@@ -28,7 +28,6 @@ import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 
 /**
@@ -119,46 +118,26 @@ public interface IntRecordBucketTree<K extends Comparable<K>> extends BucketBPlu
 	Bitmap getRecordsEqualTo(@Nullable K value);
 
 	/**
-	 * Resolves one candidate value id, tests the value it names against `valuePredicate`, and returns that value's
-	 * record set when the test passes - all from a SINGLE resolution of the bucket's location.
+	 * Resolves a candidate value id, tests its stored value and returns the matching bucket's record set.
+	 * The directory lookup and slot validation use the same resolved leaf. An id naming no live bucket returns
+	 * `null`. The operation refuses an open transaction because the directory describes published tree state.
 	 *
-	 * This is the fused sibling of `valueOf(id)` + `leafVersionOf(id)` + {@link #getRecordsEqualTo(Comparable)}, which
-	 * a candidate-verifying caller would otherwise have to chain. That chain resolves the same location three times:
-	 * the first two probes are byte-for-byte identical, and the third throws the located slot away to re-find it by a
-	 * root-to-leaf descent plus a leaf-local binary search over front-coded keys. Everything the caller needs is
-	 * slot-parallel in the leaf the first probe already landed on, so one probe answers all three questions.
+	 * A null predicate means every nominated value is known to match, so its key need not be decoded. When the
+	 * key column supports UTF-8 matching, a supplied byte pattern replaces the predicate and must express the same
+	 * containment test. Other columns use the predicate.
 	 *
-	 * The leaf version reaches `leafVersionSink` for MATCHES ONLY, exactly as a caller chaining the three calls would
-	 * arrange: a candidate that fails the predicate contributes no record set, so its leaf is not a page the answer
-	 * depends on and must not enter the staleness token set.
-	 *
-	 * ## The caller owes the transaction check
-	 *
-	 * The same obligation `valueOf(int)` documents applies unchanged, and for the same reason: the location is
-	 * resolved through the value id directory, which describes the last PUBLISHED version of the tree. Under an open
-	 * transaction the directory and the leaves disagree, so this method refuses rather than reporting a silent
-	 * under-count.
-	 *
-	 * @param valueId         the candidate id to resolve
-	 * @param valuePredicate  the exact test applied to the value the id names, or `null` when the caller already knows
-	 *                        every id it passes matches - in which case the key is never read off the slot at all,
-	 *                        which on a front-coded column saves a walk back to a restart point and a `String`
-	 *                        allocation per candidate
-	 * @param containsPatternUtf8 when non-`null`, the UTF-8 bytes a matching key must CONTAIN, applied against the
-	 *                            column's stored bytes instead of `valuePredicate` wherever the column can answer that
-	 *                            way ({@link ValueColumn#supportsUtf8Matching}). It is the same test the predicate
-	 *                            would apply, minus the {@link String} the predicate would need built for it; the
-	 *                            caller owes the guarantee that the two agree, including that the pattern survives
-	 *                            UTF-8 encoding unchanged
-	 * @param leafVersionSink receives the version token of the matched bucket's leaf, and is not called otherwise
-	 * @return the matched value's record set, or `null` when the id names nothing live or the predicate rejected it
+	 * @param valueId the candidate id to resolve
+	 * @param valuePredicate exact value test, or `null` when every nominated value is known to match
+	 * @param containsPatternUtf8 UTF-8 containment pattern, or `null` to use the predicate; the caller owes the
+	 *                            guarantee that it answers exactly what the predicate would, including that the
+	 *                            pattern survives UTF-8 encoding unchanged
+	 * @return matching record set, or `null` for a missing or rejected candidate
 	 */
 	@Nullable
 	Bitmap recordsOfMatchingValueId(
 		int valueId,
 		@Nullable Predicate<K> valuePredicate,
-		@Nullable byte[] containsPatternUtf8,
-		@Nonnull LongConsumer leafVersionSink
+		@Nullable byte[] containsPatternUtf8
 	);
 
 	/**

@@ -58,10 +58,7 @@ public interface EvitaCatalogReusableSetup extends EvitaCatalogSetup, EvitaTestS
 				.cache(
 					CacheOptions.builder()
 						.enabled(true)
-						.reevaluateEachSeconds(60)
-						.anteroomRecordCount(10_000)
 						.minimalComplexityThreshold(50_000)
-						.minimalUsageThreshold(5)
 						.cacheSizeInBytes(1_000_000_000L)
 						.build()
 				)

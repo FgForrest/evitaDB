@@ -25,14 +25,17 @@ package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Constant formula that simply returns delegate bitmap.
@@ -41,13 +44,20 @@ import javax.annotation.Nonnull;
  */
 public class ConstantFormula extends AbstractFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 2713157071360876502L;
 	/**
 	 * Bitmap of entity primary keys that this constant formula directly returns as its result.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Getter private final Bitmap delegate;
+	/**
+	 * Identity of the delegate supplied by the caller of the two-argument constructor, `null` when the identity is
+	 * derived from the bitmap. It reaches the key through the `delegateIdentity` component.
+	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
+	@Nullable private final IdentityToken suppliedIdentity;
 	/**
 	 * Memoized {@link #getEstimatedCardinality()} - `-1` until the first call, a value no real cardinality can take
 	 * because the constructor rejects an empty delegate.
@@ -62,29 +72,31 @@ public class ConstantFormula extends AbstractFormula {
 	 * on every call before it ever reaches its own cached cardinality, and a filter over a reference fans out to one
 	 * constant formula per reduced index - hundreds of thousands of them.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private int memoizedCardinality = -1;
 
+	/** Captures a nonempty bitmap whose identity is derived when requested. */
 	public ConstantFormula(@Nonnull Bitmap delegate) {
 		Assert.isPremiseValid(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
 		this.delegate = delegate;
+		this.suppliedIdentity = null;
 		this.initFields();
 	}
 
 	/**
-	 * The staleness token set of this formula: the delegate's transactional id when it owns one, its CONTENT hash
-	 * otherwise.
+	 * Captures a nonempty bitmap whose identity the caller attests: the token names a versioned owner and the bitmap's
+	 * derivation from it, and the caller guarantees the token changes whenever the bitmap's content does. The formula
+	 * neither verifies that nor derives an identity from the bitmap, so a token kept across a content change yields a
+	 * stale key.
 	 *
-	 * The content fallback matters because a delegate without a transactional identity is now ordinary rather than
-	 * exotic - a single-record bucket view and a sorted-array bucket view are both read-only projections created per
-	 * read, so neither can carry an id. Returning an empty set for those left a cacheable answer with no staleness
-	 * dependency at all, which is to say a cached result that no write could ever invalidate. The cache compares the
-	 * HASH of this set rather than resolving individual ids, so a content hash serves the purpose, and it mirrors what
-	 * {@link #includeAdditionalHash} has always done for the same delegate.
+	 * @param delegate bitmap returned as the result
+	 * @param delegateIdentity token identifying the versioned owner and the bitmap's derivation
 	 */
-	@Nonnull
-	@Override
-	public long[] gatherBitmapIdsInternal() {
-		return new long[]{bitmapIdentityToken(this.delegate, HASH_FUNCTION)};
+	public ConstantFormula(@Nonnull Bitmap delegate, @Nonnull IdentityToken delegateIdentity) {
+		Assert.isPremiseValid(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
+		this.delegate = delegate;
+		this.suppliedIdentity = delegateIdentity;
+		this.initFields();
 	}
 
 	@Override
@@ -100,12 +112,20 @@ public class ConstantFormula extends AbstractFormula {
 		return this.memoizedCardinality;
 	}
 
+	/** Returns the detached identity of the bitmap operand. */
+	@Nonnull
+	protected IdentityToken getDelegateIdentityToken() {
+		return this.suppliedIdentity == null ? IdentityToken.of(this.delegate) : this.suppliedIdentity;
+	}
+
+	/**
+	 * Returns the identity formed by the delegate bitmap's token: the caller-attested one when supplied, otherwise
+	 * one derived from the bitmap.
+	 */
+	@Nonnull
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// the same token the staleness set is built from - see AbstractFormula#bitmapIdentityToken. The walk a
-		// content hash costs is `O(size)`, which is why index memos hand out the same bitmap instance every time:
-		// `BaseBitmap#getContentHash` memoizes it, so only the first formula pays
-		return bitmapIdentityToken(this.delegate, hashFunction);
+	protected IdentityRecord identity() {
+		return new Identity(getDelegateIdentityToken());
 	}
 
 	@Override
@@ -139,5 +159,25 @@ public class ConstantFormula extends AbstractFormula {
 	@Override
 	public String toStringVerbose() {
 		return this.delegate.toString();
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param delegateIdentity detached bitmap operand
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull IdentityToken delegateIdentity) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every operand in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.delegateIdentity);
+		}
 	}
 }

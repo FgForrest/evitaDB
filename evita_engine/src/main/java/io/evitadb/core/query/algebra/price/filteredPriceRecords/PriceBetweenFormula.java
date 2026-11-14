@@ -23,13 +23,14 @@
 
 package io.evitadb.core.query.algebra.price.filteredPriceRecords;
 
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -53,7 +54,7 @@ import javax.annotation.Nonnull;
 public class PriceBetweenFormula extends AbstractFormula implements ChildrenDependentFormula,
 	NonCollapsibleFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -8018064784634525540L;
 	/**
@@ -93,11 +94,6 @@ public class PriceBetweenFormula extends AbstractFormula implements ChildrenDepe
 	}
 
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
-	}
-
-	@Override
 	protected long getClassId() {
 		return CLASS_ID;
 	}
@@ -119,4 +115,30 @@ public class PriceBetweenFormula extends AbstractFormula implements ChildrenDepe
 	public String toStringVerbose() {
 		return "PRICE BETWEEN (" + this.innerFormulas[0].toStringVerbose() + ")";
 	}
+
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity();
+	}
+
+	/**
+	 * Detached identity of the formula, whose inputs are its child.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity() implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** The formula has no inputs outside its child. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+		}
+	}
+
 }

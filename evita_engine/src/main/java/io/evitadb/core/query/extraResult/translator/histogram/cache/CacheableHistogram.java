@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -43,9 +42,9 @@ import java.util.function.Predicate;
 /**
  * Default (non-empty) implementation of {@link CacheableHistogramContract}. Holds the full set of
  * pre-computed {@link CacheableBucket}s together with the inclusive right bound of the last bucket.
- * Instances are produced by the histogram computer pipeline and stored in the extra-result cache; they are
- * later converted to the query-time {@link io.evitadb.api.requestResponse.extraResult.HistogramContract} DTO
- * via {@link #convertToHistogram(java.util.function.Predicate)} or the overload that accepts boundary entities.
+ * Instances are produced by the histogram computer pipeline and converted to the query-time
+ * {@link HistogramContract} DTO via {@link #convertToHistogram(java.util.function.Predicate)} or the overload that
+ * accepts boundary entities.
  *
  * The constructor enforces three structural invariants at creation time:
  *
@@ -74,7 +73,7 @@ public class CacheableHistogram implements CacheableHistogramContract {
 	/**
 	 * Raw (native-typed) minimum attribute value observed across all matching entities — preserves the original
 	 * attribute type so downstream lookups against {@link io.evitadb.index.attribute.FilterIndex} can be done without
-	 * coercion. {@code null} when the producer does not provide it (e.g. the price histogram or legacy cache entries).
+	 * coercion. `null` when the producer does not provide it, as in price histograms.
 	 */
 	@Nullable private final Serializable rawMin;
 	/**
@@ -92,8 +91,7 @@ public class CacheableHistogram implements CacheableHistogramContract {
 	private final int overallCount;
 
 	/**
-	 * Legacy constructor — delegates to the four-argument form with {@code null} raw bounds. Retained for callers
-	 * (price histograms, backward-compat cache deserializers) that cannot or need not carry raw native-typed bounds.
+	 * Creates a histogram without raw native-typed bounds, as used by price histograms.
 	 *
 	 * @param buckets non-empty array of buckets with strictly monotonic thresholds
 	 * @param max     inclusive right bound of the last bucket; must be `>= buckets[last].threshold()`
@@ -190,19 +188,12 @@ public class CacheableHistogram implements CacheableHistogramContract {
 	 * Returns the number of entities represented by this histogram. For point and price histograms, and for range
 	 * histograms under the frequency-equalised behaviors (`EQUALIZED` / `EQUALIZED_OPTIMIZED`), this equals the sum of
 	 * bucket occurrences; for range histograms under the overlap behaviors (`STANDARD` / `OPTIMIZED`) it is the
-	 * distinct-record count carried over from the producer. This is the raw cached value, not filtered by any
-	 * query-time predicate.
+	 * distinct-record count carried over from the producer. This count includes all represented entities regardless of
+	 * the query-time predicate.
 	 */
 	@Override
 	public int getOverallCount() {
 		return this.overallCount;
-	}
-
-	@Override
-	public int estimateSize() {
-		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
-			MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE +
-			this.buckets.length * CacheableBucket.BUCKET_MEMORY_SIZE;
 	}
 
 	@Nonnull

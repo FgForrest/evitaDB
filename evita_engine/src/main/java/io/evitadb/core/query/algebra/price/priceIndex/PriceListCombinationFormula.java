@@ -23,22 +23,17 @@
 
 package io.evitadb.core.query.algebra.price.priceIndex;
 
-import io.evitadb.core.cache.payload.FlattenedFormula;
-import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPrices;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import javax.annotation.Nullable;
 import io.evitadb.core.query.algebra.AbstractFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.NotFormula;
-import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
-import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
-import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
-import java.util.function.Consumer;
 
 /**
  * This is formula that is an extension of {@link NotFormula} that captures the relation between two price lists.
@@ -51,95 +46,38 @@ import java.util.function.Consumer;
  * - then lookup for price in PRICE_LIST_C, but only for those entities that weren't resolved on previous two lines
  *
  * This formula captures the negated relation for the negated formulas composition of PRICE_LIST_B and PRICE_LIST_C.
- * The formula is cacheable and the idea is that repeated queries that share the partial combination of price lists
- * order can be satisfied from fast cache. I.e. for these queries:
- *
- * - PRICE_LIST_A, PRICE_LIST_B, PRICE_LIST_C
- * - PRICE_LIST_A, PRICE_LIST_B, PRICE_LIST_D
- * - PRICE_LIST_A, PRICE_LIST_B, PRICE_LIST_E
- *
- * We can serve the result of PRICE_LIST_A, PRICE_LIST_B negation from the cache, because the computation logic is
- * shared.
- *
- * TOBEDONE JNO - evaluate effectivnes of the cache because the price list combinations are usually in inverted way:
- *
- * - PRICE_LIST_C, PRICE_LIST_A, PRICE_LIST_B
- * - PRICE_LIST_D, PRICE_LIST_A, PRICE_LIST_B
- * - PRICE_LIST_E, PRICE_LIST_A, PRICE_LIST_B
- *
- * And this disqualifies the real benefit of cacheability of this formula
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class PriceListCombinationFormula extends NotFormula implements CacheablePriceFormula {
+public class PriceListCombinationFormula extends NotFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -379304706891548493L;
 	/**
 	 * Name of the price list whose entity ids are subtracted from the superset formula result.
 	 */
-	@Getter private final Serializable subtractedPriceListName;
+	@Getter private final String subtractedPriceListName;
 	/**
 	 * Name of the price list whose entity ids form the superset formula result.
 	 */
-	@Getter private final Serializable priceListName;
+	@Getter private final String priceListName;
 	/**
 	 * Price evaluation context carrying information about price lists and currency used for price evaluation.
 	 */
-	@Getter private final PriceEvaluationContext priceEvaluationContext;
+	private final PriceEvaluationContext priceEvaluationContext;
 
-	public PriceListCombinationFormula(@Nonnull Serializable subtractedPriceListName, @Nonnull Serializable priceListName, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
+	public PriceListCombinationFormula(@Nonnull String subtractedPriceListName, @Nonnull String priceListName, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
 		super(subtractedFormula, supersetFormula);
 		this.subtractedPriceListName = subtractedPriceListName;
 		this.priceListName = priceListName;
 		this.priceEvaluationContext = priceEvaluationContext;
 	}
 
-	protected PriceListCombinationFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Serializable subtractedPriceListName, @Nonnull Serializable priceListName, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
-		super(computationCallback, subtractedFormula, supersetFormula);
-		this.subtractedPriceListName = subtractedPriceListName;
-		this.priceListName = priceListName;
-		this.priceEvaluationContext = priceEvaluationContext;
-	}
-
-	@Override
-	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
-		final Bitmap computationalResult = compute();
-		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
-		// by this time computation result should be already memoized
-		return new FlattenedFormulaWithFilteredPrices(
-			formulaHash,
-			getTransactionalIdHash(),
-			sortedDistinctIds,
-			computationalResult,
-			FilteredPriceRecords.createFromFormulas(this, computationalResult, this.executionContext),
-			this.priceEvaluationContext
-		);
-	}
-
-	@Override
-	public int getSerializableFormulaSizeEstimate() {
-		return FlattenedFormulaWithFilteredPrices.estimateSize(
-			gatherTransactionalIds(),
-			compute(),
-			getPriceEvaluationContext()
-		);
-	}
-
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		return new PriceListCombinationFormula(this.subtractedPriceListName, this.priceListName, this.priceEvaluationContext, innerFormulas[0], innerFormulas[1]);
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		return new PriceListCombinationFormula(
-			selfOperator,
-			this.subtractedPriceListName, this.priceListName, this.priceEvaluationContext, innerFormulas[0], innerFormulas[1]
-		);
 	}
 
 	@Override
@@ -154,6 +92,49 @@ public class PriceListCombinationFormula extends NotFormula implements Cacheable
 	@Override
 	public String toString() {
 		return "WITH PRICE IN " + this.priceListName + " WHEN NO PRICE EXISTS IN " + this.subtractedPriceListName;
+	}
+
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(getSubtractedBitmapIdentityToken(),
+			getSupersetBitmapIdentityToken(),
+			this.subtractedPriceListName,
+			this.priceListName,
+			this.priceEvaluationContext);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param subtractedBitmap raw subtracted operand, absent with formula children
+	 * @param supersetBitmap raw universe operand, absent with formula children
+	 * @param subtractedPriceListName name of the subtracted price list
+	 * @param priceListName name of the superset price list
+	 * @param priceEvaluationContext validity and ordered target price indexes
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nullable IdentityToken subtractedBitmap,
+		@Nullable IdentityToken supersetBitmap,
+		@Nonnull String subtractedPriceListName,
+		@Nonnull String priceListName,
+		@Nonnull PriceEvaluationContext priceEvaluationContext) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.subtractedBitmap);
+			accumulator.add(this.supersetBitmap);
+			accumulator.add(this.subtractedPriceListName);
+			accumulator.add(this.priceListName);
+			accumulator.add(this.priceEvaluationContext);
+		}
 	}
 
 }

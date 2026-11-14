@@ -29,7 +29,11 @@ import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
-import net.openhft.hashing.LongHashFunction;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 
 import javax.annotation.Nonnull;
 
@@ -41,7 +45,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class HierarchyByParentIncludingSelfBitmapSupplier extends AbstractHierarchyBitmapSupplier {
-	private static final int CLASS_ID = -400444752;
+	private static final long CLASS_ID = -400444752L;
 	/**
 	 * Contains information about the parent node requested in original {@link io.evitadb.api.query.FilterConstraint}.
 	 */
@@ -49,10 +53,15 @@ public class HierarchyByParentIncludingSelfBitmapSupplier extends AbstractHierar
 	/**
 	 * Contains set of entity primary keys whose subtrees should be excluded from listing.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyByParentIncludingSelfBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		super(hierarchyIndex, transactionalId);
+	public HierarchyByParentIncludingSelfBitmapSupplier(
+		@Nonnull HierarchyIndex hierarchyIndex,
+		int parentNode,
+		@Nonnull HierarchyFilteringPredicate excludedNodeTrees
+	) {
+		super(hierarchyIndex);
 		this.parentNode = parentNode;
 		this.excludedNodeTrees = excludedNodeTrees;
 		this.initFields();
@@ -62,16 +71,6 @@ public class HierarchyByParentIncludingSelfBitmapSupplier extends AbstractHierar
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 		this.excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
 		super.initialize(executionContext);
-	}
-
-	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			new long[]{
-				hashFunction.hashInts(new int[]{CLASS_ID, this.parentNode}),
-				this.excludedNodeTrees.getHash()
-			}
-		);
 	}
 
 	@Nonnull
@@ -91,4 +90,41 @@ public class HierarchyByParentIncludingSelfBitmapSupplier extends AbstractHierar
 		return "HIERARCHY FROM PARENT: " + this.parentNode + " " + this.excludedNodeTrees + " AND SELF";
 	}
 
+	/** Returns detached inputs without computing the bitmap. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.parentNode, this.excludedNodeTrees.getKey(), getHierarchyIndexIdentityToken());
+	}
+
+	/** Returns the stable holder discriminator. */
+	@Override
+	protected long getClassId() {
+		return CLASS_ID;
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param parentNode primary key of the parent node the listing starts from
+	 * @param excludedNodeTrees key of the predicate excluding node subtrees from the listing
+	 * @param hierarchyIndex version token of the hierarchy index the listing reads
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(int parentNode, @Nonnull FormulaKey excludedNodeTrees,
+		@Nonnull IdentityToken hierarchyIndex) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.parentNode);
+			accumulator.add(this.excludedNodeTrees);
+			accumulator.add(this.hierarchyIndex);
+		}
+	}
 }

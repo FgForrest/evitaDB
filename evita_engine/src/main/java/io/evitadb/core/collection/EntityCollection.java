@@ -319,11 +319,7 @@ public final class EntityCollection implements
 	 */
 	private final DataStoreReader dataStoreReader;
 	/**
-	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified
-	 * by its {@link Formula#getHash()} method and when the supervisor identifies that certain
-	 * formula is frequently used in query formulas it moves its memoized results to the cache. The non-computed formula
-	 * of the same hash will be exchanged in next query that contains it with the cached formula that already contains
-	 * memoized result.
+	 * Analysis seam for query formulas and extra-result computers. The configured supervisor returns its inputs.
 	 */
 	private final CacheSupervisor cacheSupervisor;
 	/**
@@ -1628,13 +1624,18 @@ public final class EntityCollection implements
 	 *
 	 * @param primaryKeys an array of integer values representing the primary keys of the entities to be fetched
 	 * @param evitaRequest an instance of EvitaRequest that contains the request parameters
-	 * @param session an instance of EvitaSessionContract that represents the current session context
+	 * @param queryContext originating context whose verification state the fetch inherits
 	 *
 	 * @return a list of SealedEntity objects matching the provided primary keys and request parameters
 	 */
 	@Nonnull
-	public List<SealedEntity> fetchEntities(@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+	public List<SealedEntity> fetchEntities(
+		@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull QueryPlanningContext queryContext
+	) {
+		final EvitaSession session = Objects.requireNonNull(queryContext.getEvitaSession());
+		final ReferenceFetcher referenceFetcher = createReferenceFetcher(
+			evitaRequest, createFetchQueryContext(evitaRequest, queryContext)
+		);
 		return fetchEntities(primaryKeys, evitaRequest, session, referenceFetcher);
 	}
 
@@ -1645,12 +1646,17 @@ public final class EntityCollection implements
 	 *
 	 * @param primaryKey the unique identifier for the desired entity
 	 * @param evitaRequest the request object containing parameters and configurations for fetching the entity
-	 * @param session the session contract that manages interaction contexts for fetching entities
+	 * @param queryContext originating context whose verification state the fetch inherits
 	 * @return an {@link Optional} containing the sealed entity if found, otherwise an empty Optional
 	 */
 	@Nonnull
-	public Optional<SealedEntity> fetchEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+	public Optional<SealedEntity> fetchEntity(
+		int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull QueryPlanningContext queryContext
+	) {
+		final EvitaSession session = Objects.requireNonNull(queryContext.getEvitaSession());
+		final ReferenceFetcher referenceFetcher = createReferenceFetcher(
+			evitaRequest, createFetchQueryContext(evitaRequest, queryContext)
+		);
 		return fetchEntity(primaryKey, evitaRequest, session, referenceFetcher);
 	}
 
@@ -1675,7 +1681,7 @@ public final class EntityCollection implements
 	) {
 		// retrieve current version of entity
 		final List<ServerEntityDecorator> entityDecorators = Arrays.stream(primaryKeys)
-			.mapToObj(it -> fetchEntityDecorator(it, evitaRequest, session))
+			.mapToObj(it -> fetchEntityDecorator(it, evitaRequest))
 			.filter(Optional::isPresent)
 			.map(Optional::get)
 			.toList();
@@ -1688,45 +1694,32 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Returns the entity body that reflects input request object using provided session and primary key.
-	 * The method will try to fetch the entity from cache if possible, otherwise it will fetch it from the underlying
-	 * storage and registers it as an cache adept.
+	 * Returns the entity body for the primary key with the requested content.
+	 * Fetches the entity from storage, checks its locale and wraps it for the request.
 	 *
 	 * @param primaryKey the primary key of the entity to retrieve
 	 * @param evitaRequest the request context containing parameters required for fetching the entity
-	 * @param session the current session associated with the request
 	 * @return an {@link Optional} containing the {@link ServerEntityDecorator} if the entity is found and meets
 	 * the criteria, otherwise an empty {@link Optional}
 	 */
 	@Nonnull
 	public Optional<ServerEntityDecorator> fetchEntityDecorator(
 		int primaryKey,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull EvitaSessionContract session
+		@Nonnull EvitaRequest evitaRequest
 	) {
 		final SealedEntitySchema theSchema = getSchema();
-		return this.cacheSupervisor.analyse(
-			session,
-			primaryKey,
-			theSchema.getName(),
-			evitaRequest.getAlignedNow(),
-			evitaRequest.getEntityRequirement(),
-			() -> {
-				final EntityWithFetchCount internalEntity = getEntityById(primaryKey, evitaRequest);
-				if (internalEntity == null) {
-					return null;
-				} else if (
-					!ofNullable(evitaRequest.getRequiredOrImplicitLocale())
-						.map(it -> !theSchema.isLocalized() || internalEntity.entity().getLocales().contains(it))
-						.orElse(true)
-				) {
-					return null;
-				} else {
-					return wrapToDecorator(evitaRequest, internalEntity, null);
-				}
-			},
-			theEntity -> enrichEntityInternal(theEntity, evitaRequest)
-		);
+		final EntityWithFetchCount internalEntity = getEntityById(primaryKey, evitaRequest);
+		if (internalEntity == null) {
+			return empty();
+		} else if (
+			!ofNullable(evitaRequest.getRequiredOrImplicitLocale())
+				.map(it -> !theSchema.isLocalized() || internalEntity.entity().getLocales().contains(it))
+				.orElse(true)
+		) {
+			return empty();
+		} else {
+			return of(wrapToDecorator(evitaRequest, internalEntity, null));
+		}
 	}
 
 	/**
@@ -2699,7 +2692,7 @@ public final class EntityCollection implements
 		@Nonnull ReferenceFetcher referenceFetcher
 	) {
 		// retrieve current version of entity
-		return fetchEntityDecorator(primaryKey, evitaRequest, session)
+		return fetchEntityDecorator(primaryKey, evitaRequest)
 			.map(it -> limitEntity(it, evitaRequest, session))
 			.map(it -> applyReferenceFetcher(evitaRequest, it, referenceFetcher));
 	}
@@ -3856,9 +3849,31 @@ public final class EntityCollection implements
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session
 	) {
+		return createReferenceFetcher(evitaRequest, createQueryContext(evitaRequest, session));
+	}
+
+	/**
+	 * Plans body fetching as a root from its own request, preserving the ordinary fetch policy and accounting.
+	 * Verification roots share only execution state and the key-free sibling policy with the originating query.
+	 */
+	@Nonnull
+	private QueryPlanningContext createFetchQueryContext(
+		@Nonnull EvitaRequest request, @Nonnull QueryPlanningContext origin
+	) {
+		return origin.hasSharedExecutionState() ?
+			origin.createFetchContext(this, request, this.indexes, this.indexesByPrimaryKey,
+				this.cacheSupervisor) :
+			createQueryContext(request, Objects.requireNonNull(origin.getEvitaSession()));
+	}
+
+	/** Creates the fetcher with the root context selected for this body fetch. */
+	@Nonnull
+	private ReferenceFetcher createReferenceFetcher(
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull QueryPlanningContext queryContext
+	) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = evitaRequest.getNamedReferenceEntityFetch();
-		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		return referenceEntityFetch.isEmpty() &&
 			namedReferenceEntityFetch.isEmpty() &&
 			!evitaRequest.isRequiresEntityReferences() &&

@@ -29,14 +29,13 @@ import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.utils.Assert;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -67,7 +66,9 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface FacetGroupFormula extends NonCacheableFormula, NonCollapsibleFormula {
+public interface FacetGroupFormula extends NonCollapsibleFormula {
+	/** Distinguishes an absent group from every possible integer group identifier. */
+	long NO_FACET_GROUP = Long.MIN_VALUE;
 
 	/**
 	 * Returns a compact string representation of a facet group formula showing per-facet bitmap sizes.

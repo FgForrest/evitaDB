@@ -24,20 +24,18 @@
 package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
-import java.util.function.Consumer;
+import javax.annotation.Nullable;
 
 /**
  * Not formula will perform boolean negation (NOT) on two bitmaps: superset and subtracted one
@@ -54,7 +52,7 @@ import java.util.function.Consumer;
  */
 public class NotFormula extends AbstractCacheableFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractCacheableFormula#getClassId()} for hash computation.
+	 * Stable discriminator returned by {@link AbstractCacheableFormula#getClassId()}.
 	 */
 	private static final long CLASS_ID = -588386855739382284L;
 	/**
@@ -66,23 +64,13 @@ public class NotFormula extends AbstractCacheableFormula {
 	 */
 	private final Bitmap supersetBitmap;
 
-	protected NotFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
-		super(computationCallback);
-		this.subtractedBitmap = null;
-		this.supersetBitmap = null;
-		this.initFields(subtractedFormula, supersetFormula);
-		Assert.isTrue(this.innerFormulas.length > 1, "And formula has no sense with " + this.innerFormulas.length + " inner formulas!");
-	}
-
 	public NotFormula(@Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
-		super(null);
 		this.subtractedBitmap = null;
 		this.supersetBitmap = null;
 		this.initFields(subtractedFormula, supersetFormula);
 	}
 
 	public NotFormula(@Nonnull Bitmap subtractedBitmap, @Nonnull Bitmap supersetBitmap) {
-		super(null);
 		this.subtractedBitmap = subtractedBitmap;
 		this.supersetBitmap = supersetBitmap;
 		this.initFields();
@@ -126,44 +114,12 @@ public class NotFormula extends AbstractCacheableFormula {
 		return 9;
 	}
 
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		return new NotFormula(
-			selfOperator,
-			innerFormulas[0], innerFormulas[1]
-		);
-	}
-
 	@Override
 	public String toString() {
 		if (this.subtractedBitmap != null && this.supersetBitmap != null) {
 			return "NOT: " + this.subtractedBitmap + ", " + this.supersetBitmap;
 		} else {
 			return "NOT";
-		}
-	}
-
-	@Override
-	protected boolean isFormulaOrderSignificant() {
-		return true;
-	}
-
-	@Nonnull
-	@Override
-	protected long[] gatherBitmapIdsInternal() {
-		if (this.subtractedBitmap != null && this.supersetBitmap != null) {
-			int idx = 0;
-			final long[] ids = new long[2];
-			if (this.subtractedBitmap instanceof TransactionalLayerProducer<?, ?> tlp) {
-				ids[idx++] = tlp.getId();
-			}
-			if (this.supersetBitmap instanceof TransactionalLayerProducer<?, ?> tlp) {
-				ids[idx++] = tlp.getId();
-			}
-			return idx == ids.length ? ids : Arrays.copyOf(ids, idx);
-		} else {
-			return super.gatherBitmapIdsInternal();
 		}
 	}
 
@@ -191,25 +147,26 @@ public class NotFormula extends AbstractCacheableFormula {
 		}
 	}
 
+	/** Returns the detached raw subtracted operand, absent in formula mode. */
+	@Nullable
+	protected IdentityToken getSubtractedBitmapIdentityToken() {
+		return this.subtractedBitmap == null ? null : IdentityToken.of(this.subtractedBitmap);
+	}
+
+	/** Returns the detached raw superset operand, absent in formula mode. */
+	@Nullable
+	protected IdentityToken getSupersetBitmapIdentityToken() {
+		return this.supersetBitmap == null ? null : IdentityToken.of(this.supersetBitmap);
+	}
+
+	/**
+	 * Returns the identity formed by the raw subtracted and superset bitmaps in their positions; both are absent in
+	 * formula mode, where the two children's keys carry the operands.
+	 */
+	@Nonnull
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		int idx = 0;
-		final long[] hashes = new long[2];
-		if (this.subtractedBitmap != null) {
-			hashes[idx++] = this.subtractedBitmap instanceof TransactionalLayerProducer<?, ?> tlp
-				? tlp.getId()
-				// this shouldn't happen for long arrays - these are expected to be always linked to transactional
-				// bitmaps located in indexes and represented by "transactional id"
-				: hashFunction.hashInts(this.subtractedBitmap.getArray());
-		}
-		if (this.supersetBitmap != null) {
-			hashes[idx++] = this.supersetBitmap instanceof TransactionalLayerProducer<?, ?> tlp
-				? tlp.getId()
-				// this shouldn't happen for long arrays - these are expected to be always linked to transactional
-				// bitmaps located in indexes and represented by "transactional id"
-				: hashFunction.hashInts(this.supersetBitmap.getArray());
-		}
-		return hashFunction.hashLongs(idx == hashes.length ? hashes : Arrays.copyOf(hashes, idx));
+	protected IdentityRecord identity() {
+		return new Identity(getSubtractedBitmapIdentityToken(), getSupersetBitmapIdentityToken());
 	}
 
 	@Override
@@ -227,20 +184,6 @@ public class NotFormula extends AbstractCacheableFormula {
 				return getSupersetFormula().getCost();
 			} else {
 				return super.getCostInternal();
-			}
-		}
-	}
-
-	@Override
-	protected long getCostToPerformanceInternal() {
-		if (this.supersetBitmap != null && this.subtractedBitmap != null) {
-			return getCost() / Math.max(1, compute().size());
-		} else {
-			final Bitmap supersetBitmap = getSupersetFormula().compute();
-			if (supersetBitmap.isEmpty()) {
-				return getCost() / Math.max(1, compute().size());
-			} else {
-				return super.getCostToPerformanceInternal();
 			}
 		}
 	}
@@ -280,4 +223,27 @@ public class NotFormula extends AbstractCacheableFormula {
 		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
 	}
 
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param subtractedBitmap raw operand to subtract, absent in formula mode
+	 * @param supersetBitmap raw universe operand, absent in formula mode
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		@Nullable IdentityToken subtractedBitmap, @Nullable IdentityToken supersetBitmap
+	) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every operand in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.subtractedBitmap);
+			accumulator.add(this.supersetBitmap);
+		}
+	}
 }

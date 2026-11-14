@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -30,8 +32,6 @@ import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
-import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,7 +46,7 @@ import javax.annotation.Nullable;
  */
 public class PlainPriceTerminationFormula extends AbstractFormula implements PriceTerminationFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -6690961703571256783L;
 
@@ -54,7 +54,7 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 	 * Price evaluation context allows optimizing formula tree in the such way, that terminating formula with same
 	 * context will be replaced by single instance - taking advantage of result memoization.
 	 */
-	@Getter private final PriceEvaluationContext priceEvaluationContext;
+	private final PriceEvaluationContext priceEvaluationContext;
 
 	public PlainPriceTerminationFormula(@Nonnull Formula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext) {
 		this.priceEvaluationContext = priceEvaluationContext;
@@ -95,12 +95,6 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 		return 1;
 	}
 
-	@Nonnull
-	@Override
-	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		return this;
-	}
-
 	@Override
 	public String toString() {
 		return PricePredicate.ALL_RECORD_FILTER.toString();
@@ -118,13 +112,35 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 	}
 
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return this.priceEvaluationContext.computeHash(hashFunction);
-	}
-
-	@Override
 	protected long getClassId() {
 		return CLASS_ID;
+	}
+
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.priceEvaluationContext);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param priceEvaluationContext validity and ordered target price indexes
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull PriceEvaluationContext priceEvaluationContext) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.priceEvaluationContext);
+		}
 	}
 
 }

@@ -23,12 +23,7 @@
 
 package io.evitadb.core.query.algebra.price.predicate;
 
-import io.evitadb.api.query.require.QueryPriceMode;
-import net.openhft.hashing.LongHashFunction;
-
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.math.BigDecimal;
 
 /**
  * Unified contract for price predicates that can be used to filter out price records that are not in the filter range.
@@ -37,36 +32,9 @@ import java.math.BigDecimal;
  */
 public interface PricePredicateContract {
 
-	/**
-	 * Retrieves the price mode used for filtering.
-	 *
-	 * @return the price mode used for filtering, or null if not set
-	 */
-	@Nullable
-	QueryPriceMode getQueryPriceMode();
-
-	/**
-	 * Returns lower threshold of the filter.
-	 *
-	 * @return lower threshold of the filter if any
-	 */
-	@Nullable
-	BigDecimal getFrom();
-
-	/**
-	 * Returns upper threshold of the filter.
-	 *
-	 * @return upper threshold of the filter if any
-	 */
-	@Nullable
-	BigDecimal getTo();
-
-	/**
-	 * Retrieves the number of decimal places used for indexing prices.
-	 *
-	 * @return the number of decimal places used for indexing prices
-	 */
-	int getIndexedPricePlaces();
+	/** Returns the detached value inputs that determine price filtering. */
+	@Nonnull
+	PricePredicate.Identity identity();
 
 	/**
 	 * Returns predicate that can be used to filter out price records that are not in the filter range.
@@ -75,11 +43,4 @@ public interface PricePredicateContract {
 	 */
 	@Nonnull
 	PriceAmountPredicate getRequestedPredicate();
-
-	/**
-	 * Method is expected to compute unique hash for this particular instance of predicate. This hash needs much better
-	 * collision rate than common {@link Object#hashCode()} and therefore passed hash function is expected to be utilized.
-	 * Hash is targeted to be used in cache key.
-	 */
-	long computeHash(@Nonnull LongHashFunction hashFunction);
 }

@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.price.priceIndex;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.dataType.array.CompositeIntArray;
@@ -47,7 +48,7 @@ import static io.evitadb.test.TestTags.PRICE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link PriceIndexContainerFormula} verifying delegation, caching, hashing,
+ * Tests for {@link PriceIndexContainerFormula} verifying delegation, key identity
  * and price index association.
  *
  * @author evitaDB
@@ -152,12 +153,6 @@ class PriceIndexContainerFormulaTest {
 				(PriceIndexContainerFormula) original.getCloneWithInnerFormulas(createConstantFormula(3, 4));
 			assertSame(index, innerClone.getPriceIndex());
 			assertSame(lowestPriceRecordsSource, innerClone.getLowestPriceRecordsSource());
-
-			final PriceIndexContainerFormula callbackClone = (PriceIndexContainerFormula) original
-				.getCloneWithComputationCallback(it -> {
-				}, createConstantFormula(3, 4));
-			assertSame(index, callbackClone.getPriceIndex());
-			assertSame(lowestPriceRecordsSource, callbackClone.getLowestPriceRecordsSource());
 		}
 
 		@Test
@@ -178,31 +173,33 @@ class PriceIndexContainerFormulaTest {
 		}
 	}
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism")
-	class HashDeterminismTest {
+	@DisplayName("Key sensitivity")
+	class KeySensitivityTest {
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce identical hash for identical construction")
-		void shouldProduceIdenticalHashForIdenticalConstruction() {
+		@DisplayName("should produce different key for different inner data")
+		void shouldProduceDifferentKeyForDifferentInnerData() {
+			final FormulaKey keyA = createFormula("basic", CZK, 1, 2, 3).getKey();
+			final FormulaKey keyB = createFormula("basic", CZK, 4, 5, 6).getKey();
+
+			assertNotEquals(keyA, keyB);
+		}
+
+		/** The key carries the id of each price index, so equal contents of two indexes do not share a key. */
+		@Test
+		@DisplayName("should produce different keys for distinct index versions")
+		void shouldDistinguishIndexVersions() {
 			final PriceIndexContainerFormula a = createFormula("basic", CZK, 1, 2, 3);
 			final PriceIndexContainerFormula b = createFormula("basic", CZK, 1, 2, 3);
 
-			assertEquals(a.getHash(), b.getHash());
-		}
-	}
-
-	@Nested
-	@DisplayName("Hash sensitivity")
-	class HashSensitivityTest {
-
-		@Test
-		@DisplayName("should produce different hash for different inner data")
-		void shouldProduceDifferentHashForDifferentInnerData() {
-			final long hashA = createFormula("basic", CZK, 1, 2, 3).getHash();
-			final long hashB = createFormula("basic", CZK, 4, 5, 6).getHash();
-
-			assertNotEquals(hashA, hashB);
+			assertNotEquals(a.getKey(), b.getKey());
 		}
 	}
 

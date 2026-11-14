@@ -28,25 +28,27 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
-import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramComputer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -71,40 +73,42 @@ import java.util.Optional;
  */
 public class SelectionFormula extends AbstractFormula implements ChildrenDependentFormula, FilteredPriceRecordAccessor, FilteredOutPriceRecordAccessor, RequirementsDefiner {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 3311110127363103780L;
 	/**
 	 * Contains the alternative computation based on entity contents filtering.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final EntityToBitmapFilter alternative;
 	/**
 	 * Memoized predicate stored upon first calculation to lower computational resources.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private PriceAmountPredicate memoizedPredicate;
-	/**
-	 * Memoized clone stored upon first calculation to lower computational resources.
-	 */
-	private Formula memoizedClone;
 	/**
 	 * Memoized SHALLOW probe over the delegate sub-tree for inner {@link FilteredPriceRecordAccessor}
 	 * instances. The tree shape is fixed at construction so the result is stable for the lifetime of
 	 * this formula and can be safely cached after the first walk.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private Collection<FilteredPriceRecordAccessor> memoizedInnerAccessors;
 	/**
 	 * Memoized result of {@link #exposesPerInnerRecordHistogramRecords()}. Both inputs to the answer —
 	 * the delegate tree shape and each inner LP's final `collectPerInnerRecordPrices` flag — are
 	 * immutable after construction, so the boolean is computed at most once per instance.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private Boolean memoizedExposesPerInnerRecordHistogramRecords;
 	/**
 	 * Updated cardinality based on current execution context.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private Integer prefetchEstimatedCardinality;
 	/**
 	 * Updated cost based on current execution context.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private Long prefetchEstimatedCost;
 
 	public SelectionFormula(@Nonnull Formula delegate, @Nonnull EntityToBitmapFilter alternative) {
@@ -210,36 +214,6 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 
 	@Nonnull
 	@Override
-	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		if (this.memoizedClone == null) {
-			Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
-			// if the entities were prefetched we passed the "is it worthwhile" check
-			this.memoizedClone = Optional.ofNullable(this.executionContext.getPrefetchedEntities())
-				// ask the alternative solution for filtered price records
-				.map(it ->
-					this.alternative instanceof FilteredOutPriceRecordAccessor ?
-						((FilteredOutPriceRecordAccessor) this.alternative).getCloneWithPricePredicateFilteredOutResults() :
-						EmptyFormula.INSTANCE
-				)
-				// otherwise collect the filtered records from the delegate
-				.orElseGet(() -> {
-					// collect all FilteredPriceRecordAccessor that were involved in computing delegate result
-					final Collection<FilteredOutPriceRecordAccessor> accessors = FormulaFinder.findAmongChildren(
-						this, FilteredOutPriceRecordAccessor.class, LookUp.SHALLOW
-					);
-					final Formula[] filteredOutRecords = new Formula[accessors.size()];
-					int index = 0;
-					for (FilteredOutPriceRecordAccessor accessor : accessors) {
-						filteredOutRecords[index++] = accessor.getCloneWithPricePredicateFilteredOutResults();
-					}
-					return FormulaFactory.or(filteredOutRecords);
-				});
-		}
-		return this.memoizedClone;
-	}
-
-	@Nonnull
-	@Override
 	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
 		// if the entities were prefetched we passed the "is it worthwhile" check
 		return Optional.ofNullable(this.executionContext.getPrefetchedEntities())
@@ -268,19 +242,15 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 	 * mixing {@link io.evitadb.api.requestResponse.data.PriceInnerRecordHandling} values its inner accessor
 	 * set legitimately contains both the flagged `LOWEST_PRICE` termination formula and the non-exposing
 	 * `NONE`/`SUM` branches. Under the previous "all-true" rule that mix silently dropped the histogram back
-	 * to per-entity granularity (issue #1433). {@link #getFilteredPriceRecordsForHistogram} therefore returns
+	 * to per-entity granularity. {@link #getFilteredPriceRecordsForHistogram} therefore returns
 	 * only the *exposing* inners' contribution, and the histogram producer routes every entity not covered by
 	 * it through the per-entity collector.
 	 *
-	 * **Prefetch parity**: the probe ignores `isPrefetchExecution()` — both alternative plans (index and
-	 * prefetch) must return the same histogram. `QueryPlanner.verifyConsistentResultsInAllPlans` executes
-	 * the query under the bitmap-favouring *and* the prefetch-favouring policy and compares the whole
-	 * `EvitaResponse`, extra results included, so a divergence raises `InconsistentResultsException` — but
-	 * only when a query enables `VERIFY_ALTERNATIVE_INDEX_RESULTS` **and** `PREFER_PREFETCHING` together.
-	 * The cost of
-	 * running the inner LP's `computeInternal()` on the prefetch path to populate the side-output is
-	 * accepted because histogram queries are inherently expensive; the alternative is silently wrong
-	 * histograms whenever prefetch is enabled.
+	 * **Prefetch parity**: the probe ignores `isPrefetchExecution()` — the index plan and the prefetch plan
+	 * must return the same histogram, because which of them answers a query is a cost decision of the
+	 * planner. The cost of running the inner LP's `computeInternal()` on the prefetch path to populate the
+	 * side-output is accepted because histogram queries are inherently expensive; the alternative is silently
+	 * wrong histograms whenever prefetch is enabled.
 	 */
 	@Override
 	public boolean exposesPerInnerRecordHistogramRecords() {
@@ -368,9 +338,13 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 		return this.memoizedInnerAccessors;
 	}
 
+	/** Captures the detached semantic inputs without evaluating the holder. */
+	@Nonnull
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return 0L;
+	protected IdentityRecord identity() {
+		return new Identity(FormulaKey.of(
+			this.alternative.identity(), this.alternative.getClassId(), FormulaKey.NO_CHILDREN, this.alternative
+		));
 	}
 
 	@Override
@@ -398,14 +372,6 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 			.orElseGet(() -> getDelegate().getCost());
 	}
 
-	@Override
-	protected long getCostToPerformanceInternal() {
-		Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
-		return Optional.ofNullable(this.executionContext.getPrefetchedEntities())
-			.map(it -> getCost() / Math.max(1, compute().size()))
-			.orElseGet(() -> getDelegate().getCostToPerformanceRatio());
-	}
-
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
@@ -415,6 +381,26 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 			return this.alternative.filter(this.executionContext);
 		} else {
 			return getDelegate().compute();
+		}
+	}
+
+	/**
+	 * Detached semantic inputs of the holder.
+	 *
+	 * @param alternative identity of the prefetch alternative
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull FormulaKey alternative) implements IdentityRecord {
+		/** Returns the holder's class identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every semantic input in the structural hash and retained weight. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.alternative);
 		}
 	}
 

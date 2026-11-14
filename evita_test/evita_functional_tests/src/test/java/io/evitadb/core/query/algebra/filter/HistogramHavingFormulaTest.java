@@ -59,8 +59,8 @@ import static io.evitadb.test.TestTags.HISTOGRAM;
  *   to the inner formula so the planner sees no overhead;
  * - re-wrap correctly through `getCloneWithInnerFormulas(...)` while preserving the
  *   {@link AttributeRangeCarrierFormula} marker;
- * - produce a deterministic hash that depends only on the inner formula's hash plus the wrapper's own
- *   class identity (so two wrappers around structurally identical subtrees cache-hit).
+ * - produce a deterministic key that depends only on the inner formula's key plus the wrapper's own
+ *   class identity (so two wrappers around structurally identical subtrees compare equal by key).
  *
  * These invariants matter because the histogram-baseline relaxer locates range carriers **by type** —
  * any semantic change would either hide the wrapper from the relaxer or alter the planner's cost estimate.
@@ -81,7 +81,7 @@ class HistogramHavingFormulaTest {
 	private static final Bitmap REFERENCE_BITMAP = new ArrayBitmap(10, 20, 30);
 
 	/**
-	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Each test that asserts hash equality
+	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Each test that asserts key equality
 	 * or independence uses two freshly constructed wrappers so we avoid sharing memoised state.
 	 *
 	 * @return a {@link ConstantFormula} wrapping the shared reference bitmap
@@ -238,40 +238,36 @@ class HistogramHavingFormulaTest {
 		}
 	}
 
+	/**
+	 * Verifies the wrapper class and its sole ordered child.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash stability")
-	class HashStabilityTest {
-
+	@DisplayName("Declared formula key")
+	class KeyTest {
+		/** The wrapper identity is empty and the child supplies its value inputs. */
 		@Test
-		@DisplayName("should produce identical hash for two wrappers around identical children")
-		void shouldProduceIdenticalHashForTwoWrappersAroundIdenticalChildren() {
-			// stable hashing is what lets the formula cache recognise "two histogramHaving wrappers
-			// around the same subtree" as equivalent — a drift here silently misses cache hits
-			final HistogramHavingFormula a = new HistogramHavingFormula(newInnerFormula());
-			final HistogramHavingFormula b = new HistogramHavingFormula(newInnerFormula());
-
-			assertEquals(a.getHash(), b.getHash());
+		@DisplayName("Equal children share wrapper keys and different children change keys")
+		void shouldIdentifyChild() {
+			final Formula first = new HistogramHavingFormula(newInnerFormula());
+			final Formula equal = new HistogramHavingFormula(newInnerFormula());
+			final Formula different = new HistogramHavingFormula(new ConstantFormula(new ArrayBitmap(1)));
+			assertEquals(first.getKey(), equal.getKey());
+			assertEquals(first.getKey().getHash64(), equal.getKey().getHash64());
+			assertNotEquals(first.getKey(), different.getKey());
+			assertNotEquals(first.getKey().getHash64(), different.getKey().getHash64());
+			assertEquals(first.getKey(), first.getCloneWithInnerFormulas(first.getInnerFormulas()).getKey());
 		}
 
+		/** A range carrier remains distinguishable from its bare child. */
 		@Test
-		@DisplayName("should produce different hash for wrappers around different children")
-		void shouldProduceDifferentHashForWrappersAroundDifferentChildren() {
-			// hash must change when the child changes — otherwise sibling slider picks would collide
-			final HistogramHavingFormula a = new HistogramHavingFormula(new ConstantFormula(new ArrayBitmap(1)));
-			final HistogramHavingFormula b = new HistogramHavingFormula(new ConstantFormula(new ArrayBitmap(2)));
-
-			assertNotEquals(a.getHash(), b.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce a hash distinct from the bare inner formula")
-		void shouldProduceHashDistinctFromBareInnerFormula() {
-			// the wrapper's own class ID must enter the hash — otherwise `histogramHaving(x)` and `x`
-			// would cache-collide and the relaxer's type-based lookup would see a false carrier
+		@DisplayName("Wrapper class identity distinguishes the key from its child")
+		void shouldIncludeWrapperClassIdentity() {
 			final Formula inner = newInnerFormula();
-			final HistogramHavingFormula wrapper = new HistogramHavingFormula(inner);
-
-			assertNotEquals(inner.getHash(), wrapper.getHash());
+			final Formula wrapper = new HistogramHavingFormula(inner);
+			assertNotEquals(inner.getKey(), wrapper.getKey());
+			assertNotEquals(inner.getKey().getHash64(), wrapper.getKey().getHash64());
 		}
 	}
 

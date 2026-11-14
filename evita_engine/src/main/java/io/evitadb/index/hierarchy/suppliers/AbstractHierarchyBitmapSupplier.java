@@ -26,13 +26,16 @@ package io.evitadb.index.hierarchy.suppliers;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
-import net.openhft.hashing.LongHashFunction;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.TokenRole;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
+import javax.annotation.Nullable;
 
 /**
  * Abstract - base implementation for {@link BitmapSupplier}. Generalizes logic connected with
@@ -44,39 +47,34 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	/**
 	 * Reference to the {@link HierarchyIndex} that will be used for gathering the data.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	protected final HierarchyIndex hierarchyIndex;
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Long estimatedCost;
 	/**
 	 * Contains memoized value of {@link #getCost()}  of this formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Long cost;
-	/**
-	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
-	 */
-	private Long costToPerformance;
-	/**
-	 * Contains memoized value of {@link #getHash()} method.
-	 */
-	private Long hash;
-	/**
-	 * Set of {@link TransactionalLayerProducer#getId()} that are involved in data computation.
-	 */
-	private long[] transactionalIds;
-	/**
-	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
-	 */
-	private Long transactionalIdHash;
 	/**
 	 * Contains memoized result of the supplier.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Bitmap memoizedResult;
 
-	public AbstractHierarchyBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex, long[] transactionalIds) {
+	/** Memoized detached holder key. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	private FormulaKey memoizedKey;
+
+	/** Detached token memo for the current hierarchy owner, created only when identity is requested. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	@Nullable private IdentityToken.ProducerId memoizedHierarchyIndexIdentity;
+
+	public AbstractHierarchyBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex) {
 		this.hierarchyIndex = hierarchyIndex;
-		this.transactionalIds = transactionalIds;
 	}
 
 	/**
@@ -85,36 +83,12 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	 * TOBEDONE when upgrading to Java 22 with https://openjdk.org/jeps/447, switch fields to final and do this in the constructor
 	 */
 	protected void initFields() {
-		this.hash = computeHash(HASH_FUNCTION);
-		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray()
-		);
 		this.estimatedCost = getEstimatedCardinality() * 12L;
 	}
 
 	@Override
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 		// do nothing
-	}
-
-	@Override
-	public long getHash() {
-		return this.hash;
-	}
-
-	@Override
-	public long getTransactionalIdHash() {
-		return this.transactionalIdHash;
-
-	}
-
-	@Nonnull
-	@Override
-	public long[] gatherTransactionalIds() {
-		return this.transactionalIds;
 	}
 
 	@Override
@@ -139,26 +113,6 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 		return 1;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 *
-	 * The divisor is floored at `1`: the guard above only establishes that the result has been computed, not that it
-	 * is non-empty, and a subtree listing legitimately comes back empty (a leaf parent, or one whose every child is
-	 * excluded). `cost / 0` would throw there, where the metric has a perfectly good reading — everything was paid
-	 * and nothing came back, the extreme of the "large input reduced to a small output" case this ratio rewards.
-	 */
-	@Override
-	public long getCostToPerformanceRatio() {
-		if (this.costToPerformance == null) {
-			if (this.memoizedResult != null) {
-				this.costToPerformance = getCost() / Math.max(1L, (long) get().size() * getOperationCost());
-			} else {
-				return Long.MAX_VALUE;
-			}
-		}
-		return this.costToPerformance;
-	}
-
 	@Override
 	public final Bitmap get() {
 		if (this.memoizedResult == null) {
@@ -174,12 +128,34 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	@Nonnull
 	protected abstract Bitmap getInternal();
 
-	/**
-	 * Computes the hash value using the specified hash function.
-	 *
-	 * @param hashFunction the hash function to use for computing the hash value
-	 * @return the computed hash value
-	 */
-	protected abstract long computeHash(@Nonnull LongHashFunction hashFunction);
+	/** Returns the memoized detached key of this holder. */
+	@Nonnull
+	@Override
+	public final FormulaKey getKey() {
+		if (this.memoizedKey == null) {
+			this.memoizedKey = FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+		}
+		return this.memoizedKey;
+	}
 
+	/**
+	 * Returns the detached inputs of the concrete supplier: the node and depth arguments of its listing, the key of
+	 * the predicate excluding node subtrees from it, and the version token of the hierarchy index it reads
+	 * ({@link #getHierarchyIndexIdentityToken()}).
+	 */
+	@Nonnull
+	protected abstract IdentityRecord identity();
+
+	/** Returns the concrete supplier discriminator. */
+	protected abstract long getClassId();
+
+	/** Returns the owner's version token, refreshing the memo when its source version differs. */
+	@Nonnull
+	protected IdentityToken getHierarchyIndexIdentityToken() {
+		final long ownerId = this.hierarchyIndex.getId();
+		if (this.memoizedHierarchyIndexIdentity == null || this.memoizedHierarchyIndexIdentity.id() != ownerId) {
+			this.memoizedHierarchyIndexIdentity = new IdentityToken.ProducerId(ownerId, TokenRole.DIRECT);
+		}
+		return this.memoizedHierarchyIndexIdentity;
+	}
 }

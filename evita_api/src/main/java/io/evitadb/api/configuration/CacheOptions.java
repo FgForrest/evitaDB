@@ -24,51 +24,43 @@
 package io.evitadb.api.configuration;
 
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
+import io.evitadb.utils.Assert;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
 
 /**
- * This class is simple DTO object holding all cache-related configuration options of the Evita.
+ * Configuration of the cross-query formula result cache, bounded by the estimated size of retained entries.
  *
- * @param reflection                 Contains mode for accessing reflection data - CACHE mode is mostly recommended,
- *                                   unless you're running some kind of tests.
- * @param enabled                    Enables global-wide caching of Evita query results. If caching is enabled, costly
- *                                   computation results may be cached and next time they are found in the query
- *                                   computation tree immediately replaced with the already memoized computation result.
- * @param reevaluateEachSeconds      Contains interval in seconds the cache anteroom is asynchronously re-evaluated and
- *                                   its contents are either purged or moved to cache
- * @param anteroomRecordCount        Contains limit of maximal entries held in cache anteroom. When this limit is
- *                                   exceeded the anteroom needs to be re-evaluated and the adepts either cleared or
- *                                   moved to cache. In other words it's the size of the cache anteroom buffer.
- * @param minimalComplexityThreshold Contains minimal threshold of the cost to performance ratio that cacheable object
- *                                   needs to exceed in order to become a cache adept, that may be potentially moved to
- *                                   cache.
- * @param minimalUsageThreshold      Contains minimal threshold the cacheable object must be "used" in order it could be
- *                                   considered to be moved to the cache. This allows us to avoid expensive "unicorn"
- *                                   cacheable objects (that occurs once a long while) to get cached. Each object needs
- *                                   to earn the placement in cache.
- * @param cacheSizeInBytes           Contains memory limit for the formula cache in Bytes. Java is very dynamic in
- *                                   object memory sizes, so we only try to estimate the size of cached data in order
- *                                   to control the cache size within the defined limit.
+ * @param reflection mode for caching Java reflection metadata; `CACHE` is recommended for normal operation
+ * @param enabled whether cross-query caching of formula computation results is enabled
+ * @param minimalComplexityThreshold minimal estimated cost of a computation whose result may be cached
+ * @param cacheSizeInBytes target budget in bytes for the estimated size of retained entries; `0` selects the default
+ *                         of 25% of free heap measured at class initialization
+ * @param dropEntriesAfterSecondsOfInactivity idle time in seconds before an entry expires, also the maintenance
+ *                                          period; `0` disables expiry and its maintenance timer
+ * @param verifyOneHitIn sampling rate for verifying cache hits by recomputation; `1` verifies every hit,
+ *                       `1000` verifies one in a thousand hits and `0` disables verification
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record CacheOptions(
 	@Nonnull ReflectionCachingBehaviour reflection,
 	boolean enabled,
-	int reevaluateEachSeconds,
-	int anteroomRecordCount,
 	long minimalComplexityThreshold,
-	int minimalUsageThreshold,
-	long cacheSizeInBytes
+	long cacheSizeInBytes,
+	int dropEntriesAfterSecondsOfInactivity,
+	int verifyOneHitIn
 ) {
 
+	/** Cross-query caching stays off unless enabled; equal to the shipped server configuration's default. */
 	public static final boolean DEFAULT_ENABLED = false;
-	public static final int DEFAULT_REEVALUATE_EACH_SECONDS = 0;
-	public static final int DEFAULT_ANTEROOM_RECORD_COUNT = 0;
-	public static final long DEFAULT_MINIMAL_COMPLEXITY_THRESHOLD = 0L;
-	public static final int DEFAULT_MINIMAL_USAGE_THRESHOLD = 0;
+	/** Minimal estimated computation cost for cache admission; equal to the shipped server configuration's default. */
+	public static final long DEFAULT_MINIMAL_COMPLEXITY_THRESHOLD = 10_000L;
+	/** Idle time in seconds before an entry expires; equal to the shipped server configuration's default. */
+	public static final int DEFAULT_DROP_ENTRIES_AFTER_SECONDS_OF_INACTIVITY = 600;
+	/** Verifies one in this many cache hits; equal to the shipped server configuration's default. */
+	public static final int DEFAULT_VERIFY_ONE_HIT_IN = 1_000;
 	private static final long DEFAULT_CACHE_SIZE;
 
 	/*
@@ -88,6 +80,7 @@ public record CacheOptions(
 	/**
 	 * Builder for the cache options. Recommended to use to avoid binary compatibility problems in the future.
 	 */
+	@Nonnull
 	public static CacheOptions.Builder builder() {
 		return new Builder();
 	}
@@ -95,18 +88,37 @@ public record CacheOptions(
 	/**
 	 * Builder for the cache options. Recommended to use to avoid binary compatibility problems in the future.
 	 */
+	@Nonnull
 	public static CacheOptions.Builder builder(@Nonnull CacheOptions cacheOptions) {
 		return new Builder(cacheOptions);
 	}
 
+	/**
+	 * Validates cache limits and resolves a zero budget to the default measured at class initialization.
+	 */
+	public CacheOptions {
+		Assert.isTrue(minimalComplexityThreshold >= 0, "Minimal complexity threshold must not be negative.");
+		Assert.isTrue(cacheSizeInBytes >= 0, "Cache size in bytes must not be negative.");
+		Assert.isTrue(
+			dropEntriesAfterSecondsOfInactivity >= 0, "Cache entry inactivity period must not be negative."
+		);
+		Assert.isTrue(verifyOneHitIn >= 0, "Cache hit verification rate must not be negative.");
+		if (cacheSizeInBytes == 0) {
+			cacheSizeInBytes = DEFAULT_CACHE_SIZE;
+		}
+	}
+
+	/**
+	 * Creates cache options with the defaults shared by embedded instances and the server configuration.
+	 */
 	public CacheOptions() {
 		this(
 			ReflectionCachingBehaviour.CACHE,
-			DEFAULT_ENABLED, DEFAULT_REEVALUATE_EACH_SECONDS,
-			DEFAULT_ANTEROOM_RECORD_COUNT,
+			DEFAULT_ENABLED,
 			DEFAULT_MINIMAL_COMPLEXITY_THRESHOLD,
-			DEFAULT_MINIMAL_USAGE_THRESHOLD,
-			DEFAULT_CACHE_SIZE
+			DEFAULT_CACHE_SIZE,
+			DEFAULT_DROP_ENTRIES_AFTER_SECONDS_OF_INACTIVITY,
+			DEFAULT_VERIFY_ONE_HIT_IN
 		);
 	}
 
@@ -117,11 +129,10 @@ public record CacheOptions(
 	public static class Builder {
 		private ReflectionCachingBehaviour reflection = ReflectionCachingBehaviour.CACHE;
 		private boolean enabled = DEFAULT_ENABLED;
-		private int reevaluateEachSeconds = DEFAULT_REEVALUATE_EACH_SECONDS;
-		private int anteroomRecordCount = DEFAULT_ANTEROOM_RECORD_COUNT;
 		private long minimalComplexityThreshold = DEFAULT_MINIMAL_COMPLEXITY_THRESHOLD;
-		private int minimalUsageThreshold = DEFAULT_MINIMAL_USAGE_THRESHOLD;
 		private long cacheSizeInBytes = DEFAULT_CACHE_SIZE;
+		private int dropEntriesAfterSecondsOfInactivity = DEFAULT_DROP_ENTRIES_AFTER_SECONDS_OF_INACTIVITY;
+		private int verifyOneHitIn = DEFAULT_VERIFY_ONE_HIT_IN;
 
 		Builder() {
 		}
@@ -129,57 +140,77 @@ public record CacheOptions(
 		Builder(@Nonnull CacheOptions cacheOptions) {
 			this.reflection = cacheOptions.reflection;
 			this.enabled = cacheOptions.enabled;
-			this.reevaluateEachSeconds = cacheOptions.reevaluateEachSeconds;
-			this.anteroomRecordCount = cacheOptions.anteroomRecordCount;
 			this.minimalComplexityThreshold = cacheOptions.minimalComplexityThreshold;
-			this.minimalUsageThreshold = cacheOptions.minimalUsageThreshold;
 			this.cacheSizeInBytes = cacheOptions.cacheSizeInBytes;
+			this.dropEntriesAfterSecondsOfInactivity = cacheOptions.dropEntriesAfterSecondsOfInactivity;
+			this.verifyOneHitIn = cacheOptions.verifyOneHitIn;
 		}
 
-		public Builder reflection(ReflectionCachingBehaviour reflection) {
+		/**
+		 * Sets the reflection metadata caching mode.
+		 */
+		@Nonnull
+		public Builder reflection(@Nonnull ReflectionCachingBehaviour reflection) {
 			this.reflection = reflection;
 			return this;
 		}
 
+		/**
+		 * Enables or disables cross-query formula result caching.
+		 */
+		@Nonnull
 		public Builder enabled(boolean enabled) {
 			this.enabled = enabled;
 			return this;
 		}
 
-		public Builder reevaluateEachSeconds(int reevaluateEachSeconds) {
-			this.reevaluateEachSeconds = reevaluateEachSeconds;
-			return this;
-		}
-
-		public Builder anteroomRecordCount(int anteroomRecordCount) {
-			this.anteroomRecordCount = anteroomRecordCount;
-			return this;
-		}
-
+		/**
+		 * Sets the minimal estimated computation cost required for cache admission.
+		 */
+		@Nonnull
 		public Builder minimalComplexityThreshold(long minimalComplexityThreshold) {
 			this.minimalComplexityThreshold = minimalComplexityThreshold;
 			return this;
 		}
 
-		public Builder minimalUsageThreshold(int minimalUsageThreshold) {
-			this.minimalUsageThreshold = minimalUsageThreshold;
-			return this;
-		}
-
+		/**
+		 * Sets the estimated retained size budget in bytes; `0` selects the default.
+		 */
+		@Nonnull
 		public Builder cacheSizeInBytes(long cacheSizeInBytes) {
 			this.cacheSizeInBytes = cacheSizeInBytes;
 			return this;
 		}
 
+		/**
+		 * Sets the idle expiry and maintenance period in seconds; `0` disables both.
+		 */
+		@Nonnull
+		public Builder dropEntriesAfterSecondsOfInactivity(int dropEntriesAfterSecondsOfInactivity) {
+			this.dropEntriesAfterSecondsOfInactivity = dropEntriesAfterSecondsOfInactivity;
+			return this;
+		}
+
+		/**
+		 * Sets the hit verification sampling rate; `0` disables verification.
+		 */
+		@Nonnull
+		public Builder verifyOneHitIn(int verifyOneHitIn) {
+			this.verifyOneHitIn = verifyOneHitIn;
+			return this;
+		}
+
+		/**
+		 * Builds validated cache options.
+		 */
 		@Nonnull
 		public CacheOptions build() {
 			return new CacheOptions(
 				this.reflection, this.enabled,
-				this.reevaluateEachSeconds,
-				this.anteroomRecordCount,
 				this.minimalComplexityThreshold,
-				this.minimalUsageThreshold,
-				this.cacheSizeInBytes
+				this.cacheSizeInBytes,
+				this.dropEntriesAfterSecondsOfInactivity,
+				this.verifyOneHitIn
 			);
 		}
 

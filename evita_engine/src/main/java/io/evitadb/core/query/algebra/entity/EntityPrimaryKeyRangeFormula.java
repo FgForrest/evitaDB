@@ -24,19 +24,17 @@
 package io.evitadb.core.query.algebra.entity;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.function.Consumer;
 
 /**
  * Formula that filters a superset bitmap to retain only primary keys within the inclusive range
@@ -50,7 +48,7 @@ import java.util.function.Consumer;
  */
 public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 	/**
-	 * Unique identifier of this formula used for hash computation.
+	 * Unique identifier of this formula used as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -4829176503281746519L;
 	/**
@@ -79,27 +77,6 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 		int to,
 		@Nonnull Formula superSetFormula
 	) {
-		super(null);
-		this.from = from;
-		this.to = to;
-		this.initFields(superSetFormula);
-	}
-
-	/**
-	 * Internal constructor accepting a computation callback for cache integration.
-	 *
-	 * @param computationCallback callback invoked after first computation (may be null)
-	 * @param from                inclusive lower bound
-	 * @param to                  inclusive upper bound
-	 * @param superSetFormula     the formula providing the full set of candidate primary keys
-	 */
-	private EntityPrimaryKeyRangeFormula(
-		@Nullable Consumer<CacheableFormula> computationCallback,
-		int from,
-		int to,
-		@Nonnull Formula superSetFormula
-	) {
-		super(computationCallback);
 		this.from = from;
 		this.to = to;
 		this.initFields(superSetFormula);
@@ -119,24 +96,6 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 
 	@Nonnull
 	@Override
-	public CacheableFormula getCloneWithComputationCallback(
-		@Nonnull Consumer<CacheableFormula> selfOperator,
-		@Nonnull Formula... innerFormulas
-	) {
-		Assert.isTrue(
-			innerFormulas.length == 1,
-			"Expected exactly one inner formula (superset)!"
-		);
-		return new EntityPrimaryKeyRangeFormula(
-			selfOperator,
-			this.from,
-			this.to,
-			innerFormulas[0]
-		);
-	}
-
-	@Nonnull
-	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isTrue(
 			innerFormulas.length == 1,
@@ -145,11 +104,11 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 		return new EntityPrimaryKeyRangeFormula(this.from, this.to, innerFormulas[0]);
 	}
 
+	/** Captures both inclusive bounds; the superset is represented by its child key. */
+	@Nonnull
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// manual combination avoids the long[] allocation of hashFunction.hashLongs;
-		// the nested `31L + hashCode(from)` breaks symmetry so that e.g. (0, 31) and (1, 0) do not collide
-		return 31L * (31L + Integer.hashCode(this.from)) + Integer.hashCode(this.to);
+	protected IdentityRecord identity() {
+		return new Identity(this.from, this.to);
 	}
 
 	@Override
@@ -214,5 +173,27 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 	@Override
 	public String toString() {
 		return "PK_RANGE[" + this.from + "," + this.to + "]";
+	}
+
+	/**
+	 * Detached inclusive bounds of the primary key range.
+	 *
+	 * @param from inclusive lower bound
+	 * @param to inclusive upper bound
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(int from, int to) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes each bound independently in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.from);
+			accumulator.add(this.to);
+		}
 	}
 }

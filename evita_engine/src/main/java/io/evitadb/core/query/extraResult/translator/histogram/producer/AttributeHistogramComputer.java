@@ -26,10 +26,15 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.identity.TokenList;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogram;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
-import io.evitadb.core.query.extraResult.translator.histogram.cache.FlattenedHistogramComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer.AttributeHistogramRequest;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -41,7 +46,6 @@ import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,30 +55,28 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.ToIntFunction;
-import java.util.stream.LongStream;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * DTO that aggregates all data necessary for computing histogram for single attribute.
  */
 public class AttributeHistogramComputer implements CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> {
+	/** Stable identifier of this histogram computation. */
+	private static final long CLASS_ID = -5650176810515329475L;
+	/** Detached key, built once on first demand. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	@Nullable private FormulaKey memoizedKey;
+
 	/**
 	 * Contains the name of the reference attribute.
 	 */
 	@Getter private final String attributeName;
 	/**
-	 * Contains reference to the lambda that needs to be executed THE FIRST time the histogram produced by this computer
-	 * instance is really computed (and memoized).
-	 */
-	private final Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> onComputationCallback;
-	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting. A null value means "no mandatory filter applies" — the histogram spans all records reachable through
 	 * the attribute indexes.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Nullable private final Formula filterFormula;
 	/**
 	 * Bucket count contains desired count of histogram columns=buckets. Output histogram bucket count must never exceed
@@ -90,45 +92,66 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	/**
 	 * Contains original {@link AttributeHistogramRequest} that was collected during query examination.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Nonnull @Getter private final AttributeHistogramRequest request;
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private final Long estimatedCost;
-	/**
-	 * Contains memoized value of {@link #getHash()} method.
-	 */
-	private final Long hash;
-	/**
-	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
-	 */
-	private final long[] transactionalIds;
-	/**
-	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
-	 */
-	private final Long transactionalIdHash;
 	/**
 	 * Execution context from initialization phase.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	protected QueryExecutionContext context;
 	/**
 	 * Contains memoized value of {@link #getCost()}  of this formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Long cost;
-	/**
-	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
-	 */
-	private Long costToPerformance;
 	/**
 	 * Contains bucket array that contains only entity primary keys that match the {@link #filterFormula}. The array
 	 * is initialized during {@link #compute()} method and result is memoized, so it's ensured it's computed only once.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private ValueToRecordBitmap[] memoizedNarrowedBuckets;
 	/**
 	 * Contains result - computed histogram. The value is initialized during {@link #compute()} method, and it is
 	 * memoized, so it's ensured it's computed only once.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private CacheableHistogramContract memoizedResult;
+
+	/** Returns the memoized detached computation key. */
+	@Nonnull
+	@Override
+	public FormulaKey getKey() {
+		if (this.memoizedKey == null) {
+			this.memoizedKey = FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+		}
+		return this.memoizedKey;
+	}
+
+	/** Returns this holder's stable class identifier. */
+	public long getClassId() {
+		return CLASS_ID;
+	}
+
+	/** Captures schema interpretation, canonical index versions and comparator provenance. */
+	@Nonnull
+	protected IdentityRecord identity() {
+		final List<FilterIndex> indexes = this.request.attributeIndexes();
+		final long[] ids = new long[indexes.size()];
+		for (int i = 0; i < ids.length; i++) {
+			ids[i] = indexes.get(i).getId();
+		}
+		return new Identity(
+			this.attributeName, this.filterFormula == null ? null : this.filterFormula.getKey(),
+			this.bucketCount, this.behavior, this.request.attributeSchema().getType().getName(),
+			this.request.getDecimalPlaces(), TokenList.ofProducerIds(ids, true),
+			this.request.comparator() == Comparator.naturalOrder() ? null : IdentityToken.OPAQUE
+		);
+	}
 
 	/**
 	 * Method creates instance of histogram data cruncher that computes optimal histogram for the attribute.
@@ -248,6 +271,9 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		return converter;
 	}
 
+	/**
+	 * Creates a histogram computer for the supplied request and filtering inputs.
+	 */
 	public AttributeHistogramComputer(
 		@Nonnull String attributeName,
 		@Nullable Formula filterFormula,
@@ -255,89 +281,18 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		@Nonnull HistogramBehavior behavior,
 		@Nonnull AttributeHistogramRequest request
 	) {
-		this(attributeName, null, filterFormula, bucketCount, behavior, request);
-	}
-
-	private AttributeHistogramComputer(
-		@Nonnull String attributeName,
-		@Nullable Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> onComputationCallback,
-		@Nullable Formula filterFormula,
-		int bucketCount,
-		@Nonnull HistogramBehavior behavior,
-		@Nonnull AttributeHistogramRequest request
-	) {
 		this.attributeName = attributeName;
-		this.onComputationCallback = onComputationCallback;
 		this.filterFormula = filterFormula;
 		this.bucketCount = bucketCount;
 		this.behavior = behavior;
 		this.request = request;
 
-		this.hash = HASH_FUNCTION.hashLongs(
-			LongStream.concat(
-				LongStream.of(
-					bucketCount,
-					behavior.ordinal(),
-					filterFormula == null ? 0L : filterFormula.getHash()
-				),
-				LongStream.of(
-					request.attributeIndexes()
-						.stream()
-						.mapToLong(FilterIndex::getId)
-						.sorted()
-						.toArray()
-				)
-			).toArray()
-		);
-		this.transactionalIds = LongStream.concat(
-			filterFormula == null ? LongStream.empty() : LongStream.of(filterFormula.gatherTransactionalIds()),
-			request.attributeIndexes()
-				.stream()
-				.mapToLong(FilterIndex::getId)
-		).toArray();
-		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
-			Arrays.stream(this.transactionalIds)
-				.distinct()
-				.sorted()
-				.toArray()
-		);
 		this.estimatedCost = (filterFormula == null ? 0L : filterFormula.getEstimatedCost()) +
 			getAttributeIndexes()
 				.stream()
 				.map(FilterIndex::getAllRecordsFormula)
 				.mapToLong(TransactionalDataRelatedStructure::getEstimatedCost)
 				.sum() * getOperationCost();
-	}
-
-	@Override
-	public FlattenedHistogramComputer toSerializableResult(long extraResultHash, @Nonnull LongHashFunction hashFunction) {
-		return new FlattenedHistogramComputer(
-			extraResultHash,
-			getHash(),
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray(),
-			Objects.requireNonNull(compute())
-		);
-	}
-
-	@Override
-	public int getSerializableResultSizeEstimate() {
-		return FlattenedHistogramComputer.estimateSize(
-			gatherTransactionalIds(),
-			compute()
-		);
-	}
-
-	@Nonnull
-	@Override
-	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(
-		@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator
-	) {
-		return new AttributeHistogramComputer(
-			this.attributeName, selfOperator, this.filterFormula, this.bucketCount, this.behavior, this.request
-		);
 	}
 
 	@Nonnull
@@ -351,22 +306,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		if (this.filterFormula != null) {
 			this.filterFormula.initialize(executionContext);
 		}
-	}
-
-	@Override
-	public long getHash() {
-		return this.hash;
-	}
-
-	@Override
-	public long getTransactionalIdHash() {
-		return this.transactionalIdHash;
-	}
-
-	@Nonnull
-	@Override
-	public long[] gatherTransactionalIds() {
-		return this.transactionalIds;
 	}
 
 	@Override
@@ -400,18 +339,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			case STANDARD, EQUALIZED, EQUALIZED_OPTIMIZED -> 2213;
 			case OPTIMIZED -> 3320;
 		};
-	}
-
-	@Override
-	public long getCostToPerformanceRatio() {
-		if (this.costToPerformance == null) {
-			if (this.memoizedResult == null) {
-				return Long.MAX_VALUE;
-			} else {
-				this.costToPerformance = getCost() / (getOperationCost() * this.bucketCount);
-			}
-		}
-		return this.costToPerformance;
 	}
 
 	@Nonnull
@@ -469,8 +396,6 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 					);
 				}
 			}
-
-			ofNullable(this.onComputationCallback).ifPresent(it -> it.accept(this));
 		}
 		return this.memoizedResult;
 	}
@@ -525,4 +450,46 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		return this.memoizedNarrowedBuckets;
 	}
 
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param attributeName output attribute name
+	 * @param filterFormula optional mandatory filtering key
+	 * @param bucketCount maximum requested bucket count
+	 * @param behavior histogram behavior
+	 * @param schemaType schema type name
+	 * @param indexedDecimalPlaces indexed decimal precision
+	 * @param attributeIndexes canonical filter-index versions
+	 * @param comparator null for natural order, opaque for a custom comparator
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		@Nonnull String attributeName,
+		@Nullable FormulaKey filterFormula,
+		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
+		@Nonnull String schemaType,
+		int indexedDecimalPlaces,
+		@Nonnull TokenList attributeIndexes,
+		@Nullable IdentityToken comparator
+	) implements IdentityRecord {
+		/** Returns the owning holder's identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.attributeName);
+			accumulator.add(this.filterFormula);
+			accumulator.add(this.bucketCount);
+			accumulator.add(this.behavior);
+			accumulator.add(this.schemaType);
+			accumulator.add(this.indexedDecimalPlaces);
+			accumulator.add(this.attributeIndexes);
+			accumulator.add(this.comparator);
+		}
+	}
 }

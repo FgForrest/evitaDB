@@ -23,13 +23,10 @@
 
 package io.evitadb.core.query.response;
 
-import io.evitadb.core.cache.CacheEden;
-import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
-import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
-import net.openhft.hashing.LongHashFunction;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 
 import javax.annotation.Nonnull;
 
@@ -40,62 +37,22 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface TransactionalDataRelatedStructure {
-	/**
-	 * Defines threshold that should trigger returning entire "index" transactional id instead of exact bitmap
-	 * transactional ids in method {@link #gatherTransactionalIds()}. Storing excessive amount of long ids would allocate
-	 * too much memory in {@link CacheEden} that is better invalidate less precisely on each index
-	 * change than to allocate a lot of memory for precise invalidation.
-	 */
-	int EXCESSIVE_HIGH_CARDINALITY = 100;
-	/**
-	 * The hash function to use for hash calculation.
-	 */
-	LongHashFunction HASH_FUNCTION = CacheSupervisor.createHashFunction();
+
+	/** Returns the detached identity. */
+	@Nonnull
+	FormulaKey getKey();
 
 	/**
-	 * Initializes internal ids and cost estimations. This method is necessary to be called prior to calling any of
-	 * these methods:
+	 * Prepares the structure for the given query execution: an implementation binds the execution context and
+	 * initializes the structures it delegates to, where it has any. This method is necessary to be called prior to
+	 * calling any of these methods:
 	 *
-	 * - {@link #getHash()}
-	 * - {@link #getTransactionalIdHash()}
 	 * - {@link #getEstimatedCost()}
 	 * - {@link #getCost()}
-	 * - {@link #getCostToPerformanceRatio()}
 	 *
 	 * @param queryExecutionContext context of the query execution
 	 */
 	void initialize(@Nonnull QueryExecutionContext queryExecutionContext);
-
-	/**
-	 * Hash identifies the formula and it's contents. The hash must be different for formulas with logically different
-	 * contents (we are going to rely on some hash function with low rate of collisions) and must be equal with another
-	 * formula instance that has logically same contents. For example these formulas must return same hash:
-	 *
-	 * 1. and(eq(name,'Jan'),greaterThanEq(age,18))
-	 * 2. and(eq(name,'Jan'),greaterThanEq(age,18))
-	 *
-	 * But these must return different hashes:
-	 *
-	 * 1. and(eq(name,'Jan'),greaterThanEq(age,18))
-	 * 2. or(eq(name,'Jan'),greaterThanEq(age,18))
-	 */
-	long getHash();
-
-	/**
-	 * Transactional id hash is a has computed from the output of {@link #gatherTransactionalIds()}. The hash must be
-	 * computed from distinct, sorted transactional ids of all transactional data sources (bitmaps / indexes). The hash
-	 * must be same for two formula/computer instances that build from same sources and must differ for formula instance
-	 * that has at least single difference in the array contents (we are going to rely on some hash function with low
-	 * rate of collisions).
-	 */
-	long getTransactionalIdHash();
-
-	/**
-	 * Returns {@link TransactionalLayerCreator#getId()} of all bitmaps used by this formula. Should any of those ids
-	 * become obsolete the formula is also obsolete. The returned array may contain duplicates and may not be sorted.
-	 */
-	@Nonnull
-	long[] gatherTransactionalIds();
 
 	/**
 	 * Estimated effort of the operation without prior the result of the computation. From bottom to up it's getting less
@@ -116,13 +73,5 @@ public interface TransactionalDataRelatedStructure {
 	 * compared to simple no operation formula that just rewrites all number to a new bitmap.
 	 */
 	long getOperationCost();
-
-	/**
-	 * Returns cost to performance ratio. Default implementation is sums cost to performance ratio of all inner formulas
-	 * and adds ratio of this operation that is computed as ratio of its cost to output bitmap size. I.e. when large
-	 * bitmap is greatly reduced to a small one, this ratio gets bigger and thus caching output of this formula saves
-	 * more resources than caching outputs of formulas with lesser ratio.
-	 */
-	long getCostToPerformanceRatio();
 
 }

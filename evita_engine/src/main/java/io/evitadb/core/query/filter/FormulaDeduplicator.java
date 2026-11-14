@@ -25,99 +25,72 @@ package io.evitadb.core.query.filter;
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 /**
- * This class is responsible for deduplicating formulas to optimize calculation performance by reusing memoized results.
- * In other words, existing instance can be reused on multiple places.
+ * Merges formulas that compute the same result over the same data into one instance, so a result memoized on that
+ * instance is reused wherever the computation occurs. Formulas merge when their {@link FormulaKey keys} are equal; an
+ * opaque key equals only its own holder, so a formula with one merges with no other formula.
+ *
+ * The first formula completed with a key becomes its canonical instance. A later formula whose key is interned already
+ * is replaced by the canonical instance before its inner formulas are visited. Any other formula is interned after its
+ * inner formulas, so it is first rebuilt over their canonical instances.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class FormulaDeduplicator extends FormulaCloner implements FormulaPostProcessor {
-	/**
-	 * Reference to the original unchanged {@link Formula}.
-	 */
-	private Formula originalFormula;
-	/**
-	 * Flag indicating that at least one formula was deduplicated.
-	 */
-	private boolean deduplicationHappened = false;
+	/** Original tree, also returned when the cloner has not been visited yet. */
+	private final Formula originalFormula;
+	/** Canonical instances, indexed by their detached computation keys. */
+	private final Map<FormulaKey, Formula> formulaCache = CollectionUtils.createHashMap(64);
 
+	/**
+	 * Creates a deduplicator for one tree, which it returns unchanged until it has visited the tree.
+	 *
+	 * @param originalFormula the tree to deduplicate
+	 */
 	public FormulaDeduplicator(@Nonnull Formula originalFormula) {
-		super(new Deduplicator());
+		super(formula -> formula);
 		this.originalFormula = originalFormula;
 	}
 
 	@Nonnull
 	@Override
 	public Formula getPostProcessedFormula() {
-		final Formula result;
-		if (this.deduplicationHappened) {
-			result = getResultClone();
-		} else {
-			result = this.originalFormula;
-		}
-		((Deduplicator)this.mutator).clear();
-		this.deduplicationHappened = false;
-		return result;
+		final Formula result = getResultClone();
+		this.formulaCache.clear();
+		return result == null ? this.originalFormula : result;
 	}
 
 	/**
-	 * This implementation of the {@link BiFunction} interface detects whether particular formula was already observed
-	 * in the formula tree and can be thus deduplicated - i.e. existing instance can be reused on multiple places.
-	 * This deduplication optimizes the final calculation performance by allowing to reuse the memoized result of
-	 * the formula on different places of the tree.
-	 *
-	 * Two formulas are the same only when both their hash and their transactional id hash match: the hash describes
-	 * the computation, the transactional ids the data it reads. Structurally equal formulas over different indexes -
-	 * the hierarchy nodes from the roots of the live and of the archived tree - share the hash but read different
-	 * data, and replacing one with the other would silently drop what the other selects.
+	 * Replaces a formula whose key is interned already by the canonical instance, so the subtree of a duplicate is
+	 * neither visited nor rebuilt. A visit would reach the same instance: a canonical instance has distinct canonical
+	 * children, so a formula with its key keeps every child when the children are interned, and its rebuild carries
+	 * the same key.
 	 */
-	private static class Deduplicator implements BiFunction<FormulaCloner, Formula, Formula> {
-		/**
-		 * Cache of formulas.
-		 */
-		private final Map<FormulaIdentity, Formula> formulaCache = CollectionUtils.createHashMap(64);
+	@Nonnull
+	@Override
+	protected Formula preProcess(@Nonnull Formula formula) {
+		final Formula canonicalFormula = this.formulaCache.get(formula.getKey());
+		return canonicalFormula == null ? formula : canonicalFormula;
+	}
 
-		@Override
-		public Formula apply(FormulaCloner formulaCloner, Formula formula) {
-			final FormulaDeduplicator clonerInstance = (FormulaDeduplicator) formulaCloner;
-			if (clonerInstance.originalFormula == null) {
-				clonerInstance.originalFormula = formula;
-			}
-			final Formula existingFormula = this.formulaCache.putIfAbsent(
-				new FormulaIdentity(formula.getHash(), formula.getTransactionalIdHash()), formula
-			);
-			if (existingFormula != null) {
-				clonerInstance.deduplicationHappened = true;
-				return existingFormula;
-			} else {
-				// include the original formula
-				return formula;
-			}
+	/**
+	 * Interns the formula after the cloner has rebuilt it over canonical children. Key equality includes the
+	 * computation and its data sources; opaque holders remain distinct through the key's instance-bound equality.
+	 */
+	@Nonnull
+	@Override
+	protected Formula postProcess(@Nonnull Formula formula) {
+		final Formula existingFormula = this.formulaCache.putIfAbsent(formula.getKey(), formula);
+		if (existingFormula != null) {
+			return existingFormula;
 		}
-
-		/**
-		 * Clears the formula cache.
-		 */
-		void clear() {
-			this.formulaCache.clear();
-		}
-
-		/**
-		 * Identity of a formula for deduplication purposes.
-		 *
-		 * @param hash                hash of the computation, see {@link Formula#getHash()}
-		 * @param transactionalIdHash hash of the data the computation reads, see
-		 *                            {@link Formula#getTransactionalIdHash()}
-		 */
-		private record FormulaIdentity(long hash, long transactionalIdHash) {
-		}
-
+		return formula;
 	}
 }

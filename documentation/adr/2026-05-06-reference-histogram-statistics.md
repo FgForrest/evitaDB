@@ -1,7 +1,7 @@
 ---
 title: Expose reference histograms via ReferenceSummary plus a first-class histogramHaving constraint, with group-scoped baseline relaxation
 date: 2026-05-06
-updated: 2026-07-31 12:00
+updated: 2026-11-14 00:50
 status: accepted
 kind: feature
 issues: [8]
@@ -9,7 +9,7 @@ prs: [1136, 1150]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/extraResult, evita_engine/src/main/java/io/evitadb/core/query/algebra/filter, evita_query/src/main/java/io/evitadb/api/query/filter]
 supersedes: []
 superseded-by: []
-relates: [2026-04-23-bucketed-histogram-indexing, 2026-05-27-range-and-multi-histogram-schema]
+relates: [2026-04-23-bucketed-histogram-indexing, 2026-05-27-range-and-multi-histogram-schema, 2026-11-14-formula-cache-redesign]
 ---
 
 # Expose reference histograms via ReferenceSummary, with a dedicated histogramHaving constraint

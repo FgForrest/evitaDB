@@ -23,20 +23,18 @@
 
 package io.evitadb.core.query.algebra;
 
-import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
-import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.bitmap.SortedArrayBitmap;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -59,91 +57,65 @@ public abstract class AbstractFormula implements Formula {
 	/**
 	 * Execution context from initialization phase.
 	 */
-	protected QueryExecutionContext executionContext;
+	@IdentityExempt(IdentityExempt.Reason.STATE) protected QueryExecutionContext executionContext;
 	/**
 	 * Contains an array of inner formulas.
 	 */
-	@Getter protected Formula[] innerFormulas;
+	@IdentityExempt(IdentityExempt.Reason.STATE) @Getter protected Formula[] innerFormulas;
 	/**
 	 * Contains a memoized result once {@link #computeInternal()} is invoked for the first time. Additional calls of
 	 * {@link Formula#compute()} will return this memoized result without paying the computational costs
 	 */
-	@Nullable protected Bitmap memoizedResult;
+	@IdentityExempt(IdentityExempt.Reason.STATE) @Nullable protected Bitmap memoizedResult;
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
-	private long estimatedCost;
+	@IdentityExempt(IdentityExempt.Reason.STATE) private long estimatedCost;
 	/**
 	 * Contains memoized value of {@link #getCost()} of this formula. Valid only when {@link #costComputed} is TRUE.
 	 */
-	private long cost;
+	@IdentityExempt(IdentityExempt.Reason.STATE) private long cost;
 	/**
 	 * TRUE once {@link #cost} holds a computed value. The flag is needed because {@link #getCostInternal()}
 	 * accumulates inner costs without an overflow guard and may therefore produce any `long` - including one that
 	 * would be indistinguishable from a sentinel.
 	 */
-	private boolean costComputed;
-	/**
-	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula. Valid only when
-	 * {@link #costToPerformanceComputed} is TRUE.
-	 */
-	private long costToPerformance;
-	/**
-	 * TRUE once {@link #costToPerformance} holds a computed value - see {@link #costComputed} for why this is a flag
-	 * and not a sentinel value.
-	 */
-	private boolean costToPerformanceComputed;
-	/**
-	 * Contains memoized value of {@link #getHash()} method.
-	 */
-	private long hash;
-	/**
-	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
-	 *
-	 * This field is also what tells an initialized formula from an uninitialized one. The other three values
-	 * {@link #initFields(Formula...)} assigns - {@link #hash}, {@link #transactionalIdHash} and
-	 * {@link #estimatedCost} - are primitives and cannot carry a not-yet-assigned state of their own, so every
-	 * initialization check reads this one reference instead. It is assigned in the middle of `initFields`, after
-	 * the hash and before the two values derived from it, and the formula is unreachable by anything but
-	 * `initFields` itself until that method returns.
-	 */
-	private long[] transactionalIds;
-	/**
-	 * Contains memoized value of {@link #getTransactionalIdHash()} method.
-	 */
-	private long transactionalIdHash;
+	@IdentityExempt(IdentityExempt.Reason.STATE) private boolean costComputed;
 
 	/**
-	 * Returns the token that identifies `bitmap` for cache-keying and staleness purposes, in the one place both the
-	 * key and the token set are derived from - so the two can never disagree about what a bitmap operand is.
+	 * Detached identity, built on the first {@link #getKey()} call and never invalidated afterwards.
 	 *
-	 * Three cases, in order of how much identity the bitmap carries:
-	 *
-	 * - a {@link TransactionalLayerProducer} owns a transactional id, and that id is the token;
-	 * - a {@link SortedArrayBitmap} stamped with an owner is a read-only view built per read over storage somebody
-	 *   else holds, so the token combines that owner's identity with the CONTENTS - the owner tells two structures
-	 *   holding equal record sets apart, the contents catch a change to the set;
-	 * - anything else is identified by its contents alone.
-	 *
-	 * A content hash is a legitimate token here: the cache validates a hit by comparing the HASH of the whole token
-	 * set (see {@code CacheEden}), never by resolving an individual token back to an object.
-	 *
-	 * @param bitmap       the bitmap operand to identify
-	 * @param hashFunction the hash function to fold contents with
-	 * @return the identifying token
+	 * The field is plain rather than volatile: threads that request the first key at the same time may each build one,
+	 * and all of them are equal, because they are derived from the same inputs and {@link FormulaKey} publishes its
+	 * state through final fields. {@link #clearMemory()} deliberately leaves the key in place - it drops the computed
+	 * result and cost, while the key describes construction-time inputs and child keys. An ancestor therefore keeps
+	 * the key it built first, even if a child mutated in place would describe itself differently afterwards.
 	 */
-	protected static long bitmapIdentityToken(@Nonnull Bitmap bitmap, @Nonnull LongHashFunction hashFunction) {
-		if (bitmap instanceof final TransactionalLayerProducer<?, ?> producer) {
-			return producer.getId();
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	@Nullable private FormulaKey memoizedKey;
+
+	/** Returns the detached identity built from declared inputs and ordered child keys, memoized on the first call. */
+	@Nonnull
+	@Override
+	public final FormulaKey getKey() {
+		final FormulaKey key = this.memoizedKey;
+		if (key != null) {
+			return key;
 		}
-		if (bitmap instanceof final SortedArrayBitmap arrayView
-			&& arrayView.getOwnerId() != SortedArrayBitmap.NO_OWNER) {
-			return hashFunction.hashLongs(
-				new long[]{arrayView.getOwnerId(), bitmap.getContentHash(hashFunction)}
-			);
+		final IdentityRecord identity = identity();
+		final FormulaKey[] children = this.innerFormulas.length == 0 ?
+			FormulaKey.NO_CHILDREN : new FormulaKey[this.innerFormulas.length];
+		for (int i = 0; i < children.length; i++) {
+			children[i] = this.innerFormulas[i].getKey();
 		}
-		return bitmap.getContentHash(hashFunction);
+		final FormulaKey computedKey = FormulaKey.of(identity, getClassId(), children, this);
+		this.memoizedKey = computedKey;
+		return computedKey;
 	}
+
+	/** Returns the declared identity components. */
+	@Nonnull
+	protected abstract IdentityRecord identity();
 
 	/**
 	 * Initializes the fields of this formula. This method is called from the constructor and should be used to
@@ -156,22 +128,6 @@ public abstract class AbstractFormula implements Formula {
 	protected void initFields(@Nonnull Formula... innerFormulas) {
 		this.innerFormulas = innerFormulas;
 
-		// build hash array: [classId, innerFormulaHashes..., additionalHash]
-		final int formulaCount = innerFormulas.length;
-		final long[] hashArray = new long[formulaCount + 2];
-		hashArray[0] = getClassId();
-		for (int i = 0; i < formulaCount; i++) {
-			hashArray[i + 1] = innerFormulas[i].getHash();
-		}
-		hashArray[formulaCount + 1] = includeAdditionalHash(HASH_FUNCTION);
-		if (!isFormulaOrderSignificant()) {
-			// sort only the inner formula hash portion [1, formulaCount+1)
-			Arrays.sort(hashArray, 1, formulaCount + 1);
-		}
-		this.hash = HASH_FUNCTION.hashLongs(hashArray);
-
-		this.transactionalIds = sortAndDeduplicateLongArray(gatherBitmapIdsInternal());
-		this.transactionalIdHash = HASH_FUNCTION.hashLongs(this.transactionalIds);
 		this.estimatedCost = getEstimatedCostInternal();
 	}
 
@@ -184,27 +140,11 @@ public abstract class AbstractFormula implements Formula {
 	}
 
 	@Override
-	public final long getHash() {
-		Assert.isPremiseValid(this.transactionalIds != null, "The formula must be initialized prior to calling getHash().");
-		return this.hash;
-	}
-
-	@Override
-	public long getTransactionalIdHash() {
-		Assert.isPremiseValid(this.transactionalIds != null, "The formula must be initialized prior to calling getTransactionalIdHash().");
-		return this.transactionalIdHash;
-	}
-
-	@Nonnull
-	@Override
-	public final long[] gatherTransactionalIds() {
-		Assert.isPremiseValid(this.transactionalIds != null, "The formula must be initialized prior to calling gatherTransactionalIds().");
-		return this.transactionalIds;
-	}
-
-	@Override
 	public long getEstimatedCost() {
-		Assert.isPremiseValid(this.transactionalIds != null, "The formula must be initialized prior to calling getEstimatedCost().");
+		Assert.isPremiseValid(
+			this.innerFormulas != null,
+			"The formula must be initialized prior to calling getEstimatedCost()."
+		);
 		return this.estimatedCost;
 	}
 
@@ -232,19 +172,6 @@ public abstract class AbstractFormula implements Formula {
 	}
 
 	@Override
-	public final long getCostToPerformanceRatio() {
-		if (!this.costToPerformanceComputed) {
-			if (this.memoizedResult == null) {
-				return Long.MAX_VALUE;
-			} else {
-				this.costToPerformance = getCostToPerformanceInternal();
-				this.costToPerformanceComputed = true;
-			}
-		}
-		return this.costToPerformance;
-	}
-
-	@Override
 	public void accept(@Nonnull FormulaVisitor visitor) {
 		visitor.visit(this);
 	}
@@ -266,11 +193,17 @@ public abstract class AbstractFormula implements Formula {
 		return this.memoizedResult;
 	}
 
+	/** Restores a retained result and records that this node performed no computation. */
+	protected final void restoreComputedResult(@Nonnull Bitmap result) {
+		this.memoizedResult = result;
+		this.cost = 0;
+		this.costComputed = true;
+	}
+
 	@Override
 	public void clearMemory() {
 		this.memoizedResult = null;
 		this.costComputed = false;
-		this.costToPerformanceComputed = false;
 	}
 
 	@Nonnull
@@ -283,42 +216,6 @@ public abstract class AbstractFormula implements Formula {
 	@Override
 	public String toStringVerbose() {
 		return toString();
-	}
-
-	/**
-	 * Method signalizes whether the {@link #innerFormulas} order is significant in this formula. Usually the order
-	 * is not significant, and we want to order the hashes by their value to avoid different hashes for formula
-	 * combinations like: A AND B, B AND A which produce same result, but would have different hashes if we dont reorder
-	 * the inner formula hashes. On the contrary the formula A NOT B cannot be reordered to B NOT A, because these
-	 * expressions produce different output.
-	 *
-	 * @return `true` if the order of inner formulas affects the result, `false` otherwise
-	 */
-	protected boolean isFormulaOrderSignificant() {
-		return false;
-	}
-
-	/**
-	 * Returns {@link TransactionalLayerCreator#getId()} of all bitmaps used by this formula. Should any of those ids
-	 * become obsolete the formula is also obsolete. The returned array may contain duplicates and may not be sorted.
-	 *
-	 * @return array of transactional bitmap ids collected from all inner formulas
-	 */
-	@Nonnull
-	protected long[] gatherBitmapIdsInternal() {
-		final long[][] allIds = new long[this.innerFormulas.length][];
-		int totalLength = 0;
-		for (int i = 0; i < this.innerFormulas.length; i++) {
-			allIds[i] = this.innerFormulas[i].gatherTransactionalIds();
-			totalLength += allIds[i].length;
-		}
-		final long[] result = new long[totalLength];
-		int offset = 0;
-		for (final long[] ids : allIds) {
-			System.arraycopy(ids, 0, result, offset, ids.length);
-			offset += ids.length;
-		}
-		return result;
 	}
 
 	/**
@@ -357,20 +254,9 @@ public abstract class AbstractFormula implements Formula {
 	}
 
 	/**
-	 * Returns a long hash, that should be computed by {@link CacheSupervisor#createHashFunction()} and covers all
-	 * additional internal data that affect the output of {@link Formula#compute()} method and are not part
-	 * {@link #getInnerFormulas()}. The {@link #getInnerFormulas()} are implicitly part of the hash and should not be
-	 * covered by this method.
-	 *
-	 * @param hashFunction the hash function to use for computing the hash
-	 * @return hash value covering this formula's additional internal state
-	 */
-	protected abstract long includeAdditionalHash(@Nonnull LongHashFunction hashFunction);
-
-	/**
 	 * Returns a long constant, that uniquely distinguishes this class from the others. The number must not change in
 	 * time for the same class. The number must not be inherited from the superclasses and must be implemented and return
-	 * different numbers for each "leaf class". This number is important part of {@link #getHash()} method.
+	 * different numbers for each "leaf class". This number discriminates the class in its {@link FormulaKey}.
 	 *
 	 * @return unique class identifier constant
 	 */
@@ -392,44 +278,6 @@ public abstract class AbstractFormula implements Formula {
 			sizeSum += innerFormula.compute().size();
 		}
 		return costSum + sizeSum * getOperationCost();
-	}
-
-	/**
-	 * Returns cost-to-performance ratio. Default implementation sums the cost-to-performance ratio of all inner
-	 * formulas and adds the ratio of this operation computed as `getCost() / compute().size()`. When a large bitmap
-	 * is greatly reduced to a small one, this ratio grows — caching such a formula saves more resources than caching
-	 * formulas with a lower ratio.
-	 *
-	 * @return accumulated cost-to-performance ratio for this formula and its children
-	 */
-	protected long getCostToPerformanceInternal() {
-		long sum = 0;
-		for (final Formula innerFormula : this.innerFormulas) {
-			sum += innerFormula.getCostToPerformanceRatio();
-		}
-		return sum + (getCost() / Math.max(1, compute().size()));
-	}
-
-	/**
-	 * Sorts the given long array in place and removes duplicate values, returning the deduplicated result.
-	 * The input array is sorted as a side effect. Callers that need the original order must clone before calling.
-	 *
-	 * @param input the array to sort and deduplicate (modified in place)
-	 * @return the deduplicated array — either the same instance or a trimmed copy
-	 */
-	@Nonnull
-	protected static long[] sortAndDeduplicateLongArray(@Nonnull long[] input) {
-		if (input.length <= 1) {
-			return input;
-		}
-		Arrays.sort(input);
-		int unique = 1;
-		for (int i = 1; i < input.length; i++) {
-			if (input[i] != input[i - 1]) {
-				input[unique++] = input[i];
-			}
-		}
-		return unique == input.length ? input : Arrays.copyOf(input, unique);
 	}
 
 	/**
@@ -512,26 +360,6 @@ public abstract class AbstractFormula implements Formula {
 			}
 		}
 		return cost;
-	}
-
-	/**
-	 * Computes the accumulated cost-to-performance ratio of a conjunction operation over pre-sorted formulas,
-	 * short-circuiting on empty results. Callers should add their own
-	 * `getCost() / Math.max(1, compute().size())` tail term.
-	 *
-	 * @param sortedFormulas formulas sorted by ascending estimated cost
-	 * @return accumulated cost-to-performance ratio from inner formulas
-	 */
-	protected static long computeSortedConjunctionCostToPerformance(@Nonnull List<Formula> sortedFormulas) {
-		long costToPerformance = 0L;
-		for (final Formula innerFormula : sortedFormulas) {
-			final Bitmap innerResult = innerFormula.compute();
-			if (innerResult.isEmpty()) {
-				break;
-			}
-			costToPerformance += innerFormula.getCostToPerformanceRatio();
-		}
-		return costToPerformance;
 	}
 
 	/**

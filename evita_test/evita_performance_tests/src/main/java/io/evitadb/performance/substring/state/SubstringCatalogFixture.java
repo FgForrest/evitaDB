@@ -24,6 +24,7 @@
 package io.evitadb.performance.substring.state;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
@@ -91,7 +92,7 @@ import static io.evitadb.performance.substring.state.SubstringCorpus.PRODUCT;
  * # Cost control
  *
  * Building a hundred-thousand-entity catalog costs tens of seconds and JMH instantiates a fresh `@State` per
- * parameter combination, so the booted instances live in a **static** holder keyed by arm, size and cache mode. Under
+ * parameter combination, so the booted instances live in a **static** holder keyed by arm and size. Under
  * JMH's default forking every parameter combination gets its own JVM and the holder amortises only within it (which
  * is still worth having, since a benchmark class with several `@Benchmark` methods shares one fixture); under `-f 0`
  * the whole matrix runs in one JVM and the holder is what makes that affordable.
@@ -119,7 +120,7 @@ public final class SubstringCatalogFixture {
 	private static final AtomicBoolean SHUTDOWN_HOOK_REGISTERED = new AtomicBoolean();
 
 	/**
-	 * What this fixture is - arm, corpus size and cache mode.
+	 * Identifies this fixture by its index arm and corpus size.
 	 */
 	@Nonnull private final FixtureKey key;
 
@@ -187,18 +188,16 @@ public final class SubstringCatalogFixture {
 	 *
 	 * @param arm         which schema the attribute is declared with
 	 * @param entityCount how many entities - and distinct values - the catalog holds
-	 * @param cacheMode   whether the instance runs the formula cache
 	 * @return the shared fixture
 	 */
 	@Nonnull
 	public static SubstringCatalogFixture obtain(
 		@Nonnull SubstringIndexArm arm,
-		int entityCount,
-		@Nonnull SubstringCacheMode cacheMode
+		int entityCount
 	) {
 		registerShutdownHook();
 		return FIXTURES.computeIfAbsent(
-			new FixtureKey(arm, entityCount, cacheMode),
+			new FixtureKey(arm, entityCount),
 			SubstringCatalogFixture::build
 		);
 	}
@@ -313,7 +312,7 @@ public final class SubstringCatalogFixture {
 						.storageDirectory(storageDirectory)
 						.build()
 				)
-				.cache(key.cacheMode().toCacheOptions())
+				.cache(CacheOptions.builder().enabled(false).build())
 				.build()
 		);
 		evita.defineCatalog(CATALOG_NAME);
@@ -566,17 +565,15 @@ public final class SubstringCatalogFixture {
 	 *
 	 * @param arm         which schema the benchmarked attribute is declared with
 	 * @param entityCount how many entities - and distinct values - the catalog holds
-	 * @param cacheMode   whether the instance runs the formula cache
 	 */
 	public record FixtureKey(
 		@Nonnull SubstringIndexArm arm,
-		int entityCount,
-		@Nonnull SubstringCacheMode cacheMode
+		int entityCount
 	) {
 
 		@Override
 		public String toString() {
-			return this.arm + "/" + this.entityCount + "/cache-" + this.cacheMode;
+			return this.arm + "/" + this.entityCount;
 		}
 
 	}

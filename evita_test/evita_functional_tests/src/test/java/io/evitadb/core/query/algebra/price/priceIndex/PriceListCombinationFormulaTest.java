@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.price.priceIndex;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
@@ -48,7 +49,7 @@ import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link PriceListCombinationFormula} verifying NOT-like subtraction semantics,
- * caching, hashing, and price list metadata.
+ * key identity and price list metadata.
  *
  * @author evitaDB
  */
@@ -120,17 +121,6 @@ class PriceListCombinationFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should expose price evaluation context")
-		void shouldExposePriceEvaluationContext() {
-			final PriceListCombinationFormula formula = createFormula(
-				"subtracted", "superset",
-				new int[]{1}, new int[]{1, 2}
-			);
-
-			assertSame(DEFAULT_CONTEXT, formula.getPriceEvaluationContext());
-		}
-
-		@Test
 		@DisplayName("should return combined price list names")
 		void shouldReturnCombinedPriceListNames() {
 			final PriceListCombinationFormula formula = createFormula(
@@ -163,8 +153,8 @@ class PriceListCombinationFormulaTest {
 	class CloningTest {
 
 		@Test
-		@DisplayName("should preserve price list names and context in clone")
-		void shouldPreservePriceListNamesAndContextInClone() {
+		@DisplayName("should preserve price list names in clone")
+		void shouldPreservePriceListNamesInClone() {
 			final PriceListCombinationFormula original = createFormula(
 				"vip", "basic",
 				new int[]{1}, new int[]{1, 2, 3}
@@ -178,17 +168,22 @@ class PriceListCombinationFormulaTest {
 			final PriceListCombinationFormula typedClone = (PriceListCombinationFormula) clone;
 			assertEquals("vip", typedClone.getSubtractedPriceListName());
 			assertEquals("basic", typedClone.getPriceListName());
-			assertSame(DEFAULT_CONTEXT, typedClone.getPriceEvaluationContext());
 		}
 	}
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism")
-	class HashDeterminismTest {
+	@DisplayName("Key determinism")
+	class KeyDeterminismTest {
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce identical hash for identical construction")
-		void shouldProduceIdenticalHashForIdenticalConstruction() {
+		@DisplayName("should produce identical key for identical construction")
+		void shouldProduceIdenticalKeyForIdenticalConstruction() {
 			final PriceListCombinationFormula a = createFormula(
 				"sub", "super",
 				new int[]{1, 2}, new int[]{1, 2, 3}
@@ -198,27 +193,33 @@ class PriceListCombinationFormulaTest {
 				new int[]{1, 2}, new int[]{1, 2, 3}
 			);
 
-			assertEquals(a.getHash(), b.getHash());
+			assertEquals(a.getKey(), b.getKey());
 		}
 	}
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash sensitivity")
-	class HashSensitivityTest {
+	@DisplayName("Key sensitivity")
+	class KeySensitivityTest {
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different inner data")
-		void shouldProduceDifferentHashForDifferentInnerData() {
-			final long hashA = createFormula(
+		@DisplayName("should produce different key for different inner data")
+		void shouldProduceDifferentKeyForDifferentInnerData() {
+			final FormulaKey keyA = createFormula(
 				"sub", "super",
 				new int[]{1, 2}, new int[]{1, 2, 3}
-			).getHash();
-			final long hashB = createFormula(
+			).getKey();
+			final FormulaKey keyB = createFormula(
 				"sub", "super",
 				new int[]{4, 5}, new int[]{4, 5, 6}
-			).getHash();
+			).getKey();
 
-			assertNotEquals(hashA, hashB);
+			assertNotEquals(keyA, keyB);
 		}
 	}
 
@@ -226,18 +227,19 @@ class PriceListCombinationFormulaTest {
 	@DisplayName("Class ID difference")
 	class ClassIdDifferenceTest {
 
+		/** Distinguishes price-list combinations from ordinary subtraction over the same children. */
 		@Test
-		@DisplayName("should have different hash than NotFormula with same children")
-		void shouldHaveDifferentHashThanNotFormulaWithSameChildren() {
+		@DisplayName("should have different key than NotFormula with same children")
+		void shouldHaveDifferentKeyThanNotFormulaWithSameChildren() {
 			final Formula subtracted = createConstantFormula(1, 2);
 			final Formula superset = createConstantFormula(1, 2, 3, 4);
 
-			final long notFormulaHash = new NotFormula(subtracted, superset).getHash();
-			final long priceListComboHash = new PriceListCombinationFormula(
+			final FormulaKey notFormulaKey = new NotFormula(subtracted, superset).getKey();
+			final FormulaKey priceListComboKey = new PriceListCombinationFormula(
 				"sub", "super", DEFAULT_CONTEXT, subtracted, superset
-			).getHash();
+			).getKey();
 
-			assertNotEquals(notFormulaHash, priceListComboHash);
+			assertNotEquals(notFormulaKey, priceListComboKey);
 		}
 	}
 

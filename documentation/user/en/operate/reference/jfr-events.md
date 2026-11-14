@@ -40,15 +40,6 @@
   <dd>Event that is fired in regular intervals capturing base statistics of CDC per entity type.</dd>
 </dl>
 
-#### Cache
-
-<dl>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cache/AnteroomRecordStatisticsUpdatedEvent.java</SourceClass> Anteroom statistics updated</dt>
-  <dd>Event that is fired periodically to update statistics about records waiting in the anteroom.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cache/AnteroomWastedEvent.java</SourceClass> Anteroom wasted</dt>
-  <dd>Event that is fired when the entire contents of an anteroom have been discarded.</dd>
-</dl>
-
 #### ExternalAPI / GraphQL / Request
 
 <dl>
@@ -68,6 +59,15 @@
 <dl>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/rest/metric/event/request/ExecutedEvent.java</SourceClass> REST request executed</dt>
   <dd>Event that is fired when a REST request is executed.</dd>
+</dl>
+
+#### Formula cache
+
+<dl>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cache/FormulaCacheMismatchEvent.java</SourceClass> Formula cache mismatch</dt>
+  <dd>A cached result differed from its independent recomputation.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cache/FormulaCacheStatisticsEvent.java</SourceClass> Formula cache statistics</dt>
+  <dd>Formula result cache counter deltas and current gauges.</dd>
 </dl>
 
 #### Query
@@ -106,8 +106,7 @@
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/DataFileCompactEvent.java</SourceClass> OffsetIndex compaction</dt>
   <dd>Event that is fired when an OffsetIndex file is compacted.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/ObservableOutputChangeEvent.java</SourceClass> Shared frame buffers</dt>
-  <dd>Reports JVM-wide frame buffer allocations and drops. Counts and memory include borrowed and idle arrays
-  across all engines and catalogs.</dd>
+  <dd>Event reporting frame buffer allocations and drops across all engines and catalogs.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/OffsetIndexFlushEvent.java</SourceClass> OffsetIndex flushed to disk</dt>
   <dd>Event that is fired when an OffsetIndex file is flushed.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/OffsetIndexHistoryKeptEvent.java</SourceClass> OffsetIndex last record kept</dt>

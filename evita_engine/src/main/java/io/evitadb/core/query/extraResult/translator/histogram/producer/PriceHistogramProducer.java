@@ -32,7 +32,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
-import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
@@ -48,7 +47,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.Collection;
 import java.util.function.Predicate;
 
 import static java.util.Optional.ofNullable;
@@ -110,7 +108,8 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 		// use: this producer never substitutes a baseline for the filter. The computer below always receives the
 		// genuine `filteringFormula`, and the relaxed tree only ever *widens* it, so an unsatisfiable filter already
 		// yields an empty histogram that `fabricate` drops. Folding both relaxation outcomes onto one value here
-		// therefore changes no answer, and keeps the supplementation check in `getPriceHistogramComputer` intact.
+		// therefore changes no answer, and keeps the supplementation check in the `PriceHistogramComputer`
+		// constructor intact.
 		final Formula relaxedBaseline = UserFilterRelaxer.relax(
 			this.filteringFormula, RangeCarrierGroup.PRICE_HISTOGRAM
 		).orElse(EmptyFormula.INSTANCE);
@@ -129,38 +128,18 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 	}
 
 	/**
-	 * Wires the {@link PriceHistogramComputer} with the original {@link #filteringFormula} plus an
-	 * optional supplementation formula that widens the histogram range beyond the user's price
-	 * slider. The supplementation is set to `null` when `relaxedBaseline` is the same reference
-	 * (no price-between carriers to peel) or {@link EmptyFormula#INSTANCE} (whole tree collapsed);
-	 * otherwise the relaxed tree is passed through.
-	 *
-	 * The {@link FilteredPriceRecordAccessor} list driving the histogram side-output is harvested
-	 * from `relaxedBaseline` at SHALLOW depth — the relaxation has already peeled the inner LP that
-	 * lives under {@code userFilter(priceBetween(...))}, so the harvest reaches only the outer
-	 * histogram-flagged LPs and never double-counts the inner one.
+	 * Supplies the original filter and relaxed baseline; the computer derives supplementation and shallow accessors
+	 * from that provenance.
 	 */
 	@Nonnull
 	private PriceHistogramComputer getPriceHistogramComputer(@Nonnull Formula relaxedBaseline) {
-		final Formula filteringFormulaWithFilteredOutRecords;
-		if (relaxedBaseline == this.filteringFormula || relaxedBaseline == EmptyFormula.INSTANCE) {
-			filteringFormulaWithFilteredOutRecords = null;
-		} else {
-			filteringFormulaWithFilteredOutRecords = relaxedBaseline;
-		}
-
-		final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.find(
-			relaxedBaseline, FilteredPriceRecordAccessor.class, LookUp.SHALLOW
-		);
-
 		return new PriceHistogramComputer(
 			this.bucketCount,
 			this.behavior,
 			this.queryContext.getSchema().getIndexedPricePlaces(),
 			this.queryContext.getQueryPriceMode(),
 			this.filteringFormula,
-			filteringFormulaWithFilteredOutRecords,
-			filteredPriceRecordAccessors, this.priceRecordsLookupResult
+			relaxedBaseline, this.priceRecordsLookupResult
 		);
 	}
 

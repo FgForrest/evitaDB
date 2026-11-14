@@ -24,6 +24,7 @@
 package io.evitadb.api.configuration;
 
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -52,19 +53,10 @@ class CacheOptionsTest {
 			CacheOptions.builder().build();
 
 		assertFalse(options.enabled());
-		assertEquals(
-			0, options.minimalComplexityThreshold()
-		);
-		assertEquals(
-			0, options.minimalUsageThreshold()
-		);
-		assertEquals(
-			0, options.anteroomRecordCount()
-		);
-		assertEquals(
-			0, options.reevaluateEachSeconds()
-		);
-		assertTrue(options.cacheSizeInBytes() > 0);
+		assertEquals(new CacheOptions(), options);
+		assertEquals(10_000L, options.minimalComplexityThreshold());
+		assertEquals(600, options.dropEntriesAfterSecondsOfInactivity());
+		assertEquals(1_000, options.verifyOneHitIn());
 	}
 
 	@Nested
@@ -119,15 +111,16 @@ class CacheOptionsTest {
 						ReflectionCachingBehaviour.NO_CACHE
 					)
 					.enabled(true)
-					.reevaluateEachSeconds(30)
-					.anteroomRecordCount(1000)
+					.dropEntriesAfterSecondsOfInactivity(30)
 					.minimalComplexityThreshold(500L)
-					.minimalUsageThreshold(10)
+					.verifyOneHitIn(10)
 					.cacheSizeInBytes(1_000_000L)
 					.build();
 
 			final CacheOptions copy =
 				CacheOptions.builder(source).build();
+
+			assertEquals(source, copy);
 
 			assertEquals(
 				ReflectionCachingBehaviour.NO_CACHE,
@@ -135,16 +128,13 @@ class CacheOptionsTest {
 			);
 			assertTrue(copy.enabled());
 			assertEquals(
-				30, copy.reevaluateEachSeconds()
-			);
-			assertEquals(
-				1000, copy.anteroomRecordCount()
+				30, copy.dropEntriesAfterSecondsOfInactivity()
 			);
 			assertEquals(
 				500L, copy.minimalComplexityThreshold()
 			);
 			assertEquals(
-				10, copy.minimalUsageThreshold()
+				10, copy.verifyOneHitIn()
 			);
 			assertEquals(
 				1_000_000L, copy.cacheSizeInBytes()
@@ -183,6 +173,64 @@ class CacheOptionsTest {
 			assertEquals(
 				2_000_000L, options.cacheSizeInBytes()
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Zero values")
+	class ZeroValueTest {
+
+		@Test
+		@DisplayName("should resolve a zero budget to the shared default")
+		void shouldResolveZeroBudgetToDefault() {
+			assertEquals(new CacheOptions(), CacheOptions.builder().cacheSizeInBytes(0).build());
+			assertEquals(
+				new CacheOptions(), new CacheOptions(ReflectionCachingBehaviour.CACHE, false, 10_000, 0, 600, 1_000)
+			);
+		}
+
+		@Test
+		@DisplayName("should disable expiry and verification with zero values")
+		void shouldDisableExpiryAndVerificationWithZeroValues() {
+			final CacheOptions options = CacheOptions.builder()
+				.dropEntriesAfterSecondsOfInactivity(0)
+				.verifyOneHitIn(0)
+				.minimalComplexityThreshold(0)
+				.build();
+			assertEquals(0, options.dropEntriesAfterSecondsOfInactivity());
+			assertEquals(0, options.verifyOneHitIn());
+			assertEquals(0, options.minimalComplexityThreshold());
+		}
+	}
+
+	@Nested
+	@DisplayName("Negative limits")
+	class NegativeLimitTest {
+
+		@Test
+		@DisplayName("should reject negative limits in the canonical constructor")
+		void shouldRejectNegativeLimitsInCanonicalConstructor() {
+			assertThrows(EvitaInvalidUsageException.class,
+				() -> new CacheOptions(ReflectionCachingBehaviour.CACHE, false, -1, 1, 600, 1_000));
+			assertThrows(EvitaInvalidUsageException.class,
+				() -> new CacheOptions(ReflectionCachingBehaviour.CACHE, false, 10_000, -1, 600, 1_000));
+			assertThrows(EvitaInvalidUsageException.class,
+				() -> new CacheOptions(ReflectionCachingBehaviour.CACHE, false, 10_000, 1, -1, 1_000));
+			assertThrows(EvitaInvalidUsageException.class,
+				() -> new CacheOptions(ReflectionCachingBehaviour.CACHE, false, 10_000, 1, 600, -1));
+		}
+
+		@Test
+		@DisplayName("should reject negative limits via the builder")
+		void shouldRejectNegativeLimitsViaBuilder() {
+			assertThrows(EvitaInvalidUsageException.class,
+				() -> CacheOptions.builder().minimalComplexityThreshold(-1).build());
+			assertThrows(EvitaInvalidUsageException.class,
+				() -> CacheOptions.builder().cacheSizeInBytes(-1).build());
+			assertThrows(EvitaInvalidUsageException.class,
+				() -> CacheOptions.builder().dropEntriesAfterSecondsOfInactivity(-1).build());
+			assertThrows(EvitaInvalidUsageException.class,
+				() -> CacheOptions.builder().verifyOneHitIn(-1).build());
 		}
 	}
 }

@@ -34,6 +34,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
@@ -85,8 +86,8 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 				if (filterByVisitor.isPrefetchPossible()) {
 					return new SelectionFormula(
 						filteringFormula,
-						new SellingPriceAvailableBitmapFilter(
-							filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
+						SellingPriceAvailableBitmapFilter.forRequest(
+							filterByVisitor.getEvitaRequest(), PricePredicate.ALL_CONTRACT_FILTER
 						)
 					);
 				} else {

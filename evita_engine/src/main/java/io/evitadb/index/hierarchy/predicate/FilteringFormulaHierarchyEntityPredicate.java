@@ -47,6 +47,10 @@ import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTrav
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -70,43 +74,54 @@ import static io.evitadb.index.bitmap.RoaringBitmapBackedBitmap.getRoaringBitmap
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilteringPredicate, SelfTraversingPredicate {
+	/** Stable predicate discriminator. */
+	private static final long CLASS_ID = 9194717270505880170L;
+
 	/**
 	 * Identification of the root node this predicate relates to.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private final int[] parent;
 	/**
 	 * Field contains the original filter by constraint the {@link #filteringFormula} was created by.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private final FilterBy filterBy;
 	/**
 	 * Field contains the original filter by constraint the {@link #filteringFormula} was created by.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private final FilterBy anyChildFilter;
 	/**
 	 * The name of the target entity schema that is used to create the {@link #filteringFormula}.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nonnull private final String targetEntityType;
 	/**
 	 * The scope of the target entity schema.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nonnull private final Set<Scope> requestedScopes;
 	/**
 	 * Formula computes id of all hierarchical entities that match input filter by constraint.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Getter @Nonnull private final Formula filteringFormula;
-	/**
-	 * Contains memoized value of {@link #getHash()} method.
-	 */
-	private final Long hash;
 	/**
 	 * Signalizes that the {@link HierarchyTraversalPredicate} reached a node that was marked as "stop" node and its
 	 * children should be tested by a predicate logic as "false".
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private boolean stopNodeEncountered;
 	/**
 	 * True if the {@link #initializeIfNotAlreadyInitialized(QueryExecutionContext)} method was called.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private boolean initialized;
+
+	/** Memoized detached holder key. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	private FormulaKey memoizedKey;
 
 	/**
 	 * This constructor should be used from filtering translators that need to take the attributes on references
@@ -215,55 +230,57 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 					queryContext.getGlobalEntityIndexIfExists(this.targetEntityType, scope).orElse(null);
 			}
 			// create a deferred formula that will log the execution time to query telemetry
-			this.filteringFormula = new DeferredFormula(
-				new FormulaWrapper(
-					// this is only fake formula used to estimate cardinality and computation time of the formula
-					// wrapper and other methods declared on formula interface except the compute() method
-					FormulaFactory.or(
-						Stream.of(theFormula, theAnyChildFormula)
-							.filter(Objects::nonNull)
-							.toArray(Formula[]::new)
-					),
-					(executionContext, formula) -> {
-						try {
-							executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
-							final Bitmap theFormulaResult;
-							if (theFormula != null) {
-								theFormula.initialize(executionContext);
-								theFormulaResult = theFormula.compute();
-							} else {
-								theFormulaResult = EmptyBitmap.INSTANCE;
+			this.filteringFormula = anyChildFilter == null ?
+				new DeferredFormula(new FormulaWrapper(theFormula, stepDescriptionSupplier)) :
+				new DeferredFormula(
+					FormulaWrapper.custom(
+						// this is only fake formula used to estimate cardinality and computation time of the formula
+						// wrapper and other methods declared on formula interface except the compute() method
+						FormulaFactory.or(
+							Stream.of(theFormula, theAnyChildFormula)
+								.filter(Objects::nonNull)
+								.toArray(Formula[]::new)
+						),
+						(executionContext, formula) -> {
+							try {
+								executionContext.pushStep(
+								QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+								final Bitmap theFormulaResult;
+								if (theFormula != null) {
+									theFormula.initialize(executionContext);
+									theFormulaResult = theFormula.compute();
+								} else {
+									theFormulaResult = EmptyBitmap.INSTANCE;
+								}
+								final Bitmap theAnyChildFormulaResult;
+								if (theAnyChildFormula != null) {
+									theAnyChildFormula.initialize(executionContext);
+									theAnyChildFormulaResult = globalEntityIndex == null ?
+										theAnyChildFormula.compute() :
+										globalEntityIndex.listNodesIncludingParents(theAnyChildFormula.compute());
+								} else {
+									theAnyChildFormulaResult = EmptyBitmap.INSTANCE;
+								}
+								if (theFormula != null && theAnyChildFormula != null) {
+									return new BaseBitmap(
+										RoaringBitmapBackedBitmap.and(
+											new PersistentRoaringBitmap[] {
+												getRoaringBitmap(theFormulaResult),
+												getRoaringBitmap(theAnyChildFormulaResult)
+											}
+										)
+									);
+								} else if (theFormula != null) {
+									return theFormulaResult;
+								} else {
+									return theAnyChildFormulaResult;
+								}
+							} finally {
+								executionContext.popStep();
 							}
-							final Bitmap theAnyChildFormulaResult;
-							if (theAnyChildFormula != null) {
-								theAnyChildFormula.initialize(executionContext);
-								theAnyChildFormulaResult = globalEntityIndex == null ?
-									theAnyChildFormula.compute() :
-									globalEntityIndex.listNodesIncludingParents(theAnyChildFormula.compute());
-							} else {
-								theAnyChildFormulaResult = EmptyBitmap.INSTANCE;
-							}
-							if (theFormula != null && theAnyChildFormula != null) {
-								return new BaseBitmap(
-									RoaringBitmapBackedBitmap.and(
-										new PersistentRoaringBitmap[] {
-											getRoaringBitmap(theFormulaResult),
-											getRoaringBitmap(theAnyChildFormulaResult)
-										}
-									)
-								);
-							} else if (theFormula != null) {
-								return theFormulaResult;
-							} else {
-								return theAnyChildFormulaResult;
-							}
-						} finally {
-							executionContext.popStep();
 						}
-					}
-				)
-			);
-			this.hash = this.filteringFormula.getHash();
+					)
+				);
 		} finally {
 			queryContext.popStep();
 		}
@@ -273,8 +290,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 * Constructor used when only the pre-computed filtering formula is available — typically because the formula
 	 * was derived by cloning the main query's filter tree (see
 	 * {@link io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor#getFilteringFormulaForStatisticsBase}).
-	 * Identity for {@link #equals(Object)}/{@link #hashCode()} relies on the formula's hash because no
-	 * {@link FilterBy} is captured.
+	 * The detached identity captures the supplied formula key.
 	 *
 	 * @param targetEntityType  name of the entity type whose hierarchy is being filtered by this predicate
 	 * @param requestedScopes   set of {@link Scope}s the surrounding query operates against; used to constrain
@@ -293,7 +309,6 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		this.filterBy = null;
 		this.anyChildFilter = null;
 		this.filteringFormula = filteringFormula;
-		this.hash = this.filteringFormula.getHash();
 	}
 
 	/**
@@ -364,17 +379,9 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			this.filteringFormula = new DeferredFormula(
 				new FormulaWrapper(
 					theFormula,
-					(executionContext, formula) -> {
-						try {
-							executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
-							return formula.compute();
-						} finally {
-							executionContext.popStep();
-						}
-					}
+					stepDescriptionSupplier
 				)
 			);
-			this.hash = this.filteringFormula.getHash();
 		} finally {
 			queryContext.popStep();
 		}
@@ -398,12 +405,6 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			this.filteringFormula.initialize(executionContext);
 			this.initialized = true;
 		}
-	}
-
-	@Override
-	public long getHash() {
-		Assert.isPremiseValid(this.hash != null, "The predicate hasn't been initialized!");
-		return this.hash;
 	}
 
 	@Override
@@ -431,36 +432,6 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	}
 
 	@Override
-	public int hashCode() {
-		int result = Arrays.hashCode(this.parent);
-		result = 31 * result + (this.filterBy == null ? 0 : this.filterBy.hashCode());
-		result = 31 * result + this.targetEntityType.hashCode();
-		result = 31 * result + this.requestedScopes.hashCode();
-		// fold in the formula's hash so predicates that share `(parent, targetEntityType, requestedScopes)` but
-		// were built from different filtering formulas (e.g. cached pre-computed formulas with `filterBy == null`)
-		// remain distinguishable
-		result = 31 * result + Long.hashCode(this.hash);
-		return result;
-	}
-
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-
-		FilteringFormulaHierarchyEntityPredicate that = (FilteringFormulaHierarchyEntityPredicate) o;
-		// `hash` is a 64-bit content hash of `filteringFormula` (xxhash, uniformly distributed) and is one of
-		// five equality components — a collision alone cannot make two predicates equal. The alternative
-		// (deep formula-tree structural equality) is exactly the cost this predicate is built to avoid; the
-		// 64-bit collision risk across the predicate identities used in a single query context is negligible.
-		return Arrays.equals(this.parent, that.parent) &&
-			Objects.equals(this.filterBy, that.filterBy) &&
-			this.targetEntityType.equals(that.targetEntityType) &&
-			this.requestedScopes.equals(that.requestedScopes) &&
-			this.hash.longValue() == that.hash.longValue();
-	}
-
-	@Override
 	public String toString() {
 		return "HIERARCHY (" +
 			"parent=" + Arrays.toString(this.parent) +
@@ -468,5 +439,48 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			", targetEntitySchema='" + this.targetEntityType + '\'' +
 			", requestedScopes=" + this.requestedScopes.stream().map(Enum::toString).collect(Collectors.joining(", ")) +
 			')';
+	}
+
+	/** Returns detached inputs without computing the bitmap. */
+	@Nonnull
+	@Override
+	public IdentityRecord identity() {
+		return new Identity(this.filteringFormula.getKey());
+	}
+
+	/** Returns the memoized detached key of this holder. */
+	@Nonnull
+	@Override
+	public FormulaKey getKey() {
+		if (this.memoizedKey == null) {
+			this.memoizedKey = FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+		}
+		return this.memoizedKey;
+	}
+
+	/** Returns the stable holder discriminator. */
+	@Override
+	public long getClassId() {
+		return CLASS_ID;
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param filteringFormula key of the formula listing the nodes that satisfy the filter
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull FormulaKey filteringFormula) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.filteringFormula);
+		}
 	}
 }

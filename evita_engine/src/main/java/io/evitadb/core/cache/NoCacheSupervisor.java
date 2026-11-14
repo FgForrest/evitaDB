@@ -24,33 +24,29 @@
 package io.evitadb.core.cache;
 
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
-import io.evitadb.core.query.response.ServerEntityDecorator;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.time.OffsetDateTime;
-import java.util.Optional;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
-
-import static java.util.Optional.ofNullable;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
- * This implementation of {@link CacheSupervisor} is used when caching is disabled entirely. It fulfills the interface
- * by doing nothing (easy life, isn't it?).
+ * Supervisor used when the formula result cache is disabled or a planning root fails its eligibility gate.
+ * It returns every formula and extra-result computer unchanged.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@ThreadSafe
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class NoCacheSupervisor implements CacheSupervisor {
 	public static final NoCacheSupervisor INSTANCE = new NoCacheSupervisor();
 
+	/** Preserves the formula graph without building cache keys or allocating bindings. */
 	@Nonnull
 	@Override
 	public <T extends Formula> T analyse(
@@ -62,32 +58,21 @@ public class NoCacheSupervisor implements CacheSupervisor {
 		return filterFormula;
 	}
 
+	/** Returns the original computer without consulting its key or execution mode. */
 	@SuppressWarnings("ClassEscapesDefinedScope")
 	@Nonnull
 	@Override
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
 		@Nullable EvitaSessionContract evitaSession,
 		@Nonnull String entityType,
-		@Nonnull T extraResultComputer
+		@Nonnull T extraResultComputer,
+		@Nonnull QueryExecutionContext context
 	) {
 		// just return the input without any modification
 		return extraResultComputer;
 	}
 
-	@Nonnull
-	@Override
-	public Optional<ServerEntityDecorator> analyse(
-		@Nonnull EvitaSessionContract evitaSession,
-		int primaryKey,
-		@Nonnull String entityType,
-		@Nonnull OffsetDateTime offsetDateTime,
-		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<ServerEntityDecorator> entityFetcher,
-		@Nonnull UnaryOperator<ServerEntityDecorator> enricher
-	) {
-		return ofNullable(entityFetcher.get());
-	}
-
+	/** Holds no resources and requires no shutdown work. */
 	@Override
 	public void close() {
 		// nothing to close

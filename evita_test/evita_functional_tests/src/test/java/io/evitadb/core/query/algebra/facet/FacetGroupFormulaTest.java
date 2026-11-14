@@ -31,6 +31,7 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,7 @@ import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link FacetGroupAndFormula} and {@link FacetGroupOrFormula} verifying
- * computation, memoization, cloning, hashing, merging and edge case behavior.
+ * computation, memoization, cloning, key identity, merging and edge case behavior.
  *
  * @author evitaDB
  */
@@ -343,13 +344,19 @@ class FacetGroupFormulaTest {
 		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce identical hash for identically constructed AND formulas")
-		void shouldProduceIdenticalHashForIdenticallyConstructedAndFormulas() {
+		@DisplayName("should produce identical key for identically constructed AND formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedAndFormulas() {
 			final FacetGroupAndFormula formulaA = new FacetGroupAndFormula(
 				"product", 1,
 				new ArrayBitmap(1, 2),
@@ -363,12 +370,13 @@ class FacetGroupFormulaTest {
 				new BaseBitmap(30, 40)
 			);
 
-			assertEquals(formulaA.getHash(), formulaB.getHash());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce different hash for different reference names")
-		void shouldProduceDifferentHashForDifferentReferenceNames() {
+		@DisplayName("should produce different key for different reference names")
+		void shouldProduceDifferentKeyForDifferentReferenceNames() {
 			final FacetGroupAndFormula formulaA = new FacetGroupAndFormula(
 				"product", 1,
 				new ArrayBitmap(1),
@@ -380,12 +388,13 @@ class FacetGroupFormulaTest {
 				new BaseBitmap(10)
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce different hash for different facet group ids")
-		void shouldProduceDifferentHashForDifferentFacetGroupIds() {
+		@DisplayName("should produce different key for different facet group ids")
+		void shouldProduceDifferentKeyForDifferentFacetGroupIds() {
 			final FacetGroupAndFormula formulaA = new FacetGroupAndFormula(
 				"product", 1,
 				new ArrayBitmap(1),
@@ -397,12 +406,13 @@ class FacetGroupFormulaTest {
 				new BaseBitmap(10)
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce different hash for different facet ids")
-		void shouldProduceDifferentHashForDifferentFacetIds() {
+		@DisplayName("should produce different key for different facet ids")
+		void shouldProduceDifferentKeyForDifferentFacetIds() {
 			final FacetGroupAndFormula formulaA = new FacetGroupAndFormula(
 				"product", 1,
 				new ArrayBitmap(1),
@@ -414,12 +424,13 @@ class FacetGroupFormulaTest {
 				new BaseBitmap(10)
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce different hashes for AND vs OR formulas")
-		void shouldProduceDifferentHashesForAndVsOrFormulas() {
+		@DisplayName("should produce different keys for AND vs OR formulas")
+		void shouldProduceDifferentKeysForAndVsOrFormulas() {
 			final FacetGroupAndFormula andFormula = new FacetGroupAndFormula(
 				"product", 1,
 				new ArrayBitmap(1),
@@ -431,12 +442,13 @@ class FacetGroupFormulaTest {
 				new BaseBitmap(10, 20)
 			);
 
-			assertNotEquals(andFormula.getHash(), orFormula.getHash());
+			assertNotEquals(andFormula.getKey(), orFormula.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce identical hash for identically constructed OR formulas")
-		void shouldProduceIdenticalHashForIdenticallyConstructedOrFormulas() {
+		@DisplayName("should produce identical key for identically constructed OR formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedOrFormulas() {
 			final FacetGroupOrFormula formulaA = new FacetGroupOrFormula(
 				"product", 1,
 				new ArrayBitmap(1, 2),
@@ -450,12 +462,13 @@ class FacetGroupFormulaTest {
 				new BaseBitmap(30, 40)
 			);
 
-			assertEquals(formulaA.getHash(), formulaB.getHash());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should handle null facet group id in hash")
-		void shouldHandleNullFacetGroupIdInHash() {
+		@DisplayName("should handle null facet group id in key")
+		void shouldHandleNullFacetGroupIdInKey() {
 			final FacetGroupAndFormula formulaA = new FacetGroupAndFormula(
 				"product", null,
 				new ArrayBitmap(1),
@@ -467,12 +480,13 @@ class FacetGroupFormulaTest {
 				new BaseBitmap(10)
 			);
 
-			assertEquals(formulaA.getHash(), formulaB.getHash());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce different hash for null vs non-null facet group id")
-		void shouldProduceDifferentHashForNullVsNonNullFacetGroupId() {
+		@DisplayName("should produce different key for null vs non-null facet group id")
+		void shouldProduceDifferentKeyForNullVsNonNullFacetGroupId() {
 			final FacetGroupAndFormula formulaA = new FacetGroupAndFormula(
 				"product", null,
 				new ArrayBitmap(1),
@@ -484,7 +498,149 @@ class FacetGroupFormulaTest {
 				new BaseBitmap(10)
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
+		}
+
+		/** The facet entity bitmap of an AND group is part of its key. */
+		@Test
+		@DisplayName("should produce different key for different facet entity bitmap in an AND group")
+		void shouldProduceDifferentKeyForDifferentFacetEntityBitmapInAndGroup() {
+			assertNotEquals(
+				new FacetGroupAndFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(10)).getKey(),
+				new FacetGroupAndFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(20)).getKey()
+			);
+		}
+
+		/** The facet entity bitmap of an OR group is part of its key. */
+		@Test
+		@DisplayName("should produce different key for different facet entity bitmap in an OR group")
+		void shouldProduceDifferentKeyForDifferentFacetEntityBitmapInOrGroup() {
+			assertNotEquals(
+				new FacetGroupOrFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(10)).getKey(),
+				new FacetGroupOrFormula("reference", 1, new ArrayBitmap(1), new BaseBitmap(20)).getKey()
+			);
+		}
+
+		/** The facet ids and the group id are separate key inputs, so their boundary cannot shift. */
+		@Test
+		@DisplayName("should not collide an absent group with two facets and a group with one facet")
+		void shouldNotCollideAbsentGroupWithTwoFacetsAndGroupWithOneFacet() {
+			assertNotEquals(
+				new FacetGroupAndFormula(
+					"reference", null, new ArrayBitmap(1, 2), new BaseBitmap(10), new BaseBitmap(20)
+				).getKey(),
+				new FacetGroupAndFormula("reference", 1, new ArrayBitmap(2), new BaseBitmap(20)).getKey()
+			);
+		}
+
+		/** Each facet bitmap is keyed together with the facet it belongs to. */
+		@Test
+		@DisplayName("should produce different key when facet bitmaps swap facets")
+		void shouldProduceDifferentKeyWhenFacetBitmapsSwapFacets() {
+			assertNotEquals(
+				new FacetGroupOrFormula(
+					"reference", 1, new ArrayBitmap(1, 2), new BaseBitmap(10), new BaseBitmap(20)
+				).getKey(),
+				new FacetGroupOrFormula(
+					"reference", 1, new ArrayBitmap(1, 2), new BaseBitmap(20), new BaseBitmap(10)
+				).getKey()
+			);
+		}
+
+		/** Merged terms retain the entity bitmap produced by each merge in their keys. */
+		@Test
+		@DisplayName("should produce different identity for merged terms of one group holding different entities")
+		void shouldProduceDifferentIdentityForMergedTermsOfOneGroupHoldingDifferentEntities() {
+			final FacetGroupFormula termA = new FacetGroupOrFormula(
+				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(10, 20)
+			).mergeWith(
+				new FacetGroupOrFormula("tags", 1, new BaseBitmap(2), new TransactionalBitmap(30))
+			);
+			final FacetGroupFormula termB = new FacetGroupOrFormula(
+				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(40)
+			).mergeWith(
+				new FacetGroupOrFormula("tags", 1, new BaseBitmap(2), new TransactionalBitmap(50))
+			);
+
+			assertNotEquals(termA.compute(), termB.compute());
+			assertNotEquals(
+				termA.getKey(),
+				termB.getKey(),
+				() -> "Distinct merged terms: " + termA.getKey() + " and " + termB.getKey()
+			);
+		}
+
+		/** Merged terms with and without a group, differing in group, facets and entities, keep distinct keys. */
+		@Test
+		@DisplayName("should produce different identity for merged terms with and without a group")
+		void shouldProduceDifferentIdentityForMergedTermsWithAndWithoutGroup() {
+			final FacetGroupFormula groupTerm = new FacetGroupOrFormula(
+				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(10)
+			).mergeWith(
+				new FacetGroupOrFormula("tags", 1, new BaseBitmap(2), new TransactionalBitmap(20))
+			);
+			final FacetGroupFormula ungroupedTerm = new FacetGroupOrFormula(
+				"tags", null, new BaseBitmap(1, 2), new TransactionalBitmap(30), new TransactionalBitmap(40)
+			).mergeWith(
+				new FacetGroupOrFormula(
+					"tags", null, new BaseBitmap(1, 2), new TransactionalBitmap(50), new TransactionalBitmap(60)
+				)
+			);
+
+			assertNotEquals(groupTerm.compute(), ungroupedTerm.compute());
+			assertNotEquals(
+				groupTerm.getKey(),
+				ungroupedTerm.getKey(),
+				() -> "Grouped and ungrouped terms: " + groupTerm.getKey() + " and " + ungroupedTerm.getKey()
+			);
+		}
+
+		/** Conjunctive merged terms retain their distinct entity sets in their keys. */
+		@Test
+		@DisplayName("should produce different identity for merged AND terms of one group holding different entities")
+		void shouldProduceDifferentIdentityForMergedAndTermsOfOneGroupHoldingDifferentEntities() {
+			final FacetGroupFormula termA = new FacetGroupAndFormula(
+				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(10, 20)
+			).mergeWith(
+				new FacetGroupAndFormula("tags", 1, new BaseBitmap(2), new TransactionalBitmap(30))
+			);
+			final FacetGroupFormula termB = new FacetGroupAndFormula(
+				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(40)
+			).mergeWith(
+				new FacetGroupAndFormula("tags", 1, new BaseBitmap(2), new TransactionalBitmap(50))
+			);
+
+			assertNotEquals(termA.compute(), termB.compute());
+			assertNotEquals(
+				termA.getKey(),
+				termB.getKey(),
+				() -> "Distinct merged terms: " + termA.getKey() + " and " + termB.getKey()
+			);
+		}
+
+		/** Merged AND terms with and without a group, differing in group, facets and entities, keep distinct keys. */
+		@Test
+		@DisplayName("should produce different identity for merged AND terms with and without a group")
+		void shouldProduceDifferentIdentityForMergedAndTermsWithAndWithoutGroup() {
+			final FacetGroupFormula groupTerm = new FacetGroupAndFormula(
+				"tags", 1, new BaseBitmap(2), new TransactionalBitmap(10)
+			).mergeWith(
+				new FacetGroupAndFormula("tags", 1, new BaseBitmap(2), new TransactionalBitmap(20))
+			);
+			final FacetGroupFormula ungroupedTerm = new FacetGroupAndFormula(
+				"tags", null, new BaseBitmap(1, 2), new TransactionalBitmap(10, 30), new TransactionalBitmap(10, 40)
+			).mergeWith(
+				new FacetGroupAndFormula(
+					"tags", null, new BaseBitmap(1, 2), new TransactionalBitmap(50), new TransactionalBitmap(60)
+				)
+			);
+
+			assertNotEquals(groupTerm.compute(), ungroupedTerm.compute());
+			assertNotEquals(
+				groupTerm.getKey(),
+				ungroupedTerm.getKey(),
+				() -> "Grouped and ungrouped terms: " + groupTerm.getKey() + " and " + ungroupedTerm.getKey()
+			);
 		}
 	}
 

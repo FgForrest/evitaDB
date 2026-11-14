@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra.price.termination;
 
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.dataType.array.CompositeIntArray;
@@ -48,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link PriceFilteringEnvelopeContainer} verifying OR-like union semantics,
- * caching, hashing, and metadata propagation.
+ * caching, key identity, and metadata propagation.
  *
  * @author evitaDB
  */
@@ -175,13 +176,19 @@ class PriceFilteringEnvelopeContainerTest {
 		}
 	}
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism")
-	class HashDeterminismTest {
+	@DisplayName("Key determinism")
+	class KeyDeterminismTest {
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce identical hash for identical construction")
-		void shouldProduceIdenticalHashForIdenticalConstruction() {
+		@DisplayName("should produce identical key for identical construction")
+		void shouldProduceIdenticalKeyForIdenticalConstruction() {
 			final PriceFilteringEnvelopeContainer a = new PriceFilteringEnvelopeContainer(
 				null, null, null,
 				createConstantFormula(1, 2, 3)
@@ -191,41 +198,69 @@ class PriceFilteringEnvelopeContainerTest {
 				createConstantFormula(1, 2, 3)
 			);
 
-			assertEquals(a.getHash(), b.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce same hash regardless of metadata differences")
-		void shouldProduceSameHashRegardlessOfMetadataDifferences() {
-			// metadata (priceLists, currency, validIn) is NOT included in the hash
-			final ConstantFormula innerFormula = createConstantFormula(1, 2, 3);
-			final long hashA = new PriceFilteringEnvelopeContainer(
-				new String[]{"basic"}, CZK, VALID_IN, innerFormula
-			).getHash();
-			final long hashB = new PriceFilteringEnvelopeContainer(
-				new String[]{"vip"}, Currency.getInstance("EUR"), null, innerFormula
-			).getHash();
-
-			// includeAdditionalHash returns 0, so metadata doesn't affect hash
-			assertEquals(hashA, hashB);
+			assertEquals(a.getKey(), b.getKey());
 		}
 	}
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash sensitivity")
-	class HashSensitivityTest {
+	@DisplayName("Key sensitivity")
+	class KeySensitivityTest {
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different inner data")
-		void shouldProduceDifferentHashForDifferentInnerData() {
-			final long hashA = new PriceFilteringEnvelopeContainer(
+		@DisplayName("should produce different key for different inner data")
+		void shouldProduceDifferentKeyForDifferentInnerData() {
+			final FormulaKey keyA = new PriceFilteringEnvelopeContainer(
 				null, null, null, createConstantFormula(1, 2, 3)
-			).getHash();
-			final long hashB = new PriceFilteringEnvelopeContainer(
+			).getKey();
+			final FormulaKey keyB = new PriceFilteringEnvelopeContainer(
 				null, null, null, createConstantFormula(4, 5, 6)
-			).getHash();
+			).getKey();
 
-			assertNotEquals(hashA, hashB);
+			assertNotEquals(keyA, keyB);
+		}
+
+		/** The price lists are a key input on their own. */
+		@Test
+		@DisplayName("should produce different key for different price lists")
+		void shouldProduceDifferentKeyForDifferentPriceLists() {
+			final ConstantFormula innerFormula = createConstantFormula(1, 2, 3);
+
+			assertNotEquals(
+				new PriceFilteringEnvelopeContainer(new String[]{"basic"}, CZK, VALID_IN, innerFormula).getKey(),
+				new PriceFilteringEnvelopeContainer(new String[]{"vip"}, CZK, VALID_IN, innerFormula).getKey()
+			);
+		}
+
+		/** The currency is a key input on its own. */
+		@Test
+		@DisplayName("should produce different key for different currency")
+		void shouldProduceDifferentKeyForDifferentCurrency() {
+			final ConstantFormula innerFormula = createConstantFormula(1, 2, 3);
+
+			assertNotEquals(
+				new PriceFilteringEnvelopeContainer(new String[]{"basic"}, CZK, VALID_IN, innerFormula).getKey(),
+				new PriceFilteringEnvelopeContainer(
+					new String[]{"basic"}, Currency.getInstance("EUR"), VALID_IN, innerFormula
+				).getKey()
+			);
+		}
+
+		/** The validity moment is a key input on its own. */
+		@Test
+		@DisplayName("should produce different key for different validity moment")
+		void shouldProduceDifferentKeyForDifferentValidityMoment() {
+			final ConstantFormula innerFormula = createConstantFormula(1, 2, 3);
+
+			assertNotEquals(
+				new PriceFilteringEnvelopeContainer(new String[]{"basic"}, CZK, VALID_IN, innerFormula).getKey(),
+				new PriceFilteringEnvelopeContainer(new String[]{"basic"}, CZK, null, innerFormula).getKey()
+			);
 		}
 	}
 

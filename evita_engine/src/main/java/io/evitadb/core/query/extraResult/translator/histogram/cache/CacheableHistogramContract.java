@@ -28,7 +28,6 @@ import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.utils.Functions;
-import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -111,11 +110,6 @@ public interface CacheableHistogramContract extends Serializable {
 		}
 
 		@Override
-		public int estimateSize() {
-			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE;
-		}
-
-		@Override
 		public String toString() {
 			return HistogramContract.EMPTY.toString();
 		}
@@ -144,8 +138,7 @@ public interface CacheableHistogramContract extends Serializable {
 	 * Unlike {@link #getMin()} this value has **not** been rounded to the attribute schema's
 	 * {@code indexedDecimalPlaces} — it is suitable for direct lookup via
 	 * {@link io.evitadb.index.attribute.FilterIndex#getRecordsEqualTo(Serializable)} without any coercion.
-	 * Returns {@code null} when the producer did not retain the raw value (legacy histograms, histograms not built
-	 * from a single-attribute source such as the price histogram, or cached entries deserialized from an older format).
+	 * Returns `null` when the producer does not retain a raw attribute value, as in price histograms.
 	 */
 	@Nullable
 	default Serializable getRawMin() {
@@ -182,12 +175,6 @@ public interface CacheableHistogramContract extends Serializable {
 	 */
 	@Nonnull
 	CacheableBucket[] getBuckets();
-
-	/**
-	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
-	 * a precise one. Please use constants from {@link MemoryMeasuringConstants} for size computation.
-	 */
-	int estimateSize();
 
 	/**
 	 * Converts this cacheable form of histogram to the final {@link HistogramContract} that takes runtime information
@@ -261,13 +248,6 @@ public interface CacheableHistogramContract extends Serializable {
 		int occurrences,
 		@Nonnull BigDecimal relativeFrequency
 	) implements Serializable {
-		/**
-		 * Estimated in-memory footprint of a single {@link CacheableBucket} in bytes. Covers two `int` fields
-		 * (`occurrences` + object header contribution) and two {@link java.math.BigDecimal} references
-		 * (`threshold` + `relativeFrequency`). Used by {@link CacheableHistogramContract#estimateSize()}.
-		 */
-		public static final int BUCKET_MEMORY_SIZE =
-			(MemoryMeasuringConstants.INT_SIZE << 1) + (MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE << 1);
 		@Serial private static final long serialVersionUID = 4216355542992506074L;
 
 		@Nonnull

@@ -44,8 +44,7 @@ import javax.annotation.Nonnull;
  * returns the corpus's own answer. Everything left here is the per-trial bookkeeping: a session, a query, and a line
  * on stdout naming the cell so a result table can be read back to the corpus it was measured on.
  *
- * The formula cache is off on this fixture - measuring an execution and measuring a cache hit rate are different
- * questions, and `SubstringCacheRepeatBenchmark` asks the second one.
+ * Every measured invocation plans and computes the query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -107,7 +106,7 @@ public class SubstringQueryState {
 	 */
 	@Setup(Level.Trial)
 	public void setUp() {
-		this.fixture = SubstringCatalogFixture.obtain(this.arm, this.entityCount, SubstringCacheMode.DISABLED);
+		this.fixture = SubstringCatalogFixture.obtain(this.arm, this.entityCount);
 		this.session = this.fixture.getEvita().createReadOnlySession(SubstringCatalogFixture.CATALOG_NAME);
 		this.query = SubstringCatalogFixture.buildQuery(this.patternClass, MEASURED_PAGE_SIZE);
 		System.out.println(

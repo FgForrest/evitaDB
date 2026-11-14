@@ -145,7 +145,8 @@ public class FormulaCloner implements FormulaVisitor {
 			storeFormula(alreadyProcessedFormula);
 		} else {
 			final Formula formulaToStore;
-			if (mutatedFormula == formula) {
+			final Formula replacedFormula = mutatedFormula == formula ? preProcess(formula) : mutatedFormula;
+			if (replacedFormula == formula) {
 				pushContext(this.treeStack, formula);
 				this.parents.push(formula);
 				for (Formula innerFormula : formula.getInnerFormulas()) {
@@ -212,31 +213,63 @@ public class FormulaCloner implements FormulaVisitor {
 					}
 				}
 			} else {
-				formulaToStore = mutatedFormula;
+				formulaToStore = replacedFormula;
 			}
 
 			if (formulaToStore != null) {
-				this.formulasProcessed.put(formula, formulaToStore);
-				storeFormula(formulaToStore);
+				final Formula processedFormula = postProcess(formulaToStore);
+				this.formulasProcessed.put(formula, processedFormula);
+				storeFormula(processedFormula);
 			}
 		}
 	}
 
 	/**
-	 * Creates new level in the stack.
-	 * The method is created just for the purpose of overloading it by descendants.
+	 * Offers a replacement for a formula the mutator kept, before its inner formulas are visited. A returned formula
+	 * other than the argument replaces the whole subtree: the inner formulas are not visited, and the replacement
+	 * passes through {@link #postProcess(Formula)} like a replacement returned by the mutator.
 	 *
-	 * @see io.evitadb.core.cache.FormulaCacheVisitor
+	 * @param formula the original formula, kept by the mutator and not processed yet
+	 * @return the argument to visit its inner formulas, or the formula that replaces the whole subtree
+	 */
+	@Nonnull
+	protected Formula preProcess(@Nonnull Formula formula) {
+		return formula;
+	}
+
+	/**
+	 * Processes the formula that takes the place of an original formula in the cloned tree: the original itself when
+	 * none of its inner formulas changed, its rebuild over the changed ones, a replacement returned by the mutator or
+	 * by {@link #preProcess(Formula)}, {@link EmptyFormula#INSTANCE} for a {@link NotFormula} whose two operands became
+	 * one formula, or the surviving superset of a {@link NotFormula}. The returned formula takes the original's place
+	 * in the parent and wherever the original occurs again. A dropped formula is not processed, and an original is
+	 * processed once however often it occurs.
+	 *
+	 * @param formula the formula retained in place of the original
+	 * @return the formula to store in the cloned tree
+	 */
+	@Nonnull
+	protected Formula postProcess(@Nonnull Formula formula) {
+		return formula;
+	}
+
+	/**
+	 * Opens a new level of the clone stack, sized for the inner formulas of the given formula. Subclasses that
+	 * override {@link #visit(Formula)} call it to keep the stack in step with their own traversal.
+	 *
+	 * @param stack   the clone stack
+	 * @param formula the formula whose inner formulas the new level collects
 	 */
 	protected void pushContext(@Nonnull Deque<SubTree> stack, @Nonnull Formula formula) {
 		stack.push(new DefaultSubTree(formula.getInnerFormulas().length));
 	}
 
 	/**
-	 * Removes topmost level from the stack.
-	 * The method is created just for the purpose of overloading it by descendants.
+	 * Closes the topmost level of the clone stack. Subclasses that override {@link #visit(Formula)} call it to keep
+	 * the stack in step with their own traversal.
 	 *
-	 * @see io.evitadb.core.cache.FormulaCacheVisitor
+	 * @param stack the clone stack
+	 * @return the closed level with the formulas stored into it
 	 */
 	protected SubTree popContext(@Nonnull Deque<SubTree> stack) {
 		return stack.pop();

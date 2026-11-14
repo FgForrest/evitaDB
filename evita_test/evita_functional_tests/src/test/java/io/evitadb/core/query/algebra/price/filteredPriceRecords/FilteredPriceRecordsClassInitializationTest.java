@@ -42,26 +42,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Guards the class-initialisation contract between {@link FilteredPriceRecords} and its implementations.
- *
- * `FilteredPriceRecords` declares a default method, so JLS 12.4.1 makes the initialisation of **any**
- * implementation initialise the interface first. That is a harmless one-way dependency until the interface's
- * own static initialiser constructs an implementation — then the dependency becomes a cycle:
- *
- * - thread A initialises `FilteredPriceRecords`, marks it in-progress, and blocks constructing
- *   `ResolvedFilteredPriceRecords` in a field initialiser;
- * - thread B initialises `ResolvedFilteredPriceRecords`, marks it in-progress, and blocks initialising its
- *   superinterface `FilteredPriceRecords`.
- *
- * Both threads then wait forever on the JVM's class-initialisation monitors. Nothing reports it: `jstack` and
- * `jcmd` detect monitor and `AbstractQueuedSynchronizer` cycles, not class-init cycles, and both threads show
- * as `RUNNABLE` at zero CPU. It is invisible single-threaded, because a thread may re-enter a class it is
- * already initialising — which is why it survived until two query threads happened to touch the pair
- * simultaneously from cold.
- *
- * Reproducing it requires both classes to be **uninitialised**, so every attempt loads a virgin copy of the
- * whole `filteredPriceRecords` package through a throw-away child class loader that bypasses parent
- * delegation for that package only.
+ * Verifies that the filtered-price record interface and its implementation initialize concurrently without
+ * deadlock or initialization errors. Each attempt loads fresh classes through an isolated class loader.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -77,11 +59,7 @@ class FilteredPriceRecordsClassInitializationTest {
 	private static final String INTERFACE_NAME = ISOLATED_PACKAGE + "FilteredPriceRecords";
 	private static final String IMPLEMENTATION_NAME = ISOLATED_PACKAGE + "ResolvedFilteredPriceRecords";
 	/**
-	 * Number of independent races executed by the test. The interleaving that deadlocks is narrow — thread B
-	 * must mark the implementation in-progress while thread A is still inside the interface's initialiser —
-	 * so a single attempt is not conclusive. Attempts are cheap (two class definitions and two short-lived
-	 * threads each) and the loop only runs to completion when the fix is in place; without it the very first
-	 * hung attempt fails the test.
+	 * Number of independent initialization attempts, each with fresh class definitions.
 	 */
 	private static final int ATTEMPTS = 500;
 	/**
@@ -106,13 +84,12 @@ class FilteredPriceRecordsClassInitializationTest {
 			final CountDownLatch finished = new CountDownLatch(2);
 			final AtomicReference<Throwable> failure = new AtomicReference<>();
 
-			// thread A enters through the interface: its <clinit> is the end of the cycle that constructs
-			// an implementation
+			// thread A enters through the interface
 			final Thread interfaceInitializer = startDaemon(
 				"clinit-interface-" + attempt, startingLine, finished, failure,
 				() -> Class.forName(INTERFACE_NAME, true, classLoader)
 			);
-			// thread B enters through the implementation: initializing it initializes the superinterface first
+			// thread B enters through the implementation
 			final Thread implementationInitializer = startDaemon(
 				"clinit-implementation-" + attempt, startingLine, finished, failure,
 				() -> implementationClass.getDeclaredConstructor().newInstance()
@@ -122,8 +99,8 @@ class FilteredPriceRecordsClassInitializationTest {
 				fail(
 					"Class initialization deadlock between " + interfaceClass.getName() + " and " +
 						implementationClass.getName() + " on attempt " + attempt + " - neither thread " +
-						"completed within " + ATTEMPT_TIMEOUT_SECONDS + "s. The interface's static " +
-						"initializer must not construct an implementation of itself."
+						"completed within " + ATTEMPT_TIMEOUT_SECONDS + "s. Concurrent initialization " +
+						"must complete without an initialization cycle."
 				);
 			}
 			// both threads finished; join is instantaneous and keeps thread counts flat across attempts

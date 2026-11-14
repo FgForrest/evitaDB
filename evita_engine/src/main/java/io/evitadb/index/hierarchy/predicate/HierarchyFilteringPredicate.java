@@ -24,8 +24,10 @@
 package io.evitadb.index.hierarchy.predicate;
 
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.utils.Assert;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -42,6 +44,17 @@ import java.util.function.Predicate;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, ExecutionContextRequiringPredicate {
+
+	/** Returns the detached identity. */
+	@Nonnull
+	FormulaKey getKey();
+
+	/** Returns the declaring class identifier. */
+	long getClassId();
+
+	/** Returns the declared identity components. */
+	@Nonnull
+	IdentityRecord identity();
 
 	HierarchyFilteringPredicate REJECT_ALL_NODES_PREDICATE = new HierarchyFilteringRejectAllPredicate();
 	HierarchyFilteringPredicate ACCEPT_ALL_NODES_PREDICATE = new HierarchyFilteringAcceptAllPredicate();
@@ -65,16 +78,11 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 	}
 
 	/**
-	 * Allows to compute the {@link #getHash()}. Must be called prior to {@link #getHash()} method
+	 * Initializes execution state required to evaluate this predicate.
 	 *
 	 * @param executionContext the context for the query execution
 	 */
 	void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext);
-
-	/**
-	 * Returns unique hash for this predicate.
-	 */
-	long getHash();
 
 	@Nonnull
 	@Override
@@ -90,32 +98,28 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 	 * AND relation.
 	 */
 	class AndHierarchyFilteringPredicate implements HierarchyFilteringPredicate, Serializable {
+		/** Stable discriminator of this predicate operation. */
+		private static final long CLASS_ID = -3882293948706087294L;
+
+		/** Memoized detached holder key. */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
+		private FormulaKey memoizedKey;
+
 		@Serial private static final long serialVersionUID = 1384400346650986235L;
+		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		private final HierarchyFilteringPredicate first;
+		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		private final HierarchyFilteringPredicate second;
-		private final Long hash;
 
 		public AndHierarchyFilteringPredicate(HierarchyFilteringPredicate first, HierarchyFilteringPredicate second) {
 			this.first = first;
 			this.second = second;
-			this.hash = TransactionalDataRelatedStructure.HASH_FUNCTION.hashLongs(
-				new long[]{
-					serialVersionUID,
-					first.getHash(),
-					second.getHash()
-				}
-			);
 		}
 
 		@Override
 		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
 			this.first.initializeIfNotAlreadyInitialized(executionContext);
 			this.second.initializeIfNotAlreadyInitialized(executionContext);
-		}
-
-		@Override
-		public long getHash() {
-			return this.hash;
 		}
 
 		@Override
@@ -128,6 +132,51 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 			return this.first + " AND " + this.second;
 		}
 
+		/** Returns detached inputs without computing the bitmap. */
+		@Nonnull
+		@Override
+		public IdentityRecord identity() {
+			return new Identity(this.first.getKey(), this.second.getKey());
+		}
+
+		/** Returns the memoized detached key of this holder. */
+		@Nonnull
+		@Override
+		public FormulaKey getKey() {
+			if (this.memoizedKey == null) {
+				this.memoizedKey = FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+			}
+			return this.memoizedKey;
+		}
+
+		/** Returns the stable holder discriminator. */
+		@Override
+		public long getClassId() {
+			return CLASS_ID;
+		}
+
+		/**
+		 * Detached computation inputs.
+		 *
+		 * @param first key of the first combined predicate
+		 * @param second key of the second combined predicate
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		public record Identity(@Nonnull FormulaKey first, @Nonnull FormulaKey second) implements IdentityRecord {
+			/** Returns the declaring holder identifier. */
+			@Override
+			public long classId() {
+				return CLASS_ID;
+			}
+
+			/** Includes every input in declaration order. */
+			@Override
+			public void describeTo(@Nonnull KeyAccumulator accumulator) {
+				accumulator.add(this.first);
+				accumulator.add(this.second);
+			}
+		}
+
 	}
 
 	/**
@@ -135,33 +184,28 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 	 * OR relation.
 	 */
 	class OrHierarchyFilteringPredicate implements HierarchyFilteringPredicate, Serializable {
+		/** Stable discriminator of this predicate operation. */
+		private static final long CLASS_ID = -392102354656467157L;
+
+		/** Memoized detached holder key. */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
+		private FormulaKey memoizedKey;
+
 		@Serial private static final long serialVersionUID = 2547741955086633818L;
+		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		private final HierarchyFilteringPredicate first;
+		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		private final HierarchyFilteringPredicate second;
-		private final Long hash;
 
 		public OrHierarchyFilteringPredicate(HierarchyFilteringPredicate first, HierarchyFilteringPredicate second) {
 			this.first = first;
 			this.second = second;
-			this.hash = TransactionalDataRelatedStructure.HASH_FUNCTION.hashLongs(
-				new long[]{
-					serialVersionUID,
-					first.getHash(),
-					second.getHash()
-				}
-			);
 		}
 
 		@Override
 		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
 			this.first.initializeIfNotAlreadyInitialized(executionContext);
 			this.second.initializeIfNotAlreadyInitialized(executionContext);
-		}
-
-		@Override
-		public long getHash() {
-			Assert.isPremiseValid(this.hash != null, "Predicate must be initialized prior to calling getHash().");
-			return this.hash;
 		}
 
 		@Override
@@ -173,19 +217,67 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		public String toString() {
 			return this.first + " OR " + this.second;
 		}
+
+		/** Returns detached inputs without computing the bitmap. */
+		@Nonnull
+		@Override
+		public IdentityRecord identity() {
+			return new Identity(this.first.getKey(), this.second.getKey());
+		}
+
+		/** Returns the memoized detached key of this holder. */
+		@Nonnull
+		@Override
+		public FormulaKey getKey() {
+			if (this.memoizedKey == null) {
+				this.memoizedKey = FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+			}
+			return this.memoizedKey;
+		}
+
+		/** Returns the stable holder discriminator. */
+		@Override
+		public long getClassId() {
+			return CLASS_ID;
+		}
+
+		/**
+		 * Detached computation inputs.
+		 *
+		 * @param first key of the first combined predicate
+		 * @param second key of the second combined predicate
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		public record Identity(@Nonnull FormulaKey first, @Nonnull FormulaKey second) implements IdentityRecord {
+			/** Returns the declaring holder identifier. */
+			@Override
+			public long classId() {
+				return CLASS_ID;
+			}
+
+			/** Includes every input in declaration order. */
+			@Override
+			public void describeTo(@Nonnull KeyAccumulator accumulator) {
+				accumulator.add(this.first);
+				accumulator.add(this.second);
+			}
+		}
+
 	}
 
 	class HierarchyFilteringRejectAllPredicate implements HierarchyFilteringPredicate, Serializable {
+		/** Stable discriminator of this predicate operation. */
+		private static final long CLASS_ID = 1713556274259311066L;
+
+		/** Memoized detached holder key. */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
+		private FormulaKey memoizedKey;
+
 		@Serial private static final long serialVersionUID = 5859718563627156229L;
 
 		@Override
 		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
 
-		}
-
-		@Override
-		public long getHash() {
-			return serialVersionUID;
 		}
 
 		@Override
@@ -197,19 +289,63 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		public String toString() {
 			return "REJECT ALL";
 		}
+
+		/** Returns detached inputs without computing the bitmap. */
+		@Nonnull
+		@Override
+		public IdentityRecord identity() {
+			return new Identity();
+		}
+
+		/** Returns the memoized detached key of this holder. */
+		@Nonnull
+		@Override
+		public FormulaKey getKey() {
+			if (this.memoizedKey == null) {
+				this.memoizedKey = FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+			}
+			return this.memoizedKey;
+		}
+
+		/** Returns the stable holder discriminator. */
+		@Override
+		public long getClassId() {
+			return CLASS_ID;
+		}
+
+		/**
+		 * Detached computation inputs.
+		 *
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		public record Identity() implements IdentityRecord {
+			/** Returns the declaring holder identifier. */
+			@Override
+			public long classId() {
+				return CLASS_ID;
+			}
+
+			/** Includes every input in declaration order. */
+			@Override
+			public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			}
+		}
+
 	}
 
 	class HierarchyFilteringAcceptAllPredicate implements HierarchyFilteringPredicate, Serializable {
+		/** Stable discriminator of this predicate operation. */
+		private static final long CLASS_ID = -2072977462061830299L;
+
+		/** Memoized detached holder key. */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
+		private FormulaKey memoizedKey;
+
 		@Serial private static final long serialVersionUID = 387062010451039137L;
 
 		@Override
 		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
 
-		}
-
-		@Override
-		public long getHash() {
-			return serialVersionUID;
 		}
 
 		@Override
@@ -221,26 +357,68 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 		public String toString() {
 			return "ACCEPT ALL";
 		}
+
+		/** Returns detached inputs without computing the bitmap. */
+		@Nonnull
+		@Override
+		public IdentityRecord identity() {
+			return new Identity();
+		}
+
+		/** Returns the memoized detached key of this holder. */
+		@Nonnull
+		@Override
+		public FormulaKey getKey() {
+			if (this.memoizedKey == null) {
+				this.memoizedKey = FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+			}
+			return this.memoizedKey;
+		}
+
+		/** Returns the stable holder discriminator. */
+		@Override
+		public long getClassId() {
+			return CLASS_ID;
+		}
+
+		/**
+		 * Detached computation inputs.
+		 *
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		public record Identity() implements IdentityRecord {
+			/** Returns the declaring holder identifier. */
+			@Override
+			public long classId() {
+				return CLASS_ID;
+			}
+
+			/** Includes every input in declaration order. */
+			@Override
+			public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			}
+		}
+
 	}
 
 	class NegatedHierarchyFilteringPredicate implements HierarchyFilteringPredicate {
+		/** Stable discriminator of this predicate operation. */
+		private static final long CLASS_ID = 6853269046312115974L;
+
+		/** Memoized detached holder key. */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
+		private FormulaKey memoizedKey;
+
+		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		@Getter private final HierarchyFilteringPredicate predicate;
-		private final Long hash;
 
 		public NegatedHierarchyFilteringPredicate(HierarchyFilteringPredicate predicate) {
 			this.predicate = predicate;
-			this.hash = predicate.getHash() * -1;
 		}
 
 		@Override
 		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
 			this.predicate.initializeIfNotAlreadyInitialized(executionContext);
-		}
-
-		@Override
-		public long getHash() {
-			Assert.isPremiseValid(this.hash != null, "Predicate must be initialized prior to calling getHash().");
-			return this.hash;
 		}
 
 		@Override
@@ -253,19 +431,48 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 			return "NOT(" + this.predicate + ")";
 		}
 
+		/** Returns detached inputs without computing the bitmap. */
+		@Nonnull
 		@Override
-		public final boolean equals(Object o) {
-			if (this == o) return true;
-			if (!(o instanceof NegatedHierarchyFilteringPredicate that)) return false;
-
-			return this.predicate.equals(that.predicate) && this.hash.equals(that.hash);
+		public IdentityRecord identity() {
+			return new Identity(this.predicate.getKey());
 		}
 
+		/** Returns the memoized detached key of this holder. */
+		@Nonnull
 		@Override
-		public int hashCode() {
-			int result = this.predicate.hashCode();
-			result = 31 * result + this.hash.hashCode();
-			return result;
+		public FormulaKey getKey() {
+			if (this.memoizedKey == null) {
+				this.memoizedKey = FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+			}
+			return this.memoizedKey;
 		}
+
+		/** Returns the stable holder discriminator. */
+		@Override
+		public long getClassId() {
+			return CLASS_ID;
+		}
+
+		/**
+		 * Detached computation inputs.
+		 *
+		 * @param predicate key of the negated predicate
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		public record Identity(@Nonnull FormulaKey predicate) implements IdentityRecord {
+			/** Returns the declaring holder identifier. */
+			@Override
+			public long classId() {
+				return CLASS_ID;
+			}
+
+			/** Includes every input in declaration order. */
+			@Override
+			public void describeTo(@Nonnull KeyAccumulator accumulator) {
+				accumulator.add(this.predicate);
+			}
+		}
+
 	}
 }

@@ -61,6 +61,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.PlainChunk;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -319,7 +320,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				}
 			}
 
-			// Skip redundant attribute upsert when the new value matches the projected
+			// Skip redundant attribute upsert when the new value is the very same value as the projected
 			// effective value. Comparing against the *projection* (refInBase + priorMutations)
 			// rather than against `refInBase` alone keeps the optimization safe across
 			// multiple in-session RESET calls on the same reference.
@@ -340,7 +341,8 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 						// O(1) lookup against the prebuilt projection (null = absent).
 						effective = projectedState.get(aKey);
 					}
-					if (effective != null && Objects.equals(effective, upsert.getAttributeValue())) {
+					if (effective != null &&
+						!EvitaDataTypes.storedValueDiffers(effective, upsert.getAttributeValue())) {
 						continue;
 					}
 				}

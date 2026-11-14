@@ -450,6 +450,12 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			// initialize the selling price records
 			this.sellingPriceRecords = priceRecordsLookupResult.getPriceRecords();
 
+			// the terminations get a predicate factory rather than one predicate, because the predicate advances a
+			// cursor over the selling prices and every clone of a termination must start from the beginning; the
+			// factories read these locals, so the records assigned by a later call do not leak into these clones
+			final PriceRecordContract[] sellingPriceRecords = this.sellingPriceRecords;
+			final ToIntFunction<PriceRecordContract> priceExtractor = this.priceExtractor;
+
 			// now calculate the reference prices to be used for calculating the discount
 			final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = this.referencePriceFormulas
 				.stream()
@@ -459,12 +465,12 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 							it,
 							formula -> {
 								if (formula instanceof SumPriceTerminationFormula sptf) {
-									return sptf.withIndividualPricePredicate(
-										new InnerRecordInSellingPricesMatchingPredicate(this.sellingPriceRecords, this.priceExtractor)
+									return sptf.withIndividualPricePredicateFactory(
+										() -> new InnerRecordInSellingPricesMatchingPredicate(sellingPriceRecords, priceExtractor)
 									);
 								} else if (formula instanceof LowestPriceTerminationFormula fvptf) {
-									return fvptf.withIndividualPricePredicate(
-										new InnerRecordInSellingPricesMatchingPredicate(this.sellingPriceRecords, this.priceExtractor)
+									return fvptf.withIndividualPricePredicateFactory(
+										() -> new InnerRecordInSellingPricesMatchingPredicate(sellingPriceRecords, priceExtractor)
 									);
 								} else {
 									return formula;
@@ -550,8 +556,10 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		 * price refers to only one inner product or is a virtual sum of multiple products.
 		 *
 		 * This predicate uses optimized way for searching the selling price records. It builds on the fact that the
-		 * selling price records are sorted by entity primary key and inner record id and that examined records will
-		 * be in the same order.
+		 * selling price records are sorted by entity primary key and that the examined records come in ascending order
+		 * of their entity primary key too. The records of a single entity may come in any order - all of them are
+		 * compared with the very same selling price record, so the iteration order of the per-entity hash map
+		 * {@link SumPriceTerminationFormula} examines them in does not matter.
 		 */
 		private static class InnerRecordInSellingPricesMatchingPredicate implements SumPredicate<PriceRecordContract> {
 			/**
@@ -583,8 +591,9 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 
 			@Override
 			public boolean test(PriceRecordContract examinedRecord) {
-				// if we can progress in the selling price records, we do so
-				if (this.lastIndex + 1 < this.sellingPriceRecordsLength) {
+				// the last selling price record must be reachable too - it is compared with every record of its entity,
+				// not only with the first one examined
+				if (this.lastIndex < this.sellingPriceRecordsLength) {
 					// use the last index to locate the selling price record for comparison
 					PriceRecordContract priceRecord = this.sellingPriceRecords[this.lastIndex];
 					// progress until we find the record with matching entity primary key or reach the end
@@ -593,15 +602,6 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 					}
 					// if we found the record with matching entity primary key, we can now compare the inner record ids
 					if (priceRecord.entityPrimaryKey() == examinedRecord.entityPrimaryKey()) {
-						// progress until we find the record with matching inner record id or reach the end
-						while (
-							priceRecord.innerRecordId() < examinedRecord.innerRecordId() &&
-								this.lastIndex + 1 < this.sellingPriceRecordsLength &&
-								this.sellingPriceRecords[this.lastIndex + 1].entityPrimaryKey() < examinedRecord.entityPrimaryKey()
-						) {
-							priceRecord = this.sellingPriceRecords[++this.lastIndex];
-						}
-						// return whether the inner record ids match
 						return priceRecord.relatesTo(examinedRecord);
 					}
 				}

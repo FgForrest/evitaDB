@@ -24,21 +24,21 @@
 package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.identity.TokenList;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * Or formula will perform boolean disjunction (OR) on multiple bitmaps at once.
@@ -56,27 +56,18 @@ import java.util.function.Consumer;
  */
 public class OrFormula extends AbstractBitmapCacheableFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -7493244674442362190L;
 
-	OrFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula[] innerFormulas, long[] indexTransactionId, @Nullable Bitmap[] bitmaps) {
-		super(computationCallback, indexTransactionId, bitmaps);
-		Assert.isTrue(
-			innerFormulas.length > 1 || Objects.requireNonNull(bitmaps).length > 1,
-			"Or formula has no sense with " + innerFormulas.length + " inner formulas / bitmaps!"
-		);
-		this.initFields(innerFormulas);
-	}
-
 	public OrFormula(@Nonnull Formula... innerFormulas) {
-		super(null, null, null);
+		super(null);
 		Assert.isTrue(innerFormulas.length > 1, "Or formula has no sense with " + innerFormulas.length + " inner formulas!");
 		this.initFields(innerFormulas);
 	}
 
-	public OrFormula(long[] indexTransactionId, @Nonnull Bitmap... bitmaps) {
-		super(null, indexTransactionId, bitmaps);
+	public OrFormula(@Nonnull Bitmap... bitmaps) {
+		super(bitmaps);
 		Assert.isTrue(bitmaps.length > 1, "Or formula has no sense with " + bitmaps.length + " inner bitmaps!");
 		this.initFields();
 	}
@@ -96,17 +87,6 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 	@Override
 	public long getOperationCost() {
 		return 13;
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		return new OrFormula(
-			selfOperator,
-			innerFormulas,
-			this.indexTransactionId,
-			this.bitmaps
-		);
 	}
 
 	@Override
@@ -134,6 +114,16 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 			}
 		}
 		return sum;
+	}
+
+	/**
+	 * Returns the identity formed by the canonically ordered raw bitmap operands; in formula mode there are none, and
+	 * the children's keys carry the operands.
+	 */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.bitmaps == null ? null : TokenList.canonical(this.bitmaps));
 	}
 
 	@Override
@@ -214,8 +204,8 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 	 * query, so the difference is the bulk of what computing this formula costs.
 	 *
 	 * **This changes only how the operands are combined, never which operands there are.** The formula's own
-	 * {@link #bitmaps} array is untouched, so its hash, its cached identity and the transactional ids it gathers are
-	 * exactly what they were - the fold happens after all of that, on the way into the union.
+	 * {@link #bitmaps} array is untouched, so its identity and key are exactly what they were - the fold happens after
+	 * all of that, on the way into the union.
 	 *
 	 * Left alone when fewer than two operands are single-record: one such operand costs the same either way, and
 	 * folding it would only move the allocation around.
@@ -263,4 +253,23 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 		return result;
 	}
 
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param bitmaps canonical raw operands, absent when children supply the operands
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nullable TokenList bitmaps) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every operand in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.bitmaps);
+		}
+	}
 }

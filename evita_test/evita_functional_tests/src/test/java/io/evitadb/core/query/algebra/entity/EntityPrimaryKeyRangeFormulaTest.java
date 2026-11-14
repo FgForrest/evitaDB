@@ -23,8 +23,8 @@
 
 package io.evitadb.core.query.algebra.entity;
 
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.dataType.array.CompositeIntArray;
@@ -614,29 +614,6 @@ class EntityPrimaryKeyRangeFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should create cacheable clone that invokes the supplied computation callback on compute")
-		void shouldCreateCacheableCloneWithComputationCallback() {
-			final ConstantFormula inner = new ConstantFormula(
-				new ArrayBitmap(new CompositeIntArray(1, 5, 10))
-			);
-			final EntityPrimaryKeyRangeFormula original =
-				new EntityPrimaryKeyRangeFormula(1, 10, inner);
-
-			final boolean[] callbackInvoked = {false};
-			final CacheableFormula clone =
-				original.getCloneWithComputationCallback(
-					formula -> callbackInvoked[0] = true,
-					inner
-				);
-
-			assertInstanceOf(EntityPrimaryKeyRangeFormula.class, clone);
-
-			// trigger computation to invoke callback
-			clone.compute();
-			assertTrue(callbackInvoked[0]);
-		}
-
-		@Test
 		@DisplayName("should throw when clone is asked for more than one inner formula")
 		void shouldThrowWhenClonedWithWrongInnerFormulaCount() {
 			final ConstantFormula innerA = new ConstantFormula(
@@ -655,53 +632,66 @@ class EntityPrimaryKeyRangeFormulaTest {
 		}
 	}
 
+	/**
+	 * Verifies inclusive bounds and child identity without a folded numeric surrogate.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
-
+	@DisplayName("Declared formula key")
+	class KeyTest {
+		/** Fresh instances over equal bounds and content share detached keys. */
 		@Test
-		@DisplayName("should produce identical hash for same range and superset")
-		void shouldProduceIdenticalHashForSameParameters() {
-			final long hashA = createFormula(5, 15, 1, 2, 3).getHash();
-			final long hashB = createFormula(5, 15, 1, 2, 3).getHash();
-
-			assertEquals(hashA, hashB);
+		@DisplayName("Equal ranges and supersets share keys")
+		void shouldShareKeysForEqualInputs() {
+			final Formula first = createFormula(1, 10, 1, 5, 10);
+			final Formula second = createFormula(1, 10, 1, 5, 10);
+			assertEquals(first.getKey(), second.getKey());
+			assertEquals(first.getKey().getHash64(), second.getKey().getHash64());
 		}
 
+		/** Both endpoints and the superset contribute independently. */
 		@Test
-		@DisplayName("should produce different hash for different range")
-		void shouldProduceDifferentHashForDifferentRange() {
-			final long hashA = createFormula(1, 10, 1, 2, 3).getHash();
-			final long hashB = createFormula(5, 20, 1, 2, 3).getHash();
-
-			assertNotEquals(hashA, hashB);
+		@DisplayName("Each bound and the superset change the key and hash64")
+		void shouldIncludeEachBoundAndSuperset() {
+			final Formula base = createFormula(1, 10, 1, 5, 10);
+			final Formula[] variants = {
+				createFormula(2, 10, 1, 5, 10), createFormula(1, 9, 1, 5, 10), createFormula(1, 10, 2, 6, 9)
+			};
+			for (final Formula variant : variants) {
+				assertNotEquals(base.getKey(), variant.getKey());
+				assertNotEquals(base.getKey().getHash64(), variant.getKey().getHash64());
+			}
 		}
 
+		/** A family of equal linear folds remains a family of distinct range identities. */
 		@Test
-		@DisplayName("should produce different hash for different superset")
-		void shouldProduceDifferentHashForDifferentSuperset() {
-			final long hashA = createFormula(1, 10, 1, 2, 3).getHash();
-			final long hashB = createFormula(1, 10, 4, 5, 6).getHash();
-
-			assertNotEquals(hashA, hashB);
+		@DisplayName("Int-pair collision families have distinct keys and hash64 values")
+		void shouldDistinguishIntPairCollisionFamily() {
+			final Formula inner = new ConstantFormula(new ArrayBitmap(1, 2, 69, 70, 100));
+			for (int from = 1; from <= 4; from++) {
+				final int to = 131 - 31 * from;
+				final Formula first = new EntityPrimaryKeyRangeFormula(from, to, inner);
+				for (int otherFrom = from + 1; otherFrom <= 4; otherFrom++) {
+					final int otherTo = 131 - 31 * otherFrom;
+					final Formula second = new EntityPrimaryKeyRangeFormula(otherFrom, otherTo, inner);
+					assertEquals(31 * from + to, 31 * otherFrom + otherTo);
+					assertNotEquals(first.getKey(), second.getKey());
+					assertNotEquals(first.getKey().getHash64(), second.getKey().getHash64());
+				}
+			}
 		}
 
+		/** The memoized key survives execution state changes and equal-child cloning. */
 		@Test
-		@DisplayName("should produce different hash when only from differs")
-		void shouldProduceDifferentHashWhenOnlyFromDiffers() {
-			final long hashA = createFormula(1, 10, 1, 5, 10).getHash();
-			final long hashB = createFormula(2, 10, 1, 5, 10).getHash();
-
-			assertNotEquals(hashA, hashB);
-		}
-
-		@Test
-		@DisplayName("should produce different hash when only to differs")
-		void shouldProduceDifferentHashWhenOnlyToDiffers() {
-			final long hashA = createFormula(1, 10, 1, 5, 10).getHash();
-			final long hashB = createFormula(1, 9, 1, 5, 10).getHash();
-
-			assertNotEquals(hashA, hashB);
+		@DisplayName("Execution and equal-child cloning preserve the key")
+		void shouldPreserveKeyAcrossExecutionAndClone() {
+			final Formula formula = createFormula(1, 10, 1, 5, 10);
+			final FormulaKey key = formula.getKey();
+			formula.compute();
+			formula.clearMemory();
+			assertSame(key, formula.getKey());
+			assertEquals(key, formula.getCloneWithInnerFormulas(formula.getInnerFormulas()).getKey());
 		}
 	}
 
@@ -734,9 +724,10 @@ class EntityPrimaryKeyRangeFormulaTest {
 		@Test
 		@DisplayName("should recompute an equal but fresh bitmap instance after clearMemory")
 		void shouldRecomputeEqualResultAfterClearMemory() {
-			// clearMemory is called by the cache policy when evicting a formula — it must drop the
-			// memoised bitmap so the next compute() actually re-runs; equal content confirms the
-			// recomputation is deterministic, assertNotSame confirms the cache was truly cleared
+			// clearMemory resets a formula whose inner formula was swapped (the facet summary does that) —
+			// it must drop the memoised bitmap so the next compute() actually re-runs; equal content
+			// confirms the recomputation is deterministic, assertNotSame confirms the memoised result was
+			// truly cleared
 			final EntityPrimaryKeyRangeFormula formula = createFormula(
 				1, 10,
 				2, 5, 8
@@ -750,24 +741,6 @@ class EntityPrimaryKeyRangeFormulaTest {
 			assertArrayEquals(first.getArray(), second.getArray());
 		}
 
-		@Test
-		@DisplayName("should preserve hash across compute + clearMemory cycle")
-		void shouldPreserveHashAfterClearMemory() {
-			// the hash identifies the formula in the cache; if clearMemory accidentally invalidated
-			// the memoised hash as well, the same formula would get different cache keys before and
-			// after eviction — catastrophic for cache correctness
-			final EntityPrimaryKeyRangeFormula formula = createFormula(
-				5, 15,
-				1, 5, 10, 15, 20
-			);
-
-			final long hashBefore = formula.getHash();
-			formula.compute();
-			formula.clearMemory();
-			final long hashAfter = formula.getHash();
-
-			assertEquals(hashBefore, hashAfter);
-		}
 	}
 
 	@Nested
@@ -778,8 +751,7 @@ class EntityPrimaryKeyRangeFormulaTest {
 		@DisplayName("should keep estimated cost as a non-negative upper bound of the actual post-compute cost")
 		void shouldHaveNonNegativeCostsWithEstimatedAsUpperBound() {
 			// the planner picks plans assuming `estimatedCost >= actualCost`; any violation would let
-			// a plan beat its own worst-case estimate, which breaks the admission invariant used by
-			// the cache decision logic (`CacheableFormula#shouldBeCached`)
+			// a plan beat its own worst-case estimate
 			final EntityPrimaryKeyRangeFormula formula = createFormula(
 				1, 10,
 				1, 3, 5, 7, 9
@@ -801,24 +773,6 @@ class EntityPrimaryKeyRangeFormulaTest {
 				estimatedCost >= actualCost,
 				"Estimated cost " + estimatedCost + " should be >= actual cost " + actualCost
 			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Cache behavior")
-	class CacheBehaviorTest {
-
-		@Test
-		@DisplayName("should be a CacheableFormula so the planner is free to memoise its result")
-		void shouldImplementCacheableFormula() {
-			// explicit marker test — CacheableFormula is what lets the plan cache store the filtered
-			// bitmap; losing the interface would silently demote the formula to a never-cached path
-			final EntityPrimaryKeyRangeFormula formula = createFormula(
-				1, 10,
-				1, 5, 10
-			);
-
-			assertInstanceOf(CacheableFormula.class, formula);
 		}
 	}
 

@@ -27,7 +27,7 @@ import graphql.schema.DataFetcher;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
-import io.evitadb.core.query.extraResult.translator.histogram.cache.FlattenedHistogramComputer;
+import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer;
 import io.evitadb.core.query.filter.translator.FilterByTranslator;
 import io.evitadb.core.query.sort.NoSorter;
@@ -120,7 +120,7 @@ class InterruptionTransformerMatcherTest {
 	 * Reports whether the given matcher selects at least one method of the given name declared by the given type.
 	 *
 	 * A generic override (`FilterByTranslator#translate`, `OrderByTranslator#createSorter`,
-	 * `FlattenedHistogramComputer#compute`) is accompanied in the class file by a javac-generated bridge carrying the
+	 * `AttributeHistogramComputer#compute`) is accompanied in the class file by a javac-generated bridge carrying the
 	 * erased signature, and it is the bridge that matches `isOverriddenFrom(...)`. Weaving the bridge is equally
 	 * effective — it polls before delegating — so "at least one declared method of this name matches" is the honest
 	 * question to ask.
@@ -241,7 +241,7 @@ class InterruptionTransformerMatcherTest {
 		@DisplayName("selects an extra result computer")
 		void shouldSelectExtraResultComputer() {
 			assertTrue(
-				matches(this.matcher, FlattenedHistogramComputer.class, "compute"),
+				matches(this.matcher, AttributeHistogramComputer.class, "compute"),
 				"the EvitaResponseExtraResultComputer#compute branch selects nothing - extra result computation is " +
 					"not interruptible"
 			);

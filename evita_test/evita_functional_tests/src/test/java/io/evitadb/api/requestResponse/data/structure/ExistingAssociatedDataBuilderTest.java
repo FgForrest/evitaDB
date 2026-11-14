@@ -33,7 +33,9 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.utils.ReflectionLookup;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -1016,6 +1018,90 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 				Integer.valueOf(99),
 				newAssociatedData.getAssociatedData("int")
 			);
+		}
+	}
+
+
+	@Nested
+	@DisplayName("Values equal by their encoded bounds")
+	class EncodedEqualValuesTest {
+
+		/**
+		 * `[1.0,2.0]` and `[10,20]` compare equal by their encoded bounds, yet a reader gets other bounds back. Setting
+		 * one over the other must produce a mutation and the builder must show the new value.
+		 */
+		@Test
+		@DisplayName("should not drop a decimal range whose bounds encode to the same longs as the stored one")
+		void shouldNotDropDecimalRangeEncodedToSameLongsAsStoredOne() {
+			final AssociatedData initial = new InitialAssociatedDataBuilder(EntitySchema._internalBuild("whatever"))
+				.setAssociatedData(
+					"decimalRange", BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+				)
+				.build();
+
+			final ExistingAssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initial);
+			builder.setAssociatedData(
+				"decimalRange", BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+			);
+
+			assertEquals("[10,20]", String.valueOf((Object) builder.getAssociatedData("decimalRange")));
+			assertEquals(1, builder.buildChangeSet().count());
+		}
+
+		/**
+		 * A DTO with a range property is stored as complex data, whose range leaf compares equal by its encoded bounds.
+		 * Setting a DTO whose range encodes to the same longs as the stored one must produce a mutation and the
+		 * builder must show the new range.
+		 */
+		@Test
+		@DisplayName("should not drop a DTO whose range property encodes to the same longs as the stored one")
+		void shouldNotDropDtoWithRangePropertyEncodedToSameLongsAsStoredOne() {
+			final AssociatedData initial = new InitialAssociatedDataBuilder(EntitySchema._internalBuild("whatever"))
+				.setAssociatedData(
+					"holder",
+					new RangeHolder(
+						"holder", BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+					)
+				)
+				.build();
+
+			final ExistingAssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initial);
+			builder.setAssociatedData(
+				"holder",
+				new RangeHolder("holder", BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20")))
+			);
+
+			assertEquals(
+				"[10,20]",
+				String.valueOf(
+					builder.getAssociatedData("holder", RangeHolder.class, ReflectionLookup.NO_CACHE_INSTANCE).range()
+				)
+			);
+			assertEquals(1, builder.buildChangeSet().count());
+		}
+
+		/**
+		 * Setting a DTO equal to the stored one, range property included, is no change.
+		 */
+		@Test
+		@DisplayName("should emit no mutation for a DTO with the very same range property as the stored one")
+		void shouldEmitNoMutationForDtoWithSameRangePropertyAsStoredOne() {
+			final AssociatedData initial = new InitialAssociatedDataBuilder(EntitySchema._internalBuild("whatever"))
+				.setAssociatedData(
+					"holder",
+					new RangeHolder(
+						"holder", BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+					)
+				)
+				.build();
+
+			final ExistingAssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initial);
+			builder.setAssociatedData(
+				"holder",
+				new RangeHolder("holder", BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0")))
+			);
+
+			assertEquals(0, builder.buildChangeSet().count());
 		}
 	}
 

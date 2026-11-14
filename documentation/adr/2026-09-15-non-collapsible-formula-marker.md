@@ -1,7 +1,7 @@
 ---
 title: Mark the formulas an optimiser may not collapse, rather than special-casing the container that holds them
 date: 2026-09-15
-updated: 2026-09-15 13:05
+updated: 2026-11-14 00:50
 status: accepted
 kind: fix
 issues: [1547]
@@ -9,7 +9,7 @@ prs: [1548, 1568]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/FormulaOptimizer.java, evita_engine/src/main/java/io/evitadb/core/query/algebra, evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/common]
 supersedes: []
 superseded-by: []
-relates: [2026-09-15-bidirectional-reference-counterpart-rewrite]
+relates: [2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-11-14-formula-cache-redesign]
 ---
 
 # Mark the formulas an optimiser may not collapse

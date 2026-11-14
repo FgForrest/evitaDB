@@ -24,20 +24,21 @@
 package io.evitadb.core.query.algebra.facet;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator.InScopeFormulaPostProcessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * This formula has almost identical implementation as {@link AndFormula} but it accepts only set of
@@ -49,17 +50,13 @@ import java.util.function.Consumer;
  */
 public class ScopeContainerFormula extends AbstractCacheableFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractCacheableFormula#getClassId()} for hash computation.
+	 * Stable discriminator returned by {@link AbstractCacheableFormula#getClassId()}.
 	 */
 	private static final long CLASS_ID = -5387565378948662756L;
 	/**
 	 * The scope that is used to filter the data.
 	 */
 	@Getter private final Scope scope;
-	/**
-	 * Array of transactional ids of the indexes that were used to build this formula, used for cache invalidation.
-	 */
-	private final long[] indexTransactionId;
 	/**
 	 * The formula of every entity of {@link #scope} the container stands for once all its inner formulas are removed
 	 * by a clone, or NULL when an emptied container stands for nothing. A container built by
@@ -71,50 +68,30 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 	 * Lazily initialized list of inner formulas sorted by their estimated cost in ascending order, used to
 	 * short-circuit AND evaluation starting from the cheapest formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private List<Formula> sortedFormulasByComplexity;
 
 	/**
-	 * Creates the container with a computation callback and no formula to stand for the scope once emptied - a clone
-	 * that strips every inner formula collapses this container to {@link EmptyFormula#INSTANCE}, see
-	 * {@link #emptyScopeFormula}. Use {@link #restrictingScope} instead when the container must survive emptying as
-	 * its whole scope.
+	 * Creates the container with the formula an emptied clone stands for.
 	 *
-	 * @param computationCallback the callback of the computation
-	 * @param scope               the scope the container restricts
-	 * @param innerFormulas       the constraints of the scope
-	 * @param indexTransactionId  the transactional ids of the indexes the formula was built from
-	 */
-	public ScopeContainerFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Scope scope, @Nonnull Formula[] innerFormulas, @Nonnull long[] indexTransactionId) {
-		this(computationCallback, scope, null, innerFormulas, indexTransactionId);
-	}
-
-	/**
-	 * Creates the container with a computation callback and the formula an emptied clone stands for.
-	 *
-	 * @param computationCallback the callback of the computation
-	 * @param scope               the scope the container restricts
-	 * @param emptyScopeFormula   the formula of every entity of the scope, or NULL - see {@link #emptyScopeFormula}
-	 * @param innerFormulas       the constraints of the scope
-	 * @param indexTransactionId  the transactional ids of the indexes the formula was built from
+	 * @param scope             the scope the container restricts
+	 * @param emptyScopeFormula the formula of every entity of the scope, or NULL - see {@link #emptyScopeFormula}
+	 * @param innerFormulas     the constraints of the scope
 	 */
 	private ScopeContainerFormula(
-		@Nullable Consumer<CacheableFormula> computationCallback,
 		@Nonnull Scope scope,
 		@Nullable Formula emptyScopeFormula,
-		@Nonnull Formula[] innerFormulas,
-		@Nullable long[] indexTransactionId
+		@Nonnull Formula[] innerFormulas
 	) {
-		super(computationCallback);
 		this.scope = scope;
 		this.emptyScopeFormula = emptyScopeFormula;
-		this.indexTransactionId = indexTransactionId;
 		this.initFields(innerFormulas);
 	}
 
 	/**
-	 * Creates the container with no computation callback and no formula to stand for the scope once emptied - a clone
+	 * Creates the container with no formula to stand for the scope once emptied - a clone
 	 * that strips every inner formula collapses this container to {@link EmptyFormula#INSTANCE}, see
-	 * {@link #emptyScopeFormula}. This is the entry point used outside the cloning/caching machinery, e.g. by
+	 * {@link #emptyScopeFormula}. This is the entry point used by
 	 * `FilterInScopeTranslator#translate`. Use {@link #restrictingScope} instead when the container must survive
 	 * emptying as its whole scope.
 	 *
@@ -122,7 +99,7 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 	 * @param innerFormulas the constraints of the scope
 	 */
 	public ScopeContainerFormula(@Nonnull Scope scope, @Nonnull Formula... innerFormulas) {
-		this(null, scope, null, innerFormulas, null);
+		this(scope, null, innerFormulas);
 	}
 
 	/**
@@ -147,7 +124,7 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 		@Nonnull Formula innerFormula
 	) {
 		return new ScopeContainerFormula(
-			null, scope, emptyScopeFormula, new Formula[]{emptyScopeFormula, innerFormula}, null
+			scope, emptyScopeFormula, new Formula[]{emptyScopeFormula, innerFormula}
 		);
 	}
 
@@ -167,23 +144,6 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 		return 9;
 	}
 
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		return new ScopeContainerFormula(
-			selfOperator,
-			this.scope,
-			this.emptyScopeFormula,
-			innerFormulas,
-			this.indexTransactionId
-		);
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return 0L;
-	}
-
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
@@ -195,15 +155,6 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 			this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
 		}
 		return computeSortedConjunctionCost(this.sortedFormulasByComplexity, getOperationCost());
-	}
-
-	@Override
-	protected long getCostToPerformanceInternal() {
-		if (this.sortedFormulasByComplexity == null) {
-			this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
-		}
-		return computeSortedConjunctionCostToPerformance(this.sortedFormulasByComplexity)
-			+ getCost() / Math.max(1, compute().size());
 	}
 
 	@Nonnull
@@ -231,10 +182,41 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 			return this.emptyScopeFormula == null ?
 				EmptyFormula.INSTANCE :
 				new ScopeContainerFormula(
-					null, this.scope, this.emptyScopeFormula, new Formula[]{this.emptyScopeFormula}, null
+					this.scope, this.emptyScopeFormula, new Formula[]{this.emptyScopeFormula}
 				);
 		}
-		return new ScopeContainerFormula(null, this.scope, this.emptyScopeFormula, innerFormulas, null);
+		return new ScopeContainerFormula(this.scope, this.emptyScopeFormula, innerFormulas);
 	}
 
+	/** Captures this formula's own computation inputs. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.scope, this.emptyScopeFormula == null ? null : this.emptyScopeFormula.getKey());
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param scope selected scope
+	 * @param emptyScopeFormula meaning of an emptied container
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		@Nonnull Scope scope,
+		@Nullable FormulaKey emptyScopeFormula
+	) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.scope);
+			accumulator.add(this.emptyScopeFormula);
+		}
+	}
 }

@@ -1053,6 +1053,60 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		}
 	}
 
+	/**
+	 * Identity follows committed hierarchy versions, including changes outside the attached tree.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("All-nodes formula identity freshness")
+	class AllNodesIdentityTest {
+		/** A clean commit preserves the owner version and its derived memo identity. */
+		@Test
+		@DisplayName("Keeps the key on a clean commit")
+		void shouldKeepKeyAcrossCleanCommit() {
+			final HierarchyIndex original = new HierarchyIndex();
+			original.addNode(1, null);
+			original.resetDirty();
+			final Formula before = original.getAllHierarchyNodesFormula();
+			assertStateAfterCommit(original, index -> { }, (orig, committed) -> {
+				assertSame(orig, committed);
+				assertEquals(before.getKey(), committed.getAllHierarchyNodesFormula().getKey());
+			});
+		}
+
+		/** An orphan-only write changes the index version even when attached-node content stays equal. */
+		@Test
+		@DisplayName("Refreshes the key on an orphan-only commit")
+		void shouldRefreshKeyAcrossOrphanOnlyCommit() {
+			final HierarchyIndex original = new HierarchyIndex();
+			original.addNode(1, null);
+			original.resetDirty();
+			final Formula before = original.getAllHierarchyNodesFormula();
+			assertStateAfterCommit(original, index -> index.addNode(10, 99), (orig, committed) -> {
+				assertArrayEquals(orig.getAllHierarchyNodes().getArray(), committed.getAllHierarchyNodes().getArray());
+				assertNotEquals(orig.getId(), committed.getId());
+				assertNotEquals(before.getKey(), committed.getAllHierarchyNodesFormula().getKey());
+			});
+		}
+
+		/** Equal large trees from different index owners keep distinct exact memo identities. */
+		@Test
+		@DisplayName("Uses exact versioned identity for large all-nodes memos")
+		void shouldKeepLargeMemoExactAndSeparateOwners() {
+			final HierarchyIndex first = new HierarchyIndex();
+			final HierarchyIndex second = new HierarchyIndex();
+			for (int i = 1; i <= 1100; i++) {
+				first.addNode(i, null);
+				second.addNode(i, null);
+			}
+			final Formula formula = first.getAllHierarchyNodesFormula();
+			assertFalse(formula.getKey().isQueryLocal());
+			assertEquals(formula.getKey(), first.getAllHierarchyNodesFormula().getKey());
+			assertNotEquals(formula.getKey(), second.getAllHierarchyNodesFormula().getKey());
+		}
+	}
+
 	@Nested
 	@DisplayName("STM removeLayer and identity")
 	class StmRemoveLayerAndIdentityTest {

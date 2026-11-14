@@ -26,7 +26,7 @@ package io.evitadb.index.range;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -61,7 +61,6 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
-import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.utils.AssertionUtils.assertFormulaResultsIn;
@@ -329,116 +328,55 @@ class RangeIndexTest {
 		}
 	}
 
+	/**
+	 * Verifies per-operand version identities across wide range-index reads.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Version identity (formula-cache staleness token)")
-	@Tag(CACHE)
-	class VersionIdentity {
-
+	@DisplayName("Declared range formula keys across commits")
+	class FormulaKeyTest {
+		/** Changes to an existing bitmap remain visible without changing operand count. */
 		@Test
-		@DisplayName("Distinct instances carry distinct version ids (not the constant Void 1L)")
-		void distinctInstancesHaveDistinctVersionIds() {
-			final RangeIndex a = new RangeIndex();
-			final RangeIndex b = new RangeIndex();
-			// each RangeIndex must expose a UNIQUE id; the VoidTransactionMemoryProducer default 1L would make every
-			// index collide and, worse, make the >100-operand RangeCountFormula token constant -> cache never invalidates (#37)
-			assertNotEquals(a.getId(), b.getId());
+		@DisplayName("Committed bitmap mutations change a wide range formula key")
+		void shouldChangeKeyOnCommittedOperandMutation() {
+			final RangeIndex index = populatedIndex();
+			final Formula before = index.getRecordsFrom(50L);
+			assertStateAfterCommit(index,
+				original -> original.addRecord(10L, 10_100L, 100_000),
+				(original, committed) -> {
+					final Formula after = committed.getRecordsFrom(50L);
+					assertNotEquals(before.getKey(), after.getKey());
+					assertNotEquals(before.getKey().getHash64(), after.getKey().getHash64());
+					assertFalse(before.compute().contains(100_000));
+					assertTrue(after.compute().contains(100_000));
+				});
 		}
 
+		/** Read-only merging retains the transactional bitmap versions in both signed families. */
 		@Test
-		@DisplayName("Commit after a range mutation mints a fresh version id (guards issue #37 stale cache)")
-		void commitAfterMutationChangesVersionId() {
-			final long originalId = RangeIndexTest.this.tested.getId();
+		@DisplayName("Clean committed range formulas retain their keys")
+		void shouldPreserveKeyOnCleanCommit() {
+			final RangeIndex index = populatedIndex();
+			final Formula before = index.getRecordsFrom(50L);
+			assertStateAfterCommit(index,
+				original -> original.getRecordsFrom(50L),
+				(original, committed) -> {
+					assertEquals(before.getKey(), committed.getRecordsFrom(50L).getKey());
+					assertEquals(before.getKey().getHash64(), committed.getRecordsFrom(50L).getKey().getHash64());
+				});
+		}
 
-			assertStateAfterCommit(
-				RangeIndexTest.this.tested,
-				original -> original.addRecord(100L, 200L, 1),
-				(original, committedVersion) -> {
-					// the surviving original delegate keeps its identity and its id
-					assertEquals(originalId, original.getId());
-					// the committed copy is a FRESH instance and MUST carry a fresh version id. A >100-bucket range
-					// RangeCountFormula seeds its transactional-id token from this id; if it did not change across a mutating
-					// commit the cached result would never be invalidated -> stale reads (issue #37).
-					assertNotEquals(originalId, committedVersion.getId());
+		/** Builds a clean index whose suffix carries more than one hundred operands. */
+		@Nonnull
+		private RangeIndex populatedIndex() {
+			final RangeIndex[] result = new RangeIndex[1];
+			assertStateAfterCommit(new RangeIndex(), original -> {
+				for (int i = 1; i <= 150; i++) {
+					original.addRecord(i, 10_000 + i, i);
 				}
-			);
-		}
-
-		@Test
-		@DisplayName("Commit without any mutation preserves the version id (untouched index stays cache-valid)")
-		void commitWithoutMutationPreservesVersionId() {
-			final long originalId = RangeIndexTest.this.tested.getId();
-
-			assertStateAfterCommit(
-				RangeIndexTest.this.tested,
-				// touch a DIFFERENT structure inside the transaction so a transactional layer exists, but never mutate
-				// the range index itself; a clean RangeIndex must return `this` at commit, preserving its id so cached
-				// formulas over an untouched index stay valid
-				original -> original.getRecordsValidNowFormula(150L),
-				(original, committedVersion) -> assertEquals(originalId, committedVersion.getId())
-			);
-		}
-
-		@Test
-		@DisplayName("Mutating commit re-mints a > 100-bitmap range formula's token (guards issue #37 stale cache)")
-		void highCardinalityRangeFormulaTokenChangesOnMutatingCommit() {
-			// 150 records at pairwise-disjoint from/to thresholds -> 150 distinct start points and 150 distinct end
-			// points, so getRecordsFrom(MIN_VALUE) folds > EXCESSIVE_HIGH_CARDINALITY (100) bitmaps into the RangeCountFormula,
-			// which then seeds its staleness token from the index id (getId()) instead of the per-bitmap ids
-			for (int i = 1; i <= 150; i++) {
-				RangeIndexTest.this.tested.addRecord(i, 10_000 + i, i);
-			}
-			assertTrue(
-				RangeIndexTest.this.tested.getRangePointCount()
-					> 2 * TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY,
-				"Fixture must carry > 100 distinct start thresholds and > 100 distinct end thresholds!"
-			);
-			final long before = RangeIndexTest.this.tested.getRecordsFrom(Long.MIN_VALUE).getTransactionalIdHash();
-
-			assertStateAfterCommit(
-				RangeIndexTest.this.tested,
-				original -> original.addRecord(10_000, 20_000, 100_000),
-				(original, committedVersion) ->
-					// the committed copy is a fresh instance with a fresh id; the > 100-operand RangeCountFormula seeds its
-					// token from that id, so a cached result over this range is now invalidated. With the old constant
-					// 1L id the token would be identical across the commit -> the stale read of issue #37.
-					assertNotEquals(
-						before, committedVersion.getRecordsFrom(Long.MIN_VALUE).getTransactionalIdHash(),
-						"A mutating commit must re-mint the high-cardinality range token!"
-					)
-			);
-		}
-
-		@Test
-		@DisplayName("Clean commit preserves a > 100-bitmap range formula's token (no over-invalidation)")
-		void highCardinalityRangeFormulaTokenSurvivesCleanCommit() {
-			// first fold a non-transactional 150-range build into a committed (clean) instance, so its dirty flag is
-			// cleared and a subsequent read-only commit returns the very same instance (preserving its id)
-			final RangeIndex[] cleanHolder = new RangeIndex[1];
-			assertStateAfterCommit(
-				RangeIndexTest.this.tested,
-				original -> {
-					for (int i = 1; i <= 150; i++) {
-						original.addRecord(i, 10_000 + i, i);
-					}
-				},
-				(original, committedVersion) -> cleanHolder[0] = committedVersion
-			);
-			final RangeIndex cleanIndex = cleanHolder[0];
-			assertTrue(
-				cleanIndex.getRangePointCount() > 2 * TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY,
-				"Fixture must carry > 100 distinct start thresholds and > 100 distinct end thresholds!"
-			);
-			final long before = cleanIndex.getRecordsFrom(Long.MIN_VALUE).getTransactionalIdHash();
-
-			// then a commit that never touches the range index must return the same instance and preserve its token
-			assertStateAfterCommit(
-				cleanIndex,
-				original -> original.getRecordsValidNowFormula(0L),
-				(original, committedVersion) -> assertEquals(
-					before, committedVersion.getRecordsFrom(Long.MIN_VALUE).getTransactionalIdHash(),
-					"A commit that did not touch the index must preserve its high-cardinality range token!"
-				)
-			);
+			}, (original, committed) -> result[0] = committed);
+			return result[0];
 		}
 	}
 
@@ -1930,6 +1868,5 @@ class RangeIndexTest {
 			.map(BaseBitmap::new)
 			.collect(Collectors.toList());
 	}
-
 
 }

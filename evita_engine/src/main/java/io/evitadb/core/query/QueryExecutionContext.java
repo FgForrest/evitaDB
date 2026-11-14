@@ -59,6 +59,7 @@ import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComput
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.core.query.response.ServerEntityDecorator;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
@@ -69,7 +70,6 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.RandomUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -100,7 +100,6 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
 public class QueryExecutionContext implements Closeable {
 	/**
 	 * The original context that was used for planning the query.
@@ -114,12 +113,18 @@ public class QueryExecutionContext implements Closeable {
 	 */
 	@Getter private final boolean prefetchExecution;
 	/**
+	 * True when the planning root passed the formula cache gate, this is neither an eager planning evaluation nor a
+	 * prefetch execution, and no transaction was bound to the creating thread - decided once, at construction. The
+	 * suspension during a sampled recomputation is read separately, see {@link #isFormulaCacheUsable()}.
+	 */
+	private final boolean formulaCacheUsable;
+	/**
 	 * This field is used only for debugging purposes when we need to compute results for different variants of
 	 * query plan. In case random function is used in the evaluation process, the variants would ultimately produce
 	 * different results. Therefore, we "freeze" the {@link Random} using Java serialization process and restore it
 	 * along with its internal state for each query plan so that the random row, stays the same for all evaluations.
 	 */
-	private final byte[] frozenRandom;
+	@Nullable private final QueryPlanningContext.VerificationState verificationState;
 	/**
 	 * A function that converts a given {@link SealedEntity} into a specified type.
 	 * This BiFunction takes a {@link Class} object representing the desired type
@@ -162,35 +167,63 @@ public class QueryExecutionContext implements Closeable {
 	private int ioFetchedBytesAtScopeOpen;
 
 	/**
-	 * Returns true if the context is inside {@link QueryPlanner#verifyConsistentResultsInAllPlans(QueryPlanningContext, List, List, QueryPlanBuilder)}  method.
+	 * Creates an execution context with an explicit verification seed or the query's shared execution state.
+	 * Executions without verification or caching keep a null state; shared checks never walk context ancestry.
+	 * An eager planning evaluation computes formulas while the plan is being built and never uses the formula
+	 * result cache.
 	 *
-	 * In that mode the same query is evaluated by several alternative plans purely to check they agree, so the run is
-	 * not the one the client observes. Two things follow, and both are relied upon across this class: the random
-	 * source is frozen so the plans cannot diverge on it (see {@link #frozenRandom}), and every telemetry step
-	 * pushed or popped *through this class* is suppressed - the throw-away runs must not pollute the tree that the
-	 * real execution reports.
-	 *
-	 * The suppression covers steps, not annotations, and it only covers callers that go through this class. Code
-	 * that reaches the planning context directly - `SortResolutionStrategies` is the one such caller today - can
-	 * still annotate the open step during a dry run, so a query run under
-	 * {@link io.evitadb.api.query.require.DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} may carry annotations
-	 * contributed by a verification pass rather than by the run the client observes.
-	 *
-	 * The flag is derived from {@link #frozenRandom} rather than stored separately: a frozen random source is only
-	 * ever supplied for plan verification, so its presence *is* the dry-run signal.
+	 * @param queryContext the planning context the execution belongs to
+	 * @param prefetchExecution true when the execution filters prefetched entities instead of indexes
+	 * @param planningEvaluation true for the eager evaluation of formulas while the plan is being built
+	 * @param frozenRandom serialized random state of a verification execution, null to use the query's shared state
+	 * @param converter converts a fetched entity to the type the caller requested
+	 */
+	public QueryExecutionContext(
+		@Nonnull QueryPlanningContext queryContext, boolean prefetchExecution, boolean planningEvaluation,
+		@Nullable byte[] frozenRandom,
+		@Nonnull BiFunction<Class<?>, SealedEntity, Object> converter
+	) {
+		this.queryContext = queryContext;
+		this.prefetchExecution = prefetchExecution;
+		this.formulaCacheUsable = queryContext.isFormulaCacheEnabled() && !planningEvaluation &&
+			!prefetchExecution && !Transaction.isTransactionAvailable();
+		this.verificationState = frozenRandom == null ? queryContext.getVerificationState() :
+			new QueryPlanningContext.VerificationState(frozenRandom);
+		this.converter = converter;
+	}
+
+	/** Returns execution eligibility, including suspension shared with every context of the query. */
+	public boolean isFormulaCacheUsable() {
+		return this.formulaCacheUsable && !this.queryContext.isFormulaCacheSuspended();
+	}
+
+	/** Suspends formula cache access throughout a sampled recomputation and returns the preceding flag. */
+	public boolean suspendFormulaCache() {
+		return this.queryContext.exchangeFormulaCacheSuspension(true);
+	}
+
+	/** Restores the suspension state in a sampled recomputation's finally block. */
+	public void resumeFormulaCache(boolean previous) {
+		this.queryContext.exchangeFormulaCacheSuspension(previous);
+	}
+
+	/**
+	 * Returns true during either plan-verification mode, including nested executions and sorter contexts captured
+	 * during planning. The preferred plan can subsequently execute for the client without recording its dry runs.
+	 * Ordinary queries pay one field read and one null check, independently of context depth.
 	 */
 	public boolean isDryRun() {
-		return this.frozenRandom != null;
+		return this.verificationState != null && this.verificationState.frozenRandom != null;
 	}
 
 	/**
 	 * Returns random object to generate sequences from.
 	 *
-	 * @see #frozenRandom for more information
+	 * @see #verificationState for more information
 	 */
 	@Nonnull
 	public Random getRandom() {
-		return RandomUtils.getRandom(this.frozenRandom);
+		return RandomUtils.getRandom(this.verificationState == null ? null : this.verificationState.frozenRandom);
 	}
 
 	/**
@@ -210,7 +243,7 @@ public class QueryExecutionContext implements Closeable {
 	public Optional<SealedEntity> fetchEntity(@Nullable String entityType, int entityPrimaryKey, @Nonnull EntityFetchRequire requirements) {
 		final EntityCollection targetCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
 		final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
-		return targetCollection.fetchEntity(entityPrimaryKey, fetchRequest, this.queryContext.getEvitaSession());
+		return targetCollection.fetchEntity(entityPrimaryKey, fetchRequest, this.queryContext);
 	}
 
 	/**
@@ -229,7 +262,7 @@ public class QueryExecutionContext implements Closeable {
 	public List<SealedEntity> fetchEntities(@Nullable String entityType, @Nonnull int[] entityPrimaryKeys, @Nonnull EntityFetchRequire requirements) {
 		final EntityCollection entityCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entities");
 		final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
-		return entityCollection.fetchEntities(entityPrimaryKeys, fetchRequest, this.queryContext.getEvitaSession());
+		return entityCollection.fetchEntities(entityPrimaryKeys, fetchRequest, this.queryContext);
 	}
 
 	/**
@@ -282,7 +315,7 @@ public class QueryExecutionContext implements Closeable {
 				entityPrimaryKey,
 				entityType,
 				(entityCollection, entityPrimaryKeys, requestToUse) ->
-					entityCollection.fetchEntities(entityPrimaryKeys, evitaRequest, evitaSession),
+					entityCollection.fetchEntities(entityPrimaryKeys, evitaRequest, this.queryContext),
 				(entityCollection, prefetchedEntities, requestToUse) ->
 					entityCollection.limitAndFetchExistingEntities(prefetchedEntities, requestToUse, entityFetcher)
 			);
@@ -330,11 +363,10 @@ public class QueryExecutionContext implements Closeable {
 			);
 		} else {
 			final String entityType = this.queryContext.getEntityType();
-			final EvitaSessionContract evitaSession = this.queryContext.getEvitaSession();
 			final EntityCollection entityCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entities");
 			final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
 			this.prefetchedEntities = Arrays.stream(entitiesToPrefetch.getArray())
-				.mapToObj(it -> entityCollection.fetchEntityDecorator(it, fetchRequest, evitaSession))
+				.mapToObj(it -> entityCollection.fetchEntityDecorator(it, fetchRequest))
 				.filter(Optional::isPresent)
 				.map(Optional::get)
 				.toList();
@@ -357,13 +389,12 @@ public class QueryExecutionContext implements Closeable {
 			if (this.prefetchedEntities == null) {
 				this.prefetchedEntities = new ArrayList<>(entitiesToPrefetch.length);
 			}
-			final EvitaSessionContract evitaSession = this.queryContext.getEvitaSession();
 			if (entitiesToPrefetch.length == 1) {
 				final String entityType = entitiesToPrefetch[0].getType();
 				final EntityCollection targetCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
 				final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
 				final int pk = entitiesToPrefetch[0].getPrimaryKey();
-				targetCollection.fetchEntityDecorator(pk, fetchRequest, evitaSession)
+				targetCollection.fetchEntityDecorator(pk, fetchRequest)
 					.ifPresent(it -> this.prefetchedEntities.add(it));
 			} else {
 				final Map<String, CompositeIntArray> entitiesByType = CollectionUtils.createHashMap(16);
@@ -379,7 +410,7 @@ public class QueryExecutionContext implements Closeable {
 						final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
 						final EntityCollection targetCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
 						return Arrays.stream(it.getValue().toArray())
-							.mapToObj(pk -> targetCollection.fetchEntityDecorator(pk, fetchRequest, evitaSession))
+							.mapToObj(pk -> targetCollection.fetchEntityDecorator(pk, fetchRequest))
 							.filter(Optional::isPresent)
 							.map(Optional::get);
 					})
@@ -499,8 +530,8 @@ public class QueryExecutionContext implements Closeable {
 	 *
 	 * This wrapper exists solely to add the {@link #isDryRun()} guard to the identically named method on the planning
 	 * context: the telemetry tree belongs to the planning context and is shared by every execution of the query, so a
-	 * plan-verification run must not push its steps into it. Execution-time code must therefore always go through
-	 * this class and never reach for the {@link #queryContext} directly to push or pop a step.
+	 * plan-verification run must not push its steps into it. This guard also covers an explicit execution seed;
+	 * the planning context additionally suppresses direct runtime-planning steps during shared verification.
 	 *
 	 * @param phase the phase the pushed step measures
 	 */
@@ -749,7 +780,7 @@ public class QueryExecutionContext implements Closeable {
 
 	@Nonnull
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
-		return this.queryContext.analyse(computer);
+		return this.queryContext.analyse(computer, this);
 	}
 
 	@Nonnull

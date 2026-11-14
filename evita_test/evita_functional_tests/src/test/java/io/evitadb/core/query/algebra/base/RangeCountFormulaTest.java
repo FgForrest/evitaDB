@@ -23,11 +23,8 @@
 
 package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -40,7 +37,6 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -49,31 +45,26 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the contract of {@link RangeCountFormula} itself — its identity, its declared premises and the staleness
- * token it hands the formula cache. {@link RangeCountKernelTest} covers the arithmetic; everything here is about the
- * formula wrapper around it.
+ * Verifies the contract of {@link RangeCountFormula} itself — its identity, its declared premises and the inputs
+ * it hands the planner. {@link RangeCountKernelTest} covers the arithmetic; everything here is about the formula
+ * wrapper around it.
  *
- * The identity half matters more than it looks. This formula is cacheable, so two formulas that hash the same are
- * served each other's answer; the operands are carried as two ORDERED families, and their concatenation alone does
- * not say where one family ends and the other begins.
+ * The identity half matters more than it looks. Two formulas with equal keys over the same data are served each
+ * other's answer - `FormulaDeduplicator` keeps one instance for both; the operands are carried as two ORDERED
+ * families, and their concatenation alone does not say where one family ends and the other begins.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Tag(INDEXING)
 @Tag(QUERY)
 @Tag(CACHE)
-@DisplayName("RangeCountFormula: identity, premises and staleness token")
+@DisplayName("RangeCountFormula: identity, premises and planner inputs")
 class RangeCountFormulaTest {
-	/**
-	 * Arbitrary non-zero index id — any high-cardinality formula requires one, and the value itself is opaque.
-	 */
-	private static final long INDEX_ID = 42L;
 
 	/**
 	 * Builds a non-transactional bitmap from the given record ids.
@@ -102,81 +93,70 @@ class RangeCountFormulaTest {
 		return operands;
 	}
 
+	/**
+	 * Verifies that both signed operand families are detached inputs of the key.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Formula identity")
-	class Identity {
-
+	@DisplayName("Declared formula key")
+	class KeyTest {
+		/** Each signed family contributes its own operand identity and hash bits. */
 		@Test
-		@DisplayName("Two different splits of the same operand sequence into families hash differently")
-		void shouldHashDifferentFamilySplitsOfTheSameOperandsDifferently() {
+		@DisplayName("Changing either signed family changes the key and hash64")
+		void shouldIncludeBothFamilies() {
+			final Formula base = new RangeCountFormula(new Bitmap[]{bitmap(1)}, new Bitmap[]{bitmap(2)});
+			final Formula plus = new RangeCountFormula(new Bitmap[]{bitmap(3)}, new Bitmap[]{bitmap(2)});
+			final Formula minus = new RangeCountFormula(new Bitmap[]{bitmap(1)}, new Bitmap[]{bitmap(3)});
+			assertNotEquals(base.getKey(), plus.getKey());
+			assertNotEquals(base.getKey().getHash64(), plus.getKey().getHash64());
+			assertNotEquals(base.getKey(), minus.getKey());
+			assertNotEquals(base.getKey().getHash64(), minus.getKey().getHash64());
+		}
+
+		/** The family boundary survives identical concatenated operand sequences. */
+		@Test
+		@DisplayName("Family splits and swapped signs have different keys")
+		void shouldDistinguishFamilyBoundaryAndSigns() {
 			final Bitmap a = bitmap(1, 2);
 			final Bitmap b = bitmap(2, 3);
 			final Bitmap c = bitmap(3);
-
-			final RangeCountFormula twoPlusOne = new RangeCountFormula(INDEX_ID, new Bitmap[]{a, b}, new Bitmap[]{c});
-			final RangeCountFormula onePlusTwo = new RangeCountFormula(INDEX_ID, new Bitmap[]{a}, new Bitmap[]{b, c});
-
-			// CALIBRATION: the two formulas hold the SAME three operands in the SAME order - only the position of
-			// the family boundary differs. `includeAdditionalHash` therefore folds an identical sequence of operand
-			// tokens in both cases, and the only thing left that can tell them apart is the FAMILY_SEPARATOR folded
-			// in between the families. Erase the boundary from both renderings and they coincide, which is the
-			// statement "without the separator these two hash the same" made without touching the production code.
-			assertEquals(
-				operandSequenceOf(twoPlusOne), operandSequenceOf(onePlusTwo),
-				"The fixture proves nothing unless both formulas carry the same operand sequence"
-			);
-
-			assertNotEquals(
-				twoPlusOne.getHash(), onePlusTwo.getHash(),
-				"Two different family splits of one operand sequence must not share a formula-cache key"
-			);
-			// and the distinction is not academic - the two genuinely compute different records
-			assertArrayEquals(new int[]{1, 2}, twoPlusOne.compute().getArray());
-			assertArrayEquals(new int[]{1}, onePlusTwo.compute().getArray());
+			final Formula first = new RangeCountFormula(new Bitmap[]{a, b}, new Bitmap[]{c});
+			final Formula split = new RangeCountFormula(new Bitmap[]{a}, new Bitmap[]{b, c});
+			final Formula swapped = new RangeCountFormula(new Bitmap[]{c}, new Bitmap[]{a, b});
+			assertNotEquals(first.getKey(), split.getKey());
+			assertNotEquals(first.getKey().getHash64(), split.getKey().getHash64());
+			assertNotEquals(first.getKey(), swapped.getKey());
+			assertArrayEquals(new int[]{1, 2}, first.compute().getArray());
+			assertArrayEquals(new int[]{1}, split.compute().getArray());
 		}
 
+		/** Canonicalization keeps the multiplicities used by signed counting. */
 		@Test
-		@DisplayName("Swapping the plus and minus families changes the hash")
-		void shouldHashSwappedFamiliesDifferently() {
-			final Bitmap[] first = {bitmap(1, 2, 3)};
-			final Bitmap[] second = {bitmap(2, 3, 4)};
-
-			final RangeCountFormula forward = new RangeCountFormula(INDEX_ID, first, second);
-			final RangeCountFormula backward = new RangeCountFormula(INDEX_ID, second, first);
-
-			// this one passes even without the separator, because the operand sequence itself is reordered -
-			// it is kept as the cheap sibling of the assertion above, not as a substitute for it
-			assertNotEquals(forward.getHash(), backward.getHash());
-			assertArrayEquals(new int[]{1}, forward.compute().getArray());
-			assertArrayEquals(new int[]{4}, backward.compute().getArray());
+		@DisplayName("Family permutations share keys while repeated operands retain their signs")
+		void shouldCanonicalizeFamiliesAndKeepMultiplicity() {
+			final Bitmap a = bitmap(1, 2);
+			final Bitmap b = bitmap(2, 3);
+			final Formula base = new RangeCountFormula(new Bitmap[]{a, b}, new Bitmap[]{a, b});
+			final Formula reordered = new RangeCountFormula(new Bitmap[]{b, a}, new Bitmap[]{b, a});
+			final Formula extraPlus = new RangeCountFormula(new Bitmap[]{a, b, a}, new Bitmap[]{a, b});
+			final Formula extraMinus = new RangeCountFormula(new Bitmap[]{a, b}, new Bitmap[]{a, b, a});
+			assertEquals(base.getKey(), reordered.getKey());
+			assertEquals(base.getKey().getHash64(), reordered.getKey().getHash64());
+			assertNotEquals(base.getKey(), extraPlus.getKey());
+			assertNotEquals(base.getKey(), extraMinus.getKey());
+			assertArrayEquals(new int[]{1, 2}, extraPlus.compute().getArray());
+			assertTrue(base.compute().isEmpty());
 		}
 
+		/** Transactional operand versions remain identity inputs even at large widths. */
 		@Test
-		@DisplayName("Operand order inside a family is part of the formula identity")
-		void shouldReportOrderAsSignificant() {
-			final RangeCountFormula tested = new RangeCountFormula(
-				INDEX_ID, new Bitmap[]{bitmap(1)}, new Bitmap[]{bitmap(2)}
-			);
-			// the sibling of the separator invariant: were the order insignificant, `initFields` would sort the
-			// hash array and the family boundary would stop being observable at all
-			assertTrue(tested.isFormulaOrderSignificant());
-		}
-
-		/**
-		 * Renders the operands in the order `includeAdditionalHash` folds them, with the family boundary erased.
-		 *
-		 * `toStringVerbose` prints the plus family, then the boundary marker, then the minus family; replacing the
-		 * marker with an ordinary separator leaves exactly the operand sequence the hash would see if no
-		 * `FAMILY_SEPARATOR` were folded in.
-		 *
-		 * @param formula the formula to render
-		 * @return the operand sequence, boundary-free
-		 */
-		@Nonnull
-		private String operandSequenceOf(@Nonnull RangeCountFormula formula) {
-			final String verbose = formula.toStringVerbose();
-			assertTrue(verbose.startsWith("RANGE COUNT: +["), "Unexpected rendering: " + verbose);
-			return verbose.substring("RANGE COUNT: +[".length()).replace("] -[", ", ");
+		@DisplayName("Operand versions distinguish keys at large widths")
+		void shouldIncludeOperandVersions() {
+			final Formula first = new RangeCountFormula(transactionalOperands(101), new Bitmap[0]);
+			final Formula second = new RangeCountFormula(transactionalOperands(101), new Bitmap[0]);
+			assertNotEquals(first.getKey(), second.getKey());
+			assertNotEquals(first.getKey().getHash64(), second.getKey().getHash64());
 		}
 	}
 
@@ -191,82 +171,19 @@ class RangeCountFormulaTest {
 			// is only reachable by a direct caller - which is precisely why it is asserted rather than trusted
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> new RangeCountFormula(INDEX_ID, new Bitmap[0], new Bitmap[]{bitmap(1)})
+				() -> new RangeCountFormula(new Bitmap[0], new Bitmap[]{bitmap(1)})
 			);
 		}
 
 		@Test
 		@DisplayName("Inner formulas are refused - this formula carries bitmaps, not children")
 		void shouldRefuseInnerFormulas() {
-			final RangeCountFormula tested = new RangeCountFormula(
-				INDEX_ID, new Bitmap[]{bitmap(1, 2)}, new Bitmap[]{bitmap(2)}
+			final RangeCountFormula tested = new RangeCountFormula(new Bitmap[]{bitmap(1, 2)}, new Bitmap[]{bitmap(2)}
 			);
 			assertEquals(0, tested.getInnerFormulas().length);
 			assertThrows(UnsupportedOperationException.class, tested::getCloneWithInnerFormulas);
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> tested.getCloneWithComputationCallback(it -> {
-				}, new ConstantFormula(bitmap(9)))
-			);
 		}
 
-		@Test
-		@DisplayName("A computation-callback clone computes the same records and fires the callback once")
-		void shouldCloneWithComputationCallback() {
-			final RangeCountFormula tested = new RangeCountFormula(
-				INDEX_ID, new Bitmap[]{bitmap(1, 2), bitmap(2)}, new Bitmap[]{bitmap(2)}
-			);
-			final AtomicInteger callbackCount = new AtomicInteger();
-			final CacheableFormula clone = tested.getCloneWithComputationCallback(it -> callbackCount.incrementAndGet());
-
-			assertNotSame(tested, clone);
-			assertArrayEquals(tested.compute().getArray(), clone.compute().getArray());
-			assertEquals(1, callbackCount.get(), "The computation callback must fire exactly once per computation");
-		}
-
-		@Test
-		@DisplayName("A high-cardinality formula without a staleness token is refused outright")
-		void shouldRefuseAHighCardinalityFormulaWithNoStalenessToken() {
-			final Bitmap[] plus = transactionalOperands(TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY);
-			final Bitmap[] minus = transactionalOperands(1);
-			// `initFields` gathers the ids inside the constructor, so the refusal surfaces at construction time
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> new RangeCountFormula(0L, plus, minus)
-			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Staleness token")
-	class StalenessToken {
-
-		@Test
-		@DisplayName("At the cardinality threshold the per-operand ids are gathered, one above it the index id is")
-		void shouldSeedTheStalenessTokenFromTheIndexIdAboveTheCardinalityThreshold() {
-			final int threshold = TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY;
-
-			// exactly AT the threshold - `plus.length + minus.length > EXCESSIVE_HIGH_CARDINALITY` is still false
-			final RangeCountFormula atThreshold = new RangeCountFormula(
-				INDEX_ID, transactionalOperands(threshold - 1), transactionalOperands(1)
-			);
-			assertEquals(threshold, atThreshold.gatherBitmapIdsInternal().length);
-
-			// one above it - the per-bitmap tokens are dropped for the index's own id
-			final RangeCountFormula aboveThreshold = new RangeCountFormula(
-				INDEX_ID, transactionalOperands(threshold), transactionalOperands(1)
-			);
-			assertArrayEquals(new long[]{INDEX_ID}, aboveThreshold.gatherBitmapIdsInternal());
-		}
-
-		@Test
-		@DisplayName("Non-transactional operands contribute no staleness token")
-		void shouldGatherNoIdsForNonTransactionalOperands() {
-			final RangeCountFormula tested = new RangeCountFormula(
-				INDEX_ID, new Bitmap[]{bitmap(1, 2)}, new Bitmap[]{bitmap(2)}
-			);
-			assertEquals(0, tested.gatherBitmapIdsInternal().length);
-		}
 	}
 
 	@Nested
@@ -282,7 +199,7 @@ class RangeCountFormulaTest {
 				final Random random = new Random(iteration * 31L + 7L);
 				final Bitmap[] plus = randomFamily(random, 1, 6, 40, 500);
 				final Bitmap[] minus = randomFamily(random, 0, 6, 40, 500);
-				final RangeCountFormula tested = new RangeCountFormula(INDEX_ID, plus, minus);
+				final RangeCountFormula tested = new RangeCountFormula(plus, minus);
 				final int computed = tested.compute().size();
 				assertTrue(
 					computed <= tested.getEstimatedCardinality(),
@@ -298,7 +215,7 @@ class RangeCountFormulaTest {
 		void shouldPriceTheActualCostAtTheOperationCost() {
 			final Bitmap[] plus = {bitmap(1, 2, 3), bitmap(2, 3)};
 			final Bitmap[] minus = {bitmap(3)};
-			final RangeCountFormula tested = new RangeCountFormula(INDEX_ID, plus, minus);
+			final RangeCountFormula tested = new RangeCountFormula(plus, minus);
 			// 3 + 2 endpoints on the plus side and 1 on the minus side - every one of them is scattered
 			final long endpoints = 6L;
 
@@ -312,10 +229,6 @@ class RangeCountFormulaTest {
 			// under-report the cost by a factor of getOperationCost().
 			assertEquals(endpoints * tested.getOperationCost(), tested.getCost());
 			assertEquals(tested.getEstimatedCost(), tested.getCost());
-
-			// and that is what reaches the formula cache: `AbstractFormula#getCostToPerformanceInternal` divides the
-			// actual cost by the result size, and CacheEden both admits and ranks entries on the resulting ratio
-			assertEquals(tested.getCost() / 3, tested.getCostToPerformanceRatio());
 		}
 
 		@Test
@@ -324,7 +237,7 @@ class RangeCountFormulaTest {
 			// the pair this formula replaced needed an explicit `disentangle(X, X) = empty` guard in FormulaCloner;
 			// here it has to fall out of the arithmetic alone, at the level the guard used to sit on
 			final Bitmap[] family = {bitmap(1, 2, 3), bitmap(2, 5), bitmap(9)};
-			final RangeCountFormula tested = new RangeCountFormula(INDEX_ID, family, family);
+			final RangeCountFormula tested = new RangeCountFormula(family, family);
 			assertTrue(tested.compute().isEmpty());
 			assertFalse(tested.toString().isEmpty());
 		}
@@ -332,8 +245,7 @@ class RangeCountFormulaTest {
 		@Test
 		@DisplayName("The verbose rendering names both families")
 		void shouldRenderBothFamilies() {
-			final RangeCountFormula tested = new RangeCountFormula(
-				INDEX_ID, new Bitmap[]{bitmap(1, 2)}, new Bitmap[]{bitmap(2)}
+			final RangeCountFormula tested = new RangeCountFormula(new Bitmap[]{bitmap(1, 2)}, new Bitmap[]{bitmap(2)}
 			);
 			assertEquals("RANGE COUNT: +1 operands, -1 operands", tested.toString());
 			assertTrue(tested.toStringVerbose().contains("] -["), tested.toStringVerbose());
@@ -381,7 +293,7 @@ class RangeCountFormulaTest {
 		void shouldParticipateInASurroundingConjunction() {
 			// signed counts: 1 -> +1, 2 -> +2, 3 -> +2 - 2 = 0, so record 3 cancels and the range count answers {1, 2}
 			final RangeCountFormula rangeCount = new RangeCountFormula(
-				INDEX_ID, new Bitmap[]{bitmap(1, 2, 3), bitmap(2, 3)}, new Bitmap[]{bitmap(3), bitmap(3)}
+				new Bitmap[]{bitmap(1, 2, 3), bitmap(2, 3)}, new Bitmap[]{bitmap(3), bitmap(3)}
 			);
 			final Formula and = new AndFormula(rangeCount, new ConstantFormula(bitmap(2, 3, 4)));
 

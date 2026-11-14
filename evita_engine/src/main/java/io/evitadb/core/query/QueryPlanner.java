@@ -34,13 +34,11 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
-import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.exception.InconsistentResultsException;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
-import io.evitadb.core.query.algebra.debug.CacheableVariantsGeneratingVisitor;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
@@ -55,9 +53,6 @@ import io.evitadb.core.query.filter.FormulaOptimizer;
 import io.evitadb.core.query.indexSelection.IndexSelectionResult;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.core.query.policy.BitmapFavouringNoCachePolicy;
-import io.evitadb.core.query.policy.CacheEnforcingPolicy;
-import io.evitadb.core.query.policy.PrefetchFavouringNoCachePolicy;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
@@ -72,11 +67,14 @@ import io.evitadb.spi.store.catalog.chunk.ExpressionBasedSlicer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.RandomUtils;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -88,7 +86,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -132,13 +129,14 @@ public class QueryPlanner {
 	 * Planning passes through these phases:
 	 *
 	 * 1. filtering formula construction for all possible indexes
-	 * a) replacing formulas with cached results
-	 * b) selecting the best formula / index combination that would produce result with minimal effort
+	 *    and selecting the formula / index combination with the lowest estimated cost
 	 * 2. creating sorter that will take care of ordering and slicing the result page
 	 * 3. prefetching the entity bodies if the filtering requires it, or it would produce results faster
 	 * 4. creating extra result computers, that will create and provide extra results for the request
 	 *
-	 * The expensive work will be executed when {@link QueryPlan#execute()} is called outside this method.
+	 * The expensive work normally executes when {@link QueryPlan#execute()} is called outside this method. A flagged
+	 * top-level query first compares its preferred plan with an independently planned key-free baseline under one
+	 * frozen random state; the caller then executes the preferred plan with its formula memos reused.
 	 *
 	 * Phases 2 - 4 are normally performed for the preferred plan only; the debug branch performs them for every
 	 * alternative, because the consistency verification needs fully built plans to execute and compare - see
@@ -152,6 +150,16 @@ public class QueryPlanner {
 	 */
 	@Nonnull
 	public static QueryPlan planQuery(@Nonnull QueryPlanningContext context) {
+		final QueryPlan preferredPlan = planQueryInternal(context);
+		if (context.isFormulaSharingVerificationRequired()) {
+			verifyKeyFreeBaseline(context, preferredPlan);
+		}
+		return preferredPlan;
+	}
+
+	/** Builds a plan, including an empty plan, before any formula-sharing verification executes it. */
+	@Nonnull
+	private static QueryPlan planQueryInternal(@Nonnull QueryPlanningContext context) {
 		// structural rules the constraints cannot check themselves - they are verified on the final tree here, so
 		// that a stored query of the refused shape stays readable and a copied container cannot slip past them
 		final EvitaRequest evitaRequest = context.getEvitaRequest();
@@ -192,13 +200,13 @@ public class QueryPlanner {
 
 			// verify results in alternative indexes if the debug option is on
 			final List<? extends TargetIndexes<?>> targetIndexes = indexSelectionResult.targetIndexes();
-			if (context.isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) || context.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)) {
+			if (context.isAlternativeIndexVerificationRequired()) {
 				// create sorter and computers for all plans
 				createSorter(context, targetIndexes, queryPlanBuilders);
 				createExtraResultProducers(context, queryPlanBuilders);
 				createSlicer(context, queryPlanBuilders);
 				// and verify consistent results
-				verifyConsistentResultsInAllPlans(context, targetIndexes, queryPlanBuilders, preferredPlan);
+				verifyConsistentResultsInAllPlans(queryPlanBuilders, preferredPlan);
 			} else {
 				// create sorter and computers only for preferred plan
 				final List<QueryPlanBuilder> preferredPlanBuilderCollection = Collections.singletonList(preferredPlan);
@@ -222,8 +230,7 @@ public class QueryPlanner {
 	 * Planning passes through these phases:
 	 *
 	 * 1. filtering formula construction for all possible indexes
-	 * a) replacing formulas with cached results
-	 * b) selecting the best formula / index combination that would produce result with minimal effort
+	 *    and selecting the formula / index combination with the lowest estimated cost
 	 * 2. creating sorter that will take care of ordering and slicing the result page
 	 * 3. prefetching the entity bodies if the filtering requires it, or it would produce results faster
 	 *
@@ -272,10 +279,10 @@ public class QueryPlanner {
 
 			// verify results in alternative indexes
 			final List<? extends TargetIndexes<?>> targetIndexes = indexSelectionResult.targetIndexes();
-			if (context.isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) || context.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)) {
+			if (context.isAlternativeIndexVerificationRequired()) {
 				// create sorters for all possible plans
 				createSorter(context, targetIndexes, queryPlanBuilders);
-				verifyConsistentResultsInAllPlans(context, targetIndexes, queryPlanBuilders, preferredPlan);
+				verifyConsistentResultsInAllPlans(queryPlanBuilders, preferredPlan);
 			} else {
 				// create sorter only for preferred plan
 				createSorter(context, targetIndexes, Collections.singletonList(preferredPlan));
@@ -399,9 +406,9 @@ public class QueryPlanner {
 	 *
 	 * - the list is kept **sorted by estimated cost** as it is built (the cheapest candidate is always pushed to
 	 *   the front), so `get(0)` is the preferred plan without a separate sorting pass
-	 * - unless {@link DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} is on, only that first element is returned; the
-	 *   remaining candidates are constructed but thrown away, since building them is cheap and comparing their
-	 *   costs is the only way to know which one wins
+	 * - unless {@link QueryPlanningContext#isAlternativeIndexVerificationRequired()} holds, only that first element is
+	 *   returned; the remaining candidates are constructed but thrown away, since building them is cheap and comparing
+	 *   their costs is the only way to know which one wins
 	 *
 	 * Candidates that are not eligible for a separate query plan produce no builder at all - they are only
 	 * recorded in telemetry, so that a reader can see the index was considered and why it lost.
@@ -472,7 +479,7 @@ public class QueryPlanner {
 				}
 			}
 
-			return queryContext.isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) ?
+			return queryContext.isAlternativeIndexVerificationRequired() ?
 				result : result.subList(0, 1);
 		} finally {
 			if (result.isEmpty()) {
@@ -545,70 +552,11 @@ public class QueryPlanner {
 			return new DeferredFormula(
 				new FormulaWrapper(
 					nestedFormula,
-					(executionContext, formula) -> {
-						try {
-							executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
-							return formula.compute();
-						} finally {
-							executionContext.popStep();
-						}
-					}
+					stepDescriptionSupplier
 				)
 			);
 		} finally {
 			queryContext.popStep();
-		}
-	}
-
-	/**
-	 * Generates all possible variants of the original formula where cacheable parts are one by one transformed
-	 * to the {@link CachePayloadHeader} counterparts and adds them to `result` list. The method is used for debugging
-	 * purposes to verify that the {@link QueryPlan} for all of them produce exactly same results.
-	 *
-	 * Queries that do not request the entity type are skipped entirely: such a query is answered through prefetched
-	 * entity bodies, and at this point the prefetch has not happened yet, so the variants would not be comparable.
-	 *
-	 * Every generated variant is fully equipped (sorter, extra result producers, and the source plan's slicer) -
-	 * an incompletely built variant would produce a differently shaped response and report a false inconsistency.
-	 *
-	 * @param queryContext  planning context of the query
-	 * @param targetIndexes candidate index sets, needed to build the sorters of the variants
-	 * @param sourcePlan    plan whose filtering formula is varied
-	 * @return one plan builder per cacheable variant, empty list when the query is not eligible for the check
-	 */
-	@Nonnull
-	private static List<QueryPlanBuilder> generateCacheableVariantTrees(
-		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
-		@Nonnull QueryPlanBuilder sourcePlan
-	) {
-		// when entity type is not known and the query hits global index, the query evaluation relies on prefetch
-		// which is not yet done at this moment - so for these queries we need to skip the check
-		if (queryContext.getEvitaRequest().isEntityTypeRequested()) {
-			// and generate variants with various part of the filtering formula tree converted cacheable counterparts
-			final CacheableVariantsGeneratingVisitor variantsGeneratingVisitor = new CacheableVariantsGeneratingVisitor();
-			sourcePlan.getFilterFormula().accept(variantsGeneratingVisitor);
-			// for each variant create separate query plan
-			return variantsGeneratingVisitor.getFormulaVariants()
-				.stream()
-				.map(
-					// create and add copy for the formula with cached variant result
-					it -> {
-						final QueryPlanBuilder alternativeBuilder = new QueryPlanBuilder(
-							queryContext, it, sourcePlan.getFilterByVisitor(),
-							sourcePlan.getTargetIndexes(),
-							sourcePlan.getPrefetchFormulaVisitor()
-						);
-						// create sorter and computers for the plan
-						final List<QueryPlanBuilder> alternativeBuilderInList = Collections.singletonList(alternativeBuilder);
-						createSorter(queryContext, targetIndexes, alternativeBuilderInList);
-						createExtraResultProducers(queryContext, alternativeBuilderInList);
-						ofNullable(sourcePlan.getSlicer()).ifPresent(alternativeBuilder::setSlicer);
-						return alternativeBuilder;
-					}
-				).toList();
-		} else {
-			return Collections.emptyList();
 		}
 	}
 
@@ -667,9 +615,7 @@ public class QueryPlanner {
 	 * rules are the only reason a slicer is needed at all.
 	 *
 	 * **Must be called before the plans are verified against each other.**
-	 * {@link #generateCacheableVariantTrees(QueryPlanningContext, List, QueryPlanBuilder)} copies the slicer from
-	 * the plan it varies, so a variant generated before the slicer was set would paginate differently and be
-	 * reported as an inconsistency.
+	 * Each candidate must have its final pagination configured before its response is compared.
 	 *
 	 * @param queryContext  The context of the current query, containing the EvitaRequest.
 	 * @param builders      A list of QueryPlanBuilder instances to configure the slicer.
@@ -776,70 +722,54 @@ public class QueryPlanner {
 	}
 
 	/**
-	 * Method verifies that all passed `queryPlanBuilders` produce the very same result as the `mainBuilder` in
-	 * the computed response.
+	 * Compares the independently planned key-free baseline with the preferred plan under one frozen random state.
+	 * Both execute here as dry runs inside planning, so the session's traffic recording sees only the caller's later
+	 * real execution of the preferred plan. A dry run records no telemetry and no finished event, and the plans it
+	 * builds record no index activity; the sibling also records no capabilities and starts no further verification.
+	 * The finished event starts when the plan is built, so verification dry runs contribute to its execution interval.
 	 *
-	 * This is a debug-only safety net: every alternative index, and optionally every cacheable variant of its
-	 * formula tree, is fully executed and its response compared with the main one. It is therefore **expensive** -
-	 * a query that would run one plan runs a plan per candidate instead - and is only reached when one of
-	 * the verification {@link DebugMode}s is enabled.
+	 * @throws InconsistentResultsException when sharing or cache analysis changes the full response
+	 */
+	private static void verifyKeyFreeBaseline(
+		@Nonnull QueryPlanningContext context,
+		@Nonnull QueryPlan preferredPlan
+	) {
+		final byte[] frozenRandom = RandomUtils.getFrozenRandom();
+		final QueryPlan baseline = planQuery(context.createVerificationSibling());
+		final EvitaResponse<EntityClassifier> baselineResponse = baseline.execute(frozenRandom);
+		final EvitaResponse<EntityClassifier> preferredResponse = preferredPlan.execute(frozenRandom);
+		if (!QueryResponseComparator.matches(baselineResponse, preferredResponse)) {
+			throw new InconsistentResultsException(
+				"key-free baseline", baselineResponse, "preferred plan", preferredResponse
+			);
+		}
+	}
+
+	/**
+	 * Executes each alternative index plan and compares its response with the preferred plan.
+	 * All verification executions share a frozen random seed so randomized ordering remains comparable.
+	 * The finished event starts at plan construction; its execution interval includes these dry runs.
 	 *
-	 * All executions share one frozen random seed, without which any query using randomized ordering would
-	 * legitimately differ between runs and fail the comparison.
-	 *
-	 * @param context           planning context of the query
-	 * @param targetIndexes     candidate index sets, needed when cacheable variants have to be built
-	 * @param queryPlanBuilders all plans to be verified, the main one included
-	 * @param mainBuilder       the preferred plan whose response is taken as the reference
-	 * @throws InconsistentResultsException when any alternative produces a different response
+	 * @throws InconsistentResultsException when an alternative produces a different response
 	 */
 	static void verifyConsistentResultsInAllPlans(
-		@Nonnull QueryPlanningContext context,
-		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
 		@Nonnull List<QueryPlanBuilder> queryPlanBuilders,
 		@Nonnull QueryPlanBuilder mainBuilder
 	) {
-		// execute the main - bitmap preferring, no caching plan
 		final byte[] frozenRandom = RandomUtils.getFrozenRandom();
-		final QueryPlan mainPlan = mainBuilder.build();
-		final EvitaResponse<EntityClassifier> mainResponse = mainPlan.execute(frozenRandom);
-
-		queryPlanBuilders
-			.stream()
-			.flatMap(
-				sourceBuilder -> Stream.concat(
-					// if the builder is not the main one, add it to verified list
-					sourceBuilder == mainBuilder ? Stream.empty() : Stream.of(sourceBuilder),
-					// for each builder generate cacheable variants and add them to verified list if the debug option is on
-					context.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) ?
-						generateCacheableVariantTrees(context, targetIndexes, sourceBuilder).stream() : Stream.empty()
-				)
-			)
-			.forEach(
-				alternativeBuilder ->
-					Stream.of(
-							Stream.of(BitmapFavouringNoCachePolicy.INSTANCE),
-							// if the debug for testing prefetch is on, add the prefetching policy
-							context.isDebugModeEnabled(DebugMode.PREFER_PREFETCHING) ?
-								Stream.of(PrefetchFavouringNoCachePolicy.INSTANCE) : Stream.empty(),
-							// if the debug for testing caching trees is on, add the caching policy
-							context.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) ?
-								Stream.of(CacheEnforcingPolicy.INSTANCE) : Stream.empty()
-						)
-						.flatMap(Function.identity())
-						.forEach(
-							cachePolicy -> {
-								final EvitaResponse<EntityClassifier> alternativeResponse = alternativeBuilder.build().execute(frozenRandom);
-								Assert.isPremiseValid(
-									mainResponse.equals(alternativeResponse),
-									() -> new InconsistentResultsException(mainBuilder, mainResponse, alternativeBuilder, alternativeResponse)
-								);
-								if (log.isDebugEnabled()) {
-									log.debug("Results consistent for: {} and {}", mainBuilder.getDescription(), alternativeBuilder.getDescription());
-								}
-							}
-						)
-			);
+		final EvitaResponse<EntityClassifier> mainResponse = mainBuilder.build().execute(frozenRandom);
+		for (final QueryPlanBuilder alternativeBuilder : queryPlanBuilders) {
+			if (alternativeBuilder != mainBuilder) {
+				final EvitaResponse<EntityClassifier> alternativeResponse = alternativeBuilder.build().execute(frozenRandom);
+				Assert.isPremiseValid(
+					QueryResponseComparator.matches(mainResponse, alternativeResponse),
+					() -> new InconsistentResultsException(mainBuilder, mainResponse, alternativeBuilder, alternativeResponse)
+				);
+				if (log.isDebugEnabled()) {
+					log.debug("Results consistent for: {} and {}", mainBuilder.getDescription(), alternativeBuilder.getDescription());
+				}
+			}
+		}
 	}
 
 	/*
@@ -866,14 +796,14 @@ public class QueryPlanner {
 		 */
 		private static final String ERROR_TEMPORARY = "FutureNotFormula is only temporary placeholder!";
 		/**
-		 * Stable discriminator of this formula class within the computed formula hash - it is what keeps two
-		 * structurally identical trees of different formula types from hashing alike. It must stay constant,
-		 * otherwise previously cached results become unreachable.
+		 * Stable discriminator of this formula class within its formula key - it is what keeps two structurally
+		 * identical trees of different formula types from comparing equal.
 		 */
 		private static final long CLASS_ID = 497139306778809341L;
 		/**
 		 * This formula represents the real formula to compute the negated set.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		@Getter private final Formula innerFormula;
 
 		/**
@@ -1045,16 +975,7 @@ public class QueryPlanner {
 		}
 
 		/**
-		 * Contributes nothing beyond the class id and the inner formula's own hash - the placeholder holds no
-		 * state that could distinguish two instances.
-		 */
-		@Override
-		protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-			return 0L;
-		}
-
-		/**
-		 * @return the constant discriminating this formula type inside computed hashes
+		 * @return the constant discriminating this formula type in its formula key
 		 */
 		@Override
 		protected long getClassId() {
@@ -1072,6 +993,34 @@ public class QueryPlanner {
 		protected Bitmap computeInternal() {
 			throw new UnsupportedOperationException(ERROR_TEMPORARY);
 		}
+
+		/** Returns detached inputs without computing the bitmap. */
+		@Nonnull
+		@Override
+		protected IdentityRecord identity() {
+			return new Identity(this.innerFormula.getKey());
+		}
+
+		/**
+		 * Detached computation inputs.
+		 *
+		 * @param innerFormula key of the formula whose result is negated once the superset is known
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		public record Identity(@Nonnull FormulaKey innerFormula) implements IdentityRecord {
+			/** Returns the declaring holder identifier. */
+			@Override
+			public long classId() {
+				return CLASS_ID;
+			}
+
+			/** Includes every input in declaration order. */
+			@Override
+			public void describeTo(@Nonnull KeyAccumulator accumulator) {
+				accumulator.add(this.innerFormula);
+			}
+		}
+
 	}
 
 	/**

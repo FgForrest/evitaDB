@@ -24,19 +24,20 @@
 package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.identity.TokenList;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * And formula will perform boolean conjunction (AND) on multiple bitmaps at once.
@@ -54,32 +55,24 @@ import java.util.function.Consumer;
  */
 public class AndFormula extends AbstractBitmapCacheableFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 2754438812730972016L;
 	/**
 	 * Lazily initialized list of inner formulas sorted by their estimated cost (cheapest first) to allow
 	 * short-circuit evaluation during AND computation.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private List<Formula> sortedFormulasByComplexity;
 
-	AndFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula[] innerFormulas, long[] indexTransactionId, @Nullable Bitmap[] bitmaps) {
-		super(computationCallback, indexTransactionId, bitmaps);
-		Assert.isTrue(
-			innerFormulas.length > 1 || Objects.requireNonNull(bitmaps).length > 1,
-			"And formula has no sense with " + innerFormulas.length + " inner formulas / bitmaps!"
-		);
-		this.initFields(innerFormulas);
-	}
-
 	public AndFormula(@Nonnull Formula... innerFormulas) {
-		super(null, null, null);
+		super(null);
 		Assert.isTrue(innerFormulas.length > 1, "And formula has no sense with " + innerFormulas.length + " inner formulas!");
 		this.initFields(innerFormulas);
 	}
 
-	public AndFormula(long[] indexTransactionId, @Nonnull Bitmap... bitmaps) {
-		super(null, indexTransactionId, bitmaps);
+	public AndFormula(@Nonnull Bitmap... bitmaps) {
+		super(bitmaps);
 		Assert.isTrue(bitmaps.length > 1, "And formula has no sense with " + bitmaps.length + " inner bitmaps!");
 		this.initFields();
 	}
@@ -120,17 +113,6 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		return 9;
 	}
 
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		return new AndFormula(
-			selfOperator,
-			innerFormulas,
-			this.indexTransactionId,
-			this.bitmaps
-		);
-	}
-
 	@Override
 	public void clearMemory() {
 		super.clearMemory();
@@ -151,6 +133,16 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		// the estimated cost would fall below actual cost because `getEstimatedCardinality()` returns
 		// `min` (output bound), which underestimates the total per-element work of `sum * opCost`.
 		return sum * getOperationCost();
+	}
+
+	/**
+	 * Returns the identity formed by the canonically ordered raw bitmap operands; in formula mode there are none, and
+	 * the children's keys carry the operands.
+	 */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.bitmaps == null ? null : TokenList.canonical(this.bitmaps));
 	}
 
 	@Override
@@ -176,19 +168,6 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 				this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
 			}
 			return computeSortedConjunctionCost(this.sortedFormulasByComplexity, getOperationCost());
-		}
-	}
-
-	@Override
-	protected long getCostToPerformanceInternal() {
-		if (this.bitmaps != null) {
-			return getCost() / Math.max(1, compute().size());
-		} else {
-			if (this.sortedFormulasByComplexity == null) {
-				this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
-			}
-			return computeSortedConjunctionCostToPerformance(this.sortedFormulasByComplexity)
-				+ getCost() / Math.max(1, compute().size());
 		}
 	}
 
@@ -235,4 +214,23 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		}
 	}
 
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param bitmaps canonical raw operands, absent when children supply the operands
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nullable TokenList bitmaps) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every operand in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.bitmaps);
+		}
+	}
 }

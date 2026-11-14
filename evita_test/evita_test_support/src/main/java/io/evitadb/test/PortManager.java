@@ -35,6 +35,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static java.util.Optional.ofNullable;
 
@@ -44,8 +45,19 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class PortManager {
+	/**
+	 * System property selecting the first allocated port (default `5560`, inclusive range `1024..65000`).
+	 * Parallel test runs on one machine should pass different bases to avoid overlapping port allocations.
+	 * Read once when a manager is constructed.
+	 */
+	public static final String PORT_BASE_PROPERTY = "evita.test.portBase";
+
+	/**
+	 * First port this manager hands out, read from {@link #PORT_BASE_PROPERTY} once at construction.
+	 */
+	private final int portBase;
 	private final Random random = new Random(1L);
-	private final Object monitor = new Object();
+	private final ReentrantLock lock = new ReentrantLock();
 	private final Map<String, int[]> portAllocationTable = CollectionUtils.createConcurrentHashMap(64);
 	private final Set<Integer> allocatedPorts = new ConcurrentSkipListSet<>();
 	private final Map<String, CompletableFuture<Void>> pendingReleases = CollectionUtils.createConcurrentHashMap(64);
@@ -53,12 +65,48 @@ public class PortManager {
 	@Getter private int peak;
 
 	/**
-	 * Allocates new set of port for particular `dataSetName`.
+	 * Creates a manager using the base port from {@link #PORT_BASE_PROPERTY}.
+	 *
+	 * @throws IllegalArgumentException if the property is not an integer within `1024..65000`
+	 */
+	public PortManager() {
+		final String configuredBase = System.getProperty(PORT_BASE_PROPERTY, "5560");
+		final String errorMessage = "System property `" + PORT_BASE_PROPERTY +
+			"` must be an integer within 1024..65000 (inclusive), but was `" + configuredBase + "`.";
+		try {
+			this.portBase = Integer.parseInt(configuredBase);
+		} catch (NumberFormatException ex) {
+			throw new IllegalArgumentException(errorMessage, ex);
+		}
+		Assert.isTrue(this.portBase >= 1024 && this.portBase <= 65000, errorMessage);
+	}
+
+	/**
+	 * Allocates a new set of ports for a particular `dataSetName`.
+	 *
+	 * @throws IllegalStateException if the requested ports exceed the available range through `65535`
 	 */
 	@Nonnull
 	public int[] allocatePorts(@Nonnull String dataSetName, int count) {
-		synchronized (this.monitor) {
-			Assert.isPremiseValid(!this.portAllocationTable.containsKey(dataSetName), "Ports for dataset " + dataSetName + " already allocated.");
+		this.lock.lock();
+		try {
+			Assert.isPremiseValid(
+				!this.portAllocationTable.containsKey(dataSetName),
+				"Ports for dataset " + dataSetName + " already allocated."
+			);
+
+			int availablePorts = 65536 - this.portBase - this.allocatedPorts.size();
+			for (Entry<String, CompletableFuture<Void>> entry : this.pendingReleases.entrySet()) {
+				if (entry.getValue() != null && entry.getValue().isDone()) {
+					availablePorts += this.portAllocationTable.get(entry.getKey()).length;
+				}
+			}
+			if (count > availablePorts) {
+				throw new IllegalStateException(
+					"Cannot allocate " + count + " ports for dataset " + dataSetName +
+						": only " + availablePorts + " ports remain in range " + this.portBase + "..65535."
+				);
+			}
 
 			final Iterator<Entry<String, CompletableFuture<Void>>> it = this.pendingReleases.entrySet().iterator();
 			while (it.hasNext()) {
@@ -75,7 +123,7 @@ public class PortManager {
 
 			final int[] ports = new int[count];
 			int index = 0;
-			int port = 5560;
+			int port = this.portBase;
 			while (index < count) {
 				if (this.allocatedPorts.contains(port)) {
 					port++;
@@ -87,6 +135,8 @@ public class PortManager {
 			}
 			this.portAllocationTable.put(dataSetName, ports);
 			return ports;
+		} finally {
+			this.lock.unlock();
 		}
 	}
 
@@ -94,13 +144,16 @@ public class PortManager {
 	 * Frees all ports allocated for `dataSetName`.
 	 */
 	public void releasePorts(@Nonnull String dataSetName) {
-		synchronized (this.monitor) {
+		this.lock.lock();
+		try {
 			ofNullable(this.portAllocationTable.remove(dataSetName))
 				.ifPresent(ports -> {
 					for (int port : ports) {
 						this.allocatedPorts.remove(port);
 					}
 				});
+		} finally {
+			this.lock.unlock();
 		}
 	}
 
@@ -110,7 +163,8 @@ public class PortManager {
 	 * @param whenCompleted future that triggers port release
 	 */
 	public void releasePortsOnCompletion(@Nonnull String dataSetName, @Nonnull CompletableFuture<Void> whenCompleted) {
-		synchronized (this.monitor) {
+		this.lock.lock();
+		try {
 			final int random = this.random.nextInt();
 			final String randomizedDataSetName = dataSetName + "_" + random;
 			// rename port allocation table entry, so that we can avoid conflicts on reused dataSetName
@@ -118,6 +172,8 @@ public class PortManager {
 				randomizedDataSetName, this.portAllocationTable.remove(dataSetName)
 			);
 			this.pendingReleases.put(randomizedDataSetName, whenCompleted);
+		} finally {
+			this.lock.unlock();
 		}
 	}
 

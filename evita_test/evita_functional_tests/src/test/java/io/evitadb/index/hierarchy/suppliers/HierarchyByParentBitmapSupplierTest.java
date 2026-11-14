@@ -26,6 +26,7 @@ package io.evitadb.index.hierarchy.suppliers;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -34,16 +35,12 @@ import javax.annotation.Nonnull;
 import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.INDEXING;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Pins the cost-metric contract of {@link HierarchyByParentBitmapSupplier}: that nothing is computed before the
- * subtree listing has actually been paid for, and that an EMPTY listing is priced rather than fatal.
- *
- * An empty listing is ordinary, not exceptional — a leaf parent has no children, and a parent all of whose children
- * are excluded lists none — so a cost metric that divides by the result size has to survive it.
+ * subtree listing has actually been paid for.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -64,27 +61,43 @@ class HierarchyByParentBitmapSupplierTest {
 	@Nonnull
 	private static HierarchyByParentBitmapSupplier supplierOverEmptyHierarchy() {
 		return new HierarchyByParentBitmapSupplier(
-			new HierarchyIndex(), new long[]{1L}, PARENT_NODE,
+			new HierarchyIndex(), PARENT_NODE,
 			HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE
 		);
 	}
 
 	@Test
-	@DisplayName("An empty subtree listing is priced instead of throwing")
-	void shouldNotDivideByZeroOnAnEmptyListing() {
-		final HierarchyByParentBitmapSupplier supplier = supplierOverEmptyHierarchy();
-		assertTrue(supplier.get().isEmpty());
-		// `cost / (size * operationCost)` divides by zero here: the memoized-result guard establishes only that the
-		// listing HAS been computed, never that it came back non-empty
-		assertDoesNotThrow(supplier::getCostToPerformanceRatio);
-	}
-
-	@Test
-	@DisplayName("The ratio reports the not-yet-computed sentinel until the listing is paid for")
+	@DisplayName("The cost reports the not-yet-computed sentinel until the listing is paid for")
 	void shouldReportSentinelBeforeComputation() {
 		final HierarchyByParentBitmapSupplier supplier = supplierOverEmptyHierarchy();
-		assertEquals(Long.MAX_VALUE, supplier.getCostToPerformanceRatio());
 		assertEquals(Long.MAX_VALUE, supplier.getCost());
+	}
+
+	/**
+	 * The detached key of a supplier follows the version of the hierarchy index it lists.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Detached supplier key")
+	class DetachedKeyTest {
+
+		/** An item-index-only commit must refresh the supplier identity. */
+		@Test
+		@DisplayName("Includes the hierarchy owner version after an orphan-only write")
+		void shouldRefreshKeyAfterOrphanOnlyCommit() {
+			final HierarchyIndex original = new HierarchyIndex();
+			original.addNode(1, null);
+			original.resetDirty();
+			final HierarchyByParentBitmapSupplier before = new HierarchyByParentBitmapSupplier(
+				original, 1, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+			assertStateAfterCommit(original, index -> index.addNode(10, 99), (orig, committed) -> {
+				final HierarchyByParentBitmapSupplier after = new HierarchyByParentBitmapSupplier(
+					committed, 1, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+				assertNotEquals(before.getKey(), after.getKey());
+				assertNotEquals(before.getKey().getHash64(), after.getKey().getHash64());
+			});
+		}
 	}
 
 }

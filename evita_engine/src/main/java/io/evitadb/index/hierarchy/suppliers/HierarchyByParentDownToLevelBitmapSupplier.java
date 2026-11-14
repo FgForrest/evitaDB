@@ -29,7 +29,11 @@ import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
-import net.openhft.hashing.LongHashFunction;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 
 import javax.annotation.Nonnull;
 
@@ -41,7 +45,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarchyBitmapSupplier {
-	private static final int CLASS_ID = -116188477;
+	private static final long CLASS_ID = -116188477L;
 	/**
 	 * Contains information about the parent node requested in original {@link io.evitadb.api.query.FilterConstraint}.
 	 */
@@ -53,10 +57,16 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 	/**
 	 * Contains set of entity primary keys whose subtrees should be excluded from listing.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyByParentDownToLevelBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		super(hierarchyIndex, transactionalId);
+	public HierarchyByParentDownToLevelBitmapSupplier(
+		@Nonnull HierarchyIndex hierarchyIndex,
+		int parentNode,
+		int levels,
+		@Nonnull HierarchyFilteringPredicate excludedNodeTrees
+	) {
+		super(hierarchyIndex);
 		this.parentNode = parentNode;
 		this.levels = levels;
 		this.excludedNodeTrees = excludedNodeTrees;
@@ -67,16 +77,6 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 		this.excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
 		super.initialize(executionContext);
-	}
-
-	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			new long[]{
-				hashFunction.hashInts(new int[]{CLASS_ID, this.parentNode, this.levels}),
-				this.excludedNodeTrees.getHash()
-			}
-		);
 	}
 
 	@Nonnull
@@ -96,4 +96,44 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 		return "HIERARCHY FROM PARENT: " + this.parentNode + " " + this.excludedNodeTrees + " DOWN TO " + this.levels;
 	}
 
+	/** Returns detached inputs without computing the bitmap. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.parentNode, this.levels, this.excludedNodeTrees.getKey(),
+			getHierarchyIndexIdentityToken());
+	}
+
+	/** Returns the stable holder discriminator. */
+	@Override
+	protected long getClassId() {
+		return CLASS_ID;
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param parentNode primary key of the parent node the listing starts from
+	 * @param levels depth of the listed tree
+	 * @param excludedNodeTrees key of the predicate excluding node subtrees from the listing
+	 * @param hierarchyIndex version token of the hierarchy index the listing reads
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(int parentNode, int levels, @Nonnull FormulaKey excludedNodeTrees,
+		@Nonnull IdentityToken hierarchyIndex) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.parentNode);
+			accumulator.add(this.levels);
+			accumulator.add(this.excludedNodeTrees);
+			accumulator.add(this.hierarchyIndex);
+		}
+	}
 }

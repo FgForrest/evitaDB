@@ -45,7 +45,7 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
 
 /**
- * Tests for {@link PlainPriceTerminationFormula} verifying delegation, hashing, cloning,
+ * Tests for {@link PlainPriceTerminationFormula} verifying delegation, key identity, cloning,
  * and cardinality estimation behavior.
  *
  * @author evitaDB
@@ -107,6 +107,7 @@ class PlainPriceTerminationFormulaTest {
 	@DisplayName("Cloning")
 	class CloningTest {
 
+		/** Verifies that cloning retains the declared computation inputs. */
 		@Test
 		@DisplayName("should preserve evaluation context when cloning with new inner formula")
 		void shouldPreserveEvaluationContextWhenCloning() {
@@ -121,7 +122,10 @@ class PlainPriceTerminationFormulaTest {
 
 			assertInstanceOf(PlainPriceTerminationFormula.class, clone);
 			final PlainPriceTerminationFormula typedClone = (PlainPriceTerminationFormula) clone;
-			assertSame(context, typedClone.getPriceEvaluationContext());
+			assertEquals(
+				new PlainPriceTerminationFormula(newInner, context).getKey(),
+				typedClone.getKey()
+			);
 			assertArrayEquals(new int[]{10, 20, 30}, typedClone.compute().getArray());
 		}
 
@@ -140,39 +144,34 @@ class PlainPriceTerminationFormulaTest {
 				)
 			);
 		}
-
-		@Test
-		@DisplayName("should return self from getCloneWithPricePredicateFilteredOutResults")
-		void shouldReturnSelfFromGetCloneWithPricePredicateFilteredOutResults() {
-			final PlainPriceTerminationFormula formula = new PlainPriceTerminationFormula(
-				new ConstantFormula(new ArrayBitmap(1, 2)), createPriceEvaluationContext("basic", CZK)
-			);
-
-			final Formula clone = formula.getCloneWithPricePredicateFilteredOutResults();
-
-			assertSame(formula, clone);
-		}
 	}
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticalFormulas() {
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticalFormulas() {
 			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
 			final PriceEvaluationContext context = createPriceEvaluationContext("basic", CZK);
 
 			final PlainPriceTerminationFormula formula1 = new PlainPriceTerminationFormula(inner, context);
 			final PlainPriceTerminationFormula formula2 = new PlainPriceTerminationFormula(inner, context);
 
-			assertEquals(formula1.getHash(), formula2.getHash());
+			assertEquals(formula1.getKey(), formula2.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different evaluation context")
-		void shouldProduceDifferentHashForDifferentEvaluationContext() {
+		@DisplayName("should produce different key for different evaluation context")
+		void shouldProduceDifferentKeyForDifferentEvaluationContext() {
 			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
 			final PlainPriceTerminationFormula formula1 = new PlainPriceTerminationFormula(
 				inner, createPriceEvaluationContext("basic", CZK)
@@ -181,12 +180,13 @@ class PlainPriceTerminationFormulaTest {
 				inner, createPriceEvaluationContext("vip", CZK)
 			);
 
-			assertNotEquals(formula1.getHash(), formula2.getHash());
+			assertNotEquals(formula1.getKey(), formula2.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different currency")
-		void shouldProduceDifferentHashForDifferentCurrency() {
+		@DisplayName("should produce different key for different currency")
+		void shouldProduceDifferentKeyForDifferentCurrency() {
 			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
 			final PlainPriceTerminationFormula formula1 = new PlainPriceTerminationFormula(
 				inner, createPriceEvaluationContext("basic", CZK)
@@ -195,12 +195,13 @@ class PlainPriceTerminationFormulaTest {
 				inner, createPriceEvaluationContext("basic", EUR)
 			);
 
-			assertNotEquals(formula1.getHash(), formula2.getHash());
+			assertNotEquals(formula1.getKey(), formula2.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different inner formulas")
-		void shouldProduceDifferentHashForDifferentInnerFormulas() {
+		@DisplayName("should produce different key for different inner formulas")
+		void shouldProduceDifferentKeyForDifferentInnerFormulas() {
 			final PriceEvaluationContext context = createPriceEvaluationContext("basic", CZK);
 			final PlainPriceTerminationFormula formula1 = new PlainPriceTerminationFormula(
 				new ConstantFormula(new ArrayBitmap(1, 2, 3)), context
@@ -209,7 +210,7 @@ class PlainPriceTerminationFormulaTest {
 				new ConstantFormula(new ArrayBitmap(4, 5, 6)), context
 			);
 
-			assertNotEquals(formula1.getHash(), formula2.getHash());
+			assertNotEquals(formula1.getKey(), formula2.getKey());
 		}
 	}
 
@@ -324,4 +325,5 @@ class PlainPriceTerminationFormulaTest {
 			new PriceIndexKey(priceList, currency, PriceInnerRecordHandling.NONE)
 		);
 	}
+
 }

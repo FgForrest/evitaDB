@@ -173,26 +173,33 @@ class FacetLocaleFormulaTest {
 		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash")
-	class HashTest {
+	@DisplayName("Key")
+	class KeyTest {
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should hash guards of different references differently")
-		void shouldDifferInHashWhenReferenceDiffers() {
+		@DisplayName("should key guards of different references differently")
+		void shouldDifferInKeyWhenReferenceDiffers() {
 			final FacetLocaleFormula brand = new FacetLocaleFormula(REFERENCE_NAME, constant(1, 2), constant(2));
 			final FacetLocaleFormula store = new FacetLocaleFormula("store", constant(1, 2), constant(2));
 
-			assertNotEquals(brand.getHash(), store.getHash());
+			assertNotEquals(brand.getKey(), store.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should hash identically constructed guards equally")
-		void shouldEqualInHashWhenReferenceAndChildrenMatch() {
+		@DisplayName("should key identically constructed guards equally")
+		void shouldEqualInKeyWhenReferenceAndChildrenMatch() {
 			final FacetLocaleFormula first = new FacetLocaleFormula(REFERENCE_NAME, constant(1, 2), constant(2));
 			final FacetLocaleFormula second = new FacetLocaleFormula(REFERENCE_NAME, constant(1, 2), constant(2));
 
-			assertEquals(first.getHash(), second.getHash());
+			assertEquals(first.getKey(), second.getKey());
 		}
 	}
 

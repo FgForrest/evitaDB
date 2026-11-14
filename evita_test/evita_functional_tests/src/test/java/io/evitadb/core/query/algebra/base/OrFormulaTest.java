@@ -23,8 +23,9 @@
 
 package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.ArrayBitmap;
@@ -48,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link OrFormula} verifying boolean disjunction (OR) computation, memoization,
- * cloning, hashing and cost estimation.
+ * cloning, hashing, identity and cost estimation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -56,8 +57,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(ENGINE)
 @Tag(QUERY)
 class OrFormulaTest {
-
-	private static final long[] INDEX_TRANSACTION_ID = {1L};
 
 	@Nested
 	@DisplayName("Computation correctness")
@@ -69,7 +68,6 @@ class OrFormulaTest {
 			assertArrayEquals(
 				new int[]{1, 2, 3, 4, 5, 8},
 				new OrFormula(
-					INDEX_TRANSACTION_ID,
 					new BaseBitmap(1, 3, 4, 5, 8),
 					new BaseBitmap(1, 2, 4, 8),
 					new BaseBitmap(1, 2, 3, 4, 5)
@@ -98,7 +96,6 @@ class OrFormulaTest {
 			assertArrayEquals(
 				new int[]{1, 3, 4, 5, 7, 8},
 				new OrFormula(
-					INDEX_TRANSACTION_ID,
 					new BaseBitmap(1, 3, 5),
 					new BaseBitmap(3, 5, 8),
 					new BaseBitmap(3, 4, 5, 7)
@@ -113,7 +110,6 @@ class OrFormulaTest {
 			assertArrayEquals(
 				new int[0],
 				new OrFormula(
-					INDEX_TRANSACTION_ID,
 					new BaseBitmap(),
 					new BaseBitmap()
 				)
@@ -127,7 +123,6 @@ class OrFormulaTest {
 			assertArrayEquals(
 				new int[]{1, 3, 4, 5},
 				new OrFormula(
-					INDEX_TRANSACTION_ID,
 					new BaseBitmap(3, 4),
 					new BaseBitmap(),
 					new BaseBitmap(1, 5)
@@ -142,7 +137,6 @@ class OrFormulaTest {
 			assertArrayEquals(
 				new int[]{1, 3, 4, 5, 6, 7, 9, 10, 11, 12},
 				new OrFormula(
-					INDEX_TRANSACTION_ID,
 					new BaseBitmap(1, 3, 5, 7, 9, 11),
 					new BaseBitmap(3, 4, 5, 6, 7),
 					new BaseBitmap(10, 11, 12)
@@ -157,7 +151,6 @@ class OrFormulaTest {
 			assertArrayEquals(
 				new int[]{1, 3, 5, 7, 9, 11},
 				new OrFormula(
-					INDEX_TRANSACTION_ID,
 					new BaseBitmap(1, 3, 5, 7, 9, 11),
 					new BaseBitmap(1, 3, 5, 7, 9, 11),
 					new BaseBitmap(1, 3, 5, 7, 9, 11)
@@ -175,7 +168,6 @@ class OrFormulaTest {
 		@DisplayName("should return same instance on repeated compute calls")
 		void shouldReturnSameInstanceOnRepeatedCompute() {
 			final OrFormula formula = new OrFormula(
-				INDEX_TRANSACTION_ID,
 				new BaseBitmap(1, 2, 3),
 				new BaseBitmap(3, 4, 5)
 			);
@@ -209,7 +201,6 @@ class OrFormulaTest {
 		@DisplayName("should recompute equal result after clearMemory")
 		void shouldRecomputeEqualResultAfterClearMemory() {
 			final OrFormula formula = new OrFormula(
-				INDEX_TRANSACTION_ID,
 				new BaseBitmap(1, 2, 3),
 				new BaseBitmap(3, 4, 5)
 			);
@@ -268,38 +259,58 @@ class OrFormulaTest {
 		}
 	}
 
+	/** Verifies detached identity equality and operand sensitivity. */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
 
+		/** Equal computation inputs produce equal detached keys. */
 		@Test
-		@DisplayName("should produce identical hash for identically-constructed formulas")
-		void shouldProduceIdenticalHashForIdenticalFormulas() {
-			final long hashA = createOrFormula(1, 2, 3).getHash();
-			final long hashB = createOrFormula(1, 2, 3).getHash();
+		@DisplayName("should produce identical keys for identically-constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticalFormulas() {
+			final FormulaKey keyA = createOrFormula(1, 2, 3).getKey();
+			final FormulaKey keyB = createOrFormula(1, 2, 3).getKey();
 
-			assertEquals(hashA, hashB);
+			assertEquals(keyA, keyB);
 		}
 
+		/** Different computation inputs produce unequal detached keys. */
 		@Test
-		@DisplayName("should produce different hash for different children")
-		void shouldProduceDifferentHashForDifferentChildren() {
-			final long hashA = createOrFormula(1, 2, 3).getHash();
-			final long hashB = createOrFormula(7, 8, 9).getHash();
+		@DisplayName("should produce different keys for different children")
+		void shouldProduceDifferentKeyForDifferentChildren() {
+			final FormulaKey keyA = createOrFormula(1, 2, 3).getKey();
+			final FormulaKey keyB = createOrFormula(7, 8, 9).getKey();
 
-			assertNotEquals(hashA, hashB);
+			assertNotEquals(keyA, keyB);
 		}
 
+		/** Reordered children produce unequal detached keys, because the key keeps the child keys in order. */
 		@Test
-		@DisplayName("should produce same hash when children are reordered (order-insignificant)")
-		void shouldProduceSameHashWhenChildrenReordered() {
+		@DisplayName("should produce different keys when children are reordered")
+		void shouldProduceDifferentKeyWhenChildrenReordered() {
 			final ConstantFormula childA = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 2, 3)));
 			final ConstantFormula childB = new ConstantFormula(new ArrayBitmap(new CompositeIntArray(4, 5, 6)));
 
-			final long hashAB = new OrFormula(childA, childB).getHash();
-			final long hashBA = new OrFormula(childB, childA).getHash();
+			final FormulaKey keyAB = new OrFormula(childA, childB).getKey();
+			final FormulaKey keyBA = new OrFormula(childB, childA).getKey();
 
-			assertEquals(hashAB, hashBA);
+			assertNotEquals(keyAB, keyBA);
+		}
+
+		/** Pins raw multiset identity, including duplicate occurrences and excluding coarse invalidation ids. */
+		@Test
+		@DisplayName("should canonicalize raw operands while retaining multiplicity and ignoring coarse ids")
+		void shouldCanonicalizeRawOperandsWithMultiplicity() {
+			final Bitmap first = new BaseBitmap(1);
+			final Bitmap second = new BaseBitmap(2);
+
+			final FormulaKey key = new OrFormula(first, second).getKey();
+			final FormulaKey reordered = new OrFormula(second, first).getKey();
+			final FormulaKey repeated = new OrFormula(first, second, second).getKey();
+
+			assertEquals(key, reordered);
+			assertNotEquals(key, repeated);
+			assertNotEquals(key.getHash64(), repeated.getHash64());
 		}
 	}
 
@@ -311,7 +322,6 @@ class OrFormulaTest {
 		@DisplayName("should return sum of cardinalities across bitmaps")
 		void shouldReturnSumCardinalityForBitmaps() {
 			final OrFormula formula = new OrFormula(
-				INDEX_TRANSACTION_ID,
 				new BaseBitmap(1, 2, 3),
 				new BaseBitmap(4, 5)
 			);
@@ -339,7 +349,6 @@ class OrFormulaTest {
 		@DisplayName("should have non-negative estimated and actual cost with estimated being an upper bound")
 		void shouldHaveNonNegativeCostsWithEstimatedAsUpperBound() {
 			final OrFormula formula = new OrFormula(
-				INDEX_TRANSACTION_ID,
 				new BaseBitmap(1, 2, 3, 4, 5),
 				new BaseBitmap(3, 4, 5, 6, 7)
 			);
@@ -354,64 +363,6 @@ class OrFormulaTest {
 				estimatedCost >= actualCost,
 				"Estimated cost " + estimatedCost + " should be >= actual cost " + actualCost
 			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Cache behavior")
-	class CacheBehaviorTest {
-
-		@Test
-		@DisplayName("should implement CacheableFormula")
-		void shouldImplementCacheableFormula() {
-			final OrFormula formula = new OrFormula(
-				INDEX_TRANSACTION_ID,
-				new BaseBitmap(1, 2),
-				new BaseBitmap(3, 4)
-			);
-
-			assertInstanceOf(CacheableFormula.class, formula);
-		}
-	}
-
-	@Nested
-	@DisplayName("High-cardinality staleness guard (issue #37)")
-	class HighCardinalityStalenessGuardTest {
-
-		/**
-		 * Builds `count` distinct single-element bitmaps so the formula crosses the high-cardinality threshold and takes
-		 * the transactional-id fallback branch.
-		 *
-		 * @param count the number of bitmaps to create
-		 * @return the bitmap array
-		 */
-		@Nonnull
-		private static Bitmap[] distinctBitmaps(int count) {
-			final Bitmap[] bitmaps = new Bitmap[count];
-			for (int i = 0; i < count; i++) {
-				bitmaps[i] = new BaseBitmap(i + 1);
-			}
-			return bitmaps;
-		}
-
-		@Test
-		@DisplayName("A high-cardinality formula with an EMPTY transactional-id set is rejected")
-		void shouldRejectEmptyTransactionalIdSetAboveThreshold() {
-			// above EXCESSIVE_HIGH_CARDINALITY (100) the formula keys staleness solely on the transactional-id set; an
-			// empty set would make the cached result impossible to invalidate (issue #37), so construction must fail fast
-			final Bitmap[] bitmaps = distinctBitmaps(101);
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> new OrFormula(new long[0], bitmaps)
-			);
-		}
-
-		@Test
-		@DisplayName("A high-cardinality formula with a non-empty transactional-id set is accepted")
-		void shouldAcceptNonEmptyTransactionalIdSetAboveThreshold() {
-			final Bitmap[] bitmaps = distinctBitmaps(101);
-			// a non-empty token (here a two-leaf version set) is the well-formed case and must construct cleanly
-			assertDoesNotThrow(() -> new OrFormula(new long[]{42L, 43L}, bitmaps));
 		}
 	}
 
@@ -435,8 +386,8 @@ class OrFormulaTest {
 			final int[] expected = ids.clone();
 			Arrays.sort(expected);
 
-			assertArrayEquals(expected, new OrFormula(INDEX_TRANSACTION_ID, singles).compute().getArray());
-			assertArrayEquals(expected, new OrFormula(INDEX_TRANSACTION_ID, equivalent).compute().getArray());
+			assertArrayEquals(expected, new OrFormula(singles).compute().getArray());
+			assertArrayEquals(expected, new OrFormula(equivalent).compute().getArray());
 		}
 
 		@Test
@@ -451,7 +402,7 @@ class OrFormulaTest {
 			};
 			assertArrayEquals(
 				new int[]{1, 2, 5, 7, 31, 40, 99},
-				new OrFormula(INDEX_TRANSACTION_ID, operands).compute().getArray()
+				new OrFormula(operands).compute().getArray()
 			);
 		}
 
@@ -470,7 +421,7 @@ class OrFormulaTest {
 			};
 			assertArrayEquals(
 				new int[]{3, 8, 11},
-				new OrFormula(INDEX_TRANSACTION_ID, operands).compute().getArray()
+				new OrFormula(operands).compute().getArray()
 			);
 		}
 
@@ -498,8 +449,8 @@ class OrFormulaTest {
 			final int[] expected = ids.clone();
 			Arrays.sort(expected);
 
-			assertArrayEquals(expected, new OrFormula(INDEX_TRANSACTION_ID, singles).compute().getArray());
-			assertArrayEquals(expected, new OrFormula(INDEX_TRANSACTION_ID, equivalent).compute().getArray());
+			assertArrayEquals(expected, new OrFormula(singles).compute().getArray());
+			assertArrayEquals(expected, new OrFormula(equivalent).compute().getArray());
 		}
 
 		@Test
@@ -509,7 +460,7 @@ class OrFormulaTest {
 			// decides NOT to fold is covered too
 			assertArrayEquals(
 				new int[]{4, 6, 9},
-				new OrFormula(INDEX_TRANSACTION_ID, new SingleRecordBitmap(6), new BaseBitmap(4, 9))
+				new OrFormula(new SingleRecordBitmap(6), new BaseBitmap(4, 9))
 					.compute().getArray()
 			);
 		}
@@ -532,7 +483,7 @@ class OrFormulaTest {
 				new BaseBitmap(7, 99)
 			};
 			assertEquals(
-				3, roaringOperandsOf(new OrFormula(INDEX_TRANSACTION_ID, folded)).length,
+				3, roaringOperandsOf(new OrFormula(folded)).length,
 				"three single-record operands must arrive as ONE bitmap, alongside the two multi-record operands"
 			);
 
@@ -544,17 +495,17 @@ class OrFormulaTest {
 				new BaseBitmap(11)
 			};
 			assertEquals(
-				untouched.length, roaringOperandsOf(new OrFormula(INDEX_TRANSACTION_ID, untouched)).length,
+				untouched.length, roaringOperandsOf(new OrFormula(untouched)).length,
 				"one single-record operand costs the same either way, so the operands must pass through as they are"
 			);
 		}
 
 		@Test
-		@DisplayName("the fold leaves the formula's own operands, hash and cardinality estimate exactly as they were")
+		@DisplayName("the fold leaves the formula's own operands, key and cardinality estimate exactly as they were")
 		void shouldLeaveTheFormulaOwnStateUntouchedByTheFold() {
 			// The fold builds a fresh array on the way into the union. The formula's OWN operand array is what its
-			// hash, its cached identity and its transactional ids are derived from, so a fold that wrote into it would
-			// silently move the cache key of every query holding this formula.
+			// identity is derived from on every call, so a fold that wrote into it would silently change the identity
+			// behind a key that was already built.
 			final Bitmap[] operands = {
 				new SingleRecordBitmap(5),
 				new BaseBitmap(2, 7, 40),
@@ -566,8 +517,8 @@ class OrFormulaTest {
 			for (int i = 0; i < operands.length; i++) {
 				contentBefore[i] = operands[i].getArray();
 			}
-			final OrFormula formula = new OrFormula(INDEX_TRANSACTION_ID, operands);
-			final long hashBefore = formula.getHash();
+			final OrFormula formula = new OrFormula(operands);
+			final IdentityRecord identityBefore = formula.identity();
 			final int cardinalityBefore = formula.getEstimatedCardinality();
 
 			formula.compute();
@@ -579,7 +530,7 @@ class OrFormulaTest {
 					"operand " + i + " must hold exactly the ids it was built with"
 				);
 			}
-			assertEquals(hashBefore, formula.getHash(), "computing must not move the formula's cache key");
+			assertEquals(identityBefore, formula.identity(), "computing must not move the formula's cache key");
 			assertEquals(cardinalityBefore, formula.getEstimatedCardinality());
 		}
 
@@ -589,8 +540,7 @@ class OrFormulaTest {
 			// The fold can shrink the operand array to a SINGLE entry, which sends the computation down its
 			// one-bitmap branch - a branch the bitmap-backed constructor could not reach before the fold existed,
 			// because it refuses fewer than two operands outright.
-			final OrFormula formula = new OrFormula(
-				INDEX_TRANSACTION_ID, new SingleRecordBitmap(42), new SingleRecordBitmap(42)
+			final OrFormula formula = new OrFormula(new SingleRecordBitmap(42), new SingleRecordBitmap(42)
 			);
 			assertEquals(
 				1, roaringOperandsOf(formula).length,
@@ -605,7 +555,6 @@ class OrFormulaTest {
 			// the fold's non-single arm converts whatever it meets, and `EmptyBitmap` is the one operand that is
 			// neither single-record nor Roaring-backed
 			final OrFormula formula = new OrFormula(
-				INDEX_TRANSACTION_ID,
 				new SingleRecordBitmap(3),
 				EmptyBitmap.INSTANCE,
 				new SingleRecordBitmap(9),
@@ -638,7 +587,7 @@ class OrFormulaTest {
 	}
 
 	/**
-	 * Creates an {@link OrFormula} wrapping two constant formulas for hash testing.
+	 * Creates an {@link OrFormula} wrapping two constant formulas for hash and identity testing.
 	 *
 	 * @param values the ids of the first constant formula
 	 * @return the assembled formula

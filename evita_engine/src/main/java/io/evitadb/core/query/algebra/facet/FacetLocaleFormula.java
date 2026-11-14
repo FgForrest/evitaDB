@@ -26,20 +26,20 @@ package io.evitadb.core.query.algebra.facet;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -49,12 +49,12 @@ import java.util.List;
 /**
  * Intersects one owner-locale branch with its facet selection. The branch stays visible when summary counts discard
  * facet selections and when impact projections rebuild them. Its first child is the owner condition, its second
- * child is the facet selection; both remain formula children so hashes and transactional dependencies include them.
+ * child is the facet selection; both remain formula children so the formula key includes them as child keys.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class FacetLocaleFormula extends AbstractFormula
-	implements ChildrenDependentFormula, NonCacheableFormula, NonCollapsibleFormula {
+	implements ChildrenDependentFormula, NonCollapsibleFormula {
 	/** Unique formula identifier, generated from the fully qualified class name. */
 	private static final long CLASS_ID = -4855853891316253538L;
 	/** Reference whose facet selection the owner condition belongs to. */
@@ -221,12 +221,6 @@ public class FacetLocaleFormula extends AbstractFormula
 		));
 	}
 
-	/** Includes the reference identity as well as the child formulas in the hash. */
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID + 31 * hashFunction.hashChars(this.referenceName);
-	}
-
 	/** Returns the generated class identifier. */
 	@Override
 	protected long getClassId() {
@@ -238,5 +232,32 @@ public class FacetLocaleFormula extends AbstractFormula
 	@Override
 	public String toString() {
 		return "FACET OWNER LOCALE";
+	}
+
+	/** Captures this formula's own computation inputs. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.referenceName);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param referenceName target reference
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull String referenceName) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.referenceName);
+		}
 	}
 }

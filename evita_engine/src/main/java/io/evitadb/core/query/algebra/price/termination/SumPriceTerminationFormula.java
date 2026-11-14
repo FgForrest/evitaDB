@@ -23,18 +23,23 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import com.carrotsearch.hppc.IntCollection;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.core.cache.payload.FlattenedFormula;
-import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.cache.CachedResult;
+import io.evitadb.core.cache.CachedPriceRecordsResult;
+import io.evitadb.core.cache.CachedResultWeigher;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
@@ -42,11 +47,9 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
-import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.BatchArrayIterator;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -59,7 +62,6 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
@@ -67,8 +69,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 
 /**
@@ -84,7 +86,7 @@ import java.util.function.ToIntFunction;
  */
 public class SumPriceTerminationFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 8387802561001219891L;
 	/**
@@ -106,7 +108,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	 * Price evaluation context allows optimizing formula tree in the such way, that terminating formula with same
 	 * context will be replaced by single instance - taking advantage of result memoization.
 	 */
-	@Getter private final PriceEvaluationContext priceEvaluationContext;
+	private final PriceEvaluationContext priceEvaluationContext;
 	/**
 	 * Contains query price mode of the current query.
 	 */
@@ -116,25 +118,29 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	 */
 	@Getter private final PriceRecordPredicate sellingPricePredicate;
 	/**
-	 * Predicate that filters out individual prices from being calculated in selling price.
+	 * Predicate that filters out individual prices from being calculated in selling price, `null` when every price
+	 * takes part. When present, {@link #individualPricePredicateFactory} produced it for this instance alone, and the
+	 * key marks it as an opaque input.
 	 */
+	@Nullable
 	private final SumPredicate<PriceRecordContract> individualPricePredicate;
+	/**
+	 * Construction state that supplies an independent predicate to each clone, so that a stateful predicate restarts
+	 * its cursor; present exactly when {@link #individualPricePredicate} is.
+	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	@Nullable private final Supplier<? extends SumPredicate<PriceRecordContract>> individualPricePredicateFactory;
 	/**
 	 * Function retrieves the proper price from the price record.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DERIVED)
 	private final ToIntFunction<PriceRecordContract> transformer;
 	/**
 	 * Contains array of price records that links to the price ids produced by {@link Formula#compute()} method. This array
 	 * is available once the {@link Formula#compute()} method has been called.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private FilteredPriceRecords filteredPriceRecords;
-	/**
-	 * Bitmap is initialized (non-null) after {@link Formula#compute()} method is called and contains set of entity primary
-	 * keys that were excluded due to {@link #sellingPricePredicate} query. This information is reused in
-	 * {@link PriceHistogramProducer} to avoid duplicate computation - price histogram must not take price predicate
-	 * into an account.
-	 */
-	@Getter private Bitmap recordsFilteredOutByPredicate;
 
 	public SumPriceTerminationFormula(
 		@Nonnull Formula containerFormula,
@@ -142,9 +148,9 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate sellingPricePredicate
 	) {
-		super(null);
 		this.sellingPricePredicate = sellingPricePredicate;
-		this.individualPricePredicate = ALL_MATCHING_PREDICATE;
+		this.individualPricePredicate = null;
+		this.individualPricePredicateFactory = null;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
 		if (queryPriceMode == QueryPriceMode.WITH_TAX) {
@@ -155,17 +161,18 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		this.initFields(containerFormula);
 	}
 
+	/** Captures a resolved individual predicate and the construction state that restarts it for clones. */
 	private SumPriceTerminationFormula(
-		@Nullable Consumer<CacheableFormula> computationCallback,
 		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate sellingPricePredicate,
-		@Nonnull SumPredicate<PriceRecordContract> individualPricePredicate
+		@Nullable SumPredicate<PriceRecordContract> individualPricePredicate,
+		@Nullable Supplier<? extends SumPredicate<PriceRecordContract>> individualPricePredicateFactory
 	) {
-		super(computationCallback);
 		this.sellingPricePredicate = sellingPricePredicate;
 		this.individualPricePredicate = individualPricePredicate;
+		this.individualPricePredicateFactory = individualPricePredicateFactory;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
 		if (queryPriceMode == QueryPriceMode.WITH_TAX) {
@@ -174,55 +181,29 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			this.transformer = PriceRecordContract::priceWithoutTax;
 		}
 		this.initFields(containerFormula);
-	}
-
-	private SumPriceTerminationFormula(
-		@Nullable Consumer<CacheableFormula> computationCallback,
-		@Nonnull Formula containerFormula,
-		@Nonnull PriceEvaluationContext priceEvaluationContext,
-		@Nonnull QueryPriceMode queryPriceMode,
-		@Nonnull PriceRecordPredicate sellingPricePredicate,
-		@Nonnull SumPredicate<PriceRecordContract> individualPricePredicate,
-		@Nonnull Bitmap recordsFilteredOutByPredicate
-	) {
-		super(recordsFilteredOutByPredicate, computationCallback);
-		this.sellingPricePredicate = sellingPricePredicate;
-		this.individualPricePredicate = individualPricePredicate;
-		this.priceEvaluationContext = priceEvaluationContext;
-		this.queryPriceMode = queryPriceMode;
-		if (queryPriceMode == QueryPriceMode.WITH_TAX) {
-			this.transformer = PriceRecordContract::priceWithTax;
-		} else {
-			this.transformer = PriceRecordContract::priceWithoutTax;
-		}
-		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
-		this.initFields(containerFormula);
-	}
-
-	/**
-	 * Creates a new instance of SumPriceTerminationFormula with the specified individual price predicate and
-	 * retains the existing computation callback, delegate formula, price evaluation context, query price mode,
-	 * and selling price predicate.
-	 *
-	 * @param individualPricePredicate the predicate to filter individual price records; must not be null
-	 * @return a new instance of SumPriceTerminationFormula with the specified individual price predicate
-	 */
-	@Nonnull
-	public SumPriceTerminationFormula withIndividualPricePredicate(@Nonnull SumPredicate<PriceRecordContract> individualPricePredicate) {
-		return new SumPriceTerminationFormula(
-			this.computationCallback,
-			getDelegate(),
-			this.priceEvaluationContext,
-			this.queryPriceMode,
-			this.sellingPricePredicate,
-			individualPricePredicate
-		);
 	}
 
 	@Nullable
 	@Override
 	public PriceAmountPredicate getRequestedPredicate() {
 		return this.sellingPricePredicate.getRequestedPredicate();
+	}
+
+	/**
+	 * Creates a termination with an independent individual-price predicate for this computation and each clone.
+	 * The factory must restart mutable computation state and preserve filtering behavior on every invocation.
+	 *
+	 * @param predicateFactory factory restarting any cursor state used to filter individual price records
+	 * @return a new termination with an opaque individual-price input
+	 */
+	@Nonnull
+	public SumPriceTerminationFormula withIndividualPricePredicateFactory(
+		@Nonnull Supplier<? extends SumPredicate<PriceRecordContract>> predicateFactory
+	) {
+		return new SumPriceTerminationFormula(
+			getDelegate(), this.priceEvaluationContext, this.queryPriceMode, this.sellingPricePredicate,
+			Objects.requireNonNull(predicateFactory.get()), predicateFactory
+		);
 	}
 
 	/**
@@ -243,10 +224,12 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new SumPriceTerminationFormula(
-			this.computationCallback,
 			innerFormulas[0],
 			this.priceEvaluationContext, this.queryPriceMode,
-			this.sellingPricePredicate, this.individualPricePredicate
+			this.sellingPricePredicate,
+			this.individualPricePredicateFactory == null ? this.individualPricePredicate :
+				Objects.requireNonNull(this.individualPricePredicateFactory.get()),
+			this.individualPricePredicateFactory
 		);
 	}
 
@@ -255,32 +238,25 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		return 18077;
 	}
 
-	@Nonnull
+	/** Freezes and measures all price outputs before publication. */
 	@Override
-	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		return new SumPriceTerminationFormula(
-			this.computationCallback,
-			this.innerFormulas[0],
-			this.priceEvaluationContext,
-			this.queryPriceMode,
-			PricePredicate.ALL_RECORD_FILTER,
-			this.individualPricePredicate,
-			this.recordsFilteredOutByPredicate
-		);
+	protected long measurePayload(@Nonnull Bitmap computed) {
+		return CachedResultWeigher.measure(getKey(), computed, this.filteredPriceRecords, null);
 	}
 
+	/** Captures the bitmap and its price output from the same computation. */
 	@Nonnull
 	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
-		return new SumPriceTerminationFormula(
-			selfOperator,
-			innerFormulas[0],
-			this.priceEvaluationContext,
-			this.queryPriceMode,
-			this.sellingPricePredicate,
-			this.individualPricePredicate
-		);
+	protected CachedResult toCachedResult(@Nonnull Bitmap computed, int weight) {
+		return CachedPriceRecordsResult.of(computed, this.filteredPriceRecords, null, weight);
+	}
+
+	/** Restores all side outputs before exposing the memoized bitmap. */
+	@Override
+	protected void restoreFromCache(@Nonnull CachedResult cached) {
+		final CachedPriceRecordsResult prices = (CachedPriceRecordsResult) cached;
+		this.filteredPriceRecords = prices.priceRecords();
+		restoreComputedResult(prices.result());
 	}
 
 	@Nonnull
@@ -298,37 +274,11 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		return this.sellingPricePredicate.toString();
 	}
 
-	@Override
-	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
-		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
-		return new FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
-			formulaHash,
-			getTransactionalIdHash(),
-			sortedDistinctIds,
-			compute(),
-			getFilteredPriceRecords(this.executionContext),
-			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
-			getPriceEvaluationContext(),
-			this.sellingPricePredicate.getQueryPriceMode(),
-			this.sellingPricePredicate.getFrom(),
-			this.sellingPricePredicate.getTo(),
-			this.sellingPricePredicate.getIndexedPricePlaces()
-		);
-	}
-
-	@Override
-	public int getSerializableFormulaSizeEstimate() {
-		return FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.estimateSize(
-			gatherTransactionalIds(),
-			compute(),
-			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
-			getPriceEvaluationContext()
-		);
-	}
-
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
+		final SumPredicate<PriceRecordContract> individualPricePredicate =
+			this.individualPricePredicate == null ? ALL_MATCHING_PREDICATE : this.individualPricePredicate;
 		// retrieve filtered entity ids from the delegate formula
 		final PersistentRoaringBitmap computedRoaringBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(getDelegate().compute());
 
@@ -351,8 +301,6 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			final IntObjectMap<PriceRecordContract> entityInnerRecordPrice = new IntObjectHashMap<>();
 			// create new roaring bitmap builder
 			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			// create new roaring bitmap builder for records excluded by predicate
-			final RoaringBitmapWriter<PersistentRoaringBitmap> predicateExcludedWriter = RoaringBitmapBackedBitmap.buildWriter();
 
 			final int[] buffer = SharedBufferPool.INSTANCE.obtain();
 			try {
@@ -397,7 +345,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 							// we need to filter the price using individual price predicate
 							// this handles the situation when we want to consider only prices that relate
 							// for previously selected selling price (e.g. when we calculate the discount)
-							if (this.individualPricePredicate.test(value.value)) {
+							if (individualPricePredicate.test(value.value)) {
 								includedInnerRecordIds.put(
 									value.value.innerRecordId(),
 									value.value
@@ -406,7 +354,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 							}
 						}
 						// now include selling prices of those components, that were not found in current price lists
-						cumulatedPrice += this.individualPricePredicate.getMissingComponentsPrice(includedInnerRecordIds.keys());
+						cumulatedPrice += individualPricePredicate.getMissingComponentsPrice(includedInnerRecordIds.keys());
 
 						// if the cumulated price was calculated from at least one price record
 						if (!includedInnerRecordIds.isEmpty()) {
@@ -419,8 +367,6 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 								writer.add(entityId);
 								// from now on - work with the lowest entity price grouped by inner record
 								priceRecordsFunnel.add(virtualPriceRecord);
-							} else {
-								predicateExcludedWriter.add(entityId);
 							}
 						}
 					}
@@ -436,11 +382,9 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			);
 
 			// wrap result into the bitmap
-			this.recordsFilteredOutByPredicate = new BaseBitmap(predicateExcludedWriter.get());
 			return new BaseBitmap(writer.get());
 		} else {
 			this.filteredPriceRecords = new ResolvedFilteredPriceRecords();
-			this.recordsFilteredOutByPredicate = EmptyBitmap.INSTANCE;
 			return EmptyBitmap.INSTANCE;
 		}
 	}
@@ -452,16 +396,6 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			sum += this.innerFormulas[i].getEstimatedCardinality();
 		}
 		return sum;
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			new long[]{
-				this.priceEvaluationContext.computeHash(hashFunction),
-				this.sellingPricePredicate.computeHash(hashFunction)
-			}
-		);
 	}
 
 	@Override
@@ -487,6 +421,45 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		 */
 		int getMissingComponentsPrice(@Nonnull IntCollection includedInnerRecordIds);
 
+	}
+
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.priceEvaluationContext,
+			this.queryPriceMode,
+			this.sellingPricePredicate.identity(),
+			this.individualPricePredicate == null ? null : IdentityToken.OPAQUE);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param priceEvaluationContext validity and ordered target price indexes
+	 * @param queryPriceMode tax mode used to evaluate prices
+	 * @param sellingPricePredicate detached selling-price range predicate
+	 * @param individualPricePredicate opaque marker for a supplied predicate, absent for unrestricted prices
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull PriceEvaluationContext priceEvaluationContext,
+		@Nonnull QueryPriceMode queryPriceMode,
+		@Nonnull PricePredicate.Identity sellingPricePredicate,
+		@Nullable IdentityToken individualPricePredicate) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.priceEvaluationContext);
+			accumulator.add(this.queryPriceMode);
+			accumulator.add(this.sellingPricePredicate);
+			accumulator.add(this.individualPricePredicate);
+		}
 	}
 
 }

@@ -111,23 +111,16 @@ public class SubstringEagerFoldState {
 	@Getter private String pattern;
 
 	/**
-	 * The staleness tokens the eager fold folds in beside the leaf tokens, resolved once because they are a property
-	 * of the index rather than of the query.
-	 */
-	@Getter private long[] versionIds;
-
-	/**
 	 * Obtains the fixture, binds the structures and refuses a cell whose accelerated path declines.
 	 */
 	@Setup(Level.Trial)
 	public void setUp() {
 		final SubstringCatalogFixture fixture = SubstringCatalogFixture.obtain(
-			SubstringIndexArm.TRIGRAM, this.entityCount, SubstringCacheMode.DISABLED
+			SubstringIndexArm.TRIGRAM, this.entityCount
 		);
 		this.trigramIndex = fixture.getTrigramIndexOrThrow();
 		this.sharedValueTree = fixture.getSharedValueTree();
 		this.pattern = this.patternClass.getPattern();
-		this.versionIds = TrigramSubstringSearch.versionIdsOf(this.trigramIndex);
 
 		final MatchedBuckets matched = TrigramSubstringSearch.match(
 			this.trigramIndex, this.sharedValueTree, this.pattern, CONTAINS
@@ -147,7 +140,6 @@ public class SubstringEagerFoldState {
 		System.out.println(
 			"[substring-fold] entityCount=" + this.entityCount + " " + profile
 				+ " foldedBuckets=" + matched.recordSets().length
-				+ " leafTokens=" + matched.leafVersionIds().length
 		);
 	}
 

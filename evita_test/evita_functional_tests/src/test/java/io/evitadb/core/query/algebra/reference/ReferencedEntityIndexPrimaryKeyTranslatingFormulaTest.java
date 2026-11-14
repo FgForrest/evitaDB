@@ -23,12 +23,12 @@
 
 package io.evitadb.core.query.algebra.reference;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -37,21 +37,22 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.function.UnaryOperator;
-import org.junit.jupiter.api.Tag;
 
+import java.util.function.UnaryOperator;
+
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReferencedEntityIndexPrimaryKeyTranslatingFormula} verifying computation,
@@ -226,87 +227,143 @@ class ReferencedEntityIndexPrimaryKeyTranslatingFormulaTest {
 		}
 	}
 
+	/**
+	 * Equal detached keys for equal semantic inputs.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism")
-	class HashDeterminismTest {
+	@DisplayName("Key determinism")
+	class KeyDeterminismTest {
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticallyConstructedFormulas() {
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedFormulas() {
 			final ReferencedTypeEntityIndex index = createPopulatedIndex();
 			final ReferencedEntityIndexPrimaryKeyTranslatingFormula formulaA = createFormula(
 				null, TRANSACTIONAL_IDS, index, WORST_CARDINALITY,
-				UnaryOperator.identity(),
+				null,
 				new ConstantFormula(new ArrayBitmap(1, 2))
 			);
 			final ReferencedEntityIndexPrimaryKeyTranslatingFormula formulaB = createFormula(
 				null, TRANSACTIONAL_IDS, index, WORST_CARDINALITY,
-				UnaryOperator.identity(),
+				null,
 				new ConstantFormula(new ArrayBitmap(1, 2))
 			);
 
-			assertEquals(formulaA.getHash(), formulaB.getHash());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
 			assertEquals(
-				formulaA.getTransactionalIdHash(),
-				formulaB.getTransactionalIdHash()
+				formulaA.getKey().getHash64(),
+				formulaB.getKey().getHash64()
 			);
 		}
 	}
 
+	/**
+	 * Sensitivity to every semantic input outside the formula children.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash sensitivity")
-	class HashSensitivityTest {
+	@DisplayName("Key sensitivity")
+	class KeySensitivityTest {
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should produce different hash for different transactional IDs")
-		void shouldProduceDifferentHashForDifferentTransactionalIds() {
+		@DisplayName("should produce different key for different transactional IDs")
+		void shouldProduceDifferentKeyForDifferentTransactionalIds() {
 			final ReferencedTypeEntityIndex index = createPopulatedIndex();
 			final Formula inner = new ConstantFormula(new ArrayBitmap(1));
 			final ReferencedEntityIndexPrimaryKeyTranslatingFormula formulaA = createFormula(
 				null, TRANSACTIONAL_IDS, index, WORST_CARDINALITY,
-				UnaryOperator.identity(), inner
+				null, inner
 			);
 			final ReferencedEntityIndexPrimaryKeyTranslatingFormula formulaB = createFormula(
 				null, ALT_TRANSACTIONAL_IDS, index, WORST_CARDINALITY,
-				UnaryOperator.identity(), inner
+				null, inner
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should produce different hash when empty vs non-empty transactional IDs")
-		void shouldProduceDifferentHashWhenEmptyVsNonEmptyTransactionalIds() {
+		@DisplayName("should produce different key when empty vs non-empty transactional IDs")
+		void shouldProduceDifferentKeyWhenEmptyVsNonEmptyTransactionalIds() {
 			final ReferencedTypeEntityIndex index = createPopulatedIndex();
 			final Formula inner = new ConstantFormula(new ArrayBitmap(1));
 			final ReferencedEntityIndexPrimaryKeyTranslatingFormula formulaA = createFormula(
 				null, ArrayUtils.EMPTY_LONG_ARRAY, index, WORST_CARDINALITY,
-				UnaryOperator.identity(), inner
+				null, inner
 			);
 			final ReferencedEntityIndexPrimaryKeyTranslatingFormula formulaB = createFormula(
 				null, TRANSACTIONAL_IDS, index, WORST_CARDINALITY,
-				UnaryOperator.identity(), inner
+				null, inner
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should produce different hash for different inner formulas")
-		void shouldProduceDifferentHashForDifferentInnerFormulas() {
+		@DisplayName("should produce different key for different inner formulas")
+		void shouldProduceDifferentKeyForDifferentInnerFormulas() {
 			final ReferencedTypeEntityIndex index = createPopulatedIndex();
 			final ReferencedEntityIndexPrimaryKeyTranslatingFormula formulaA = createFormula(
 				null, TRANSACTIONAL_IDS, index, WORST_CARDINALITY,
-				UnaryOperator.identity(),
+				null,
 				new ConstantFormula(new ArrayBitmap(1))
 			);
 			final ReferencedEntityIndexPrimaryKeyTranslatingFormula formulaB = createFormula(
 				null, TRANSACTIONAL_IDS, index, WORST_CARDINALITY,
-				UnaryOperator.identity(),
+				null,
 				new ConstantFormula(new ArrayBitmap(999))
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
+		}
+	}
+
+	/**
+	 * Producer versions and expansion have independent identity roles.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Translation identity boundaries")
+	class TranslationIdentityTest {
+		/** The absent index token must not collide with a legal minus-one producer version. */
+		@Test
+		@DisplayName("Absent scope indexes remain distinct from producer id minus one")
+		void shouldDistinguishAbsentScopeFromMinusOneProducerId() {
+			final ReferencedTypeEntityIndex index =
+				ReferencedEntityIndexPrimaryKeyTranslatingFormulaIdentityFixture.index();
+			final ReferencedEntityIndexPrimaryKeyTranslatingFormula absent =
+				ReferencedEntityIndexPrimaryKeyTranslatingFormulaIdentityFixture.managed(index, false);
+			final long[] minusOne = new long[Scope.values().length];
+			java.util.Arrays.fill(minusOne, -1L);
+			final ReferencedEntityIndexPrimaryKeyTranslatingFormula legal =
+				ReferencedEntityIndexPrimaryKeyTranslatingFormulaIdentityFixture.internal(minusOne, index, null);
+			assertNotEquals(absent.getKey(), legal.getKey());
+			assertNotEquals(absent.getKey().getHash64(), legal.getKey().getHash64());
+			assertEquals(absent.getKey(), absent.getCloneWithInnerFormulas(absent.getInnerFormulas()).getKey());
+		}
+
+		/** Function objects have no detached value form, even for an identity function. */
+		@Test
+		@DisplayName("Expansion functions make original and clone instance unique")
+		void shouldKeepExpansionFunctionsOpaque() {
+			final ReferencedTypeEntityIndex index = createPopulatedIndex();
+			final UnaryOperator<Bitmap> expansion = UnaryOperator.identity();
+			final Formula child = new ConstantFormula(new BaseBitmap(1));
+			final Formula plain = createFormula(null, TRANSACTIONAL_IDS, index, 1, null, child);
+			final Formula opaque = createFormula(null, TRANSACTIONAL_IDS, index, 1, expansion, child);
+			assertNotEquals(plain.getKey(), opaque.getKey());
+			assertNotEquals(opaque.getKey(), opaque.getCloneWithInnerFormulas(child).getKey());
+			assertEquals(plain.getKey(), plain.getCloneWithInnerFormulas(child).getKey());
+			assertArrayEquals(new int[]{10, 11}, plain.compute().getArray());
+			assertArrayEquals(plain.compute().getArray(), opaque.compute().getArray());
 		}
 	}
 
@@ -398,7 +455,7 @@ class ReferencedEntityIndexPrimaryKeyTranslatingFormulaTest {
 	 * schema and scope setup.
 	 *
 	 * @param referencedEntitySuperSet optional superset bitmap to restrict the translation
-	 * @param transactionalIds         transactional IDs for cache-key hashing
+	 * @param transactionalIds         global index versions recorded in the detached identity
 	 * @param index                    target index for the translation
 	 * @param worstCardinality         worst-case cardinality estimate
 	 * @param expansionFunction        function applied to inner result before translation
@@ -411,7 +468,7 @@ class ReferencedEntityIndexPrimaryKeyTranslatingFormulaTest {
 		@Nonnull long[] transactionalIds,
 		@Nonnull ReferencedTypeEntityIndex index,
 		int worstCardinality,
-		@Nonnull UnaryOperator<Bitmap> expansionFunction,
+		@Nullable UnaryOperator<Bitmap> expansionFunction,
 		@Nonnull Formula innerFormula
 	) {
 		return new ReferencedEntityIndexPrimaryKeyTranslatingFormula(

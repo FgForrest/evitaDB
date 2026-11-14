@@ -27,41 +27,81 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import javax.annotation.Nullable;
+import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 import java.util.function.BiFunction;
 
 /**
- * This bitmap supplier just delegates the call to the this.formula but when the computation (result memoization) occurs,
- * it executes the computation within {@link #firstInvocation} lambda. The wrapper is mentioned to be used for
- * generating a query telemetry around the this.formula result computation.
+ * Memoizes a wrapped formula computation. The transparent constructor adds nested-query execution telemetry;
+ * {@link #custom(Formula, BiFunction)} captures result-changing computation with instance-unique identity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class FormulaWrapper implements BitmapSupplier {
+	/** Stable bitmap supplier discriminator. */
+	private static final long CLASS_ID = -4241517363456225853L;
+
 	/**
 	 * The delegate formula whose computation is wrapped by this supplier.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final Formula formula;
 	/**
-	 * Lambda invoked on the first call to {@link #get()} to compute and memoize the bitmap result.
+	 * Optional custom result computation; absent when the wrapper supplies telemetry around the delegate.
 	 */
-	private final BiFunction<QueryExecutionContext, Formula, Bitmap> firstInvocation;
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
+	@Nullable private final BiFunction<QueryExecutionContext, Formula, Bitmap> customComputation;
 	/**
 	 * Execution context from initialization phase.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private QueryExecutionContext executionContext;
 	/**
-	 * Memoized bitmap result computed by {@link #firstInvocation}, `null` until first access.
+	 * Memoized bitmap result, `null` until first access.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private Bitmap computed;
 
-	public FormulaWrapper(
+	/** Description supplied only when execution telemetry is collected. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	@Nullable private final Supplier<String> stepDescription;
+
+	/** Memoized detached holder key. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	private FormulaKey memoizedKey;
+
+	/** Wraps an unchanged computation with nested-query execution telemetry. */
+	public FormulaWrapper(@Nonnull Formula formula, @Nonnull Supplier<String> stepDescription) {
+		this.formula = formula;
+		this.stepDescription = stepDescription;
+		this.customComputation = null;
+	}
+
+	/** Captures custom result logic whose identity is bound to the wrapper instance. */
+	private FormulaWrapper(
 		@Nonnull Formula formula,
-		@Nonnull BiFunction<QueryExecutionContext, Formula, Bitmap> firstInvocation
+		@Nonnull BiFunction<QueryExecutionContext, Formula, Bitmap> computation
 	) {
 		this.formula = formula;
-		this.firstInvocation = firstInvocation;
+		this.stepDescription = null;
+		this.customComputation = computation;
+	}
+
+	/** Builds an instance-unique wrapper for computation that may change the delegate's result. */
+	@Nonnull
+	public static FormulaWrapper custom(
+		@Nonnull Formula formula,
+		@Nonnull BiFunction<QueryExecutionContext, Formula, Bitmap> computation
+	) {
+		return new FormulaWrapper(formula, computation);
 	}
 
 	@Override
@@ -73,22 +113,6 @@ public class FormulaWrapper implements BitmapSupplier {
 	@Override
 	public int getEstimatedCardinality() {
 		return this.formula.getEstimatedCardinality();
-	}
-
-	@Override
-	public long getHash() {
-		return this.formula.getHash();
-	}
-
-	@Override
-	public long getTransactionalIdHash() {
-		return this.formula.getTransactionalIdHash();
-	}
-
-	@Nonnull
-	@Override
-	public long[] gatherTransactionalIds() {
-		return this.formula.gatherTransactionalIds();
 	}
 
 	@Override
@@ -107,15 +131,19 @@ public class FormulaWrapper implements BitmapSupplier {
 	}
 
 	@Override
-	public long getCostToPerformanceRatio() {
-		return this.formula.getCostToPerformanceRatio();
-	}
-
-	@Override
 	public Bitmap get() {
 		if (this.computed == null) {
 			Assert.isPremiseValid(this.executionContext != null, "FormulaWrapper must be initialized prior to calling get().");
-			this.computed = this.firstInvocation.apply(this.executionContext, this.formula);
+			if (this.customComputation == null) {
+				try {
+					this.executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, this.stepDescription);
+					this.computed = this.formula.compute();
+				} finally {
+					this.executionContext.popStep();
+				}
+			} else {
+				this.computed = this.customComputation.apply(this.executionContext, this.formula);
+			}
 		}
 		return this.computed;
 	}
@@ -123,5 +151,49 @@ public class FormulaWrapper implements BitmapSupplier {
 	@Override
 	public String toString() {
 		return this.formula.toString();
+	}
+
+	/** Returns detached inputs without computing the bitmap. */
+	@Nonnull
+	public IdentityRecord identity() {
+		return new Identity(this.formula.getKey(), this.customComputation == null ? null : IdentityToken.OPAQUE);
+	}
+
+	/** Returns the memoized detached key of this holder. */
+	@Nonnull
+	@Override
+	public FormulaKey getKey() {
+		if (this.memoizedKey == null) {
+			this.memoizedKey = FormulaKey.of(identity(), getClassId(), FormulaKey.NO_CHILDREN, this);
+		}
+		return this.memoizedKey;
+	}
+
+	/** Returns the stable holder discriminator. */
+	public long getClassId() {
+		return CLASS_ID;
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param formula key of the delegate computation
+	 * @param customComputation opaque marker for custom result logic, absent for transparent telemetry
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull FormulaKey formula,
+		@Nullable IdentityToken customComputation) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.formula);
+			accumulator.add(this.customComputation);
+		}
 	}
 }

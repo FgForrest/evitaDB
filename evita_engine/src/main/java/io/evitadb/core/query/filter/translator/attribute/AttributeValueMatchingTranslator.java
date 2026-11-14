@@ -32,6 +32,7 @@ import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher.MainQueryMatcher;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.AttributeIndex;
@@ -44,9 +45,12 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
 
 /**
  * Implemented by the {@link FilteringConstraintTranslator translators} of the attribute constraints that test a
@@ -67,6 +71,14 @@ import java.util.function.Supplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public interface AttributeValueMatchingTranslator<T extends FilterConstraint & AttributeConstraint<FilterConstraint>> {
+
+	/**
+	 * Returns whether matching reads the implicit query moment for the resolved schema. A null schema means that
+	 * entity types resolve it later, so the answer must include every type they may supply.
+	 */
+	default boolean readsQueryMoment(@Nonnull T constraint, @Nullable AttributeSchemaContract attributeSchema) {
+		return false;
+	}
 
 	/**
 	 * Creates the matcher of the constraint over the attribute. The conversion and the normalization of the constraint
@@ -211,6 +223,7 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	 *
 	 * @param constraint      the constraint
 	 * @param filterByVisitor the visitor translating the query
+	 * @param matcherSchema   the schema used to construct the matcher
 	 * @param matcher         the matcher of the constraint over the attribute
 	 * @param traits          the traits the attribute schema must have
 	 * @return the filter
@@ -219,10 +232,19 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	default AttributeBitmapFilter createAlternativeBitmapFilter(
 		@Nonnull T constraint,
 		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull AttributeSchemaContract matcherSchema,
 		@Nonnull AttributeValueMatcher matcher,
 		@Nonnull AttributeTrait... traits
 	) {
-		return createBitmapFilter(constraint, filterByVisitor, attributeSchema -> matcher, traits);
+		final MainQueryMatcher declaredMatcher = new MainQueryMatcher(
+			matcher, AttributeBitmapFilter.captureMatcherSchema(
+				matcherSchema, filterByVisitor.getProcessingScope().getScopes()
+			),
+			readsQueryMoment(constraint, matcherSchema) ? filterByVisitor.getNow() : null
+		);
+		return createBitmapFilter(
+			constraint, filterByVisitor, attributeSchema -> declaredMatcher, false, declaredMatcher, traits
+		);
 	}
 
 	/**
@@ -250,7 +272,7 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 			attributeSchema -> createMainQueryMatcher(
 				constraint, filterByVisitor, processingScope, requestedScopes, attributeSchema
 			),
-			traits
+			true, null, traits
 		);
 	}
 
@@ -261,6 +283,8 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	 * @param constraint      the constraint
 	 * @param filterByVisitor the visitor translating the query
 	 * @param matcherFactory  creates the matcher from the schema of the attribute
+	 * @param matcherPerEntityType whether each entity type creates its own matcher
+	 * @param declaredMatcher inputs captured with an already constructed matcher, or null for deferred/raw matchers
 	 * @param traits          the traits the attribute schema must have
 	 * @return the filter
 	 */
@@ -269,16 +293,38 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 		@Nonnull T constraint,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory,
+		boolean matcherPerEntityType,
+		@Nullable MainQueryMatcher declaredMatcher,
 		@Nonnull AttributeTrait... traits
 	) {
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		return AttributeBitmapFilter.matching(
-			constraint.getAttributeName(),
+		final OffsetDateTime moment;
+		if (matcherPerEntityType) {
+			final AttributeSchemaContract schemaOverride = AttributeBitmapFilter.resolveSchemaOverride(
+				filterByVisitor, constraint.getAttributeName()
+			);
+			moment = readsQueryMoment(constraint, schemaOverride) ? filterByVisitor.getNow() : null;
+		} else {
+			moment = declaredMatcher == null ? null : declaredMatcher.moment();
+		}
+		return AttributeBitmapFilter.forConstraint(
+			constraint, constraint.getAttributeName(),
+			attributeContent(constraint.getAttributeName()),
 			processingScope::getAttributeSchema,
 			(entity, attributeName) -> processingScope.getAttributeValueStream(
 				entity, attributeName, filterByVisitor.getLocale()
 			),
-			matcherFactory,
+			attributeSchema -> {
+				final AttributeValueMatcher matcher = matcherFactory.apply(attributeSchema);
+				return values -> values.anyMatch(value -> value.isPresent() && matcher.matches(value.get().value()));
+			},
+			filterByVisitor.getLocale(), matcherPerEntityType,
+			moment,
+			matcherPerEntityType || declaredMatcher != null ?
+				AttributeBitmapFilter.captureExecutionContext(
+					filterByVisitor, constraint.getAttributeName(),
+					declaredMatcher == null ? List.of() : declaredMatcher.schemaInputs(), matcherPerEntityType, traits
+				) : null,
 			traits
 		);
 	}

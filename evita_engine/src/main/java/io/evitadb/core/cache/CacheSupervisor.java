@@ -24,64 +24,30 @@
 package io.evitadb.core.cache;
 
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.core.cache.model.CacheRecordAdept;
-import io.evitadb.core.cache.model.CachedRecord;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
-import io.evitadb.core.query.response.ServerEntityDecorator;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Closeable;
-import java.time.OffsetDateTime;
-import java.util.Optional;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 /**
- * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified by
- * its {@link Formula#computeHash(LongHashFunction)} method and when the supervisor identifies that certain formula is frequently used
- * in query formulas it moves its memoized results to the cache. The non-computed formula of the same hash will be
- * exchanged in next query that contains it with the cached formula that already contains memoized result.
- *
- * The key aspect of each caching mechanism is invalidation when the cached data become obsolete. We keep all
- * {@link Formula#gatherTransactionalIds() transactional bitmap ids} the formula builds upon along with the cached
- * formula. When the underlying datastore is changed we can track which bitmaps were discarded and mark all cached
- * formulas that refer to any of those discarded bitmaps as obsolete. We update the cached formula with the last
- * transaction id they're valid to (we keep also the transaction id when the formula result was memoized) when they
- * link to the discarded bitmap.
- *
- * If we found formula in cache we compare its transaction id validity span (from-to) with the transaction id of the
- * {@link EvitaSessionContract} the query is executed in. The cached formula result is used only when the transaction id is
- * within the memoized formula validity span. By this mechanism we may still keep obsolete results in a cache for a while
- * providing there are old Evita sessions that heavily work with these. If not the formulas will quickly fade away
- * through "cooling" mechanism and get evicted from the cache.
+ * Integrates query formula and extra-result computation with a cache supervisor.
+ * Formula analysis preserves the node; extra-result analysis may wrap computation under its execution context.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface CacheSupervisor extends Closeable {
 
 	/**
-	 * Central accessor for creating a hash function that returns fast hashing function producing low collision hashes
-	 * for passed input. We use <a href="https://github.com/OpenHFT/Zero-Allocation-Hashing">zero-allocation hashing</a>
-	 * library and <a href="https://github.com/Cyan4973/xxHash">xxHash</a> function that is believed to fulfill these
-	 * requirements.
-	 */
-	@Nonnull
-	static LongHashFunction createHashFunction() {
-		return LongHashFunction.xx3();
-	}
-
-	/**
-	 * Method traverses {@link Formula} tree and for each "expensive" formula it computes hash and checks whether
-	 * the formula has cached counterpart. If so the formula is exchanged with the {@link CachedRecord} that
-	 * has the result already memoized. The cost (expensiveness) of the formula are based on
-	 * {@link TransactionalDataRelatedStructure#getEstimatedCost()}  that is the only way how to guess the cost without
-	 * really computing the result.
+	 * Analyses a formula graph the caller has already deduplicated and returns the same graph: no node is replaced.
+	 * An implementation may bind eligible nodes in place, so that computing them consults the formula result cache.
+	 *
+	 * @param evitaSession  session the query runs in
+	 * @param entityType    entity type the query targets
+	 * @param filterFormula deduplicated formula graph
+	 * @return the passed formula graph
 	 */
 	@Nonnull
 	<T extends Formula> T analyse(
@@ -91,36 +57,20 @@ public interface CacheSupervisor extends Closeable {
 	);
 
 	/**
-	 * Method examines whether `extraResultComputer` is "expensive" enough and when it is, it computes hash and checks
-	 * whether the extraResultComputer has cached counterpart. If so the computer is exchanged with
-	 * the {@link CachedRecord} that has the result already memoized. The cost (expensiveness) of the computer are based
-	 * on {@link TransactionalDataRelatedStructure#getEstimatedCost()}  that is the only way how to guess the cost
-	 * without really computing the result.
+	 * Analyses an extra-result computer using the execution context that will compute it.
+	 *
+	 * @param evitaSession        session the query runs in
+	 * @param entityType          entity type the query targets
+	 * @param extraResultComputer computer to analyse
+	 * @param context             execution context that computes the result
+	 * @return the computer itself, or a wrapper computing the same result through the passed context
 	 */
 	@Nonnull
 	<U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		@Nonnull String entityType,
-		@Nonnull T extraResultComputer
-	);
-
-	/**
-	 * Method tries to find particular entity `primaryKey` and `requirements` in the cache so that we can avoid physical
-	 * fetch from the persistent datastore.
-	 *
-	 * If the entity is not found in the cache, it is fetched via `entityFetcher` function and {@link CacheRecordAdept}
-	 * is created for it. If there are enough requests targeting this entity, the entity will eventually propagate to
-	 * the cache.
-	 */
-	@Nonnull
-	Optional<ServerEntityDecorator> analyse(
-		@Nonnull EvitaSessionContract evitaSession,
-		int primaryKey,
-		@Nonnull String entityType,
-		@Nonnull OffsetDateTime offsetDateTime,
-		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<ServerEntityDecorator> entityFetcher,
-		@Nonnull UnaryOperator<ServerEntityDecorator> enricher
+		@Nonnull T extraResultComputer,
+		@Nonnull QueryExecutionContext context
 	);
 
 	/**

@@ -26,6 +26,7 @@ package io.evitadb.spi.store.catalog.persistence.storageParts.entity;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart.AttributesSetKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart.EntityAttributesSetKey;
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
@@ -277,6 +279,49 @@ class AttributesStoragePartTest {
 			);
 
 			assertFalse(part.isDirty());
+		}
+
+		/**
+		 * `[1.0,2.0]` and `[10,20]` compare equal by their encoded bounds, yet a reader gets other bounds back. The
+		 * part must take the new range and become dirty, and stay clean when the very same range arrives again.
+		 */
+		@Test
+		@DisplayName("should mark dirty when a range differs only in bounds encoded to the same longs")
+		void shouldMarkDirtyWhenRangeDiffersOnlyInBoundsEncodedToSameLongs() {
+			final AttributeKey key = new AttributeKey("range", LOCALE_EN);
+			final AttributeSchemaContract schema = mockAttributeSchema(BigDecimalNumberRange.class);
+			final AttributesStoragePart changed = new AttributesStoragePart(
+				1L, ENTITY_PK, LOCALE_EN,
+				new AttributeValue[]{
+					new AttributeValue(key, BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0")))
+				},
+				128
+			);
+
+			changed.upsertAttribute(
+				key, schema,
+				existing -> new AttributeValue(
+					key, BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+				)
+			);
+
+			assertTrue(changed.isDirty());
+			assertEquals("[10,20]", String.valueOf(changed.getAttributes()[0].value()));
+
+			final AttributesStoragePart unchanged = new AttributesStoragePart(
+				1L, ENTITY_PK, LOCALE_EN,
+				new AttributeValue[]{
+					new AttributeValue(key, BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0")))
+				},
+				128
+			);
+			unchanged.upsertAttribute(
+				key, schema,
+				existing -> new AttributeValue(
+					key, BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+				)
+			);
+			assertFalse(unchanged.isDirty());
 		}
 
 		@Test

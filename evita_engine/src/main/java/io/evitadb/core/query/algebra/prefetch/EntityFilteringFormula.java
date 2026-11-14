@@ -30,16 +30,18 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The formula is used only in case that the input {@link EvitaRequest} doesn't specify the entity collection it
@@ -52,30 +54,21 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class EntityFilteringFormula extends AbstractFormula implements RequirementsDefiner, FilteredPriceRecordAccessor {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -1887923944737482575L;
-	/**
-	 * Hands out {@link #instanceId} values.
-	 */
-	private static final AtomicLong INSTANCE_SEQUENCE = new AtomicLong();
 	/**
 	 * Contains a simple text, that would be used in an error message if the entities are not prefetched and computation
 	 * of the result is executed. In such case, the target entity collection needs to be known and in case of this
 	 * formula it's never known.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private final String reason;
 	/**
 	 * Contains the alternative computation based on entity contents filtering.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final EntityToBitmapFilter alternative;
-	/**
-	 * Distinguishes this formula from every other one. The formula has no inner formulas and its alternative exposes
-	 * nothing to hash, so without it any two instances would hash alike and the
-	 * {@link io.evitadb.core.query.filter.FormulaDeduplicator} would replace the second of them in a plan with the
-	 * first one, silently dropping the filter it stands for.
-	 */
-	private final long instanceId = INSTANCE_SEQUENCE.incrementAndGet();
 
 	public EntityFilteringFormula(@Nonnull String reason, @Nonnull EntityToBitmapFilter alternative) {
 		this.reason = reason;
@@ -83,9 +76,13 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 		this.initFields();
 	}
 
+	/**
+	 * The alternative filter has no comparable value form, so the key is always opaque and therefore query-local.
+	 */
+	@Nonnull
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLong(this.instanceId);
+	protected IdentityRecord identity() {
+		return new Identity(IdentityToken.OPAQUE);
 	}
 
 	@Override
@@ -148,12 +145,27 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	}
 
 	@Override
-	protected long getCostToPerformanceInternal() {
-		return getCost() / Math.max(1, compute().size());
-	}
-
-	@Override
 	public long getOperationCost() {
 		return 1;
 	}
+	/**
+	 * Detached semantic inputs of the holder.
+	 *
+	 * @param alternative opaque marker standing for the alternative filter, the only input of the formula
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull IdentityToken alternative) implements IdentityRecord {
+		/** Returns the holder's class identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every semantic input in the structural hash and retained weight. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.alternative);
+		}
+	}
+
 }

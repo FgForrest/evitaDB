@@ -28,21 +28,20 @@ import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.core.query.algebra.AbstractFormula;
-import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.NonCollapsibleFormula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.prefetch.RequirementsDefiner;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.math.BigDecimal;
-import java.util.function.Predicate;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
@@ -59,7 +58,7 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
 public class AttributeFormula extends AbstractFormula implements ChildrenDependentFormula, NonCollapsibleFormula,
 	RequirementsDefiner {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 4944486926494447594L;
 	/**
@@ -77,7 +76,7 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 	/**
 	 * Contains possible predicate that can mark histogram buckets as requested by user constraint.
 	 */
-	@Getter private final Predicate<BigDecimal> requestedPredicate;
+	@Nullable @Getter private final RequestedThresholdPredicate requestedPredicate;
 	/**
 	 * Contains TRUE when every record the formula yields holds a value of the attribute in the locale of
 	 * {@link #attributeKey} - and therefore holds that locale. See {@link #isLocaleImplied()}.
@@ -96,7 +95,7 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 		boolean targetsGlobalAttribute,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Formula innerFormula,
-		@Nullable Predicate<BigDecimal> requestedPredicate
+		@Nullable RequestedThresholdPredicate requestedPredicate
 	) {
 		this(targetsGlobalAttribute, attributeKey, innerFormula, requestedPredicate, true);
 	}
@@ -115,7 +114,7 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 		boolean targetsGlobalAttribute,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Formula innerFormula,
-		@Nullable Predicate<BigDecimal> requestedPredicate,
+		@Nullable RequestedThresholdPredicate requestedPredicate,
 		boolean localeImplied
 	) {
 		this.targetsGlobalAttribute = targetsGlobalAttribute;
@@ -210,20 +209,6 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 	}
 
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.attributeKey.locale() == null) {
-			return hashFunction.hashChars(this.attributeKey.attributeName());
-		} else {
-			return hashFunction.hashLongs(
-				new long[] {
-					hashFunction.hashChars(this.attributeKey.attributeName()),
-					hashFunction.hashChars(this.attributeKey.locale().toLanguageTag())
-				}
-			);
-		}
-	}
-
-	@Override
 	protected long getClassId() {
 		return CLASS_ID;
 	}
@@ -234,4 +219,46 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 		return entityFetch(attributeContent(this.attributeKey.attributeName()));
 	}
 
+	/** Returns the construction flag independently of whether the key is localized. */
+	protected final boolean getLocaleImplied() {
+		return this.localeImplied;
+	}
+
+	/** Captures the attribute routing and requested histogram thresholds. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.targetsGlobalAttribute, this.attributeKey, this.requestedPredicate, this.localeImplied);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param targetsGlobalAttribute whether the global attribute index is targeted
+	 * @param attributeKey attribute name and locale
+	 * @param requestedPredicate requested histogram thresholds
+	 * @param localeImplied whether each matching record holds the attribute locale
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		boolean targetsGlobalAttribute,
+		@Nonnull AttributeKey attributeKey,
+		@Nullable RequestedThresholdPredicate requestedPredicate,
+		boolean localeImplied
+	) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.targetsGlobalAttribute);
+			accumulator.add(this.attributeKey);
+			accumulator.add(this.requestedPredicate);
+			accumulator.add(this.localeImplied);
+		}
+	}
 }

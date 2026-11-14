@@ -23,64 +23,126 @@
 
 package io.evitadb.core.query.algebra;
 
-import io.evitadb.core.cache.payload.FlattenedFormula;
+import io.evitadb.core.cache.*;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
 import io.evitadb.index.bitmap.Bitmap;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.function.Consumer;
-
-import static java.util.Optional.ofNullable;
 
 /**
- * AbstractCacheableFormula is an abstract ancestor for all {@link Formula} that produce int based bitmaps as their
- * result and that are suitable for caching. We need to stick to primitive types to perform fast. That's why
- * we need to maintain this type of formula.
+ * Formula whose computed tuple may be retained across queries. Binding preserves the node and all its children.
+ * Clones start unbound, and {@link #clearMemory()} drops the binding together with the result: the memoized key may
+ * describe a `MutableFormula` delegate that has since been replaced below this node.
+ *
+ * A formula that sets side outputs while computing overrides {@link #measurePayload(Bitmap)},
+ * {@link #toCachedResult(Bitmap, int)} and {@link #restoreFromCache(CachedResult)} together, so that a hit restores
+ * the complete tuple. A formula whose side outputs are not a supported payload extends {@link AbstractFormula} instead.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public abstract class AbstractCacheableFormula extends AbstractFormula implements CacheableFormula {
+public abstract class AbstractCacheableFormula extends AbstractFormula {
+	/** Supervisor selected after deduplication; never copied by clone paths. */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
+	@Nullable private FormulaCacheSupervisor boundCache;
+
+	/** Creates an unbound formula. */
+	protected AbstractCacheableFormula() {
+	}
+
+	/** Allows this instance to consult the supervisor when initialized for an eligible execution. */
+	public final void bindFormulaCache(@Nonnull FormulaCacheSupervisor cache) {
+		this.boundCache = cache;
+	}
+
 	/**
-	 * Callback invoked after the formula result is computed, allowing the cache supervisor to record the computation.
+	 * Returns the memo first, otherwise computes or restores one complete tuple under the execution gate.
+	 *
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a sampled recomputation differs from the cached
+	 *         tuple; the memo then holds the recomputed result
 	 */
-	protected final Consumer<CacheableFormula> computationCallback;
-
-	protected AbstractCacheableFormula(@Nullable Consumer<CacheableFormula> computationCallback) {
-		this.computationCallback = computationCallback;
-	}
-
-	protected AbstractCacheableFormula(@Nullable Bitmap memoizedResult, @Nullable Consumer<CacheableFormula> computationCallback) {
-		this.memoizedResult = memoizedResult;
-		this.computationCallback = computationCallback;
-	}
-
 	@Nonnull
 	@Override
 	public Bitmap compute() {
-		if (this.memoizedResult == null) {
+		if (this.memoizedResult != null) {
+			return this.memoizedResult;
+		}
+		final FormulaCacheSupervisor cache = this.boundCache;
+		if (cache == null) {
 			this.memoizedResult = computeInternal();
-			ofNullable(this.computationCallback).ifPresent(it -> it.accept(this));
+			return this.memoizedResult;
+		}
+		if (this.executionContext == null || !this.executionContext.isFormulaCacheUsable() || !cache.isActive()) {
+			if (this.executionContext != null && this.executionContext.isPrefetchExecution()) {
+				cache.recordPrefetchBypass();
+			}
+			this.memoizedResult = computeInternal();
+			return this.memoizedResult;
+		}
+		final FormulaKey key = getKey();
+		final CachedResult cached = cache.lookup(key);
+		if (cached == null) {
+			computeAndAdmit(cache, key);
+		} else if (cache.sampleHit()) {
+			recomputeAndVerify(this.executionContext, cache, key, cached);
+		} else {
+			restoreFromCache(cached);
 		}
 		return this.memoizedResult;
 	}
 
-	@Override
-	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
-		// by this time computation result should be already memoized
-		return new FlattenedFormula(
-			formulaHash,
-			getTransactionalIdHash(),
-			gatherTransactionalIds(),
-			compute()
-		);
+	/** Computes a miss and publishes its complete tuple when the per-entry cap accepts the charge. */
+	private void computeAndAdmit(@Nonnull FormulaCacheSupervisor cache, @Nonnull FormulaKey key) {
+		final long start = System.nanoTime();
+		this.memoizedResult = computeInternal();
+		final long computeNanos = System.nanoTime() - start;
+		final int weight = cache.admittedWeight(measurePayload(this.memoizedResult));
+		if (weight > 0) {
+			cache.admit(key, toCachedResult(this.memoizedResult, weight), computeNanos);
+		}
 	}
 
+	/** Recomputes a sampled hit with the cache suspended for the whole query and compares it with the stored tuple. */
+	private void recomputeAndVerify(
+		@Nonnull QueryExecutionContext context, @Nonnull FormulaCacheSupervisor cache, @Nonnull FormulaKey key,
+		@Nonnull CachedResult cached
+	) {
+		final long start = System.nanoTime();
+		final boolean previous = context.suspendFormulaCache();
+		try {
+			this.memoizedResult = computeInternal();
+			cache.verify(context, key, getClass().getName(), toString(), cached,
+				toCachedResult(this.memoizedResult, cached.weight()), System.nanoTime() - start);
+		} finally {
+			context.resumeFormulaCache(previous);
+		}
+	}
+
+	/**
+	 * Returns the complete charge of the tuple this computation would retain, in long arithmetic. The bitmap is
+	 * charged here; a formula with side outputs charges them too and freezes their order before publication.
+	 */
+	protected long measurePayload(@Nonnull Bitmap computed) {
+		return CachedResultWeigher.measure(getKey(), computed);
+	}
+
+	/** Builds the complete tuple only after sizing and the per-entry cap have succeeded. */
+	@Nonnull
+	protected CachedResult toCachedResult(@Nonnull Bitmap computed, int weight) {
+		return new CachedBitmapResult(computed, weight);
+	}
+
+	/** Restores the tuple and sets this node's own paid cost to zero. */
+	protected void restoreFromCache(@Nonnull CachedResult cached) {
+		restoreComputedResult(((CachedBitmapResult) cached).result());
+	}
+
+	/** Drops the binding as well as the result; the retained key may describe a previous mutable delegate. */
 	@Override
-	public int getSerializableFormulaSizeEstimate() {
-		return FlattenedFormula.estimateSize(
-			gatherTransactionalIds(),
-			compute()
-		);
+	public void clearMemory() {
+		super.clearMemory();
+		this.boundCache = null;
 	}
 }

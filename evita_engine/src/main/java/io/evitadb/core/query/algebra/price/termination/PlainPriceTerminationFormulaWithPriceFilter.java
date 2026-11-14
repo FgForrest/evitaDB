@@ -23,12 +23,16 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
-import io.evitadb.core.cache.payload.FlattenedFormula;
-import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.cache.CachedResult;
+import io.evitadb.core.cache.CachedPriceRecordsResult;
+import io.evitadb.core.cache.CachedResultWeigher;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
@@ -36,11 +40,9 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PriceAmountPredicate;
-import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.BatchArrayIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -53,15 +55,12 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
-import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * PlainPriceTerminationFormulaWithPriceFilter translates price ids produced by delegate formula to entity ids. It may
@@ -75,7 +74,7 @@ import java.util.function.Consumer;
  */
 public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -2971377943765598548L;
 
@@ -83,7 +82,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	 * Price evaluation context allows optimizing formula tree in the such way, that terminating formula with same
 	 * context will be replaced by single instance - taking advantage of result memoization.
 	 */
-	@Getter private final PriceEvaluationContext priceEvaluationContext;
+	private final PriceEvaluationContext priceEvaluationContext;
 	/**
 	 * Price filter is used to filter out entities which price doesn't match the predicate.
 	 */
@@ -92,49 +91,16 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	 * Contains array of price records that links to the price ids produced by {@link Formula#compute()} method. This array
 	 * is available once the {@link Formula#compute()} method has been called.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private ResolvedFilteredPriceRecords filteredPriceRecords;
-	/**
-	 * Bitmap is initialized (non-null) after {@link Formula#compute()} method is called and contains set of entity primary
-	 * keys that were excluded due to {@link #pricePredicate} query. This information is reused in
-	 * {@link PriceHistogramProducer} to avoid duplicate computation - price histogram must not take price predicate
-	 * into an account.
-	 */
-	@Getter private Bitmap recordsFilteredOutByPredicate;
 
 	public PlainPriceTerminationFormulaWithPriceFilter(
 		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull PriceRecordPredicate pricePredicate
 	) {
-		super(null);
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.pricePredicate = pricePredicate;
-		this.initFields(containerFormula);
-	}
-
-	private PlainPriceTerminationFormulaWithPriceFilter(
-		@Nullable Consumer<CacheableFormula> computationCallback,
-		@Nonnull Formula containerFormula,
-		@Nonnull PriceEvaluationContext priceEvaluationContext,
-		@Nonnull PriceRecordPredicate pricePredicate
-	) {
-		super(computationCallback);
-		this.pricePredicate = pricePredicate;
-		this.priceEvaluationContext = priceEvaluationContext;
-		this.initFields(containerFormula);
-	}
-
-	private PlainPriceTerminationFormulaWithPriceFilter(
-		@Nullable Consumer<CacheableFormula> computationCallback,
-		@Nonnull Formula containerFormula,
-		@Nonnull PriceEvaluationContext priceEvaluationContext,
-		@Nonnull PriceRecordPredicate pricePredicate,
-		@Nonnull Bitmap recordsFilteredOutByPredicate
-	) {
-		super(recordsFilteredOutByPredicate, computationCallback);
-		this.pricePredicate = pricePredicate;
-		this.priceEvaluationContext = priceEvaluationContext;
-		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
 		this.initFields(containerFormula);
 	}
 
@@ -163,7 +129,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PlainPriceTerminationFormulaWithPriceFilter(
-			this.computationCallback, innerFormulas[0], this.priceEvaluationContext, this.pricePredicate
+			innerFormulas[0], this.priceEvaluationContext, this.pricePredicate
 		);
 	}
 
@@ -172,27 +138,25 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		return 3205;
 	}
 
-	@Nonnull
+	/** Freezes and measures all price outputs before publication. */
 	@Override
-	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		return new PlainPriceTerminationFormulaWithPriceFilter(
-			this.computationCallback,
-			this.innerFormulas[0],
-			this.priceEvaluationContext,
-			PricePredicate.ALL_RECORD_FILTER,
-			this.recordsFilteredOutByPredicate
-		);
+	protected long measurePayload(@Nonnull Bitmap computed) {
+		return CachedResultWeigher.measure(getKey(), computed, this.filteredPriceRecords, null);
 	}
 
+	/** Captures the bitmap and its price output from the same computation. */
 	@Nonnull
 	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
-		return new PlainPriceTerminationFormulaWithPriceFilter(
-			selfOperator,
-			innerFormulas[0],
-			this.priceEvaluationContext, this.pricePredicate
-		);
+	protected CachedResult toCachedResult(@Nonnull Bitmap computed, int weight) {
+		return CachedPriceRecordsResult.of(computed, this.filteredPriceRecords, null, weight);
+	}
+
+	/** Restores all side outputs before exposing the memoized bitmap. */
+	@Override
+	protected void restoreFromCache(@Nonnull CachedResult cached) {
+		final CachedPriceRecordsResult prices = (CachedPriceRecordsResult) cached;
+		this.filteredPriceRecords = prices.priceRecords();
+		restoreComputedResult(prices.result());
 	}
 
 	@Nonnull
@@ -208,34 +172,6 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	@Override
 	public String toString() {
 		return this.pricePredicate.toString();
-	}
-
-	@Override
-	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
-		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
-		return new FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
-			formulaHash,
-			getTransactionalIdHash(),
-			sortedDistinctIds,
-			compute(),
-			getFilteredPriceRecords(this.executionContext),
-			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
-			getPriceEvaluationContext(),
-			this.pricePredicate.getQueryPriceMode(),
-			this.pricePredicate.getFrom(),
-			this.pricePredicate.getTo(),
-			this.pricePredicate.getIndexedPricePlaces()
-		);
-	}
-
-	@Override
-	public int getSerializableFormulaSizeEstimate() {
-		return FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.estimateSize(
-			gatherTransactionalIds(),
-			compute(),
-			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
-			getPriceEvaluationContext()
-		);
 	}
 
 	@Nonnull
@@ -263,8 +199,6 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 
 			// create new roaring bitmap builder for matching records
 			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			// create new roaring bitmap builder for records excluded by predicate
-			final RoaringBitmapWriter<PersistentRoaringBitmap> predicateExcludedWriter = RoaringBitmapBackedBitmap.buildWriter();
 			final int[] buffer = SharedBufferPool.INSTANCE.obtain();
 			try {
 				final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(
@@ -287,8 +221,6 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 									if (this.pricePredicate.test(foundPrice)) {
 										writer.add(entityId);
 										priceRecordsFunnel.add(foundPrice);
-									} else {
-										predicateExcludedWriter.add(entityId);
 									}
 								}
 							);
@@ -314,11 +246,9 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 			);
 
 			// wrap result into the bitmap
-			this.recordsFilteredOutByPredicate = new BaseBitmap(predicateExcludedWriter.get());
 			return new BaseBitmap(writer.get());
 		} else {
 			this.filteredPriceRecords = new ResolvedFilteredPriceRecords();
-			this.recordsFilteredOutByPredicate = EmptyBitmap.INSTANCE;
 			return EmptyBitmap.INSTANCE;
 		}
 	}
@@ -333,18 +263,39 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	}
 
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			new long[]{
-				this.priceEvaluationContext.computeHash(hashFunction),
-				this.pricePredicate.computeHash(hashFunction)
-			}
-		);
-	}
-
-	@Override
 	protected long getClassId() {
 		return CLASS_ID;
+	}
+
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.priceEvaluationContext,
+			this.pricePredicate.identity());
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param priceEvaluationContext validity and ordered target price indexes
+	 * @param pricePredicate detached price range predicate
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull PriceEvaluationContext priceEvaluationContext,
+		@Nonnull PricePredicate.Identity pricePredicate) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.priceEvaluationContext);
+			accumulator.add(this.pricePredicate);
+		}
 	}
 
 }
