@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-11-14 | [Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure](2026-11-14-copy-on-write-path-routing.md) | refactor | accepted | #1956, PR #1957 |
 | 2026-11-11 | [A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue](2026-11-11-reference-histogram-net-change-per-run.md) | fix | accepted | #1911, #1916, #1918 |
 | 2026-11-06 | [A catalog rename or replace waits for the commit pipeline on the caller's thread, then acts on the instance that wait found](2026-11-06-catalog-handover-waits-for-commit-pipeline.md) | fix | accepted | #1889, PR #1890 |
 | 2026-11-05 | [An export that cannot fit the export storage stops at the limit and names the setting to raise](2026-11-05-backup-stops-at-the-export-limit.md) | fix | accepted | #1881, PR #1885 |
