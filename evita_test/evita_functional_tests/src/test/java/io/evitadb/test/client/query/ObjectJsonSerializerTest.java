@@ -24,6 +24,7 @@
 package io.evitadb.test.client.query;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -89,6 +90,16 @@ class ObjectJsonSerializerTest {
 
 			assertTrue(result.isTextual());
 			assertEquals("hello", result.asText());
+		}
+
+		@Test
+		@DisplayName("Should serialize an Expression into a textual node of the text it parses from")
+		void shouldSerializeExpressionAsItsText() {
+			final JsonNode result = serializer.serializeObject(ExpressionFactory.parse("$pageNumber == 1"));
+
+			assertTrue(result.isTextual());
+			// the receiving side parses the text, so a quoted one would be a string constant
+			assertEquals("$pageNumber == 1", result.asText());
 		}
 
 		@Test

@@ -24,6 +24,7 @@
 package io.evitadb.api.query.expression.object;
 
 import io.evitadb.api.query.expression.AbstractUnaryOperator;
+import io.evitadb.api.query.expression.ExpressionPrecedence;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
@@ -78,6 +79,6 @@ public class ObjectAccessOperator extends AbstractUnaryOperator {
 
 	@Override
 	public String toString() {
-		return getOperand().toString() + this.accessChain;
+		return ExpressionPrecedence.objectAccessBaseText(getOperand()) + this.accessChain;
 	}
 }

@@ -533,18 +533,17 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 			index++
 		);
 		kryo.register(
+			SetAttributeSchemaNormalizedMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new SetAttributeSchemaNormalizedMutationSerializer(), SetAttributeSchemaNormalizedMutation.class
+			),
+			index++
+		);
+		kryo.register(
 			SetAssociatedDataSchemaSearchableMutation.class,
 			new SerialVersionBasedSerializer<>(
 				new SetAssociatedDataSchemaSearchableMutationSerializer(),
 				SetAssociatedDataSchemaSearchableMutation.class
-			),
-			index++
-		);
-
-		kryo.register(
-			SetAttributeSchemaNormalizedMutation.class,
-			new SerialVersionBasedSerializer<>(
-				new SetAttributeSchemaNormalizedMutationSerializer(), SetAttributeSchemaNormalizedMutation.class
 			),
 			index++
 		);

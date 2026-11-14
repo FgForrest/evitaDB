@@ -93,7 +93,13 @@ public class ModifyReferenceSchemaCardinalityMutation
 	) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-			if (reflectedReferenceSchema.isReflectedReferenceAvailable() && reflectedReferenceSchema.getCardinality() == this.cardinality) {
+			// a reflected reference either inherits its cardinality (null) or declares one, and a declared value
+			// equal to the inherited one is still a declaration - the effective value cannot tell a change apart
+			final boolean unchanged = this.cardinality == null
+				? reflectedReferenceSchema.isCardinalityInherited()
+				: !reflectedReferenceSchema.isCardinalityInherited() &&
+					reflectedReferenceSchema.getCardinality() == this.cardinality;
+			if (unchanged) {
 				return referenceSchema;
 			} else {
 				return reflectedReferenceSchema

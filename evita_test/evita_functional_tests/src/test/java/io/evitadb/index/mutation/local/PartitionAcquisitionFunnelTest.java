@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -202,7 +203,20 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			new MockEntityIndexCreator<>(this.catalogIndex), () -> this.productSchema, sequencer::getAndIncrement,
 			() -> {
 				throw new UnsupportedOperationException("Not supported in the test.");
-			}, null, null, null, this.classifierResolver, this.usageRegistry, this.catalogUsageRegistry, new FulltextAnalyzerRegistry(new AnalysisStepRegistry()), () -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA, AttributeNormalizationResolver.LEGACY_NFD, true, reservations);
+			},
+			null,
+			null,
+			null,
+			this.classifierResolver,
+			this.usageRegistry,
+			this.catalogUsageRegistry,
+			new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
+			() -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
+			AttributeNormalizationResolver.LEGACY_NFD,
+			true,
+			MissingHistogramValueBehavior.REFUSE,
+			reservations
+		);
 	}
 
 	/**

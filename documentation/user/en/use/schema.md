@@ -447,6 +447,36 @@ The attribute schema is described by:
 
 </Note>
 
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Renaming an attribute does not move the data you already have
+</NoteTitle>
+
+`ModifyAttributeSchemaNameMutation` moves the attribute to its new name in the schema - of the catalog, the entity or
+the reference - and a global attribute is renamed in every entity that uses it. The values of the entities that are
+already stored, and the indexes built from them, stay under the old name; moving them along with the schema is tracked
+in [issue #409](https://github.com/FgForrest/evitaDB/issues/409). When the collection contains entities, the rename is
+accepted and the server logs a warning, but filtering and sorting by the new name find only the entities written after
+the rename. This also applies to an attribute that declares a [filter accelerator](#filter-accelerators). Because a
+rename moves no data, the new name may still hold values of an attribute that was renamed away from it or removed.
+The accelerator stays dormant over such a populated value tree, and queries scan its values, until the tree empties
+or can be rebuilt from retained value ids on load. This avoids starting an incomplete index or attaching value ids to
+already stored values; the rename still does not move the original attribute's data.
+
+A rename is refused when another attribute already holds the new name, when the attribute is part of a
+[sortable attribute compound](#sortable-attribute-compounds), and when a reflected reference inherits the attribute
+from its original reference - rename it there.
+
+Rename an attribute before the first entity is inserted. For a catalog that already holds the data, the route is the
+same as for [filter accelerators](#declared-over-data-you-already-have-the-accelerator-stays-dormant): create a new
+catalog with the renamed attribute, load the data into it, and replace the original catalog with it. Versions before
+2026.3 kept the attribute under the old name next to the renamed one; such a leftover can be removed with
+`RemoveAttributeSchemaMutation`.
+
+</Note>
+
 #### Default value
 
 An attribute may have a default value defined. The value is used when a new entity is created and no value has been
@@ -454,15 +484,38 @@ assigned to a particular attribute. There is no other situation where the defaul
 
 #### Allowed decimal places
 
-The allowed decimal places setting is an optimization that allows rich numeric types (such
+The allowed decimal places setting (`indexedDecimalPlaces` in the attribute schema) is an optimization that allows rich
+numeric types (such
 as <LS to="j,e,r,g">[BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)</LS><LS to="c">[decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal)</LS> for precise
 number representation) to be converted to the primitive <LS to="j,e,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS> type, which is much more
 compact and can be used for fast binary searches in array/bitset representation. The original rich format is still
 present in an attribute container, but internally the database uses the primitive form when an attribute is part of
 filter or sort conditions.
 
-If a number cannot be converted to a compact form (for example, it has more digits in the fractional part than expected),
-an exception is thrown and the entity update is refused.
+To get the primitive form, the number is multiplied by ten to the power of the allowed decimal places and rounded to the
+nearest whole number, a tie away from zero: with two allowed decimal places, `1.234` is indexed as `123` and `1.235` as
+`124`. Digits beyond the allowed decimal places are not refused - the entity keeps the number exactly as it was written
+and returns it unchanged, only the indexes don't see those digits. Two numbers that round to the same whole number -
+with two allowed decimal places, `1.2251` and `1.2349` are both indexed as `123` - are therefore one value for
+filtering, sorting and uniqueness: they match the same filter constraints, a unique attribute accepts only one of them,
+and sorting by the attribute treats them as equal and orders them by primary key. A number in a filter constraint is
+rounded the same way before it is compared. A [sortable attribute compound](#sortable-attribute-compounds) is the
+exception - it orders by the exact number.
+
+The default is zero allowed decimal places, so an attribute that doesn't set them is filtered and sorted by whole
+numbers. An average rating needs at least one: with zero, `4.5` and `4.8` are both indexed as `5`, and sorting by the
+rating cannot tell them apart.
+
+The rounding keeps the index small: an attribute may hold large whole numbers in some entities and many decimal places
+in others, and every one of them must fit into the primitive form. Choose the allowed decimal places so that each
+number multiplied by ten to their power still fits the int range. A number that doesn't fit cannot be indexed - writing
+it into a filterable, sortable or unique attribute fails with an exception, and a query that filters entities by such
+a number is refused.
+
+Set the allowed decimal places before the first entity is inserted. evitaDB doesn't re-encode the values that are
+already indexed when the setting changes. For a catalog that already holds the data, create a new catalog with the
+changed setting, load the data into it, and replace the original catalog with it. Re-indexing the stored data on a
+schema change is tracked in [issue #409](https://github.com/FgForrest/evitaDB/issues/409).
 
 #### Normalization
 
@@ -817,7 +870,8 @@ A dormant accelerator becomes active once the attribute holds no values at all -
 been removed - because the next value starts the index afresh. To accelerate an existing catalog today, create a new
 catalog, declare the accelerator on it before inserting anything, load the data into it, and then replace the
 original catalog with the new one. Plan for this when you size a migration - it is a full re-import, not a schema
-tweak.
+tweak. Schema changes that rebuild the indexes of data already stored are tracked in
+[issue #409](https://github.com/FgForrest/evitaDB/issues/409).
 
 </Note>
 
@@ -997,6 +1051,15 @@ erDiagram
     }
 ```
 
+A reflected reference must inherit every attribute used by its inherited sortable attribute compounds; otherwise
+schema validation refuses the schema when the session closes or the catalog goes live.
+Inherit the missing attributes too, or exclude the compound by name in the same inheritance filter, for example
+`withAttributesInheritedExcept("label", "validityLabel")`. A reflected reference that inherits only the attributes
+it lists (`withAttributesInherited(...)`) leaves the compound out of that list instead.
+A compound declared on the reflected reference itself is refused the same way when it uses an attribute the reflected
+reference no longer inherits, and since no inheritance filter removes it, inherit its attributes again or remove it
+with `withoutSortableAttributeCompound(...)`.
+
 Reflected references are automatically created, updated, and removed when the original reference is manipulated. It also works the other way around - when the reflected reference is manipulated, the original reference is updated.
 
 <Note type="warning">
@@ -1059,6 +1122,29 @@ If the reference is marked as *faceted*, the special <SourceClass>evita_engine/s
 When a reference is marked as faceted, all its instances are inserted into the facet reference index. References can (but don't have to) be organized into facet groups that refer to a *managed* or *non-managed* entity type. The facet index is built at **indexing time** — when entities are created or updated — so that the [reference summary](../query/requirements/reference.md#reference-summary) computation at query time reads the pre-built index directly and runs at full speed.
 
 By default, **every** instance of a faceted reference participates in the facet index. The [conditional indexing](#conditional-indexing-with-expressions) option described below lets you narrow this down using an expression.
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Making a reference indexed or faceted later does not index the data you already have
+</NoteTitle>
+
+The reference and facet indexes are filled as entities are inserted and updated, and evitaDB has no way to build them
+for entities that are already stored. When a stored reference becomes indexed or faceted in a scope, or gains an
+[indexed component](#indexed-components) there, while the collection contains entities, the schema change is accepted
+and the server logs a warning, but filtering by the reference -
+[`referenceHaving`](../query/filtering/references.md#reference-having),
+[`groupHaving`](../query/filtering/references.md#group-having),
+[`facetHaving`](../query/filtering/references.md#facet-having) - finds only the entities written after the change, and
+the [reference summary](../query/requirements/reference.md#reference-summary) counts only them.
+
+Declare the indexing and faceting of a reference before the first entity is inserted. For a catalog that already holds
+the data, the route is the same as for
+[filter accelerators](#declared-over-data-you-already-have-the-accelerator-stays-dormant): create a new catalog that
+declares the setting, load the data into it, and replace the original catalog with it.
+
+</Note>
 
 ##### Reference histograms
 

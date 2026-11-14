@@ -26,6 +26,7 @@ package io.evitadb.api.query.parser.visitor;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.parser.ParseContext;
+import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
@@ -38,6 +39,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -46,9 +48,11 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Tag;
 
@@ -57,6 +61,7 @@ import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -182,7 +187,8 @@ class EvitaQLFilterConstraintVisitorTest {
 			final FilterConstraint constraint3 = parseFilterConstraintUnsafe("and ( attributeEquals('a',1), attributeEquals('b','c') )");
 			assertEquals(and(attributeEquals("a", 1L), attributeEquals("b", "c")), constraint3);
 
-			final FilterConstraint constraint4 = parseFilterConstraintUnsafe("and()");
+			final FilterConstraint constraint4 = DefaultQueryParser.getInstance()
+				.parseFilterConstraintListUnsafe("and()").get(0);
 			assertEquals(and(), constraint4);
 		}
 
@@ -205,7 +211,8 @@ class EvitaQLFilterConstraintVisitorTest {
 			final FilterConstraint constraint3 = parseFilterConstraintUnsafe("or ( attributeEquals('a',1) , attributeEquals('b','c') )");
 			assertEquals(or(attributeEquals("a", 1L), attributeEquals("b", "c")), constraint3);
 
-			final FilterConstraint constraint4 = parseFilterConstraintUnsafe("or()");
+			final FilterConstraint constraint4 = DefaultQueryParser.getInstance()
+				.parseFilterConstraintListUnsafe("or()").get(0);
 			assertEquals(or(), constraint4);
 		}
 
@@ -247,7 +254,8 @@ class EvitaQLFilterConstraintVisitorTest {
 			final FilterConstraint constraint3 = parseFilterConstraintUnsafe("userFilter ( attributeEquals('a',1)  , attributeEquals('b','c') )");
 			assertEquals(userFilter(attributeEquals("a", 1L), attributeEquals("b", "c")), constraint3);
 
-			final FilterConstraint constraint4 = parseFilterConstraintUnsafe("userFilter()");
+			final FilterConstraint constraint4 = DefaultQueryParser.getInstance()
+				.parseFilterConstraintListUnsafe("userFilter()").get(0);
 			assertEquals(userFilter(), constraint4);
 		}
 
@@ -1605,20 +1613,19 @@ class EvitaQLFilterConstraintVisitorTest {
 		@Test
 		@DisplayName("Should reject histogramHaving with only a classifier — at least one bound is required")
 		void shouldNotParseHistogramHavingWithOnlyClassifier() {
-			// The HistogramHaving constructor enforces that at least one of `from` / `to` is
-			// non-null. A classifier-only call fails inside the constructor, so the thrown type
-			// is an EvitaInvalidUsageException (wrapped by the parser) rather than a grammar-
-			// level EvitaSyntaxException — hence the broader `Exception.class` assertion.
-			assertThrows(Exception.class, () -> parseFilterConstraintUnsafe("histogramHaving('parameterValues')"));
+			final EvitaSyntaxException exception = assertThrows(EvitaSyntaxException.class,
+				() -> DefaultQueryParser.getInstance().parseQueryUnsafe(
+					"query(collection('Product'), filterBy(histogramHaving('parameterValues')))"));
+			assertTrue(exception.getMessage().contains("requires at least one of from / to to be non-null"));
 		}
 
 		@Test
 		@DisplayName("Should reject histogramHaving with classifier and histogramName but no bounds")
 		void shouldNotParseHistogramHavingWithClassifierAndHistogramNameButNoBounds() {
-			// Same at-least-one-bound invariant as the classifier-only form — failure originates
-			// in the HistogramHaving constructor, not in the grammar, so we assert the broader
-			// `Exception.class`.
-			assertThrows(Exception.class, () -> parseFilterConstraintUnsafe("histogramHaving('parameterValues','basicValue')"));
+			final EvitaSyntaxException exception = assertThrows(EvitaSyntaxException.class,
+				() -> DefaultQueryParser.getInstance().parseQueryUnsafe(
+					"query(collection('Product'), filterBy(histogramHaving('parameterValues','basicValue')))"));
+			assertTrue(exception.getMessage().contains("requires at least one of from / to to be non-null"));
 		}
 
 		@Test
@@ -2035,7 +2042,7 @@ class EvitaQLFilterConstraintVisitorTest {
 		void shouldNotParseInScopeConstraint() {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("inScope"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("inScope(LIVE)"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inScope(LIVE)"));
+			assertNull(parseFilterConstraintUnsafe("inScope(LIVE)"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inScope('LIVE', entityPrimaryKeyInSet(1))"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inScope('a','b')"));
 		}
@@ -2078,14 +2085,34 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertEquals(textMatches("jacket", inAttribute("name")), constraint6);
 		}
 
+		/** Undefined values omit their filter and a container emptied by that omission. */
+		@Test
+		@DisplayName("Should omit undefined fulltext values and their empty parent")
+		void shouldOmitUndefinedFulltextValues() {
+			assertNull(parseFilterConstraint("textMatches(?)", new Object[]{null}));
+			assertNull(parseFilterConstraint("filterBy(textMatches(?))", new Object[]{null}));
+			final Map<String, Object> parameters = new HashMap<>();
+			parameters.put("text", null);
+			assertNull(parseFilterConstraint("textMatches(@text)", parameters));
+			assertNull(parseFilterConstraint("filterBy(textMatches(@text))", parameters));
+			assertEquals(
+				filterBy(entityPrimaryKeyInSet(1)),
+				parseFilterConstraint("filterBy(textMatches(?),entityPrimaryKeyInSet(?))", new Object[]{null, 1})
+			);
+			assertThrows(EvitaSyntaxException.class,
+				() -> parseFilterConstraint("textMatches(?,inAttribute(?))", new Object[]{null, " "}));
+			assertThrows(EvitaSyntaxException.class,
+				() -> parseFilterConstraint("textMatches(?,attributeEquals(?,?))", new Object[]{null, "a", null}));
+		}
+
 		@Test
 		@DisplayName("Should not parse invalid textMatches constraint")
 		void shouldNotParseTextMatchesConstraint() {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("textMatches"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("textMatches()"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("textMatches(1)"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("textMatches('')"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("textMatches('  ')"));
+			assertNull(parseFilterConstraintUnsafe("textMatches('')"));
+			assertNull(parseFilterConstraintUnsafe("textMatches('  ')"));
 			// only `inAttribute` is accepted as a child
 			assertThrows(
 				EvitaSyntaxException.class,
@@ -2123,8 +2150,8 @@ class EvitaQLFilterConstraintVisitorTest {
 		/** Bound names with a null reach selector validation and are refused with its diagnostic. */
 		@ParameterizedTest(name = "named={0}, array={1}, nullFirst={2}")
 		@CsvSource({
-			"false, true, true", "false, true, false", "false, false, false",
-			"true, true, true", "true, true, false", "true, false, false"
+			"false, true, true", "false, true, false", "false, false, true", "false, false, false",
+			"true, true, true", "true, true, false", "true, false, true", "true, false, false"
 		})
 		@DisplayName("Should refuse null bound names with the inAttribute diagnostic")
 		void shouldNotParseNullInAttributeNames(boolean named, boolean array, boolean nullFirst) {
@@ -2249,16 +2276,18 @@ class EvitaQLFilterConstraintVisitorTest {
      *
      * @param string string to parse
      * @param positionalArguments positional arguments to substitute
-     * @return parsed constraint
+     * @return parsed constraint, or null when the factory omits it
      */
-    @Nonnull
+	@Nullable
     private static FilterConstraint parseFilterConstraint(
         @Nonnull String string, @Nonnull Object... positionalArguments
     ) {
         return ParserExecutor.execute(
             new ParseContext(positionalArguments),
-            () -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
-        );
+			() -> Optional.ofNullable(
+				ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
+			)
+		).orElse(null);
     }
 
     /**
@@ -2266,16 +2295,18 @@ class EvitaQLFilterConstraintVisitorTest {
      *
      * @param string string to parse
      * @param namedArguments named arguments to substitute
-     * @return parsed constraint
+     * @return parsed constraint, or null when the factory omits it
      */
-    @Nonnull
+	@Nullable
     private static FilterConstraint parseFilterConstraint(
         @Nonnull String string, @Nonnull Map<String, Object> namedArguments
     ) {
         return ParserExecutor.execute(
             new ParseContext(namedArguments),
-            () -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
-        );
+			() -> Optional.ofNullable(
+				ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
+			)
+		).orElse(null);
     }
 
     /**
@@ -2284,31 +2315,35 @@ class EvitaQLFilterConstraintVisitorTest {
      * @param string string to parse
      * @param namedArguments named arguments to substitute
      * @param positionalArguments positional arguments to substitute
-     * @return parsed constraint
+     * @return parsed constraint, or null when the factory omits it
      */
-    @Nonnull
+	@Nullable
     private static FilterConstraint parseFilterConstraint(
         @Nonnull String string, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments
     ) {
         return ParserExecutor.execute(
             new ParseContext(namedArguments, positionalArguments),
-            () -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
-        );
+			() -> Optional.ofNullable(
+				ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
+			)
+		).orElse(null);
     }
 
     /**
      * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint" in unsafe mode
      *
      * @param string string to parse
-     * @return parsed constraint
+     * @return parsed constraint, or null when the factory omits it
      */
-    @Nonnull
+	@Nullable
     private static FilterConstraint parseFilterConstraintUnsafe(@Nonnull String string) {
         final ParseContext context = new ParseContext();
         context.setMode(ParseMode.UNSAFE);
         return ParserExecutor.execute(
             context,
-            () -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
-        );
+			() -> Optional.ofNullable(
+				ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
+			)
+		).orElse(null);
     }
 }

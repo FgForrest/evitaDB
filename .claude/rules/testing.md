@@ -23,10 +23,14 @@ Every test method must carry **at least one layer tag** and **at least one capab
 `io.evitadb.test.TestTags`. The policy is enforced by `TestTagPolicyFilter` in **strict mode by
 default** — an untagged test aborts discovery, so the build fails before any test executes. Set
 `-Dtest.tag.policy=warn` to downgrade to logging-only, or `-Dtest.tag.policy=off` to silence the
-check entirely (only useful for ad-hoc local iteration on a freshly-stubbed test class). Cost tags
-(`slow`, `flaky`) are optional.
+check entirely (only useful for ad-hoc local iteration on a freshly-stubbed test class).
 
-- **Cost (optional, mutually exclusive)**: `slow`, `flaky`
+- **There are no cost tags.** A test that cannot run reliably is fixed or removed, not quarantined behind a
+  tag no workflow runs.
+- **There is no `slow` tag.** A test too slow for the fast loop goes to `evita_long_running_tests`, which
+  runs as a whole under `-P longRunning` (the weekly `long-running-tests` workflow). A slow tag inside
+  `evita_functional_tests` used to exclude a test from every workflow at once - the fast loop filtered it
+  out and the long-running profile never ran that module.
 - **Layer (≥1 required)**: `contract`, `engine`, `indexing`, `storage`, `driver`, `server`,
   `external_api`, `rest`, `graphql`, `grpc`, `lab`, `system_api`, `observability_api`, `cli`,
   `test_harness`
@@ -61,18 +65,24 @@ The test suite is split across four sibling modules under `evita_test/`:
 
 ## Running tests
 
-- **Default fast loop** — the `unitAndFunctional` profile excludes `slow`/`flaky`-tagged tests in functional_tests; the long-running and documentation modules are skipped via their own surefire config:
+- **Default fast loop** — the `unitAndFunctional` profile runs the functional tests; the long-running and documentation modules are skipped via their own surefire config:
   ```bash
   mvn -pl evita_test/evita_functional_tests test -P unitAndFunctional
   ```
 - **Tag-filter expressions** — pass to surefire via `-Dgroups` / `-DexcludedGroups`; JUnit 5 supports boolean expressions:
   ```bash
   mvn -pl evita_test/evita_functional_tests test -Dgroups="facet & external_api"
-  mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !slow"
+  mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !external_api"
   ```
 - **Documentation runners** — `mvn -P documentation`. The matching profile in the docs module flips its `skipTests` to `false`; the root profile sets `skipTests=true` everywhere else, so only documentation tests run. Running them against anything but the public demo server takes a rig — see "Documentation runners" below.
 - **Slow / long-running tests** — `mvn -P longRunning`. Same pattern as `documentation`; selects only the long-running module.
-- **Picking the right tags for a code change** — map the changed source path to layer + capability tags. For example, a change under `evita_engine/src/main/java/io/evitadb/index/facet/` calls for `(facet | indexing) & !slow`; under `evita_external_api/evita_external_api_rest/` use `rest & external_api`. The full path-to-tag mapping is documented in the `TestTags` JavaDoc and in the bulk-tagging script committed during the rollout.
+- **Release upgrade fixtures** — the functional tests' build writes them in `generate-test-resources` with the
+  released engines (`tools/fixtures/GenerateReleaseFixtures.java`), so the first build on an empty local repository
+  needs Maven Central. `-DreleaseFixtures.skip=true` builds without it; the release upgrade tests then fail, each
+  naming the fixture it misses. IntelliJ needs
+  `mvn generate-test-resources -P intellij-idea-only -pl evita_test/evita_functional_tests` after every rebuild of the
+  module.
+- **Picking the right tags for a code change** — map the changed source path to layer + capability tags. For example, a change under `evita_engine/src/main/java/io/evitadb/index/facet/` calls for `facet | indexing`; under `evita_external_api/evita_external_api_rest/` use `rest & external_api`. The full path-to-tag mapping is documented in the `TestTags` JavaDoc and in the bulk-tagging script committed during the rollout.
 
 ## Documentation runners — running them locally
 
@@ -168,8 +178,8 @@ correct change *look* broken or unrun; the worse half do the opposite — they p
 nothing at all. Treat every `BUILD SUCCESS` that is suspiciously fast, or that reports a test count you did not
 expect, as unproven until you have read the count.
 
-- **`@Nested`-only classes report `Tests run: 0` in the outer `.txt`.** The convention here is to consolidate methods into `@Nested` inner classes (see above), so most test classes have **no** direct `@Test` methods. Surefire then writes the outer-class report (`target/surefire-reports/io.evitadb.<...>.<Class>.txt`) as `Tests run: 0` and reports each nested class separately under its own `@DisplayName`. **Do not conclude "nothing ran" from the outer `.txt`.** The real number is the run's aggregate stdout line (`[INFO] Tests run: 138, Failures: 0, …`). Capture full stdout to a file and read that aggregate, or sum the per-`@DisplayName` lines — never trust the outer `.txt` alone.
-- **Never attribute a count to a nested class from the console lines.** The per-`@DisplayName` lines are reliable for the *total* and unreliable for *which class owns it*: a class with both direct `@Test` methods and a `@Nested` class has been observed printing `Tests run: 0 … -- in <outer FQCN>` and `Tests run: 31 … -- in <nested display name>` when the split is really 16 outer / 15 nested. Quoting that as "the nested class has 31" is wrong, and it is the kind of number that ends up in a decision record. For a per-class split read the XML instead, which carries one `classname` per testcase:
+- **The console names a test class by its `@DisplayName`, and its count covers every `@Nested` child.** The convention here is to consolidate methods into `@Nested` inner classes (see above), so most test classes have **no** direct `@Test` methods. Surefire prints one `Tests run: N … -- in <display name>` line per top-level test class, and N is the whole class: direct methods plus all nested ones. The outer `.txt` report (`target/surefire-reports/io.evitadb.<...>.<Class>.txt`) carries the same total under the fully qualified name. So when you search the console for a class, search for its `@DisplayName`, not its class name — and nested display names never appear there at all.
+- **Never attribute a count to a nested class without the XML.** Neither the console nor the `.txt` splits a class by its nested classes, and a number quoted as "the nested class has 31" is the kind that ends up in a decision record. The XML carries one `classname` per testcase, as the binary name `Outer$Nested`:
   ```shell
   grep -o 'classname="[^"]*"' target/surefire-reports/TEST-<fqcn>.xml | sort | uniq -c
   ```
@@ -218,10 +228,13 @@ expect, as unproven until you have read the count.
   and print `Nothing to compile - all classes are up to date.` — hiding every breakage the new signature caused. It
   once concealed 36 broken call sites this way. Only `clean test-compile` surfaces them. **After any upstream
   signature change, `clean` is not optional**, or the compile step proves nothing.
-- **`-Dtest` with exclusions only selects nothing.** A pattern made purely of negations —
-  `-Dtest='!SomeTest,!OtherTest'` — alongside `-Dgroups` matches **no** tests, prints `Tests run: 0` and exits
-  `BUILD SUCCESS`. Read as a pass, it looks like the excluded classes were the whole problem. Always lead with an
-  explicit include: `-Dtest='**/*Test,!**/SomeTest'`, and check the count is the one you expected.
+- **`-Dtest` with exclusions only fails the build for a reason that has nothing to do with your change.** A
+  pattern made purely of negations — `-Dtest='!SomeTest,!OtherTest'`, measured alongside `-Dgroups` — also
+  selects classes surefire otherwise skips, among them the deliberately untagged fixtures nested in
+  `TestTagPolicyFilterTest`. Discovery then aborts with `Test tag policy violated: 4 test(s) are missing required
+  tags`, naming `UntaggedFixture` and its siblings, before a single test runs. Do not go tagging those fixtures —
+  they exist to prove the gate fires. Always lead with an explicit include: `-Dtest='**/*Test,!**/SomeTest'`,
+  and check the count is the one you expected.
 - **`-Dtest` naming an *abstract* base class selects nothing.** Several functional suites are written as an
   abstract base with concrete per-scope subclasses (`AbstractEntityByAttributeFilteringFunctionalTest` and its
   siblings). Surefire matches the pattern against class *names* and then finds nothing runnable, so
@@ -313,7 +326,7 @@ more likely and can never cause a false failure. Say which one it is in a commen
 cannot be hit deterministically — no seam exists between the two statements that race — the answer is not
 to give up on coverage, and not to sweep the loop into `evita_functional_tests` either. In the fast loop a
 probabilistic test fails once per few hundred CI runs and teaches everyone to press re-run. That module
-exists precisely for tests that need time and an idle box. Tag it `@Tag(SLOW)`, and in order of preference:
+exists precisely for tests that need time and an idle box. Put it there, and in order of preference:
 
 1. **Introduce a real seam** and test it deterministically in the fast loop, if one can exist.
 2. **Stress test in `evita_long_running_tests`, ENABLED** — sweep the timing rather than fixing it,

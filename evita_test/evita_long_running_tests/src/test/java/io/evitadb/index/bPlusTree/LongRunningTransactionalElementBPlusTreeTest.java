@@ -46,7 +46,6 @@ import java.util.function.ToIntFunction;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -178,7 +177,6 @@ class LongRunningTransactionalElementBPlusTreeTest implements TimeBoundedTestSup
 	@ParameterizedTest(
 		name = "TransactionalElementBPlusTree should survive non-transactional generational insert/delete churn"
 	)
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("survives randomized non-transactional (warm-up) insert/delete churn")
 	void generationalWarmUpProofTest(@Nonnull GenerationalTestInput input) {
@@ -237,7 +235,6 @@ class LongRunningTransactionalElementBPlusTreeTest implements TimeBoundedTestSup
 	@ParameterizedTest(
 		name = "TransactionalElementBPlusTree should survive transactional generational insert/delete churn"
 	)
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("survives randomized transactional insert/delete churn re-deriving dirty leaf boundaries on commit")
 	void generationalTransactionalProofTest(@Nonnull GenerationalTestInput input) {

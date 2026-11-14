@@ -301,7 +301,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T>, Interruptib
 	 * @param throwable the throwable the task body unwound with
 	 * @return true when the throwable is (or wraps) the cancellation itself
 	 */
-	private static boolean isCancellationDriven(@Nonnull Throwable throwable) {
+	protected static boolean isCancellationDriven(@Nonnull Throwable throwable) {
 		Throwable current = throwable;
 		for (int depth = 0; current != null && depth < MAX_CAUSE_CHAIN_DEPTH; depth++) {
 			if (current instanceof CancellationException || current instanceof InterruptedException) {

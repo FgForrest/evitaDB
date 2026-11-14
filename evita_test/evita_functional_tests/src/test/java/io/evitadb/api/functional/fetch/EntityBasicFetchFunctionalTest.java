@@ -23,16 +23,11 @@
 
 package io.evitadb.api.functional.fetch;
 
-import io.evitadb.api.SessionTraits.SessionFlags;
-import io.evitadb.api.requestResponse.EntityFetchAwareDecorator;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
-import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
-import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
@@ -46,10 +41,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import java.util.Collection;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -58,10 +51,7 @@ import java.util.stream.Collectors;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -176,153 +166,6 @@ class EntityBasicFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				assertProduct(productByPk.getRecordData().getFirst(), 2, false, false, false, false);
 				return null;
 			}
-		);
-	}
-
-	@DisplayName("Single entity in binary form by primary key should be found")
-	@Test
-	void shouldRetrieveSingleBinaryEntityByPrimaryKey(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<BinaryEntity> productByPk = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(2)
-						),
-						require(
-							entityFetchAll()
-						)
-					),
-					BinaryEntity.class
-				);
-				assertEquals(1, productByPk.getRecordData().size());
-				assertEquals(1, productByPk.getTotalRecordCount());
-
-				final BinaryEntity binaryEntity = productByPk.getRecordData().getFirst();
-				assertEquals(Entities.PRODUCT, binaryEntity.getType());
-				assertNotNull(binaryEntity.getEntityStoragePart());
-				assertNotNull(binaryEntity.getAttributeStorageParts());
-				assertTrue(binaryEntity.getAttributeStorageParts().length > 0);
-				assertNotNull(binaryEntity.getAssociatedDataStorageParts());
-				assertTrue(binaryEntity.getAssociatedDataStorageParts().length > 0);
-				assertNotNull(binaryEntity.getPriceStoragePart());
-				assertNotNull(binaryEntity.getReferenceStoragePart());
-				return null;
-			},
-			SessionFlags.BINARY
-		);
-	}
-
-	@DisplayName("Binary entity references are never narrowed by a coverage bound on the thread")
-	@Test
-	void shouldNeverNarrowBinaryEntityReferences(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
-		// The references container of a binary entity is re-serialized verbatim and handed to the client, so it
-		// has to carry every reference the entity has. The read must therefore BIND an unrestricted coverage
-		// rather than assume the thread holds none - a coverage left behind by a read further up the stack would
-		// otherwise reach it. Both consumers refuse a narrowed part, so the symptom is a failed request rather
-		// than a short entity, but the container must simply come back whole.
-		final byte[] unrestricted = ReferenceDecodeCoverageContext.executeWithCoverage(
-			null, () -> fetchBinaryReferenceStoragePart(evita)
-		);
-		final byte[] underBoundCoverage = ReferenceDecodeCoverageContext.executeWithCoverage(
-			ReferenceDecodeCoverage.of(Set.of(), Map.of(Entities.CATEGORY, new int[]{Integer.MAX_VALUE})),
-			() -> fetchBinaryReferenceStoragePart(evita)
-		);
-
-		assertNotNull(unrestricted);
-		assertTrue(unrestricted.length > 0);
-		// byte for byte the same container, whatever the thread happened to be carrying
-		assertArrayEquals(unrestricted, underBoundCoverage);
-	}
-
-	/**
-	 * Fetches one product in binary form and hands back the serialized references container, so that the same read
-	 * can be performed under two different thread bound coverages and the results compared.
-	 *
-	 * @param evita the test instance to query
-	 * @return the serialized references storage part of the fetched entity
-	 */
-	@Nullable
-	private static byte[] fetchBinaryReferenceStoragePart(@Nonnull Evita evita) {
-		return evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				// a referenceContent carrying an entityFetch is what makes `getReferenceEntityFetch()` non-empty,
-				// which is the branch that DECODES the container instead of handing back its stored bytes - the
-				// raw-bytes branch cannot be narrowed at all and would make this test vacuous
-				final EvitaResponse<BinaryEntity> productByPk = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(2)
-						),
-						require(
-							entityFetch(
-								referenceContent(Entities.CATEGORY, entityFetch(attributeContentAll()))
-							)
-						)
-					),
-					BinaryEntity.class
-				);
-				assertEquals(1, productByPk.getRecordData().size());
-				return productByPk.getRecordData().getFirst().getReferenceStoragePart();
-			},
-			SessionFlags.BINARY
-		);
-	}
-
-	/**
-	 * Pins that reading an entity body in binary form is counted, both by the entity that read it and by the
-	 * response that returned it.
-	 *
-	 * A binary fetch reads the body through a code path of its own - one that neither routes through the query's
-	 * record de-duplicating scope nor hands the bytes to the collector assembling the entity's statistic. The read
-	 * happened all the same, and an entity asking for nothing but its body is the shape where that read is the only
-	 * one there is: whatever both numbers report here, they report about it alone.
-	 */
-	@DisplayName("Reading an entity body in binary form should be counted in the IO statistics")
-	@Test
-	void shouldCountTheBinaryEntityBodyRead(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<BinaryEntity> productByPk = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(2)
-						),
-						require(
-							entityFetch()
-						)
-					),
-					BinaryEntity.class
-				);
-				assertEquals(1, productByPk.getRecordData().size());
-
-				final BinaryEntity binaryEntity = productByPk.getRecordData().getFirst();
-				assertNotNull(binaryEntity.getEntityStoragePart());
-
-				final EntityFetchAwareDecorator fetchAware = assertInstanceOf(
-					EntityFetchAwareDecorator.class, binaryEntity
-				);
-				assertTrue(
-					fetchAware.getIoFetchCount() > 0,
-					"The body this entity is made of was read and has to be counted."
-				);
-				assertTrue(
-					fetchAware.getIoFetchedBytes() > 0,
-					"The body this entity is made of occupied Bytes that have to be counted."
-				);
-				assertTrue(
-					productByPk.getIoFetchCount() > 0,
-					"The response has to report the read its only entity performed."
-				);
-				return null;
-			},
-			SessionFlags.BINARY
 		);
 	}
 

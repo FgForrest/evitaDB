@@ -54,7 +54,6 @@ import java.util.function.Consumer;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.SLOW;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -111,7 +110,6 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 	}
 
 	@DisplayName("Generate load over the unique-attribute index (insert + churn)")
-	@Tag(SLOW)
 	@ParameterizedTest(name = "catalog state: {0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	void shouldGenerateLoadOfDataInWarmUpPhase(@Nonnull CatalogState mode) {
@@ -134,7 +132,6 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 	}
 
 	@DisplayName("Generate load over the range index (insert + churn)")
-	@Tag(SLOW)
 	@ParameterizedTest(name = "catalog state: {0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	void shouldGenerateLoadOfRangeDataInWarmUpPhase(@Nonnull CatalogState mode) {
@@ -161,7 +158,6 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 	}
 
 	@DisplayName("Generate load over the chain index (insert + coherent move churn)")
-	@Tag(SLOW)
 	@ParameterizedTest(name = "catalog state: {0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	void shouldGenerateLoadOfChainDataInWarmUpPhase(@Nonnull CatalogState mode) {

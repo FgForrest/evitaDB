@@ -31,11 +31,10 @@ package io.evitadb.externalApi.grpc.generated;
  * <pre>
  * Response for a query executed via QueryList, i.e. expecting a flat list of matching entities (no paging
  * metadata - use plain `Query` via `GrpcQueryResponse` if paging is needed). Exactly one of
- * `entityReferences`/`sealedEntities`/`binaryEntities` is the active field, chosen the same way as in
+ * `entityReferences`/`sealedEntities` is the active field, chosen the same way as in
  * `GrpcDataChunk`: no `entityFetch` requirement in the query's `require` block selects `entityReferences`;
- * an `entityFetch` requirement selects `sealedEntities` (structured form) or `binaryEntities` (binary
- * storage form), depending on whether the session uses the binary storage format. The other two fields are
- * always left empty; note the active field is itself also empty when zero entities matched.
+ * an `entityFetch` requirement selects `sealedEntities`. The other field is always left empty;
+ * note the active field is itself also empty when zero entities matched.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse}
@@ -52,7 +51,6 @@ private static final long serialVersionUID = 0L;
   private GrpcQueryListResponse() {
     entityReferences_ = java.util.Collections.emptyList();
     sealedEntities_ = java.util.Collections.emptyList();
-    binaryEntities_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -81,7 +79,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Matched entities as references (type + primary key only). See the message-level comment for when this
-   * field (vs. the other two) is the active one.
+   * field (vs. the other) is the active one.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -93,7 +91,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Matched entities as references (type + primary key only). See the message-level comment for when this
-   * field (vs. the other two) is the active one.
+   * field (vs. the other) is the active one.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -106,7 +104,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Matched entities as references (type + primary key only). See the message-level comment for when this
-   * field (vs. the other two) is the active one.
+   * field (vs. the other) is the active one.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -118,7 +116,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Matched entities as references (type + primary key only). See the message-level comment for when this
-   * field (vs. the other two) is the active one.
+   * field (vs. the other) is the active one.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -130,7 +128,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Matched entities as references (type + primary key only). See the message-level comment for when this
-   * field (vs. the other two) is the active one.
+   * field (vs. the other) is the active one.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -146,8 +144,8 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> sealedEntities_;
   /**
    * <pre>
-   * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-   * when this field (vs. the other two) is the active one.
+   * Matched entities, fully fetched in structured form. See the message-level comment for
+   * when this field (vs. the other) is the active one.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -158,8 +156,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-   * when this field (vs. the other two) is the active one.
+   * Matched entities, fully fetched in structured form. See the message-level comment for
+   * when this field (vs. the other) is the active one.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -171,8 +169,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-   * when this field (vs. the other two) is the active one.
+   * Matched entities, fully fetched in structured form. See the message-level comment for
+   * when this field (vs. the other) is the active one.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -183,8 +181,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-   * when this field (vs. the other two) is the active one.
+   * Matched entities, fully fetched in structured form. See the message-level comment for
+   * when this field (vs. the other) is the active one.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -195,8 +193,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-   * when this field (vs. the other two) is the active one.
+   * Matched entities, fully fetched in structured form. See the message-level comment for
+   * when this field (vs. the other) is the active one.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -205,72 +203,6 @@ private static final long serialVersionUID = 0L;
   public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getSealedEntitiesOrBuilder(
       int index) {
     return sealedEntities_.get(index);
-  }
-
-  public static final int BINARYENTITIES_FIELD_NUMBER = 3;
-  @SuppressWarnings("serial")
-  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> binaryEntities_;
-  /**
-   * <pre>
-   * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-   * for when this field (vs. the other two) is the active one.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> getBinaryEntitiesList() {
-    return binaryEntities_;
-  }
-  /**
-   * <pre>
-   * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-   * for when this field (vs. the other two) is the active one.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
-      getBinaryEntitiesOrBuilderList() {
-    return binaryEntities_;
-  }
-  /**
-   * <pre>
-   * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-   * for when this field (vs. the other two) is the active one.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  @java.lang.Override
-  public int getBinaryEntitiesCount() {
-    return binaryEntities_.size();
-  }
-  /**
-   * <pre>
-   * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-   * for when this field (vs. the other two) is the active one.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity getBinaryEntities(int index) {
-    return binaryEntities_.get(index);
-  }
-  /**
-   * <pre>
-   * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-   * for when this field (vs. the other two) is the active one.
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-   */
-  @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder getBinaryEntitiesOrBuilder(
-      int index) {
-    return binaryEntities_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
@@ -293,9 +225,6 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < sealedEntities_.size(); i++) {
       output.writeMessage(2, sealedEntities_.get(i));
     }
-    for (int i = 0; i < binaryEntities_.size(); i++) {
-      output.writeMessage(3, binaryEntities_.get(i));
-    }
     getUnknownFields().writeTo(output);
   }
 
@@ -312,10 +241,6 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < sealedEntities_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, sealedEntities_.get(i));
-    }
-    for (int i = 0; i < binaryEntities_.size(); i++) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, binaryEntities_.get(i));
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -336,8 +261,6 @@ private static final long serialVersionUID = 0L;
         .equals(other.getEntityReferencesList())) return false;
     if (!getSealedEntitiesList()
         .equals(other.getSealedEntitiesList())) return false;
-    if (!getBinaryEntitiesList()
-        .equals(other.getBinaryEntitiesList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -356,10 +279,6 @@ private static final long serialVersionUID = 0L;
     if (getSealedEntitiesCount() > 0) {
       hash = (37 * hash) + SEALEDENTITIES_FIELD_NUMBER;
       hash = (53 * hash) + getSealedEntitiesList().hashCode();
-    }
-    if (getBinaryEntitiesCount() > 0) {
-      hash = (37 * hash) + BINARYENTITIES_FIELD_NUMBER;
-      hash = (53 * hash) + getBinaryEntitiesList().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -462,11 +381,10 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * Response for a query executed via QueryList, i.e. expecting a flat list of matching entities (no paging
    * metadata - use plain `Query` via `GrpcQueryResponse` if paging is needed). Exactly one of
-   * `entityReferences`/`sealedEntities`/`binaryEntities` is the active field, chosen the same way as in
+   * `entityReferences`/`sealedEntities` is the active field, chosen the same way as in
    * `GrpcDataChunk`: no `entityFetch` requirement in the query's `require` block selects `entityReferences`;
-   * an `entityFetch` requirement selects `sealedEntities` (structured form) or `binaryEntities` (binary
-   * storage form), depending on whether the session uses the binary storage format. The other two fields are
-   * always left empty; note the active field is itself also empty when zero entities matched.
+   * an `entityFetch` requirement selects `sealedEntities`. The other field is always left empty;
+   * note the active field is itself also empty when zero entities matched.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse}
@@ -516,13 +434,6 @@ private static final long serialVersionUID = 0L;
         sealedEntitiesBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00000002);
-      if (binaryEntitiesBuilder_ == null) {
-        binaryEntities_ = java.util.Collections.emptyList();
-      } else {
-        binaryEntities_ = null;
-        binaryEntitiesBuilder_.clear();
-      }
-      bitField0_ = (bitField0_ & ~0x00000004);
       return this;
     }
 
@@ -573,15 +484,6 @@ private static final long serialVersionUID = 0L;
         result.sealedEntities_ = sealedEntities_;
       } else {
         result.sealedEntities_ = sealedEntitiesBuilder_.build();
-      }
-      if (binaryEntitiesBuilder_ == null) {
-        if (((bitField0_ & 0x00000004) != 0)) {
-          binaryEntities_ = java.util.Collections.unmodifiableList(binaryEntities_);
-          bitField0_ = (bitField0_ & ~0x00000004);
-        }
-        result.binaryEntities_ = binaryEntities_;
-      } else {
-        result.binaryEntities_ = binaryEntitiesBuilder_.build();
       }
     }
 
@@ -685,32 +587,6 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
-      if (binaryEntitiesBuilder_ == null) {
-        if (!other.binaryEntities_.isEmpty()) {
-          if (binaryEntities_.isEmpty()) {
-            binaryEntities_ = other.binaryEntities_;
-            bitField0_ = (bitField0_ & ~0x00000004);
-          } else {
-            ensureBinaryEntitiesIsMutable();
-            binaryEntities_.addAll(other.binaryEntities_);
-          }
-          onChanged();
-        }
-      } else {
-        if (!other.binaryEntities_.isEmpty()) {
-          if (binaryEntitiesBuilder_.isEmpty()) {
-            binaryEntitiesBuilder_.dispose();
-            binaryEntitiesBuilder_ = null;
-            binaryEntities_ = other.binaryEntities_;
-            bitField0_ = (bitField0_ & ~0x00000004);
-            binaryEntitiesBuilder_ = 
-              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
-                 getBinaryEntitiesFieldBuilder() : null;
-          } else {
-            binaryEntitiesBuilder_.addAllMessages(other.binaryEntities_);
-          }
-        }
-      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -763,19 +639,6 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 18
-            case 26: {
-              io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity m =
-                  input.readMessage(
-                      io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.parser(),
-                      extensionRegistry);
-              if (binaryEntitiesBuilder_ == null) {
-                ensureBinaryEntitiesIsMutable();
-                binaryEntities_.add(m);
-              } else {
-                binaryEntitiesBuilder_.addMessage(m);
-              }
-              break;
-            } // case 26
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -808,7 +671,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -823,7 +686,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -838,7 +701,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -853,7 +716,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -875,7 +738,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -894,7 +757,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -915,7 +778,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -937,7 +800,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -956,7 +819,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -975,7 +838,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -995,7 +858,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1013,7 +876,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1031,7 +894,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1043,7 +906,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1058,7 +921,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1074,7 +937,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1086,7 +949,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1099,7 +962,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Matched entities as references (type + primary key only). See the message-level comment for when this
-     * field (vs. the other two) is the active one.
+     * field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1137,8 +1000,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1152,8 +1015,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1167,8 +1030,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1182,8 +1045,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1204,8 +1067,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1223,8 +1086,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1244,8 +1107,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1266,8 +1129,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1285,8 +1148,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1304,8 +1167,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1324,8 +1187,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1342,8 +1205,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1360,8 +1223,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1372,8 +1235,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1387,8 +1250,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1403,8 +1266,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1415,8 +1278,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1428,8 +1291,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
-     * when this field (vs. the other two) is the active one.
+     * Matched entities, fully fetched in structured form. See the message-level comment for
+     * when this field (vs. the other) is the active one.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1451,336 +1314,6 @@ private static final long serialVersionUID = 0L;
         sealedEntities_ = null;
       }
       return sealedEntitiesBuilder_;
-    }
-
-    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> binaryEntities_ =
-      java.util.Collections.emptyList();
-    private void ensureBinaryEntitiesIsMutable() {
-      if (!((bitField0_ & 0x00000004) != 0)) {
-        binaryEntities_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity>(binaryEntities_);
-        bitField0_ |= 0x00000004;
-       }
-    }
-
-    private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> binaryEntitiesBuilder_;
-
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> getBinaryEntitiesList() {
-      if (binaryEntitiesBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(binaryEntities_);
-      } else {
-        return binaryEntitiesBuilder_.getMessageList();
-      }
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public int getBinaryEntitiesCount() {
-      if (binaryEntitiesBuilder_ == null) {
-        return binaryEntities_.size();
-      } else {
-        return binaryEntitiesBuilder_.getCount();
-      }
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity getBinaryEntities(int index) {
-      if (binaryEntitiesBuilder_ == null) {
-        return binaryEntities_.get(index);
-      } else {
-        return binaryEntitiesBuilder_.getMessage(index);
-      }
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder setBinaryEntities(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity value) {
-      if (binaryEntitiesBuilder_ == null) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.set(index, value);
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.setMessage(index, value);
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder setBinaryEntities(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder builderForValue) {
-      if (binaryEntitiesBuilder_ == null) {
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.set(index, builderForValue.build());
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.setMessage(index, builderForValue.build());
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder addBinaryEntities(io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity value) {
-      if (binaryEntitiesBuilder_ == null) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.add(value);
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.addMessage(value);
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder addBinaryEntities(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity value) {
-      if (binaryEntitiesBuilder_ == null) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.add(index, value);
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.addMessage(index, value);
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder addBinaryEntities(
-        io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder builderForValue) {
-      if (binaryEntitiesBuilder_ == null) {
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.add(builderForValue.build());
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.addMessage(builderForValue.build());
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder addBinaryEntities(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder builderForValue) {
-      if (binaryEntitiesBuilder_ == null) {
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.add(index, builderForValue.build());
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.addMessage(index, builderForValue.build());
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder addAllBinaryEntities(
-        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> values) {
-      if (binaryEntitiesBuilder_ == null) {
-        ensureBinaryEntitiesIsMutable();
-        com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, binaryEntities_);
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.addAllMessages(values);
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder clearBinaryEntities() {
-      if (binaryEntitiesBuilder_ == null) {
-        binaryEntities_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000004);
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.clear();
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public Builder removeBinaryEntities(int index) {
-      if (binaryEntitiesBuilder_ == null) {
-        ensureBinaryEntitiesIsMutable();
-        binaryEntities_.remove(index);
-        onChanged();
-      } else {
-        binaryEntitiesBuilder_.remove(index);
-      }
-      return this;
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder getBinaryEntitiesBuilder(
-        int index) {
-      return getBinaryEntitiesFieldBuilder().getBuilder(index);
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder getBinaryEntitiesOrBuilder(
-        int index) {
-      if (binaryEntitiesBuilder_ == null) {
-        return binaryEntities_.get(index);  } else {
-        return binaryEntitiesBuilder_.getMessageOrBuilder(index);
-      }
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
-         getBinaryEntitiesOrBuilderList() {
-      if (binaryEntitiesBuilder_ != null) {
-        return binaryEntitiesBuilder_.getMessageOrBuilderList();
-      } else {
-        return java.util.Collections.unmodifiableList(binaryEntities_);
-      }
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder addBinaryEntitiesBuilder() {
-      return getBinaryEntitiesFieldBuilder().addBuilder(
-          io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.getDefaultInstance());
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder addBinaryEntitiesBuilder(
-        int index) {
-      return getBinaryEntitiesFieldBuilder().addBuilder(
-          index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.getDefaultInstance());
-    }
-    /**
-     * <pre>
-     * Matched entities, fully fetched in the server's binary storage format. See the message-level comment
-     * for when this field (vs. the other two) is the active one.
-     * </pre>
-     *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
-     */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder> 
-         getBinaryEntitiesBuilderList() {
-      return getBinaryEntitiesFieldBuilder().getBuilderList();
-    }
-    private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
-        getBinaryEntitiesFieldBuilder() {
-      if (binaryEntitiesBuilder_ == null) {
-        binaryEntitiesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder>(
-                binaryEntities_,
-                ((bitField0_ & 0x00000004) != 0),
-                getParentForChildren(),
-                isClean());
-        binaryEntities_ = null;
-      }
-      return binaryEntitiesBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

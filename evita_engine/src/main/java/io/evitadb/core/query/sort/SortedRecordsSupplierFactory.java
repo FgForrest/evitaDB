@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -239,6 +239,10 @@ public interface SortedRecordsSupplierFactory {
 		 * ascending position `p` is emitted as `lastPosition - p` (identity otherwise), so no reversed copy of the
 		 * array is ever materialized.
 		 *
+		 * The scratch buffers typically come from a pool and keep whatever their previous borrower wrote, so the walk
+		 * reads a buffer slot only below the count the current batch reported: an empty selection yields an empty mask
+		 * and an empty not-found bitmap, whatever the buffers held before.
+		 *
 		 * @param unsortedRecordIds   the record ids in their natural (id) order, aligned with `recordPositions`
 		 * @param recordPositions     the sorted position of each record, in `unsortedRecordIds` order
 		 * @param selectedRecordIds   the record ids to locate, in ascending id order
@@ -283,7 +287,13 @@ public interface SortedRecordsSupplierFactory {
 					selectedRecordsRead = selectedRecordIdsIt.nextBatch(bufferB);
 					selectedRecordsPeak = 0;
 				}
-				if (unsortedRecordsPeak < unsortedRecordsRead && bufferA[unsortedRecordsPeak] == bufferB[selectedRecordsPeak]) {
+				// both slots must lie inside what the current batches wrote - an empty or exhausted selection leaves
+				// `bufferB` with the pooled buffer's previous contents, which must never be taken for a selected id
+				if (
+					unsortedRecordsPeak < unsortedRecordsRead &&
+						selectedRecordsPeak < selectedRecordsRead &&
+						bufferA[unsortedRecordsPeak] == bufferB[selectedRecordsPeak]
+				) {
 					final int ascendingPosition = recordPositions[unsortedRecordsAcc + unsortedRecordsPeak];
 					// mirror for a descending supplier that shares the ascending positions; the RoaringBitmap keeps
 					// the mask ascending regardless of emit order

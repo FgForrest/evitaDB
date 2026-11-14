@@ -26,7 +26,7 @@ package io.evitadb.core.query.filter.translator.fulltext;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.index.fulltext.FulltextFieldKey;
-import io.evitadb.core.query.filter.translator.fulltext.FulltextExpansionCensusMeasurementTest.Group;
+import io.evitadb.core.query.filter.translator.fulltext.FulltextExpansionCensusMeasurementSupport.Group;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
@@ -239,7 +239,7 @@ class FulltextPostingsBudgetIntegrationTest implements EvitaTestSupport {
 
 	/** Uses the census runner's real schema grouping, including its generation checks. */
 	private List<FulltextExpansionCensusSupport.Word> census(String text) throws Exception {
-		return FulltextExpansionCensusMeasurementTest.expand(new FulltextExpansionCensusSupport.Query(
+		return FulltextExpansionCensusMeasurementSupport.expand(new FulltextExpansionCensusSupport.Query(
 			FulltextExpansionCensusSupport.hash(text), "test", "clean", text, text, 1), groups(),
 			global(Scope.LIVE).getFulltextIndex(Locale.ENGLISH), this.evita.getFulltextTypoParameters(), false);
 	}
@@ -248,7 +248,7 @@ class FulltextPostingsBudgetIntegrationTest implements EvitaTestSupport {
 	private List<Group> groups() throws ReflectiveOperationException {
 		final Catalog catalog = (Catalog) this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
 		final FulltextIndex index = global(Scope.LIVE).getFulltextIndex(Locale.ENGLISH);
-		return FulltextExpansionCensusMeasurementTest.groups(catalog,
+		return FulltextExpansionCensusMeasurementSupport.groups(catalog,
 			catalog.getCollectionForEntityOrThrowException("product").getSchema(), index, Locale.ENGLISH);
 	}
 

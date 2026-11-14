@@ -584,68 +584,6 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	}
 
 	/**
-	 * Returns array of distinct primary keys of all referenced entities of particular `referenceName`.
-	 */
-	@Nonnull
-	public int[] getDistinctReferencedIds(@Nonnull String referenceName) {
-		final ReferenceRange range = findReferenceRange(referenceName);
-		if (range == null) {
-			return ArrayUtils.EMPTY_INT_ARRAY;
-		}
-
-		final int[] refIds = new int[range.maxSize()];
-		int index = 0;
-		for (int i = range.start(); i < range.refs().length && i < range.end(); i++) {
-			final Reference ref = range.refs()[i];
-			if (referenceName.equals(ref.getReferenceName())) {
-				if (ref.exists() && (index == 0 || refIds[index - 1] != ref.getReferencedPrimaryKey())) {
-					refIds[index++] = ref.getReferencedPrimaryKey();
-				}
-			} else {
-				break;
-			}
-		}
-
-		return refIds.length == index ? refIds : Arrays.copyOf(refIds, index);
-	}
-
-	/**
-	 * Returns array of distinct primary keys of all referenced entity groups of particular `referenceName`.
-	 */
-	@Nonnull
-	public int[] getDistinctReferencedGroupIds(@Nonnull String referenceName) {
-		final ReferenceRange range = findReferenceRange(referenceName);
-		if (range == null) {
-			return ArrayUtils.EMPTY_INT_ARRAY;
-		}
-
-		final int[] refIds = new int[range.maxSize()];
-		int index = 0;
-		for (int i = range.start(); i < range.refs().length && i < range.end(); i++) {
-			final Reference ref = range.refs()[i];
-			if (referenceName.equals(ref.getReferenceName())) {
-				if (ref.exists() && ref.getGroup().isPresent()) {
-					final int groupId = ref.getGroup().get().getPrimaryKeyOrThrowException();
-					final InsertionPosition position = ArrayUtils.computeInsertPositionOfIntInOrderedArray(
-						groupId, refIds, 0, index);
-					if (!position.alreadyPresent()) {
-						System.arraycopy(
-							refIds, position.position(), refIds, position.position() + 1,
-							index - position.position()
-						);
-						refIds[position.position()] = groupId;
-						index++;
-					}
-				}
-			} else {
-				break;
-			}
-		}
-
-		return refIds.length == index ? refIds : Arrays.copyOf(refIds, index);
-	}
-
-	/**
 	 * Computes the start and end positions of references matching the given `referenceName`
 	 * within the sorted references array using binary search boundaries.
 	 *

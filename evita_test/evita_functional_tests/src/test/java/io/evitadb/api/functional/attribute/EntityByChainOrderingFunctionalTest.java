@@ -96,6 +96,7 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -121,6 +122,7 @@ public class EntityByChainOrderingFunctionalTest {
 	private static final String REFERENCE_BRAND_PRODUCTS = "products";
 	private static final String CHAINED_ELEMENTS = "chained-elements";
 	private static final String CHAINED_ELEMENTS_MINIMAL = "chained-elements-minimal";
+	private static final String CHAINED_ELEMENTS_PARTIAL = "chained-elements-partial";
 	private static final String ATTRIBUTE_MARKET = "market";
 	private static final String ATTRIBUTE_INCEPTION_YEAR = "inceptionYear";
 	private static final String ATTRIBUTE_MARKET_INCEPTION_YEAR = "marketInceptionYear";
@@ -984,6 +986,80 @@ public class EntityByChainOrderingFunctionalTest {
 				"productsInCategory", productsInCategory
 			);
 		});
+	}
+
+	/**
+	 * Six products of which only 1 to 4 carry the `order` predecessor, chained 3, 1, 4, 2; products 5 and 6 have none.
+	 */
+	@DataSet(value = CHAINED_ELEMENTS_PARTIAL, destroyAfterClass = true)
+	void setUpPartial(EvitaSessionContract session) {
+		session.defineEntitySchema(Entities.PRODUCT)
+			.withoutGeneratedPrimaryKey()
+			.withAttribute(ATTRIBUTE_ORDER, Predecessor.class, thatIs -> thatIs.sortable().nullable())
+			.updateVia(session);
+		final Map<Integer, Predecessor> predecessors = Map.of(
+			3, Predecessor.HEAD, 1, new Predecessor(3), 4, new Predecessor(1), 2, new Predecessor(4)
+		);
+		for (int primaryKey = 1; primaryKey <= 6; primaryKey++) {
+			final EntityBuilder builder = session.createNewEntity(Entities.PRODUCT, primaryKey);
+			final Predecessor predecessor = predecessors.get(primaryKey);
+			if (predecessor != null) {
+				builder.setAttribute(ATTRIBUTE_ORDER, predecessor);
+			}
+			builder.upsertVia(session);
+		}
+	}
+
+	/**
+	 * Orders products 1 to 6 by the `order` predecessor on the route the debug mode prefers.
+	 */
+	@Nonnull
+	private static int[] queryPartialChain(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull OrderDirection direction,
+		@Nonnull DebugMode route
+	) {
+		return session.query(
+				query(
+					collection(Entities.PRODUCT),
+					filterBy(entityPrimaryKeyInSet(1, 2, 3, 4, 5, 6)),
+					orderBy(attributeNatural(ATTRIBUTE_ORDER, direction)),
+					require(debug(route))
+				),
+				EntityReference.class
+			)
+			.getRecordData()
+			.stream()
+			.mapToInt(EntityReference::getPrimaryKey)
+			.toArray();
+	}
+
+	@DisplayName("Products with and without the predecessor are ordered on both routes")
+	@UseDataSet(CHAINED_ELEMENTS_PARTIAL)
+	@Test
+	void shouldOrderProductsWithAndWithoutPredecessorOnBothRoutes(EvitaSessionContract session) {
+		// the index route places the chain and leaves products 5 and 6 to the primary key order
+		assertArrayEquals(
+			new int[]{3, 1, 4, 2, 5, 6},
+			queryPartialChain(session, OrderDirection.ASC, DebugMode.PREFER_INDEX_SCAN),
+			"ascending on the index route"
+		);
+		assertArrayEquals(
+			new int[]{2, 4, 1, 3, 5, 6},
+			queryPartialChain(session, OrderDirection.DESC, DebugMode.PREFER_INDEX_SCAN),
+			"descending on the index route"
+		);
+		// the prefetch route must return exactly what the index route returns
+		assertArrayEquals(
+			new int[]{3, 1, 4, 2, 5, 6},
+			queryPartialChain(session, OrderDirection.ASC, DebugMode.PREFER_PREFETCHING),
+			"ascending on the prefetch route"
+		);
+		assertArrayEquals(
+			new int[]{2, 4, 1, 3, 5, 6},
+			queryPartialChain(session, OrderDirection.DESC, DebugMode.PREFER_PREFETCHING),
+			"descending on the prefetch route"
+		);
 	}
 
 	@DisplayName("The product should be returned in ascending order")

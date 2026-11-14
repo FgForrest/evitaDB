@@ -110,9 +110,23 @@ public abstract class AbstractBinaryOperator implements BinaryExpressionNode {
 	@Nonnull
 	protected abstract String getOperatorSymbol();
 
+	/**
+	 * Returns the precedence level the grammar gives this operator, one of the binary levels of
+	 * {@link ExpressionPrecedence}; a higher level binds tighter.
+	 */
+	protected abstract int getPrecedence();
+
+	/**
+	 * Prints both operands around the operator symbol and parenthesizes an operand only where the grammar would
+	 * otherwise group it differently, so that a tree composed in code reads back as itself while the text of a parsed
+	 * tree stays unchanged. See {@link ExpressionPrecedence}.
+	 */
 	@Override
 	public String toString() {
-		return this.leftOperator + " " + getOperatorSymbol() + " " + this.rightOperator;
+		final int precedence = getPrecedence();
+		return ExpressionPrecedence.leftOperandText(this.leftOperator, precedence) +
+			" " + getOperatorSymbol() + " " +
+			ExpressionPrecedence.rightOperandText(this.rightOperator, precedence);
 	}
 
 }

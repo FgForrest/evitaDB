@@ -85,7 +85,8 @@ public class AttributeCardinalityIndexStoragePartSerializer_2026_2 extends Seria
 			final Serializable value = kryo.readObject(input, valueType);
 			final int recordId = input.readVarInt(false);
 			final int cardinality = input.readVarInt(true);
-			cardinalities.put(new AttributeCardinalityKey(recordId, value), cardinality);
+			// released keys may become equal; each counter still contributes to the shared entry
+			cardinalities.merge(new AttributeCardinalityKey(recordId, value), cardinality, Integer::sum);
 		}
 		final AttributeCardinalityIndex cardinalityIndex = new AttributeCardinalityIndex(valueType, cardinalities);
 		return new AttributeCardinalityIndexStoragePart(entityIndexPrimaryKey, attributeKey, cardinalityIndex, uniquePartId);

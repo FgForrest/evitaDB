@@ -26,7 +26,6 @@ package io.evitadb.index.attribute;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.test.TestTags;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -52,7 +51,6 @@ import java.util.stream.IntStream;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -75,7 +73,6 @@ class LongRunningChainIndexTest implements TimeBoundedTestSupport {
 	private final ChainIndex index = new ChainIndex(new AttributeIndexKey(null, "a", null));
 
 	@ParameterizedTest(name = "ChainIndex should survive generational randomized test applying modifications on it")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final int initialCount = 100;
@@ -210,7 +207,6 @@ class LongRunningChainIndexTest implements TimeBoundedTestSupport {
 	 * @param input input for the test
 	 */
 	@ParameterizedTest(name = "ChainIndex rollback discards every in-transaction move and leaves the base intact")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTest(@Nonnull GenerationalTestInput input) {
@@ -254,7 +250,6 @@ class LongRunningChainIndexTest implements TimeBoundedTestSupport {
 	 * @param input input for the test
 	 */
 	@ParameterizedTest(name = "ChainIndex should survive generational randomized test with garbage")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalAllTimeBrokenProofTest(GenerationalTestInput input) {
 		final int initialCount = 30;
@@ -446,11 +441,11 @@ class LongRunningChainIndexTest implements TimeBoundedTestSupport {
 	 * reports per-block timing so the move path can be observed to scale (no `O(ops*chains)` cliff).
 	 *
 	 * It is a fixed-size scaling assertion rather than a generational/time-bounded test, so it runs as a plain
-	 * {@code @Test} tagged {@link TestTags#SLOW} - run explicitly, not part of the fast functional loop.
+	 * {@code @Test} of this module - run explicitly or by the weekly long-running workflow, not by the fast functional
+	 * loop.
 	 */
 	@DisplayName("Coherent local moves keep the chain bounded and scale with no collapse cliff")
 	@Test
-	@Tag(SLOW)
 	void shouldChurnViaCoherentMoves() {
 		final int initialRecordCount = 1_000_000;
 		final int churnOperations = 200_000;

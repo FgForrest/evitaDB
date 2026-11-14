@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,9 @@ public class EntityPrimaryKeyExactTranslator
 	@Nonnull
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull EntityPrimaryKeyExact entityPrimaryKeyExact, @Nonnull OrderByVisitor orderByVisitor) {
-		return Stream.of(new ExactSorter(entityPrimaryKeyExact.getPrimaryKeys()));
+		return Stream.of(
+			orderByVisitor.restrictToOrderedScopes(new ExactSorter(entityPrimaryKeyExact.getPrimaryKeys()))
+		);
 	}
 
 	@Override

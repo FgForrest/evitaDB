@@ -54,10 +54,48 @@ scope, but the query is executed in the `ARCHIVED` scope, the engine will return
 An `inScope` container cannot be nested in another `inScope` container that filters the same entities. With
 a different scope the inner constraints would apply only to entities that are in both scopes at once, which none are,
 and with the same scope the inner container would be redundant - so the query is rejected with an error in both cases.
-Place the containers side by side instead. This includes the body of `referenceHaving`, whose reference attributes
-belong to the queried entities. A container that filters another entity - `entityHaving`, `groupHaving`,
-`hierarchyWithin`, or `hierarchyWithinRoot` - may contain its own `inScope` anywhere among its children, which then
-restricts the scope of that other entity.
+Place the containers side by side instead. This includes the body of
+[`referenceHaving`](references.md#reference-having), whose reference attributes belong to the queried entities.
+There the container restricts the references of the entities of its scope: in a query over both scopes,
+`referenceHaving` with an `inScope(LIVE, ...)` body matches the live entities having a reference of that name that
+satisfies the container's constraints, and every archived entity having at least one reference of that name.
+A container that filters another entity - [`entityHaving`](references.md#entity-having),
+[`groupHaving`](references.md#group-having), [`hierarchyWithin`](hierarchy.md#hierarchy-within), or
+[`hierarchyWithinRoot`](hierarchy.md#hierarchy-within-root) - may contain its own `inScope` anywhere among its children,
+which then restricts the scope of that other entity. Such an `inScope` must name a scope requested by the query or,
+when an [`entityHaving`](references.md#entity-having) or [`groupHaving`](references.md#group-having) names its own
+[`scope`](constant.md#scope), that scope. In a query over both scopes it behaves as it does at the top level: it
+restricts only the entities of its scope and lets the entities of the other scope through.
+
+A [`scope`](constant.md#scope) selects the scopes searched by its whole entity level. It may appear **once per
+level**, at the root of that level's filter or below any chain of [`and`](logical.md#and) containers from that
+root. An [`or`](logical.md#or) with a single child is transparent and may appear on that path too. Two `scope`
+constraints in one level are refused, even if identical; name all the scopes in one `scope(...)`, in your preferred
+order. Repeating a value inside that one constraint is allowed.
+
+A separate entity level starts in [`entityHaving`](references.md#entity-having) or
+[`groupHaving`](references.md#group-having), whose own scope selects the entities they reach. Each filter in the
+require section, including a [`referenceContent`](../requirements/fetching.md#reference-content) filter, has its own
+root. At the root of a [`facetGroups*`](../requirements/reference.md#facet-groups-conjunction) filter or the group
+filter of a [reference summary](../requirements/reference.md#reference-summary-of-reference), the scope selects the
+groups searched, independently of the scopes of the query.
+
+Within one level, `scope` is refused inside [`not`](logical.md#not), an `or` with several children, `inScope`,
+[`userFilter`](#user-filter), or any other container outside the allowed root path. It selects scopes and does not
+filter entities. Put the scope selection at the root of **the same level** and keep only conditions inside
+`inScope`. For example, `scope(LIVE, ARCHIVED), inScope(LIVE, attributeEquals("code", "a"))` returns every archived
+entity and the live entities with that code.
+
+An enclosing `not`, `or`, `inScope` or `userFilter` does not invalidate a scope belonging to a separate nested
+`entityHaving` or `groupHaving` level: the enclosing container operates on that nested condition as a whole. A scope at
+the level of [`referenceHaving`](references.md#reference-having), [`facetHaving`](references.md#facet-having), a
+hierarchy filter or [`includingChildrenHaving`](references.md#including-children-having) /
+[`includingChildrenExcept`](references.md#including-children-except) is refused, including below `and`, because that
+level does not read a scope selection. A nested `entityHaving` or `groupHaving` can still select its own scopes there.
+
+Two accepted roots have no scope-selection effect: a hierarchy requirement's `node` filter and a `segment`'s
+`entityHaving` filter. Their scope placement and uniqueness are validated, but they use the enclosing hierarchy
+index or processing scopes rather than selecting scopes from their root `scope`.
 
 </Note>
 

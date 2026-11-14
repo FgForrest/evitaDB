@@ -39,7 +39,6 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextReso
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextAnalyzerSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextLanguageSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextResourceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextAnalyzerSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextLanguageSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -443,14 +442,12 @@ class FulltextCatalogSchemaBuilderTest {
 		}
 
 		@Test
-		@DisplayName("lets a removal absorb the earlier creation of the same analyzer")
+		@DisplayName("omits an analyzer creation followed by removal when the final catalog is unchanged")
 		void shouldLetARemovalAbsorbTheCreation() {
 			final InternalCatalogSchemaBuilder builder = new InternalCatalogSchemaBuilder(emptyCatalog());
 			builder.withFulltextAnalyzer("codes", a -> a.words(lowercase())).withoutFulltextAnalyzer("codes");
 
-			final LocalCatalogSchemaMutation[] mutations = builder.toMutation().orElseThrow().getSchemaMutations();
-			assertEquals(1, mutations.length);
-			assertInstanceOf(RemoveFulltextAnalyzerSchemaMutation.class, mutations[0]);
+			assertTrue(builder.toMutation().isEmpty());
 			assertTrue(builder.toInstance().getFulltextAnalyzers().isEmpty());
 		}
 

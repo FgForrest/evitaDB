@@ -25,6 +25,7 @@ package io.evitadb.api.query.expression.numeric;
 
 
 import io.evitadb.api.query.expression.AbstractBinaryOperator;
+import io.evitadb.api.query.expression.ExpressionPrecedence;
 import io.evitadb.api.query.expression.evaluate.PossibleRange;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
@@ -55,6 +56,11 @@ public class AdditionOperator extends AbstractBinaryOperator {
 	@Override
 	protected String getOperatorSymbol() {
 		return "+";
+	}
+
+	@Override
+	protected int getPrecedence() {
+		return ExpressionPrecedence.ADDITIVE;
 	}
 
 	@Nonnull

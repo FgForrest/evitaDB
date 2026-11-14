@@ -216,7 +216,7 @@ class AttributeIsTest {
 			assertEquals(attributeIsNull("married"), attributeIsNull("married"));
 			assertEquals(attributeIs("married", AttributeSpecialValue.NULL), attributeIsNull("married"));
 			assertNotEquals(attributeIsNull("married"), attributeIsNull("single"));
-			assertNotEquals(attributeIsNull("married"), attributeIsNull(null));
+			assertNotEquals(attributeIsNull("married"), new AttributeIs(null, AttributeSpecialValue.NULL));
 			assertNotEquals(attributeIsNull("married"), attributeIsNotNull("married"));
 			assertEquals(attributeIsNull("married").hashCode(), attributeIsNull("married").hashCode());
 			assertEquals(

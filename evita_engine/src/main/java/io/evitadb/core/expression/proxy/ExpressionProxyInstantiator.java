@@ -183,10 +183,20 @@ public final class ExpressionProxyInstantiator {
 			entityType, primaryKey, storageAccessor
 		);
 
-		// build nested parent entity proxy if needed
+		// an expression that does not navigate into the parent gets no nested parent proxy - the entity body answers
+		// whether a parent exists
+		final boolean parentEntityRequested = descriptor != null && descriptor.needsParentEntityProxy();
+		if (!parentEntityRequested) {
+			return new EntityProxyState(
+				schema, bodyPart, globalAttrs, localeAttrs, adParts,
+				EntityProxyState.indexReferences(refsPart), null
+			);
+		}
+		// the proxy is null when the entity has no parent or its parent sits in another scope than the evaluated one;
+		// the `parentEntityRequested` flag of the state then makes `getParentEntity()` answer "no parent" instead of
+		// a reference without data
 		final SealedEntity parentEntity;
-		if (descriptor != null && descriptor.needsParentEntityProxy()
-			&& bodyPart != null && bodyPart.getParent() != null && parentAccessor != null) {
+		if (bodyPart != null && bodyPart.getParent() != null && parentAccessor != null) {
 			parentEntity = instantiateNestedEntityProxy(
 				schema, bodyPart.getParent(),
 				descriptor.parentEntityPartialsOrThrowException(),
@@ -197,10 +207,9 @@ public final class ExpressionProxyInstantiator {
 		} else {
 			parentEntity = null;
 		}
-
 		return new EntityProxyState(
 			schema, bodyPart, globalAttrs, localeAttrs, adParts,
-			EntityProxyState.indexReferences(refsPart), parentEntity
+			EntityProxyState.indexReferences(refsPart), parentEntity, true
 		);
 	}
 

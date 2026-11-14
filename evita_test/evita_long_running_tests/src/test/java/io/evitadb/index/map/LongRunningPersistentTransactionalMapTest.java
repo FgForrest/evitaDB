@@ -42,7 +42,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -68,7 +67,6 @@ class LongRunningPersistentTransactionalMapTest implements TimeBoundedTestSuppor
 
 	@DisplayName("survives generational randomized test applying modifications on it")
 	@ParameterizedTest(name = "PersistentTransactionalMap should survive generational randomized test applying modifications on it")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(@Nonnull GenerationalTestInput input) {
 		final int initialCount = 100;

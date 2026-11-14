@@ -216,6 +216,7 @@ public class CatalogSchemaConverter {
 			)
 			.setLocalized(attributeSchema.isLocalized())
 			.setNullable(attributeSchema.isNullable())
+			.setRepresentative(attributeSchema.isRepresentative())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(attributeSchema.getType()))
 			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces())
 			.setConflictResolutionOverride(EvitaEnumConverter.toGrpcConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()));

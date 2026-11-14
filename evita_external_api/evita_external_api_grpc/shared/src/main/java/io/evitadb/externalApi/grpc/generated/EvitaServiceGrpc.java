@@ -132,68 +132,6 @@ public final class EvitaServiceGrpc {
     return getCreateReadWriteSessionMethod;
   }
 
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> getCreateBinaryReadOnlySessionMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "CreateBinaryReadOnlySession",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> getCreateBinaryReadOnlySessionMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest, io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> getCreateBinaryReadOnlySessionMethod;
-    if ((getCreateBinaryReadOnlySessionMethod = EvitaServiceGrpc.getCreateBinaryReadOnlySessionMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getCreateBinaryReadOnlySessionMethod = EvitaServiceGrpc.getCreateBinaryReadOnlySessionMethod) == null) {
-          EvitaServiceGrpc.getCreateBinaryReadOnlySessionMethod = getCreateBinaryReadOnlySessionMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest, io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "CreateBinaryReadOnlySession"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("CreateBinaryReadOnlySession"))
-              .build();
-        }
-      }
-    }
-    return getCreateBinaryReadOnlySessionMethod;
-  }
-
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> getCreateBinaryReadWriteSessionMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "CreateBinaryReadWriteSession",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> getCreateBinaryReadWriteSessionMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest, io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> getCreateBinaryReadWriteSessionMethod;
-    if ((getCreateBinaryReadWriteSessionMethod = EvitaServiceGrpc.getCreateBinaryReadWriteSessionMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getCreateBinaryReadWriteSessionMethod = EvitaServiceGrpc.getCreateBinaryReadWriteSessionMethod) == null) {
-          EvitaServiceGrpc.getCreateBinaryReadWriteSessionMethod = getCreateBinaryReadWriteSessionMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest, io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "CreateBinaryReadWriteSession"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("CreateBinaryReadWriteSession"))
-              .build();
-        }
-      }
-    }
-    return getCreateBinaryReadWriteSessionMethod;
-  }
-
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest,
       io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse> getTerminateSessionMethod;
 
@@ -1068,26 +1006,6 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to create read-only session which will return data in binary format. Part of the Private API.
-     * </pre>
-     */
-    default void createBinaryReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getCreateBinaryReadOnlySessionMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to create read-write session which will return data in binary format. Part of the Private API.
-     * </pre>
-     */
-    default void createBinaryReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getCreateBinaryReadWriteSessionMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
      * Procedure used to terminate existing session.
      * </pre>
      */
@@ -1403,28 +1321,6 @@ public final class EvitaServiceGrpc {
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getCreateReadWriteSessionMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to create read-only session which will return data in binary format. Part of the Private API.
-     * </pre>
-     */
-    public void createBinaryReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getCreateBinaryReadOnlySessionMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to create read-write session which will return data in binary format. Part of the Private API.
-     * </pre>
-     */
-    public void createBinaryReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getCreateBinaryReadWriteSessionMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -1755,26 +1651,6 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to create read-only session which will return data in binary format. Part of the Private API.
-     * </pre>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createBinaryReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) throws io.grpc.StatusException {
-      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
-          getChannel(), getCreateBinaryReadOnlySessionMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to create read-write session which will return data in binary format. Part of the Private API.
-     * </pre>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createBinaryReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) throws io.grpc.StatusException {
-      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
-          getChannel(), getCreateBinaryReadWriteSessionMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
      * Procedure used to terminate existing session.
      * </pre>
      */
@@ -2098,26 +1974,6 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to create read-only session which will return data in binary format. Part of the Private API.
-     * </pre>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createBinaryReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getCreateBinaryReadOnlySessionMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to create read-write session which will return data in binary format. Part of the Private API.
-     * </pre>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createBinaryReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getCreateBinaryReadWriteSessionMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
      * Procedure used to terminate existing session.
      * </pre>
      */
@@ -2433,28 +2289,6 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to create read-only session which will return data in binary format. Part of the Private API.
-     * </pre>
-     */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> createBinaryReadOnlySession(
-        io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getCreateBinaryReadOnlySessionMethod(), getCallOptions()), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to create read-write session which will return data in binary format. Part of the Private API.
-     * </pre>
-     */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> createBinaryReadWriteSession(
-        io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getCreateBinaryReadWriteSessionMethod(), getCallOptions()), request);
-    }
-
-    /**
-     * <pre>
      * Procedure used to terminate existing session.
      * </pre>
      */
@@ -2611,33 +2445,31 @@ public final class EvitaServiceGrpc {
   private static final int METHODID_IS_READY = 0;
   private static final int METHODID_CREATE_READ_ONLY_SESSION = 1;
   private static final int METHODID_CREATE_READ_WRITE_SESSION = 2;
-  private static final int METHODID_CREATE_BINARY_READ_ONLY_SESSION = 3;
-  private static final int METHODID_CREATE_BINARY_READ_WRITE_SESSION = 4;
-  private static final int METHODID_TERMINATE_SESSION = 5;
-  private static final int METHODID_GET_CATALOG_NAMES = 6;
-  private static final int METHODID_GET_CATALOG_STATE = 7;
-  private static final int METHODID_DEFINE_CATALOG = 8;
-  private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 9;
-  private static final int METHODID_APPLY_MUTATION = 10;
-  private static final int METHODID_APPLY_MUTATION_WITH_PROGRESS = 11;
-  private static final int METHODID_RENAME_CATALOG = 12;
-  private static final int METHODID_RENAME_CATALOG_WITH_PROGRESS = 13;
-  private static final int METHODID_REPLACE_CATALOG = 14;
-  private static final int METHODID_REPLACE_CATALOG_WITH_PROGRESS = 15;
-  private static final int METHODID_MAKE_CATALOG_MUTABLE = 16;
-  private static final int METHODID_MAKE_CATALOG_MUTABLE_WITH_PROGRESS = 17;
-  private static final int METHODID_MAKE_CATALOG_IMMUTABLE = 18;
-  private static final int METHODID_MAKE_CATALOG_IMMUTABLE_WITH_PROGRESS = 19;
-  private static final int METHODID_MAKE_CATALOG_ALIVE = 20;
-  private static final int METHODID_MAKE_CATALOG_ALIVE_WITH_PROGRESS = 21;
-  private static final int METHODID_DUPLICATE_CATALOG = 22;
-  private static final int METHODID_DUPLICATE_CATALOG_WITH_PROGRESS = 23;
-  private static final int METHODID_ACTIVATE_CATALOG = 24;
-  private static final int METHODID_ACTIVATE_CATALOG_WITH_PROGRESS = 25;
-  private static final int METHODID_DEACTIVATE_CATALOG = 26;
-  private static final int METHODID_DEACTIVATE_CATALOG_WITH_PROGRESS = 27;
-  private static final int METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE = 28;
-  private static final int METHODID_GET_PROGRESS = 29;
+  private static final int METHODID_TERMINATE_SESSION = 3;
+  private static final int METHODID_GET_CATALOG_NAMES = 4;
+  private static final int METHODID_GET_CATALOG_STATE = 5;
+  private static final int METHODID_DEFINE_CATALOG = 6;
+  private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 7;
+  private static final int METHODID_APPLY_MUTATION = 8;
+  private static final int METHODID_APPLY_MUTATION_WITH_PROGRESS = 9;
+  private static final int METHODID_RENAME_CATALOG = 10;
+  private static final int METHODID_RENAME_CATALOG_WITH_PROGRESS = 11;
+  private static final int METHODID_REPLACE_CATALOG = 12;
+  private static final int METHODID_REPLACE_CATALOG_WITH_PROGRESS = 13;
+  private static final int METHODID_MAKE_CATALOG_MUTABLE = 14;
+  private static final int METHODID_MAKE_CATALOG_MUTABLE_WITH_PROGRESS = 15;
+  private static final int METHODID_MAKE_CATALOG_IMMUTABLE = 16;
+  private static final int METHODID_MAKE_CATALOG_IMMUTABLE_WITH_PROGRESS = 17;
+  private static final int METHODID_MAKE_CATALOG_ALIVE = 18;
+  private static final int METHODID_MAKE_CATALOG_ALIVE_WITH_PROGRESS = 19;
+  private static final int METHODID_DUPLICATE_CATALOG = 20;
+  private static final int METHODID_DUPLICATE_CATALOG_WITH_PROGRESS = 21;
+  private static final int METHODID_ACTIVATE_CATALOG = 22;
+  private static final int METHODID_ACTIVATE_CATALOG_WITH_PROGRESS = 23;
+  private static final int METHODID_DEACTIVATE_CATALOG = 24;
+  private static final int METHODID_DEACTIVATE_CATALOG_WITH_PROGRESS = 25;
+  private static final int METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE = 26;
+  private static final int METHODID_GET_PROGRESS = 27;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -2666,14 +2498,6 @@ public final class EvitaServiceGrpc {
           break;
         case METHODID_CREATE_READ_WRITE_SESSION:
           serviceImpl.createReadWriteSession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>) responseObserver);
-          break;
-        case METHODID_CREATE_BINARY_READ_ONLY_SESSION:
-          serviceImpl.createBinaryReadOnlySession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>) responseObserver);
-          break;
-        case METHODID_CREATE_BINARY_READ_WRITE_SESSION:
-          serviceImpl.createBinaryReadWriteSession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>) responseObserver);
           break;
         case METHODID_TERMINATE_SESSION:
@@ -2815,20 +2639,6 @@ public final class EvitaServiceGrpc {
               io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest,
               io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>(
                 service, METHODID_CREATE_READ_WRITE_SESSION)))
-        .addMethod(
-          getCreateBinaryReadOnlySessionMethod(),
-          io.grpc.stub.ServerCalls.asyncUnaryCall(
-            new MethodHandlers<
-              io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest,
-              io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>(
-                service, METHODID_CREATE_BINARY_READ_ONLY_SESSION)))
-        .addMethod(
-          getCreateBinaryReadWriteSessionMethod(),
-          io.grpc.stub.ServerCalls.asyncUnaryCall(
-            new MethodHandlers<
-              io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest,
-              io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>(
-                service, METHODID_CREATE_BINARY_READ_WRITE_SESSION)))
         .addMethod(
           getTerminateSessionMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -3055,8 +2865,6 @@ public final class EvitaServiceGrpc {
               .addMethod(getIsReadyMethod())
               .addMethod(getCreateReadOnlySessionMethod())
               .addMethod(getCreateReadWriteSessionMethod())
-              .addMethod(getCreateBinaryReadOnlySessionMethod())
-              .addMethod(getCreateBinaryReadWriteSessionMethod())
               .addMethod(getTerminateSessionMethod())
               .addMethod(getGetCatalogNamesMethod())
               .addMethod(getGetCatalogStateMethod())

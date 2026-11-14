@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,9 +48,14 @@ import java.util.Arrays;
  * by the particular segment (similar to sub-select in relational algebra except it doesn't affect the set of returned
  * result but rather their order limited to this segment).
  *
+ * A segment takes only the entities that provide data for its ordering. If the ordering sorts by data that may be
+ * missing - an attribute, a reference, a price - the entities lacking it are excluded from the segment as if its
+ * filter rejected them, and they stay available to the next segments. Of several ordering constraints in a segment,
+ * one that can sort the entity is enough.
+ *
  * When segment doesn't define limit it means all entities matching the filter constraint are processed by the segment.
- * If no filter constraint is defined for the segment, all entities are processed - and if there is another segment
- * defined after this one, it will never be reached.
+ * If no filter constraint is defined for the segment, all entities its ordering can sort are processed - and a segment
+ * defined after this one is reached only by the entities lacking the data of that ordering.
  *
  * Segments are not the same as multiple order clauses in the `orderBy` constraint - multiple order clauses define
  * primary, secondary, tertiary, etc. sorting order for the whole result set. Segments define multiple separate sorting

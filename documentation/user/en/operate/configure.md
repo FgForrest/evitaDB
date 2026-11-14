@@ -35,6 +35,7 @@ server:                                           # [see Server configuration](#
   readOnly: false
   quiet: false
   usageStatisticsTracking: true
+  missingHistogramValueBehavior: REFUSE
   trafficRecording:
     enabled: false
     sourceQueryTracking: false
@@ -153,6 +154,7 @@ api:                                              # [see API configuration](#api
       tlsMode: null
       keepAlive: null
       parallelize: true
+      documentCacheSizeInBytes: 16MB
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -516,6 +518,40 @@ This section contains general settings for the evitaDB server. It allows configu
            distinction as load-bearing: a zero request count against a live observation window reads as *"nothing uses
            this flag, drop it"*, which is a destructive conclusion to draw when the truth is that nobody was counting.</p>
     </dd>
+    <dt>missingHistogramValueBehavior</dt>
+    <dd>
+        <p>**Default:** `REFUSE`</p>
+        <p>Decides what a write does when it changes a reference that feeds a
+           [reference histogram](../use/schema.md#reference-histograms) and the histogram does not hold the value the
+           reference contributed so far. Before such a write the engine withdraws that value and checks that it is
+           there. A missing value means the histogram index has drifted from the stored entities; the entities
+           themselves are intact.</p>
+        <ul>
+            <li>**`REFUSE`** - the write fails with an error naming the entity, the reference, the histogram and the
+                missing value.</li>
+            <li>**`REPORT`** - the engine logs the same identification at error level, skips the withdrawal of that
+                value and continues with the rest of the write.</li>
+        </ul>
+        <p>Choose `REPORT` to let writes that meet a missing value complete while a catalog awaits its rebuild or a fix.
+           The price is a reference histogram that may stay wrong where the write itself does not repair it, until the
+           catalog is rebuilt.</p>
+        <p>The setting governs this one check. Where the index the histogram lives in is missing altogether, the
+           engine reports the values it cannot withdraw and goes on, and the histogram checks then fail the write only
+           if it adds a value into that index - typically the reference's new value. A write that adds nothing there,
+           such as the removal of the reference, passes them. The exception is a group index that the catalog still
+           lists for the group but no longer holds: a write that reaches it fails in either mode, and nothing is
+           reported for it. The other consistency checks of reference histograms fail the write in either mode.</p>
+        <p>Every value the engine cannot withdraw produces one error line starting with
+           `Cannot withdraw histogram value`; alert on that text. Expect at least one line per affected write: a write
+           to an alive catalog is applied once in its session and once more when its transaction is committed, and logs
+           a line each time.</p>
+        <Note type="warning">
+            Writes accepted under `REPORT` that no checkpoint has covered yet are replayed from the write-ahead log when
+            the server starts after an unclean shutdown. Under `REFUSE` that replay meets the same missing value and the
+            catalog is marked corrupted. After an unclean shutdown, start the server with `REPORT` and switch back once
+            it has loaded the catalog.
+        </Note>
+    </dd>
 </dl>
 
 ### Thread pool configuration
@@ -788,8 +824,12 @@ Configuration for local file system export backend. This is the default backend 
     <dt>sizeLimitBytes</dt>
     <dd>
         <p>**Default:** `1G`</p>
-        <p>Specifies the maximum total size of all exported files stored by this backend. If the total size
-        exceeds this limit, the oldest files are removed until the total size drops below the limit.</p>
+        <p>Specifies the maximum total size of all exported files stored by this backend, including the metadata
+        file kept beside each of them. If the total size exceeds this limit, the oldest files are removed until the
+        total size drops below the limit.</p>
+        <p>A single backup, JFR recording or traffic recording has to fit into this limit as well. One that would
+        exceed it stops as soon as it crosses the limit, keeps nothing, and its task fails with an error naming this
+        setting. To keep a larger file, raise the limit and restart the server.</p>
     </dd>
     <dt>historyExpirationSeconds</dt>
     <dd>
@@ -822,6 +862,9 @@ Configuration for S3-compatible storage export backend. Requires the `evita_expo
         <p>**Default:** `1G`</p>
         <p>Specifies the maximum total size of all exported files stored by this backend. If the total size
         exceeds this limit, the oldest files are removed until the total size drops below the limit.</p>
+        <p>A single backup, JFR recording or traffic recording has to fit into this limit as well. One that would
+        exceed it stops as soon as it crosses the limit, keeps nothing, and its task fails with an error naming this
+        setting. To keep a larger file, raise the limit and restart the server.</p>
     </dd>
     <dt>historyExpirationSeconds</dt>
     <dd>
@@ -859,10 +902,10 @@ Configuration for S3-compatible storage export backend. Requires the `evita_expo
     <dt>requestTimeoutInMillis</dt>
     <dd>
         <p>**Default:** `30s`</p>
-        <p>Specifies the timeout applied to all external S3 operations performed by the export service.
-        The timeout is used when waiting for completion of asynchronous MinIO client calls, such as
-        bucket creation, object upload, download, deletion and metadata reads. Increase this value if
-        your S3 provider or network exhibits higher latencies.</p>
+        <p>Specifies the timeout for establishing connections and individual socket writes and reads.
+        An upload may take longer in total while its connection keeps making progress. The same value
+        bounds waits for bucket operations, downloads, deletions and metadata reads. Increase this value
+        if your S3 provider or network exhibits higher latencies.</p>
     </dd>
 </dl>
 
@@ -885,6 +928,10 @@ This section contains configuration options for the storage layer of the databas
             store temporary (isolated) transactional data before they are committed to the database.
             If the buffer is full, the transaction data are immediately written to the disk and the transaction 
             processing gets slower.</p>
+        <p>Each catalog allocates its own buffer when it runs its first transaction, and the engine one more for its
+            own changes, such as creating a catalog. A catalog's buffer is freed once the catalog is closed and no
+            transaction uses the buffer any more - on a JDK that does not allow freeing it explicitly, when the
+            garbage collector reclaims it.</p>
     </dd>
     <dt>transactionMemoryRegionCount</dt>
     <dd>
@@ -1460,6 +1507,21 @@ This allows you to set common settings for all endpoints in one place.
     <dd>
         <p>**Default:** `true`</p>
         <p>Controls whether queries that fetch data from evitaDB engine will be executed in parallel.</p>
+    </dd>
+    <dt>documentCacheSizeInBytes</dt>
+    <dd>
+        <p>**Default:** `16MB`</p>
+        <p>Approximate memory budget of the cache of parsed and validated GraphQL documents. When the same query text
+        is sent repeatedly (typically a front store sending static queries with values passed as variables), it is
+        lexed, parsed and validated only once and the cached document is reused by subsequent requests. Only
+        successfully validated documents are cached, invalid queries are processed on every request.</p>
+        <p>The budget applies to **each GraphQL instance separately** - i.e. to the data API and the schema API of
+        every catalog and to the system API - so the total memory used may be a multiple of this value. The size of
+        a cached document is estimated as 1 KB plus 8 times the length of its query text (measured on real
+        e-commerce queries, a parsed document retains roughly 6.3-7.4 times the size of its text, tiny documents
+        are dominated by a fixed cost of several hundred bytes). The cache of a catalog is
+        discarded whenever its GraphQL schema is rebuilt (e.g. after a catalog schema change).</p>
+        <p>Set to `0` to disable the cache. Negative values are rejected.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>

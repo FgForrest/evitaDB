@@ -73,7 +73,6 @@ import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.MANAGEMENT;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.STREAM;
 import static io.evitadb.test.diagnostics.TaskHangDiagnostics.awaitTaskResult;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -111,7 +110,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (`EvitaClientReadWriteTest#shouldBackupAndRestoreCatalogViaDownloadingAndUploadingFileContents`)
  * backs up a ten-product catalog, whose archive fits in a **single** message - so neither the size
  * ceiling nor the per-chunk hand-off is exercised by it at all. Making the upload span many messages
- * costs the time to build and archive a payload that large, which is what buys the `@Tag(SLOW)`.
+ * costs the time to build and archive a payload that large, which is what puts it in this module.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -122,7 +121,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(EXTERNAL_API)
 @Tag(MANAGEMENT)
 @Tag(STREAM)
-@Tag(SLOW)
 public class LongRunningGrpcRestoreCatalogUploadTest {
 	private static final String DATA_SET = "GrpcRestoreCatalogUpload";
 	private static final String TEST_CATALOG = "testCatalog";

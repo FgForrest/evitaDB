@@ -147,6 +147,27 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 	}
 
 	/**
+	 * Waits only for a real alive catalog, then resolves its newest instance by name. Warm-up has no rounds and a
+	 * placeholder has no pipeline. The captured instance predates session draining and may have become stale while
+	 * an acknowledged commit was incorporated; using it would relabel an older version or discard its new schema.
+	 * A refusal reaches the existing undo before the handover latch or marker is set, so the catalog keeps serving.
+	 *
+	 * @param evita engine holding the current live reference
+	 * @param captured catalog captured before draining sessions
+	 * @param catalogName source name to resolve after draining its pipeline
+	 * @return the current catalog instance
+	 */
+	@Nonnull
+	private static CatalogContract awaitTrunkAndResolve(
+		@Nonnull Evita evita, @Nonnull CatalogContract captured, @Nonnull String catalogName
+	) {
+		if (captured instanceof Catalog catalog && catalog.getCatalogState() == CatalogState.ALIVE) {
+			catalog.waitUntilPipelineDrained();
+		}
+		return evita.getCatalogInstanceOrThrowException(catalogName);
+	}
+
+	/**
 	 * Internal shared implementation of catalog replacement used both from rename and replace existing catalog methods.
 	 */
 	@Nonnull
@@ -216,8 +237,9 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 			// after: the resume is what lets the waiting callers through, and there must be nothing usable
 			// on the other side of it when they arrive. What they get is a `CatalogCorruptedException`
 			// naming the handover as its cause - refused, legibly, until a restart rebuilds the catalog
-			// from its folder, which it can, because the commit never ran and the load path reconciles the
-			// name the folder was left carrying.
+			// from its folder. The operator waits for rounds before relabelling, so no round with data to publish
+			// is still running when the relabel starts, and the load path reconciles the name the folder was left
+			// carrying.
 			//
 			// **Nothing that reaches here can be a committed operation.** Neither the engine commit nor the
 			// completion work after it reports failure any more - the commit is best-effort and logged from
@@ -410,7 +432,10 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 				Assert.isPremiseValid(removedCatalogSessionRegistry.isEmpty(), "Expectation failed!");
 			}
 
-			final CatalogSchemaWithImpactOnEntitySchemas updatedSchemaWrapper = mutation.mutate(catalogToBeReplacedWith.getSchema());
+			final CatalogContract current = awaitTrunkAndResolve(
+				evita, catalogToBeReplacedWith, catalogNameToBeReplacedWith
+			);
+			final CatalogSchemaWithImpactOnEntitySchemas updatedSchemaWrapper = mutation.mutate(current.getSchema());
 			Assert.isPremiseValid(
 				updatedSchemaWrapper != null,
 				"Result of modify catalog schema mutation must not be null."
@@ -419,7 +444,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 			return new ProgressingFuture<>(
 				1,
 				Collections.singleton(
-					catalogToBeReplacedWith
+					current
 						.replace(
 							updatedSchemaWrapper.updatedCatalogSchema(),
 							catalogToBeReplaced

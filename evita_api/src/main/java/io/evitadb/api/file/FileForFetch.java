@@ -36,6 +36,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Record that represents single file stored in the server export file available for download.
@@ -59,23 +60,27 @@ public record FileForFetch(
 	@Nullable String[] origin
 ) implements Serializable {
 	public static final String METADATA_EXTENSION = ".metadata";
+	/** Compiled once because every descriptor field of every instance passes through {@link #singleLine(String)}. */
+	private static final Pattern LINE_BREAKS = Pattern.compile("[\\r\\n]+");
 
-	public FileForFetch(
-		@Nonnull UUID fileId,
-		@Nonnull String name,
-		@Nullable String description,
-		@Nonnull String contentType,
-		long totalSizeInBytes,
-		@Nonnull OffsetDateTime created,
-		@Nullable String[] origin
-	) {
-		this.fileId = fileId;
-		this.name = FileUtils.convertToSupportedName(name);
-		this.description = description;
-		this.contentType = contentType;
-		this.totalSizeInBytes = totalSizeInBytes;
-		this.created = created;
-		this.origin = origin;
+	/** Normalizes descriptor strings to preserve the positional, one-field-per-line sidecar format. */
+	public FileForFetch {
+		name = FileUtils.convertToSupportedName(singleLine(name));
+		description = description == null ? null : singleLine(description);
+		contentType = singleLine(contentType);
+		origin = origin == null ? null : Arrays.stream(origin).map(FileForFetch::singleLine).toArray(String[]::new);
+	}
+
+	/**
+	 * Replaces each run of carriage returns and line feeds with a space. Either would shift the fields of a positional
+	 * sidecar, which is read back with `Files#readAllLines`, and S3 refuses an upload whose user metadata holds one.
+	 *
+	 * @param value text to normalize
+	 * @return text that occupies a single metadata line
+	 */
+	@Nonnull
+	public static String singleLine(@Nonnull String value) {
+		return LINE_BREAKS.matcher(value).replaceAll(" ");
 	}
 
 	/**

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.builder;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -83,6 +84,8 @@ import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.trim;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A schema builder combines the mutations it collects, so that a later statement about an element replaces an earlier
@@ -366,7 +369,7 @@ class SchemaMutationCombinationAcrossRenameTest {
 	}
 
 	@Test
-	@DisplayName("Two renames of one name stay two renames, as applying them one by one requires")
+	@DisplayName("Two renames of one name are not merged, so the second is refused as it is one by one")
 	void shouldNotMergeTwoRenamesOfOneName() {
 		final CatalogSchemaContract catalogSchema = catalogSchema(Map.of(), List.of());
 		final EntitySchemaContract base = baseEntitySchema(catalogSchema);
@@ -374,13 +377,12 @@ class SchemaMutationCombinationAcrossRenameTest {
 			new ModifyAttributeSchemaNameMutation("code", "legacyCode"),
 			new ModifyAttributeSchemaNameMutation("code", "otherCode")
 		);
+		final InternalEntitySchemaBuilder builder = new InternalEntitySchemaBuilder(catalogSchema, base, mutations);
 
-		final LocalEntitySchemaMutation[] combined = new InternalEntitySchemaBuilder(catalogSchema, base, mutations)
-			.toMutation()
-			.orElseThrow()
-			.getSchemaMutations();
-
-		assertEquals(mutations, Arrays.asList(combined));
+		final InvalidSchemaMutationException exception = assertThrows(
+			InvalidSchemaMutationException.class, builder::toMutation
+		);
+		assertTrue(exception.getMessage().contains("`code`"));
 	}
 
 	@Test

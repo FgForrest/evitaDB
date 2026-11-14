@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -73,10 +74,14 @@ class AttributeSetExactTest {
 			assertNull(attributeSetExact("age"));
 		}
 
+		/**
+		 * An attribute name comes from the application, so a null one is a bug that must surface instead of dropping
+		 * the ordering.
+		 */
 		@Test
-		@DisplayName("should return null from factory when attribute name is null")
-		void shouldReturnNullWhenNameIsNull() {
-			assertNull(attributeSetExact(null));
+		@DisplayName("should reject a null attribute name")
+		void shouldRejectNullNameInFactory() {
+			assertThrows(EvitaInvalidUsageException.class, () -> attributeSetExact(null));
 		}
 
 		@Test
@@ -239,7 +244,7 @@ class AttributeSetExactTest {
 		@Test
 		@DisplayName("should not be equal to non-applicable instance")
 		void shouldNotBeEqualToNonApplicable() {
-			assertNotEquals(attributeSetExact("age", 18, 45, 13), attributeSetExact(null));
+			assertNotEquals(attributeSetExact("age", 18, 45, 13), new AttributeSetExact(null));
 			assertNotEquals(
 				attributeSetExact("age", 18, 45, 13).hashCode(),
 				new AttributeSetExact(null).hashCode()

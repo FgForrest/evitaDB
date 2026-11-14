@@ -87,10 +87,11 @@ public class ModifyEntitySchemaMutation
 		if (existingMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation &&
 			this.name.equals(modifyEntitySchemaMutation.getName())
 		) {
-			// the existing mutation was collected first, so this one's statements are added on top of its own
+			// the existing mutation was collected first - its changes are the base the newer changes combine with
 			final LocalEntitySchemaMutation[] existingSchemaMutations = modifyEntitySchemaMutation.getSchemaMutations();
 			final List<LocalEntitySchemaMutation> mutations = new ArrayList<>(
-				existingSchemaMutations.length + this.schemaMutations.length);
+				existingSchemaMutations.length + this.schemaMutations.length
+			);
 			mutations.addAll(Arrays.asList(existingSchemaMutations));
 			final MutationImpact updated = addMutations(
 				currentCatalogSchema,

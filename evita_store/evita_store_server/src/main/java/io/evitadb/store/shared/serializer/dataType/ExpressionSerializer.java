@@ -29,6 +29,8 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 
@@ -37,8 +39,13 @@ import javax.annotation.Nonnull;
  * The expression is stored as its string representation and reconstructed by parsing it back
  * via {@link ExpressionFactory#parse(String)}.
  *
+ * Earlier versions parsed only the longest valid prefix of the text and ignored the rest. A stored text that is not an
+ * expression as a whole is therefore read the way it was read when it was stored, with a warning, rather than making
+ * the schema or the WAL holding it unreadable.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@Slf4j
 public class ExpressionSerializer extends Serializer<Expression> {
 
 	@Override
@@ -50,7 +57,19 @@ public class ExpressionSerializer extends Serializer<Expression> {
 	@Nonnull
 	public Expression read(Kryo kryo, Input input, Class<? extends Expression> type) {
 		final String expressionString = input.readString();
-		return ExpressionFactory.parse(expressionString);
+		try {
+			return ExpressionFactory.parse(expressionString);
+		} catch (EvitaInvalidUsageException e) {
+			// earlier versions parsed the prefix alone, so reading it reproduces what they read - and when the prefix
+			// does not parse either, the text was never readable and the error propagates as it did then
+			final Expression prefix = ExpressionFactory.parseStoredPrefix(expressionString);
+			log.warn(
+				"Stored expression `{}` is not a valid expression as a whole ({}) - it is read as `{}`, the way " +
+					"earlier versions read it. Define the expression again, so that it says what it is meant to.",
+				expressionString, e.getPublicMessage(), prefix.toExpressionString()
+			);
+			return prefix;
+		}
 	}
 
 }

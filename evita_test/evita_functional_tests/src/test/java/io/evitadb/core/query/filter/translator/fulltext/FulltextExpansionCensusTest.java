@@ -244,15 +244,16 @@ class FulltextExpansionCensusTest {
 					FulltextAnalysisTestSupport.SCHEMA, "text", Locale.ENGLISH);
 				final FulltextIndex index = new FulltextIndex();
 				index.addValue(FulltextFieldKey.attribute("name"), 1, analyzer, 25, null, "bright winter jackets");
-				final FulltextExpansionCensusMeasurementTest.Corpus corpus =
-					new FulltextExpansionCensusMeasurementTest.Corpus(
+				final FulltextExpansionCensusMeasurementSupport.Corpus corpus =
+					new FulltextExpansionCensusMeasurementSupport.Corpus(
 						Map.of("bright", 10L, "winter", 10L, "jackets", 10L), List.of("bright winter jackets"), 1);
-				final List<FulltextExpansionCensusMeasurementTest.Group> groups = List.of(
-					new FulltextExpansionCensusMeasurementTest.Group(analyzer, List.of(), new int[]{0}));
+				final List<FulltextExpansionCensusMeasurementSupport.Group> groups = List.of(
+					new FulltextExpansionCensusMeasurementSupport.Group(analyzer, List.of(), new int[]{0}));
 				final FulltextTypoParameters policy = new FulltextTypoParameters(new FulltextOptions());
-				final List<FulltextExpansionCensusSupport.Query> first = FulltextExpansionCensusMeasurementTest.queries(
-					corpus, groups, index, policy, new Random(42), true);
-				assertEquals(first, FulltextExpansionCensusMeasurementTest.queries(
+				final List<FulltextExpansionCensusSupport.Query> first =
+					FulltextExpansionCensusMeasurementSupport.queries(
+						corpus, groups, index, policy, new Random(42), true);
+				assertEquals(first, FulltextExpansionCensusMeasurementSupport.queries(
 					corpus, groups, index, policy, new Random(42), true));
 				final List<FulltextExpansionCensusSupport.Query> rows = first.stream()
 					.filter(q -> q.cohort().equals("head")).toList();
@@ -292,9 +293,9 @@ class FulltextExpansionCensusTest {
 					index.addValue(FulltextFieldKey.attribute("name"), 1, analyzer, 25, null, clean);
 					final FulltextExpansionCensusSupport.Query query = new FulltextExpansionCensusSupport.Query(
 						"", "by-token", "control", typed + " ", clean + " ", 1);
-					final List<FulltextExpansionCensusMeasurementTest.Group> groups = List.of(
-						new FulltextExpansionCensusMeasurementTest.Group(analyzer, List.of(), new int[]{0}));
-					final List<FulltextExpansionCensusSupport.Word> words = FulltextExpansionCensusMeasurementTest
+					final List<FulltextExpansionCensusMeasurementSupport.Group> groups = List.of(
+						new FulltextExpansionCensusMeasurementSupport.Group(analyzer, List.of(), new int[]{0}));
+					final List<FulltextExpansionCensusSupport.Word> words = FulltextExpansionCensusMeasurementSupport
 						.expand(query, groups, index, new FulltextTypoParameters(new FulltextOptions()), true);
 					assertEquals(1, FulltextExpansionCensusSupport.recalled(words));
 					assertTrue(words.getFirst().hits().stream().anyMatch(h -> h.target() &&

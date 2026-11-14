@@ -63,6 +63,9 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * For example, in the expression `$items.*[$.price]`, this step iterates over each item in
  * `$items` and evaluates `$.price` for each one, producing a list of prices.
  *
+ * The step has value equality because schemas compare their expressions by value: an expression that does not
+ * equal its own re-parse makes an unchanged schema look changed.
+ *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @RequiredArgsConstructor

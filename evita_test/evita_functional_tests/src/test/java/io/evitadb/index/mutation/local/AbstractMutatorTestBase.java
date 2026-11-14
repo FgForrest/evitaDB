@@ -24,6 +24,7 @@
 package io.evitadb.index.mutation.local;
 
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
@@ -160,7 +161,20 @@ abstract class AbstractMutatorTestBase {
 			new MockEntityIndexCreator<>(this.catalogIndex), () -> this.productSchema, sequencer::getAndIncrement,
 			() -> {
 				throw new UnsupportedOperationException("Not supported in the test.");
-			}, null, null, null, this.classifierResolver, this.usageRegistry, this.catalogUsageRegistry, new FulltextAnalyzerRegistry(new AnalysisStepRegistry()), () -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA, AttributeNormalizationResolver.LEGACY_NFD, true, new PartitionReservations());
+			},
+			null,
+			null,
+			null,
+			this.classifierResolver,
+			this.usageRegistry,
+			this.catalogUsageRegistry,
+			new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
+			() -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
+			AttributeNormalizationResolver.LEGACY_NFD,
+			true,
+			MissingHistogramValueBehavior.REFUSE,
+			new PartitionReservations()
+		);
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);
 		Mockito.when(this.catalog.getCollectionForEntityOrThrowException(this.productSchema.getName())).thenReturn(productCollection);

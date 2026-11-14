@@ -24,6 +24,8 @@
 package io.evitadb.index.mutation.local.handler;
 
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
+import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
@@ -34,21 +36,22 @@ import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import javax.annotation.Nonnull;
 
 /**
- * Shared fan-out for the two concrete associated-data mutations. Associated data is opaque to all
- * reduced indexes; the global index holds the fulltext indexes searchable associated data are
- * indexed in (see {@link FulltextIndexMutator#executeAssociatedDataMutation}), and the remaining
- * side-effect is to register a post-write facet re-evaluation when a trigger references the
- * mutated key.
+ * Shared fan-out for the two concrete associated-data mutations. Searchable associated data updates the
+ * fulltext indexes in the global index. Before storage changes, the fan-out withdraws histogram values of
+ * references whose condition reads the mutated key, then registers a post-write facet re-evaluation.
  */
 final class AssociatedDataMutationFanOut {
 
+	/**
+	 * Prevents instantiation of the shared associated-data orchestration.
+	 */
 	private AssociatedDataMutationFanOut() {
 		// no instances
 	}
 
 	/**
-	 * Applies the mutation to the fulltext indexes of the global index, then defers facet expression
-	 * re-evaluation for triggers that read the mutated associated data.
+	 * Updates fulltext indexes, withdraws reference histogram values whose condition reads the named associated
+	 * data, and defers facet expression re-evaluation for triggers that read it.
 	 *
 	 * @param mutation    the associated data mutation
 	 * @param executor    the active executor
@@ -63,6 +66,7 @@ final class AssociatedDataMutationFanOut {
 		// executor applies the same mutation
 		FulltextIndexMutator.executeAssociatedDataMutation(executor, globalIndex, mutation);
 		final String mutatedDataName = mutation.getAssociatedDataKey().associatedDataName();
+		withdrawHistogramValuesOfReferencesReading(mutatedDataName, executor);
 		// defer re-evaluation to after storage write so expression reads updated associated data
 		if (executor.hasFacetExpressionTriggers()) {
 			final int entityPK = executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
@@ -71,6 +75,32 @@ final class AssociatedDataMutationFanOut {
 					globalIndex, executor, entityPK,
 					trigger -> trigger.getLocalAssociatedData().contains(mutatedDataName)
 				)
+			);
+		}
+	}
+
+	/**
+	 * Withdraws, before the associated data changes in storage, the histogram values of every stored reference whose
+	 * histogram condition reads it, and schedules their final add. When no histogram condition of the entity type
+	 * reads the associated data in the current scope, it costs the registry lookup alone - at most three map probes -
+	 * and reads no stored reference.
+	 *
+	 * @param mutatedDataName the associated data name from the mutation
+	 * @param executor        the active executor
+	 */
+	private static void withdrawHistogramValuesOfReferencesReading(
+		@Nonnull String mutatedDataName,
+		@Nonnull EntityIndexLocalMutationExecutor executor
+	) {
+		final CatalogExpressionTriggerRegistry registry = executor.getCatalogExpressionTriggerRegistry();
+		// No guard for an entity removed entirely: its removal emits the associated-data removals after the reference
+		// removals, and each mutation reaches storage before the next one, so this walk meets only dropped references.
+		if (registry != null) {
+			final Scope scope = executor.getScope();
+			OwnerInputHistogramWithdrawal.withdraw(
+				executor,
+				registry.getLocalHistogramReferencesForAssociatedData(executor.getEntityType(), scope, mutatedDataName),
+				scope
 			);
 		}
 	}

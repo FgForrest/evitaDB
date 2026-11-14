@@ -253,6 +253,20 @@ public class TestArrayContainer {
 			assertTrue(container.intersects(0, lower16Bits(-1)));
 			assertFalse(container.intersects(1025, 1 << 16));
 		}
+
+		@Test
+		@DisplayName("andNot(bitmap) sizes the result by the cardinality, not the backing capacity")
+		public void andNotBitmapSizesResultByCardinality() {
+			final ArrayContainer array = new ArrayContainer(1024);
+			array.add((char) 1);
+			array.add((char) 100);
+			array.add((char) 1000);
+			final BitmapContainer bitmap = new BitmapContainer();
+			bitmap.add((char) 100);
+			final ArrayContainer result = array.andNot(bitmap);
+			assertEquals(new ArrayContainer(new char[]{1, 1000}), result);
+			assertEquals(array.getCardinality(), result.content.length);
+		}
 	}
 
 	@Nested

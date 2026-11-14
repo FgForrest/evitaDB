@@ -65,7 +65,6 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getReferencedEntityTypeIndex;
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getReferencedGroupEntityIndex;
 import static io.evitadb.api.query.Query.query;
@@ -159,7 +158,6 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 	// --- Test 1: Entity Attribute Condition ---
 
 	@ParameterizedTest(name = "Conditional histogram by entity attribute should survive generational test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Generational test: bucketedPartially by entity attribute")
 	void shouldSurviveGenerationalTestWithEntityAttributeExpression(@Nonnull GenerationalTestInput input) {
@@ -280,7 +278,6 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 	// --- Test 2: Reference Attribute Condition ---
 
 	@ParameterizedTest(name = "Conditional histogram by reference attribute should survive generational test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Generational test: bucketedPartially by reference attribute")
 	void shouldSurviveGenerationalTestWithReferenceAttributeExpression(@Nonnull GenerationalTestInput input) {
@@ -393,7 +390,6 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 	// --- Test 3: Group Entity Attribute Condition (cross-entity fan-out) ---
 
 	@ParameterizedTest(name = "Conditional histogram by group entity attribute should survive generational test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Generational test: bucketedPartially by group entity attribute")
 	void shouldSurviveGenerationalTestWithGroupEntityAttributeExpression(@Nonnull GenerationalTestInput input) {
@@ -531,7 +527,6 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 	// --- Test 4: Referenced Entity Attribute Condition (cross-entity fan-out) ---
 
 	@ParameterizedTest(name = "Conditional histogram by referenced entity attribute should survive generational test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Generational test: bucketedPartially by referenced entity attribute")
 	void shouldSurviveGenerationalTestWithReferencedEntityAttributeExpression(
@@ -739,7 +734,6 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 	// --- Test 5: Scope Changes (LIVE ↔ ARCHIVED) ---
 
 	@ParameterizedTest(name = "Histogram indexing should survive scope changes in generational test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Generational test: histogram with LIVE/ARCHIVED scope transitions")
 	void shouldSurviveGenerationalTestWithScopeChanges(@Nonnull GenerationalTestInput input) {

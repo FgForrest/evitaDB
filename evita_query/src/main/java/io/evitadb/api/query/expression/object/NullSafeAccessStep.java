@@ -43,6 +43,9 @@ import java.io.Serializable;
  * `$entity?.name`, this step wraps the {@link PropertyAccessStep} for `name` and ensures that
  * a null `$entity` produces null rather than an error.
  *
+ * The step has value equality because schemas compare their expressions by value: an expression that does not
+ * equal its own re-parse makes an unchanged schema look changed.
+ *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @RequiredArgsConstructor

@@ -24,6 +24,7 @@
 package io.evitadb.index.mutation.local;
 
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -312,11 +313,20 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		return new EntityIndexLocalMutationExecutor(containerAccessor, entityPK,
 			new MockEntityIndexCreator<>(globalIndex), new MockEntityIndexCreator<>(catalogIndex), () -> schema,
 			sequencer::getAndIncrement,
-			() -> { throw new UnsupportedOperationException("Not used in trigger test."); }, registrySupplier,
-			null, null, NOOP_CLASSIFIER_RESOLVER, new SchemaCapabilityUsageRegistry(),
-			new SchemaCapabilityUsageRegistry(), new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
+			() -> { throw new UnsupportedOperationException("Not used in trigger test."); },
+			registrySupplier,
+			null,
+			null,
+			NOOP_CLASSIFIER_RESOLVER,
+			new SchemaCapabilityUsageRegistry(),
+			new SchemaCapabilityUsageRegistry(),
+			new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
 			() -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
-			AttributeNormalizationResolver.LEGACY_NFD, true, new PartitionReservations());
+			AttributeNormalizationResolver.LEGACY_NFD,
+			true,
+			MissingHistogramValueBehavior.REFUSE,
+			new PartitionReservations()
+		);
 	}
 
 	/**
@@ -1239,11 +1249,20 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		return new EntityIndexLocalMutationExecutor(containerAccessor, ENTITY_PK,
 			new MockEntityIndexCreator<>(globalIndex), new MockEntityIndexCreator<>(catalogIndex), () -> schema,
 			sequencer::getAndIncrement,
-			() -> { throw new UnsupportedOperationException("Not used in trigger test."); }, registrySupplier,
-			localTriggerSupplier, null, NOOP_CLASSIFIER_RESOLVER, new SchemaCapabilityUsageRegistry(),
-			new SchemaCapabilityUsageRegistry(), new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
+			() -> { throw new UnsupportedOperationException("Not used in trigger test."); },
+			registrySupplier,
+			localTriggerSupplier,
+			null,
+			NOOP_CLASSIFIER_RESOLVER,
+			new SchemaCapabilityUsageRegistry(),
+			new SchemaCapabilityUsageRegistry(),
+			new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
 			() -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
-			AttributeNormalizationResolver.LEGACY_NFD, true, new PartitionReservations());
+			AttributeNormalizationResolver.LEGACY_NFD,
+			true,
+			MissingHistogramValueBehavior.REFUSE,
+			new PartitionReservations()
+		);
 	}
 
 	/**

@@ -24,6 +24,7 @@
 package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.parser.Value;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
@@ -118,7 +119,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitFilterByConstraint(EvitaQLParser.FilterByConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FilterBy(
+			() -> QueryConstraints.filterBy(
 				ctx.args.constraints
 					.stream()
 					.map(c -> visitChildConstraint(c, FilterConstraint.class))
@@ -131,7 +132,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitFilterGroupByConstraint(EvitaQLParser.FilterGroupByConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FilterGroupBy(
+			() -> QueryConstraints.filterGroupBy(
 				ctx.args.constraints
 					.stream()
 					.map(c -> visitChildConstraint(c, FilterConstraint.class))
@@ -146,9 +147,9 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new And();
+					return QueryConstraints.and();
 				}
-				return new And(
+				return QueryConstraints.and(
 					ctx.args.constraints
 						.stream()
 						.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
@@ -164,9 +165,9 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new Or();
+					return QueryConstraints.or();
 				}
-				return new Or(
+				return QueryConstraints.or(
 					ctx.args.constraints
 						.stream()
 						.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
@@ -180,7 +181,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitNotConstraint(EvitaQLParser.NotConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new Not(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
+			() -> QueryConstraints.not(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
 		);
 	}
 
@@ -190,9 +191,9 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new UserFilter();
+					return QueryConstraints.userFilter();
 				}
-				return new UserFilter(
+				return QueryConstraints.userFilter(
 					ctx.args.constraints
 						.stream()
 						.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
@@ -206,7 +207,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeEqualsConstraint(EvitaQLParser.AttributeEqualsConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeEquals(
+			() -> QueryConstraints.attributeEquals(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
 			)
@@ -217,7 +218,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeGreaterThanConstraint(EvitaQLParser.AttributeGreaterThanConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeGreaterThan(
+			() -> QueryConstraints.attributeGreaterThan(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
 			)
@@ -228,7 +229,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeGreaterThanEqualsConstraint(EvitaQLParser.AttributeGreaterThanEqualsConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeGreaterThanEquals(
+			() -> QueryConstraints.attributeGreaterThanEquals(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
 			)
@@ -239,7 +240,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeLessThanConstraint(EvitaQLParser.AttributeLessThanConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeLessThan(
+			() -> QueryConstraints.attributeLessThan(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
 			)
@@ -250,7 +251,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeLessThanEqualsConstraint(EvitaQLParser.AttributeLessThanEqualsConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeLessThanEquals(
+			() -> QueryConstraints.attributeLessThanEquals(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
 			)
@@ -261,7 +262,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeBetweenConstraint(EvitaQLParser.AttributeBetweenConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeBetween(
+			() -> QueryConstraints.attributeBetween(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.valueFrom
 					.accept(this.comparableValueTokenVisitor)
@@ -280,9 +281,9 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			() -> {
 				final String classifier = ctx.args.classifier.accept(this.stringValueTokenVisitor).asString();
 				if (ctx.args.values == null) {
-					return new AttributeInSet(classifier);
+					return QueryConstraints.attributeInSet(classifier);
 				}
-				return new AttributeInSet(
+				return QueryConstraints.attributeInSet(
 					classifier,
 					ctx.args.values
 						.accept(this.comparableValueTokenVisitor)
@@ -296,7 +297,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeContainsConstraint(EvitaQLParser.AttributeContainsConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeContains(
+			() -> QueryConstraints.attributeContains(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.value.accept(this.stringValueTokenVisitor).asString()
 			)
@@ -307,7 +308,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeStartsWithConstraint(EvitaQLParser.AttributeStartsWithConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeStartsWith(
+			() -> QueryConstraints.attributeStartsWith(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.value.accept(this.stringValueTokenVisitor).asString()
 			)
@@ -318,7 +319,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeEndsWithConstraint(EvitaQLParser.AttributeEndsWithConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeEndsWith(
+			() -> QueryConstraints.attributeEndsWith(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.value.accept(this.stringValueTokenVisitor).asString()
 			)
@@ -329,7 +330,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeEqualsTrueConstraint(EvitaQLParser.AttributeEqualsTrueConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeEquals(
+			() -> QueryConstraints.attributeEquals(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				Boolean.TRUE
 			)
@@ -340,7 +341,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeEqualsFalseConstraint(EvitaQLParser.AttributeEqualsFalseConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeEquals(
+			() -> QueryConstraints.attributeEquals(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				Boolean.FALSE
 			)
@@ -351,7 +352,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeIsConstraint(EvitaQLParser.AttributeIsConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeIs(
+			() -> QueryConstraints.attributeIs(
 				ctx.args.classifier
 					.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.value
@@ -365,7 +366,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeIsNullConstraint(EvitaQLParser.AttributeIsNullConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeIs(
+			() -> QueryConstraints.attributeIs(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				AttributeSpecialValue.NULL
 			)
@@ -376,7 +377,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeIsNotNullConstraint(EvitaQLParser.AttributeIsNotNullConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeIs(
+			() -> QueryConstraints.attributeIs(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				AttributeSpecialValue.NOT_NULL
 			)
@@ -391,10 +392,11 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 				final String attributeName = ctx.args.classifier.accept(this.stringValueTokenVisitor).asString();
 				final Value attributeValue = ctx.args.value.accept(this.inRangeValueTokenVisitor);
 
-				if (Number.class.isAssignableFrom(attributeValue.getType())) {
-					return new AttributeInRange(attributeName, attributeValue.asNumber());
+				if (attributeValue.getActualValue() == null
+					|| Number.class.isAssignableFrom(attributeValue.getType())) {
+					return QueryConstraints.attributeInRange(attributeName, attributeValue.asNumber());
 				} else if (OffsetDateTime.class.isAssignableFrom(attributeValue.getType())) {
-					return new AttributeInRange(attributeName, attributeValue.asOffsetDateTime());
+					return QueryConstraints.attributeInRange(attributeName, attributeValue.asOffsetDateTime());
 				} else {
 					throw new EvitaSyntaxException(
 						ctx,
@@ -410,7 +412,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> {
 				final String attributeName = ctx.args.classifier.accept(this.stringValueTokenVisitor).asString();
-				return new AttributeInRange(attributeName);
+				return QueryConstraints.attributeInRangeNow(attributeName);
 			}
 		);
 	}
@@ -421,9 +423,9 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new EntityPrimaryKeyInSet();
+					return QueryConstraints.entityPrimaryKeyInSet();
 				}
-				return new EntityPrimaryKeyInSet(
+				return QueryConstraints.entityPrimaryKeyInSet(
 					ctx.args.values.accept(this.intValueTokenVisitor).asIntegerArray()
 				);
 			}
@@ -436,7 +438,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	) {
 		return parse(
 			ctx,
-			() -> new EntityPrimaryKeyGreaterThan(
+			() -> QueryConstraints.entityPrimaryKeyGreaterThan(
 				ctx.args.value.accept(this.intValueTokenVisitor).asInt()
 			)
 		);
@@ -448,7 +450,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	) {
 		return parse(
 			ctx,
-			() -> new EntityPrimaryKeyGreaterThanEquals(
+			() -> QueryConstraints.entityPrimaryKeyGreaterThanEquals(
 				ctx.args.value.accept(this.intValueTokenVisitor).asInt()
 			)
 		);
@@ -460,7 +462,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	) {
 		return parse(
 			ctx,
-			() -> new EntityPrimaryKeyLessThan(
+			() -> QueryConstraints.entityPrimaryKeyLessThan(
 				ctx.args.value.accept(this.intValueTokenVisitor).asInt()
 			)
 		);
@@ -472,7 +474,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	) {
 		return parse(
 			ctx,
-			() -> new EntityPrimaryKeyLessThanEquals(
+			() -> QueryConstraints.entityPrimaryKeyLessThanEquals(
 				ctx.args.value.accept(this.intValueTokenVisitor).asInt()
 			)
 		);
@@ -484,7 +486,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	) {
 		return parse(
 			ctx,
-			() -> new EntityPrimaryKeyBetween(
+			() -> QueryConstraints.entityPrimaryKeyBetween(
 				ctx.args.valueFrom.accept(this.intValueTokenVisitor).asInt(),
 				ctx.args.valueTo.accept(this.intValueTokenVisitor).asInt()
 			)
@@ -495,7 +497,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitEntityLocaleEqualsConstraint(EvitaQLParser.EntityLocaleEqualsConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new EntityLocaleEquals(
+			() -> QueryConstraints.entityLocaleEquals(
 				ctx.args.value
 					.accept(this.localeValueTokenVisitor)
 					.asLocale()
@@ -507,7 +509,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitPriceInCurrencyConstraint(EvitaQLParser.PriceInCurrencyConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new PriceInCurrency(
+			() -> QueryConstraints.priceInCurrency(
 				ctx.args.value
 					.accept(this.currencyValueTokenVisitor)
 					.asCurrency()
@@ -521,9 +523,9 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new PriceInPriceLists();
+					return QueryConstraints.priceInPriceLists();
 				}
-				return new PriceInPriceLists(
+				return QueryConstraints.priceInPriceLists(
 					ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArray()
 				);
 			}
@@ -532,7 +534,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 
 	@Override
 	public FilterConstraint visitPriceValidInNowConstraint(EvitaQLParser.PriceValidInNowConstraintContext ctx) {
-		return parse(ctx, PriceValidIn::new);
+		return parse(ctx, QueryConstraints::priceValidInNow);
 	}
 
 	@Override
@@ -540,7 +542,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> {
-				return new PriceValidIn(
+				return QueryConstraints.priceValidIn(
 					ctx.args.value
 						.accept(this.offsetDateTimeValueTokenVisitor)
 						.asOffsetDateTime()
@@ -553,7 +555,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitPriceBetweenConstraint(EvitaQLParser.PriceBetweenConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new PriceBetween(
+			() -> QueryConstraints.priceBetween(
 				ctx.args.valueFrom.accept(this.priceBetweenArgValueTokenVisitor).asNumber(BigDecimal.class),
 				ctx.args.valueTo.accept(this.priceBetweenArgValueTokenVisitor).asNumber(BigDecimal.class)
 			)
@@ -566,13 +568,13 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> {
 				if (ctx.args.filter2 != null) {
-					return new FacetHaving(
+					return QueryConstraints.facetHaving(
 						ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 						ctx.args.filter1.accept(this),
 						ctx.args.filter2.accept(this)
 					);
 				} else {
-					return new FacetHaving(
+					return QueryConstraints.facetHaving(
 						ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 						ctx.args.filter1.accept(this)
 					);
@@ -602,13 +604,15 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 					from = ctx.args.valueFrom.accept(this.numericValueTokenVisitor).asNumber(BigDecimal.class);
 					to = ctx.args.valueTo.accept(this.numericValueTokenVisitor).asNumber(BigDecimal.class);
 				} else {
-					from = null;
-					to = null;
+					throw new EvitaSyntaxException(ctx,
+						"HistogramHaving requires at least one of from / to to be non-null!");
 				}
 				final GroupHaving groupSelector = ctx.args.groupSelector == null
 					? null
 					: visitChildConstraint(ctx.args.groupSelector, GroupHaving.class);
-				return new HistogramHaving(referenceName, histogramName, from, to, groupSelector);
+				return ctx.args.histogramName == null ?
+					QueryConstraints.histogramHaving(referenceName, from, to, groupSelector) :
+					QueryConstraints.histogramHaving(referenceName, histogramName, from, to, groupSelector);
 			}
 		);
 	}
@@ -640,12 +644,12 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> {
 				if (ctx.classifierWithFilterConstraintArgs() != null) {
-					return new ReferenceHaving(
+					return QueryConstraints.referenceHaving(
 						ctx.classifierWithFilterConstraintArgs().classifier.accept(this.stringValueTokenVisitor).asString(),
 						visitChildConstraint(ctx.classifierWithFilterConstraintArgs().filter, FilterConstraint.class)
 					);
 				} else {
-					return new ReferenceHaving(
+					return QueryConstraints.referenceHaving(
 						ctx.classifierArgs().classifier.accept(this.stringValueTokenVisitor).asString()
 					);
 				}
@@ -659,7 +663,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitHierarchyWithinConstraint(EvitaQLParser.HierarchyWithinConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyWithin(
+			() -> QueryConstraints.hierarchyWithin(
 				ctx.args.classifier
 					.accept(this.stringValueTokenVisitor)
 					.asString(),
@@ -676,7 +680,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitHierarchyWithinSelfConstraint(EvitaQLParser.HierarchyWithinSelfConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyWithin(
+			() -> QueryConstraints.hierarchyWithinSelf(
 				visitChildConstraint(ctx.args.ofParent, FilterConstraint.class),
 				ctx.args.constrains
 					.stream()
@@ -690,7 +694,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitHierarchyWithinRootConstraint(EvitaQLParser.HierarchyWithinRootConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyWithinRoot(
+			() -> QueryConstraints.hierarchyWithinRoot(
 				ctx.args.classifier
 					.accept(this.stringValueTokenVisitor)
 					.asString(),
@@ -708,9 +712,9 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new HierarchyWithinRoot();
+					return QueryConstraints.hierarchyWithinRootSelf();
 				}
-				return new HierarchyWithinRoot(
+				return QueryConstraints.hierarchyWithinRootSelf(
 					ctx.args.constrains
 						.stream()
 						.map(c -> visitChildConstraint(c, HierarchySpecificationFilterConstraint.class))
@@ -729,7 +733,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitHierarchyHavingConstraint(EvitaQLParser.HierarchyHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyHaving(
+			() -> QueryConstraints.having(
 				ctx.args.constraints
 					.stream()
 					.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
@@ -742,7 +746,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitHierarchyAnyHavingConstraint(HierarchyAnyHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyAnyHaving(
+			() -> QueryConstraints.anyHaving(
 				ctx.args.constraints
 					.stream()
 					.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
@@ -760,7 +764,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitHierarchyExcludingConstraint(EvitaQLParser.HierarchyExcludingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyExcluding(
+			() -> QueryConstraints.excluding(
 				ctx.args.constraints
 					.stream()
 					.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
@@ -773,7 +777,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitEntityHavingConstraint(EvitaQLParser.EntityHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new EntityHaving(
+			() -> QueryConstraints.entityHaving(
 				ctx.args.constraints.stream()
 					.map(c -> visitChildConstraint(c, FilterConstraint.class))
 					.toArray(FilterConstraint[]::new)
@@ -785,7 +789,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitGroupHavingConstraint(GroupHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new GroupHaving(
+			() -> QueryConstraints.groupHaving(
 				ctx.args.constraints.stream()
 					.map(c -> visitChildConstraint(c, FilterConstraint.class))
 					.toArray(FilterConstraint[]::new)
@@ -797,7 +801,9 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitEntityScopeConstraint(EntityScopeConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new EntityScope(ctx.args.variadicValueTokens().accept(this.scopeValueTokenVisitor).asEnumArray(Scope.class))
+			() -> QueryConstraints.scope(
+				ctx.args.variadicValueTokens().accept(this.scopeValueTokenVisitor).asEnumArray(Scope.class)
+			)
 		);
 	}
 
@@ -805,7 +811,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitFilterInScopeConstraint(FilterInScopeConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FilterInScope(
+			() -> QueryConstraints.inScope(
 				ctx.args.scope.accept(this.scopeValueTokenVisitor).asEnum(Scope.class),
 				ctx.args.filterConstraints
 					.stream()
@@ -819,7 +825,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitTextMatchesConstraint(TextMatchesConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new TextMatches(
+			() -> QueryConstraints.textMatches(
 				ctx.args.text.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.constraints
 					.stream()
@@ -834,7 +840,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitInAttributeConstraint(@Nonnull InAttributeConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new InAttribute(
+			() -> QueryConstraints.inAttribute(
 				ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArrayRetainingNulls()
 			)
 		);

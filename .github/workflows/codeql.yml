@@ -1,0 +1,54 @@
+# Code scanning pipeline: CodeQL analysis of the Java code, the Python tools and the workflows
+#
+# Advanced setup replacing CodeQL default setup, so that a pull request changing only documentation is not
+# analysed - default setup lives in the repository settings and cannot filter paths. The languages, build mode,
+# query suite and categories are those default setup used; keeping the categories keeps the existing alerts in
+# the same history. GitHub refuses the results of this workflow while default setup is enabled, so default setup
+# must stay disabled (Settings > Advanced Security > Code scanning > CodeQL analysis).
+
+name: CodeQL
+
+on:
+  push:
+    branches: [ "dev", "master", "release_*" ]      # the protected branches default setup covered
+  pull_request:
+    branches: [ "dev", "master", "release_*" ]
+    paths-ignore:                                   # skipped only when EVERY changed file matches; pushes still
+      - documentation/**                            # scan everything, the examples under documentation/ included
+      - '**/*.md'
+  schedule:
+    - cron: '23 3 * * 1'                            # weekly, as default setup did - picks up new queries
+
+concurrency:
+  group: codeql-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ actions, java-kotlin, python ]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL                     # build mode none: nothing is compiled, so no autobuild step
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          dependency-caching: true                  # as default setup: reuse the Maven dependencies it resolves
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:${{ matrix.language }}

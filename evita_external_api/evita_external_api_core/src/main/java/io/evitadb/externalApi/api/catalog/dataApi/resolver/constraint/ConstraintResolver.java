@@ -24,10 +24,13 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ClassifierParameterDescriptor;
+import io.evitadb.api.query.descriptor.ConstraintCreator.ConstraintParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
@@ -35,6 +38,14 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.descriptor.ConstraintValueStructure;
+import io.evitadb.api.query.filter.EntityHaving;
+import io.evitadb.api.query.filter.GroupHaving;
+import io.evitadb.api.query.filter.HistogramHaving;
+import io.evitadb.api.query.order.Segment;
+import io.evitadb.api.query.order.SegmentLimit;
+import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.HierarchyOutputRequireConstraint;
+import io.evitadb.api.query.require.HierarchySiblings;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintKeyBuilder;
@@ -45,12 +56,16 @@ import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
+import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +73,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -102,6 +118,14 @@ import java.util.stream.Stream;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public abstract class ConstraintResolver<C extends Constraint<?>> {
+	/**
+	 * Creator per constraint descriptor, resolved once: the `QueryConstraints` factory with exactly the creator's
+	 * name and parameter types where one exists, so API callers get the null handling of Java callers, otherwise the
+	 * descriptor's own creator.
+	 */
+	private static final Map<ConstraintDescriptor, ConstraintCreator> FACTORY_CREATORS =
+		ConstraintDescriptorProvider.getAllConstraints().stream()
+			.collect(Collectors.toUnmodifiableMap(descriptor -> descriptor, ConstraintResolver::findFactoryCreator));
 
 	@Nonnull protected final CatalogSchemaContract catalogSchema;
 	@Nonnull private final ConstraintKeyBuilder keyBuilder;
@@ -254,7 +278,110 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			return null;
 		}
 		//noinspection unchecked
-		return (C) parsedConstraintDescriptor.constraintDescriptor().creator().instantiateConstraint(instantiationArgs.toArray(), parsedConstraintDescriptor.originalKey());
+		return (C) instantiateConstraint(parsedConstraintDescriptor.constraintDescriptor(), instantiationArgs.toArray(),
+			parsedConstraintDescriptor.originalKey());
+	}
+
+	/**
+	 * Finds an exact factory signature, preserving the descriptor creator when no factory matches.
+	 *
+	 * @param descriptor constraint variant to construct
+	 * @return factory creator or the original creator
+	 */
+	@Nonnull
+	private static ConstraintCreator findFactoryCreator(@Nonnull ConstraintDescriptor descriptor) {
+		final ConstraintCreator creator = descriptor.creator();
+		final Class<?>[] parameterTypes = creator.parameters().stream()
+			.map(parameter -> parameter instanceof ClassifierParameterDescriptor ? String.class :
+				parameter instanceof ValueParameterDescriptor value ? value.type() :
+					((ConstraintParameterDescriptor) parameter).type())
+			.toArray(Class<?>[]::new);
+		final String factoryName = StringUtils.uncapitalize(descriptor.constraintClass().getSimpleName())
+			+ creator.suffix().map(StringUtils::capitalize).orElse("");
+		final List<Method> factories = Arrays.stream(QueryConstraints.class.getMethods())
+			.filter(method -> method.getReturnType() == descriptor.constraintClass())
+			.filter(method -> method.getName().equals(factoryName) || method.getName().equals(descriptor.fullName()))
+			.filter(method -> Arrays.equals(method.getParameterTypes(), parameterTypes))
+			.toList();
+		return factories.size() == 1 ? new ConstraintCreator(factories.getFirst(), creator.parameters()) : creator;
+	}
+
+	/**
+	 * Applies factory validation and propagates omitted constraints to their parent.
+	 * Optional API names choose the corresponding factory overload: `siblings` without an output name goes to the
+	 * anonymous overload, and `segment` and `histogramHaving`, whose API parameters match no factory signature, go
+	 * through adapters.
+	 *
+	 * @param descriptor constraint variant to construct
+	 * @param arguments resolved creator arguments
+	 * @param parsedName API field name for construction diagnostics
+	 * @return constructed constraint, or null when the factory omits it
+	 */
+	@Nullable
+	static Constraint<?> instantiateConstraint(
+		@Nonnull ConstraintDescriptor descriptor, @Nonnull Object[] arguments, @Nonnull String parsedName
+	) {
+		if (descriptor.constraintClass() == HierarchySiblings.class && arguments[0] == null) {
+			return QueryConstraints.siblings((EntityFetch) arguments[1],
+				(HierarchyOutputRequireConstraint[]) arguments[2]);
+		}
+		if (usesFactoryAdapter(descriptor)) {
+			return descriptor.constraintClass() == Segment.class ?
+				instantiateSegment(arguments) : instantiateHistogramHaving(arguments);
+		}
+		return getConstraintCreator(descriptor).instantiateConstraint(arguments, parsedName);
+	}
+
+	/**
+	 * Builds a segment through its factory, which takes the ordering as one `orderBy` container where the API
+	 * passes the ordering children.
+	 *
+	 * @param arguments resolved creator arguments: entity filter, ordering children and limit
+	 * @return the segment, or null when the factory omits it
+	 */
+	@Nullable
+	private static Segment instantiateSegment(@Nonnull Object[] arguments) {
+		return QueryConstraints.segment((EntityHaving) arguments[0],
+			QueryConstraints.orderBy((OrderConstraint[]) arguments[1]), (SegmentLimit) arguments[2]);
+	}
+
+	/**
+	 * Builds a histogram range through the factory overload that matches the presence of the histogram name, so an
+	 * absent name selects the unnamed histogram while a blank one is still refused.
+	 *
+	 * @param arguments resolved creator arguments: reference name, histogram name, bounds and group filter
+	 * @return the histogram range, or null when the factory omits it
+	 */
+	@Nullable
+	private static HistogramHaving instantiateHistogramHaving(@Nonnull Object[] arguments) {
+		final String referenceName = (String) arguments[0];
+		final String histogramName = (String) arguments[1];
+		final BigDecimal from = (BigDecimal) arguments[2];
+		final BigDecimal to = (BigDecimal) arguments[3];
+		final GroupHaving groupHaving = (GroupHaving) arguments[4];
+		return histogramName == null ? QueryConstraints.histogramHaving(referenceName, from, to, groupHaving) :
+			QueryConstraints.histogramHaving(referenceName, histogramName, from, to, groupHaving);
+	}
+
+	/**
+	 * Selects the cached factory creator, retaining a descriptor's own creator outside the registry.
+	 *
+	 * @param descriptor constraint variant to construct
+	 * @return the creator used for ordinary dispatch
+	 */
+	@Nonnull
+	static ConstraintCreator getConstraintCreator(@Nonnull ConstraintDescriptor descriptor) {
+		return FACTORY_CREATORS.getOrDefault(descriptor, descriptor.creator());
+	}
+
+	/**
+	 * Identifies creators whose API parameter types need adaptation to a factory signature.
+	 *
+	 * @param descriptor constraint variant to construct
+	 * @return whether construction uses a factory adapter
+	 */
+	static boolean usesFactoryAdapter(@Nonnull ConstraintDescriptor descriptor) {
+		return descriptor.constraintClass() == HistogramHaving.class || descriptor.constraintClass() == Segment.class;
 	}
 
 	@Nullable
@@ -697,11 +824,6 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 				// if unique children are needed we can't return wrapping container because single concrete container is
 				// expected in constructor args. We need to extract the container from the wrapping container.
 				final List<C> children = resolveContainerInnerConstraints(resolveContext, parsedConstraintDescriptor, argumentValue).toList();
-				if (children.isEmpty() && parameterDescriptor.required()) {
-					throw createInvalidArgumentException(
-						"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires parameter `" + parameterDescriptor.name() + "` to be non-empty."
-					);
-				}
 				if (children.size() > 1) {
 					throw createInvalidArgumentException(
 						"Constraint `" + parsedConstraintDescriptor.originalKey() + "` support only one child but there were multiple specified."
@@ -814,8 +936,9 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	/**
 	 * Resolves constraint container represented by JSON object and containing inner child constraints
 	 * to the {@link #getWrapperContainer()} wrapping constraint container.
+	 * Returns null when the factory omits the wrapper because it is left without children.
 	 */
-	@Nonnull
+	@Nullable
 	private C resolveWrapperContainer(@Nonnull ConstraintResolveContext resolveContext,
 	                                  @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                  @Nonnull Object value) {
@@ -825,10 +948,9 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		);
 		// expects that default container has constructor with only array of children
 		//noinspection unchecked
-		return (C) getWrapperContainer()
-			.orElseThrow(() -> createQueryResolvingInternalError("Missing required wrapper container."))
-			.creator()
-			.instantiateConstraint(new Object[]{innerConstraints}, parsedConstraintDescriptor.originalKey());
+		return (C) instantiateConstraint(getWrapperContainer()
+			.orElseThrow(() -> createQueryResolvingInternalError("Missing required wrapper container.")),
+			new Object[]{innerConstraints}, parsedConstraintDescriptor.originalKey());
 	}
 
 	/**
@@ -863,7 +985,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	@Nonnull
 	private C[] convertConstraintStreamToSpecificArray(@Nonnull Class<C> componentType,
 	                                                   @Nonnull Stream<C> constraintStream) {
-		return constraintStream.toArray(size -> (C[]) Array.newInstance(componentType, size));
+		return constraintStream.filter(Objects::nonNull).toArray(size -> (C[]) Array.newInstance(componentType, size));
 	}
 
 	/**

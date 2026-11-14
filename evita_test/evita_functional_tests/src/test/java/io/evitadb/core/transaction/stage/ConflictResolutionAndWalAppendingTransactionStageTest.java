@@ -30,9 +30,14 @@ import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage.ConflictResolutionAndWalAppendingTransactionTask;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.OffHeapMemoryOutputStream;
+import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -83,6 +88,7 @@ import static io.evitadb.test.TestTags.WAL;
 class ConflictResolutionAndWalAppendingTransactionStageTest {
 
 	private static final String CATALOG_NAME = "testCatalog";
+	private static final int REGION_COUNT = 16;
 
 	/**
 	 * When a transaction fails AFTER its catalog version was assigned (e.g. WAL append throws), the stage
@@ -418,13 +424,133 @@ class ConflictResolutionAndWalAppendingTransactionStageTest {
 	}
 
 	/**
+	 * A transaction refused in conflict resolution never reaches the shared WAL, so the append never releases its
+	 * isolated WAL contents. The stage has to, otherwise every refused transaction keeps its off-heap region - and with
+	 * it the catalog's whole memory block, which is freed only once every region is back.
+	 */
+	@Test
+	@DisplayName("should release the isolated WAL of a transaction refused in conflict resolution")
+	void shouldReleaseIsolatedWalOfTransactionRefusedInConflictResolution() {
+		final TransactionManager tm = buildTransactionManagerMock(new AtomicLong(312L), new AtomicLong(312L));
+		doThrow(new RuntimeException("simulated conflict"))
+			.when(tm).identifyConflicts(anyLong(), anyLong(), any(), any());
+
+		final ConflictResolutionAndWalAppendingTransactionStage stage =
+			new ConflictResolutionAndWalAppendingTransactionStage(
+				Runnable::run,
+				100,
+				tm,
+				(task, ex) -> {}
+			);
+
+		try (final CatalogOffHeapMemoryManager memoryManager = newMemoryManager()) {
+			feed(stage, newTask(newOffHeapWalReference(memoryManager)));
+
+			assertEquals(REGION_COUNT, memoryManager.getFreeRegions());
+		}
+	}
+
+	/**
+	 * A transaction whose WAL append throws before copying its contents has to release them as well.
+	 */
+	@Test
+	@DisplayName("should release the isolated WAL of a transaction whose WAL append failed")
+	void shouldReleaseIsolatedWalOfTransactionWhoseWalAppendFailed() {
+		final TransactionManager tm = buildTransactionManagerMock(new AtomicLong(312L), new AtomicLong(312L));
+		doNothing().when(tm).identifyConflicts(anyLong(), anyLong(), any(), any());
+		doThrow(new RuntimeException("simulated WAL lock timeout"))
+			.when(tm).appendWalAndDiscard(any(), any(), any());
+
+		final ConflictResolutionAndWalAppendingTransactionStage stage =
+			new ConflictResolutionAndWalAppendingTransactionStage(
+				Runnable::run,
+				100,
+				tm,
+				(task, ex) -> {}
+			);
+
+		try (final CatalogOffHeapMemoryManager memoryManager = newMemoryManager()) {
+			feed(stage, newTask(newOffHeapWalReference(memoryManager)));
+
+			assertEquals(REGION_COUNT, memoryManager.getFreeRegions());
+		}
+	}
+
+	/**
+	 * Once the WAL cannot be made durable the stage refuses every further transaction up front - and has to release
+	 * the isolated WAL of each.
+	 */
+	@Test
+	@DisplayName("should release the isolated WAL of a transaction refused because the WAL cannot be made durable")
+	void shouldReleaseIsolatedWalOfTransactionRefusedAfterDurabilityFailure() {
+		final TransactionManager tm = buildTransactionManagerMock(new AtomicLong(0L), new AtomicLong(0L));
+		doNothing().when(tm).identifyConflicts(anyLong(), anyLong(), any(), any());
+		doAnswer(inv -> 0L).when(tm).appendWalAndDiscard(any(), any(), any());
+		doThrow(new RuntimeException("simulated device failure")).when(tm).syncWal();
+
+		final ConflictResolutionAndWalAppendingTransactionStage stage =
+			new ConflictResolutionAndWalAppendingTransactionStage(
+				Runnable::run,
+				100,
+				tm,
+				(task, ex) -> {}
+			);
+		feed(stage, newTask());
+
+		try (final CatalogOffHeapMemoryManager memoryManager = newMemoryManager()) {
+			final ConflictResolutionAndWalAppendingTransactionTask refused =
+				newTask(newOffHeapWalReference(memoryManager));
+			feed(stage, refused);
+
+			assertTrue(refused.commitProgress().onWalAppended().toCompletableFuture().isCompletedExceptionally());
+			assertEquals(REGION_COUNT, memoryManager.getFreeRegions());
+		}
+	}
+
+	/**
+	 * Creates an off-heap memory manager whose regions hold the isolated WAL of the tasks in the release tests.
+	 *
+	 * @return the memory manager
+	 */
+	@Nonnull
+	private static CatalogOffHeapMemoryManager newMemoryManager() {
+		return new CatalogOffHeapMemoryManager(CATALOG_NAME, 1024, REGION_COUNT, ChecksumFactory.NO_OP);
+	}
+
+	/**
+	 * Creates a WAL reference to isolated WAL contents held in a region of the given manager, the way an isolated WAL
+	 * kept in off-heap memory hands its contents over to the pipeline.
+	 *
+	 * @param memoryManager the manager to acquire the region from
+	 * @return the reference, whose closing releases the region
+	 */
+	@Nonnull
+	private static OffHeapWithFileBackupReference newOffHeapWalReference(
+		@Nonnull CatalogOffHeapMemoryManager memoryManager
+	) {
+		final OffHeapMemoryOutputStream region = memoryManager.acquireRegionOutputStream().orElseThrow();
+		assertEquals(REGION_COUNT - 1, memoryManager.getFreeRegions());
+		return OffHeapWithFileBackupReference.withByteBuffer(region.getByteBuffer(), 0, 0L, region::close);
+	}
+
+	/**
 	 * Builds a minimally populated commit task — the test only cares about the catalog-version
 	 * bookkeeping side-effects driven by the mocked `TransactionManager`, so mutation counts, WAL
 	 * size, and payloads are irrelevant.
 	 */
 	private static ConflictResolutionAndWalAppendingTransactionTask newTask() {
+		return newTask(new LogRecordReference() {});
+	}
+
+	/**
+	 * Builds a minimally populated commit task carrying the given WAL reference.
+	 *
+	 * @param walReference the reference to the isolated WAL contents of the transaction
+	 * @return the task
+	 */
+	@Nonnull
+	private static ConflictResolutionAndWalAppendingTransactionTask newTask(@Nonnull LogRecordReference walReference) {
 		final Set<ConflictKey> conflictKeys = Collections.emptySet();
-		final LogRecordReference walReference = new LogRecordReference() {};
 		return new ConflictResolutionAndWalAppendingTransactionTask(
 			CATALOG_NAME,
 			0L,

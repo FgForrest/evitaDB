@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -87,11 +88,15 @@ class AttributeNaturalTest {
 			assertEquals(ASC, constraint.getOrderDirection());
 		}
 
+		/**
+		 * An attribute name comes from the application, so a null one is a bug that must surface instead of dropping
+		 * the ordering.
+		 */
 		@Test
-		@DisplayName("should return null from factory when attribute name is null")
-		void shouldReturnNullFromFactoryWhenNameIsNull() {
-			assertNull(attributeNatural(null));
-			assertNull(attributeNatural(null, DESC));
+		@DisplayName("should reject a null attribute name")
+		void shouldRejectNullNameInFactory() {
+			assertThrows(EvitaInvalidUsageException.class, () -> attributeNatural(null));
+			assertThrows(EvitaInvalidUsageException.class, () -> attributeNatural(null, DESC));
 		}
 	}
 

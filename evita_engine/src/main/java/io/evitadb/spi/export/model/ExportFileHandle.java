@@ -68,7 +68,8 @@ public interface ExportFileHandle extends AutoCloseable {
 	 *
 	 * The future completes with a {@link FileForFetch} descriptor that can be used by higher
 	 * layers to make the file available for clients (e.g. HTTP download). If finalization fails,
-	 * the future completes exceptionally.
+	 * the future completes exceptionally. If the export is abandoned through {@link #discard()},
+	 * the future is cancelled.
 	 *
 	 * @return a future providing the {@link FileForFetch} once the file is ready
 	 */
@@ -96,6 +97,27 @@ public interface ExportFileHandle extends AutoCloseable {
 	 */
 	@Override
 	void close() throws IOException;
+
+	/**
+	 * Abandons an export that has not been closed yet.
+	 *
+	 * Closes the stream, removes its bytes without publishing the file, and cancels the future exposed by
+	 * {@link #fileForFetchFuture()}, so `isCancelled()` returns `true`. A later {@link #close()} does nothing.
+	 * Once closed or discarded, this method is a no-op returning `false`; a published file is retained.
+	 * This method never throws: cleanup failures are logged so the original failure remains visible.
+	 * A handle belongs to the thread writing it, so this method and {@link #close()} are not meant to race.
+	 *
+	 * @return `true` if the open export was discarded, `false` if it was already closed or discarded
+	 */
+	boolean discard();
+
+	/**
+	 * Returns this export's payload allowance, accounting for any backend metadata, and the configured storage limit.
+	 *
+	 * @return the largest file that can survive export storage purging, with its controlling configuration property
+	 */
+	@Nonnull
+	ExportFileSizeLimit sizeLimit();
 
 	/**
 	 * Output stream for writing the contents of the exported file.

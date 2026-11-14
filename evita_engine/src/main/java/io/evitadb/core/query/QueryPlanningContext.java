@@ -220,7 +220,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * The reference is NULL when the query is evaluated outside any session (WAL replay re-evaluating a facet
 	 * expression, for example) or when the passed session is not the internal {@link EvitaSession} implementation.
 	 * Everything that genuinely needs a session degrades gracefully in that case: {@link #analyse(Formula)} skips
-	 * the cache, {@link #isRequiresBinaryForm()} answers false and entity proxy creation throws.
+	 * the cache and entity proxy creation throws.
 	 */
 	@Getter
 	@Nullable private final EvitaSession evitaSession;
@@ -347,6 +347,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nullable
 	private Map<ScopedHierarchyFilter, Formula> rootHierarchyNodesFormula;
+	/**
+	 * Complete node formulas resolved by the hierarchy translators, indexed by source collection, constraint identity
+	 * and scope. Nested hierarchy predicates can translate filters of another collection in this same context.
+	 * Unlike the root-node memo, these formulas include every hierarchy modifier. Traverse planning reads them
+	 * after filter planning instead of resolving the hierarchy again or depending on index-selection candidates.
+	 */
+	@Nullable
+	private Map<ResolvedHierarchyNodesKey, Formula> resolvedHierarchyNodes;
+
 	/**
 	 * The predicates testing the facet groups against the group filters of the facet relation constraints, keyed by
 	 * the {@link FacetFilterBy} declaration the filter comes from - by its identity, not by equality. The request
@@ -506,8 +515,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Creates a session-optional context for internal index-only evaluation (e.g., facet expression re-evaluation
-	 * during WAL replay where no session is available). The session is nullable — cache analysis and binary format
-	 * checks gracefully degrade when absent. All other query planning features (indexes, schema, formula
+	 * during WAL replay where no session is available). The session is nullable — cache analysis gracefully degrades
+	 * when absent. All other query planning features (indexes, schema, formula
 	 * construction) work normally.
 	 *
 	 * No telemetry is collected by such a context - there is no client to report it to - and no {@link FinishedEvent}
@@ -621,11 +630,21 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	/**
 	 * Shortcut for {@link EvitaRequest#getScopes()}.
 	 *
-	 * @return set of requested scopes in the query
+	 * @return set of scopes searched by the query
 	 */
 	@Nonnull
 	public Set<Scope> getScopes() {
 		return this.evitaRequest.getScopes();
+	}
+
+	/**
+	 * Shortcut for {@link EvitaRequest#getRequestedScopes()}.
+	 *
+	 * @return scopes an `inScope` of the filter may name
+	 */
+	@Nonnull
+	public Set<Scope> getRequestedScopes() {
+		return this.evitaRequest.getRequestedScopes();
 	}
 
 	/**
@@ -1399,7 +1418,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		final RoaringBitmapWriter<PersistentRoaringBitmap> ownerWriter = RoaringBitmapBackedBitmap.buildWriter();
 		int virtualCount = 0;
 		// the split of each scope with a type index and where its materialized partitions start - kept so that a
-		// block-by-block ordering narrowed by the hierarchy option can build the virtual handles on demand
+		// traversal of resolved hierarchy bounds and implicit pick-first chains can build virtual handles on demand
 		final ReferencePartitionSplit[] scopeSplits = new ReferencePartitionSplit[scopes.size()];
 		final int[] scopeMaterializedStarts = new int[scopes.size()];
 		int scopeSplitCount = 0;
@@ -1989,15 +2008,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns true if session is switched to binary format output.
-	 *
-	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
-	 */
-	public boolean isRequiresBinaryForm() {
-		return this.evitaSession != null && this.evitaSession.isBinaryFormat();
-	}
-
-	/**
 	 * Method returns appropriate {@link EntityCollection} for the {@link #evitaRequest} or empty value.
 	 */
 	@Nonnull
@@ -2363,6 +2373,57 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		}
 	}
 
+
+	/**
+	 * Publishes the hierarchy translator's memoized node formula for one scope. The formula is already initialized
+	 * by the translator's cache, or is the empty formula when that scope has no tree.
+	 *
+	 * @param entitySchema the source collection whose reference or own hierarchy the occurrence addresses
+	 * @param constraint the translated hierarchy occurrence
+	 * @param scope the scope whose tree was resolved
+	 * @param nodes the complete resolved node formula, including the constraint's modifiers
+	 */
+	public void setResolvedHierarchyNodes(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull HierarchyFilterConstraint constraint,
+		@Nonnull Scope scope,
+		@Nonnull Formula nodes
+	) {
+		if (this.resolvedHierarchyNodes == null) {
+			this.resolvedHierarchyNodes = new HashMap<>();
+		}
+		this.resolvedHierarchyNodes.putIfAbsent(
+			new ResolvedHierarchyNodesKey(
+				entitySchema.getName(), new ConstraintScopeCacheKey(constraint, Set.of(scope))
+			),
+			nodes
+		);
+	}
+
+	/**
+	 * Returns the nodes already resolved for a hierarchy occurrence in one scope. A missing resolution is a planning
+	 * error: filtering must resolve every conjunctive hierarchy occurrence before traversal partitions are selected.
+	 *
+	 * @param entitySchema the source collection of the ordered reference
+	 * @param constraint the hierarchy occurrence bounding the traversal
+	 * @param scope the scope of the bounded owner partitions
+	 * @return the resolved nodes, possibly empty
+	 */
+	@Nonnull
+	public Bitmap getResolvedHierarchyNodes(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull HierarchyFilterConstraint constraint,
+		@Nonnull Scope scope
+	) {
+		final Formula nodes = this.resolvedHierarchyNodes == null ? null :
+			this.resolvedHierarchyNodes.get(
+				new ResolvedHierarchyNodesKey(
+					entitySchema.getName(), new ConstraintScopeCacheKey(constraint, Set.of(scope))
+				)
+			);
+		Assert.isPremiseValid(nodes != null, "Hierarchy nodes must be resolved before traverse planning!");
+		return nodes.compute();
+	}
 
 	/**
 	 * Sets resolved hierarchy root nodes formula of one occurrence of a hierarchy filter constraint, to be shared among
@@ -3263,7 +3324,21 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	private static final Object NULL_DECISION = new Object();
 
 	/**
-	 * Key of {@link #constraintScopeCache}. The constraint is compared by identity, not by value, and the scope set
+	 * Identifies the source collection and hierarchy occurrence of a resolved node formula. The source collection
+	 * matters when a nested hierarchy predicate translates a filter using this context with a foreign schema.
+	 *
+	 * @param entityType the source collection whose hierarchy or reference the occurrence addresses
+	 * @param occurrence the constraint identity and its resolved scope
+	 */
+	private record ResolvedHierarchyNodesKey(
+		@Nonnull String entityType,
+		@Nonnull ConstraintScopeCacheKey occurrence
+	) {
+	}
+
+	/**
+	 * Key of {@link #constraintScopeCache} and {@link #resolvedHierarchyNodes}. The constraint is compared by
+	 * identity, not by value, and the scope set
 	 * is part of the key because the same constraint is planned under different scope sets when index selection
 	 * explores alternatives.
 	 *

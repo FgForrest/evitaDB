@@ -52,6 +52,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeU
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaAcceleratedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNormalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaConflictResolutionMutation;
@@ -280,6 +281,17 @@ class WalSerializationServiceTest {
 		assertArrayEquals(
 			substringInLive, roundTrip(walKryo, globalAttributeMutation).getAcceleratorsInScopes()
 		);
+	}
+
+	/** Existing WAL ids must survive independently appended fulltext mutations. */
+	@Test
+	@Tag(SERIALIZATION)
+	@Tag(SCHEMA)
+	@DisplayName("should preserve the normalization WAL id when adding searchable associated data")
+	void shouldPreserveNormalizationRegistrationId() {
+		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+		assertEquals(519, walKryo.getRegistration(SetAttributeSchemaNormalizedMutation.class).getId());
+		assertEquals(520, walKryo.getRegistration(SetAssociatedDataSchemaSearchableMutation.class).getId());
 	}
 
 	@Test

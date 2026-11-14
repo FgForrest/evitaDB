@@ -115,8 +115,9 @@ public class CheckpointCoordinator implements PendingSyncRegistry, Closeable {
 	 * than to this class. Sharing one instance is what lets the round lock unconditionally while this class locks
 	 * around its own bookkeeping.
 	 *
-	 * This is a leaf lock - everything taken beneath it (write handle locks, the bootstrap write lock, the WAL lock)
-	 * is taken in the same order on both paths, and nothing beneath it reaches back here.
+	 * Everything taken beneath it (write handle locks, the bootstrap write lock, the WAL lock) is taken in the same
+	 * order on both paths. The only thing beneath it that takes it again is this class's own bookkeeping, reentrantly,
+	 * on the thread that already holds it.
 	 */
 	private final ReentrantLock checkpointLock;
 	/**
@@ -150,7 +151,7 @@ public class CheckpointCoordinator implements PendingSyncRegistry, Closeable {
 	 *
 	 * Accumulated rather than overwritten, and atomic rather than two fields, because the fence is reached from more
 	 * threads than the checkpoint path: it sits inside the one method that writes a bootstrap record, so a schema
-	 * update, a restore, a rename or a compaction reaches it without holding {@link #checkpointLock}. Overwriting
+	 * update, a restore or a compaction reaches it without holding {@link #checkpointLock}. Overwriting
 	 * would let one of those publish its numbers as the checkpoint's own, and two separate fields could be read as a
 	 * mismatched pair. Summing is also the more truthful measure: an interval legitimately contains several forces,
 	 * and their total is what the device actually cost.

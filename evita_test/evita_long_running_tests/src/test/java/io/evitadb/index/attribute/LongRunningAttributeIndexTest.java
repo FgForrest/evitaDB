@@ -55,7 +55,6 @@ import java.util.TreeSet;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -141,7 +140,6 @@ class LongRunningAttributeIndexTest implements TimeBoundedTestSupport {
 	 * and no committed value was published.
 	 */
 	@ParameterizedTest(name = "AttributeIndex rollback discards every in-transaction mutation and leaves the base intact")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTest(GenerationalTestInput input) {

@@ -38,12 +38,17 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStor
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
-import java.util.Map;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.store.index.serializer.SortIndexStoragePartSerializer_2026_1.attributeBlockLengthsOrNull;
+
 
 /**
- * This {@link Serializer} implementation reads/writes {@link SortIndex} from/to binary format.
+ * Reads the released 2025.5 binary format of {@link SortIndex}, bridging the older attribute-key dictionary.
+ *
+ * Sparse cardinality entries retain released representation identity, independently of their map iteration order,
+ * and are passed to the migration as dense positional block lengths when exact attribution is possible, as in
+ * {@link SortIndexStoragePartSerializer_2026_1}. Otherwise the original sparse columns survive for the existing
+ * conditional loss warning.
  *
  * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -95,7 +100,8 @@ public class SortIndexStoragePartSerializer_2025_5 extends Serializer<SortIndexS
 		}
 
 		final int cardinalityCount = input.readVarInt(true);
-		final Map<Serializable, Integer> cardinalities = createHashMap(cardinalityCount);
+		final Serializable[] cardinalityValues = new Serializable[cardinalityCount];
+		final int[] cardinalities = new int[cardinalityCount];
 		for (int i = 0; i < cardinalityCount; i++) {
 			final Serializable value;
 			if (comparatorBaseLength == 1) {
@@ -109,13 +115,17 @@ public class SortIndexStoragePartSerializer_2025_5 extends Serializer<SortIndexS
 				}
 				value = new ComparableArray(comparableArray);
 			}
-			cardinalities.put(
-				value, input.readVarInt(true)
-			);
+			cardinalityValues[i] = value;
+			cardinalities[i] = input.readVarInt(true);
 		}
 
+		final int[] blockLengths = attributeBlockLengthsOrNull(
+			sortedRecordValues, cardinalityValues, cardinalities, sortedRecordCount
+		);
 		return new SortIndexStoragePart(
-			entityIndexPrimaryKey, attributeKey, comparatorBase, sortedRecords, sortedRecordValues, cardinalities, uniquePartId
+			entityIndexPrimaryKey, attributeKey, comparatorBase, sortedRecords,
+			sortedRecordValues, blockLengths == null ? cardinalityValues : sortedRecordValues,
+			blockLengths == null ? cardinalities : blockLengths, 0, uniquePartId
 		);
 	}
 

@@ -294,40 +294,6 @@ public class Entity implements SealedEntity {
 	 */
 	@Nonnull
 	public static Entity _internalBuild(
-		@Nullable Integer primaryKey,
-		@Nullable Integer version,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable Integer parent,
-		@Nonnull References references,
-		@Nonnull EntityAttributes attributes,
-		@Nonnull AssociatedData associatedData,
-		@Nonnull Prices prices,
-		@Nonnull Set<Locale> locales,
-		boolean dropped
-	) {
-		return new Entity(
-			ofNullable(version).orElse(1),
-			entitySchema,
-			primaryKey,
-			parent,
-			references,
-			attributes,
-			associatedData,
-			prices,
-			locales,
-			Scope.DEFAULT_SCOPE,
-			dropped
-		);
-	}
-
-	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
-	 * package than current, but still internal code of the Evita ecosystems.
-	 *
-	 * Do not use this method from in the client code!
-	 */
-	@Nonnull
-	public static Entity _internalBuild(
 		int primaryKey,
 		int version,
 		@Nonnull EntitySchemaContract schema,

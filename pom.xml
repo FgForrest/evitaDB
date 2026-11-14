@@ -140,7 +140,7 @@
 		<jackson.version>2.22.4</jackson.version>
 		<jackson.annotations.version>2.22</jackson.annotations.version>
 		<snakeyaml.version>2.7</snakeyaml.version>
-		<roaringbitmap.version>1.6.23</roaringbitmap.version>
+		<roaringbitmap.version>1.6.29</roaringbitmap.version>
 		<junit.jupiter.version>6.1.3</junit.jupiter.version>
 		<!--
 			Deliberately frozen, and NOT a candidate for routine bumps (see the `ignore` entry in
@@ -156,14 +156,15 @@
 		<maven.compiler.version>3.16.0</maven.compiler.version>
 		<maven.toolchains.version>3.3.0</maven.toolchains.version>
 		<lombok.version>1.18.46</lombok.version>
-		<grpc.version>1.84.0</grpc.version>
+		<grpc.version>1.85.1</grpc.version>
 		<bouncyCastle.version>1.86</bouncyCastle.version>
 		<swagger.version>2.2.55</swagger.version>
-		<armeria.version>1.42.0</armeria.version>
+		<armeria.version>1.43.0</armeria.version>
 		<prometheus.version>1.10.0</prometheus.version>
-		<micrometer.version>1.17.1</micrometer.version>
-		<byteBuddy.version>1.18.16</byteBuddy.version>
+		<micrometer.version>1.17.2</micrometer.version>
+		<byteBuddy.version>1.18.17</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
+		<caffeine.version>3.3.1</caffeine.version>
 		<okhttp.version>5.5.0</okhttp.version>
 		<opentelemetry.version>1.67.0</opentelemetry.version>
 		<opentelemetry.semconv.version>1.43.0</opentelemetry.semconv.version>
@@ -362,7 +363,7 @@
 			<dependency>
 				<groupId>com.google.guava</groupId>
 				<artifactId>guava</artifactId>
-				<version>33.6.0-jre</version>
+				<version>33.7.2-jre</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.commons</groupId>
@@ -408,6 +409,17 @@
 				<groupId>org.bouncycastle</groupId>
 				<artifactId>bcutil-jdk18on</artifactId>
 				<version>${bouncyCastle.version}</version>
+			</dependency>
+			<!--
+				Force snappy-java past the 1.1.10.7 that io.minio:minio 8.6.0 drags in transitively
+				(GHSA-gwq9-9ffj-mvrv, GHSA-q233-g92q-qxp6, GHSA-xqrx-qh46-34m7). MinIO only touches it in
+				uploadSnowballObjects, which evitaDB never calls. Drop this pin with the move to MinIO 9.x, which
+				brings 1.1.10.12 itself.
+			-->
+			<dependency>
+				<groupId>org.xerial.snappy</groupId>
+				<artifactId>snappy-java</artifactId>
+				<version>1.1.10.12</version>
 			</dependency>
 			<!--
 				Ground truth for every heap-footprint estimate in the codebase - `MemoryMeasuringConstants`,
@@ -551,7 +563,10 @@
 		</profile>
 		<profile>
 			<!--
-				Default fast-loop profile: runs everything that is not slow/flaky.
+				Default fast-loop profile: runs every test of the reactor modules that do
+				not skip their own. Slow tests are not tagged; they live in
+				`evita_test/evita_long_running_tests`, whose tests run only under the
+				`longRunning` profile.
 				The documentation tests live in their own module
 				(`evita_test/evita_documentation_tests`) and are skipped by default
 				there, so no path-based exclusion is needed here. With the new tag
@@ -565,7 +580,6 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<excludedGroups>slow,flaky</excludedGroups>
 							<parallel>all</parallel>
 							<useUnlimitedThreads>${surefire.useUnlimitedThreads}</useUnlimitedThreads>
 							<threadCount>${surefire.threadCount}</threadCount>
@@ -582,7 +596,6 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<excludedGroups>slow,flaky</excludedGroups>
 							<parallel>all</parallel>
 							<useUnlimitedThreads>${surefire.useUnlimitedThreads}</useUnlimitedThreads>
 							<threadCount>${surefire.threadCount}</threadCount>
@@ -742,7 +755,7 @@
 					-->
 					<groupId>io.github.git-commit-id</groupId>
 					<artifactId>git-commit-id-maven-plugin</artifactId>
-					<version>10.0.0</version>
+					<version>10.0.1</version>
 					<executions>
 						<execution>
 							<id>get-the-git-infos</id>
@@ -796,7 +809,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.5.5</version>
+				<version>3.6.1</version>
 				<configuration>
 					<forkCount>1</forkCount>
 					<reuseForks>true</reuseForks>

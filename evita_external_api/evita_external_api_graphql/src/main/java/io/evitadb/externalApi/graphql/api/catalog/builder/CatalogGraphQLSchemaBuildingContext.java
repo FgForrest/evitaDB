@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.builder;
 import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -44,6 +45,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
@@ -101,7 +103,19 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 		final CatalogContract catalogContract = evita
 			.getCatalogInstance(catalog.getName())
 			.orElseThrow(() -> new CatalogNotFoundException(catalog.getName()));
-		this.entitySchemas = catalogContract.getSchema().getEntitySchemas();
+		// the order decides which collection becomes the template of the shared hashed reference types, so it must not
+		// depend on HashMap capacity (which differs between boot and commit) - the primary key of a collection only grows
+		this.entitySchemas = catalogContract.getSchema().getEntitySchemas()
+			.stream()
+			.sorted(
+				Comparator.comparingInt((EntitySchemaContract it) ->
+						catalogContract.getCollectionForEntity(it.getName())
+							.map(EntityCollectionContract::getEntityTypePrimaryKey)
+							.orElse(Integer.MAX_VALUE)
+					)
+					.thenComparing(EntitySchemaContract::getName)
+			)
+			.toList();
 		for (EntitySchemaContract entitySchema : this.entitySchemas) {
 			this.supportedLocales.addAll(entitySchema.getLocales());
 			this.supportedCurrencies.addAll(entitySchema.getCurrencies());

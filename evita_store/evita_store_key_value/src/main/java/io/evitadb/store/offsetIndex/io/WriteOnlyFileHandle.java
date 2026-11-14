@@ -420,7 +420,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			throw new UnexpectedIOException(operation + " within timeout!");
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new GenericEvitaInternalError(operation + " due to interrupt!");
+			throw new GenericEvitaInternalError(operation + " due to interrupt!", e);
 		}
 	}
 
@@ -446,7 +446,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			throw new UnexpectedIOException(operation + " within timeout!");
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new GenericEvitaInternalError(operation + " due to interrupt!");
+			throw new GenericEvitaInternalError(operation + " due to interrupt!", e);
 		}
 	}
 
@@ -472,7 +472,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			throw new UnexpectedIOException(operation + " within timeout!");
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new GenericEvitaInternalError(operation + " due to interrupt!");
+			throw new GenericEvitaInternalError(operation + " due to interrupt!", e);
 		}
 	}
 
@@ -496,7 +496,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			this.handleLock.lockInterruptibly();
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new GenericEvitaInternalError("Failed to close file due to interrupt!");
+			throw new GenericEvitaInternalError("Failed to close file due to interrupt!", e);
 		}
 		// released only once acquired: unlocking after an interrupted wait would throw IllegalMonitorStateException
 		// and hide the error above

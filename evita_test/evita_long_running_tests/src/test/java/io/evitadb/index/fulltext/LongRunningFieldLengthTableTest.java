@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -109,7 +108,6 @@ class LongRunningFieldLengthTableTest implements TimeBoundedTestSupport {
 
 	@DisplayName("survives a block steered across both layout thresholds by chained commits")
 	@ParameterizedTest(name = "FieldLengthTable should survive generational randomized churn against a map oracle")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(@Nonnull GenerationalTestInput input) {
@@ -155,8 +153,7 @@ class LongRunningFieldLengthTableTest implements TimeBoundedTestSupport {
 
 	@DisplayName("survives a block steered across both layout thresholds outside a transaction")
 	@ParameterizedTest(name = "FieldLengthTable should survive non-transactional (warm-up) churn against a map oracle")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
+		@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalWarmUpProofTest(@Nonnull GenerationalTestInput input) {
 		final TestState last = runFor(
 			input,

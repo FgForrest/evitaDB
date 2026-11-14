@@ -390,15 +390,19 @@ public class DefaultCatalogPersistenceService
 	/**
 	 * Serialises a trunk round's end-of-round processing against a checkpoint driven from any other thread - the
 	 * ticker, a backup or an integrity check. Both advance the catalog offset index and may write a bootstrap record,
-	 * and a record naming version `V` must not be built from an index that has already absorbed `V+1`.
+	 * and a record naming version `V` must not be built from an index that has already absorbed `V+1`. A relabel takes
+	 * it too, so that none of those checkpoints can land behind its record: see {@link #publishRelabelledHeader}.
 	 *
 	 * Lives here rather than on {@link CheckpointCoordinator} because the state it guards is this service's -
 	 * {@link #deferredCheckpointBootstrap}, {@link #bootstrapUsed} and the catalog offset index. The coordinator is
 	 * handed the same instance so both paths take one lock, and it exists even when there is no coordinator, which
 	 * is what lets {@link #storeHeader} lock unconditionally instead of branching.
 	 *
-	 * This is a leaf lock: {@link #bootstrapWriteLock}, {@link #cpsvLock} and the write-handle locks are all taken
-	 * beneath it, in that same order on every path, and nothing beneath it reaches back here.
+	 * This is the outermost lock of this class, never acquired while another of them is held.
+	 * {@link #bootstrapWriteLock}, {@link #cpsvLock} and the write-handle locks are all taken beneath it, in that same
+	 * order on every path, and so is {@link #historyHorizonLock}, by the statistics read at the end of
+	 * {@link #storeHeader}. The only thing beneath it that takes it again is the coordinator, reentrantly, on the
+	 * thread that already holds it.
 	 */
 	private final ReentrantLock checkpointLock = new ReentrantLock();
 	/**
@@ -442,20 +446,34 @@ public class DefaultCatalogPersistenceService
 	 */
 	private final ObsoleteFileMaintainer obsoleteFileMaintainer;
 	/**
-	 * Retirements of WARM_UP data files whose superseding bootstrap record has not been published yet.
+	 * Retirements of data files whose superseding bootstrap record has not been published yet, in the order they were
+	 * scheduled.
 	 *
-	 * In warm-up the maintainer purges eagerly - there are no catalog versions to hold a file against - but the file
-	 * a compaction supersedes is still named by the CURRENTLY published bootstrap record, and that record is only
-	 * replaced at the end of the round. Deleting inside the round therefore unlinks a file the published pointer
-	 * chain still reaches, and a crash before publication leaves a catalog that cannot be loaded at all. Retirement
-	 * is a **confirm-phase** action: it is parked here and released by {@link #writeCatalogBootstrap} once the
-	 * superseding record is durable.
+	 * A file a round supersedes - by compacting it, relabelling its collection or dropping it - is still named by the
+	 * CURRENTLY published bootstrap record, and that record is only replaced once the round's own record is written.
+	 * That is far later than the end of the round whenever the checkpoint is deferred, and in warm-up the maintainer
+	 * would purge at once. Deleting any earlier unlinks a file the published pointer chain still reaches, and a crash
+	 * before publication leaves a catalog that cannot be loaded at all. Retirement is a **confirm-phase** action: it
+	 * is parked here, tagged with the version of the round that scheduled it, and released by
+	 * {@link #writeCatalogBootstrap} once a record at or above that version is durable. The tag matters because a
+	 * checkpoint can be published from another thread while a newer round is already parked: that record does not
+	 * yet supersede the newer round's files, so it must not release them.
+	 *
+	 * **The queue is ordered by round version, and the release depends on it**: it stops at the first entry whose round
+	 * is newer than the record just written. Rounds run one after another under {@link #checkpointLock} and every
+	 * retirement of a round carries that round's version, so the order holds; a caller that retired a file on behalf
+	 * of an older round after a newer one would delay its release to the next publication, never release it early.
 	 *
 	 * A round that never publishes leaves its entries parked - the next successful publication drains them, and
-	 * {@link #close()} drops them unrun, because a file the last published record still names must survive the
-	 * process that failed to supersede it.
+	 * {@link #close()} drops them unrun once the final checkpoint has had its chance, because a file the last
+	 * published record still names must survive the process that failed to supersede it.
 	 */
-	@Nonnull private final Queue<Runnable> unpublishedRetirements = new ConcurrentLinkedQueue<>();
+	@Nonnull private final Queue<ParkedRetirement> unpublishedRetirements = new ConcurrentLinkedQueue<>();
+	/**
+	 * The version the latest retirement was handed to the {@link ObsoleteFileMaintainer} with. Touched only under
+	 * {@link #bootstrapWriteLock}.
+	 */
+	private long lastHandedOverVersion;
 	/**
 	 * The single callback through which the history horizon is applied to the files on disk. It is a no-op unless
 	 * {@link StorageOptions#timeTravelEnabled()} is set - without time travel the files are deleted as soon as their
@@ -480,9 +498,12 @@ public class DefaultCatalogPersistenceService
 	 * rather than best-effort.
 	 *
 	 * Lock order: {@link #bootstrapWriteLock} and {@link #cpsvLock} are taken beneath it, by way of
-	 * {@link #trimBootstrapFile(long)}. It is never taken while any other lock of this class is held - notably not
-	 * from the commit thread's {@link #retireDataFile}, which runs under {@link #cpsvLock} and only ever *schedules*
-	 * the guard rather than driving it. {@link #checkpointLock} and this one are disjoint: no path takes both.
+	 * {@link #trimBootstrapFile(long)}. It is taken beneath only two other locks of this class:
+	 * {@link #checkpointLock}, by the statistics read {@link #computeRetainedHistoryBytes()} at the end of
+	 * {@link #storeHeader}, and {@link #walWriteLock}, when {@link #close()} closes a log that still has rotated-out
+	 * files to report. Neither of those two is ever taken while this one is held, so these edges form no cycle. It is
+	 * notably not taken from the commit thread's {@link #retireDataFile}, which runs under {@link #cpsvLock} and only
+	 * ever *schedules* the guard rather than driving it.
 	 * Moving the floor readers under this lock introduced no new edge - session close already took it a few
 	 * statements later through {@link #retentionStateChanged()}.
 	 */
@@ -2686,7 +2707,8 @@ public class DefaultCatalogPersistenceService
 		return currentCatalogHeader
 			.getEntityTypeFileIndexIfExists(entityHeader.entityType())
 			.map(
-				previous -> previous.fileIndex() != entityHeader.entityTypeFileIndex() ||
+				previous -> previous.entityTypePrimaryKey() != entityHeader.entityTypePrimaryKey() ||
+					previous.fileIndex() != entityHeader.entityTypeFileIndex() ||
 					!Objects.equals(previous.fileLocation(), entityHeader.fileLocation())
 			)
 			.orElse(true);
@@ -2785,7 +2807,9 @@ public class DefaultCatalogPersistenceService
 				);
 			storagePartPersistenceService.writeCatalogHeader(
 				STORAGE_PROTOCOL_VERSION,
-				currentCatalogHeader.version(),
+				// the version of the round, not the one of the header found: the round's own header is stored only
+				// after this runs, so the header found here still carries the version of the round before it
+				catalogVersion,
 				this.catalogStoragePath,
 				currentCatalogHeader.walFileReference(),
 				newEntityHeaders,
@@ -2973,7 +2997,7 @@ public class DefaultCatalogPersistenceService
 		// service nor starting the work: it is the folder's stored identity ceasing to agree with engine state.
 		//
 		// The schema part written just above is what first commits that identity to the folder. It is not yet
-		// on disk - `recordBootstrap` below flushes the offset index and forces the pending syncs at its fence
+		// on disk - `publishRelabelledHeader` below flushes the offset index and forces the pending syncs at its fence
 		// - but it does not need to be, because the offset index keeps it as a non-flushed value that the very
 		// next transaction or checkpoint will publish on our behalf. So from the moment that put *returns*,
 		// the relabel is going to reach disk whether this operation finishes or not, and a failure after it
@@ -2996,44 +3020,10 @@ public class DefaultCatalogPersistenceService
 		// Only this layer knows where that line falls, so only this layer can draw it; the engine's part is to
 		// stop compensating when it sees the marker and declare the catalog unusable until a restart.
 		try {
-			storagePartPersistenceService.writeCatalogHeader(
-				STORAGE_PROTOCOL_VERSION,
-				newCatalogVersion,
-				this.catalogStoragePath,
-				catalogHeader.walFileReference(),
-				catalogHeader.collectionFileIndex(),
-				catalogHeader.catalogId(),
-				catalogNameToBeReplaced,
-				catalogHeader.catalogState(),
-				catalogHeader.lastEntityCollectionPrimaryKey()
-			);
-
-			// the bootstrap keeps being written under the prefix the folder's files already carry - the files are
-			// not renamed, so naming this record after the incoming catalog would address a `<newName>.boot` that
-			// does not exist and leave the real one holding a stale pointer
-			recordBootstrap(
-				newCatalogVersion,
-				this.storagePrefix,
-				this.bootstrapUsed.catalogFileIndex(),
+			publishRelabelledHeader(
+				storagePartPersistenceService, catalogHeader, newCatalogVersion, catalogNameToBeReplaced,
 				dataStoreMemoryBuffer
 			);
-
-			// A checkpoint owed by an earlier round still holds a prepared record addressing the root as it was BEFORE
-			// the header written above, and `close` below publishes whatever is owed. The bootstrap file is read back
-			// by position - `getLastCatalogBootstrapWithAutomaticUpgrade` takes the last record in the file, whatever
-			// version it names - so that older pointer would land after the one just written and the service reopened
-			// at the end of this method would load the catalog under the name it had before the rename. Discarding it
-			// is right on the merits rather than merely expedient: the record written above already did everything the
-			// owed checkpoint would have, since `recordBootstrap` flushes the offset index and forces the pending syncs
-			// at the fence inside `writeCatalogBootstrap` - which is also where the time travel size guard is
-			// scheduled, so the history this record reveals is still accounted for and the discard drops a duplicate
-			// publication rather than the bookkeeping that rides along with it. The field is only ever set together
-			// with the coordinator's own debt, so it is the exact condition, and settling it keeps the cadence gauge
-			// honest - reporting a completion when nothing was owed would fill it with samples no checkpoint produced.
-			if (this.deferredCheckpointBootstrap != null) {
-				this.deferredCheckpointBootstrap = null;
-				Objects.requireNonNull(this.checkpointCoordinator).noteCheckpointCompleted();
-			}
 
 			// The operation is a fixed amount of work now that nothing is copied or moved, so there is no meaningful
 			// intermediate progress to report - but the terminal tick still has to arrive, or a client tracking
@@ -3071,16 +3061,16 @@ public class DefaultCatalogPersistenceService
 			.orElseThrow(
 				() -> new CollectionNotFoundException(
 					entityType));
-		final CollectionFileReference newEntityTypeExistingFileReference = catalogHeader.getEntityTypeFileIndexIfExists(
-				newEntityType)
-			.orElseGet(
-				() -> new CollectionFileReference(
-					newEntityType,
-					entityTypePrimaryKey,
-					replacedEntityTypeFileReference.fileIndex() + 1,
-					null
-				));
-		final CollectionFileReference newEntityTypeFileIndex = newEntityTypeExistingFileReference.incrementAndGet();
+		// The file is named after the collection's own primary key and continues its own generations. Deriving it from
+		// whichever collection currently carries the new name - as a replace once did - names the file after a
+		// different collection, which is wrong as soon as that collection is itself being renamed in the same
+		// transaction (a swap, a chain) or is gone from the header already.
+		final CollectionFileReference newEntityTypeFileIndex = new CollectionFileReference(
+			newEntityType,
+			entityTypePrimaryKey,
+			replacedEntityTypeFileReference.fileIndex() + 1,
+			null
+		);
 		final Path newFilePath = newEntityTypeFileIndex.toFilePath(this.catalogStoragePath);
 
 		final DefaultEntityCollectionPersistenceService entityPersistenceService = this.entityCollectionPersistenceServices.get(
@@ -3131,6 +3121,7 @@ public class DefaultCatalogPersistenceService
 			}
 		);
 		retireDataFile(
+			catalogVersion,
 			catalogVersion - 1L,
 			replacedEntityTypeFileReference.toFilePath(this.catalogStoragePath),
 			() -> removeEntityCollectionPersistenceServiceAndClose(replacedEntityTypeFileReference)
@@ -3150,6 +3141,7 @@ public class DefaultCatalogPersistenceService
 			entityCollectionHeader.fileLocation()
 		);
 		retireDataFile(
+			catalogVersion,
 			catalogVersion - 1L,
 			collectionFileReference.toFilePath(this.catalogStoragePath),
 			() -> removeEntityCollectionPersistenceServiceAndClose(collectionFileReference)
@@ -3898,7 +3890,6 @@ public class DefaultCatalogPersistenceService
 			// the round that would have superseded them never published. Dropping them unrun leaves the compacted
 			// generation as dead space and keeps the catalog loadable; running them would delete the very files a
 			// reload follows.
-			this.unpublishedRetirements.clear();
 			// the guard only ever reads and reclaims history, and the flag above has fenced it out by now
 			if (this.timeTravelSizeGuardTask != null) {
 				IOUtils.closeQuietly(this.timeTravelSizeGuardTask::close);
@@ -3940,6 +3931,9 @@ public class DefaultCatalogPersistenceService
 				}
 				IOUtils.closeQuietly(this.checkpointCoordinator::close);
 			}
+			// dropped only now: the final checkpoint above releases the retirements its record supersedes, and what
+			// is still parked after it belongs to rounds that never published
+			this.unpublishedRetirements.clear();
 			// close WAL
 			final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
 			if (theCatalogWal != null) {
@@ -4277,6 +4271,95 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
+	 * Publishes a relabel: writes the catalog header carrying the incoming name, appends a bootstrap record pointing at
+	 * it and settles any checkpoint an earlier round still owes.
+	 *
+	 * Runs under {@link #checkpointLock}, because the record written here has to stay the last one in the bootstrap
+	 * file, which is read back by position. The ticker publishes the record it owes from another thread, and without
+	 * the lock a ticker arriving while this thread forces the device flushes at the fence picks that record up, queues
+	 * on {@link #bootstrapWriteLock} and writes it behind this one. Both records name the same version, so the version
+	 * cannot tell them apart, and the service reopened by {@link #replaceWith} finds the former name in the header.
+	 * `CatalogHandoverCheckpointRaceTest` forces that interleaving and fails when the lock is dropped.
+	 *
+	 * The lock ends here rather than around the whole handover because no checkpoint has anything left to publish by
+	 * then: the debt is settled, so a ticker or a backup that waited for the lock finds nothing owed, and so does
+	 * {@link #close()}.
+	 *
+	 * @param storagePartPersistenceService the persistence service of the catalog offset index
+	 * @param catalogHeader                 the header being relabelled
+	 * @param newCatalogVersion             the version the header and the bootstrap record are written at
+	 * @param catalogNameToBeReplaced       the incoming name of the catalog
+	 * @param dataStoreMemoryBuffer         the buffer the catalog offset index is flushed through
+	 */
+	private void publishRelabelledHeader(
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
+		long newCatalogVersion,
+		@Nonnull String catalogNameToBeReplaced,
+		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer
+	) {
+		this.checkpointLock.lock();
+		try {
+			storagePartPersistenceService.writeCatalogHeader(
+				STORAGE_PROTOCOL_VERSION,
+				newCatalogVersion,
+				this.catalogStoragePath,
+				catalogHeader.walFileReference(),
+				catalogHeader.collectionFileIndex(),
+				catalogHeader.catalogId(),
+				catalogNameToBeReplaced,
+				catalogHeader.catalogState(),
+				catalogHeader.lastEntityCollectionPrimaryKey()
+			);
+
+			// the bootstrap keeps being written under the prefix the folder's files already carry - the files are
+			// not renamed, so naming this record after the incoming catalog would address a `<newName>.boot` that
+			// does not exist and leave the real one holding a stale pointer
+			// Built on the newest record there is, written or deferred - a compaction inside a deferred round bumped
+			// the file index in that record while `bootstrapUsed` still names the file from before it, and a record
+			// built on the older one publishes that stale file index next to the new offset index location. It must
+			// not compact either: the relabel moves no data, and a compaction here would copy into a file name that
+			// a round at this very version (or the deferred one) already took.
+			final CatalogBootstrap deferredBootstrap = this.deferredCheckpointBootstrap;
+			writeCatalogBootstrap(
+				newCatalogVersion,
+				this.storagePrefix,
+				prepareBootstrap(
+					newCatalogVersion,
+					this.storagePrefix,
+					(deferredBootstrap == null ? this.bootstrapUsed : deferredBootstrap).catalogFileIndex(),
+					getNowEpochMillis(),
+					dataStoreMemoryBuffer,
+					false
+				)
+			);
+
+			// A checkpoint owed by an earlier round still holds a prepared record addressing the root as it was BEFORE
+			// the header written above, and the `close()` in `replaceWith` publishes whatever is owed. The bootstrap
+			// file is read back by position - `getLastCatalogBootstrapWithAutomaticUpgrade` takes the last record in
+			// the file, whatever version it names - so that older pointer would land after the one just written and
+			// the service reopened at the end of `replaceWith` would load the catalog under the name it had before the
+			// rename. Discarding it is right on the merits rather than merely expedient: the record written above
+			// already did what the owed checkpoint was for, since `prepareBootstrap` flushed the offset index and
+			// `writeCatalogBootstrap` forced the pending syncs at its fence - which is also where the time travel size
+			// guard is scheduled, so the history this record reveals is still accounted for and the discard drops a
+			// duplicate publication rather than the bookkeeping that rides along with it. Skipping `walProcessedUntil`
+			// is harmless: the marker only decides which rotated-out log files may be deleted, so at worst they stay on
+			// disk for longer, and the reopened service seeds its own marker from the version of this record. The
+			// field is only ever set together with the coordinator's own debt, so it is the exact condition, and
+			// settling it keeps the cadence gauge honest - reporting a completion when nothing was owed would fill it
+			// with samples no checkpoint produced. Holding `checkpointLock` is what makes the discard sound: no ticker
+			// or backup can have picked the record up between the write above and this line.
+			if (this.deferredCheckpointBootstrap != null) {
+				this.deferredCheckpointBootstrap = null;
+				Objects.requireNonNull(this.checkpointCoordinator).noteCheckpointCompleted();
+			}
+		} finally {
+			this.checkpointLock.unlock();
+		}
+	}
+
+	/**
 	 * Publishes the checkpoint a previous round deferred: writes the bootstrap record that round already built and
 	 * lets the write-ahead log know it may stop retaining everything up to it.
 	 *
@@ -4376,6 +4459,27 @@ public class DefaultCatalogPersistenceService
 		long timestamp,
 		@Nullable DataStoreMemoryBuffer dataStoreMemoryBuffer
 	) {
+		return prepareBootstrap(
+			catalogVersion, storagePrefix, catalogFileIndex, timestamp, dataStoreMemoryBuffer, true);
+	}
+
+	/**
+	 * Builds the bootstrap record, optionally forbidding the compaction of the catalog data file.
+	 *
+	 * @param allowCompaction `false` for a record written at an already flushed version that moves no data, such as
+	 *                        a catalog relabel: compaction registers a new offset index service under the version,
+	 *                        which is already taken there
+	 * @see #prepareBootstrap(long, String, int, long, DataStoreMemoryBuffer)
+	 */
+	@Nonnull
+	private CatalogBootstrap prepareBootstrap(
+		long catalogVersion,
+		@Nonnull String storagePrefix,
+		int catalogFileIndex,
+		long timestamp,
+		@Nullable DataStoreMemoryBuffer dataStoreMemoryBuffer,
+		boolean allowCompaction
+	) {
 		final OffsetDateTime bootstrapWriteTime = Instant.ofEpochMilli(timestamp)
 			.atZone(ZoneId.systemDefault())
 			.toOffsetDateTime();
@@ -4386,7 +4490,7 @@ public class DefaultCatalogPersistenceService
 		final boolean catalogIntervalElapsed = isCompactionIntervalElapsed(
 			getNowEpochMillis(), this.lastCatalogCompactionAtMillis, this.storageSettings.minCompactionIntervalMilliseconds()
 		);
-		if (shouldCompact(
+		if (allowCompaction && shouldCompact(
 			flushedDescriptor.getFileSize() > this.storageSettings.fileSizeCompactionThresholdBytes(),
 			flushedDescriptor.getActiveRecordShare(),
 			this.storageSettings.minimalActiveRecordShare(),
@@ -4522,21 +4626,39 @@ public class DefaultCatalogPersistenceService
 	 * @param removalLambda  lambda releasing the in-memory resources bound to the file
 	 */
 	private void retireDataFile(long catalogVersion, @Nonnull Path path, @Nonnull Runnable removalLambda) {
-		if (catalogVersion <= 0L) {
-			// WARM_UP. The maintainer would purge this immediately - it has no catalog version to hold the file
-			// against - but the record that supersedes this file is not published yet, so the file is still named by
-			// the pointer chain a reload would follow. Park it and let `writeCatalogBootstrap` release it; see
-			// `unpublishedRetirements`.
-			this.unpublishedRetirements.add(
-				() -> {
-					this.obsoleteFileMaintainer.removeFileWhenNotUsed(catalogVersion, path, removalLambda);
+		retireDataFile(catalogVersion, catalogVersion, path, removalLambda);
+	}
+
+	/**
+	 * Parks the retirement of a data file until the record superseding it is published.
+	 *
+	 * @param catalogVersion       version of the round that supersedes the file; the retirement is released by the
+	 *                             first record at or above it
+	 * @param lastVersionUsingFile the last catalog version that may still read the file
+	 * @param path                 path of the file being retired
+	 * @param removalLambda        lambda releasing the in-memory resources bound to the file
+	 */
+	private void retireDataFile(
+		long catalogVersion,
+		long lastVersionUsingFile,
+		@Nonnull Path path,
+		@Nonnull Runnable removalLambda
+	) {
+		// Always parked, never handed to the maintainer directly: the record that supersedes this file is not
+		// published yet, so the file is still named by the pointer chain a reload would follow. In warm-up the
+		// maintainer would purge it at once; in ALIVE it would purge it as soon as the last reader of an older
+		// version left - which with a deferred checkpoint is long before any record stops naming it. See
+		// `unpublishedRetirements`.
+		this.unpublishedRetirements.add(
+			new ParkedRetirement(
+				catalogVersion,
+				lastVersionUsingFile,
+				handedOverVersion -> {
+					this.obsoleteFileMaintainer.removeFileWhenNotUsed(handedOverVersion, path, removalLambda);
 					scheduleTimeTravelSizeGuard();
 				}
-			);
-		} else {
-			this.obsoleteFileMaintainer.removeFileWhenNotUsed(catalogVersion, path, removalLambda);
-			scheduleTimeTravelSizeGuard();
-		}
+			)
+		);
 	}
 
 	/**
@@ -4547,10 +4669,16 @@ public class DefaultCatalogPersistenceService
 	 * that failed before publishing simply leaves its entries parked for the next successful one - the files it
 	 * wrote are unreferenced dead space until then, which costs disk and never correctness.
 	 */
-	private void releaseUnpublishedRetirements() {
-		Runnable retirement;
-		while ((retirement = this.unpublishedRetirements.poll()) != null) {
-			retirement.run();
+	private void releaseUnpublishedRetirements(long publishedCatalogVersion) {
+		ParkedRetirement retirement;
+		while ((retirement = this.unpublishedRetirements.peek()) != null &&
+			retirement.roundVersion() <= publishedCatalogVersion) {
+			// only this thread removes, and it does so under the bootstrap write lock
+			this.unpublishedRetirements.poll();
+			// the maintainer keeps its list ordered by version, so a file that could be released a version earlier
+			// than the one handed over before it waits for that one instead - never the other way round
+			this.lastHandedOverVersion = Math.max(this.lastHandedOverVersion, retirement.lastVersionUsingFile());
+			retirement.action().accept(this.lastHandedOverVersion);
 		}
 	}
 
@@ -5364,7 +5492,7 @@ public class DefaultCatalogPersistenceService
 			// files this round wrote - and only now may the generation they superseded be unlinked. Deleting any
 			// earlier removes a file the previously published record still reaches, which no bootstrap write is
 			// needed to turn into an unloadable catalog.
-			releaseUnpublishedRetirements();
+			releaseUnpublishedRetirements(bootstrapRecord.catalogVersion());
 
 			return bootstrapRecord;
 		} catch (InterruptedException e) {
@@ -5472,6 +5600,11 @@ public class DefaultCatalogPersistenceService
 		if (catalogHeader.storageProtocolVersion() == STORAGE_PROTOCOL_VERSION) {
 			return storagePartPersistenceService;
 		} else {
+			if (catalogHeader.storageProtocolVersion() == 4 || catalogHeader.storageProtocolVersion() == 5) {
+				LegacyRepresentativeKeyPreflight.verifyBeforeMigrationChain(
+					catalogHeader, storagePartPersistenceService, this::createEntityCollectionPersistenceService
+				);
+			}
 			CatalogOffsetIndexStoragePartPersistenceService currentService = storagePartPersistenceService;
 			do {
 				final int catalogStorageProtocolVersion = catalogHeader.storageProtocolVersion();
@@ -6020,6 +6153,22 @@ public class DefaultCatalogPersistenceService
 			catalogBootstraps[1].timestamp()
 		);
 	}
+
+	/**
+	 * A data file retirement waiting for the bootstrap record that supersedes the file.
+	 *
+	 * @param roundVersion catalog version of the round that scheduled the retirement; a published record releases the
+	 *                     retirement once it names this version or a newer one
+	 * @param action       hands the file over to the {@link ObsoleteFileMaintainer}, given the last catalog version
+	 *                     that may still read the file at least; the version must not be lower than that of the
+	 *                     retirement handed over before it
+	 * @param lastVersionUsingFile the last catalog version that may still read the file
+	 */
+	private record ParkedRetirement(
+		long roundVersion,
+		long lastVersionUsingFile,
+		@Nonnull LongConsumer action
+	) {}
 
 	/**
 	 * DTO for passing the identified conflict in entity names for certain naming convention.

@@ -60,6 +60,8 @@ public class ModifyCatalogSchemaMutationTest {
 		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchema.class);
 		Mockito.when(catalogSchema.version()).thenReturn(1);
 		final GlobalAttributeSchema globalAttribute = Mockito.mock(GlobalAttributeSchema.class);
+		// the replacement takes the attribute out by its own name, which the contract never leaves null
+		Mockito.doReturn("someAttribute").when(globalAttribute).getName();
 		Mockito.doReturn(Integer.class).when(globalAttribute).getType();
 		Mockito.doReturn(FulltextAnalyzerSchemaContract.TEXT).when(globalAttribute).getAnalyzer();
 		Mockito.doReturn(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT).when(globalAttribute).getLengthPivot();

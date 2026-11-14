@@ -17,6 +17,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.EOFException;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.stream.Stream;
 
@@ -28,6 +32,36 @@ import java.util.stream.Stream;
 @Execution(ExecutionMode.CONCURRENT)
 @DisplayName("Util (low-level helpers)")
 public class TestUtil {
+
+	/**
+	 * Verifies that reads consume the requested bytes when `skipBytes` makes no progress.
+	 */
+	@Test
+	@DisplayName("skipFully consumes every requested byte when skipping makes no progress")
+	public void shouldSkipFullyWhenSkipBytesReturnsZero() throws IOException {
+		try (final DataInputStream input = new DataInputStream(
+			new ByteArrayInputStream(new byte[]{0, 1, 2, 3, 4}) {
+				@Override
+				public long skip(final long n) {
+					return 0;
+				}
+			})) {
+			Util.skipFully(input, 3);
+			assertEquals(3, input.readByte());
+		}
+	}
+
+	/**
+	 * Verifies that `skipFully` reports an input shorter than the requested skip.
+	 */
+	@Test
+	@DisplayName("skipFully throws EOFException when the input ends before the requested byte count")
+	public void shouldThrowExceptionWhenSkipFullyReachesEndOfInput() throws IOException {
+		try (final DataInputStream input = new DataInputStream(
+			new ByteArrayInputStream(new byte[]{0, 1}))) {
+			assertThrows(EOFException.class, () -> Util.skipFully(input, 3));
+		}
+	}
 
 	@Test
 	@DisplayName("Every extraction helper rejects two word arrays of different lengths")

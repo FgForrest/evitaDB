@@ -52,22 +52,6 @@ public enum GrpcSessionType
    * <code>READ_WRITE = 1;</code>
    */
   READ_WRITE(1),
-  /**
-   * <pre>
-   * Read only session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
-   * </pre>
-   *
-   * <code>BINARY_READ_ONLY = 2;</code>
-   */
-  BINARY_READ_ONLY(2),
-  /**
-   * <pre>
-   * Read write session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
-   * </pre>
-   *
-   * <code>BINARY_READ_WRITE = 3;</code>
-   */
-  BINARY_READ_WRITE(3),
   UNRECOGNIZED(-1),
   ;
 
@@ -87,22 +71,6 @@ public enum GrpcSessionType
    * <code>READ_WRITE = 1;</code>
    */
   public static final int READ_WRITE_VALUE = 1;
-  /**
-   * <pre>
-   * Read only session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
-   * </pre>
-   *
-   * <code>BINARY_READ_ONLY = 2;</code>
-   */
-  public static final int BINARY_READ_ONLY_VALUE = 2;
-  /**
-   * <pre>
-   * Read write session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
-   * </pre>
-   *
-   * <code>BINARY_READ_WRITE = 3;</code>
-   */
-  public static final int BINARY_READ_WRITE_VALUE = 3;
 
 
   public final int getNumber() {
@@ -131,8 +99,6 @@ public enum GrpcSessionType
     switch (value) {
       case 0: return READ_ONLY;
       case 1: return READ_WRITE;
-      case 2: return BINARY_READ_ONLY;
-      case 3: return BINARY_READ_WRITE;
       default: return null;
     }
   }
