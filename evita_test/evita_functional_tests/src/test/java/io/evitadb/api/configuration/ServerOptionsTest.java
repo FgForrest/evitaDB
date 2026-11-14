@@ -137,7 +137,8 @@ class ServerOptionsTest {
 				ServerOptions
 					.DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY,
 				null, null,
-				false, false, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING
+				false, false, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING,
+				ServerOptions.DEFAULT_MISSING_HISTOGRAM_VALUE_BEHAVIOR
 			);
 
 			assertNotNull(options.requestThreadPool());
@@ -162,7 +163,8 @@ class ServerOptionsTest {
 				ServerOptions
 					.DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY,
 				null, null,
-				false, false, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING
+				false, false, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING,
+				ServerOptions.DEFAULT_MISSING_HISTOGRAM_VALUE_BEHAVIOR
 			);
 
 			assertNotNull(options.changeDataCapture());
