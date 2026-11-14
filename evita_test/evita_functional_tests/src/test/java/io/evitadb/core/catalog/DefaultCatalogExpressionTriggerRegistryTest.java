@@ -43,6 +43,7 @@ import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.expression.trigger.HistogramValueSource;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
@@ -59,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -68,6 +70,7 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -1239,6 +1242,192 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 	}
 
 	/**
+	 * Verifies complete owner replacement, frozen owner sharing and refusal of inserts into another frozen owner.
+	 */
+	@Nested
+	@DisplayName("Local owner sharing on rebuild")
+	class LocalOwnerSharingOnRebuildTest {
+
+		/**
+		 * Both insertion paths must reject triggers for a frozen owner other than the owner being rebuilt, without
+		 * affecting any lookup of the original registry.
+		 */
+		@Test
+		@DisplayName("Should refuse triggers of an unchanged owner when rebuilding another owner")
+		void shouldRefuseTriggersOfUnchangedOwnerWhenRebuildingAnotherOwner() {
+			final List<ExpressionIndexTrigger> productTriggers = triggers(PRODUCT, PARAMETER_REF, "old");
+			final List<ExpressionIndexTrigger> brandTriggers = triggers(BRAND, BRAND_REF, "brand");
+			final CatalogExpressionTriggerRegistry original = registryOf(productTriggers, brandTriggers);
+
+			for (final ExpressionIndexTrigger trigger : triggers(BRAND, ALT_PARAMETER_REF, "replacement")) {
+				final GenericEvitaInternalError exception = assertThrows(GenericEvitaInternalError.class,
+					() -> original.rebuildForEntityType(PRODUCT, List.of(trigger)));
+				assertTrue(exception.getMessage().contains(BRAND));
+				assertLookups(original, PRODUCT, PARAMETER_REF, "old", productTriggers);
+				assertLookups(original, BRAND, BRAND_REF, "brand", brandTriggers);
+				assertNull(original.getLocalTrigger(BRAND, ALT_PARAMETER_REF, Scope.LIVE));
+				assertTrue(original.getLocalHistogramTriggers(BRAND, ALT_PARAMETER_REF, Scope.LIVE).isEmpty());
+			}
+		}
+
+		/**
+		 * An unchanged owner's returned sets and histogram collection retain identity across rebuilds. The rebuilt
+		 * owner exposes its replacement definitions and concurrent readers retain the original definitions.
+		 */
+		@Test
+		@DisplayName("Should share unchanged owner lookups while replacing the rebuilt owner")
+		void shouldShareUnchangedOwnerLookupsWhenReplacingRebuiltOwner() {
+			final List<ExpressionIndexTrigger> productTriggers = triggers(PRODUCT, PARAMETER_REF, "old");
+			final List<ExpressionIndexTrigger> brandTriggers = triggers(BRAND, BRAND_REF, "brand");
+			final List<ExpressionIndexTrigger> replacement = triggers(PRODUCT, ALT_PARAMETER_REF, "new");
+			final CatalogExpressionTriggerRegistry original = registryOf(productTriggers, brandTriggers);
+
+			final CatalogExpressionTriggerRegistry rebuilt = original.rebuildForEntityType(PRODUCT, replacement);
+
+			assertLookups(original, PRODUCT, PARAMETER_REF, "old", productTriggers);
+			assertLookups(rebuilt, PRODUCT, ALT_PARAMETER_REF, "new", replacement);
+			assertLookups(original, BRAND, BRAND_REF, "brand", brandTriggers);
+			assertLookups(rebuilt, BRAND, BRAND_REF, "brand", brandTriggers);
+			assertSame(original.getLocalTrigger(BRAND, BRAND_REF, Scope.LIVE),
+				rebuilt.getLocalTrigger(BRAND, BRAND_REF, Scope.LIVE));
+			assertSame(original.getLocalHistogramTriggers(BRAND, BRAND_REF, Scope.LIVE),
+				rebuilt.getLocalHistogramTriggers(BRAND, BRAND_REF, Scope.LIVE));
+			assertSame(original.getLocalHistogramReferencesForEntityAttribute(BRAND, Scope.LIVE, "brand"),
+				rebuilt.getLocalHistogramReferencesForEntityAttribute(BRAND, Scope.LIVE, "brand"));
+			assertSame(original.getLocalHistogramReferencesForParent(BRAND, Scope.LIVE),
+				rebuilt.getLocalHistogramReferencesForParent(BRAND, Scope.LIVE));
+			assertSame(original.getLocalHistogramReferencesForAssociatedData(BRAND, Scope.LIVE, "brand"),
+				rebuilt.getLocalHistogramReferencesForAssociatedData(BRAND, Scope.LIVE, "brand"));
+
+			// the histogram collection of a shared owner is reachable from both registries, so it must reject mutation
+			final Collection<HistogramExpressionTrigger> sharedHistograms =
+				rebuilt.getLocalHistogramTriggers(BRAND, BRAND_REF, Scope.LIVE);
+			assertThrows(UnsupportedOperationException.class, sharedHistograms::clear);
+			final Iterator<HistogramExpressionTrigger> sharedIterator = sharedHistograms.iterator();
+			assertSame(brandTriggers.getLast(), sharedIterator.next());
+			assertThrows(UnsupportedOperationException.class, sharedIterator::remove);
+			assertLookups(original, BRAND, BRAND_REF, "brand", brandTriggers);
+			assertLookups(rebuilt, BRAND, BRAND_REF, "brand", brandTriggers);
+		}
+
+		/**
+		 * Kind maps must include shared owners when another owner loses its histograms and then all its triggers.
+		 * The owner left with only a facet keeps that facet and answers an empty histogram collection.
+		 */
+		@Test
+		@DisplayName("Should preserve shared owner reverse lookups after facet-only rebuild and removal")
+		void shouldPreserveSharedOwnerReverseLookupsAfterFacetOnlyRebuildAndRemoval() {
+			final List<ExpressionIndexTrigger> productTriggers = triggers(PRODUCT, PARAMETER_REF, "old");
+			final List<ExpressionIndexTrigger> brandTriggers = triggers(BRAND, BRAND_REF, "brand");
+			final CatalogExpressionTriggerRegistry original = registryOf(productTriggers, brandTriggers);
+			final CatalogExpressionTriggerRegistry facetOnly = original.rebuildForEntityType(
+				PRODUCT, List.of(productTriggers.getFirst())
+			);
+			final CatalogExpressionTriggerRegistry removed = facetOnly.rebuildForEntityType(PRODUCT, List.of());
+
+			for (final CatalogExpressionTriggerRegistry rebuilt : List.of(facetOnly, removed)) {
+				assertLookups(rebuilt, BRAND, BRAND_REF, "brand", brandTriggers);
+				assertTrue(rebuilt.getLocalHistogramReferencesForEntityAttribute(PRODUCT, Scope.LIVE, "old").isEmpty());
+				assertTrue(rebuilt.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE).isEmpty());
+				assertTrue(rebuilt.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "old").isEmpty());
+				assertLookups(original, PRODUCT, PARAMETER_REF, "old", productTriggers);
+				assertLookups(original, BRAND, BRAND_REF, "brand", brandTriggers);
+			}
+
+			assertSame(productTriggers.getFirst(), facetOnly.getLocalTrigger(PRODUCT, PARAMETER_REF, Scope.LIVE));
+			assertTrue(facetOnly.getLocalHistogramTriggers(PRODUCT, PARAMETER_REF, Scope.LIVE).isEmpty());
+		}
+
+		/**
+		 * A replacement owner may carry a facet on one reference and a histogram on another, both reading the same
+		 * owner attribute. The histogram-only leaf answers no facet, and the reverse lookups name only the reference
+		 * carrying the histogram.
+		 */
+		@Test
+		@DisplayName("Should resolve facet-only and histogram-only references of one owner independently")
+		void shouldKeepFacetAndHistogramLeavesIndependentWithinOneOwner() {
+			final ExpressionIndexTrigger facet = triggers(PRODUCT, PARAMETER_REF, "new").getFirst();
+			final HistogramExpressionTrigger histogram = trigger(PRODUCT, ALT_PARAMETER_REF, "new");
+			final CatalogExpressionTriggerRegistry original = CatalogExpressionTriggerRegistry.EMPTY
+				.rebuildForEntityType(PRODUCT, triggers(PRODUCT, PARAMETER_REF, "old"));
+
+			final CatalogExpressionTriggerRegistry rebuilt =
+				original.rebuildForEntityType(PRODUCT, List.of(facet, histogram));
+
+			assertSame(facet, rebuilt.getLocalTrigger(PRODUCT, PARAMETER_REF, Scope.LIVE));
+			assertNull(rebuilt.getLocalTrigger(PRODUCT, ALT_PARAMETER_REF, Scope.LIVE));
+			assertEquals(List.of(histogram),
+				new ArrayList<>(rebuilt.getLocalHistogramTriggers(PRODUCT, ALT_PARAMETER_REF, Scope.LIVE)));
+			assertEquals(Set.of(ALT_PARAMETER_REF),
+				rebuilt.getLocalHistogramReferencesForEntityAttribute(PRODUCT, Scope.LIVE, "new"));
+			assertEquals(Set.of(ALT_PARAMETER_REF), rebuilt.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE));
+			assertEquals(Set.of(ALT_PARAMETER_REF),
+				rebuilt.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "new"));
+		}
+
+		/**
+		 * Builds a registry holding the product and brand owners through two consecutive rebuilds, so the product
+		 * owner reaches it as a shared unchanged owner and the brand owner as a newly built one.
+		 */
+		@Nonnull
+		private static CatalogExpressionTriggerRegistry registryOf(
+			@Nonnull List<ExpressionIndexTrigger> productTriggers, @Nonnull List<ExpressionIndexTrigger> brandTriggers
+		) {
+			return CatalogExpressionTriggerRegistry.EMPTY
+				.rebuildForEntityType(PRODUCT, productTriggers)
+				.rebuildForEntityType(BRAND, brandTriggers);
+		}
+
+		/**
+		 * Checks all five local lookup paths against the supplied definitions.
+		 */
+		private static void assertLookups(
+			@Nonnull CatalogExpressionTriggerRegistry registry, @Nonnull String owner, @Nonnull String reference,
+			@Nonnull String input, @Nonnull List<ExpressionIndexTrigger> definitions
+		) {
+			assertSame(definitions.getFirst(), registry.getLocalTrigger(owner, reference, Scope.LIVE));
+			assertEquals(List.of(definitions.getLast()),
+				new ArrayList<>(registry.getLocalHistogramTriggers(owner, reference, Scope.LIVE)));
+			assertEquals(Set.of(reference),
+				registry.getLocalHistogramReferencesForEntityAttribute(owner, Scope.LIVE, input));
+			assertEquals(Set.of(reference), registry.getLocalHistogramReferencesForParent(owner, Scope.LIVE));
+			assertEquals(Set.of(reference),
+				registry.getLocalHistogramReferencesForAssociatedData(owner, Scope.LIVE, input));
+		}
+
+		/**
+		 * Creates a facet and a histogram reading an owner attribute, the parent and associated data on one reference.
+		 */
+		@Nonnull
+		private static List<ExpressionIndexTrigger> triggers(
+			@Nonnull String owner, @Nonnull String reference, @Nonnull String input
+		) {
+			final Expression expression = ExpressionFactory.parse("$entity.attributes['" + input + "'] == true");
+			final FacetExpressionTrigger facet = new DefaultFacetExpressionTrigger(
+				owner, reference, Scope.LIVE, Set.of(input), Set.of(), Set.of(), false,
+				expression, ExpressionProxyFactory.buildDescriptor(expression)
+			);
+			return List.of(facet, trigger(owner, reference, input));
+		}
+
+		/**
+		 * Creates a local histogram trigger reading all three kinds of owner input.
+		 */
+		@Nonnull
+		private static HistogramExpressionTrigger trigger(
+			@Nonnull String owner, @Nonnull String reference, @Nonnull String input
+		) {
+			return new DefaultHistogramExpressionTrigger(
+				owner, reference, Scope.LIVE, Set.of(input), Set.of(), Set.of(input), true, null, null, input,
+				new HistogramValueDescriptor(
+					HistogramValueSource.REFERENCE_ATTRIBUTE, null, "weight", Integer.class,
+					false, false, null, null, 0
+				)
+			);
+		}
+	}
+
+	/**
 	 * Verifies that owner attribute relevance is local, scoped, deduplicated and rebuilt without mutating readers.
 	 */
 	@Nested
@@ -1310,6 +1499,180 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 		) {
 			return new DefaultHistogramExpressionTrigger(
 				owner, reference, scope, Set.of(attribute), Set.of(), Set.of(), false, null, null, histogram,
+				new HistogramValueDescriptor(
+					HistogramValueSource.REFERENCE_ATTRIBUTE, null, "weight", Integer.class,
+					false, false, null, null, 0
+				)
+			);
+		}
+	}
+
+	/**
+	 * Verifies that the relevance of the owner's parent and associated data is local and scoped, includes cross-entity
+	 * triggers and is rebuilt without mutating readers.
+	 */
+	@Nested
+	@DisplayName("Local histogram parent and associated data relevance")
+	class LocalHistogramParentAndAssociatedDataTest {
+
+		/**
+		 * The references whose histograms read the parent are listed by owner and scope, and a trigger reading another
+		 * input does not appear among them.
+		 */
+		@Test
+		@DisplayName("Should isolate reference names reading the parent by owner and scope")
+		void shouldIsolateReferenceNamesReadingParentByOwnerAndScope() {
+			final CatalogExpressionTriggerRegistry registry =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(
+					PRODUCT,
+					List.of(
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "first", Set.of(), true),
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "second", Set.of(), true),
+						trigger(PRODUCT, BRAND_REF, Scope.ARCHIVED, "brand", Set.of(), true),
+						trigger(PRODUCT, ALT_PARAMETER_REF, Scope.LIVE, "label", Set.of("label"), false)
+					)
+				);
+
+			assertEquals(Set.of(PARAMETER_REF), registry.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE));
+			assertEquals(Set.of(BRAND_REF), registry.getLocalHistogramReferencesForParent(PRODUCT, Scope.ARCHIVED));
+			assertTrue(registry.getLocalHistogramReferencesForParent(BRAND, Scope.LIVE).isEmpty());
+			assertTrue(
+				registry.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "status").isEmpty()
+			);
+			assertTrue(
+				registry.getLocalHistogramReferencesForEntityAttribute(PRODUCT, Scope.LIVE, "label").isEmpty()
+			);
+			assertThrows(UnsupportedOperationException.class,
+				() -> registry.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE).clear());
+		}
+
+		/**
+		 * The references whose histograms read an associated data are listed by owner, scope and associated data name,
+		 * and a trigger reading the parent only does not appear among them.
+		 */
+		@Test
+		@DisplayName("Should isolate reference names by owner, scope and associated data")
+		void shouldIsolateReferenceNamesByOwnerScopeAndAssociatedData() {
+			final CatalogExpressionTriggerRegistry registry =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(
+					PRODUCT,
+					List.of(
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "first", Set.of("label"), false),
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "second", Set.of("label", "note"), false),
+						trigger(PRODUCT, BRAND_REF, Scope.LIVE, "brand", Set.of("label"), false),
+						trigger(PRODUCT, ALT_PARAMETER_REF, Scope.ARCHIVED, "archived", Set.of("note"), false),
+						trigger(PRODUCT, ALT_PARAMETER_REF, Scope.LIVE, "parent", Set.of(), true)
+					)
+				);
+
+			assertEquals(Set.of(PARAMETER_REF, BRAND_REF),
+				registry.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "label"));
+			assertEquals(Set.of(PARAMETER_REF),
+				registry.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "note"));
+			assertEquals(Set.of(ALT_PARAMETER_REF),
+				registry.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.ARCHIVED, "note"));
+			assertTrue(
+				registry.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.ARCHIVED, "label").isEmpty()
+			);
+			assertTrue(registry.getLocalHistogramReferencesForAssociatedData(BRAND, Scope.LIVE, "label").isEmpty());
+			assertEquals(Set.of(ALT_PARAMETER_REF), registry.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE));
+			assertThrows(UnsupportedOperationException.class,
+				() -> registry.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "label").clear());
+		}
+
+		/**
+		 * Rebuilding one owner's definitions replaces its relevance and preserves another owner's lookup.
+		 */
+		@Test
+		@DisplayName("Should rebuild parent and associated data relevance without changing existing registry readers")
+		void shouldRebuildRelevanceWithoutChangingExistingRegistryReaders() {
+			final CatalogExpressionTriggerRegistry original =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(
+					PRODUCT, List.of(
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "parent", Set.of(), true),
+						trigger(PRODUCT, PARAMETER_REF, Scope.LIVE, "label", Set.of("label"), false)
+					)
+				).rebuildForEntityType(
+					BRAND, List.of(trigger(BRAND, BRAND_REF, Scope.ARCHIVED, "brand", Set.of("note"), true))
+				);
+
+			final CatalogExpressionTriggerRegistry rebuilt = original.rebuildForEntityType(
+				PRODUCT, List.of(trigger(PRODUCT, ALT_PARAMETER_REF, Scope.ARCHIVED, "new", Set.of("label"), true))
+			);
+
+			assertEquals(Set.of(PARAMETER_REF), original.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE));
+			assertEquals(Set.of(PARAMETER_REF),
+				original.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "label"));
+			assertTrue(rebuilt.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE).isEmpty());
+			assertTrue(rebuilt.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.LIVE, "label").isEmpty());
+			assertEquals(Set.of(ALT_PARAMETER_REF),
+				rebuilt.getLocalHistogramReferencesForParent(PRODUCT, Scope.ARCHIVED));
+			assertEquals(Set.of(ALT_PARAMETER_REF),
+				rebuilt.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.ARCHIVED, "label"));
+			assertEquals(Set.of(BRAND_REF), rebuilt.getLocalHistogramReferencesForParent(BRAND, Scope.ARCHIVED));
+			assertEquals(Set.of(BRAND_REF),
+				rebuilt.getLocalHistogramReferencesForAssociatedData(BRAND, Scope.ARCHIVED, "note"));
+
+			final CatalogExpressionTriggerRegistry emptied = rebuilt.rebuildForEntityType(PRODUCT, List.of());
+
+			assertTrue(emptied.getLocalHistogramReferencesForParent(PRODUCT, Scope.ARCHIVED).isEmpty());
+			assertTrue(
+				emptied.getLocalHistogramReferencesForAssociatedData(PRODUCT, Scope.ARCHIVED, "label").isEmpty()
+			);
+		}
+
+		/**
+		 * A condition reading an attribute of the parent is a cross-entity trigger that also reads the parent locally;
+		 * building the registry from the schema must list its reference among those reading the parent.
+		 */
+		@Test
+		@DisplayName("Should list the reference of a cross-entity condition reading the parent")
+		void shouldListReferenceOfCrossEntityConditionReadingParent() {
+			final EntitySchemaContract schema = buildEntitySchema(PRODUCT, builder -> builder
+				.withHierarchy()
+				.withAttribute("status", String.class, whichIs -> whichIs.filterable().nullable())
+				.withReferenceTo(BRAND_REF, BRAND, Cardinality.ZERO_OR_MORE, whichIs -> whichIs
+					.indexedForFiltering()
+					.withAttribute("share", Integer.class, thatIs -> thatIs.filterable().nullable())
+					.bucketed("shares", ExpressionFactory.parse("$reference.attributes['share']"))
+					.bucketedPartially(
+						ExpressionFactory.parse("($entity.parentEntity?.attributes['status'] ?? '') == 'ACTIVE'")
+					)
+				)
+			);
+
+			final CatalogExpressionTriggerRegistry registry = buildRegistryFromSchemas(schema);
+			final List<ExpressionIndexTrigger> crossEntityTriggers =
+				registry.getTriggersFor(PRODUCT, DependencyType.PARENT_ENTITY_ATTRIBUTE);
+
+			assertFalse(crossEntityTriggers.isEmpty());
+			for (final ExpressionIndexTrigger trigger : crossEntityTriggers) {
+				assertInstanceOf(HistogramExpressionTrigger.class, trigger);
+				assertTrue(trigger.usesParent());
+			}
+			assertEquals(Set.of(BRAND_REF), registry.getLocalHistogramReferencesForParent(PRODUCT, Scope.LIVE));
+			assertTrue(registry.getLocalHistogramReferencesForParent(PRODUCT, Scope.ARCHIVED).isEmpty());
+		}
+
+		/**
+		 * Creates a local histogram trigger whose condition reads the given associated data and, optionally, the
+		 * parent of the owner.
+		 *
+		 * @param owner          the owner entity type
+		 * @param reference      the reference name
+		 * @param scope          the scope of the trigger
+		 * @param histogram      the histogram name
+		 * @param associatedData the associated data names the condition reads
+		 * @param usesParent     TRUE when the condition reads the parent
+		 * @return the trigger
+		 */
+		@Nonnull
+		private static HistogramExpressionTrigger trigger(
+			@Nonnull String owner, @Nonnull String reference, @Nonnull Scope scope,
+			@Nonnull String histogram, @Nonnull Set<String> associatedData, boolean usesParent
+		) {
+			return new DefaultHistogramExpressionTrigger(
+				owner, reference, scope, Set.of(), Set.of(), associatedData, usesParent, null, null, histogram,
 				new HistogramValueDescriptor(
 					HistogramValueSource.REFERENCE_ATTRIBUTE, null, "weight", Integer.class,
 					false, false, null, null, 0

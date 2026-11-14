@@ -64,7 +64,8 @@ class DefaultCatalogExpressionTriggerRegistry implements CatalogExpressionTrigge
 	private final CrossEntityTriggerIndex crossEntityIndex;
 
 	/**
-	 * Immutable local trigger index: owner entity type + reference name + scope -> facet/histogram triggers.
+	 * Immutable local trigger index with shared per-owner forward lookups and derived reverse dependencies.
+	 * Reverse lookups start by input kind so misses stop before accessing an unrelated dependency kind.
 	 */
 	@Nonnull
 	private final LocalTriggerIndex localIndex;
@@ -198,6 +199,25 @@ class DefaultCatalogExpressionTriggerRegistry implements CatalogExpressionTrigge
 		@Nonnull String attributeName
 	) {
 		return this.localIndex.getHistogramReferencesForEntityAttribute(ownerEntityType, scope, attributeName);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getLocalHistogramReferencesForParent(
+		@Nonnull String ownerEntityType,
+		@Nonnull Scope scope
+	) {
+		return this.localIndex.getHistogramReferencesForParent(ownerEntityType, scope);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getLocalHistogramReferencesForAssociatedData(
+		@Nonnull String ownerEntityType,
+		@Nonnull Scope scope,
+		@Nonnull String associatedDataName
+	) {
+		return this.localIndex.getHistogramReferencesForAssociatedData(ownerEntityType, scope, associatedDataName);
 	}
 
 	/**
