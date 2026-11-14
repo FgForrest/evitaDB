@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
@@ -55,6 +56,7 @@ import javax.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -164,6 +166,18 @@ public class RestManager {
 	 */
 	public boolean isCatalogRegistered(@Nonnull String catalogName) {
 		return this.registeredCatalogs.contains(catalogName);
+	}
+
+	/**
+	 * Returns the current engine state under a catalog name, which may be ahead of a queued host event.
+	 * The system observer uses this to preserve endpoints of a later active catalog incarnation.
+	 *
+	 * @param catalogName name whose current binding is inspected
+	 * @return current catalog state, or empty when the name no longer exists
+	 */
+	@Nonnull
+	public Optional<CatalogState> getCatalogState(@Nonnull String catalogName) {
+		return this.evita.getCatalogState(catalogName);
 	}
 
 	@Nonnull

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
@@ -49,10 +50,12 @@ import java.util.concurrent.Flow.Subscription;
  *   engine mutations (default `ENGINE` area). The pre-existing branches handle catalog
  *   schema create / duplicate / rename / modify / mutability / state / removal.
  * - {@link HostSystemEvent} — host-local, non-replicable host events delivered when
- *   the subscription opted into the `HOST` area. These are the authoritative
- *   "catalog X is now usable / now gone on this host" signals and are required to recover
- *   from boot-time auto-upgrade and other transient-state transitions where the engine
- *   mutation alone does not announce settlement. The
+ *   the subscription opted into the `HOST` area. They report "catalog X is now usable / now gone
+ *   on this host" and are required to recover from boot-time auto-upgrade and other
+ *   transient-state transitions where the engine mutation alone does not announce settlement.
+ *   They may arrive after later engine mutations, so an inactive or removed report withdraws
+ *   endpoints only when {@link RestManager#getCatalogState(String)} shows no active catalog
+ *   under that name any more. The
  *   {@link HostSystemEvent.CatalogSchemaUpdated} variant is the coalesced schema-refresh
  *   signal, replacing the per-mutation reactions to `ModifyCatalogSchemaMutation` and
  *   `SetCatalogMutabilityMutation`.
@@ -146,8 +149,8 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 				}
 				case HostSystemEvent.CatalogInstalledIntoLiveView installed -> handleCatalogInstalled(installed);
 				case HostSystemEvent.CatalogRemovedFromLiveView removed ->
-					// the catalog is gone from the live view on this host — drop its REST endpoints
-					this.restManager.unregisterCatalog(removed.catalogName());
+					// Drop endpoints only if the name still refers to a non-active or absent catalog.
+					unregisterCatalogIfInactive(removed.catalogName());
 				// every other capture body (and a header-only capture, whose body is NULL) describes a
 				// change the REST endpoint registry does not react to
 				case null, default -> { }
@@ -169,7 +172,7 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 	 * and we either register it (first time we see it) or refresh it (already registered,
 	 * pick up the new live reference). For non-active settled states (`INACTIVE`,
 	 * `OUT_OF_DATE`, `CORRUPTED`, `MISSING`) the catalog is no longer addressable via REST
-	 * and we unregister it.
+	 * and we unregister it unless the engine already binds an active successor under that name.
 	 *
 	 * @param installed the host event reporting the settled state
 	 */
@@ -186,6 +189,19 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 			}
 		} else {
 			// settled into a non-queryable state (INACTIVE / MISSING / CORRUPTED / OUT_OF_DATE)
+			unregisterCatalogIfInactive(catalogName);
+		}
+	}
+
+	/**
+	 * Removes endpoints only when the engine no longer binds an active catalog under this name.
+	 * Host delivery can follow a later engine mutation that already published a successor's endpoints, so the
+	 * event's older view alone must not withdraw them.
+	 *
+	 * @param catalogName name reported inactive or removed by a host event
+	 */
+	private void unregisterCatalogIfInactive(@Nonnull String catalogName) {
+		if (!this.restManager.getCatalogState(catalogName).map(CatalogState::isActive).orElse(false)) {
 			this.restManager.unregisterCatalog(catalogName);
 		}
 	}

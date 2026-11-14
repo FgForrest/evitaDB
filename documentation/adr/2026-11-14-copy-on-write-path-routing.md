@@ -1,10 +1,10 @@
 ---
 title: Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure
 date: 2026-11-14
-updated: 2026-11-14 14:35
+updated: 2026-11-14 17:30
 status: accepted
 kind: refactor
-issues: [1956]
+issues: [1956, 1959]
 prs: [1957]
 areas: [evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/routing, evita_external_api/evita_external_api_rest, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_system, evita_external_api/evita_external_api_lab, evita_external_api/evita_external_api_observability, evita_test/evita_performance_tests]
 supersedes: []
@@ -171,14 +171,21 @@ wrong-method request allocates 130–190 B more.
   WebSocket sees the swap, and the failed-registration cleanup in `GraphQLManager`, rest on reading the code.
   The churn test fails on a routing 404 of a replace target: 589 misses in one run with the old order restored,
   none in 961 probes without.
-- **A delayed host event can unregister a newer catalog of the same name** (found by review, from reading only):
-  deactivate or delete B, then rename A onto B before the observers catch up, and the queued "inactive/removed"
-  event for the old B unregisters the new one until its next refresh. Older than this change; no reproduction.
-- **A REST request to a catalog that is being replaced can answer HTTP 500** ("Session has been already closed")
-  from `RestEndpointExecutionContext#session`, because the engine terminates the session under the handler. Found
-  by `LongRunningExternalApiChurnTest` (5 of 44,872 requests) and filed as #1959; not shown to predate this
-  change, although the code involved is not part of it. A later run also saw one HTTP 400 "Schema for entity
-  with name `Product` was not found!" on a catalog being replaced; not analysed. The test accepts any error
+- **A late "inactive" or "removed" host event no longer unregisters a newer catalog of the same name.** Host
+  events and engine mutations reach a CDC subscriber as separate executor tasks, so one drain can deliver
+  "deactivate B" and "replace B with A" before the older INACTIVE(B) event; the observers used to unregister the
+  new B then, leaving a routing 404 until the next refresh. They now ask the engine first and keep the routes when
+  the name is bound to an active catalog. `StaleCatalogHostEventRoutingTest` reproduces the order through the real
+  CDC pipeline (deactivate/replace and delete/rename, REST and GraphQL). The `HostSystemEvent` JavaDoc no longer
+  claims that host events are strictly ordered with engine mutations.
+- **Open, from reading only:** the reverse order — a host ALIVE event processed before an older eager
+  "deactivate" or "remove" engine mutation, which then unregisters an active catalog — is not guarded; activation
+  emits a second ALIVE event that would repair it, and no run has shown it.
+- **A REST request whose session the engine terminates now answers HTTP 400 with an error code**, fixed in
+  PR #1957 for #1959 by throwing `InstanceTerminatedException("session")` from the inactive-session check.
+  `RestEndpointExecutionContextTest` guards the real session drain and the REST error response. A later run
+  also saw one HTTP 400 "Schema for entity with name `Product` was not found!" on a catalog being replaced;
+  not analysed. The test accepts any error
   carrying an error code on catalogs under churn and reports unlisted ones as `other`, because it guards
   routing; catalogs that are not being changed stay strict.
 - **The churn test's margin for a non-atomic REST refresh is thin**: that mutation was caught once per

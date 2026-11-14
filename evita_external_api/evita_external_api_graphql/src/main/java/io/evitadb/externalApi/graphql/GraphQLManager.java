@@ -28,6 +28,7 @@ import com.linecorp.armeria.server.HttpService;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
@@ -56,6 +57,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -180,6 +182,18 @@ public class GraphQLManager {
 	 */
 	public boolean isCatalogRegistered(@Nonnull String catalogName) {
 		return this.registeredCatalogs.contains(catalogName);
+	}
+
+	/**
+	 * Returns the current engine state under a catalog name, which may be ahead of a queued host event.
+	 * The system observer uses this to preserve endpoints of a later active catalog incarnation.
+	 *
+	 * @param catalogName name whose current binding is inspected
+	 * @return current catalog state, or empty when the name no longer exists
+	 */
+	@Nonnull
+	public Optional<CatalogState> getCatalogState(@Nonnull String catalogName) {
+		return this.evita.getCatalogState(catalogName);
 	}
 
 	@Nonnull

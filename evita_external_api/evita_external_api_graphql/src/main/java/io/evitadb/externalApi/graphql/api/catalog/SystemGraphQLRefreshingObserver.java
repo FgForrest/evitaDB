@@ -50,10 +50,12 @@ import java.util.concurrent.Flow.Subscription;
  * mutation alone (create, duplicate, rename, remove). Host system events
  * ({@link HostSystemEvent.CatalogInstalledIntoLiveView},
  * {@link HostSystemEvent.CatalogRemovedFromLiveView},
- * {@link HostSystemEvent.CatalogSchemaUpdated}) are the authoritative signal for
- * any host-local transition that the engine mutation alone cannot describe (e.g. a
- * boot-time auto-upgrade replacing an `UnusableCatalog` placeholder with a real
- * `Catalog`). In particular, `CatalogSchemaUpdated` is the coalesced schema-refresh
+ * {@link HostSystemEvent.CatalogSchemaUpdated}) signal any host-local transition that the
+ * engine mutation alone cannot describe (e.g. a boot-time auto-upgrade replacing an
+ * `UnusableCatalog` placeholder with a real `Catalog`). They may arrive after later engine
+ * mutations, so an inactive or removed report withdraws endpoints only when
+ * {@link GraphQLManager#getCatalogState(String)} shows no active catalog under that name any
+ * more. In particular, `CatalogSchemaUpdated` is the coalesced schema-refresh
  * trigger — it replaces the per-mutation `ModifyCatalogSchemaMutation` /
  * `SetCatalogMutabilityMutation` reactions that previously rebuilt the GraphQL
  * schema on every applied schema mutation.
@@ -141,7 +143,7 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 				}
 				case HostSystemEvent.CatalogInstalledIntoLiveView installed -> handleCatalogInstalled(installed);
 				case HostSystemEvent.CatalogRemovedFromLiveView removed ->
-					this.graphQLManager.unregisterCatalog(removed.catalogName());
+					unregisterCatalogIfInactive(removed.catalogName());
 				// every other capture body (and a header-only capture, whose body is NULL) describes a
 				// change the GraphQL endpoint registry does not react to
 				case null, default -> { }
@@ -163,7 +165,7 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 	 * - **Active states** (`ALIVE`, `WARMING_UP`): catalog is queryable; register if not yet
 	 *   present, otherwise refresh.
 	 * - **Non-queryable settled states** (`INACTIVE`, `MISSING`, `OUT_OF_DATE`, `CORRUPTED`):
-	 *   ensure no stale endpoint remains.
+	 *   unregister unless the engine already binds an active successor under that name.
 	 */
 	private void handleCatalogInstalled(@Nonnull HostSystemEvent.CatalogInstalledIntoLiveView installed) {
 		final String catalogName = installed.catalogName();
@@ -179,6 +181,19 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 			}
 		} else {
 			// settled into a non-queryable state — drop any cached endpoint
+			unregisterCatalogIfInactive(catalogName);
+		}
+	}
+
+	/**
+	 * Removes endpoints only when the engine no longer binds an active catalog under this name.
+	 * Host delivery can follow a later engine mutation that already published a successor's endpoints, so the
+	 * event's older view alone must not withdraw them.
+	 *
+	 * @param catalogName name reported inactive or removed by a host event
+	 */
+	private void unregisterCatalogIfInactive(@Nonnull String catalogName) {
+		if (!this.graphQLManager.getCatalogState(catalogName).map(CatalogState::isActive).orElse(false)) {
 			this.graphQLManager.unregisterCatalog(catalogName);
 		}
 	}
