@@ -59,8 +59,8 @@ import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.http.ExternalApiProvider.HttpServiceDefinition;
 import io.evitadb.externalApi.http.ExternalApiProvider.PathHandlingMode;
+import io.evitadb.externalApi.http.routing.PrefixRoutingService;
 import io.evitadb.externalApi.trace.TracingDecorator;
-import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
@@ -631,7 +631,7 @@ public class ExternalApiServer implements AutoCloseable {
 
 		final List<FixedPathService> fixedPathHandlingServices = new LinkedList<>();
 		// objects lazily initialized on first use
-		PathHandlingService dynamicPathHandlingService = null;
+		PrefixRoutingService dynamicPathHandlingService = null;
 
 		// list of proxy provider configurations
 		final AbstractApiOptions[] proxyConfigs = this.registeredApiProviders.values()
@@ -713,7 +713,7 @@ public class ExternalApiServer implements AutoCloseable {
 						} else {
 							// else use path handling service to route requests to the service's own custom router
 							if (dynamicPathHandlingService == null) {
-								dynamicPathHandlingService = new PathHandlingService();
+								dynamicPathHandlingService = new PrefixRoutingService();
 							}
 							dynamicPathHandlingService.addPrefixPath(servicePath, service);
 

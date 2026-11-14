@@ -25,7 +25,7 @@ package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
-import io.evitadb.externalApi.utils.path.PathHandlingService;
+import io.evitadb.externalApi.http.routing.PrefixRoutingService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -134,7 +134,7 @@ public interface ExternalApiProvider<T extends AbstractApiOptions> {
 		 */
 		FIXED_PATH_HANDLING,
 		/**
-		 * Might be used for services on sub-paths that can be handled by {@link PathHandlingService}, that can
+		 * Might be used for services on sub-paths that can be handled by {@link PrefixRoutingService}, that can
 		 * be dynamically updated during runtime.
 		 */
 		DYNAMIC_PATH_HANDLING

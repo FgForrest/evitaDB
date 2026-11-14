@@ -46,6 +46,7 @@ import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+import io.evitadb.externalApi.http.routing.PrefixRoutingService;
 import io.evitadb.externalApi.observability.agent.ErrorMonitor;
 import io.evitadb.externalApi.observability.agent.ErrorOriginLogger;
 import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
@@ -63,7 +64,6 @@ import io.evitadb.externalApi.observability.metric.PrometheusMetricsHttpService;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask.RecordingSettings;
 import io.evitadb.externalApi.serialization.OffsetDateTimeSerializer;
-import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.utils.Assert;
 import jdk.jfr.FlightRecorder;
 import lombok.Getter;
@@ -176,7 +176,7 @@ public class ObservabilityManager {
 	/**
 	 * Router for observability endpoints.
 	 */
-	private final PathHandlingService observabilityRouter = new PathHandlingService();
+	private final PrefixRoutingService observabilityRouter = new PrefixRoutingService();
 	/**
 	 * Observability API config.
 	 */
@@ -421,7 +421,7 @@ public class ObservabilityManager {
 	 * Gets {@link HttpService} for observability endpoints.
 	 */
 	@Nonnull
-	public PathHandlingService getObservabilityRouter() {
+	public PrefixRoutingService getObservabilityRouter() {
 		return this.observabilityRouter;
 	}
 

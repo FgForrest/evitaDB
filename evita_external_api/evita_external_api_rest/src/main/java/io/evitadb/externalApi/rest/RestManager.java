@@ -278,8 +278,7 @@ public class RestManager {
 		final Rest newApi = catalogRestBuilder.build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
-		this.restRouter.unregisterCatalogApi(catalogName);
-		this.restRouter.registerCatalogApi(catalogName, newApi);
+		this.restRouter.refreshCatalogApi(catalogName, newApi);
 		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
 
 		// build metrics

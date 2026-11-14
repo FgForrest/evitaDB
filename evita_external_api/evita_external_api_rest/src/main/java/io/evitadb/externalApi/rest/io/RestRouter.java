@@ -35,12 +35,12 @@ import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.http.RoutableWebSocket;
 import io.evitadb.externalApi.http.WebSocketHandler;
+import io.evitadb.externalApi.http.routing.EndpointRoutingService;
+import io.evitadb.externalApi.http.routing.PrefixRoutingService;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.utils.UriPath;
-import io.evitadb.externalApi.utils.path.PathHandlingService;
-import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -52,7 +52,8 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
- * Custom HTTP router for REST APIs.
+ * Custom HTTP router for REST APIs. Each API name owns one prefix bound to an immutable
+ * {@link EndpointRoutingService}, which a catalog refresh replaces in one step.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
@@ -67,8 +68,10 @@ public class RestRouter implements HttpService, WebSocketHandler {
 	@Nonnull private final ObjectMapper objectMapper;
 	@Nonnull private final HeaderOptions headers;
 	@Nonnull private final RestOptions restConfig;
-	private final PathHandlingService delegateRouter = new PathHandlingService();
+	/** One prefix per API name, each bound to that API's immutable endpoint router. */
+	private final PrefixRoutingService delegateRouter = new PrefixRoutingService();
 
+	/** Names whose prefix this router has published, so that unregistering knows which routes to remove. */
 	@Nonnull private final Set<String> registeredApis = createHashSet(20);
 
 	/**
@@ -106,19 +109,47 @@ public class RestRouter implements HttpService, WebSocketHandler {
 			() -> new RestInternalError("API `" + apiName + "` has been already registered.")
 		);
 
-		final RoutingHandlerService apiRouter = new RoutingHandlerService();
-		final Map<UriPath, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
+		final EndpointRoutingService apiRouter = buildApiRouter(api);
+		this.delegateRouter.addPrefixPath(constructApiPath(apiName).toString(), apiRouter);
+		this.registeredApis.add(apiName);
+	}
 
+	/**
+	 * Replaces the catalog's endpoints with those of the new API. The replacement router is built first and then
+	 * swapped in with one `replacePrefixPath`, so a concurrent request sees the old or the new endpoints and never a
+	 * missing catalog, and a failed build leaves the old router in place. Works whether or not the catalog is routed
+	 * already, and registers it either way.
+	 * `RestRouterTest#shouldKeepCatalogVisibleAcrossSuccessfulRefreshes` detects a gap between removal and
+	 * publication only probabilistically, so a change that reintroduces one can still pass it.
+	 *
+	 * @param catalogName name of the catalog, which is also its path prefix
+	 * @param api         newly built REST API of the catalog
+	 */
+	public void refreshCatalogApi(@Nonnull String catalogName, @Nonnull Rest api) {
+		final EndpointRoutingService apiRouter = buildApiRouter(api);
+		this.delegateRouter.replacePrefixPath(constructApiPath(catalogName).toString(), apiRouter);
+		// an earlier registration may have failed before publishing, making this the first publication; record the
+		// name so that unregistering the catalog removes its route
+		this.registeredApis.add(catalogName);
+	}
+
+	/**
+	 * Builds all endpoints and CORS pre-flight handlers before the API becomes reachable.
+	 */
+	@Nonnull
+	private EndpointRoutingService buildApiRouter(@Nonnull Rest api) {
+		final EndpointRoutingService.Builder apiRouter = new EndpointRoutingService.Builder();
+		final Map<UriPath, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 		api.endpoints().forEach(endpoint -> {
-			final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpoint.path(), p -> new CorsEndpoint(this.headers));
+			final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(
+				endpoint.path(), p -> new CorsEndpoint(this.headers)
+			);
 			registerEndpoint(apiRouter, corsEndpoint, endpoint);
 		});
-		corsEndpoints.forEach((path, endpoint) -> apiRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler()));
-
-		//fix router hierarchical inputs
-		this.delegateRouter.addPrefixPath(constructApiPath(apiName).toString(), apiRouter);
-
-		this.registeredApis.add(apiName);
+		corsEndpoints.forEach((path, endpoint) ->
+			apiRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler())
+		);
+		return apiRouter.build();
 	}
 
 	/**
@@ -134,7 +165,10 @@ public class RestRouter implements HttpService, WebSocketHandler {
 	/**
 	 * Creates new REST endpoint on specified path with specified {@link Rest} instance.
 	 */
-	private void registerEndpoint(@Nonnull RoutingHandlerService apiRouter, @Nonnull CorsEndpoint corsEndpoint, @Nonnull Rest.Endpoint endpoint) {
+	private void registerEndpoint(
+		@Nonnull EndpointRoutingService.Builder apiRouter, @Nonnull CorsEndpoint corsEndpoint,
+		@Nonnull Rest.Endpoint endpoint
+	) {
 		corsEndpoint.addMetadataFromEndpoint(endpoint.handler());
 
 		apiRouter.add(

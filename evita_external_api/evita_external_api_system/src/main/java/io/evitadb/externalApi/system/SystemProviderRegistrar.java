@@ -48,9 +48,10 @@ import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.http.routing.EndpointRoutingService;
 import io.evitadb.externalApi.system.configuration.SystemOptions;
-import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.utils.CertificateUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -69,12 +70,17 @@ import java.util.stream.Collectors;
  * Registers System API provider to provide system API to clients.
  *
  * @author Tomáš Pozler, 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<SystemOptions> {
 	public static final String ENDPOINT_SERVER_NAME = "server-name";
 	public static final String ENDPOINT_SYSTEM_STATUS = "status";
 	public static final String ENDPOINT_SYSTEM_LIVENESS = "liveness";
 	public static final String ENDPOINT_SYSTEM_READINESS = "readiness";
+	/** Names of the fixed system routes, which no certificate download may take. */
+	private static final Set<String> FIXED_ROUTE_NAMES = Set.of(
+		ENDPOINT_SERVER_NAME, ENDPOINT_SYSTEM_STATUS, ENDPOINT_SYSTEM_LIVENESS, ENDPOINT_SYSTEM_READINESS
+	);
 
 	/**
 	 * Prints the status of the APIs as a JSON string.
@@ -271,6 +277,48 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		return SystemOptions.class;
 	}
 
+	/**
+	 * Registers a certificate file only when its route is unambiguous. Equal filenames pointing at the same file
+	 * share one download handler; fixed system endpoints and downloads of different files must never shadow it.
+	 * The route is literal because file names come from configuration and may contain `{`, `}` or `*`, which a
+	 * template would reject or capture.
+	 *
+	 * @param router    builder receiving the download route
+	 * @param downloads route of every download registered so far, mapped to its file
+	 * @param file      certificate file, served under `/` followed by its name
+	 * @throws GenericEvitaInternalError when the name equals a fixed system route or another file's download route
+	 */
+	private static void registerCertificateDownload(
+		@Nonnull EndpointRoutingService.Builder router, @Nonnull Map<String, File> downloads, @Nonnull File file
+	) {
+		final String fileName = file.getName();
+		final String route = "/" + fileName;
+		if (FIXED_ROUTE_NAMES.contains(fileName)) {
+			throw new GenericEvitaInternalError(
+				"Certificate file `" + file + "` conflicts with fixed system route `" + route + "`."
+			);
+		}
+		final File previous = downloads.putIfAbsent(route, file);
+		if (previous != null) {
+			if (!previous.equals(file)) {
+				throw new GenericEvitaInternalError(
+					"Certificate file `" + file + "` conflicts with download route `" + route + "` for `" +
+						previous + "`."
+				);
+			}
+			return;
+		}
+		router.addLiteral(
+			HttpMethod.GET, route,
+			createCorsWrapper((ctx, req) -> {
+				ctx.addAdditionalResponseHeader(
+					HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\""
+				);
+				return HttpFile.of(file).asService().serve(ctx, req);
+			})
+		);
+	}
+
 	@Nonnull
 	@Override
 	public ExternalApiProvider<SystemOptions> register(
@@ -279,7 +327,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull SystemOptions systemConfig
 	) {
-		final RoutingHandlerService router = new RoutingHandlerService();
+		final EndpointRoutingService.Builder router = new EndpointRoutingService.Builder();
 		router.add(
 			HttpMethod.GET,
 			"/" + ENDPOINT_SERVER_NAME,
@@ -341,42 +389,19 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 						"Certificate path is not properly set in the configuration file and `generateAndUseSelfSigned` is set to false."
 					);
 				}
-				final String certificate = certificatePath.certificate();
-				final int lastSeparatorIndex = certificatePath.certificate().lastIndexOf(File.separator);
-				file = new File(certificate.substring(0, lastSeparatorIndex));
-				fileName = certificate.substring(lastSeparatorIndex);
+				// Name and parent come from one normalized file, so a trailing separator cannot split them apart.
+				// A backslash on Unix remains a legal filename character.
+				final File certificate = new File(certificatePath.certificate()).getAbsoluteFile();
+				file = certificate.getParentFile();
+				fileName = certificate.getName();
 			}
-			router.add(
-				HttpMethod.GET,
-				"/" + fileName,
-				createCorsWrapper(
-					(ctx, req) -> {
-						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
-						return HttpFile.of(new File(file, fileName)).asService().serve(ctx, req);
-					}
-				)
+			final Map<String, File> downloads = CollectionUtils.createHashMap(3);
+			registerCertificateDownload(router, downloads, new File(file, fileName));
+			registerCertificateDownload(
+				router, downloads, new File(file, CertificateUtils.getGeneratedClientCertificateFileName())
 			);
-
-			router.add(
-				HttpMethod.GET,
-				"/" + CertificateUtils.getGeneratedClientCertificateFileName(),
-				createCorsWrapper(
-					(ctx, req) -> {
-						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificateFileName() + "\"");
-						return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificateFileName())).asService().serve(ctx, req);
-					}
-				)
-			);
-
-			router.add(
-				HttpMethod.GET,
-				"/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName(),
-				createCorsWrapper(
-					(ctx, req) -> {
-						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName() + "\"");
-						return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())).asService().serve(ctx, req);
-					}
-				)
+			registerCertificateDownload(
+				router, downloads, new File(file, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
 			);
 		} else {
 			fileName = null;
@@ -412,7 +437,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 					.toArray(String[]::new)
 			);
 		}
-		return new SystemProvider(systemConfig, router, endpoints, apiOptions.requestTimeoutInMillis());
+		return new SystemProvider(systemConfig, router.build(), endpoints, apiOptions.requestTimeoutInMillis());
 	}
 
 	@Nonnull

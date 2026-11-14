@@ -29,6 +29,11 @@ import com.linecorp.armeria.client.WebClient;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.TlsKeyPair;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.RequestHeaders;
+import com.linecorp.armeria.server.ServiceRequestContext;
+import com.linecorp.armeria.server.Route;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.configuration.StorageOptions;
@@ -66,11 +71,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Files;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -296,18 +305,96 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/** Closes the server backed by the shared server-test port allocation. */
 	private void closeServerAndEvita(@Nonnull EvitaServer evitaServer) {
+		closeServerAndEvita(evitaServer, DIR_EVITA_SERVER_TEST);
+	}
+
+	/** Closes a server and returns the ports allocated for its fixture. */
+	private void closeServerAndEvita(@Nonnull EvitaServer evitaServer, @Nonnull String portDataSetName) {
 		try {
 			final Evita evita = evitaServer.getEvita();
 			if (evita != null) {
 				evita.deleteCatalogIfExists(TEST_CATALOG);
 			}
-			getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
+			getPortManager().releasePortsOnCompletion(portDataSetName, evitaServer.stop());
 			if (evita != null) {
 				evita.close();
 			}
 		} catch (Exception ex) {
 			fail(ex.getMessage(), ex);
+		}
+	}
+
+	/** Custom certificate downloads retain literal filenames through the outer router after startup. */
+	@ParameterizedTest
+	@ValueSource(strings = {"server-plain.pem", "server}prod{1}.pem"})
+	@DisplayName("Should boot with a custom certificate and serve its literal filename")
+	void shouldServeCustomCertificateWithLiteralFileName(@Nonnull String fileName) throws Exception {
+		final String portDataSetName = DIR_EVITA_SERVER_TEST + "-custom-certificate";
+		final Path folder = getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).resolve("certificates");
+		Files.createDirectories(folder);
+		new ServerCertificateManager(new CertificateOptions(true, folder.toString(), null))
+			.generateSelfSignedCertificate(CertificateType.SERVER);
+		final Path certificate = folder.resolve(fileName);
+		Files.copy(folder.resolve(CertificateUtils.getGeneratedServerCertificateFileName()), certificate);
+		final Path privateKey = folder.resolve(CertificateUtils.getGeneratedServerCertificatePrivateKeyFileName());
+		final Map<String, Integer> servicePorts = createHashMap(2);
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments(
+				portDataSetName, servicePorts,
+				List.of(
+					property("api.certificate.generateAndUseSelfSigned", "false"),
+					property("api.certificate.custom.certificate", certificate.toString()),
+					property("api.certificate.custom.privateKey", privateKey.toString())
+				),
+				Set.of(), SystemProvider.CODE, RestProvider.CODE
+			)
+		);
+		try {
+			evitaServer.run();
+			final String encodedName = fileName.replace("}", "%7D").replace("{", "%7B");
+			final WebClient client = WebClient.of("http://localhost:" + servicePorts.get(SystemProvider.CODE));
+			final AggregatedHttpResponse response = client.blocking().get("/system/" + encodedName);
+			assertEquals(200, response.status().code());
+			assertEquals(Files.readString(certificate), response.contentUtf8());
+			final Path sibling = folder.resolve("other-certificate.pem");
+			Files.copy(certificate, sibling);
+			assertEquals(404, client.blocking().get("/system/other-certificate.pem").status().code());
+		} finally {
+			closeServerAndEvita(evitaServer, portDataSetName);
+		}
+	}
+
+	/** Verifies method negotiation through the real server's system and lab routers. */
+	@Test
+	@DisplayName("Should answer 405 with Allow for unsupported system and lab methods")
+	void shouldRejectUnsupportedSystemAndLabMethods() {
+		final Map<String, Integer> servicePorts = createHashMap(6);
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments(
+				servicePorts,
+				List.of(property("api.endpoints.lab.tlsMode", "FORCE_NO_TLS")),
+				SystemProvider.CODE, LabProvider.CODE
+			)
+		);
+		try {
+			evitaServer.run();
+			final AggregatedHttpResponse systemResponse = WebClient.of(
+				"http://localhost:" + servicePorts.get(SystemProvider.CODE)
+			).blocking().post("/system/server-name", "");
+			assertEquals(405, systemResponse.status().code());
+			assertEquals("GET", systemResponse.headers().get("Allow"));
+
+			final AggregatedHttpResponse labResponse = WebClient.of(
+				"http://localhost:" + servicePorts.get(LabProvider.CODE)
+			).blocking().post("/lab/", "");
+			assertEquals(405, labResponse.status().code());
+			assertEquals("OPTIONS, GET", labResponse.headers().get("Allow"));
+		} finally {
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -1127,8 +1214,21 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		return constructTestArguments(servicePorts, properties, Set.of(), enabledApis);
 	}
 
+	/** Builds server arguments using the shared server-test port allocation. */
 	@Nonnull
 	private Map<String, String> constructTestArguments(
+		@Nullable Map<String, Integer> servicePorts,
+		@Nullable List<Property> properties,
+		@Nonnull Set<String> apisWithSharedPorts,
+		@Nonnull String... enabledApis
+	) {
+		return constructTestArguments(DIR_EVITA_SERVER_TEST, servicePorts, properties, apisWithSharedPorts, enabledApis);
+	}
+
+	/** Builds server arguments with an independent port allocation for a fixture. */
+	@Nonnull
+	private Map<String, String> constructTestArguments(
+		@Nonnull String portDataSetName,
 		@Nullable Map<String, Integer> servicePorts,
 		@Nullable List<Property> properties,
 		@Nonnull Set<String> apisWithSharedPorts,
@@ -1141,7 +1241,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		final Set<String> apis = ArrayUtils.isEmpty(enabledApis) ?
 			allApis :
 			Set.of(enabledApis);
-		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, apis.size());
+		final int[] ports = getPortManager().allocatePorts(portDataSetName, apis.size());
 		final AtomicInteger index = new AtomicInteger();
 		//noinspection unchecked
 		return createHashMap(

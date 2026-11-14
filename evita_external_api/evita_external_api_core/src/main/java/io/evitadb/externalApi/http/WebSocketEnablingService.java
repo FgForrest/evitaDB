@@ -70,8 +70,9 @@ public class WebSocketEnablingService implements WebSocketService, WebSocketServ
 	@Nonnull
 	@Override
 	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull WebSocket in) {
-		// delegate the actual websocket to the defined handler
-		return this.webSocketTrafficHandler.handle(ctx, new RoutableWebSocket(in, ctx.uri().getPath()));
+		// delegate the actual websocket to the defined handler; `ctx.path()` is the encoded path, which the routers
+		// decode segment by segment, so the decoded `ctx.uri().getPath()` must not replace it
+		return this.webSocketTrafficHandler.handle(ctx, new RoutableWebSocket(in, ctx.path()));
 	}
 
 	@Nonnull
