@@ -89,12 +89,16 @@ class PriceInPriceListsTest {
 			assertArrayEquals(new String[]{"basic", "reference"}, constraint.getPriceLists());
 		}
 
+		/**
+		 * A null item is an undefined value and is dropped; the filter stays and matches nothing instead of widening
+		 * the result.
+		 */
 		@Test
-		@DisplayName("should return null from factory for null variable")
-		void shouldReturnNullFromFactoryForNullVariable() {
+		@DisplayName("should match nothing for a null value item")
+		void shouldMatchNothingWhenValueItemIsNull() {
 			final String nullString = null;
 
-			assertNull(priceInPriceLists(nullString));
+			assertArrayEquals(new String[0], priceInPriceLists(nullString).getPriceLists());
 		}
 
 		@Test

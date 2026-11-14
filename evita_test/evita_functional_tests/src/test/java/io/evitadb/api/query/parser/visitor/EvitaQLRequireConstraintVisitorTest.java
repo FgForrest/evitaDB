@@ -25,6 +25,7 @@ package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
@@ -77,7 +78,8 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint3 = parseRequireConstraint("require (  entityFetch(  attributeContentAll() )  )");
 		assertEquals(require(entityFetch(attributeContentAll())), constraint3);
 
-		final RequireConstraint constraint4 = parseRequireConstraint("require()");
+		final RequireConstraint constraint4 = DefaultQueryParser.getInstance()
+			.parseRequireConstraintListUnsafe("require()").get(0);
 		assertEquals(require(), constraint4);
 	}
 
@@ -3003,6 +3005,9 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint4 = parseRequireConstraint("facetCalculationRules(@a, @b)", Map.of("a", NEGATION, "b", EXCLUSIVITY));
 		assertEquals(facetCalculationRules(NEGATION, EXCLUSIVITY), constraint4);
+
+		assertEquals(facetCalculationRules(DISJUNCTION, CONJUNCTION),
+			parseRequireConstraint("facetCalculationRules(?,?)", null, null));
 	}
 
 	@Test
@@ -3011,7 +3016,6 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetCalculationRules(CONJUNCTION)"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetCalculationRules(A, B)"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetCalculationRules('A', 'B')"));
-		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetCalculationRules(?,?)", null, null));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetCalculationRules(?,?)", "a", "b"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetCalculationRules()"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetCalculationRules(CONJUNCTION)"));

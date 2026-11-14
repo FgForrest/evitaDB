@@ -92,7 +92,8 @@ import java.math.BigDecimal;
  *
  * - At least one of `from` / `to` must be non-null (both-null is a programmer error; no slider translates to that).
  * - When both bounds are non-null, `from.compareTo(to) <= 0` is required.
- * - `histogramName` may be empty string in user input; it is normalised to `null`.
+ * - `histogramName`, when given, must not be blank: the factories in {@code QueryConstraints}, EvitaQL and the
+ *   external APIs reject a blank name; this constructor itself still normalises an empty string to `null`.
  * - `groupSelector`, if present, must be a single child (arrays / lists are rejected).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026

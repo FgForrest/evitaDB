@@ -392,7 +392,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				(!group && it instanceof EntityPrimaryKeyInSet),
 			SeparateEntityScopeContainer.class::isInstance
 		);
-		return filterBy(constraints.stream()
+		return new FilterBy(constraints.stream()
 			.flatMap(it -> it instanceof ConstraintContainer<?> container ?
 				Arrays.stream(container.getChildren()).map(FilterConstraint.class::cast) : Stream.of(it))
 			.toArray(FilterConstraint[]::new));

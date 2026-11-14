@@ -52,10 +52,10 @@ class LabelTest {
 		assertEquals("a", label.getLabelName());
 		assertEquals("b", label.getLabelValue());
 
-		assertNull(label(null, null));
-		assertNull(label(null, "B"));
-		assertNull(label(null, null));
-		assertNull(label("", null));
+		assertThrows(EvitaInvalidUsageException.class, () -> label(null, null));
+		assertThrows(EvitaInvalidUsageException.class, () -> label(null, "B"));
+		assertThrows(EvitaInvalidUsageException.class, () -> label(null, null));
+		assertThrows(EvitaInvalidUsageException.class, () -> label("", null));
 	}
 
 	@Test

@@ -32,8 +32,8 @@ import lombok.Setter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -111,8 +111,9 @@ public class ParseContext {
 	 * Tries to resolve next positional argument. Checks if there are any positional arguments left and if they
 	 * have supported data types. This method expects that syntax tree using positional parameters is parsed
 	 * synchronously in original order. Also, each argument can be used only once in query.
+	 * A bound null is a legal argument and is returned as null; a missing argument still throws.
 	 */
-	@Nonnull
+	@Nullable
 	public <A extends Serializable & Comparable<?>> A getNextPositionalArgument() {
 		Assert.notNull(
 			this.positionalArguments,
@@ -127,10 +128,6 @@ public class ParseContext {
 				"Missing argument of index " + this.lastPositionalArgumentIndex + "."
 			);
 		}
-		Assert.notNull(
-			argument,
-			"Positional argument of index " + this.lastPositionalArgumentIndex + " is null."
-		);
 		Assert.isTrue(
 			isArgumentDataTypeSupported(argument),
 			"Positional argument of index " + this.lastPositionalArgumentIndex + " has unsupported data type."
@@ -143,15 +140,16 @@ public class ParseContext {
 	/**
 	 * Tries to resolve named parameter by name specified by client. Checks if there are any positional arguments
 	 * left and if they have supported data types. Each argument can be used multiple times in query.
+	 * A name bound to null is a legal argument and is returned as null; a name that is not bound at all throws.
 	 */
-	@Nonnull
+	@Nullable
 	public <A extends Serializable & Comparable<?>> A getNamedArgument(@Nonnull String name) {
 		Assert.notNull(
 			this.namedArguments,
 			"Query uses named parameters but no named arguments were passed."
 		);
 		final Object argument = this.namedArguments.get(name);
-		Assert.notNull(argument, "Missing argument of name `" + name + "`.");
+		Assert.isTrue(this.namedArguments.containsKey(name), "Missing argument of name `" + name + "`.");
 		Assert.isTrue(
 			isArgumentDataTypeSupported(argument),
 			"Named argument of name `" + name + "` has unsupported data type."
@@ -164,20 +162,36 @@ public class ParseContext {
 	/**
 	 * Supported argument data types are: evita data types, enums, arrays of evita data types and enums, iterables
 	 * of evita data types or enums.
+	 * Null, and null items inside arrays and iterables, are supported as undefined values; every defined item is
+	 * checked.
 	 */
-	private static boolean isArgumentDataTypeSupported(@Nonnull Object argument) {
-		if (EvitaDataTypes.isSupportedTypeOrItsArray(argument.getClass())) {
+	private static boolean isArgumentDataTypeSupported(@Nullable Object argument) {
+		if (argument != null && argument.getClass().isArray()) {
+			final Class<?> component = argument.getClass().getComponentType();
+			if (component != Object.class && component != Serializable.class
+				&& !EvitaDataTypes.isSupportedType(component) && !component.isEnum()) {
+				return false;
+			}
+			final int length = Array.getLength(argument);
+			for (int i = 0; i < length; i++) {
+				final Object item = Array.get(argument, i);
+				if (item != null && !EvitaDataTypes.isSupportedType(item.getClass()) && !item.getClass().isEnum()) {
+					return false;
+				}
+			}
 			return true;
 		}
-		if (argument.getClass().isEnum()
-			|| (argument.getClass().isArray() && argument.getClass().getComponentType().isEnum())) {
+		if (argument == null || EvitaDataTypes.isSupportedType(argument.getClass())) {
+			return true;
+		}
+		if (argument.getClass().isEnum()) {
 			return true;
 		}
 		if (argument instanceof final Iterable<?> iterable) {
-			final Iterator<?> iterator = iterable.iterator();
-			if (iterator.hasNext()) {
-				final Object item = iterator.next();
-				return EvitaDataTypes.isSupportedType(item.getClass()) || item.getClass().isEnum();
+			for (final Object item : iterable) {
+				if (item != null && !EvitaDataTypes.isSupportedType(item.getClass()) && !item.getClass().isEnum()) {
+					return false;
+				}
 			}
 			return true;
 		}

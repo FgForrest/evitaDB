@@ -108,12 +108,11 @@ class FilterInScopeTest {
 			);
 		}
 
+		/** `inScope` has no default scope to fall back to, so a null scope is refused. */
 		@Test
-		@DisplayName("should return null from factory when scope is null")
-		void shouldReturnNullFromFactoryWhenScopeIsNull() {
-			final FilterInScope result = inScope(null, entityPrimaryKeyInSet(1));
-
-			assertNull(result);
+		@DisplayName("should throw from factory when scope is null")
+		void shouldThrowFromFactoryWhenScopeIsNull() {
+			assertThrows(EvitaInvalidUsageException.class, () -> inScope(null, entityPrimaryKeyInSet(1)));
 		}
 
 		@Test

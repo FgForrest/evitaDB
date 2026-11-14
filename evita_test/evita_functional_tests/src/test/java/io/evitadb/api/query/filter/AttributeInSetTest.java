@@ -73,13 +73,17 @@ class AttributeInSetTest {
 			assertArrayEquals(new Comparable<?>[]{1, 5}, constraint.getAttributeValues());
 		}
 
+		/**
+		 * A null item is an undefined value and is dropped; the filter stays and matches nothing instead of widening
+		 * the result.
+		 */
 		@Test
-		@DisplayName("should return null for null variable input")
-		void shouldCreateViaFactoryClassWorkAsExpectedForNullVariable() {
+		@DisplayName("should match nothing for a null value item")
+		void shouldMatchNothingWhenValueItemIsNull() {
 			final Integer nullInteger = null;
 			final AttributeInSet constraint = attributeInSet("refs", nullInteger);
 
-			assertNull(constraint);
+			assertArrayEquals(new Comparable<?>[0], constraint.getAttributeValues());
 		}
 
 		@Test

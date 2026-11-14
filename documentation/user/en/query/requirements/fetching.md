@@ -396,16 +396,21 @@ The query returns the following entity body of the `Brand` entity:
 
 ```evitaql-syntax
 attributeContent(
-    argument:string+
+    argument:string*
 )
 ```
 
 <dl>
-    <dt>argument:string+</dt>
+    <dt>argument:string*</dt>
     <dd>
-        one or more mandatory entity or reference attribute names to be fetched along with the entity
+        zero or more entity or reference attribute names to be fetched along with the entity
     </dd>
 </dl>
+
+An empty list in the Java factory or a bound EvitaQL list requests **all attributes**. A null Java array has
+this same meaning. In EvitaQL, bind an empty list explicitly; a lone list parameter bound to null is a syntax
+error. Use `attributeContentAll()` when no selection is needed.
+Null name items are rejected by both the Java factory and EvitaQL.
 
 The `attributeContent` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AttributeContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/AttributeContent.cs</SourceClass></LS>)
 requirement is used to retrieve one or more entity or reference [attributes](../../use/data-model.md#attributes-unique-filterable-sortable-localized). [Localized attributes](../../use/data-model.md#localized-attributes)
@@ -604,16 +609,21 @@ All the localized attributes are missing, because there is no localization conte
 
 ```evitaql-syntax
 associatedDataContent(
-    argument:string+
+    argument:string*
 )
 ```
 
 <dl>
-    <dt>argument:string+</dt>
+    <dt>argument:string*</dt>
     <dd>
-        one or more mandatory entity associated data names to be fetched along with the entity
+        zero or more entity associated data names to be fetched along with the entity
     </dd>
 </dl>
+
+An empty list in the Java factory or a bound EvitaQL list requests **all associated data**. A null Java array has
+this same meaning. In EvitaQL, bind an empty list explicitly; a lone list parameter bound to null is a syntax
+error. Use `associatedDataContentAll()` when no selection is needed.
+Null name items are rejected by both the Java factory and EvitaQL.
 
 The `associatedDataContent` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AssociatedDataContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/AssociatedDataContent.cs</SourceClass></LS>)
 requirement is used to retrieve one or more entity [associated data](../../use/data-model.md#associated-data).
@@ -802,18 +812,23 @@ All the localized associated data are missing, because there is no localization 
 
 ```evitaql-syntax
 dataInLocales(
-    argument:string+
+    argument:string*
 )
 ```
 
 <dl>
-    <dt>argument:string+</dt>
+    <dt>argument:string*</dt>
     <dd>
-        a mandatory specification of the one or more [locales](https://en.wikipedia.org/wiki/IETF_language_tag) in which
+        zero or more [locales](https://en.wikipedia.org/wiki/IETF_language_tag) in which
         the localized entity or reference localized attributes and entity associated data will be fetched; examples of
         a valid language tags are: `en-US` or `en-GB`, `cs` or `cs-CZ`, `de` or `de-AT`, `de-CH`, `fr` or `fr-CA` etc.
     </dd>
 </dl>
+
+An empty list in the Java factory or a bound EvitaQL list requests **all locales**. A null Java array has
+this same meaning. In EvitaQL, bind an empty list explicitly; a lone list parameter bound to null is a syntax
+error. Use `dataInLocalesAll()` when no selection is needed.
+Null locale items are ignored; a list containing only nulls requests all locales.
 
 The `dataInLocales` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/DataInLocales.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/DataInLocales.cs</SourceClass></LS>)
 requirement is used in two scenarios:
@@ -1771,7 +1786,7 @@ As you can see, the filtered price list is returned.
 ```evitaql-syntax
 referenceContent(
     argument:enum(ANY|EXISTING)?,
-    argument:string*,
+    argument:string+,
     filterConstraint:filterBy?,
     orderConstraint:orderBy?,
     requireConstraint:entityFetch?,
@@ -1791,9 +1806,9 @@ referenceContent(
         they point to to existing or non-existing entities (see [managed references behaviour](#managed-references-behaviour) chapter for more details)
         </p>
     </dd>
-    <dt>argument:string*</dt>
+    <dt>argument:string+</dt>
     <dd>
-        optional zero or more string arguments representing the names of the references to fetch for the entity;
+        one or more string arguments representing the names of the references to fetch for the entity;
         if more than one name is given in the argument, any corresponding constraints in the same `referenceContent`
         container will apply to all of them;
         if none are given, all references are fetched and any corresponding constraints in the same `referenceContent`
@@ -1848,6 +1863,12 @@ referenceContent(
         constraint allows you specify offset and limit for the returned references
     </dd>
 </dl>
+
+An empty list in the Java factory or a bound EvitaQL list requests **all references**. A null Java array has
+this same meaning. In EvitaQL, bind an empty list explicitly; a lone list parameter bound to null is a syntax
+error. Use `referenceContentAll()` when no selection is needed.
+Null name items are rejected by both the Java factory and EvitaQL.
+A null scalar reference name is also rejected. The literal `referenceContent()` does not parse.
 
 The `referenceContent` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass></LS>)
 requirement allows you to access the information about the references the entity has towards other entities (either

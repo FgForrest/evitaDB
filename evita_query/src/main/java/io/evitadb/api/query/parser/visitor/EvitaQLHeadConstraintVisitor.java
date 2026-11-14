@@ -24,9 +24,7 @@
 package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.HeadConstraint;
-import io.evitadb.api.query.head.Collection;
-import io.evitadb.api.query.head.Head;
-import io.evitadb.api.query.head.Label;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.HeadContainerConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.LabelConstraintContext;
@@ -49,7 +47,7 @@ public class EvitaQLHeadConstraintVisitor extends EvitaQLBaseConstraintVisitor<H
     public HeadConstraint visitCollectionConstraint(EvitaQLParser.CollectionConstraintContext ctx) {
         return parse(
             ctx,
-            () -> new Collection(
+			() -> QueryConstraints.collection(
                 ctx.args.classifier.accept(this.stringValueTokenVisitor).asString()
             )
         );
@@ -61,9 +59,9 @@ public class EvitaQLHeadConstraintVisitor extends EvitaQLBaseConstraintVisitor<H
             ctx,
             () -> {
                 if (ctx.args == null) {
-                    return new Head();
+					return QueryConstraints.head();
                 }
-                return new Head(
+				return QueryConstraints.head(
                     ctx.args.headConstraint()
                         .stream()
                         .map(hc -> visitChildConstraint(hc, HeadConstraint.class))
@@ -77,11 +75,11 @@ public class EvitaQLHeadConstraintVisitor extends EvitaQLBaseConstraintVisitor<H
     public HeadConstraint visitLabelConstraint(LabelConstraintContext ctx) {
         return parse(
             ctx,
-            () -> new Label(
+			() -> QueryConstraints.label(
                 ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
                 ctx.args.value
                     .accept(this.comparableValueTokenVisitor)
-                    .asSerializable()
+					.asSerializableAndComparable()
             )
         );
     }

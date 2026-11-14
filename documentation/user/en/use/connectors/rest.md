@@ -127,6 +127,14 @@ There is nothing special about the <Term>system API</Term>, just a set of basic 
 
 ## Query language
 
+A null constraint field is omitted. Inside value lists, null items are ignored; a list containing only null
+items is empty. An empty filter value list matches nothing. Name and enum lists reject null items with HTTP 400;
+name lists also reject blank names. Blank price-list values are ignored like null items.
+A blank name supplied as a value, such as `accompanyingPriceName`, `outputName` or `histogramName`, is refused
+with HTTP 400. An absent name keeps its documented default. A container left empty because all its children
+were omitted is omitted itself.
+See [null handling](assets/dynamic-api-query-language-syntax.md#handling-null-values) for examples.
+
 evitaDB is shipped with its own [query language](/documentation/user/en/query/basics.md), for which our REST API has its own facade.
 The main difference between these two is that the evitaDB's original language has generic set of constraints and doesn't
 care about concrete [collection](/documentation/user/en/use/data-model.md#collection) data structure, where the

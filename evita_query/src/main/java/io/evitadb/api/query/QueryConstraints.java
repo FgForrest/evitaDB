@@ -33,19 +33,19 @@ import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Currency;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import static io.evitadb.api.query.ConstraintArguments.*;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -66,8 +66,10 @@ import static java.util.Optional.ofNullable;
  *   this interface.
  * - **Readability**: Method names match EvitaQL syntax, making queries self-documenting.
  * - **Type Safety**: Factory methods enforce correct argument types at compile time.
- * - **Null Handling**: Many factory methods return `null` when given null or empty arguments, allowing queries to
- *   be built conditionally without explicit null checks.
+ * - **Null Handling**: A null value omits its constraint unless the constraint gives null a meaning (an open bound,
+ *   the default page). A null or blank name throws `EvitaInvalidUsageException`. A null enum selects its documented
+ *   default and throws only where there is none (`inScope`, the special value of `attributeIs`, the mode of
+ *   `priceContent`).
  * - **Consistency**: Provides a uniform API across all constraint types (head, filter, order, require).
  *
  * **Usage Pattern:**
@@ -119,9 +121,10 @@ import static java.util.Optional.ofNullable;
  *
  * - **Immutability**: All constraint objects returned by these factory methods are immutable. Modifying a query
  *   requires constructing a new constraint tree.
- * - **Null Tolerance**: Many factory methods accept nullable arguments and return `null` when constraints cannot
- *   be meaningfully constructed (e.g., when all arguments are null or empty). This allows for fluent conditional
- *   query building.
+ * - **Null Tolerance**: Nullable values allow conditional query building. Null items of a value list are ignored,
+ *   and so are blank price-list names: a null filter value list omits the filter, one with only null items matches
+ *   nothing, and elsewhere a null list means an empty one. A null or blank item of a name or enum list throws.
+ *   A container that means nothing without children is omitted when all its children were omitted.
  * - **Validation**: Factory methods perform basic validation (e.g., non-null checks for mandatory parameters) but
  *   do not validate against schema — schema validation occurs at query execution time.
  * - **Varargs Support**: Container constraints typically accept varargs, allowing flexible composition without
@@ -202,6 +205,7 @@ public interface QueryConstraints {
 	@SourceHash("5da5b90a195e8fe5b26664361476230f")
 	@Nonnull
 	static Collection collection(@Nonnull String entityType) {
+		requireName(entityType, "entityType");
 		return new Collection(entityType);
 	}
 
@@ -221,8 +225,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("86a4e77ed865ec8b31ae4c70eaca6cc6")
 	@Nullable
-	static <T extends Comparable<T> & Serializable> Label label(@Nullable String name, @Nullable T value) {
-		return name == null || name.isBlank() || value == null ? null : new Label(name, value);
+	static <T extends Comparable<T> & Serializable> Label label(@Nonnull String name, @Nullable T value) {
+		requireName(name, "name");
+		return value == null ? null : new Label(name, value);
 	}
 
 	/*
@@ -246,7 +251,7 @@ public interface QueryConstraints {
 	@SourceHash("a994fc4f84378ec1343a5d573a2603cc")
 	@Nullable
 	static FilterBy filterBy(@Nullable FilterConstraint... constraint) {
-		return constraint == null ? null : new FilterBy(constraint);
+		return ArrayUtils.isEmptyOrItsValuesNull(constraint) ? null : new FilterBy(constraint);
 	}
 
 	/**
@@ -268,7 +273,7 @@ public interface QueryConstraints {
 	@SourceHash("075f2ec00a842fa41443c109acb094da")
 	@Nullable
 	static FilterGroupBy filterGroupBy(@Nullable FilterConstraint... constraint) {
-		return constraint == null ? null : new FilterGroupBy(constraint);
+		return ArrayUtils.isEmptyOrItsValuesNull(constraint) ? null : new FilterGroupBy(constraint);
 	}
 
 	/**
@@ -290,7 +295,7 @@ public interface QueryConstraints {
 	@SourceHash("d0a246bbda3979243883d6a0a536563c")
 	@Nullable
 	static And and(@Nullable FilterConstraint... constraints) {
-		if (constraints == null) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
 			return null;
 		}
 		return new And(constraints);
@@ -314,7 +319,7 @@ public interface QueryConstraints {
 	@SourceHash("cb46b07d38db7d7b5475b7118506ff22")
 	@Nullable
 	static Or or(@Nullable FilterConstraint... constraints) {
-		if (constraints == null) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
 			return null;
 		}
 		return new Or(constraints);
@@ -359,8 +364,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("39c0a65a0262d45fbcfe542cbbaf496e")
 	@Nullable
-	static ReferenceHaving referenceHaving(@Nullable String referenceName, @Nullable FilterConstraint... constraint) {
-		return referenceName == null ? null : new ReferenceHaving(referenceName, constraint);
+	static ReferenceHaving referenceHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceHaving(referenceName, constraint);
 	}
 
 	/**
@@ -381,10 +387,10 @@ public interface QueryConstraints {
 	@SourceHash("f424d22c8bc862ad368c959a6ab7871d")
 	@Nullable
 	static UserFilter userFilter(@Nullable FilterConstraint... constraints) {
-		if (constraints == null) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
 			return null;
 		}
-		return new UserFilter(constraints);
+		return new UserFilter(withoutNullValues(constraints));
 	}
 
 	/**
@@ -401,8 +407,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("d1e640d67f7b2a4205ab8452ce256fc9")
 	@Nullable
-	static <T extends Serializable> AttributeBetween attributeBetween(@Nullable String attributeName, @Nullable T from, @Nullable T to) {
-		if (attributeName == null || (from == null && to == null)) {
+	static <T extends Serializable> AttributeBetween attributeBetween(@Nonnull String attributeName, @Nullable T from,
+		@Nullable T to) {
+		requireName(attributeName, "attributeName");
+		if (from == null && to == null) {
 			return null;
 		} else {
 			return new AttributeBetween(attributeName, from, to);
@@ -424,8 +432,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("58026ac61d1a7f676d97b83f0ddaa327")
 	@Nullable
-	static AttributeContains attributeContains(@Nullable String attributeName, @Nullable String textToSearch) {
-		return attributeName == null || textToSearch == null ? null : new AttributeContains(attributeName, textToSearch);
+	static AttributeContains attributeContains(@Nonnull String attributeName, @Nullable String textToSearch) {
+		requireName(attributeName, "attributeName");
+		return textToSearch == null ? null : new AttributeContains(attributeName, textToSearch);
 	}
 
 	/**
@@ -443,8 +452,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("978aa47eaf2c84ed1c55a93620489058")
 	@Nullable
-	static AttributeStartsWith attributeStartsWith(@Nullable String attributeName, @Nullable String textToSearch) {
-		return attributeName == null || textToSearch == null ? null : new AttributeStartsWith(attributeName, textToSearch);
+	static AttributeStartsWith attributeStartsWith(@Nonnull String attributeName, @Nullable String textToSearch) {
+		requireName(attributeName, "attributeName");
+		return textToSearch == null ? null : new AttributeStartsWith(attributeName, textToSearch);
 	}
 
 	/**
@@ -462,8 +472,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("e5efefa596fdf401f143a58d824d3383")
 	@Nullable
-	static AttributeEndsWith attributeEndsWith(@Nullable String attributeName, @Nullable String textToSearch) {
-		return attributeName == null || textToSearch == null ? null : new AttributeEndsWith(attributeName, textToSearch);
+	static AttributeEndsWith attributeEndsWith(@Nonnull String attributeName, @Nullable String textToSearch) {
+		requireName(attributeName, "attributeName");
+		return textToSearch == null ? null : new AttributeEndsWith(attributeName, textToSearch);
 	}
 
 	/**
@@ -481,8 +492,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("7aefcc60ae8053e13627286dc516bb04")
 	@Nullable
-	static <T extends Serializable> AttributeEquals attributeEquals(@Nullable String attributeName, @Nullable T attributeValue) {
-		return attributeName == null || attributeValue == null ? null : new AttributeEquals(attributeName, attributeValue);
+	static <T extends Serializable> AttributeEquals attributeEquals(@Nonnull String attributeName,
+		@Nullable T attributeValue) {
+		requireName(attributeName, "attributeName");
+		return attributeValue == null ? null : new AttributeEquals(attributeName, attributeValue);
 	}
 
 	/**
@@ -500,8 +513,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("7ba6101cae348339c843ed62aa462c36")
 	@Nullable
-	static <T extends Serializable> AttributeLessThan attributeLessThan(@Nullable String attributeName, @Nullable T attributeValue) {
-		return attributeName == null || attributeValue == null ? null : new AttributeLessThan(attributeName, attributeValue);
+	static <T extends Serializable> AttributeLessThan attributeLessThan(@Nonnull String attributeName,
+		@Nullable T attributeValue) {
+		requireName(attributeName, "attributeName");
+		return attributeValue == null ? null : new AttributeLessThan(attributeName, attributeValue);
 	}
 
 	/**
@@ -519,8 +534,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("468105812a45da3111ff99827ac0d971")
 	@Nullable
-	static <T extends Serializable> AttributeLessThanEquals attributeLessThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
-		return attributeName == null || attributeValue == null ? null : new AttributeLessThanEquals(attributeName, attributeValue);
+	static <T extends Serializable> AttributeLessThanEquals attributeLessThanEquals(@Nonnull String attributeName,
+		@Nullable T attributeValue) {
+		requireName(attributeName, "attributeName");
+		return attributeValue == null ? null : new AttributeLessThanEquals(attributeName, attributeValue);
 	}
 
 	/**
@@ -538,8 +555,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("6697d8a407fb8c0c265bc92353460938")
 	@Nullable
-	static <T extends Serializable> AttributeGreaterThan attributeGreaterThan(@Nullable String attributeName, @Nullable T attributeValue) {
-		return attributeName == null || attributeValue == null ? null : new AttributeGreaterThan(attributeName, attributeValue);
+	static <T extends Serializable> AttributeGreaterThan attributeGreaterThan(@Nonnull String attributeName,
+		@Nullable T attributeValue) {
+		requireName(attributeName, "attributeName");
+		return attributeValue == null ? null : new AttributeGreaterThan(attributeName, attributeValue);
 	}
 
 	/**
@@ -557,8 +576,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("3c5f598d53e7ba5873455cbe0accb8e9")
 	@Nullable
-	static <T extends Serializable> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
-		return attributeName == null || attributeValue == null ? null : new AttributeGreaterThanEquals(attributeName, attributeValue);
+	static <T extends Serializable> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nonnull String attributeName,
+		@Nullable T attributeValue) {
+		requireName(attributeName, "attributeName");
+		return attributeValue == null ? null : new AttributeGreaterThanEquals(attributeName, attributeValue);
 	}
 
 	/**
@@ -581,22 +602,14 @@ public interface QueryConstraints {
 	@SourceHash("1d8075e921e5196ef6040f415c3f6fea")
 	@Nullable
 	static PriceInPriceLists priceInPriceLists(@Nullable String... priceList) {
-		if (priceList == null) {
+		final String[] normalizedPriceList = withoutUndefinedPriceLists(priceList);
+		if (normalizedPriceList == null) {
 			return null;
 		}
-		// if the array is empty - it was deliberate action which needs to produce empty result of the query
-		if (priceList.length == 0) {
-			return new PriceInPriceLists(priceList);
+		if (normalizedPriceList.length == 0) {
+			return new PriceInPriceLists();
 		}
-		final String[] normalizeNames = Arrays.stream(priceList).filter(Objects::nonNull).filter(it -> !it.isBlank()).toArray(String[]::new);
-		// the array was not empty, but contains only null values - this may not be deliberate action - for example
-		// the initalization was like `priceInPriceLists(nullVariable)` and this should exclude the constraint
-		if (normalizeNames.length == 0) {
-			return null;
-		}
-		// otherwise propagate only non-null values
-		return normalizeNames.length == priceList.length ?
-			new PriceInPriceLists(priceList) : new PriceInPriceLists(normalizeNames);
+		return new PriceInPriceLists(normalizedPriceList);
 	}
 
 	/**
@@ -682,8 +695,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("fb5f82c61e6ab05bc1d7cbc219ae84a0")
 	@Nullable
-	static HierarchyWithin hierarchyWithin(@Nullable String referenceName, @Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
-		if (ofParent == null || referenceName == null) {
+	static HierarchyWithin hierarchyWithin(@Nonnull String referenceName, @Nullable FilterConstraint ofParent,
+		@Nullable HierarchySpecificationFilterConstraint... with) {
+		requireName(referenceName, "referenceName");
+		if (ofParent == null) {
 			return null;
 		} else if (with == null) {
 			return new HierarchyWithin(referenceName, ofParent);
@@ -708,7 +723,8 @@ public interface QueryConstraints {
 	@SourceHash("2b096d2448532a2475705b53745a6d11")
 	@Nonnull
 	static HierarchyWithinRoot hierarchyWithinRootSelf(@Nullable HierarchySpecificationFilterConstraint... with) {
-		return with == null ? new HierarchyWithinRoot() : new HierarchyWithinRoot(with);
+		return ArrayUtils.isEmptyOrItsValuesNull(with) ? new HierarchyWithinRoot() :
+			new HierarchyWithinRoot(withoutNullValues(with));
 	}
 
 	/**
@@ -728,8 +744,12 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("ac9f7ba074c4181d7156351c92d8708e")
 	@Nonnull
-	static HierarchyWithinRoot hierarchyWithinRoot(@Nullable String referenceName, @Nullable HierarchySpecificationFilterConstraint... with) {
-		return referenceName == null || with == null ? new HierarchyWithinRoot() : new HierarchyWithinRoot(referenceName, with);
+	static HierarchyWithinRoot hierarchyWithinRoot(@Nonnull String referenceName,
+		@Nullable HierarchySpecificationFilterConstraint... with) {
+		requireName(referenceName, "referenceName");
+		return new HierarchyWithinRoot(referenceName,
+			ArrayUtils.isEmptyOrItsValuesNull(with) ? new HierarchySpecificationFilterConstraint[0] :
+				withoutNullValues(with));
 	}
 
 	/**
@@ -924,8 +944,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("901e300f89584a13c4e220e5afc4ecc0")
 	@Nullable
-	static AttributeInRange attributeInRange(@Nullable String attributeName, @Nullable OffsetDateTime atTheMoment) {
-		return attributeName == null || atTheMoment == null ? null : new AttributeInRange(attributeName, atTheMoment);
+	static AttributeInRange attributeInRange(@Nonnull String attributeName, @Nullable OffsetDateTime atTheMoment) {
+		requireName(attributeName, "attributeName");
+		return atTheMoment == null ? null : new AttributeInRange(attributeName, atTheMoment);
 	}
 
 	/**
@@ -942,8 +963,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("2387209939ff9565d0af251c8b2bcdd9")
 	@Nullable
-	static AttributeInRange attributeInRange(@Nullable String attributeName, @Nullable Number theValue) {
-		return attributeName == null || theValue == null ? null : new AttributeInRange(attributeName, theValue);
+	static AttributeInRange attributeInRange(@Nonnull String attributeName, @Nullable Number theValue) {
+		requireName(attributeName, "attributeName");
+		return theValue == null ? null : new AttributeInRange(attributeName, theValue);
 	}
 
 	/**
@@ -961,8 +983,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("1680966ff5b72dfe18a0151c75b17b25")
 	@Nullable
-	static AttributeInRange attributeInRangeNow(@Nullable String attributeName) {
-		return attributeName == null ? null : new AttributeInRange(attributeName);
+	static AttributeInRange attributeInRangeNow(@Nonnull String attributeName) {
+		requireName(attributeName, "attributeName");
+		return new AttributeInRange(attributeName);
 	}
 
 	/**
@@ -980,26 +1003,10 @@ public interface QueryConstraints {
 	@SourceHash("f420894e8ac4ef178c2c0eea29117cda")
 	@SuppressWarnings("unchecked")
 	@Nullable
-	static <T extends Serializable> AttributeInSet attributeInSet(@Nullable String attributeName, @Nullable T... set) {
-		// if the array is empty - it was deliberate action which needs to produce empty result of the query
-		if (attributeName == null || set == null) {
-			return null;
-		}
-		final List<T> args = Arrays.stream(set).filter(Objects::nonNull).toList();
-		if (args.size() == set.length) {
-			return new AttributeInSet(attributeName, set);
-		} else if (args.isEmpty()) {
-			// the array was not empty, but contains only null values - this may not be deliberate action - for example
-			// the initalization was like `attributeInSet("attrName", nullVariable)` and this should exclude the constraint
-			return null;
-		} else {
-			// otherwise propagate only non-null values
-			final T[] limitedSet = (T[]) Array.newInstance(set.getClass().getComponentType(), args.size());
-			for (int i = 0; i < args.size(); i++) {
-				limitedSet[i] = args.get(i);
-			}
-			return new AttributeInSet(attributeName, limitedSet);
-		}
+	static <T extends Serializable> AttributeInSet attributeInSet(@Nonnull String attributeName, @Nullable T... set) {
+		requireName(attributeName, "attributeName");
+		final T[] normalizedSet = withoutNullValues(set);
+		return normalizedSet == null ? null : new AttributeInSet(attributeName, normalizedSet);
 	}
 
 	/**
@@ -1010,8 +1017,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("718d0813b4684b02b33966c8c37912a8")
 	@Nullable
-	static AttributeEquals attributeEqualsFalse(@Nullable String attributeName) {
-		return attributeName == null ? null : new AttributeEquals(attributeName, Boolean.FALSE);
+	static AttributeEquals attributeEqualsFalse(@Nonnull String attributeName) {
+		requireName(attributeName, "attributeName");
+		return new AttributeEquals(attributeName, Boolean.FALSE);
 	}
 
 	/**
@@ -1029,8 +1037,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("57684834e13ce6bca64390d8b531a18a")
 	@Nullable
-	static AttributeEquals attributeEqualsTrue(@Nullable String attributeName) {
-		return attributeName == null ? null : new AttributeEquals(attributeName, Boolean.TRUE);
+	static AttributeEquals attributeEqualsTrue(@Nonnull String attributeName) {
+		requireName(attributeName, "attributeName");
+		return new AttributeEquals(attributeName, Boolean.TRUE);
 	}
 
 	/**
@@ -1048,10 +1057,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("abd10daf6d7cc006c5b08b117d3ba9d7")
 	@Nullable
-	static AttributeIs attributeIs(@Nullable String attributeName, @Nullable AttributeSpecialValue specialValue) {
-		if (attributeName == null || specialValue == null) {
-			return null;
-		}
+	static AttributeIs attributeIs(@Nonnull String attributeName, @Nonnull AttributeSpecialValue specialValue) {
+		requireName(attributeName, "attributeName");
+		Assert.notNull(specialValue, "Argument `specialValue` must not be null: it has no default.");
 		return new AttributeIs(attributeName, specialValue);
 	}
 
@@ -1069,8 +1077,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("273f0d3bec4d5835408ece12065370ce")
 	@Nullable
-	static AttributeIs attributeIsNull(@Nullable String attributeName) {
-		return attributeName == null ? null : new AttributeIs(attributeName, AttributeSpecialValue.NULL);
+	static AttributeIs attributeIsNull(@Nonnull String attributeName) {
+		requireName(attributeName, "attributeName");
+		return new AttributeIs(attributeName, AttributeSpecialValue.NULL);
 	}
 
 	/**
@@ -1088,8 +1097,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("8b7fcc95cba8ba7a66f4f4bc49196e40")
 	@Nullable
-	static AttributeIs attributeIsNotNull(@Nullable String attributeName) {
-		return attributeName == null ? null : new AttributeIs(attributeName, AttributeSpecialValue.NOT_NULL);
+	static AttributeIs attributeIsNotNull(@Nonnull String attributeName) {
+		requireName(attributeName, "attributeName");
+		return new AttributeIs(attributeName, AttributeSpecialValue.NOT_NULL);
 	}
 
 	/**
@@ -1183,89 +1193,92 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("2a5eaf779bca8ed3cdbca87d3556b023")
 	@Nullable
-	static FacetHaving facetHaving(@Nullable String referenceName, @Nullable FilterConstraint... constraint) {
-		return referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(constraint) ? null : new FacetHaving(referenceName, constraint);
+	static FacetHaving facetHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
+		requireName(referenceName, "referenceName");
+		return ArrayUtils.isEmptyOrItsValuesNull(constraint) ? null : new FacetHaving(referenceName, constraint);
 	}
 
 	/**
-	 * Narrows a reference histogram to a specific `[from, to]` range (inclusive) for the given reference, enabling slider-driven range selection on reference attributes. At least one bound must be non-null, and `from` must not exceed `to`. Used in `userFilter`, it also acts as a range carrier for histogram baseline calculations, ensuring sibling sliders remain independent. Bounds are accepted as any `Number` and converted to `BigDecimal` internally.
+	 * Narrows a reference histogram to the specified inclusive `[from, to]` range for the given reference, enabling slider-driven filtering on numeric attributes (e.g., parameter values). At least one bound must be non-null, and `from` must not exceed `to`. Used in `userFilter` for interactive range selection without contracting the histogram's full span.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#histogram-having)
 	 *
 	 * @see io.evitadb.api.query.filter.HistogramHaving
 	 */
-	@SourceHash("2b7a7f8f53f807a8aa4b84eb6980155a")
+	@SourceHash("feecfe86505838e9cfbbc3997e329ead")
 	@Nullable
 	static <T extends Number> HistogramHaving histogramHaving(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable T from,
 		@Nullable T to
 	) {
-		if (referenceName == null || (from == null && to == null)) {
+		requireName(referenceName, "referenceName");
+		if (from == null && to == null) {
 			return null;
 		}
 		return new HistogramHaving(referenceName, null, toBigDecimal(from), toBigDecimal(to), null);
 	}
 
 	/**
-	 * Narrows a reference histogram to a specific `[from, to]` range (inclusive) for a given reference and histogram name, supporting slider-driven range selection on references with multiple histograms. Both bounds must not be null and `from` must be ≤ `to`. Used primarily in `userFilter` for precise histogram filtering and baseline management.
+	 * Narrows a reference histogram to a specific `[from, to]` range (inclusive) for the given reference and histogram, enabling precise slider-driven filtering on numeric attributes (e.g. height, weight) within a reference. At least one bound must be non-null, and `from` must not exceed `to`. Used inside `userFilter` to filter results and maintain independent histogram spans for UI sliders.
 	 *
 	 * ```evitaql
 	 * userFilter(
 	 *     histogramHaving("parameterValues", "basicUnitValue", 50, 120)
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#histogram-having)
 	 *
 	 * @see io.evitadb.api.query.filter.HistogramHaving
 	 */
-	@SourceHash("db105f6493a6c733785d809bf81a2261")
+	@SourceHash("acc59c51ad1adeac0119d2ace8ab7e5b")
 	@Nullable
 	static <T extends Number> HistogramHaving histogramHaving(
-		@Nullable String referenceName,
-		@Nullable String histogramName,
+		@Nonnull String referenceName,
+		@Nonnull String histogramName,
 		@Nullable T from,
 		@Nullable T to
 	) {
-		if (referenceName == null || (from == null && to == null)) {
+		requireName(referenceName, "referenceName");
+		requireName(histogramName, "histogramName");
+		if (from == null && to == null) {
 			return null;
 		}
 		return new HistogramHaving(referenceName, histogramName, toBigDecimal(from), toBigDecimal(to), null);
 	}
 
 	/**
-	 * Narrows a reference histogram to a specific `[from, to]` range (inclusive) for a given reference and group, enabling precise slider-driven filtering on grouped histograms (e.g., selecting a height or weight range within `parameterValues`). At least one bound must be non-null, and if both are set, `from` must not exceed `to`. Used inside `userFilter`, it also acts as a range carrier for proper histogram baseline computation. Bounds accept any `Number` and are handled as `BigDecimal` internally.
+	 * Narrows a reference histogram to a specific `[from, to]` range (inclusive) for a given reference, optionally within a selected group via a `GroupHaving` filter. Used in `userFilter` for slider-driven range selection without contracting the histogram baseline, and outside `userFilter` as a direct filter. At least one bound must be non-null, and `from` must not exceed `to`.
 	 *
 	 * ```evitaql
 	 * userFilter(
-	 *     histogramHaving(
-	 *         "parameterValues", 50, 120,
-	 *         groupHaving(attributeEquals("code", "height"))
-	 *     )
+	 *   histogramHaving(
+	 *     "parameterValues", 50, 120,
+	 *     groupHaving(attributeEquals("code", "height"))
+	 *   )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#histogram-having)
 	 *
 	 * @see io.evitadb.api.query.filter.HistogramHaving
 	 */
-	@SourceHash("82bf71b55acf1edf8cb47d9a95ce7dfa")
+	@SourceHash("285b9e5fb30a63a609b08fa50a2869f0")
 	@Nullable
 	static <T extends Number> HistogramHaving histogramHaving(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable T from,
 		@Nullable T to,
 		@Nullable GroupHaving groupHaving
 	) {
-		if (referenceName == null || (from == null && to == null)) {
+		requireName(referenceName, "referenceName");
+		if (from == null && to == null) {
 			return null;
 		}
 		return new HistogramHaving(referenceName, null, toBigDecimal(from), toBigDecimal(to), groupHaving);
 	}
 
 	/**
-	 * Narrows a reference histogram to a specific inclusive `[from, to]` range, optionally within a selected group for grouped histograms. Used in `userFilter`, it acts as both a filter and a range carrier for independent slider-driven selection, ensuring sibling sliders retain their full `[min, max]` span. Accepts any numeric type; at least one bound must be non-null, and `from` must not exceed `to`. 
+	 * Narrows a reference histogram to a specific inclusive `[from, to]` range, optionally within a selected group for grouped histograms. Ideal for slider-driven filtering on references with multiple histograms (e.g., `height`, `weight`). At least one bound must be non-null, and `from` ≤ `to` if both are set. Used in `userFilter`, it also preserves the histogram's original `[min, max]` span for sibling sliders.
 	 *
 	 * ```evitaql
 	 * userFilter(
@@ -1280,16 +1293,18 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.filter.HistogramHaving
 	 */
-	@SourceHash("a7340689bfe77b9c99ed12a560435981")
+	@SourceHash("196ca7246387b6b210a6c4dfc9cc35a3")
 	@Nullable
 	static <T extends Number> HistogramHaving histogramHaving(
-		@Nullable String referenceName,
-		@Nullable String histogramName,
+		@Nonnull String referenceName,
+		@Nonnull String histogramName,
 		@Nullable T from,
 		@Nullable T to,
 		@Nullable GroupHaving groupHaving
 	) {
-		if (referenceName == null || (from == null && to == null)) {
+		requireName(referenceName, "referenceName");
+		requireName(histogramName, "histogramName");
+		if (from == null && to == null) {
 			return null;
 		}
 		return new HistogramHaving(referenceName, histogramName, toBigDecimal(from), toBigDecimal(to), groupHaving);
@@ -1389,22 +1404,8 @@ public interface QueryConstraints {
 	@SourceHash("c43996b14fc949342db934b98915ec98")
 	@Nullable
 	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable Integer... primaryKey) {
-		if (primaryKey == null) {
-			return null;
-		}
-		// if the array is empty - it was deliberate action which needs to produce empty result of the query
-		if (primaryKey.length == 0) {
-			return new EntityPrimaryKeyInSet(primaryKey);
-		}
-		final Integer[] normalizedPks = Arrays.stream(primaryKey).filter(Objects::nonNull).toArray(Integer[]::new);
-		// the array was not empty, but contains only null values - this may not be deliberate action - for example
-		// the initalization was like `entityPrimaryKeyInSet(nullVariable)` and this should exclude the constraint
-		if (normalizedPks.length == 0) {
-			return null;
-		}
-		// otherwise propagate only non-null values
-		return normalizedPks.length == primaryKey.length ?
-			new EntityPrimaryKeyInSet(primaryKey) : new EntityPrimaryKeyInSet(normalizedPks);
+		final Integer[] normalizedPrimaryKey = withoutNullValues(primaryKey);
+		return normalizedPrimaryKey == null ? null : new EntityPrimaryKeyInSet(normalizedPrimaryKey);
 	}
 
 	/**
@@ -1540,8 +1541,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("773df310836b207593c2688b05682204")
 	@Nullable
-	static FilterInScope inScope(@Nullable Scope scope, @Nullable FilterConstraint... constraints) {
-		return scope == null || ArrayUtils.isEmptyOrItsValuesNull(constraints) ? null : new FilterInScope(scope, constraints);
+	static FilterInScope inScope(@Nonnull Scope scope, @Nullable FilterConstraint... constraints) {
+		Assert.notNull(scope, "Argument `scope` must not be null: it has no default.");
+		return ArrayUtils.isEmptyOrItsValuesNull(constraints) ? null : new FilterInScope(scope, constraints);
 	}
 
 	/**
@@ -1562,6 +1564,7 @@ public interface QueryConstraints {
 	@SourceHash("ca64ab4dbecd576b2d2b7fc691f8cc1f")
 	@Nullable
 	static EntityScope scope(@Nullable Scope... scope) {
+		requireNonNullItems(scope, "scope");
 		return ArrayUtils.isEmptyOrItsValuesNull(scope) ? null : new EntityScope(scope);
 	}
 
@@ -1587,7 +1590,7 @@ public interface QueryConstraints {
 	@SourceHash("7f51c3ccfb4ba2a78fb8cb12ff402eec")
 	@Nullable
 	static OrderBy orderBy(@Nullable OrderConstraint... constraints) {
-		if (constraints == null) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
 			return null;
 		}
 		return new OrderBy(constraints);
@@ -1609,8 +1612,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("523478cdf907e245f0d440512e3b9112")
 	@Nullable
-	static OrderInScope inScope(@Nullable Scope scope, @Nullable OrderConstraint... constraints) {
-		return scope == null || ArrayUtils.isEmptyOrItsValuesNull(constraints) ? null : new OrderInScope(scope, constraints);
+	static OrderInScope inScope(@Nonnull Scope scope, @Nullable OrderConstraint... constraints) {
+		Assert.notNull(scope, "Argument `scope` must not be null: it has no default.");
+		return ArrayUtils.isEmptyOrItsValuesNull(constraints) ? null : new OrderInScope(scope, constraints);
 	}
 
 	/**
@@ -1629,7 +1633,7 @@ public interface QueryConstraints {
 	@SourceHash("aab3021a870dff90f771dbb23cfa67f9")
 	@Nullable
 	static OrderGroupBy orderGroupBy(@Nullable OrderConstraint... constraints) {
-		if (constraints == null) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
 			return null;
 		}
 		return new OrderGroupBy(constraints);
@@ -1839,10 +1843,8 @@ public interface QueryConstraints {
 	@SourceHash("434c7170d6f1944108fd377e4f3e62b7")
 	@Nullable
 	static EntityPrimaryKeyExact entityPrimaryKeyExact(@Nullable Integer... primaryKey) {
-		if (ArrayUtils.isEmptyOrItsValuesNull(primaryKey)) {
-			return null;
-		}
-		return new EntityPrimaryKeyExact(primaryKey);
+		final Integer[] normalizedPrimaryKey = withoutNullValues(primaryKey);
+		return ArrayUtils.isEmpty(normalizedPrimaryKey) ? null : new EntityPrimaryKeyExact(normalizedPrimaryKey);
 	}
 
 	/**
@@ -1860,10 +1862,8 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("6a1f1d0e0e14e291cd7ba46c471afafd")
 	@Nullable
-	static AttributeSetInFilter attributeSetInFilter(@Nullable String attributeName) {
-		if (attributeName == null || attributeName.isBlank()) {
-			return null;
-		}
+	static AttributeSetInFilter attributeSetInFilter(@Nonnull String attributeName) {
+		requireName(attributeName, "attributeName");
 		return new AttributeSetInFilter(attributeName);
 	}
 
@@ -1882,11 +1882,12 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("8b1007ea63c06df4430ef9501fcd2ea4")
 	@Nullable
-	static AttributeSetExact attributeSetExact(@Nullable String attributeName, @Nullable Serializable... attributeValues) {
-		if (attributeName == null || attributeName.isBlank() || ArrayUtils.isEmptyOrItsValuesNull(attributeValues)) {
-			return null;
-		}
-		return new AttributeSetExact(attributeName, attributeValues);
+	static AttributeSetExact attributeSetExact(@Nonnull String attributeName,
+		@Nullable Serializable... attributeValues) {
+		requireName(attributeName, "attributeName");
+		final Serializable[] normalizedAttributeValues = withoutNullValues(attributeValues);
+		return ArrayUtils.isEmpty(normalizedAttributeValues) ? null :
+			new AttributeSetExact(attributeName, normalizedAttributeValues);
 	}
 
 	/**
@@ -1906,8 +1907,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("356618fd59c4146cf4a0513d363dda58")
 	@Nullable
-	static ReferenceProperty referenceProperty(@Nullable String referenceName, @Nullable OrderConstraint... constraints) {
-		if (referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
+	static ReferenceProperty referenceProperty(@Nonnull String referenceName,
+		@Nullable OrderConstraint... constraints) {
+		requireName(referenceName, "referenceName");
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
 			return null;
 		}
 		return new ReferenceProperty(referenceName, constraints);
@@ -2016,7 +2019,7 @@ public interface QueryConstraints {
 	@SourceHash("c920b45a7b68d6d4e134008303c8fd80")
 	@Nullable
 	static EntityProperty entityProperty(@Nullable OrderConstraint... constraints) {
-		if (constraints == null) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
 			return null;
 		}
 		return new EntityProperty(constraints);
@@ -2040,7 +2043,7 @@ public interface QueryConstraints {
 	@SourceHash("61dd542e9ee76592359fe6ea52a8654f")
 	@Nullable
 	static EntityGroupProperty entityGroupProperty(@Nullable OrderConstraint... constraints) {
-		if (constraints == null) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
 			return null;
 		}
 		return new EntityGroupProperty(constraints);
@@ -2061,8 +2064,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("e9d7a89057f43a84b3cad06f973a10db")
 	@Nullable
-	static AttributeNatural attributeNatural(@Nullable String attributeName) {
-		return attributeName == null ? null : new AttributeNatural(attributeName);
+	static AttributeNatural attributeNatural(@Nonnull String attributeName) {
+		requireName(attributeName, "attributeName");
+		return new AttributeNatural(attributeName);
 	}
 
 	/**
@@ -2080,9 +2084,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("a0b33739a421e2d55adbf46e981b4877")
 	@Nullable
-	static AttributeNatural attributeNatural(@Nullable String attributeName, @Nullable OrderDirection orderDirection) {
-		return attributeName == null ? null :
-			new AttributeNatural(attributeName, orderDirection == null ? OrderDirection.ASC : orderDirection);
+	static AttributeNatural attributeNatural(@Nonnull String attributeName, @Nullable OrderDirection orderDirection) {
+		requireName(attributeName, "attributeName");
+		return new AttributeNatural(attributeName, orderDirection == null ? OrderDirection.ASC : orderDirection);
 	}
 
 	/**
@@ -2133,9 +2137,11 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.order.PriceDiscount
 	 */
 	@SourceHash("0dbfe4c6fd3c42e705793b0d634779d0")
-	@Nonnull
-	static PriceDiscount priceDiscount(@Nonnull String... inPriceLists) {
-		return new PriceDiscount(inPriceLists);
+	@Nullable
+	static PriceDiscount priceDiscount(@Nullable String... inPriceLists) {
+		final String[] normalizedInPriceLists = withoutUndefinedPriceLists(inPriceLists);
+		return ArrayUtils.isEmpty(normalizedInPriceLists) ? null :
+			new PriceDiscount(OrderDirection.DESC, normalizedInPriceLists);
 	}
 
 	/**
@@ -2150,9 +2156,11 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.order.PriceDiscount
 	 */
 	@SourceHash("d68099450336267c627e01285db8063d")
-	@Nonnull
-	static PriceDiscount priceDiscount(@Nullable OrderDirection orderDirection, @Nonnull String... inPriceLists) {
-		return new PriceDiscount(orderDirection == null ? OrderDirection.DESC : orderDirection, inPriceLists);
+	@Nullable
+	static PriceDiscount priceDiscount(@Nullable OrderDirection orderDirection, @Nullable String... inPriceLists) {
+		final String[] normalizedInPriceLists = withoutUndefinedPriceLists(inPriceLists);
+		return ArrayUtils.isEmpty(normalizedInPriceLists) ? null :
+			new PriceDiscount(orderDirection == null ? OrderDirection.DESC : orderDirection, normalizedInPriceLists);
 	}
 
 	/**
@@ -2205,7 +2213,7 @@ public interface QueryConstraints {
 	@SourceHash("db5d4a8eac114a0340c185cba2c6d0fb")
 	@Nullable
 	static Require require(@Nullable RequireConstraint... constraints) {
-		if (constraints == null) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
 			return null;
 		}
 		return new Require(constraints);
@@ -2226,8 +2234,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("f68fdc318b95a0c07488dea8b3cd91cc")
 	@Nullable
-	static RequireInScope inScope(@Nullable Scope scope, @Nullable RequireConstraint... constraints) {
-		return scope == null || ArrayUtils.isEmptyOrItsValuesNull(constraints) ? null : new RequireInScope(scope, constraints);
+	static RequireInScope inScope(@Nonnull Scope scope, @Nullable RequireConstraint... constraints) {
+		Assert.notNull(scope, "Argument `scope` must not be null: it has no default.");
+		return ArrayUtils.isEmptyOrItsValuesNull(constraints) ? null : new RequireInScope(scope, constraints);
 	}
 
 	/**
@@ -2244,6 +2253,7 @@ public interface QueryConstraints {
 	@SourceHash("4cfb5689db5ceec235262db5d5cf10b9")
 	@Nullable
 	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable String... attributeName) {
+		requireNonNullItems(attributeName, "attributeName");
 		if (ArrayUtils.isEmptyOrItsValuesNull(attributeName)) {
 			return null;
 		}
@@ -2263,7 +2273,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("e3d44d26d004e0a85aaffab6f6ee19b1")
 	@Nullable
-	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior, @Nullable String... attributeName) {
+	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior,
+		@Nullable String... attributeName) {
+		requireNonNullItems(attributeName, "attributeName");
 		if (ArrayUtils.isEmptyOrItsValuesNull(attributeName)) {
 			return null;
 		}
@@ -2284,6 +2296,7 @@ public interface QueryConstraints {
 	@SourceHash("aa5b5b39a2ff5a19d1ef441ea67a737f")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable String... indexNames) {
+		requireNonNullItems(indexNames, "indexNames");
 		if (ArrayUtils.isEmptyOrItsValuesNull(indexNames)) {
 			return null;
 		}
@@ -2304,7 +2317,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("c3c6826eacb3df2ead2464dcdfcc1bf5")
 	@Nullable
-	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable HistogramBehavior behavior, @Nullable String... indexNames) {
+	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount,
+		@Nullable HistogramBehavior behavior, @Nullable String... indexNames) {
+		requireNonNullItems(indexNames, "indexNames");
 		if (ArrayUtils.isEmptyOrItsValuesNull(indexNames)) {
 			return null;
 		}
@@ -2325,7 +2340,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("f4ed0e832e6de0ee7c9a3e9a6b50d4ab")
 	@Nullable
-	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable EntityFetch entityFetch, @Nullable String... indexNames) {
+	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable EntityFetch entityFetch,
+		@Nullable String... indexNames) {
+		requireNonNullItems(indexNames, "indexNames");
 		if (ArrayUtils.isEmptyOrItsValuesNull(indexNames)) {
 			return null;
 		}
@@ -2352,6 +2369,7 @@ public interface QueryConstraints {
 		@Nullable EntityFetch entityFetch,
 		@Nullable String... indexNames
 	) {
+		requireNonNullItems(indexNames, "indexNames");
 		if (ArrayUtils.isEmptyOrItsValuesNull(indexNames)) {
 			return null;
 		}
@@ -2407,8 +2425,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("a3874513915da07db96ac36c2c74508a")
 	@Nullable
-	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName, @Nullable FilterBy filterBy) {
-		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, filterBy);
+	static FacetGroupsConjunction facetGroupsConjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsConjunction(referenceName, filterBy);
 	}
 
 	/**
@@ -2419,8 +2438,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("bdc69fa75d4a6a4a79785a5af218a77b")
 	@Nullable
-	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
-		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, facetGroupRelationLevel, null);
+	static FacetGroupsConjunction facetGroupsConjunction(@Nonnull String referenceName,
+		@Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsConjunction(referenceName, facetGroupRelationLevel, null);
 	}
 
 	/**
@@ -2442,8 +2463,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("6b107b1fe3d5d85c9128c1a5308f66da")
 	@Nullable
-	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
-		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, facetGroupRelationLevel, filterBy);
+	static FacetGroupsConjunction facetGroupsConjunction(@Nonnull String referenceName,
+		@Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsConjunction(referenceName, facetGroupRelationLevel, filterBy);
 	}
 
 	/**
@@ -2453,8 +2476,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("89f57658f87561389a844c4c53cad9fd")
 	@Nullable
-	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName) {
-		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, null);
+	static FacetGroupsConjunction facetGroupsConjunction(@Nonnull String referenceName) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsConjunction(referenceName, null);
 	}
 
 	/**
@@ -2473,8 +2497,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("2fc451592ee9d7dd7fdcd3e318df7a5c")
 	@Nullable
-	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName, @Nullable FilterBy filterBy) {
-		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, filterBy);
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsDisjunction(referenceName, filterBy);
 	}
 
 	/**
@@ -2485,8 +2510,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("e1d80bef7c2c47b8f6722681b9cf48c3")
 	@Nullable
-	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
-		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, facetGroupRelationLevel, null);
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName,
+		@Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsDisjunction(referenceName, facetGroupRelationLevel, null);
 	}
 
 	/**
@@ -2506,8 +2533,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("8be53373ba64a2d5672e2c3b3c5e31f7")
 	@Nullable
-	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
-		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, facetGroupRelationLevel, filterBy);
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName,
+		@Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsDisjunction(referenceName, facetGroupRelationLevel, filterBy);
 	}
 
 	/**
@@ -2519,8 +2548,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("e368a97b378b9f64ef6ac52c85548ea4")
 	@Nullable
-	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName) {
-		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, null);
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsDisjunction(referenceName, null);
 	}
 
 	/**
@@ -2539,8 +2569,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("cdda2305fab0a379b1b2aef26d15768f")
 	@Nullable
-	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName, @Nullable FilterBy filterBy) {
-		return referenceName == null ? null : new FacetGroupsNegation(referenceName, filterBy);
+	static FacetGroupsNegation facetGroupsNegation(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsNegation(referenceName, filterBy);
 	}
 
 	/**
@@ -2560,8 +2591,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("b987423ddd533743e88dcb9d38e67be8")
 	@Nullable
-	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
-		return referenceName == null ? null : new FacetGroupsNegation(referenceName, facetGroupRelationLevel, filterBy);
+	static FacetGroupsNegation facetGroupsNegation(@Nonnull String referenceName,
+		@Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsNegation(referenceName, facetGroupRelationLevel, filterBy);
 	}
 
 	/**
@@ -2579,8 +2612,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("c196cc0af05c5164e7ef9325e88c4b35")
 	@Nullable
-	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
-		return referenceName == null ? null : new FacetGroupsNegation(referenceName, facetGroupRelationLevel, null);
+	static FacetGroupsNegation facetGroupsNegation(@Nonnull String referenceName,
+		@Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsNegation(referenceName, facetGroupRelationLevel, null);
 	}
 
 	/**
@@ -2592,8 +2627,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("e4b491e077b6b572a0759dc88311fd79")
 	@Nullable
-	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName) {
-		return referenceName == null ? null : new FacetGroupsNegation(referenceName, null);
+	static FacetGroupsNegation facetGroupsNegation(@Nonnull String referenceName) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsNegation(referenceName, null);
 	}
 
 	/**
@@ -2612,8 +2648,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("ee884a58497b9f1243a4d044f3229628")
 	@Nullable
-	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName, @Nullable FilterBy filterBy) {
-		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, filterBy);
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsExclusivity(referenceName, filterBy);
 	}
 
 	/**
@@ -2633,8 +2670,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("c50a382ccd8419c054840285a7ae8058")
 	@Nullable
-	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
-		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, facetGroupRelationLevel, filterBy);
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nonnull String referenceName,
+		@Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsExclusivity(referenceName, facetGroupRelationLevel, filterBy);
 	}
 
 	/**
@@ -2646,8 +2685,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("d28e37a6f4f8cbb2d74c2c29dacf16d3")
 	@Nullable
-	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
-		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, facetGroupRelationLevel, null);
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nonnull String referenceName,
+		@Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsExclusivity(referenceName, facetGroupRelationLevel, null);
 	}
 
 	/**
@@ -2659,8 +2700,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("3b5ea1b6055ea16c8d2514d978373652")
 	@Nullable
-	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName) {
-		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, null);
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nonnull String referenceName) {
+		requireName(referenceName, "referenceName");
+		return new FacetGroupsExclusivity(referenceName, null);
 	}
 
 	/**
@@ -2755,9 +2797,10 @@ public interface QueryConstraints {
 	@SourceHash("df49e477646905850447f4ffa1f11f8e")
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
+		requireName(referenceName, "referenceName");
 		return hierarchyOfReference(referenceName, null, null, requirement);
 	}
 
@@ -2781,10 +2824,11 @@ public interface QueryConstraints {
 	@SourceHash("728ef2c1e2a8379eeac29210e8852a70")
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
+		requireName(referenceName, "referenceName");
 		return hierarchyOfReference(referenceName, null, orderBy, requirement);
 	}
 
@@ -2810,11 +2854,12 @@ public interface QueryConstraints {
 	@SourceHash("00bb2db61bda16efc6b0ac11e36b2157")
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(requirement) ?
+		requireName(referenceName, "referenceName");
+		return ArrayUtils.isEmptyOrItsValuesNull(requirement) ?
 			null :
 			new HierarchyOfReference(
 				referenceName,
@@ -2846,12 +2891,13 @@ public interface QueryConstraints {
 	@SourceHash("cb2bf55e76e087929aae8733cf6ff90a")
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(requirement) ?
+		requireName(referenceName, "referenceName");
+		return ArrayUtils.isEmptyOrItsValuesNull(requirement) ?
 			null :
 			new HierarchyOfReference(
 				referenceName,
@@ -2885,6 +2931,7 @@ public interface QueryConstraints {
 		@Nullable String[] referenceName,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
+		requireNonNullItems(referenceName, "referenceName");
 		return hierarchyOfReference(referenceName, null, null, requirement);
 	}
 
@@ -2914,6 +2961,7 @@ public interface QueryConstraints {
 		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
+		requireNonNullItems(referenceName, "referenceName");
 		return hierarchyOfReference(referenceName, null, orderBy, requirement);
 	}
 
@@ -2943,6 +2991,7 @@ public interface QueryConstraints {
 		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
+		requireNonNullItems(referenceName, "referenceName");
 		if (referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(referenceName)) {
 			return null;
 		}
@@ -2982,6 +3031,7 @@ public interface QueryConstraints {
 		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
+		requireNonNullItems(referenceName, "referenceName");
 		if (referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(referenceName)) {
 			return null;
 		}
@@ -3019,14 +3069,12 @@ public interface QueryConstraints {
 	@SourceHash("950d45c1c66f284be1bcfd2f313c723f")
 	@Nullable
 	static HierarchyFromRoot fromRoot(
-		@Nullable String outputName,
+		@Nonnull String outputName,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return requirement == null ? new HierarchyFromRoot(outputName) : new HierarchyFromRoot(outputName, requirement);
-		}
+		requireName(outputName, "outputName");
+		return requirement == null ? new HierarchyFromRoot(outputName) : new HierarchyFromRoot(outputName,
+				requirement);
 	}
 
 	/**
@@ -3053,15 +3101,13 @@ public interface QueryConstraints {
 	@SourceHash("a6640ad0ea61a9f8f40e17cb0a2c54fd")
 	@Nullable
 	static HierarchyFromRoot fromRoot(
-		@Nullable String outputName,
+		@Nonnull String outputName,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return entityFetch == null ? new HierarchyFromRoot(outputName, requirement) : new HierarchyFromRoot(outputName, entityFetch, requirement);
-		}
+		requireName(outputName, "outputName");
+		return entityFetch == null ? new HierarchyFromRoot(outputName,
+				requirement) : new HierarchyFromRoot(outputName, entityFetch, requirement);
 	}
 
 	/**
@@ -3084,11 +3130,12 @@ public interface QueryConstraints {
 	@SourceHash("b4fbf7a580a4f69aada9b63f040ecd3a")
 	@Nullable
 	static HierarchyFromNode fromNode(
-		@Nullable String outputName,
+		@Nonnull String outputName,
 		@Nullable HierarchyNode node,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {
-		if (outputName == null || node == null) {
+		requireName(outputName, "outputName");
+		if (node == null) {
 			return null;
 		} else {
 			return requirement == null ?
@@ -3117,12 +3164,13 @@ public interface QueryConstraints {
 	@SourceHash("274ae018bd39769f637e02f200e36b65")
 	@Nullable
 	static HierarchyFromNode fromNode(
-		@Nullable String outputName,
+		@Nonnull String outputName,
 		@Nullable HierarchyNode node,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {
-		if (outputName == null || node == null) {
+		requireName(outputName, "outputName");
+		if (node == null) {
 			return null;
 		} else {
 			return entityFetch == null ?
@@ -3155,15 +3203,12 @@ public interface QueryConstraints {
 	@SourceHash("1a61ef93b40789667e6bb231f3668ba2")
 	@Nullable
 	static HierarchyChildren children(
-		@Nullable String outputName,
+		@Nonnull String outputName,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchyChildren(outputName, entityFetch, requirement);
-		}
+		requireName(outputName, "outputName");
+		return new HierarchyChildren(outputName, entityFetch, requirement);
 	}
 
 	/**
@@ -3183,14 +3228,11 @@ public interface QueryConstraints {
 	@SourceHash("f92836d074794751d614118d21cb26d1")
 	@Nullable
 	static HierarchyChildren children(
-		@Nullable String outputName,
+		@Nonnull String outputName,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchyChildren(outputName, requirement);
-		}
+		requireName(outputName, "outputName");
+		return new HierarchyChildren(outputName, requirement);
 	}
 
 	/**
@@ -3216,15 +3258,12 @@ public interface QueryConstraints {
 	@SourceHash("5e151fed54c550759f6aa1351b86c889")
 	@Nullable
 	static HierarchySiblings siblings(
-		@Nullable String outputName,
+		@Nonnull String outputName,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchySiblings(outputName, entityFetch, requirements);
-		}
+		requireName(outputName, "outputName");
+		return new HierarchySiblings(outputName, entityFetch, requirements);
 	}
 
 	/**
@@ -3245,14 +3284,11 @@ public interface QueryConstraints {
 	@SourceHash("ef82fc9745d38665d844a4787324a86a")
 	@Nullable
 	static HierarchySiblings siblings(
-		@Nullable String outputName,
+		@Nonnull String outputName,
 		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchySiblings(outputName, requirements);
-		}
+		requireName(outputName, "outputName");
+		return new HierarchySiblings(outputName, requirements);
 	}
 
 	/**
@@ -3302,15 +3338,12 @@ public interface QueryConstraints {
 	@SourceHash("a03d1663d9ad6b546eeae2e89f917b0f")
 	@Nullable
 	static HierarchyParents parents(
-		@Nullable String outputName,
+		@Nonnull String outputName,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchyParents(outputName, entityFetch, requirements);
-		}
+		requireName(outputName, "outputName");
+		return new HierarchyParents(outputName, entityFetch, requirements);
 	}
 
 	/**
@@ -3332,14 +3365,13 @@ public interface QueryConstraints {
 	@SourceHash("13357119d16db7acff66fec847f95b1a")
 	@Nullable
 	static HierarchyParents parents(
-		@Nullable String outputName,
+		@Nonnull String outputName,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchySiblings siblings,
 		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
-		if (outputName == null) {
-			return null;
-		} else if (siblings == null) {
+		requireName(outputName, "outputName");
+		if (siblings == null) {
 			return entityFetch == null ?
 				new HierarchyParents(outputName, requirements) : new HierarchyParents(outputName, entityFetch, requirements);
 		} else {
@@ -3371,14 +3403,11 @@ public interface QueryConstraints {
 	@SourceHash("1542498957921e8d652d2727f6415088")
 	@Nullable
 	static HierarchyParents parents(
-		@Nullable String outputName,
+		@Nonnull String outputName,
 		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchyParents(outputName, requirements);
-		}
+		requireName(outputName, "outputName");
+		return new HierarchyParents(outputName, requirements);
 	}
 
 	/**
@@ -3400,17 +3429,14 @@ public interface QueryConstraints {
 	@SourceHash("b3b341aec4acd349df4ccccc000a7a54")
 	@Nullable
 	static HierarchyParents parents(
-		@Nullable String outputName,
+		@Nonnull String outputName,
 		@Nullable HierarchySiblings siblings,
 		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return siblings == null ?
+		requireName(outputName, "outputName");
+		return siblings == null ?
 				new HierarchyParents(outputName, requirements) :
 				new HierarchyParents(outputName, siblings, requirements);
-		}
 	}
 
 	/**
@@ -3510,6 +3536,7 @@ public interface QueryConstraints {
 	@SourceHash("db327f34664ff059c739ccc2c2c1104b")
 	@Nullable
 	static HierarchyStatistics statistics(@Nullable StatisticsType... type) {
+		requireNonNullItems(type, "type");
 		return type == null ?
 			new HierarchyStatistics(StatisticsBase.WITHOUT_USER_FILTER) :
 			new HierarchyStatistics(StatisticsBase.WITHOUT_USER_FILTER, type);
@@ -3537,11 +3564,9 @@ public interface QueryConstraints {
 	@SourceHash("7725fc357ae1b50e7682bcf3814f6440")
 	@Nullable
 	static HierarchyStatistics statistics(@Nullable StatisticsBase base, @Nullable StatisticsType... type) {
-		if (base == null) {
-			return null;
-		} else {
-			return type == null ? new HierarchyStatistics(base) : new HierarchyStatistics(base, type);
-		}
+		requireNonNullItems(type, "type");
+		return new HierarchyStatistics(base == null ? StatisticsBase.WITHOUT_USER_FILTER : base,
+			type == null ? new StatisticsType[0] : type);
 	}
 
 	/**
@@ -3632,6 +3657,7 @@ public interface QueryConstraints {
 	@SourceHash("bf6e2f26fbf3737423eea5f069580516")
 	@Nonnull
 	static AttributeContent attributeContent(@Nullable String... attributeName) {
+		requireNonNullItems(attributeName, "attributeName");
 		if (attributeName == null) {
 			return new AttributeContent();
 		}
@@ -3667,6 +3693,7 @@ public interface QueryConstraints {
 	@SourceHash("b0266b134ceeec165c161dec414571a2")
 	@Nonnull
 	static AssociatedDataContent associatedDataContent(@Nullable String... associatedDataName) {
+		requireNonNullItems(associatedDataName, "associatedDataName");
 		if (associatedDataName == null) {
 			return new AssociatedDataContent();
 		}
@@ -3703,10 +3730,11 @@ public interface QueryConstraints {
 	@SourceHash("f9f6ad0b964abf10beee5abbf89c86ad")
 	@Nonnull
 	static DataInLocales dataInLocales(@Nullable Locale... locale) {
-		if (locale == null) {
+		final Locale[] normalizedLocale = withoutNullValues(locale);
+		if (normalizedLocale == null) {
 			return new DataInLocales();
 		}
-		return new DataInLocales(locale);
+		return new DataInLocales(normalizedLocale);
 	}
 
 	/**
@@ -3800,10 +3828,8 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("601b7ea4e75d2df92a12a1a99b27d0e3")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String referenceName) {
-		if (referenceName == null) {
-			return new ReferenceContent();
-		}
+	static ReferenceContent referenceContent(@Nonnull String referenceName) {
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(referenceName);
 	}
 
@@ -3822,15 +3848,14 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("d6e056c68193eeb3f381fcb7c494dc52")
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable String... attributeNames) {
-		if (referenceName == null) {
-			return null;
-		} else {
-			return new ReferenceContent(
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName,
+		@Nullable String... attributeNames) {
+		requireName(referenceName, "referenceName");
+		requireNonNullItems(attributeNames, "attributeNames");
+		return new ReferenceContent(
 				referenceName, null, null,
 				attributeContent(attributeNames), null, null, null
 			);
-		}
 	}
 
 	/**
@@ -3847,8 +3872,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("84edbe6adac49a49723f88a734fc0438")
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, AttributeContent.ALL_ATTRIBUTES);
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, AttributeContent.ALL_ATTRIBUTES);
 	}
 
 
@@ -3868,8 +3894,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("a7a0c3b4079ccfbe2a5e50ff016b78b7")
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent) {
-		return referenceName == null ? null : new ReferenceContent(
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName,
+		@Nullable AttributeContent attributeContent) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 			referenceName, null, null,
 			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 			null, null, null
@@ -3892,6 +3920,7 @@ public interface QueryConstraints {
 	@SourceHash("1857a47c4744ac841592345690f99550")
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String... referenceName) {
+		requireNonNullItems(referenceName, "referenceName");
 		if (referenceName == null) {
 			return new ReferenceContent();
 		}
@@ -3915,13 +3944,8 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("2335a6122144bb225ef6bf6a98be8e6c")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement) {
-		if (referenceName == null && entityRequirement == null) {
-			return new ReferenceContent();
-		}
-		if (referenceName == null) {
-			return new ReferenceContent(entityRequirement, null);
-		}
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement) {
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(
 			referenceName, null, null, entityRequirement, null, null
 		);
@@ -3944,8 +3968,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("7abd573cf5cbaa2d0a5d9d1b03d80249")
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName,
+		@Nullable EntityFetch entityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 			referenceName, null, null,
 			AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 		);
@@ -3969,8 +3995,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("1351f6db100ce3e6f3ec22bbeb37aa3e")
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName,
+		@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 			referenceName, null, null,
 			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 			entityRequirement, null, null
@@ -3994,13 +4022,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("017023b97be510d15dd1d3e77eff226f")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (referenceName == null && groupEntityRequirement == null) {
-			return new ReferenceContent();
-		}
-		if (referenceName == null) {
-			return new ReferenceContent(null, groupEntityRequirement);
-		}
+	static ReferenceContent referenceContent(@Nonnull String referenceName,
+		@Nullable EntityGroupFetch groupEntityRequirement) {
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(referenceName, null, null, null, groupEntityRequirement, null);
 	}
 
@@ -4020,8 +4044,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("837cce151783b4b915a2c570399bb21f")
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName,
+		@Nullable EntityGroupFetch groupEntityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 			referenceName, null, null,
 			AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 		);
@@ -4045,8 +4071,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("cdbe065da81e7511c52a3c777a7f2d4b")
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName,
+		@Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 			referenceName, null, null,
 			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 			null, groupEntityRequirement, null
@@ -4071,10 +4099,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("9cb0ce1be5f703434a1f334d98f9d1d0")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (referenceName == null) {
-			return new ReferenceContent(entityRequirement, groupEntityRequirement);
-		}
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement) {
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(referenceName, null, null, entityRequirement, groupEntityRequirement, null);
 	}
 
@@ -4096,11 +4123,12 @@ public interface QueryConstraints {
 	@SourceHash("82d800511a16915e3f2e5fb04a33d293")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ? null : new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 			referenceName, null, null,
 			AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 		);
@@ -4126,14 +4154,13 @@ public interface QueryConstraints {
 	@SourceHash("d42c46351a3c1601e77c7e52641a50f5")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, null
@@ -4159,7 +4186,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("94850278aa03053b2965b81f1319e8b1")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement) {
+	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes,
+		@Nullable EntityFetch entityRequirement) {
+		requireNonNullItems(referencedEntityTypes, "referencedEntityTypes");
 		if (referencedEntityTypes == null && entityRequirement == null) {
 			return new ReferenceContent();
 		}
@@ -4189,7 +4218,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("58d182a75b4954004ed42474b8f78f16")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes,
+		@Nullable EntityGroupFetch groupEntityRequirement) {
+		requireNonNullItems(referencedEntityTypes, "referencedEntityTypes");
 		if (referencedEntityTypes == null && groupEntityRequirement == null) {
 			return new ReferenceContent();
 		}
@@ -4220,7 +4251,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("9f880d63eb796c1b4c2c999e29774563")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes,
+		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		requireNonNullItems(referencedEntityTypes, "referencedEntityTypes");
 		if (referencedEntityTypes != null) {
 			return new ReferenceContent(referencedEntityTypes, entityRequirement, groupEntityRequirement);
 		} else {
@@ -4245,8 +4278,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("d3bcafb0738726e6c006fe5ef73270ec")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, null, null);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, null, null, null, null);
 	}
 
 	/**
@@ -4267,12 +4301,11 @@ public interface QueryConstraints {
 	@SourceHash("3f2fa0195d22f880427fe8d5a5df758d")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				AttributeContent.ALL_ATTRIBUTES, null, null, null
 			);
@@ -4297,13 +4330,12 @@ public interface QueryConstraints {
 	@SourceHash("b22e4ce9779079137f9e1b10de0e7719")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable AttributeContent attributeContent
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, null, null
@@ -4328,8 +4360,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("8af3a6ceec3ef151533913771796512a")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, null, null);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, null, entityRequirement, null, null);
 	}
 
 	/**
@@ -4350,13 +4384,12 @@ public interface QueryConstraints {
 	@SourceHash("e7cc1b5a6a3781389a09689457b788d7")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 			);
@@ -4383,14 +4416,13 @@ public interface QueryConstraints {
 	@SourceHash("577d127e0c8b5c8c95306d360dc6986d")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, null, null
@@ -4416,8 +4448,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("89412160a423613736aabee827d99d8b")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement, null);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable EntityGroupFetch groupEntityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement, null);
 	}
 
 	/**
@@ -4440,13 +4474,12 @@ public interface QueryConstraints {
 	@SourceHash("4c5f4392bf920ba4c314b7251f8830d3")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 			);
@@ -4472,14 +4505,13 @@ public interface QueryConstraints {
 	@SourceHash("b58d42e4b036ce8266e5384c3a7db8e6")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, groupEntityRequirement, null
@@ -4505,8 +4537,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("0a862dcb0593900612f3e0ca06cbf160")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement, null);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement, null);
 	}
 
 	/**
@@ -4529,14 +4563,13 @@ public interface QueryConstraints {
 	@SourceHash("5fcc8ffc076ac25a33a75f2f7872d1aa")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 			);
@@ -4561,15 +4594,14 @@ public interface QueryConstraints {
 	@SourceHash("b8cfc4ba7baf12575b8b924e09f4e3e0")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, null
@@ -4590,8 +4622,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("0c2e63cf2a5e438c9a5ede98d34e468a")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, null, null);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, null, orderBy, null, null, null);
 	}
 
 	/**
@@ -4613,12 +4646,11 @@ public interface QueryConstraints {
 	@SourceHash("d83cc13283a1d8a532c4603cf12d4c77")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, null, null, null
 			);
@@ -4643,13 +4675,12 @@ public interface QueryConstraints {
 	@SourceHash("7d5f273f7e07a3cdbe4a546607bfdb3a")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, null, null
@@ -4674,8 +4705,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("d2eb8c6abd6e21ef131833e3bd74f832")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, null, null);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, null, null);
 	}
 
 	/**
@@ -4697,13 +4730,12 @@ public interface QueryConstraints {
 	@SourceHash("906e52f8789413988fac9ce451789942")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 			);
@@ -4730,14 +4762,13 @@ public interface QueryConstraints {
 	@SourceHash("6480b57adf739d650dbce53a01ee912b")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, null, null
@@ -4763,8 +4794,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("0821e240f6e1e1c6fcd9a342d4387102")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement, null);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
+		@Nullable EntityGroupFetch groupEntityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement, null);
 	}
 
 	/**
@@ -4786,13 +4819,12 @@ public interface QueryConstraints {
 	@SourceHash("3acc5eb9ba3d060a7c80d21b634d2579")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 			);
@@ -4818,14 +4850,13 @@ public interface QueryConstraints {
 	@SourceHash("56ad4250ee96b1cbea3eb53333b4d969")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, groupEntityRequirement, null
@@ -4851,8 +4882,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("265df60def6bf390205cf1b75d6af534")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement, null);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement, null);
 	}
 
 	/**
@@ -4875,14 +4908,13 @@ public interface QueryConstraints {
 	@SourceHash("aff5270f6f3a39c54883d61ce763f6a5")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 			);
@@ -4909,15 +4941,14 @@ public interface QueryConstraints {
 	@SourceHash("b85f97cdedfb5aaead91382ddf933a89")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, null
@@ -4942,8 +4973,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("e736fd3fe28a39b955c8a47cee737703")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, null, null);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, orderBy, null, null, null);
 	}
 
 	/**
@@ -4965,13 +4998,12 @@ public interface QueryConstraints {
 	@SourceHash("f9aa22a99703b160128df33747f4f8d4")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, null, null, null
 			);
@@ -4997,14 +5029,13 @@ public interface QueryConstraints {
 	@SourceHash("2f8b0a47ba2b7b077711023866217372")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, null, null
@@ -5030,8 +5061,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("d21afe52df336169d0fa0e6cb8df1e66")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null, null);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null, null);
 	}
 
 	/**
@@ -5052,14 +5085,13 @@ public interface QueryConstraints {
 	@SourceHash("c6b637df05599f790c64f79021f02b79")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 			);
@@ -5086,15 +5118,14 @@ public interface QueryConstraints {
 	@SourceHash("2bd78ef297d34a1513c53dff41aaa91b")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, null, null
@@ -5119,8 +5150,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("e954453e072aacd375b74671d603ec44")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement, null);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement, null);
 	}
 
 	/**
@@ -5143,14 +5176,13 @@ public interface QueryConstraints {
 	@SourceHash("2fa17a7f561b1b1edf31b9491516d755")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 			);
@@ -5177,15 +5209,14 @@ public interface QueryConstraints {
 	@SourceHash("988e20452f82814153ef240340a8bf5c")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, groupEntityRequirement, null
@@ -5210,8 +5241,11 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("7499b83f1a5ba8464274e488839707d2")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement, null);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement, null);
 	}
 
 	/**
@@ -5235,15 +5269,14 @@ public interface QueryConstraints {
 	@SourceHash("68b232e8d91425242fd891561ca2817f")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 			);
@@ -5269,16 +5302,15 @@ public interface QueryConstraints {
 	@SourceHash("deafcbb4acd01b2a02a7e6d946beec99")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, null
@@ -5574,11 +5606,9 @@ public interface QueryConstraints {
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName
+		@Nonnull String referenceName
 	) {
-		if (referenceName == null) {
-			return new ReferenceContent(managedReferencesBehaviour);
-		}
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(managedReferencesBehaviour, referenceName);
 	}
 
@@ -5599,17 +5629,15 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable String... attributeNames
 	) {
-		if (referenceName == null) {
-			return null;
-		} else {
-			return new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		requireNonNullItems(attributeNames, "attributeNames");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				attributeContent(attributeNames), null, null, null
 			);
-		}
 	}
 
 	/**
@@ -5629,11 +5657,10 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName
+		@Nonnull String referenceName
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				AttributeContent.ALL_ATTRIBUTES, null, null, null
 			);
@@ -5656,12 +5683,11 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, null, null
@@ -5687,6 +5713,7 @@ public interface QueryConstraints {
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
 		@Nullable String... referenceName
 	) {
+		requireNonNullItems(referenceName, "referenceName");
 		if (referenceName == null) {
 			return new ReferenceContent(managedReferencesBehaviour);
 		}
@@ -5708,15 +5735,10 @@ public interface QueryConstraints {
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityFetch entityRequirement
 	) {
-		if (referenceName == null && entityRequirement == null) {
-			return new ReferenceContent(managedReferencesBehaviour);
-		}
-		if (referenceName == null) {
-			return new ReferenceContent(managedReferencesBehaviour, entityRequirement, null);
-		}
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(
 			managedReferencesBehaviour, referenceName, null, null, entityRequirement, null, null
 		);
@@ -5738,12 +5760,11 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 			);
@@ -5765,13 +5786,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, null, null
@@ -5793,15 +5813,10 @@ public interface QueryConstraints {
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		if (referenceName == null && groupEntityRequirement == null) {
-			return new ReferenceContent(managedReferencesBehaviour);
-		}
-		if (referenceName == null) {
-			return new ReferenceContent(managedReferencesBehaviour, null, groupEntityRequirement);
-		}
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(
 			managedReferencesBehaviour, referenceName, null, null, null, groupEntityRequirement, null
 		);
@@ -5824,12 +5839,11 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 			);
@@ -5851,13 +5865,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, groupEntityRequirement, null
@@ -5881,13 +5894,11 @@ public interface QueryConstraints {
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		if (referenceName == null) {
-			return new ReferenceContent(managedReferencesBehaviour, entityRequirement, groupEntityRequirement);
-		}
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(
 			managedReferencesBehaviour, referenceName, null, null,
 			entityRequirement, groupEntityRequirement, null
@@ -5911,13 +5922,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 			);
@@ -5940,14 +5950,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, null
@@ -5974,6 +5983,7 @@ public interface QueryConstraints {
 		@Nullable String[] referencedEntityTypes,
 		@Nullable EntityFetch entityRequirement
 	) {
+		requireNonNullItems(referencedEntityTypes, "referencedEntityTypes");
 		if (referencedEntityTypes == null && entityRequirement == null) {
 			return new ReferenceContent(managedReferencesBehaviour);
 		}
@@ -6006,6 +6016,7 @@ public interface QueryConstraints {
 		@Nullable String[] referencedEntityTypes,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
+		requireNonNullItems(referencedEntityTypes, "referencedEntityTypes");
 		if (referencedEntityTypes == null && groupEntityRequirement == null) {
 			return new ReferenceContent(managedReferencesBehaviour);
 		}
@@ -6040,6 +6051,7 @@ public interface QueryConstraints {
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
+		requireNonNullItems(referencedEntityTypes, "referencedEntityTypes");
 		if (referencedEntityTypes != null) {
 			return new ReferenceContent(managedReferencesBehaviour, referencedEntityTypes, entityRequirement, groupEntityRequirement);
 		} else {
@@ -6064,12 +6076,11 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null, (EntityFetch) null, null, null
 			);
 	}
@@ -6091,12 +6102,11 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
 				AttributeContent.ALL_ATTRIBUTES, null, null, null
 			);
@@ -6118,13 +6128,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable AttributeContent attributeContent
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, null, null
@@ -6147,13 +6156,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null, entityRequirement, null, null
 			);
 	}
@@ -6174,13 +6182,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 			);
@@ -6207,14 +6214,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, null, null
@@ -6236,13 +6242,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName,
 				filterBy, null, null, groupEntityRequirement, null
 			);
@@ -6266,13 +6271,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
 				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 			);
@@ -6300,14 +6304,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, groupEntityRequirement, null
@@ -6330,14 +6333,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
 				entityRequirement, groupEntityRequirement, null
 			);
@@ -6358,14 +6360,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 			);
@@ -6394,15 +6395,14 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, null
@@ -6426,12 +6426,11 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy, (EntityFetch) null, null, null
 			);
 	}
@@ -6452,12 +6451,11 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, null, null, null
 			);
@@ -6480,13 +6478,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, null, null
@@ -6510,13 +6507,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy, entityRequirement, null, null
 			);
 	}
@@ -6537,13 +6533,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 			);
@@ -6570,14 +6565,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, null, null
@@ -6600,13 +6594,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy, null, groupEntityRequirement, null
 			);
 	}
@@ -6627,13 +6620,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 			);
@@ -6660,14 +6652,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, groupEntityRequirement, null
@@ -6691,14 +6682,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
 				entityRequirement, groupEntityRequirement, null
 			);
@@ -6721,14 +6711,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 			);
@@ -6755,15 +6744,14 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, null
@@ -6786,13 +6774,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy, (EntityFetch) null, null, null
 			);
 	}
@@ -6816,13 +6803,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, null, null, null
 			);
@@ -6849,14 +6835,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, null, null
@@ -6879,14 +6864,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy, entityRequirement, null, null
 			);
 	}
@@ -6907,14 +6891,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 			);
@@ -6942,15 +6925,14 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, null, null
@@ -6973,14 +6955,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy, null, groupEntityRequirement, null
 			);
 	}
@@ -7006,14 +6987,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 			);
@@ -7041,15 +7021,14 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, groupEntityRequirement, null
@@ -7072,16 +7051,16 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement, null
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
+				managedReferencesBehaviour, referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement,
+					null
 			);
 	}
 
@@ -7106,15 +7085,14 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 			);
@@ -7143,16 +7121,15 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, null
@@ -7388,10 +7365,8 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("5ab005ac46d04b90accbbd268d31659e")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable ChunkingRequireConstraint chunk) {
-		if (referenceName == null) {
-			return new ReferenceContent(chunk);
-		}
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(referenceName, null, null, null, null, chunk);
 	}
 
@@ -7414,18 +7389,16 @@ public interface QueryConstraints {
 	@SourceHash("cafc6951a3fb3461c75eab183912a7ab")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable ChunkingRequireConstraint chunk,
 		@Nullable String... attributeNames
 	) {
-		if (referenceName == null) {
-			return null;
-		} else {
-			return new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		requireNonNullItems(attributeNames, "attributeNames");
+		return new ReferenceContent(
 				referenceName, null, null,
 				attributeContent(attributeNames), null, null, chunk
 			);
-		}
 	}
 
 	/**
@@ -7438,12 +7411,11 @@ public interface QueryConstraints {
 	@SourceHash("254fbd4240b01c6a6017475f6189af71")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, null,
 				AttributeContent.ALL_ATTRIBUTES, null, null, chunk
 			);
@@ -7469,13 +7441,12 @@ public interface QueryConstraints {
 	@SourceHash("f2fdd3950643cbb8923167e99e203ac7")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, null, chunk
@@ -7496,7 +7467,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("5693afe47dd4b967931f0fed7b53e06a")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable ChunkingRequireConstraint chunk, @Nullable String... referenceName) {
+	static ReferenceContent referenceContent(@Nullable ChunkingRequireConstraint chunk,
+		@Nullable String... referenceName) {
+		requireNonNullItems(referenceName, "referenceName");
 		if (referenceName == null) {
 			return new ReferenceContent(chunk);
 		}
@@ -7520,13 +7493,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("efda12b5cb0d4b174a5d504d140966cb")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		if (referenceName == null && entityRequirement == null) {
-			return new ReferenceContent(chunk);
-		}
-		if (referenceName == null) {
-			return new ReferenceContent(entityRequirement, null, chunk);
-		}
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(referenceName, null, null, entityRequirement, null, chunk);
 	}
 
@@ -7549,13 +7518,12 @@ public interface QueryConstraints {
 	@SourceHash("25bd47e82d8e49f5db85b12dc895073c")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, null,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, chunk
 			);
@@ -7581,14 +7549,13 @@ public interface QueryConstraints {
 	@SourceHash("b9b736a04b52db98bbac9651b6998e67")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, null, chunk
@@ -7613,13 +7580,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("3cdedcf68d17bf5a842b71e8fb706ff3")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		if (referenceName == null && groupEntityRequirement == null) {
-			return new ReferenceContent(chunk);
-		}
-		if (referenceName == null) {
-			return new ReferenceContent(null, groupEntityRequirement, chunk);
-		}
+	static ReferenceContent referenceContent(@Nonnull String referenceName,
+		@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(referenceName, null, null, null, groupEntityRequirement, chunk);
 	}
 
@@ -7643,13 +7606,12 @@ public interface QueryConstraints {
 	@SourceHash("5794b17b86bc7d035af5b4a2a76898fd")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, null,
 				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, chunk
 			);
@@ -7676,14 +7638,13 @@ public interface QueryConstraints {
 	@SourceHash("f76c0a79ee75992e0c665bed5cc3bf92")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, groupEntityRequirement, chunk
@@ -7710,10 +7671,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("9fd9551020c4834506d20a5ee86a09d0")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		if (referenceName == null) {
-			return new ReferenceContent(entityRequirement, groupEntityRequirement, chunk);
-		}
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(referenceName, null, null, entityRequirement, groupEntityRequirement, chunk);
 	}
 
@@ -7737,14 +7697,13 @@ public interface QueryConstraints {
 	@SourceHash("395f3b54de364c8f20935b1432733a03")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, null,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, chunk
 			);
@@ -7769,15 +7728,14 @@ public interface QueryConstraints {
 	@SourceHash("48ab9a8918e0ba8fcab9a44792967188")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, chunk
@@ -7802,7 +7760,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("e511852154cb670bc1556a63e3f18cf3")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes,
+		@Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		requireNonNullItems(referencedEntityTypes, "referencedEntityTypes");
 		if (referencedEntityTypes == null && entityRequirement == null) {
 			return new ReferenceContent(chunk);
 		}
@@ -7831,7 +7791,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("f67ba879de6e1e7f32a7c7a126a56ae2")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes,
+		@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		requireNonNullItems(referencedEntityTypes, "referencedEntityTypes");
 		if (referencedEntityTypes == null && groupEntityRequirement == null) {
 			return new ReferenceContent(chunk);
 		}
@@ -7860,7 +7822,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("2a826f8159ef2c9930e76830fca21a4f")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes,
+		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk) {
+		requireNonNullItems(referencedEntityTypes, "referencedEntityTypes");
 		if (referencedEntityTypes != null) {
 			return new ReferenceContent(referencedEntityTypes, entityRequirement, groupEntityRequirement, chunk);
 		} else {
@@ -7886,8 +7851,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("5bc4f8602db5210d6f7664247421f424")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, null, chunk);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, null, null, null, chunk);
 	}
 
 	/**
@@ -7910,13 +7877,12 @@ public interface QueryConstraints {
 	@SourceHash("390d8c718dd7fff013ebf5e745e7f591")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				AttributeContent.ALL_ATTRIBUTES, null, null, chunk
 			);
@@ -7942,14 +7908,13 @@ public interface QueryConstraints {
 	@SourceHash("14e471b5c02eba449a7322c826769a26")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, null, chunk
@@ -7976,8 +7941,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("1cbb3f9fabfe5ca2d7c77ed9e1bc14f0")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, null, chunk);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, null, entityRequirement, null, chunk);
 	}
 
 	/**
@@ -8001,14 +7968,13 @@ public interface QueryConstraints {
 	@SourceHash("846f9a86a27c58d3d6d283dca99fb615")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, chunk
 			);
@@ -8035,15 +8001,14 @@ public interface QueryConstraints {
 	@SourceHash("cf43af6722f47160ca9b6173d7d4fce0")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, null, chunk
@@ -8069,8 +8034,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("247a81f6153f48ec6caf68ced8a11e1f")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement, chunk);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement, chunk);
 	}
 
 	/**
@@ -8093,14 +8060,13 @@ public interface QueryConstraints {
 	@SourceHash("cf0d59877ffbf4fbca4e8ab3acda2e0c")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, chunk
 			);
@@ -8127,15 +8093,14 @@ public interface QueryConstraints {
 	@SourceHash("7fbb65d74d705dfbe2fa558cda5c1bd8")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, groupEntityRequirement, chunk
@@ -8162,8 +8127,11 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("18f06936999a6f8a1a395596a5968443")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement, chunk);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement, chunk);
 	}
 
 	/**
@@ -8188,15 +8156,14 @@ public interface QueryConstraints {
 	@SourceHash("988c57acfed421e7346f05086d935dee")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, chunk
 			);
@@ -8225,16 +8192,15 @@ public interface QueryConstraints {
 	@SourceHash("6758bbdde4dc96265d8ffc7f8000a70d")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, chunk
@@ -8259,8 +8225,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("3a15a77c7e858c8babc29489649ac40f")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, null, chunk);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
+		@Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, null, orderBy, null, null, chunk);
 	}
 
 	/**
@@ -8282,12 +8250,11 @@ public interface QueryConstraints {
 	@SourceHash("add236ffdeafec3b97f18b5d99f820f3")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, null, null, chunk
 			);
@@ -8314,14 +8281,13 @@ public interface QueryConstraints {
 	@SourceHash("e5f6225a75058f8771fde8b01b68499b")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, null, chunk
@@ -8348,8 +8314,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("64b01a1f3afa8cdbbd43ef51c3d6501e")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, null, chunk);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, null, chunk);
 	}
 
 	/**
@@ -8372,13 +8340,13 @@ public interface QueryConstraints {
 	@SourceHash("f00b2373b614feab9763c114719a024f")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null : new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 			referenceName, null, orderBy,
 			AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, chunk
 		);
@@ -8405,15 +8373,14 @@ public interface QueryConstraints {
 	@SourceHash("45820172e205af69f55caeefe418cc6d")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, null, chunk
@@ -8438,8 +8405,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("ed8052c0df3e6e27be6580c258af0f1b")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement, chunk);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
+		@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement, chunk);
 	}
 
 	/**
@@ -8462,14 +8431,13 @@ public interface QueryConstraints {
 	@SourceHash("1a129cf258104803084e2825f9c9abd2")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, chunk
 			);
@@ -8495,15 +8463,14 @@ public interface QueryConstraints {
 	@SourceHash("86caa23f823b7f3a070c50cbf6c1db9f")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, groupEntityRequirement, chunk
@@ -8530,8 +8497,11 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("4f6c3422468f795df95c00d42c2da42a")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement, chunk);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement, chunk);
 	}
 
 	/**
@@ -8553,15 +8523,14 @@ public interface QueryConstraints {
 	@SourceHash("6cab4f02c0baeb76eb1ab62de0ead7de")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				AttributeContent.ALL_ATTRIBUTES,
 				entityRequirement, groupEntityRequirement, chunk
@@ -8591,16 +8560,15 @@ public interface QueryConstraints {
 	@SourceHash("f682e4ca2e9b0eee6a1448b383f40769")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, null, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, chunk
@@ -8899,10 +8867,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("d2971f7834131f5bc0bf9d6d4070796f")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable String referenceName, @Nullable ChunkingRequireConstraint chunk) {
-		if (referenceName == null) {
-			return new ReferenceContent(managedReferencesBehaviour, chunk);
-		}
+	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nonnull String referenceName, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
 		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, null, null, chunk);
 	}
 
@@ -8922,15 +8889,14 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable ChunkingRequireConstraint chunk,
 		@Nullable String... attributeNames
 	) {
-		if (referenceName == null) {
-			return null;
-		} else {
-			return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, attributeContent(attributeNames), null, null, chunk);
-		}
+		requireName(referenceName, "referenceName");
+		requireNonNullItems(attributeNames, "attributeNames");
+		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null,
+				attributeContent(attributeNames), null, null, chunk);
 	}
 
 	/**
@@ -8949,12 +8915,11 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				AttributeContent.ALL_ATTRIBUTES, null, null, chunk
 			);
@@ -8977,13 +8942,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, null, chunk
@@ -9005,7 +8969,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("a88b0f537385abac40982bd9b622a330")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable ChunkingRequireConstraint chunk, @Nullable String... referenceName) {
+	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable ChunkingRequireConstraint chunk, @Nullable String... referenceName) {
+		requireNonNullItems(referenceName, "referenceName");
 		if (referenceName == null) {
 			return new ReferenceContent(managedReferencesBehaviour, chunk);
 		}
@@ -9027,14 +8993,12 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("113af5eff3adca6c11cf2d0530cd7a59")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		if (referenceName == null && entityRequirement == null) {
-			return new ReferenceContent(managedReferencesBehaviour, chunk);
-		}
-		if (referenceName == null) {
-			return new ReferenceContent(managedReferencesBehaviour, entityRequirement, null, chunk);
-		}
-		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, entityRequirement, null, chunk);
+	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nonnull String referenceName, @Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, entityRequirement, null,
+			chunk);
 	}
 
 	/**
@@ -9054,13 +9018,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, chunk
 			);
@@ -9087,14 +9050,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, null, chunk
@@ -9116,14 +9078,12 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("232b21d3eb2c89537d0750e244b8b349")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		if (referenceName == null && groupEntityRequirement == null) {
-			return new ReferenceContent(managedReferencesBehaviour, chunk);
-		}
-		if (referenceName == null) {
-			return new ReferenceContent(managedReferencesBehaviour, null, groupEntityRequirement, chunk);
-		}
-		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, null, groupEntityRequirement, chunk);
+	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nonnull String referenceName, @Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, null, groupEntityRequirement,
+			chunk);
 	}
 
 	/**
@@ -9144,13 +9104,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, chunk
 			);
@@ -9176,13 +9135,12 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, groupEntityRequirement, chunk
@@ -9204,11 +9162,12 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("ad737065e09184fc07082251dc94e2c4")
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		if (referenceName == null) {
-			return new ReferenceContent(managedReferencesBehaviour, entityRequirement, groupEntityRequirement, chunk);
-		}
-		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, entityRequirement, groupEntityRequirement, chunk);
+	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nonnull String referenceName, @Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, entityRequirement,
+			groupEntityRequirement, chunk);
 	}
 
 	/**
@@ -9228,14 +9187,13 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, chunk
 			);
@@ -9263,15 +9221,14 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, chunk
@@ -9297,8 +9254,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("03fc62f3c3d1e6af2aa2d7255b653711")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, null, chunk);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, orderBy, null, null, chunk);
 	}
 
 	/**
@@ -9320,14 +9279,13 @@ public interface QueryConstraints {
 	@SourceHash("0ad0e600bac4600a2bc29779a9b21d2c")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, null, null, chunk
 			);
@@ -9354,15 +9312,14 @@ public interface QueryConstraints {
 	@SourceHash("904b9f373a34c322e246637aa3ef1349")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, null, chunk
@@ -9390,8 +9347,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("53be346ddbdd7e2bfcd85c5473cb43cc")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null, chunk);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null, chunk);
 	}
 
 	/**
@@ -9415,15 +9374,14 @@ public interface QueryConstraints {
 	@SourceHash("1fd2c49e1a75b9ee8ade516225fcc264")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, chunk
 			);
@@ -9451,15 +9409,14 @@ public interface QueryConstraints {
 	@SourceHash("3cf72707fddccf6467845e65e971cdba")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, null, chunk
@@ -9486,8 +9443,11 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("3f1a6f2d7e644897f7c91c9248570120")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement, chunk);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement, chunk);
 	}
 
 	/**
@@ -9511,14 +9471,13 @@ public interface QueryConstraints {
 	@SourceHash("93e4a685af7931054c35ababd666994e")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, chunk
 			);
@@ -9547,16 +9506,15 @@ public interface QueryConstraints {
 	@SourceHash("a8ba668323c06a7d7d1d2505db3311e1")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				null, groupEntityRequirement, chunk
@@ -9583,8 +9541,11 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("4c72ae5b9b7de0dd64919a401de39a10")
 	@Nullable
-	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement, chunk);
+	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement, chunk);
 	}
 
 	/**
@@ -9609,16 +9570,15 @@ public interface QueryConstraints {
 	@SourceHash("8788fa7d71eb3b8c13bebebfd052d572")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, chunk
 			);
@@ -9645,7 +9605,7 @@ public interface QueryConstraints {
 	@SourceHash("3d2a05d44aabf50137de81cbed08fcbc")
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
@@ -9653,9 +9613,8 @@ public interface QueryConstraints {
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
 	) {
-		return referenceName == null ?
-			null :
-			new ReferenceContent(
+		requireName(referenceName, "referenceName");
+		return new ReferenceContent(
 				referenceName, filterBy, orderBy,
 				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
 				entityRequirement, groupEntityRequirement, chunk
@@ -10103,14 +10062,13 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("cc753b21aa1bddabcb6e85700ab316f4")
 	@Nullable
-	static PriceContent priceContent(@Nullable PriceContentMode contentMode, @Nullable String... priceLists) {
-		if (contentMode == null) {
-			return null;
-		}
-		if (ArrayUtils.isEmptyOrItsValuesNull(priceLists)) {
+	static PriceContent priceContent(@Nonnull PriceContentMode contentMode, @Nullable String... priceLists) {
+		Assert.notNull(contentMode, "Argument `contentMode` must not be null: it has no default.");
+		final String[] normalizedPriceLists = withoutUndefinedPriceLists(priceLists);
+		if (ArrayUtils.isEmptyOrItsValuesNull(normalizedPriceLists)) {
 			return new PriceContent(contentMode);
 		} else {
-			return new PriceContent(contentMode, priceLists);
+			return new PriceContent(contentMode, normalizedPriceLists);
 		}
 	}
 
@@ -10149,7 +10107,8 @@ public interface QueryConstraints {
 	@SourceHash("d94ca3da76b7c8833a769307f15d03ff")
 	@Nonnull
 	static PriceContent priceContentRespectingFilter(@Nullable String... priceLists) {
-		return PriceContent.respectingFilter(priceLists);
+		final String[] normalizedPriceLists = withoutUndefinedPriceLists(priceLists);
+		return PriceContent.respectingFilter(normalizedPriceLists == null ? new String[0] : normalizedPriceLists);
 	}
 
 	/**
@@ -10166,22 +10125,11 @@ public interface QueryConstraints {
 	@SourceHash("50bd588de6d230672757a0658ba75446")
 	@Nullable
 	static DefaultAccompanyingPriceLists defaultAccompanyingPriceLists(@Nullable String... priceList) {
-		if (priceList == null) {
+		final String[] normalizedPriceList = withoutUndefinedPriceLists(priceList);
+		if (ArrayUtils.isEmpty(normalizedPriceList)) {
 			return null;
 		}
-		// if the array is empty - it was deliberate action which needs to produce empty result of the query
-		if (priceList.length == 0) {
-			return null;
-		}
-		final String[] normalizeNames = Arrays.stream(priceList).filter(Objects::nonNull).filter(it -> !it.isBlank()).toArray(String[]::new);
-		// the array was not empty, but contains only null values - this may not be deliberate action - for example
-		// the initalization was like `accompanyingPrice(nullVariable)` and this should exclude the constraint
-		if (normalizeNames.length == 0) {
-			return null;
-		}
-		// otherwise propagate only non-null values
-		return normalizeNames.length == priceList.length ?
-			new DefaultAccompanyingPriceLists(priceList) : new DefaultAccompanyingPriceLists(normalizeNames);
+		return new DefaultAccompanyingPriceLists(normalizedPriceList);
 	}
 
 	/**
@@ -10211,23 +10159,13 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("33f1a643963924948b0d9fd8e94d569f")
 	@Nullable
-	static AccompanyingPriceContent accompanyingPriceContent(@Nullable String name, @Nullable String... priceList) {
-		// name is required argument
-		if (name == null || name.isBlank()) {
-			return null;
-		}
-		if (ArrayUtils.isEmptyOrItsValuesNull(priceList)) {
+	static AccompanyingPriceContent accompanyingPriceContent(@Nonnull String name, @Nullable String... priceList) {
+		requireName(name, "name");
+		final String[] normalizedPriceList = withoutUndefinedPriceLists(priceList);
+		if (ArrayUtils.isEmptyOrItsValuesNull(normalizedPriceList)) {
 			return new AccompanyingPriceContent(name);
 		}
-		final String[] normalizeNames = Arrays.stream(priceList).filter(Objects::nonNull).filter(it -> !it.isBlank()).toArray(String[]::new);
-		// the array was not empty, but contains only null values - this may not be deliberate action - for example
-		// the initalization was like `accompanyingPrice(nullVariable)` and this should exclude the constraint
-		if (normalizeNames.length == 0) {
-			return new AccompanyingPriceContent(name);
-		}
-		// otherwise propagate only non-null values
-		return normalizeNames.length == priceList.length ?
-			new AccompanyingPriceContent(name, priceList) : new AccompanyingPriceContent(name, normalizeNames);
+		return new AccompanyingPriceContent(name, normalizedPriceList);
 	}
 
 	/**
@@ -10394,8 +10332,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("b279b48460da86ca232260da30de183a")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary() {
 		return new FacetSummary();
@@ -10418,13 +10356,11 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("6ff5fd5e9ef298d9ab371bfaaf0be53c")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
-		return statisticsDepth == null ?
-			new FacetSummary(FacetStatisticsDepth.COUNTS, requirements) :
-			new FacetSummary(statisticsDepth, requirements);
+		return facetSummary(statisticsDepth, null, null, null, null, requirements);
 	}
 
 	/**
@@ -10445,8 +10381,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("4d4f1aa0bdd23775ff9f60cd5608a03b")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10474,8 +10410,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("8870f732516794e5e107ae2f82afbd23")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10507,8 +10443,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("fbbadb7b5d37c1b91cad13a085c3512f")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10540,8 +10476,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("97bddd46753aaae340ebc2fbcb26b981")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10573,8 +10509,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("7ce163f20df1005cca5377b605daab3c")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10604,8 +10540,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("0a62e26c5b95a6aa2016b7f9fc0f9ce8")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10634,8 +10570,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("416fb7edd4896b0417f769d1c2585548")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10664,8 +10600,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("fc3b488b188fc7604b7c1f708df3fbff")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10689,8 +10625,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("7b7c4d485c3aa82d284d7c27bf913bcc")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10708,8 +10644,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("cf7b1db1de2e1172f996696cb59fee5f")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10735,8 +10671,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("6a263c4a352c2bbf289d8331c03aa160")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10756,8 +10692,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("7613d65b0566b0f38bb96b7c559445c2")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10787,8 +10723,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("943d0318a23a9bbc45252550352fb47d")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10817,8 +10753,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("e51ff0f5dabcfcfb48740903b6583070")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10850,8 +10786,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("4c88bb0086094051cfd0dca10969c8a5")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -10875,7 +10811,7 @@ public interface QueryConstraints {
 			statisticsDepth,
 			facetFilterBy, facetGroupFilterBy,
 			facetOrderBy, facetGroupOrderBy,
-			requirements
+			withoutNullValues(requirements)
 		);
 	}
 
@@ -10895,11 +10831,11 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("eb5f7cca528cde1d94fac7368dda1b63")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable EntityFetchRequire... requirements) {
-		return new FacetSummary(FacetStatisticsDepth.COUNTS, requirements);
+		return facetSummary(FacetStatisticsDepth.COUNTS, null, null, null, null, requirements);
 	}
 
 	/**
@@ -10918,8 +10854,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("4f94a019e1179ee56779f5a8056826e2")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy facetFilterBy,
@@ -10936,8 +10872,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("2f32030f266096c171cd31b0e05d2124")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -10967,8 +10903,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("8b3c2e198f6187dc45a93a26becd98d6")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -10998,8 +10934,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("0a58ffb6515ee08d750599e11201c1be")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -11027,8 +10963,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("f9d53f9ecd3487f6afa338477df4722d")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -11057,8 +10993,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("f4d86828957f8b15f13364d7024cc351")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -11076,8 +11012,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("e1871e1bf32ae260c57f403fb7a4de4b")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable OrderBy orderBy,
@@ -11104,8 +11040,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("c4762843267c315836c65b05e9558d67")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -11131,8 +11067,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("735697c3bfa23f9c815f657787ace946")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable OrderBy orderBy,
@@ -11149,8 +11085,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("a088b97fb0147df77153b6fcf7e4975a")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -11174,8 +11110,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("1ebd4c7d2fe7d841e5b043c9bd6d2176")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable OrderGroupBy facetGroupOrderBy,
@@ -11202,8 +11138,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("64b5751fa5425f656a8b0f55a040b7fa")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -11231,8 +11167,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("c6ee01706e5e912dc76ab256ce5a4f02")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -11258,8 +11194,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("91839eb46ddb6234b40eac61e0c0f33c")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -11288,8 +11224,8 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("c6de73febd52604de3cbb21f8844bdcb")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy facetFilterBy,
@@ -11309,7 +11245,7 @@ public interface QueryConstraints {
 			FacetStatisticsDepth.COUNTS,
 			facetFilterBy, facetGroupFilterBy,
 			facetOrderBy, facetGroupOrderBy,
-			requirements
+			withoutNullValues(requirements)
 		);
 	}
 	/**
@@ -11320,11 +11256,13 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("4e78aea8ee1ee28e8902026726e66c9b")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
-	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable EntityFetchRequire... requirements) {
-		return referenceName == null ? null : new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
+	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName,
+		@Nullable EntityFetchRequire... requirements) {
+		requireName(referenceName, "referenceName");
+		return new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
 	}
 
 	/**
@@ -11345,13 +11283,12 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("5428761dbfd45b28757eda959aba0f9e")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
-	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
-		if (referenceName == null) {
-			return null;
-		}
+	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
+		requireName(referenceName, "referenceName");
 		return statisticsDepth == null ?
 			new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements) :
 			new FacetSummaryOfReference(referenceName, statisticsDepth, requirements);
@@ -11376,18 +11313,19 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("6ab9542b9d85af05d91b60366c8a9f65")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, facetFilterBy, null, facetOrderBy, null,
+			requirements);
 	}
 
 	/**
@@ -11411,19 +11349,20 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("ede4b947263da7ce86196d6c60e0357f")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -11447,19 +11386,20 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("d0617b06c20ac9a3e2d0f13bcb4b26c5")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -11480,19 +11420,20 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("176b2cdd5fc52b3f5a1ad62f8462afc0")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, orderBy, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, orderBy, facetGroupOrderBy,
+			requirements);
 	}
 
 	/**
@@ -11516,19 +11457,20 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("73f6e0a71ebf0b693819dff4a0cd0780")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, orderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, orderBy, null,
+			requirements);
 	}
 
 	/**
@@ -11551,18 +11493,19 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("5ef41365a00ff03111ceb4881cd13d82")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, null,
+			requirements);
 	}
 
 	/**
@@ -11573,18 +11516,19 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("8c892f31d6e474ce5e89a913ea06e24e")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, facetGroupOrderBy,
+			requirements);
 	}
 
 	/**
@@ -11604,17 +11548,17 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("1a58d772bd7fbf065ea3c99431655b24")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, null, requirements);
 	}
 
 	/**
@@ -11625,17 +11569,17 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("35fd4a069541bd5f7274f0fabe2009b9")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, null, requirements);
 	}
 
 	/**
@@ -11646,17 +11590,18 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("af266a1d02473f5b090094185517ab59")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, null,
+			requirements);
 	}
 
 	/**
@@ -11667,17 +11612,18 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("d7c25389f3bdb9bb2dcc8cf95c42f7ad")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, null, null, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, null, null, null, facetGroupOrderBy,
+			requirements);
 	}
 
 	/**
@@ -11700,18 +11646,19 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("c6b5a5ac705187d90d04b303747a2449")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, null,
+			requirements);
 	}
 
 	/**
@@ -11734,18 +11681,19 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("c58b1640e014dab92defe49ec6fe08ce")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, facetGroupOrderBy,
+			requirements);
 	}
 
 	/**
@@ -11768,18 +11716,19 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("426705d57190ebf38a205f0dc0236ce0")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -11804,11 +11753,11 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("dcfe8f70833591fb61121d4bca919a25")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -11816,9 +11765,7 @@ public interface QueryConstraints {
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		if (referenceName == null) {
-			return null;
-		}
+		requireName(referenceName, "referenceName");
 		if (statisticsDepth == null) {
 			statisticsDepth = FacetStatisticsDepth.COUNTS;
 		}
@@ -11856,17 +11803,18 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("905fb2301a5afb116c26e9449495add1")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, facetFilterBy, null, facetOrderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, facetFilterBy, null, facetOrderBy,
+			null, requirements);
 	}
 
 	/**
@@ -11889,18 +11837,19 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("486a5b3c38a00683af151e5bb61143d4")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, null,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -11910,18 +11859,19 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("12ecd008112f34be1dfd9f310c9e2232")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, orderBy,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -11943,18 +11893,19 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("5de1172be901e054d321545897f1620a")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, orderBy, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, orderBy,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -11965,18 +11916,19 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("b93463f355149ed7151e950b091ec8e6")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, orderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy,
+			orderBy, null, requirements);
 	}
 
 	/**
@@ -11987,17 +11939,18 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("418c09ce1e225ce245964b05e749ded5")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, null, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, null,
+			null, requirements);
 	}
 
 	/**
@@ -12007,17 +11960,18 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("cc63437a2bf6810996f3d4af9d62adad")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, orderBy, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, orderBy,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -12028,16 +11982,17 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("c64dd53142a228f969efbe2f09512ee0")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, null, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, null, null,
+			requirements);
 	}
 
 	/**
@@ -12048,16 +12003,17 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("e7fb5befe389be22453a614a76ff05a5")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, orderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, orderBy, null,
+			requirements);
 	}
 
 	/**
@@ -12077,16 +12033,17 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("a3263ecefbb83a89e409012c13a66fdf")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null, null,
+			requirements);
 	}
 
 	/**
@@ -12097,16 +12054,17 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("26ec2cd37ebe49e23f82ec5f306c167b")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, null, facetGroupOrderBy,
+			requirements);
 	}
 
 	/**
@@ -12117,17 +12075,18 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("0d722532dc70ce0b4a414e2442a6013e")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, orderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, orderBy,
+			null, requirements);
 	}
 
 	/**
@@ -12138,17 +12097,18 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("467570c5c779d8c4cc8feb9902abac4d")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, null,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -12159,17 +12119,18 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("cc477fcbfb6476dd21cf22770ee9d791")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -12191,20 +12152,18 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("89334d19a21bd5d49286428fbce66549")
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		if (referenceName == null) {
-			return null;
-		}
+		requireName(referenceName, "referenceName");
 		if (ArrayUtils.isEmptyOrItsValuesNull(requirements)) {
 			return new FacetSummaryOfReference(
 				referenceName, FacetStatisticsDepth.COUNTS,
@@ -12251,9 +12210,7 @@ public interface QueryConstraints {
 	@SourceHash("f209ce85f3a3ad8c33b3cc43b03dcb6b")
 	@Nonnull
 	static ReferenceSummary referenceSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
-		return statisticsDepth == null ?
-			new ReferenceSummary(FacetStatisticsDepth.COUNTS, requirements) :
-			new ReferenceSummary(statisticsDepth, requirements);
+		return referenceSummary(statisticsDepth, null, null, null, null, requirements);
 	}
 
 	/**
@@ -12711,7 +12668,7 @@ public interface QueryConstraints {
 	@SourceHash("0d6b887508f828665974df18084ec7a7")
 	@Nonnull
 	static ReferenceSummary referenceSummary(@Nullable EntityFetchRequire... requirements) {
-		return new ReferenceSummary(FacetStatisticsDepth.COUNTS, requirements);
+		return referenceSummary(FacetStatisticsDepth.COUNTS, null, null, null, null, requirements);
 	}
 
 	/**
@@ -13235,8 +13192,10 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("e1fe254a3a5b36cad555576a522ad6df")
 	@Nullable
-	static ReferenceSummaryOfReference referenceSummaryOfReference(@Nullable String referenceName, @Nullable EntityFetchRequire... requirements) {
-		return referenceName == null ? null : new ReferenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
+	static ReferenceSummaryOfReference referenceSummaryOfReference(@Nonnull String referenceName,
+		@Nullable EntityFetchRequire... requirements) {
+		requireName(referenceName, "referenceName");
+		return new ReferenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
 	}
 
 	/**
@@ -13256,10 +13215,9 @@ public interface QueryConstraints {
 	 */
 	@SourceHash("a3c2f98a6db6878c9760e01c17286b8c")
 	@Nullable
-	static ReferenceSummaryOfReference referenceSummaryOfReference(@Nullable String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
-		if (referenceName == null) {
-			return null;
-		}
+	static ReferenceSummaryOfReference referenceSummaryOfReference(@Nonnull String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
+		requireName(referenceName, "referenceName");
 		return statisticsDepth == null ?
 			new ReferenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements) :
 			new ReferenceSummaryOfReference(referenceName, statisticsDepth, requirements);
@@ -13287,14 +13245,15 @@ public interface QueryConstraints {
 	@SourceHash("5f16f68585d1190e13ff7d2852874dc6")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, facetFilterBy, null, facetOrderBy, null,
+			requirements);
 	}
 
 	/**
@@ -13321,15 +13280,16 @@ public interface QueryConstraints {
 	@SourceHash("9125a1f30fa02eb8be39504b7f07285e")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -13355,15 +13315,16 @@ public interface QueryConstraints {
 	@SourceHash("fc2d5fe5d29b1bea86c16b485664bf35")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -13389,15 +13350,16 @@ public interface QueryConstraints {
 	@SourceHash("5dcea4f9d88ee69727b88e90feefeb41")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, null, orderBy, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, null, orderBy, facetGroupOrderBy,
+			requirements);
 	}
 
 	/**
@@ -13423,15 +13385,16 @@ public interface QueryConstraints {
 	@SourceHash("ab325e253e772a24ff63fb2fedbd15d4")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, orderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, orderBy, null,
+			requirements);
 	}
 
 	/**
@@ -13456,14 +13419,15 @@ public interface QueryConstraints {
 	@SourceHash("940e7ba1ed0fde3ce7f8dc4dded02561")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, null,
+			requirements);
 	}
 
 	/**
@@ -13476,14 +13440,15 @@ public interface QueryConstraints {
 	@SourceHash("564866182970c5a348339e1fdd887d65")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, facetGroupOrderBy,
+			requirements);
 	}
 
 	/**
@@ -13506,13 +13471,13 @@ public interface QueryConstraints {
 	@SourceHash("2c4bacf64431b67e0061757f7f8406f0")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, null, requirements);
 	}
 
 	/**
@@ -13525,13 +13490,13 @@ public interface QueryConstraints {
 	@SourceHash("fc746658f15a7de51b923d9cef077aad")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, null, requirements);
 	}
 
 	/**
@@ -13555,13 +13520,14 @@ public interface QueryConstraints {
 	@SourceHash("787ff35c5e509865bf85cab310288939")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, null,
+			requirements);
 	}
 
 	/**
@@ -13573,13 +13539,14 @@ public interface QueryConstraints {
 	@SourceHash("35e3b565c12b1040be3f528417d1891e")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, null, null, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, null, null, null, facetGroupOrderBy,
+			requirements);
 	}
 
 	/**
@@ -13604,14 +13571,15 @@ public interface QueryConstraints {
 	@SourceHash("79bea86749ba28805bfea710700170ba")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, null,
+			requirements);
 	}
 
 	/**
@@ -13634,14 +13602,15 @@ public interface QueryConstraints {
 	@SourceHash("23ec097ee52f457bb20ab2c482e5af12")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, facetGroupOrderBy,
+			requirements);
 	}
 
 	/**
@@ -13665,14 +13634,15 @@ public interface QueryConstraints {
 	@SourceHash("5d9809403f3fa90c81396f2097259580")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -13699,7 +13669,7 @@ public interface QueryConstraints {
 	@SourceHash("eabdf4ac301e05fb60fcdbabccc47e94")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -13707,9 +13677,7 @@ public interface QueryConstraints {
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		if (referenceName == null) {
-			return null;
-		}
+		requireName(referenceName, "referenceName");
 		if (statisticsDepth == null) {
 			statisticsDepth = FacetStatisticsDepth.COUNTS;
 		}
@@ -13750,13 +13718,14 @@ public interface QueryConstraints {
 	@SourceHash("ccbd125e33327e81fafd3732c022c263")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, facetFilterBy, null, facetOrderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, facetFilterBy, null,
+			facetOrderBy, null, requirements);
 	}
 
 	/**
@@ -13781,14 +13750,15 @@ public interface QueryConstraints {
 	@SourceHash("b0ae28cde4450e9c17b478be591f4fe4")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy,
+			null, facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -13801,14 +13771,15 @@ public interface QueryConstraints {
 	@SourceHash("2ccf4501e8a694846a97530d3fa96df6")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy,
+			orderBy, facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -13821,14 +13792,15 @@ public interface QueryConstraints {
 	@SourceHash("50eda46e18897738c04a7720ec23d2e2")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, orderBy, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, orderBy,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -13853,14 +13825,15 @@ public interface QueryConstraints {
 	@SourceHash("82df988ac9c0d29d49dc1d6a067b601e")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, orderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy,
+			orderBy, null, requirements);
 	}
 
 	/**
@@ -13873,13 +13846,14 @@ public interface QueryConstraints {
 	@SourceHash("ae3473c2affb1edb03920eb107bea1b5")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, null, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy,
+			null, null, requirements);
 	}
 
 	/**
@@ -13892,13 +13866,14 @@ public interface QueryConstraints {
 	@SourceHash("77da54cabe5b4ec06642544f2a21de84")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, orderBy, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, orderBy,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -13911,12 +13886,13 @@ public interface QueryConstraints {
 	@SourceHash("18242def6a21362344b0fdb4118cc187")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, null, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, null, null,
+			requirements);
 	}
 
 	/**
@@ -13939,12 +13915,13 @@ public interface QueryConstraints {
 	@SourceHash("bc1b378ffddc7e8400d328368240add3")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, orderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, orderBy, null,
+			requirements);
 	}
 
 	/**
@@ -13957,12 +13934,13 @@ public interface QueryConstraints {
 	@SourceHash("8e042fc24111ceaf0fddb06a4b27fadc")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null,
+			null, requirements);
 	}
 
 	/**
@@ -13975,12 +13953,13 @@ public interface QueryConstraints {
 	@SourceHash("947dfad132c4f2ad067cc6770b8bfca4")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, null,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -13993,13 +13972,14 @@ public interface QueryConstraints {
 	@SourceHash("22f6b20557463955947a0bd092f77339")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, orderBy, null, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy,
+			orderBy, null, requirements);
 	}
 
 	/**
@@ -14012,13 +13992,14 @@ public interface QueryConstraints {
 	@SourceHash("41c3c7ff73a2dd32e49f2493f0da44ac")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, null,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -14030,13 +14011,14 @@ public interface QueryConstraints {
 	@SourceHash("fd01baee54d5487cddecc4fc6aa2088b")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		return referenceName == null ? null :
-			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+		requireName(referenceName, "referenceName");
+		return referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null,
+			facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -14062,16 +14044,14 @@ public interface QueryConstraints {
 	@SourceHash("db13bf6a32c3cd9cacee726c72b836ca")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReference(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityFetchRequire... requirements
 	) {
-		if (referenceName == null) {
-			return null;
-		}
+		requireName(referenceName, "referenceName");
 		if (ArrayUtils.isEmptyOrItsValuesNull(requirements)) {
 			return new ReferenceSummaryOfReference(
 				referenceName, FacetStatisticsDepth.COUNTS,
@@ -14098,16 +14078,15 @@ public interface QueryConstraints {
 	@SourceHash("fb27f7018c9e8b620d6bca379b1418ba")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReferenceWithHistograms(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch,
 		@Nullable ReferenceHistogramStatistics... histogramStatistics
 	) {
-		if (referenceName == null) {
-			return null;
-		}
-		final RequireConstraint[] children = mergeReferenceSummaryChildren(entityFetch, entityGroupFetch, histogramStatistics);
+		requireName(referenceName, "referenceName");
+		final RequireConstraint[] children = mergeReferenceSummaryChildren(entityFetch, entityGroupFetch,
+			histogramStatistics);
 		return new ReferenceSummaryOfReference(
 			referenceName,
 			statisticsDepth == null ? FacetStatisticsDepth.COUNTS : statisticsDepth,
@@ -14141,7 +14120,7 @@ public interface QueryConstraints {
 	@SourceHash("fc67f98fdb2559efeaf5965d1b7f7ef8")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReferenceWithHistograms(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -14151,10 +14130,9 @@ public interface QueryConstraints {
 		@Nullable EntityGroupFetch entityGroupFetch,
 		@Nullable ReferenceHistogramStatistics... histogramStatistics
 	) {
-		if (referenceName == null) {
-			return null;
-		}
-		final RequireConstraint[] children = mergeReferenceSummaryChildren(entityFetch, entityGroupFetch, histogramStatistics);
+		requireName(referenceName, "referenceName");
+		final RequireConstraint[] children = mergeReferenceSummaryChildren(entityFetch, entityGroupFetch,
+			histogramStatistics);
 		return new ReferenceSummaryOfReference(
 			referenceName,
 			statisticsDepth == null ? FacetStatisticsDepth.COUNTS : statisticsDepth,
@@ -14200,6 +14178,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static Debug debug(@Nullable DebugMode... debugMode) {
+		requireNonNullItems(debugMode, "debugMode");
 		return ArrayUtils.isEmptyOrItsValuesNull(debugMode) ? null : new Debug(debugMode);
 	}
 

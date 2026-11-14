@@ -2175,8 +2175,7 @@ class EvitaRequestTest {
 						collection('b'),
 						filterBy(
 							scope(ARCHIVED)
-						),
-						require()
+						)
 					)""",
 				copy.getQuery().prettyPrint()
 			);
@@ -2218,8 +2217,7 @@ class EvitaRequestTest {
 						collection('b'),
 						filterBy(
 							scope(ARCHIVED)
-						),
-						require()
+						)
 					)""",
 				copy.getQuery().prettyPrint()
 			);
@@ -2259,8 +2257,7 @@ class EvitaRequestTest {
 						collection('b'),
 						filterBy(
 							scope(ARCHIVED)
-						),
-						require()
+						)
 					)""",
 				copy.getQuery().prettyPrint()
 			);
@@ -2312,8 +2309,7 @@ class EvitaRequestTest {
 						collection('b'),
 						filterBy(
 							scope(ARCHIVED)
-						),
-						require()
+						)
 					)""",
 				copy.getQuery().prettyPrint()
 			);

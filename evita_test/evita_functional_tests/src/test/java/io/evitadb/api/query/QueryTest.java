@@ -23,7 +23,11 @@
 
 package io.evitadb.api.query;
 
+import io.evitadb.api.query.filter.AttributeEquals;
+import io.evitadb.api.query.filter.AttributeIs;
+import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
@@ -500,7 +504,7 @@ class QueryTest {
 					and(
 						or(
 							attributeEquals("code", null),
-							attributeIsNull(null)
+							new AttributeIs(null, AttributeSpecialValue.NULL)
 						),
 						and(
 							attributeIsNotNull("valid")
@@ -509,7 +513,7 @@ class QueryTest {
 				),
 				orderBy(
 					attributeNatural("name"),
-					attributeNatural(null, DESC)
+					new AttributeNatural(null, DESC)
 				),
 				require(
 					page(1, 5)
@@ -594,10 +598,10 @@ class QueryTest {
 					and(
 						or(
 							attributeEquals("code", null),
-							attributeIsNull(null),
+							new AttributeIs(null, AttributeSpecialValue.NULL),
 							null,
 							or(
-								attributeEqualsTrue(null),
+								new AttributeEquals(null, Boolean.TRUE),
 								null
 							)
 						),

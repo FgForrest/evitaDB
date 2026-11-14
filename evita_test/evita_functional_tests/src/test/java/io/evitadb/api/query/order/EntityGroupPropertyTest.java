@@ -113,7 +113,8 @@ class EntityGroupPropertyTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should not be applicable when it has no children")
 		void shouldNotBeApplicableWhenItHasNoChildren() {
-			final EntityGroupProperty constraint = entityGroupProperty();
+			assertNull(entityGroupProperty());
+			final EntityGroupProperty constraint = new EntityGroupProperty();
 
 			assertFalse(constraint.isApplicable());
 		}
@@ -129,7 +130,8 @@ class EntityGroupPropertyTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should not be necessary when it has no children")
 		void shouldNotBeNecessaryWhenItHasNoChildren() {
-			final EntityGroupProperty constraint = entityGroupProperty();
+			assertNull(entityGroupProperty());
+			final EntityGroupProperty constraint = new EntityGroupProperty();
 
 			assertFalse(constraint.isNecessary());
 		}
