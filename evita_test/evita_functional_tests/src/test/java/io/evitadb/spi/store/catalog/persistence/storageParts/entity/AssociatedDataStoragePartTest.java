@@ -25,6 +25,12 @@ package io.evitadb.spi.store.catalog.persistence.storageParts.entity;
 
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.data.DataItem;
+import io.evitadb.dataType.data.DataItemArray;
+import io.evitadb.dataType.data.DataItemMap;
+import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart.EntityAssociatedDataKey;
 import io.evitadb.utils.NumberUtils;
@@ -34,7 +40,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import java.util.Locale;
+import java.util.Map;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import org.junit.jupiter.api.Tag;
@@ -204,6 +212,24 @@ class AssociatedDataStoragePartTest {
 		}
 	}
 
+	/**
+	 * Builds complex data holding the range as an item of an array nested in an array of its root map.
+	 *
+	 * @param range the range leaf
+	 * @return a new complex object
+	 */
+	@Nonnull
+	private static ComplexDataObject complexDataHolding(@Nonnull BigDecimalNumberRange range) {
+		return new ComplexDataObject(
+			new DataItemMap(
+				Map.of(
+					"ranges",
+					new DataItemArray(new DataItem[]{new DataItemArray(new DataItem[]{new DataItemValue(range)})})
+				)
+			)
+		);
+	}
+
 	@Nested
 	@DisplayName("Associated data replacement")
 	class ReplaceAssociatedData {
@@ -253,6 +279,37 @@ class AssociatedDataStoragePartTest {
 			part.replaceAssociatedData(identical);
 
 			assertFalse(part.isDirty());
+		}
+
+		/**
+		 * Complex data differing only in a range leaf encoded to the same longs compare equal, yet a reader gets other
+		 * bounds back. The part must take the new value and become dirty, and stay clean when the very same complex
+		 * data arrive again.
+		 */
+		@Test
+		@DisplayName("should mark dirty when complex data differ only in a range leaf encoded to the same longs")
+		void shouldMarkDirtyWhenComplexDataDifferOnlyInRangeLeafEncodedToSameLongs() {
+			final BigDecimalNumberRange oneToTwo =
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+			final AssociatedDataKey key = new AssociatedDataKey(DATA_NAME);
+			final AssociatedDataStoragePart changed = new AssociatedDataStoragePart(
+				1L, ENTITY_PK, new AssociatedDataValue(1, key, complexDataHolding(oneToTwo), false), 64
+			);
+			final AssociatedDataValue replacement = new AssociatedDataValue(
+				2, key, complexDataHolding(BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))),
+				false
+			);
+
+			changed.replaceAssociatedData(replacement);
+
+			assertSame(replacement, changed.getValue());
+			assertTrue(changed.isDirty());
+
+			final AssociatedDataStoragePart unchanged = new AssociatedDataStoragePart(
+				1L, ENTITY_PK, new AssociatedDataValue(1, key, complexDataHolding(oneToTwo), false), 64
+			);
+			unchanged.replaceAssociatedData(new AssociatedDataValue(1, key, complexDataHolding(oneToTwo), false));
+			assertFalse(unchanged.isDirty());
 		}
 
 		@Test
