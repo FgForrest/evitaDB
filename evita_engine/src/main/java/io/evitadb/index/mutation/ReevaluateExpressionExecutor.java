@@ -245,13 +245,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 */
 	private static final class StoredReferencedEntityValues {
 		/**
-		 * The dispatched mutation, carrying the storage-part executor the values are read through.
+		 * The dispatched mutation, carrying the storage-part executor the values are read through and the scope of the
+		 * histograms; a referenced entity in another scope reads as having no value.
 		 */
 		@Nonnull private final ReevaluateExpressionMutation mutation;
-		/**
-		 * The scope of the histograms; a referenced entity in another scope reads as having no value.
-		 */
-		@Nonnull private final Scope scope;
 		/**
 		 * An estimate of the number of distinct reads, used only to size the memo.
 		 */
@@ -265,16 +262,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		 * Creates the reader of one dispatch.
 		 *
 		 * @param mutation      the dispatched mutation, carrying the storage-part executor the values are read through
-		 * @param scope         the scope of the histograms
+		 *                      and the scope of the histograms
 		 * @param expectedReads an estimate of the number of distinct reads, used only to size the memo
 		 */
 		StoredReferencedEntityValues(
 			@Nonnull ReevaluateExpressionMutation mutation,
-			@Nonnull Scope scope,
 			int expectedReads
 		) {
 			this.mutation = mutation;
-			this.scope = scope;
 			this.expectedReads = expectedReads;
 		}
 
@@ -318,7 +313,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				}
 			}
 			final Serializable value = storageAccessor.readReferencedEntityAttribute(
-				entityType, entityPrimaryKey, attributeName, locale, this.scope
+				entityType, entityPrimaryKey, attributeName, locale, this.mutation.scope()
 			);
 			this.values.put(key, value);
 			return value;
@@ -1252,7 +1247,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				final StoredReferencedEntityValues histogramStoredValues;
 				if (resolution.arrayType()) {
 					if (storedValues == null) {
-						storedValues = new StoredReferencedEntityValues(mutation, scope, affected.groups().size());
+						storedValues = new StoredReferencedEntityValues(mutation, affected.groups().size());
 					}
 					histogramStoredValues = storedValues;
 				} else {
