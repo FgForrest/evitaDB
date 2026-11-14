@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.common.*;
+import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.GraphQL;
 import graphql.schema.idl.RuntimeWiring;
@@ -41,6 +42,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.test.TestTags.*;
@@ -56,6 +58,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(MANAGEMENT)
 @DisplayName("GraphQL catalog routing publication")
 class GraphQLRouterTest implements EvitaTestSupport {
+	/** Stock values shared with every ordinary HTTP tracing context configuration. */
+	private static final HeaderOptions DEFAULT_HEADERS = new HeaderOptions();
 	private TestPaths paths;
 	private Evita evita;
 
@@ -98,6 +102,8 @@ class GraphQLRouterTest implements EvitaTestSupport {
 			new java.util.concurrent.atomic.AtomicReference<>();
 		final java.util.concurrent.atomic.AtomicInteger observations = new java.util.concurrent.atomic.AtomicInteger();
 		final HeaderOptions headers = new HeaderOptions(
+			DEFAULT_HEADERS.forwardedUri(), DEFAULT_HEADERS.forwardedFor(),
+			DEFAULT_HEADERS.label(), DEFAULT_HEADERS.clientId(),
 			new AssemblyObservationHeaders(() -> {
 				final AggregatedHttpResponse data = assertDoesNotThrow(() ->
 					response(reference.get(), HttpMethod.GET, "/catalog", "firstData"));
@@ -106,7 +112,7 @@ class GraphQLRouterTest implements EvitaTestSupport {
 				assertEquals(HttpStatus.NOT_FOUND, data.status(), "DATA was published before SCHEMA assembly");
 				assertEquals(HttpStatus.NOT_FOUND, schema.status());
 				observations.incrementAndGet();
-			}), java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of()
+			})
 		);
 		final GraphQLRouter router = new GraphQLRouter(new ObjectMapper(), this.evita, headers);
 		reference.set(router);
@@ -116,8 +122,54 @@ class GraphQLRouterTest implements EvitaTestSupport {
 		assertDoesNotThrow(() -> assertApi(router, "/catalog/schema", "firstSchema"));
 	}
 
+	/** Every observable step of a two-reference refresh keeps DATA and SCHEMA routes available. */
+	@Test
+	@DisplayName("Both APIs stay reachable before, between and after reference swaps")
+	void shouldKeepBothApisReachableDuringRefresh() throws Exception {
+		final GraphQLRouter router = new GraphQLRouter(new ObjectMapper(), this.evita, new HeaderOptions());
+		router.registerCatalogApi("catalog", api("oldData"), api("oldSchema"));
+		final GraphQL newData = api("newData");
+		final GraphQL newSchema = api("newSchema");
+		assertApi(router, "/catalog", "oldData");
+		assertApi(router, "/catalog/schema", "oldSchema");
+		router.refreshCatalogApi("catalog", GraphQLInstanceType.DATA, newData);
+		assertApi(router, "/catalog", "newData");
+		assertApi(router, "/catalog/schema", "oldSchema");
+		router.refreshCatalogApi("catalog", GraphQLInstanceType.SCHEMA, newSchema);
+		assertApi(router, "/catalog", "newData");
+		assertApi(router, "/catalog/schema", "newSchema");
+	}
+
 	/**
-	 * Real single-value header configuration observed on its second traversal (the SCHEMA CORS constructor).
+	 * A request is bound to its endpoint handler when it is routed, so one whose body arrives only after the refresh
+	 * shows whether that handler reads the refreshed reference — which is also what keeps an established WebSocket on
+	 * the current schema. A refresh that republished the catalog's handlers would answer it from the old instance.
+	 */
+	@Test
+	@DisplayName("Requests routed before a refresh are answered by the refreshed GraphQL instances")
+	void shouldAnswerRequestsRoutedBeforeRefreshFromRefreshedInstances() throws Exception {
+		final GraphQLRouter router = new GraphQLRouter(new ObjectMapper(), this.evita, new HeaderOptions());
+		router.registerCatalogApi("catalog", api("oldData"), api("oldSchema"));
+		final HttpRequestWriter dataRequest = HttpRequest.streaming(queryHeaders("/catalog"));
+		final HttpRequestWriter schemaRequest = HttpRequest.streaming(queryHeaders("/catalog/schema"));
+		final CompletableFuture<AggregatedHttpResponse> data = serve(router, dataRequest);
+		final CompletableFuture<AggregatedHttpResponse> schema = serve(router, schemaRequest);
+		assertFalse(data.isDone(), "The DATA request must wait for its body");
+		assertFalse(schema.isDone(), "The SCHEMA request must wait for its body");
+
+		router.refreshCatalogApi("catalog", GraphQLInstanceType.DATA, api("newData"));
+		router.refreshCatalogApi("catalog", GraphQLInstanceType.SCHEMA, api("newSchema"));
+		dataRequest.write(HttpData.ofUtf8(query("newData")));
+		dataRequest.close();
+		schemaRequest.write(HttpData.ofUtf8(query("newSchema")));
+		schemaRequest.close();
+
+		assertEquals("{\"data\":{\"newData\":\"newData\"}}", data.get(30, TimeUnit.SECONDS).contentUtf8());
+		assertEquals("{\"data\":{\"newSchema\":\"newSchema\"}}", schema.get(30, TimeUnit.SECONDS).contentUtf8());
+	}
+
+	/**
+	 * Real single-value header configuration observed at the selected SCHEMA CORS constructor.
 	 * No production hook or mocked service is needed: both APIs consume the same configured header names.
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -131,7 +183,7 @@ class GraphQLRouterTest implements EvitaTestSupport {
 			this.observation = observation;
 		}
 
-		/** Observes the second real configuration read, then supplies its ordinary header value. */
+		/** Observes the selected real SCHEMA configuration read, then supplies its ordinary header value. */
 		@Nonnull
 		@Override
 		public String get(int index) {
@@ -141,7 +193,7 @@ class GraphQLRouterTest implements EvitaTestSupport {
 			if (++this.traversals == 2) {
 				this.observation.run();
 			}
-			return "x-forwarded-uri";
+			return DEFAULT_HEADERS.traceParent().get(index);
 		}
 
 		/** Exposes exactly one configured header. */
@@ -161,7 +213,7 @@ class GraphQLRouterTest implements EvitaTestSupport {
 	}
 
 	/** Asserts all three methods route, with distinct schema and query content for each API. */
-	private static void assertApi(@Nonnull GraphQLRouter router, @Nonnull String path, @Nonnull String field)
+	private static void assertApi(@Nonnull HttpService router, @Nonnull String path, @Nonnull String field)
 		throws Exception {
 		for (final HttpMethod method : new HttpMethod[]{HttpMethod.GET, HttpMethod.POST, HttpMethod.OPTIONS}) {
 			final AggregatedHttpResponse response = response(router, method, path, field);
@@ -177,15 +229,14 @@ class GraphQLRouterTest implements EvitaTestSupport {
 	/** Sends ordinary HTTP requests with the headers required by the real GraphQL and CORS handlers. */
 	@Nonnull
 	private static AggregatedHttpResponse response(
-		@Nonnull GraphQLRouter router, @Nonnull HttpMethod method, @Nonnull String path, @Nonnull String field
+		@Nonnull HttpService router, @Nonnull HttpMethod method, @Nonnull String path, @Nonnull String field
 	) throws Exception {
-		final RequestHeadersBuilder headers = RequestHeaders.builder(method, path)
-			.scheme("http").authority("localhost");
 		final HttpRequest request;
 		if (method == HttpMethod.POST) {
-			headers.contentType(MediaType.JSON).add(HttpHeaderNames.ACCEPT, "application/json");
-			request = HttpRequest.of(headers.build(), HttpData.ofUtf8("{\"query\":\"{ " + field + " }\"}"));
+			request = HttpRequest.of(queryHeaders(path), HttpData.ofUtf8(query(field)));
 		} else {
+			final RequestHeadersBuilder headers = RequestHeaders.builder(method, path)
+				.scheme("http").authority("localhost");
 			if (method == HttpMethod.OPTIONS) {
 				headers.add(HttpHeaderNames.ORIGIN, "http://localhost")
 					.add(HttpHeaderNames.ACCESS_CONTROL_REQUEST_METHOD, "POST")
@@ -193,7 +244,29 @@ class GraphQLRouterTest implements EvitaTestSupport {
 			}
 			request = HttpRequest.of(headers.build());
 		}
-		return router.serve(ServiceRequestContext.builder(request).build(), request)
-			.aggregate().get(30, TimeUnit.SECONDS);
+		return serve(router, request).get(30, TimeUnit.SECONDS);
+	}
+
+	/** Headers of a JSON GraphQL query, which the POST handler accepts. */
+	@Nonnull
+	private static RequestHeaders queryHeaders(@Nonnull String path) {
+		return RequestHeaders.builder(HttpMethod.POST, path)
+			.scheme("http").authority("localhost")
+			.contentType(MediaType.JSON).add(HttpHeaderNames.ACCEPT, "application/json")
+			.build();
+	}
+
+	/** JSON body of a query selecting the single field that identifies an API. */
+	@Nonnull
+	private static String query(@Nonnull String field) {
+		return "{\"query\":\"{ " + field + " }\"}";
+	}
+
+	/** Routes the request at once; the response completes when the handler has the whole request body. */
+	@Nonnull
+	private static CompletableFuture<AggregatedHttpResponse> serve(
+		@Nonnull HttpService router, @Nonnull HttpRequest request
+	) throws Exception {
+		return router.serve(ServiceRequestContext.builder(request).build(), request).aggregate();
 	}
 }

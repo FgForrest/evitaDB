@@ -210,6 +210,13 @@ public class GraphQLManager {
 
 	/**
 	 * Registers new Evita catalog to API. It creates new endpoint and {@link GraphQL} instance for it.
+	 * An internal error while building or publishing the APIs is logged and leaves no route, registration or build
+	 * statistics of the catalog behind; any other exception propagates.
+	 *
+	 * @param catalogName name of the catalog to publish
+	 * @return true when both APIs of the catalog are published, false when the catalog is unusable and was skipped or
+	 *         its APIs failed with an internal error
+	 * @throws GraphQLInternalError when the catalog is already registered
 	 */
 	public boolean registerCatalog(@Nonnull String catalogName) {
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
@@ -275,7 +282,8 @@ public class GraphQLManager {
 			// log and skip the catalog entirely
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by GraphQL API.", ex);
 
-			// cleanup corrupted paths
+			// cleanup corrupted paths and registration bookkeeping
+			this.registeredCatalogs.remove(catalogName);
 			this.graphQLRouter.unregisterCatalogApis(catalogName);
 			this.catalogBuildStatistics.remove(catalogName);
 			return false;
@@ -283,7 +291,14 @@ public class GraphQLManager {
 	}
 
 	/**
-	 * Refreshes already registered catalog endpoint and its {@link GraphQL} instance.
+	 * Rebuilds the DATA and SCHEMA {@link GraphQL} instances of a registered catalog and swaps them in behind its
+	 * existing endpoints. Both instances are built before either is swapped, so a build failure propagates and leaves
+	 * the previous instances serving. A catalog that is not registered yet is registered by
+	 * {@link #registerCatalog(String)} instead.
+	 *
+	 * @param catalogName name of the catalog to refresh or register
+	 * @return true when the catalog's APIs are published afterwards, false only when the fallback registration skipped
+	 *         the catalog or failed with an internal error
 	 */
 	public boolean refreshCatalog(@Nonnull String catalogName) {
 		final boolean catalogRegistered = this.registeredCatalogs.contains(catalogName);
@@ -309,7 +324,6 @@ public class GraphQLManager {
 			this.objectMapper
 		).build(this.graphQLConfig);
 
-		this.graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.DATA, newDataApi);
 		final long dataApiInstanceBuildDuration = System.currentTimeMillis() - dataApiInstanceBuildStartTime;
 
 		// rebuild schema API instance
@@ -325,8 +339,11 @@ public class GraphQLManager {
 			this.objectMapper
 		).build(this.graphQLConfig);
 
-		this.graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, newSchemaApi);
 		final long schemaApiInstanceBuildDuration = System.currentTimeMillis() - schemaApiInstanceBuildStartTime;
+
+		// Publish both completed instances through the references retained by HTTP and WebSocket handlers.
+		this.graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.DATA, newDataApi);
+		this.graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, newSchemaApi);
 
 		// build metrics
 		final CatalogBuildStatistics buildStatistics = this.catalogBuildStatistics.get(catalogName);

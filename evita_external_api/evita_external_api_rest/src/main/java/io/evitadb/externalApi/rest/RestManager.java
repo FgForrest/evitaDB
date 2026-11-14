@@ -199,7 +199,14 @@ public class RestManager {
 	}
 
 	/**
-	 * Register REST endpoints for new catalog.
+	 * Register REST endpoints for new catalog. The catalog is recorded as registered only after the router publishes
+	 * its endpoints. An internal error while building or publishing them is logged and leaves no route, registration or
+	 * build statistics of the catalog behind; any other exception propagates.
+	 *
+	 * @param catalogName name of the catalog to publish
+	 * @return true when the catalog's endpoints are published, false when the catalog is unusable and was skipped or
+	 *         its endpoints failed with an internal error
+	 * @throws RestInternalError when the catalog is already registered
 	 */
 	public boolean registerCatalog(@Nonnull String catalogName) {
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
@@ -220,8 +227,8 @@ public class RestManager {
 			final Rest api = catalogRestBuilder.build();
 			final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
-			this.registeredCatalogs.add(catalogName);
 			this.restRouter.registerCatalogApi(catalogName, api);
+			this.registeredCatalogs.add(catalogName);
 			final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
 
 			// build metrics
@@ -241,7 +248,8 @@ public class RestManager {
 			// log and skip the catalog entirely
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by REST API.", ex);
 
-			// cleanup corrupted paths
+			// cleanup corrupted paths and registration bookkeeping
+			this.registeredCatalogs.remove(catalogName);
 			this.restRouter.unregisterCatalogApi(catalogName);
 			this.catalogBuildStatistics.remove(catalogName);
 			return false;
@@ -260,7 +268,13 @@ public class RestManager {
 	}
 
 	/**
-	 * Update REST endpoints and OpenAPI schema of catalog.
+	 * Update REST endpoints and OpenAPI schema of catalog. The new endpoints replace the old ones in one step once they
+	 * are built, so a build failure propagates and leaves the previous endpoints serving. A catalog that is not
+	 * registered yet is registered by {@link #registerCatalog(String)} instead.
+	 *
+	 * @param catalogName name of the catalog to refresh or register
+	 * @return true when the catalog's endpoints are published afterwards, false only when the fallback registration
+	 *         skipped the catalog or failed with an internal error
 	 */
 	public boolean refreshCatalog(@Nonnull String catalogName) {
 		if (!this.registeredCatalogs.contains(catalogName)) {

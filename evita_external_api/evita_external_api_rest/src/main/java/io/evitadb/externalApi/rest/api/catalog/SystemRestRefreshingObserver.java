@@ -95,13 +95,23 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 					}
 				}
 				case ModifyCatalogSchemaNameMutation mcsnm -> {
-					// remove the old catalog and register the new one
-					this.restManager.unregisterCatalog(mcsnm.getCatalogName());
-					if (mcsnm.isOverwriteTarget()) {
-						this.restManager.unregisterCatalog(mcsnm.getNewCatalogName());
-					}
-					if (this.restManager.registerCatalog(mcsnm.getNewCatalogName())) {
-						this.restManager.emitObservabilityEvents(mcsnm.getNewCatalogName());
+					// Keep the target routed while its replacement is built.
+					// Refresh also registers a previously absent name.
+					boolean published = false;
+					try {
+						published = this.restManager.refreshCatalog(mcsnm.getNewCatalogName());
+						if (published) {
+							this.restManager.emitObservabilityEvents(mcsnm.getNewCatalogName());
+						}
+					} finally {
+						try {
+							// A failed replacement must not keep serving the catalog the engine removed.
+							if (!published) {
+								this.restManager.unregisterCatalog(mcsnm.getNewCatalogName());
+							}
+						} finally {
+							this.restManager.unregisterCatalog(mcsnm.getCatalogName());
+						}
 					}
 				}
 				case SetCatalogStateMutation setState -> {

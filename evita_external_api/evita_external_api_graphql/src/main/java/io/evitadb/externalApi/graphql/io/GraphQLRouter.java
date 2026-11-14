@@ -159,9 +159,18 @@ public class GraphQLRouter implements HttpService, WebSocketHandler {
 	}
 
 	/**
-	 * Swaps GraphQL instance for already registered API for defined catalog
+	 * Swaps the GraphQL instance behind an already registered API of the catalog. The endpoint handlers stay published
+	 * and read the instance for each request they execute, so no route changes. One call swaps one instance: a caller
+	 * refreshing DATA and SCHEMA publishes them as two adjacent swaps.
+	 *
+	 * @param catalogName  name of the registered catalog
+	 * @param instanceType API whose instance is swapped: DATA or SCHEMA
+	 * @param newApi       instance serving the API from now on
+	 * @throws GraphQLInternalError when no APIs are registered for the catalog, or for the SYSTEM instance type
 	 */
-	public void refreshCatalogApi(@Nonnull String catalogName, @Nonnull GraphQLInstanceType instanceType, @Nonnull GraphQL newApi) {
+	public void refreshCatalogApi(
+		@Nonnull String catalogName, @Nonnull GraphQLInstanceType instanceType, @Nonnull GraphQL newApi
+	) {
 		final RegisteredCatalog registeredCatalog = this.registeredCatalogs.get(catalogName);
 		if (registeredCatalog == null) {
 			throw new GraphQLInternalError("No catalog APIs registered for `" + catalogName + "`. Cannot refresh.");

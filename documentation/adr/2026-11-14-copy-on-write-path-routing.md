@@ -1,7 +1,7 @@
 ---
 title: Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure
 date: 2026-11-14
-updated: 2026-11-14 11:10
+updated: 2026-11-14 14:35
 status: accepted
 kind: refactor
 issues: [1956]
@@ -119,7 +119,8 @@ measurements below show it is faster and less allocating than what it replaces. 
 ## Verification
 
 Functional: `PrefixRoutingServiceTest`, `EndpointRoutingServiceTest`, `RegionRoutingTableTest`, `RoutingPathTest`,
-`RestRouterTest`, `GraphQLRouterTest`, `RestParameterRoutingTest`, `CustomCertificateDownloadTest`. Until its
+`RestRouterTest`, `GraphQLRouterTest`, `CatalogRenameRoutingTest`, `RestParameterRoutingTest`,
+`CustomCertificateDownloadTest`. Until its
 deletion a differential test fed the old and the new routers the same generated route sets and requests; the only
 permitted difference was the 405 oracle.
 
@@ -161,16 +162,27 @@ wrong-method request allocates 130–190 B more.
 - **About 1.7–1.9 kB per request remain** on the full path. Each prefix level copies the request headers to
   rewrite `:path`. Passing an offset in the request context instead would remove the copies, but lab and system
   file serving read the rewritten `:path`; not attributed by a profile and not attempted.
-- **`RestManager` records a catalog before registering its API.** A failed registration leaves it recorded, and a
-  later refresh publishes it and then fails on missing build statistics. Older than this change, not touched.
+- **Rename and overwrite publish the new name before removing the old one.** The observers reuse the refresh
+  path: REST replaces the target's prefix in one publication; GraphQL builds both instances and then swaps the
+  references behind its stable routes (two adjacent writes, so data can briefly be newer than schema), which is
+  what lets handlers of open WebSocket connections see a refreshed instance. A failed build removes target and
+  source, because the catalogs they served no longer exist. `CatalogRenameRoutingTest` and `GraphQLRouterTest`
+  guard ordering, failure cleanup and the instance swap for requests routed before a refresh; that an open
+  WebSocket sees the swap, and the failed-registration cleanup in `GraphQLManager`, rest on reading the code.
+  The churn test fails on a routing 404 of a replace target: 589 misses in one run with the old order restored,
+  none in 961 probes without.
+- **A delayed host event can unregister a newer catalog of the same name** (found by review, from reading only):
+  deactivate or delete B, then rename A onto B before the observers catch up, and the queued "inactive/removed"
+  event for the old B unregisters the new one until its next refresh. Older than this change; no reproduction.
 - **A REST request to a catalog that is being replaced can answer HTTP 500** ("Session has been already closed")
   from `RestEndpointExecutionContext#session`, because the engine terminates the session under the handler. Found
   by `LongRunningExternalApiChurnTest` (5 of 44,872 requests) and filed as #1959; not shown to predate this
   change, although the code involved is not part of it. A later run also saw one HTTP 400 "Schema for entity
-  with name `Product` was not found!" on a catalog being replaced, which the test does not list as a lifecycle
-  response; not analysed.
-- **The churn test's margin is thin**: the non-atomic refresh mutation was caught once per 60-second run. The
-  duration that makes detection reliable was not measured.
+  with name `Product` was not found!" on a catalog being replaced; not analysed. The test accepts any error
+  carrying an error code on catalogs under churn and reports unlisted ones as `other`, because it guards
+  routing; catalogs that are not being changed stay strict.
+- **The churn test's margin for a non-atomic REST refresh is thin**: that mutation was caught once per
+  60-second run. The duration that makes detection reliable was not measured.
 - `removePrefixPath` does not remove an exact path of the same spelling; no production caller unregisters exact
   paths (they are added at start-up only).
 

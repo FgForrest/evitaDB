@@ -90,13 +90,23 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 					}
 				}
 				case ModifyCatalogSchemaNameMutation nameChange -> {
-					// if the catalog schema name is changed, we need to unregister the old one and register the new one
-					this.graphQLManager.unregisterCatalog(nameChange.getCatalogName());
-					if (nameChange.isOverwriteTarget()) {
-						this.graphQLManager.unregisterCatalog(nameChange.getNewCatalogName());
-					}
-					if (this.graphQLManager.registerCatalog(nameChange.getNewCatalogName())) {
-						this.graphQLManager.emitObservabilityEvents(nameChange.getNewCatalogName());
+					// Keep the target routed while its replacement is built.
+					// Refresh also registers a previously absent name.
+					boolean published = false;
+					try {
+						published = this.graphQLManager.refreshCatalog(nameChange.getNewCatalogName());
+						if (published) {
+							this.graphQLManager.emitObservabilityEvents(nameChange.getNewCatalogName());
+						}
+					} finally {
+						try {
+							// A failed replacement must not keep serving the catalog the engine removed.
+							if (!published) {
+								this.graphQLManager.unregisterCatalog(nameChange.getNewCatalogName());
+							}
+						} finally {
+							this.graphQLManager.unregisterCatalog(nameChange.getCatalogName());
+						}
 					}
 				}
 				case SetCatalogStateMutation setState -> {
