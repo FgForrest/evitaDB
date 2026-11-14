@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,14 +34,23 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.data.DataItemArray;
+import io.evitadb.dataType.data.DataItemMap;
+import io.evitadb.dataType.data.DataItemValue;
+import io.evitadb.dataType.exception.SerializationFailedException;
+import io.evitadb.utils.ReflectionLookup;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Tag;
@@ -636,5 +645,107 @@ class InitialAssociatedDataBuilderTest extends AbstractBuilderTest {
 
 			assertEquals(0, count);
 		}
+	}
+
+	@Nested
+	@DisplayName("Arrays of complex objects")
+	class ArrayOfComplexObjectsTest {
+
+		@Test
+		@DisplayName("should convert an array of complex objects to one complex data object")
+		void shouldConvertArrayOfComplexObjectsToOneComplexDataObject() {
+			final AssociatedData associatedData = new InitialAssociatedDataBuilder(createSchemaWithEnglishLocale())
+				.setAssociatedData("dimensions", createDimensions())
+				.build();
+
+			assertHoldsTwoItemArray(associatedData.getAssociatedData("dimensions"));
+			assertArrayEquals(
+				createDimensions(),
+				associatedData.getAssociatedData("dimensions", Dimension[].class, ReflectionLookup.NO_CACHE_INSTANCE)
+			);
+		}
+
+		@Test
+		@DisplayName("should convert a localized array of complex objects to one complex data object")
+		void shouldConvertLocalizedArrayOfComplexObjectsToOneComplexDataObject() {
+			final AssociatedData associatedData = new InitialAssociatedDataBuilder(createSchemaWithEnglishLocale())
+				.setAssociatedData("dimensions", Locale.ENGLISH, createDimensions())
+				.build();
+
+			assertHoldsTwoItemArray(associatedData.getAssociatedData("dimensions", Locale.ENGLISH));
+			assertArrayEquals(
+				createDimensions(),
+				associatedData.getAssociatedData(
+					"dimensions", Locale.ENGLISH, Dimension[].class, ReflectionLookup.NO_CACHE_INSTANCE
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse an array of complex data objects")
+		void shouldRefuseArrayOfComplexDataObjects() {
+			final InitialAssociatedDataBuilder builder = new InitialAssociatedDataBuilder(
+				createSchemaWithEnglishLocale()
+			);
+			final ComplexDataObject[] objects = {
+				new ComplexDataObject(new DataItemMap(Map.of("name", new DataItemValue("width"))))
+			};
+
+			assertAll(
+				() -> assertThrows(
+					SerializationFailedException.class,
+					() -> builder.setAssociatedData("objects", objects)
+				),
+				() -> assertThrows(
+					SerializationFailedException.class,
+					() -> builder.setAssociatedData("objects", Locale.ENGLISH, objects)
+				)
+			);
+		}
+
+		/**
+		 * Creates a product schema supporting the English locale.
+		 *
+		 * @return the schema
+		 */
+		@Nonnull
+		private static EntitySchemaContract createSchemaWithEnglishLocale() {
+			return new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+				.withLocale(Locale.ENGLISH)
+				.toInstance();
+		}
+
+		/**
+		 * Creates an array of two complex objects.
+		 *
+		 * @return the array
+		 */
+		@Nonnull
+		private static Dimension[] createDimensions() {
+			return new Dimension[]{new Dimension("width", 10), new Dimension("height", 20)};
+		}
+
+		/**
+		 * Asserts the value is one complex data object whose root is an array of two items.
+		 *
+		 * @param value the stored value
+		 */
+		private static void assertHoldsTwoItemArray(@Nonnull Serializable value) {
+			final ComplexDataObject complexDataObject = assertInstanceOf(ComplexDataObject.class, value);
+			final DataItemArray root = assertInstanceOf(DataItemArray.class, complexDataObject.root());
+			assertEquals(2, root.children().length);
+		}
+	}
+
+	/**
+	 * Complex object stored as an item of an array associated data.
+	 *
+	 * @param name  name of the dimension
+	 * @param value size of the dimension
+	 */
+	public record Dimension(
+		@Nonnull String name,
+		@Nonnull Integer value
+	) implements Serializable {
 	}
 }

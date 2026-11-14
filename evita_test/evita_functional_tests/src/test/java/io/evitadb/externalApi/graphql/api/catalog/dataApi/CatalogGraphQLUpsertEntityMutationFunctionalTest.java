@@ -94,6 +94,32 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 	@Test
 	@UseDataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
+	@DisplayName("Should upsert complex associated data with populated and empty JSON array roots")
+	void shouldUpsertComplexAssociatedDataWithArrayRoot(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final int primaryKey = originalProductEntities.get(0).getPrimaryKey();
+		for (String value : List.of("[{name: \"width\"}]", "[]")) {
+			tester.test(TEST_CATALOG)
+				.document("""
+					mutation {
+						upsertProduct(primaryKey: %d, entityExistence: MUST_EXIST, mutations: [{
+							upsertAssociatedDataMutation: {
+								name: "labels", locale: "cs-CZ", valueType: ComplexDataObject, value: %s
+							}
+						}]) {
+							associatedData(locale: cs_CZ) { labels }
+						}
+					}
+					""", primaryKey, value)
+				.executeAndThen()
+				.statusCode(200)
+				.body(ERRORS_PATH, nullValue())
+				.body(UPSERT_PRODUCT_PATH + ".associatedData.labels",
+					equalTo(value.equals("[]") ? List.of() : List.of(Map.of("name", "width"))));
+		}
+	}
+
+	@Test
+	@UseDataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should insert single empty product without PK")
 	void shouldInsertSingleEmptyProductWithoutPK(GraphQLTester tester) {
 		tester.test(TEST_CATALOG)

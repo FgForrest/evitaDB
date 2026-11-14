@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -110,16 +110,23 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * Converts any serializable object into a form that Evita can store internally.
 	 *
 	 * This method guarantees returning one of the supported {@link EvitaDataTypes}:
-	 * - If the container is already a {@link ComplexDataObject} or its array, it is returned as is
-	 * - If the container is a supported Evita data type or its array, it is returned as is
-	 * - Otherwise, it is converted to a {@link ComplexDataObject} automatically
+	 * - If the container is already a {@link ComplexDataObject}, it is returned as is
+	 * - If the container is a supported Evita data type or its array, it is returned as is - a primitive array
+	 *   (`int[]`) included, although associated data cannot store it: its schema declares the wrapper array
+	 *   (`Integer[]`), which a primitive array is not an instance of
+	 * - Otherwise, it is converted to a {@link ComplexDataObject} automatically - an array of objects becomes one
+	 *   {@link ComplexDataObject} whose root is a {@link DataItemArray}
+	 *
+	 * An array of {@link ComplexDataObject} is refused: an array of complex objects is stored as one
+	 * {@link ComplexDataObject} holding the array, and no schema declares an array of complex data objects.
 	 *
 	 * @param container The object to be converted to a serializable form
 	 * @return A serialized representation of the container that Evita can store
-	 * @throws SerializationFailedException If the conversion process fails
+	 * @throws SerializationFailedException If the conversion process fails or the container is an array of
+	 *                                      {@link ComplexDataObject}
 	 */
 	public static Serializable getSerializableForm(@Nonnull Serializable container) {
-		if (container instanceof ComplexDataObject || container instanceof ComplexDataObject[]) {
+		if (container instanceof ComplexDataObject) {
 			return container;
 		} else if (EvitaDataTypes.isSupportedTypeOrItsArray(container.getClass())) {
 			return container;
@@ -468,16 +475,26 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * Converts the contained object to a serializable form that Evita can store.
 	 *
 	 * This instance method performs the actual conversion:
-	 * - If the container is already a {@link ComplexDataObject} or its array, it is returned as is
+	 * - If the container is already a {@link ComplexDataObject}, it is returned as is
+	 * - If the container is an array of {@link ComplexDataObject}, it is refused
 	 * - If the container is a supported Evita data type, it is returned as is
 	 * - Otherwise, it is converted to a generic {@link ComplexDataObject} structure
 	 *
 	 * @return A serialized representation of the container
-	 * @throws SerializationFailedException If the conversion process fails
+	 * @throws SerializationFailedException If the conversion process fails or the container is an array of
+	 *                                      {@link ComplexDataObject}
 	 */
 	public Serializable getSerializableForm() {
-		if (this.container instanceof ComplexDataObject || this.container instanceof ComplexDataObject[]) {
+		if (this.container instanceof ComplexDataObject) {
 			return this.container;
+		} else if (this.container instanceof ComplexDataObject[]) {
+			// converting the array into one complex data object would store a value that cannot be read back as
+			// the array it was written as - refuse it and let the caller pass the original objects instead
+			throw new SerializationFailedException(
+				"An array of complex data objects (`ComplexDataObject[]`) is not a supported value! An array of " +
+					"complex objects is stored as one `ComplexDataObject` whose root is a `DataItemArray` - pass " +
+					"the array of the original objects, which is converted to it, or that one `ComplexDataObject`."
+			);
 		} else {
 			final Class<?> type = this.container.getClass().isArray() ?
 				this.container.getClass().getComponentType() : this.container.getClass();

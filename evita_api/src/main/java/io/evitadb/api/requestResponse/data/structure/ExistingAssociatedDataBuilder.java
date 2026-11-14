@@ -204,13 +204,14 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	public <T extends Serializable> AssociatedDataBuilder setAssociatedData(
 		@Nonnull String associatedDataName, @Nonnull T[] associatedDataValue) {
-		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName);
-		final Serializable[] valueToStore = new Serializable[associatedDataValue.length];
-		for (int i = 0; i < associatedDataValue.length; i++) {
-			final T dataItem = associatedDataValue[i];
-			valueToStore[i] = ComplexDataObjectConverter.getSerializableForm(dataItem);
-		}
-		addMutation(new UpsertAssociatedDataMutation(associatedDataKey, valueToStore));
+		// convert the array as a whole, as the initial builder does - an array of a supported type keeps its typed
+		// form and an array of POJOs becomes one complex data object, matching the type the schema declares for each
+		addMutation(
+			new UpsertAssociatedDataMutation(
+				new AssociatedDataKey(associatedDataName),
+				ComplexDataObjectConverter.getSerializableForm(associatedDataValue)
+			)
+		);
 		return this;
 	}
 
@@ -254,13 +255,11 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		if (associatedDataValue == null) {
 			return removeAssociatedData(associatedDataName, locale);
 		} else {
-			final Serializable[] valueToStore = new Serializable[associatedDataValue.length];
-			for (int i = 0; i < associatedDataValue.length; i++) {
-				final T dataItem = associatedDataValue[i];
-				valueToStore[i] = ComplexDataObjectConverter.getSerializableForm(dataItem);
-			}
 			addMutation(
-				new UpsertAssociatedDataMutation(new AssociatedDataKey(associatedDataName, locale), valueToStore)
+				new UpsertAssociatedDataMutation(
+					new AssociatedDataKey(associatedDataName, locale),
+					ComplexDataObjectConverter.getSerializableForm(associatedDataValue)
+				)
 			);
 			return this;
 		}
