@@ -37,14 +37,17 @@ import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.annotation.Nonnull;
+import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPInputStream;
 
 import static io.evitadb.test.TestTags.OBSERVABILITY;
 import static io.evitadb.test.TestTags.OBSERVABILITY_API;
@@ -150,6 +153,56 @@ class PrometheusEndpointRoutingTest implements EvitaTestSupport {
 		assertTrue(response.body().endsWith("# EOF\n"), "OpenMetrics must include its end marker");
 	}
 
+	/** A filter selecting no metric yields an empty exposition, which is still a successful scrape. */
+	@Test
+	@DisplayName("Answers an empty scrape when the filter matches no metric")
+	void shouldAnswerEmptyScrapeWhenFilterMatchesNothing() throws Exception {
+		final HttpResponse<String> response = scrape("?name[]=no_such_metric", "text/plain");
+
+		assertEquals(200, response.statusCode(), "A scrape matching no metric must still succeed");
+		assertEquals("", response.body(), "A scrape matching no metric must have an empty body");
+	}
+
+	/** Prometheus servers accept gzip by default, and the exporter then compresses the body itself. */
+	@Test
+	@DisplayName("Compresses the scrape when the client accepts gzip")
+	void shouldCompressScrapeWhenClientAcceptsGzip() throws Exception {
+		final HttpResponse<byte[]> response = send(
+			"GET", "?name[]=io_evitadb_build", "Accept", "text/plain", "Accept-Encoding", "gzip"
+		);
+
+		assertEquals(200, response.statusCode(), "A compressed scrape must succeed");
+		assertEquals("gzip", response.headers().firstValue("Content-Encoding").orElse(""));
+		try (final GZIPInputStream body = new GZIPInputStream(new ByteArrayInputStream(response.body()))) {
+			assertTrue(
+				new String(body.readAllBytes(), StandardCharsets.UTF_8).contains("io_evitadb_build_info{"),
+				"The decompressed scrape must contain the selected metric"
+			);
+		}
+	}
+
+	/** The exporter's `debug` parameter renders the selected exposition format as plain text. */
+	@Test
+	@DisplayName("Serves the debug exposition for the debug parameter")
+	void shouldServeDebugOutputWhenDebugParameterGiven() throws Exception {
+		final HttpResponse<String> response = scrape("?debug=text&name[]=io_evitadb_build", "text/plain");
+
+		assertEquals(200, response.statusCode(), "A debug scrape must succeed");
+		assertTrue(
+			response.body().contains("io_evitadb_build_info{"), "The debug scrape must contain the selected metric"
+		);
+	}
+
+	/** A HEAD scrape answers with the scrape's status and headers and sends no body. */
+	@Test
+	@DisplayName("Answers a HEAD scrape without a body")
+	void shouldAnswerHeadScrapeWithoutBody() throws Exception {
+		final HttpResponse<byte[]> response = send("HEAD", "?name[]=io_evitadb_build", "Accept", "text/plain");
+
+		assertEquals(200, response.statusCode(), "A HEAD scrape must succeed");
+		assertEquals(0, response.body().length, "A HEAD scrape must have no body");
+	}
+
 	/** Sends the request through the real server without following redirects. */
 	@Nonnull
 	private HttpResponse<String> scrape(@Nonnull String query, @Nonnull String accept) throws Exception {
@@ -157,6 +210,21 @@ class PrometheusEndpointRoutingTest implements EvitaTestSupport {
 			HttpRequest.newBuilder(URI.create(this.metricsUrl + query)).timeout(Duration.ofSeconds(30))
 				.header("Accept", accept).GET().build(),
 			HttpResponse.BodyHandlers.ofString()
+		);
+	}
+
+	/**
+	 * Sends a bodiless request with the given method and header name/value pairs, keeping the raw response bytes so
+	 * that a compressed body can be decoded by the test itself.
+	 */
+	@Nonnull
+	private HttpResponse<byte[]> send(
+		@Nonnull String method, @Nonnull String query, @Nonnull String... headers
+	) throws Exception {
+		return this.client.send(
+			HttpRequest.newBuilder(URI.create(this.metricsUrl + query)).timeout(Duration.ofSeconds(30))
+				.headers(headers).method(method, HttpRequest.BodyPublishers.noBody()).build(),
+			HttpResponse.BodyHandlers.ofByteArray()
 		);
 	}
 }
