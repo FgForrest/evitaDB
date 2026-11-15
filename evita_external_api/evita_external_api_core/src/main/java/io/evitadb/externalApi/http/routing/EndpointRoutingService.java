@@ -61,11 +61,6 @@ import java.util.Set;
  *   handler. Every other registration on an occupied route throws: a different parameter name, and a repeat
  *   written without the leading slash.
  *
- * {@link Builder#addLiteral} registers every segment as literal text without grammar validation or path captures,
- * for paths taken from configuration, such as file names, that must not be read as templates.
- * It supplies a missing leading slash, retains empty segments, shares the method tries and duplicate handling,
- * and obeys the same sole-route wildcard restriction. Braces, stars and question marks have no template meaning.
- *
  * ## Matching
  *
  * Each HTTP method has its own trie. The literal child, the parameter child and the wildcard are tried in that
@@ -291,53 +286,23 @@ public final class EndpointRoutingService implements HttpService, WebSocketHandl
 		 */
 		@Nonnull
 		public Builder add(@Nonnull HttpMethod method, @Nonnull String template, @Nonnull HttpService handler) {
-			addRoute(method, template, handler, false);
-			return this;
-		}
-
-		/**
-		 * Registers a literal path, including empty segments and characters reserved by template registration.
-		 * GET WebSocket handlers also receive an automatic CONNECT registration. No segment is a capture.
-		 *
-		 * @param method  method whose trie receives the route
-		 * @param path    literal path; a missing leading slash is supplied
-		 * @param handler thread-safe handler of the matched requests
-		 * @return this builder
-		 * @throws NullPointerException when the handler is null
-		 * @throws GenericEvitaInternalError when the route conflicts with a wildcard or an occupied route;
-		 *                                    discard the builder if the automatic CONNECT registration fails
-		 */
-		@Nonnull
-		public Builder addLiteral(@Nonnull HttpMethod method, @Nonnull String path, @Nonnull HttpService handler) {
-			addRoute(method, path, handler, true);
-			return this;
-		}
-
-		/**
-		 * Registers the explicit route and, for a GET WebSocket handler, its automatic CONNECT twin.
-		 *
-		 * @param literal true to register every segment as literal text instead of parsing a template
-		 */
-		private void addRoute(
-			@Nonnull HttpMethod method, @Nonnull String input, @Nonnull HttpService handler, boolean literal
-		) {
 			Objects.requireNonNull(handler, "Handler must be specified.");
-			register(method, input, handler, true, literal);
+			register(method, template, handler, true);
 			if (method == HttpMethod.GET && handler instanceof WebSocketHandler) {
-				register(HttpMethod.CONNECT, input, handler, false, literal);
+				register(HttpMethod.CONNECT, template, handler, false);
 			}
+			return this;
 		}
 
 		/**
-		 * Inserts one template or literal route, rejecting a wildcard that would share its node with another route
+		 * Inserts one template route, rejecting a wildcard that would share its node with another route
 		 * in either registration order. Template grammar is validated before any new node is created.
 		 */
 		private void register(
-			@Nonnull HttpMethod method, @Nonnull String input, @Nonnull HttpService handler, boolean explicit,
-			boolean literal
+			@Nonnull HttpMethod method, @Nonnull String input, @Nonnull HttpService handler, boolean explicit
 		) {
 			final String template = input.startsWith("/") ? input : "/" + input;
-			final String[] segments = literal ? RoutingPath.splitSegments(template) : parseSegments(template, input);
+			final String[] segments = parseSegments(template, input);
 			EndpointTrieBuilder node = this.roots[method.ordinal()];
 			if (node == null) {
 				node = new EndpointTrieBuilder();
@@ -345,13 +310,13 @@ public final class EndpointRoutingService implements HttpService, WebSocketHandl
 			}
 			for (int i = 0; i < segments.length; i++) {
 				final String segment = segments[i];
-				if (!literal && segment.equals("*")) {
+				if (segment.equals("*")) {
 					if (node.parameter != null || !node.literals.isEmpty() || node.terminal != null) {
 						throw invalid("Wildcard cannot share a node with another route", input);
 					}
 					node.wildcard = terminal(node.wildcard, template, input, segments, handler, explicit);
 					return;
-				} else if (!literal && segment.startsWith("{")) {
+				} else if (segment.startsWith("{")) {
 					if (node.wildcard != null) {
 						throw invalid("Parameter cannot share a node with a wildcard", input);
 					}
@@ -370,7 +335,7 @@ public final class EndpointRoutingService implements HttpService, WebSocketHandl
 				throw invalid("Route end cannot share a node with a wildcard", input);
 			}
 			node.terminal = terminal(
-				node.terminal, template, input, literal ? new String[0] : segments, handler, explicit
+				node.terminal, template, input, segments, handler, explicit
 			);
 		}
 

@@ -316,11 +316,17 @@ set to `true` (default), it generates three public/private key pairs:
 1. server <Term>certificate</Term> in `server.crt` and its <Term>private key</Term> in `server.key` files
 2. client <Term>certificate</Term> in `client.crt` and its <Term>private key</Term> in `client.key` files
 
-The `client.crt` is automatically added to the list of trusted client certificates. Both `client.crt` and `client.key`
-are available for downloading using `system` endpoint. You'll see those when the evitaDB server starts:
+Whenever at least one endpoint requires TLS, the public server certificate is served at `/system/server.crt` and
+its URL is printed at start-up. This applies both to generated certificates and to the custom certificate configured
+with `certificate.custom.certificate` when `generateAndUseSelfSigned` is `false`.
+
+The `client.crt` is automatically added to the list of trusted client certificates. Only in generated mode are
+`client.crt` and `client.key` available for downloading using the `system` endpoint. Their URLs are printed when
+mTLS is enabled. You'll see those when the evitaDB server starts:
 
 ```plain
 API `system` listening on               http://your-domain:5555/system/
+   - server certificate served at:      http://your-domain:5555/system/server.crt
    - client certificate served at:      http://your-domain:5555/system/client.crt
    - client private key served at:      http://your-domain:5555/system/client.key
 ```
@@ -345,6 +351,8 @@ the mTLS functionality.
 If you need to verify that the client communicates with the server directly without any
 [man-in-the-middle](https://en.wikipedia.org/wiki/Man-in-the-middle_attack), you may check the fingerprints of
 the used <Term>certificate authority</Term> both on the server side and the client.
+If a client downloads the server certificate over plain HTTP, it must verify the downloaded certificate against
+the fingerprint printed by the server at start-up before trusting it.
 
 **Server side fingerprint**
 
@@ -368,7 +376,9 @@ Client logs the fingerprint using [configured logging library](run.md#control-lo
 For each of the gRPC client generate their own <Term>certificate</Term> using trusted <Term>certificate authority</Term>
 (such as [Let's Encrypt](https://letsencrypt.org)), or your own [self-signed authority](#creating-certificate-authority).
 Disable `generateAndUseSelfSigned` and configure server certificate and each of client certificates in
-[configuration](configure.md#tls-configuration).
+[configuration](configure.md#tls-configuration). The public server certificate is served and advertised at
+`/system/server.crt`; the custom certificate's filename does not create another download URL. Client certificates
+and private keys are not distributed in this mode and must be configured on each client.
 
 <Note type="question">
 

@@ -51,7 +51,6 @@ import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.http.routing.EndpointRoutingService;
 import io.evitadb.externalApi.system.configuration.SystemOptions;
 import io.evitadb.utils.CertificateUtils;
-import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -77,10 +76,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	public static final String ENDPOINT_SYSTEM_STATUS = "status";
 	public static final String ENDPOINT_SYSTEM_LIVENESS = "liveness";
 	public static final String ENDPOINT_SYSTEM_READINESS = "readiness";
-	/** Names of the fixed system routes, which no certificate download may take. */
-	private static final Set<String> FIXED_ROUTE_NAMES = Set.of(
-		ENDPOINT_SERVER_NAME, ENDPOINT_SYSTEM_STATUS, ENDPOINT_SYSTEM_LIVENESS, ENDPOINT_SYSTEM_READINESS
-	);
 
 	/**
 	 * Prints the status of the APIs as a JSON string.
@@ -278,38 +273,17 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	}
 
 	/**
-	 * Registers a certificate file only when its route is unambiguous. Equal filenames pointing at the same file
-	 * share one download handler; fixed system endpoints and downloads of different files must never shadow it.
-	 * The route is literal because file names come from configuration and may contain `{`, `}` or `*`, which a
-	 * template would reject or capture.
+	 * Registers a certificate file at a fixed public download route, independently of its configured filename.
 	 *
-	 * @param router    builder receiving the download route
-	 * @param downloads route of every download registered so far, mapped to its file
-	 * @param file      certificate file, served under `/` followed by its name
-	 * @throws GenericEvitaInternalError when the name equals a fixed system route or another file's download route
+	 * @param router   builder receiving the download route
+	 * @param fileName fixed public download name
+	 * @param file     certificate file read on each request
 	 */
 	private static void registerCertificateDownload(
-		@Nonnull EndpointRoutingService.Builder router, @Nonnull Map<String, File> downloads, @Nonnull File file
+		@Nonnull EndpointRoutingService.Builder router, @Nonnull String fileName, @Nonnull File file
 	) {
-		final String fileName = file.getName();
-		final String route = "/" + fileName;
-		if (FIXED_ROUTE_NAMES.contains(fileName)) {
-			throw new GenericEvitaInternalError(
-				"Certificate file `" + file + "` conflicts with fixed system route `" + route + "`."
-			);
-		}
-		final File previous = downloads.putIfAbsent(route, file);
-		if (previous != null) {
-			if (!previous.equals(file)) {
-				throw new GenericEvitaInternalError(
-					"Certificate file `" + file + "` conflicts with download route `" + route + "` for `" +
-						previous + "`."
-				);
-			}
-			return;
-		}
-		router.addLiteral(
-			HttpMethod.GET, route,
+		router.add(
+			HttpMethod.GET, "/" + fileName,
 			createCorsWrapper((ctx, req) -> {
 				ctx.addAdditionalResponseHeader(
 					HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\""
@@ -371,40 +345,34 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			)
 		);
 
-		final String fileName;
 		final CertificateOptions certificateSettings = apiOptions.certificate();
-
 		final boolean atLeastOnEndpointRequiresTls = apiOptions.atLeastOneEndpointRequiresTls();
 		if (atLeastOnEndpointRequiresTls) {
-			final File file;
+			final File serverCertificate;
 			if (certificateSettings.generateAndUseSelfSigned()) {
-				file = apiOptions.certificate()
-					.getFolderPath()
-					.toFile();
-				fileName = CertificateUtils.getGeneratedServerCertificateFileName();
+				serverCertificate = certificateSettings.getFolderPath()
+					.resolve(CertificateUtils.getGeneratedServerCertificateFileName()).toFile();
 			} else {
 				final CertificatePath certificatePath = certificateSettings.custom();
-				if (certificatePath == null || certificatePath.certificate() == null || certificatePath.privateKey() == null) {
+				if (certificatePath == null ||
+					certificatePath.certificate() == null || certificatePath.privateKey() == null) {
 					throw new GenericEvitaInternalError(
-						"Certificate path is not properly set in the configuration file and `generateAndUseSelfSigned` is set to false."
+						"Certificate path is not properly set in the configuration file and " +
+							"`generateAndUseSelfSigned` is set to false."
 					);
 				}
-				// Name and parent come from one normalized file, so a trailing separator cannot split them apart.
-				// A backslash on Unix remains a legal filename character.
-				final File certificate = new File(certificatePath.certificate()).getAbsoluteFile();
-				file = certificate.getParentFile();
-				fileName = certificate.getName();
+				serverCertificate = new File(certificatePath.certificate());
 			}
-			final Map<String, File> downloads = CollectionUtils.createHashMap(3);
-			registerCertificateDownload(router, downloads, new File(file, fileName));
 			registerCertificateDownload(
-				router, downloads, new File(file, CertificateUtils.getGeneratedClientCertificateFileName())
+				router, CertificateUtils.getGeneratedServerCertificateFileName(), serverCertificate
 			);
-			registerCertificateDownload(
-				router, downloads, new File(file, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
-			);
-		} else {
-			fileName = null;
+			if (certificateSettings.generateAndUseSelfSigned()) {
+				final File folder = serverCertificate.getParentFile();
+				final String clientCertificate = CertificateUtils.getGeneratedClientCertificateFileName();
+				final String clientKey = CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName();
+				registerCertificateDownload(router, clientCertificate, new File(folder, clientCertificate));
+				registerCertificateDownload(router, clientKey, new File(folder, clientKey));
+			}
 		}
 
 		final boolean atLeastOnEndpointRequiresMtls = apiOptions.atLeastOnEndpointRequiresMtls();
@@ -415,7 +383,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				.map(it -> it + ENDPOINT_SERVER_NAME)
 				.toArray(String[]::new)
 		);
-		if (certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresTls) {
+		if (atLeastOnEndpointRequiresTls) {
 			endpoints.put(
 				SystemProvider.SERVER_CERTIFICATE_URL,
 				Arrays.stream(systemConfig.getBaseUrls())

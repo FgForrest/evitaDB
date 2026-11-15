@@ -52,111 +52,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(MANAGEMENT)
 @DisplayName("Endpoint routing")
 class EndpointRoutingServiceTest {
-	/** Configuration filenames must register without template parsing. */
-	@Test
-	@DisplayName("configuration filename is accepted literally")
-	void shouldRegisterLiteralCertificateName() {
-		assertDoesNotThrow(() -> new EndpointRoutingService.Builder()
-			.addLiteral(HttpMethod.GET, "//server}prod.pem", new ProbeService("certificate")));
-	}
-
-	/** Reserved template characters and decoded request text remain literal, including a leading empty segment. */
-	@Test
-	@DisplayName("literal filenames keep braces, stars, question marks and percent signs")
-	void shouldMatchLiteralFileNamesWithoutCaptures() throws Exception {
-		final String[][] paths = {
-			{"//server{prod.pem", "//server%7Bprod.pem"},
-			{"//server}prod.pem", "//server%7Dprod.pem"},
-			{"//{x}", "//%7Bx%7D"},
-			{"//*", "//%2A"},
-			{"//server*.pem", "//server*.pem"},
-			{"//server?.pem", "//server%3F.pem"},
-			{"//server%.pem", "//server%25.pem"},
-			{"//server%7B.pem", "//server%257B.pem"},
-			{"//folder//{x}/*/?", "//folder//%7Bx%7D/%2A/%3F"}
-		};
-		for (final String[] path : paths) {
-			final ProbeService handler = new ProbeService(path[0]);
-			final EndpointRoutingService router = new EndpointRoutingService.Builder()
-				.addLiteral(HttpMethod.GET, path[0], handler).build();
-			final RoutingResult result = call(router, HttpMethod.GET, path[1]);
-			assertSame(handler, result.handler(), path[0]);
-			assertTrue(result.request().headers().names().stream()
-				.noneMatch(name -> name.toString().startsWith("internal_")), path[0]);
-			assertEquals(HttpStatus.NOT_FOUND, call(router, HttpMethod.GET, "//different").response().status());
-			assertEquals(HttpStatus.NOT_FOUND,
-				call(router, HttpMethod.GET, path[1].substring(1)).response().status());
-		}
-	}
-
-	/** Literal registration accepts every segment, including empty ones, without relaxing template validation. */
-	@Test
-	@DisplayName("literal paths supply a slash and accept empty segments")
-	void shouldAcceptLiteralPathsWithoutGrammarValidation() throws Exception {
-		final ProbeService handler = new ProbeService("literal");
-		final EndpointRoutingService router = new EndpointRoutingService.Builder()
-			.addLiteral(HttpMethod.GET, "plain", handler)
-			.addLiteral(HttpMethod.GET, "/folder//{x}", handler)
-			.addLiteral(HttpMethod.GET, "", handler).build();
-		assertSame(handler, call(router, HttpMethod.GET, "/plain").handler());
-		assertSame(handler, call(router, HttpMethod.GET, "/folder//%7Bx%7D").handler());
-		assertEquals(HttpStatus.NOT_FOUND, call(router, HttpMethod.GET, "/folder/%7Bx%7D").response().status());
-		assertSame(handler, call(router, HttpMethod.GET, "/").handler());
-		assertDoesNotThrow(() -> new EndpointRoutingService.Builder().addLiteral(HttpMethod.GET, "/tail//", handler));
-		assertThrows(NullPointerException.class,
-			() -> new EndpointRoutingService.Builder().addLiteral(HttpMethod.GET, "/literal", null));
-	}
-
-	/** Literal and template registrations share duplicate handling and literal-first lookup in the same trie. */
-	@Test
-	@DisplayName("literal duplicates keep the first handler and share template tries")
-	void shouldKeepFirstLiteralHandlerAndShareTemplateTrie() throws Exception {
-		final ProbeService first = new ProbeService("first");
-		final ProbeService ignored = new ProbeService("ignored");
-		final ProbeService parameter = new ProbeService("parameter");
-		final EndpointRoutingService router = new EndpointRoutingService.Builder()
-			.addLiteral(HttpMethod.GET, "//{x}", first)
-			.addLiteral(HttpMethod.GET, "//{x}", ignored)
-			.add(HttpMethod.GET, "//{name}", parameter)
-			.addLiteral(HttpMethod.GET, "/plain", first)
-			.add(HttpMethod.GET, "/plain", ignored)
-			.add(HttpMethod.GET, "/other", first)
-			.addLiteral(HttpMethod.GET, "/other", ignored).build();
-		assertSame(first, call(router, HttpMethod.GET, "//%7Bx%7D").handler());
-		assertSame(parameter, call(router, HttpMethod.GET, "//value").handler());
-		assertSame(first, call(router, HttpMethod.GET, "/plain").handler());
-		assertSame(first, call(router, HttpMethod.GET, "/other").handler());
-	}
-
-	/** The sole-route wildcard restriction applies regardless of registration mode or order. */
-	@Test
-	@DisplayName("literal routes conflict with template wildcards in both orders")
-	void shouldRejectLiteralAndWildcardNodeSharing() {
-		final ProbeService handler = new ProbeService("wildcard");
-		for (final String path : new String[]{"/files/*", "/files/{x}", "/files/name", "/files"}) {
-			assertThrows(GenericEvitaInternalError.class, () -> new EndpointRoutingService.Builder()
-				.add(HttpMethod.GET, "/files/*", handler).addLiteral(HttpMethod.GET, path, handler));
-			assertThrows(GenericEvitaInternalError.class, () -> new EndpointRoutingService.Builder()
-				.addLiteral(HttpMethod.GET, path, handler).add(HttpMethod.GET, "/files/*", handler));
-		}
-	}
-
-	/** Automatic CONNECT dispatch and method negotiation use literal matches without adding capture headers. */
-	@Test
-	@DisplayName("literal WebSocket routes register CONNECT and report precise Allow")
-	void shouldRegisterLiteralConnectAndNegotiateMethods() throws Exception {
-		final SocketProbeService handler = new SocketProbeService("literal socket");
-		final EndpointRoutingService router = new EndpointRoutingService.Builder()
-			.addLiteral(HttpMethod.GET, "//{x}*?", handler)
-			.addLiteral(HttpMethod.OPTIONS, "//{x}*?", new ProbeService("options")).build();
-		final String path = "//%7Bx%7D%2A%3F";
-		assertSame(handler, call(router, HttpMethod.GET, path).handler());
-		assertSame(handler, call(router, HttpMethod.CONNECT, path).handler());
-		final RoutingResult mismatch = call(router, HttpMethod.POST, path);
-		assertEquals(HttpStatus.METHOD_NOT_ALLOWED, mismatch.response().status());
-		assertEquals("OPTIONS, GET", mismatch.response().headers().get(HttpHeaderNames.ALLOW));
-	}
-
 	/** The requested method owns the entire path search, including localized fallback branches. */
 	@Test
 	@DisplayName("POST en/get/list reaches the localized list route")
@@ -737,7 +632,7 @@ class EndpointRoutingServiceTest {
 		final EndpointRoutingService.Builder builder = new EndpointRoutingService.Builder()
 			.add(HttpMethod.GET, "/{id}/capture", capture);
 		for (final String key : new String[]{"😀", "ž😀", "Aa", "BB", "%2F"}) {
-			builder.addLiteral(HttpMethod.GET, "/" + key + "/literal", literal);
+			builder.add(HttpMethod.GET, "/" + key + "/literal", literal);
 		}
 		final EndpointRoutingService router = builder.build();
 		for (final String[] row : new String[][]{
@@ -747,17 +642,6 @@ class EndpointRoutingServiceTest {
 			assertSame(literal, call(router, HttpMethod.GET, "/" + row[0] + "/literal").handler());
 			assertEquals(row[1], parameters(call(router, HttpMethod.GET, "/" + row[0] + "/capture")).get("id"));
 		}
-	}
-
-	/** All filename metacharacters remain within a literal segment reached through encoded request text. */
-	@Test
-	@DisplayName("matches a literal with every filename metacharacter")
-	void shouldMatchEncodedLiteralMetacharacters() throws Exception {
-		final ProbeService handler = new ProbeService("literal");
-		final EndpointRoutingService router = new EndpointRoutingService.Builder()
-			.addLiteral(HttpMethod.GET, "/{ }*?%", handler).build();
-		assertSame(handler, call(router, HttpMethod.GET, "/%7b%20%7D%2a%3f%25").handler());
-		assertNull(handler.context.attr(RouteParameters.KEY));
 	}
 
 }

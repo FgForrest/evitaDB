@@ -48,6 +48,7 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -105,6 +106,7 @@ public class ClientCertificateManager {
 	 * @param host server host
 	 * @param port server port
 	 * @return path to the folder with the certificates specific to the server instance
+	 * @throws EvitaInvalidUsageException when the server does not distribute the requested client credentials
 	 */
 	@Nonnull
 	private static Path getCertificatesFromServer(@Nonnull String host, int port, @Nonnull Path certificateClientFolderPath, @Nonnull CertificateType... certificateType) {
@@ -133,8 +135,21 @@ public class ClientCertificateManager {
 			}
 
 			if (Arrays.asList(certificateType).contains(CertificateType.CLIENT)) {
-				downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificateFileName());
-				downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
+				try {
+					downloadFileFromServer(
+						apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificateFileName()
+					);
+					downloadFileFromServer(
+						apiEndpoint, serverSpecificDirectory,
+						CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()
+					);
+				} catch (FileNotFoundException e) {
+					throw new EvitaInvalidUsageException(
+						"The server does not distribute client certificates. Configure a client certificate and " +
+							"private key and set useGeneratedCertificate to false.",
+						e
+					);
+				}
 			}
 
 			return serverSpecificDirectory;

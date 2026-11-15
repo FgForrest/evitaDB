@@ -77,9 +77,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.nio.file.Files;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -323,47 +320,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			}
 		} catch (Exception ex) {
 			fail(ex.getMessage(), ex);
-		}
-	}
-
-	/** Custom certificate downloads retain literal filenames through the outer router after startup. */
-	@ParameterizedTest
-	@ValueSource(strings = {"server-plain.pem", "server}prod{1}.pem"})
-	@DisplayName("Should boot with a custom certificate and serve its literal filename")
-	void shouldServeCustomCertificateWithLiteralFileName(@Nonnull String fileName) throws Exception {
-		final String portDataSetName = DIR_EVITA_SERVER_TEST + "-custom-certificate";
-		final Path folder = getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).resolve("certificates");
-		Files.createDirectories(folder);
-		new ServerCertificateManager(new CertificateOptions(true, folder.toString(), null))
-			.generateSelfSignedCertificate(CertificateType.SERVER);
-		final Path certificate = folder.resolve(fileName);
-		Files.copy(folder.resolve(CertificateUtils.getGeneratedServerCertificateFileName()), certificate);
-		final Path privateKey = folder.resolve(CertificateUtils.getGeneratedServerCertificatePrivateKeyFileName());
-		final Map<String, Integer> servicePorts = createHashMap(2);
-		final EvitaServer evitaServer = new EvitaServer(
-			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
-			constructTestArguments(
-				portDataSetName, servicePorts,
-				List.of(
-					property("api.certificate.generateAndUseSelfSigned", "false"),
-					property("api.certificate.custom.certificate", certificate.toString()),
-					property("api.certificate.custom.privateKey", privateKey.toString())
-				),
-				Set.of(), SystemProvider.CODE, RestProvider.CODE
-			)
-		);
-		try {
-			evitaServer.run();
-			final String encodedName = fileName.replace("}", "%7D").replace("{", "%7B");
-			final WebClient client = WebClient.of("http://localhost:" + servicePorts.get(SystemProvider.CODE));
-			final AggregatedHttpResponse response = client.blocking().get("/system/" + encodedName);
-			assertEquals(200, response.status().code());
-			assertEquals(Files.readString(certificate), response.contentUtf8());
-			final Path sibling = folder.resolve("other-certificate.pem");
-			Files.copy(certificate, sibling);
-			assertEquals(404, client.blocking().get("/system/other-certificate.pem").status().code());
-		} finally {
-			closeServerAndEvita(evitaServer, portDataSetName);
 		}
 	}
 

@@ -1536,11 +1536,15 @@ This allows you to set common settings for all endpoints in one place.
 
 There is a special `api.endpoints.system` endpoint that allows access over the unsecured HTTP protocol. Since it's the
 only exposed endpoint on the unsecured http protocol, it must run on a separate port. The endpoint allows anyone to
-download the public part of the server certificate.
+download the public part of the server certificate at `/system/server.crt` whenever at least one endpoint requires
+TLS. This URL is printed at start-up in both generated and custom certificate modes. When
+`api.certificate.generateAndUseSelfSigned` is `false`, it serves `api.certificate.custom.certificate`.
+Before trusting a certificate downloaded over plain HTTP, verify it against the server's
+[start-up fingerprint](tls.md#default-mtls-behaviour-not-secure).
 
 It also allows downloading the default client private/public key pair if `api.certificate.generateAndUseSelfSigned` and
 any of `api.*.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](tls.md#default-mtls-behaviour-not-secure) for
-more information.
+more information. Client certificates and private keys are not distributed in custom mode.
 
 <dl>
     <dt>enabled</dt>

@@ -23,224 +23,270 @@
 
 package io.evitadb.server;
 
+import com.linecorp.armeria.client.ClientFactory;
+import com.linecorp.armeria.client.WebClient;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
 import io.evitadb.externalApi.configuration.CertificateOptions;
-import io.evitadb.externalApi.configuration.CertificatePath;
+import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.CertificateUtils;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SERVER;
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Exercises certificate downloads over a real HTTP socket with custom and generated server certificates.
- * The System API uses HTTP while a separate TLS endpoint ensures certificate routes are registered.
+ * Exercises public certificate downloads and client bootstrapping through a real server in both certificate modes.
+ * The System API uses HTTP while a separate REST endpoint requires TLS.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Tag(SERVER)
 @Tag(MANAGEMENT)
-@org.junit.jupiter.api.DisplayName("Certificate downloads over HTTP")
+@DisplayName("Certificate downloads over HTTP")
 class CustomCertificateDownloadTest implements EvitaTestSupport {
 	private static final String TEST_DIRECTORY = "customCertificateDownloadTest";
 	private static final String CUSTOM_FILE_NAME = "server-plain.pem";
+	/** Live server closed after each test. */
+	private EvitaServer server;
+	/** Public certificate configured on the running server. */
+	private Path certificate;
+	/** Isolated directory containing server and client files. */
+	private Path directory;
+	/** Allocated System HTTP and REST HTTPS ports, in that order. */
+	private int[] ports;
 
+	/** Prepares an isolated directory for each server and client. */
 	@BeforeEach
-	/** Prepares isolated certificate files. */
 	void setUp() throws IOException {
 		cleanTestSubDirectory(TEST_DIRECTORY);
+		this.directory = getTestDirectory().resolve(TEST_DIRECTORY);
 	}
 
+	/** Closes the server and engine before removing their files. */
 	@AfterEach
-	/** Removes the certificate fixture. */
-	void tearDown() throws IOException {
+	void tearDown() throws Exception {
+		if (this.server != null) {
+			final Evita evita = this.server.getEvita();
+			final CompletableFuture<Void> stopped = this.server.stop();
+			getPortManager().releasePortsOnCompletion(TEST_DIRECTORY, stopped);
+			stopped.get(30, TimeUnit.SECONDS);
+			if (evita != null) {
+				evita.close();
+			}
+		}
 		cleanTestSubDirectory(TEST_DIRECTORY);
 	}
 
-	@org.junit.jupiter.api.DisplayName("Downloads the custom certificate")
+	/** The advertised public certificate URL is independent of certificate mode and the configured filename. */
 	@Test
-	/** Downloads the configured certificate by its bare filename. */
-	void shouldDownloadCustomCertificate() throws Exception {
-		assertCertificateDownload(false, CUSTOM_FILE_NAME, false);
-	}
-
-	@org.junit.jupiter.api.DisplayName("Downloads the generated certificate")
-	@Test
-	/** Checks the generated certificate as a positive control. */
-	void shouldDownloadGeneratedCertificate() throws Exception {
-		assertCertificateDownload(true, CertificateUtils.getGeneratedServerCertificateFileName(), false);
-	}
-
-	/** On Unix a backslash is an ordinary filename character, so it stays part of the download route and name. */
-	@org.junit.jupiter.api.DisplayName("Downloads a custom certificate whose filename contains a backslash")
-	@Test
-	void shouldKeepBackslashInCertificateFileNameOnUnix() throws Exception {
-		Assumptions.assumeTrue(File.separatorChar == '/', "A backslash separates path segments on this platform");
-		assertCertificateDownload(false, "back\\slash.pem", false);
-	}
-
-	/** A valid certificate must fail startup rather than silently losing to a fixed system endpoint. */
-	@org.junit.jupiter.params.ParameterizedTest
-	@org.junit.jupiter.params.provider.ValueSource(strings = {"status", "server-name", "liveness", "readiness"})
-	@org.junit.jupiter.api.DisplayName("Rejects certificate filenames colliding with system routes at startup")
-	void shouldRejectCertificateRouteCollision(@Nonnull String fileName) throws Exception {
-		assertCertificateDownload(false, fileName, true);
-	}
-
-	/** Generated download names are harmless aliases when both registrations serve exactly the same file. */
-	@org.junit.jupiter.params.ParameterizedTest
-	@org.junit.jupiter.params.provider.MethodSource("sharedDownloadNames")
-	@org.junit.jupiter.api.DisplayName("Allows generated download names serving the same file")
-	void shouldShareIdenticalCertificateDownload(@Nonnull String fileName) throws Exception {
-		assertCertificateDownload(false, fileName, false);
-	}
-
-	/** Supplies the generated names rather than pinning the platform's certificate suffixes in test data. */
-	@Nonnull
-	private static java.util.stream.Stream<String> sharedDownloadNames() {
-		return java.util.stream.Stream.of(
-			CertificateUtils.getGeneratedServerCertificateFileName(),
-			CertificateUtils.getGeneratedClientCertificateFileName(),
-			CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()
+	@DisplayName("Advertises the custom public certificate at the fixed URL")
+	void shouldAdvertiseCustomCertificate() throws Exception {
+		startServer(false, false);
+		assertArrayEquals(
+			certificateUrls("server.crt"),
+			provider().getKeyEndPoints().get(SystemProvider.SERVER_CERTIFICATE_URL)
 		);
 	}
 
-	/**
-	 * Boots the real server using the same directory, port allocation and shutdown helpers as EvitaServerTest.
-	 * Only the user-facing URL is asserted; the double-slash request is logged as diagnostic evidence.
-	 */
-	private void assertCertificateDownload(boolean generated, @Nonnull String fileName, boolean conflict)
-		throws Exception {
-		final Path directory = getTestDirectory().resolve(TEST_DIRECTORY);
-		final Path certificates = Files.createDirectories(directory.resolve("certificates"));
-		final String generatedFileName = CertificateUtils.getGeneratedServerCertificateFileName();
-		final Path certificate = certificates.resolve(fileName);
-		if (!generated) {
-			final ServerCertificateManager certificateManager = new ServerCertificateManager(
-				new CertificateOptions(true, certificates.toString(), new CertificatePath(null, null, null))
+	/** Only the fixed public route serves the configured certificate, with its exact PEM bytes. */
+	@Test
+	@DisplayName("Downloads the custom certificate only at server.crt")
+	void shouldDownloadCustomCertificate() throws Exception {
+		startServer(false, false);
+		try (final HttpClient client = httpClient()) {
+			final HttpResponse<byte[]> response = download(client, baseUrl() + "server.crt");
+			assertAll(
+				() -> assertEquals(200, response.statusCode()),
+				() -> assertArrayEquals(Files.readAllBytes(this.certificate), response.body()),
+				() -> assertEquals("attachment; filename=\"server.crt\"",
+					response.headers().firstValue("Content-Disposition").orElse("")),
+				() -> assertEquals(404, download(client, baseUrl() + CUSTOM_FILE_NAME).statusCode()),
+				() -> assertEquals(404, download(client, baseUrl() + "server.key").statusCode())
 			);
-			certificateManager.generateSelfSignedCertificate(CertificateType.SERVER);
-			if (!certificate.equals(certificates.resolve(generatedFileName))) {
-				Files.copy(certificates.resolve(generatedFileName), certificate);
-			}
+			Files.write(this.certificate, new byte[]{'\n'}, StandardOpenOption.APPEND);
+			assertArrayEquals(Files.readAllBytes(this.certificate),
+				download(client, baseUrl() + "server.crt").body());
 		}
+	}
 
-		final int[] ports = getPortManager().allocatePorts(TEST_DIRECTORY, 2);
+	/** Real neighboring client files must stay private even when the custom server enables mTLS. */
+	@Test
+	@DisplayName("Does not distribute neighboring client credentials in custom mode")
+	void shouldNotDownloadCustomClientFiles() throws Exception {
+		startServer(false, true);
+		try (final HttpClient client = httpClient()) {
+			assertAll(
+				() -> assertEquals(404, download(client, baseUrl() + "client.crt").statusCode()),
+				() -> assertEquals(404, download(client, baseUrl() + "client.key").statusCode()),
+				() -> assertNull(provider().getKeyEndPoints().get(SystemProvider.CLIENT_CERTIFICATE_URL)),
+				() -> assertNull(provider().getKeyEndPoints().get(SystemProvider.CLIENT_PRIVATE_KEY_URL))
+			);
+		}
+	}
+
+	/** Generated mode continues to serve all three downloads and advertise the mTLS credentials. */
+	@Test
+	@DisplayName("Serves and advertises generated certificates and client key")
+	void shouldDownloadGeneratedCertificates() throws Exception {
+		startServer(true, true);
+		try (final HttpClient client = httpClient()) {
+			final Map<String, String> downloads = Map.of(
+				SystemProvider.SERVER_CERTIFICATE_URL, "server.crt",
+				SystemProvider.CLIENT_CERTIFICATE_URL, "client.crt",
+				SystemProvider.CLIENT_PRIVATE_KEY_URL, "client.key"
+			);
+			for (final Map.Entry<String, String> entry : downloads.entrySet()) {
+				assertArrayEquals(certificateUrls(entry.getValue()),
+					provider().getKeyEndPoints().get(entry.getKey()));
+				final HttpResponse<byte[]> response = download(client, baseUrl() + entry.getValue());
+				assertEquals(200, response.statusCode());
+				assertArrayEquals(
+					Files.readAllBytes(this.certificate.resolveSibling(entry.getValue())), response.body()
+				);
+			}
+			assertEquals(404, download(client, baseUrl() + "server.key").statusCode());
+		}
+	}
+
+	/** The normal auto-download client trusts the custom certificate and completes an actual TLS request. */
+	@Test
+	@DisplayName("Bootstraps a TLS client from the custom server certificate")
+	void shouldDownloadCustomCertificateInClientAndConnect() throws Exception {
+		startServer(false, false);
+		final ClientCertificateManager manager = clientBuilder(false).build();
+		assertArrayEquals(Files.readAllBytes(this.certificate),
+			Files.readAllBytes(manager.getUsedRootCaCertificatePath()));
+		try (final ClientFactory factory = manager.buildClientSslContext(null, ClientFactory.builder()).build()) {
+			final WebClient client = WebClient.builder("https://localhost:" + this.ports[1])
+				.factory(factory).responseTimeout(Duration.ofSeconds(10)).build();
+			assertEquals(200, client.get("/rest/system").aggregate().get(15, TimeUnit.SECONDS).status().code());
+		}
+	}
+
+	/** A client requesting generated mTLS credentials receives an actionable error from a custom-mode server. */
+	@Test
+	@DisplayName("Explains that a custom server does not distribute client credentials")
+	void shouldRejectClientCertificateDownloadInCustomMode() throws Exception {
+		startServer(false, true);
+		final EvitaInvalidUsageException failure = assertThrows(
+			EvitaInvalidUsageException.class, () -> clientBuilder(true).build()
+		);
+		assertAll(
+			() -> assertEquals("The server does not distribute client certificates. " +
+				"Configure a client certificate and private key and set useGeneratedCertificate to false.",
+				failure.getMessage()),
+			() -> assertInstanceOf(FileNotFoundException.class, failure.getCause()),
+			() -> assertEquals(baseUrl() + "client.crt", failure.getCause().getMessage())
+		);
+	}
+
+	/** Boots the real server with valid client credentials next to the custom public certificate. */
+	private void startServer(boolean generated, boolean mtls) throws Exception {
+		final Path certificates = Files.createDirectories(this.directory.resolve("certificates"));
+		final String generatedFileName = CertificateUtils.getGeneratedServerCertificateFileName();
+		this.certificate = certificates.resolve(generated ? generatedFileName : CUSTOM_FILE_NAME);
+		if (!generated) {
+			new ServerCertificateManager(new CertificateOptions(true, certificates.toString(), null))
+				.generateSelfSignedCertificate(CertificateType.SERVER, CertificateType.CLIENT);
+			Files.copy(certificates.resolve(generatedFileName), this.certificate);
+			Files.delete(certificates.resolve(generatedFileName));
+		}
+		this.ports = getPortManager().allocatePorts(TEST_DIRECTORY, 2);
 		final Map<String, String> arguments = new HashMap<>();
-		arguments.put("storage.storageDirectory", directory.resolve("storage").toString());
-		arguments.put("storage.workDirectory", directory.resolve("work").toString());
+		arguments.put("storage.storageDirectory", this.directory.resolve("storage").toString());
+		arguments.put("storage.workDirectory", this.directory.resolve("work").toString());
 		arguments.put("cache.enabled", "false");
 		arguments.put("api.requestTimeoutInMillis", "10K");
-		arguments.put("api.certificate.folderPath", certificates.toString());
+		arguments.put("api.certificate.folderPath", certificates + File.separator);
 		arguments.put("api.certificate.generateAndUseSelfSigned", Boolean.toString(generated));
-		arguments.put("api.certificate.custom.certificate", certificate.toString());
-		arguments.put(
-			"api.certificate.custom.privateKey",
-			certificates.resolve(CertificateUtils.getGeneratedServerCertificatePrivateKeyFileName()).toString()
-		);
+		arguments.put("api.certificate.custom.certificate", this.certificate.toString());
+		arguments.put("api.certificate.custom.privateKey",
+			certificates.resolve(CertificateUtils.getGeneratedServerCertificatePrivateKeyFileName()).toString());
 		ExternalApiServer.gatherExternalApiProviders().forEach(registrar -> {
 			final String code = registrar.getExternalApiCode();
 			arguments.put("api.endpoints." + code + ".enabled", Boolean.toString(
 				SystemProvider.CODE.equals(code) || "rest".equals(code)
 			));
 		});
-		arguments.put("api.endpoints.system.host", "localhost:" + ports[0]);
-		arguments.put("api.endpoints.system.exposeOn", "localhost:" + ports[0]);
+		arguments.put("api.endpoints.system.host", "localhost:" + this.ports[0]);
+		arguments.put("api.endpoints.system.exposeOn", "localhost:" + this.ports[0]);
 		arguments.put("api.endpoints.system.tlsMode", "FORCE_NO_TLS");
-		arguments.put("api.endpoints.rest.host", "localhost:" + ports[1]);
-		arguments.put("api.endpoints.rest.exposeOn", "localhost:" + ports[1]);
+		arguments.put("api.endpoints.rest.host", "localhost:" + this.ports[1]);
+		arguments.put("api.endpoints.rest.exposeOn", "localhost:" + this.ports[1]);
 		arguments.put("api.endpoints.rest.tlsMode", "FORCE_TLS");
-
-		final EvitaServer server = new EvitaServer(getPathInTargetDirectory(TEST_DIRECTORY), arguments);
-		try {
-			if (conflict) {
-				final GenericEvitaInternalError failure = assertThrows(GenericEvitaInternalError.class, server::run);
-				assertEquals(
-					"Certificate file `" + certificate + "` conflicts with fixed system route `/" + fileName + "`.",
-					failure.getMessage()
-				);
-				return;
-			}
-			server.run();
-			final SystemProvider provider = server.getExternalApiServer()
-				.getExternalApiProviderByCode(SystemProvider.CODE);
-			assertNotNull(provider);
-			final String baseUrl = provider.getConfiguration().getBaseUrls()[0];
-			if (generated) {
-				assertEquals(baseUrl + fileName, provider.getKeyEndPoints()
-					.get(SystemProvider.SERVER_CERTIFICATE_URL)[0]);
-			} else {
-				assertNull(provider.getKeyEndPoints().get(SystemProvider.SERVER_CERTIFICATE_URL));
-			}
-			try (final HttpClient client = HttpClient.newBuilder()
-				.version(HttpClient.Version.HTTP_1_1)
-				.connectTimeout(Duration.ofSeconds(10))
-				.build()) {
-				// the request target escapes characters a URI cannot carry literally, such as a backslash
-				final String requestName = URLEncoder.encode(fileName, StandardCharsets.UTF_8);
-				final HttpResponse<byte[]> response = download(client, baseUrl + requestName);
-				final HttpResponse<byte[]> doubleSlashResponse = download(client, baseUrl + "/" + requestName);
-				System.out.printf(
-					"Certificate download (%s): %s -> %d; %s -> %d; Content-Disposition: %s%n",
-					generated ? "generated" : "custom",
-					response.uri(), response.statusCode(),
-					doubleSlashResponse.uri(), doubleSlashResponse.statusCode(),
-					response.headers().firstValue("Content-Disposition").orElse("<absent>")
-				);
-				assertAll(
-					() -> assertEquals(200, response.statusCode(), "Certificate download must return HTTP 200"),
-					() -> assertArrayEquals(Files.readAllBytes(certificate), response.body()),
-					() -> assertEquals(
-						"attachment; filename=\"" + fileName + "\"",
-						response.headers().firstValue("Content-Disposition").orElse("")
-					)
-				);
-			}
-		} finally {
-			final Evita evita = server.getEvita();
-			final java.util.concurrent.CompletableFuture<Void> stopped = server.stop();
-			getPortManager().releasePortsOnCompletion(TEST_DIRECTORY, stopped);
-			stopped.join();
-			if (evita != null) {
-				evita.close();
-			}
-		}
+		arguments.put("api.endpoints.rest.mTLS.enabled", Boolean.toString(mtls));
+		arguments.put("api.endpoints.rest.mTLS.allowedClientCertificatesPaths",
+			"[\"client.crt\"]");
+		this.server = new EvitaServer(getPathInTargetDirectory(TEST_DIRECTORY), arguments);
+		this.server.run();
+		assertTrue(Files.exists(certificates.resolve("client.crt")));
+		assertTrue(Files.exists(certificates.resolve("client.key")));
 	}
 
-	/**
-	 * Sends a bounded HTTP/1.1 request over the socket without following redirects.
-	 */
+	/** Configures the real certificate manager with an empty per-test client cache. */
+	@Nonnull
+	private ClientCertificateManager.Builder clientBuilder(boolean mtls) {
+		return new ClientCertificateManager.Builder()
+			.certificateClientFolderPath(this.directory.resolve("client"))
+			.useGeneratedCertificate(true, "localhost", this.ports[0]).mtls(mtls);
+	}
+
+	/** Returns the live System API provider. */
+	@Nonnull
+	private SystemProvider provider() {
+		return this.server.getExternalApiServer().getExternalApiProviderByCode(SystemProvider.CODE);
+	}
+
+	/** Returns a fixed certificate route on every advertised host address. */
+	@Nonnull
+	private String[] certificateUrls(@Nonnull String fileName) {
+		return Arrays.stream(provider().getConfiguration().getBaseUrls())
+			.map(base -> base + fileName).toArray(String[]::new);
+	}
+
+	/** Returns the advertised base URL of the real HTTP System API. */
+	@Nonnull
+	private String baseUrl() {
+		return provider().getConfiguration().getBaseUrls()[0];
+	}
+
+	/** Builds a bounded HTTP client without redirects. */
+	@Nonnull
+	private static HttpClient httpClient() {
+		return HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1)
+			.connectTimeout(Duration.ofSeconds(10)).build();
+	}
+
+	/** Sends a bounded request over the real HTTP socket. */
 	@Nonnull
 	private static HttpResponse<byte[]> download(@Nonnull HttpClient client, @Nonnull String url)
 		throws IOException, InterruptedException {
