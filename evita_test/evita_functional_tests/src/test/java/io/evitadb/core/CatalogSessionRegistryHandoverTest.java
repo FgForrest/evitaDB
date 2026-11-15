@@ -240,6 +240,35 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 		}
 	}
 
+	/** The drain rolls back an open transaction, whose resolution is reported while the placeholder is visible. */
+	@Test
+	@DisplayName("Completes termination callbacks of a transactional session when deleting a catalog")
+	void shouldCompleteTransactionalSessionTerminationWhenDeletingCatalog() {
+		createCatalogWithBrands(SOURCE_CATALOG, BRANDS_IN_SOURCE);
+		// not closed by the test: the drain closes it and rolls its transaction back, and closing a rolled-back
+		// session again reports that rollback
+		final EvitaSessionContract session = this.evita.createReadWriteSession(SOURCE_CATALOG);
+		assertTrue(session.isTransactionOpen(), "The fixture must hold an open transaction, or proves nothing!");
+		this.evita.deleteCatalogIfExists(SOURCE_CATALOG);
+		assertFalse(session.isActive());
+		assertTrue(this.terminatedSessions.contains(session.getId()), "Session termination callback was skipped");
+	}
+
+	/** A renamed catalog's registry resolves the deactivation placeholder the same way while rolling back. */
+	@Test
+	@DisplayName("Completes termination callbacks of a transactional session when deactivating a renamed catalog")
+	void shouldCompleteTransactionalSessionTerminationWhenDeactivatingRenamedCatalog() {
+		createCatalogWithBrands(SOURCE_CATALOG, BRANDS_IN_SOURCE);
+		this.evita.renameCatalog(SOURCE_CATALOG, TARGET_CATALOG);
+		// not closed by the test: the drain closes it and rolls its transaction back, and closing a rolled-back
+		// session again reports that rollback
+		final EvitaSessionContract session = this.evita.createReadWriteSession(TARGET_CATALOG);
+		assertTrue(session.isTransactionOpen(), "The fixture must hold an open transaction, or proves nothing!");
+		this.evita.deactivateCatalog(TARGET_CATALOG);
+		assertFalse(session.isActive());
+		assertTrue(this.terminatedSessions.contains(session.getId()), "Session termination callback was skipped");
+	}
+
 	@Nested
 	@DisplayName("Drop")
 	class Drop {
