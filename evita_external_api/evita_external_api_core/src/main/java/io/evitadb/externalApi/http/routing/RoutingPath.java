@@ -115,6 +115,7 @@ final class RoutingPath {
 				position++;
 				continue;
 			}
+			// `end` is exclusive: both hex digits, at `position + 1` and `position + 2`, must lie before it
 			if (position + 2 >= end) {
 				return false;
 			}
@@ -243,6 +244,7 @@ final class RoutingPath {
 			}
 			int count = 0;
 			while (position < end && path.charAt(position) == '%') {
+				// `end` is exclusive, as in `valid`: a complete triplet needs `position + 2 < end`
 				if (position + 2 >= end) {
 					return null;
 				}
