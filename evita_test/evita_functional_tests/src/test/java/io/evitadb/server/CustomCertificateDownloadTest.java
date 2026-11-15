@@ -209,8 +209,53 @@ class CustomCertificateDownloadTest implements EvitaTestSupport {
 		);
 	}
 
-	/** Boots the real server with valid client credentials next to the custom public certificate. */
+	/** A client cache that cannot take the downloaded file is a local failure, not the server's distribution policy. */
+	@Test
+	@DisplayName("Reports a local write failure as a download failure")
+	void shouldReportLocalWriteFailureAsDownloadFailure() throws Exception {
+		startServer(true, true);
+		final String serverName = this.server.getEvita().getConfiguration().name();
+		// a directory in place of the client certificate makes the local file impossible to create
+		Files.createDirectories(this.directory.resolve("client").resolve(serverName).resolve("client.crt"));
+
+		final EvitaInvalidUsageException failure = assertThrows(
+			EvitaInvalidUsageException.class, () -> clientBuilder(true).build()
+		);
+
+		assertAll(
+			() -> assertEquals("Failed to download certificates from server", failure.getMessage()),
+			() -> assertInstanceOf(FileNotFoundException.class, failure.getCause())
+		);
+	}
+
+	/** Without an endpoint requiring TLS there is no certificate to verify, so none is served or advertised. */
+	@Test
+	@DisplayName("Neither serves nor advertises a certificate when no endpoint requires TLS")
+	void shouldNotServeCertificateWhenNoEndpointRequiresTls() throws Exception {
+		// custom mode on purpose: the certificate file exists, so a 404 proves the route is absent
+		startServer(false, false, "FORCE_NO_TLS");
+
+		try (final HttpClient client = httpClient()) {
+			assertAll(
+				() -> assertNull(provider().getKeyEndPoints().get(SystemProvider.SERVER_CERTIFICATE_URL)),
+				() -> assertEquals(404, download(client, baseUrl() + "server.crt").statusCode())
+			);
+		}
+	}
+
+	/** Boots the real server whose REST endpoint requires TLS. */
 	private void startServer(boolean generated, boolean mtls) throws Exception {
+		startServer(generated, mtls, "FORCE_TLS");
+	}
+
+	/**
+	 * Boots the real server with valid client credentials next to the custom public certificate.
+	 *
+	 * @param generated   whether the server generates its own certificates instead of using the custom one
+	 * @param mtls        whether the REST endpoint requires client certificates
+	 * @param restTlsMode TLS mode of the REST endpoint, the only endpoint that may require TLS
+	 */
+	private void startServer(boolean generated, boolean mtls, @Nonnull String restTlsMode) throws Exception {
 		final Path certificates = Files.createDirectories(this.directory.resolve("certificates"));
 		final String generatedFileName = CertificateUtils.getGeneratedServerCertificateFileName();
 		this.certificate = certificates.resolve(generated ? generatedFileName : CUSTOM_FILE_NAME);
@@ -242,7 +287,7 @@ class CustomCertificateDownloadTest implements EvitaTestSupport {
 		arguments.put("api.endpoints.system.tlsMode", "FORCE_NO_TLS");
 		arguments.put("api.endpoints.rest.host", "localhost:" + this.ports[1]);
 		arguments.put("api.endpoints.rest.exposeOn", "localhost:" + this.ports[1]);
-		arguments.put("api.endpoints.rest.tlsMode", "FORCE_TLS");
+		arguments.put("api.endpoints.rest.tlsMode", restTlsMode);
 		arguments.put("api.endpoints.rest.mTLS.enabled", Boolean.toString(mtls));
 		arguments.put("api.endpoints.rest.mTLS.allowedClientCertificatesPaths",
 			"[\"client.crt\"]");
