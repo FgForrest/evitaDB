@@ -54,6 +54,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.index.HistogramCapableEntityIndex;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.IndexWriteTarget;
 import io.evitadb.index.ReducedGroupEntityIndex;
@@ -1065,14 +1066,27 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final Scope scope = mutation.scope();
 		final ReferenceSchemaContract refSchema = target.getEntitySchema()
 			.getReference(referenceName).orElseThrow();
-		// Grouped references store per-group reduced indexes; ungrouped references use REFERENCED_ENTITY_TYPE.
 		final boolean isGrouped = refSchema.getReferencedGroupType() != null;
-		final EntityIndexType rteiType = isGrouped
-			? EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
-			: EntityIndexType.REFERENCED_ENTITY_TYPE;
-		final ReferencedTypeEntityIndex rtei = findReferencedTypeEntityIndexForModification(
-			target, rteiType, scope, referenceName
-		);
+		final ReferencedTypeEntityIndex rtei;
+		if (isGrouped) {
+			// a grouped reference keeps its histograms in the store of each group, so its group-type index is only
+			// read - for the reduced indexes of a group - and never registered for modification; the affected owners
+			// were resolved through it, so it exists
+			rtei = findReferencedTypeEntityIndex(
+				target, EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
+			);
+			if (rtei == null) {
+				throw new GenericEvitaInternalError(
+					"The group-type index of reference `" + referenceName + "` in scope `" + scope + "` is missing, " +
+						"although the owners affected by the change were resolved through it."
+				);
+			}
+		} else {
+			// an ungrouped reference keeps its histograms in the referenced-type index
+			rtei = findReferencedTypeEntityIndexForModification(
+				target, EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
+			);
+		}
 
 		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
 			final String histogramName = trigger.getHistogramIndexName();
@@ -1420,7 +1434,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param resolution       value resolution metadata
 	 * @param ownerPKsToRemove per-contribution owners whose histogram entries should be cleared
 	 * @param affected         resolved affected groups
-	 * @param rtei             the top-level referenced-type entity index
+	 * @param rtei             the referenced-type index of an ungrouped reference, registered for modification, or the
+	 *                         group-type index of a grouped one, which is only read
 	 * @param isGrouped        `true` when the reference has a group type
 	 * @param target           access to entity collection indexes
 	 * @param locales          locales for localized histograms; empty set for non-localized
@@ -1495,7 +1510,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param resolution       value resolution metadata
 	 * @param ownerPKsToRemove   per-contribution owners whose histogram entries should be cleared
 	 * @param affected           resolved affected groups
-	 * @param rtei               the top-level referenced-type entity index
+	 * @param rtei               the referenced-type index of an ungrouped reference, registered for modification, or
+	 *                           the group-type index of a grouped one, which is only read
 	 * @param isGrouped          `true` when the reference has a group type
 	 * @param target             access to entity collection indexes
 	 * @param preMutationValues  per-locale pre-mutation raw values when the value source was mutated, or null;
@@ -1554,8 +1570,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					);
 				}
 
-				// remove each (value, ownerPK) pair from both the group's store and RTEI; skip when the histogram
-				// does not contain the entry (never created — condition was false, or different scope)
+				// remove each (value, ownerPK) pair from the index holding the histograms of the contribution; skip
+				// when the histogram does not contain the entry (never created — condition was false, or different
+				// scope)
 				for (final Serializable value : valuesToRemove) {
 					for (int ownerPK : matched) {
 						removeHistogramValue(
@@ -1664,7 +1681,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param trigger                  the histogram trigger with value resolution metadata
 	 * @param histogramShouldBeIndexed per-contribution owners that must have a histogram value
 	 * @param affected                 resolved affected groups
-	 * @param rtei                     the top-level referenced-type index
+	 * @param rtei                     the referenced-type index of an ungrouped reference, registered for modification,
+	 *                                 or the group-type index of a grouped one, which is only read
 	 * @param isGrouped                `true` when the reference has a group type
 	 * @param target                   access to entity collection indexes
 	 * @param referenceName            name of the reference
@@ -1708,7 +1726,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param resolution               value resolution metadata
 	 * @param histogramShouldBeIndexed per-contribution owners that must have a histogram value
 	 * @param affected                 resolved affected groups
-	 * @param rtei                     the top-level referenced-type index
+	 * @param rtei                     the referenced-type index of an ungrouped reference, registered for modification,
+	 *                                 or the group-type index of a grouped one, which is only read
 	 * @param isGrouped                `true` when the reference has a group type
 	 * @param target                   access to cross-entity filter indexes
 	 * @param locales                  locales for localized histograms; empty set for non-localized
@@ -1753,7 +1772,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param resolution               value resolution metadata
 	 * @param histogramShouldBeIndexed per-contribution owners that must have a histogram value
 	 * @param affected                 resolved affected groups
-	 * @param rtei                     the top-level referenced-type index
+	 * @param rtei                     the referenced-type index of an ungrouped reference, registered for modification,
+	 *                                 or the group-type index of a grouped one, which is only read
 	 * @param isGrouped                `true` when the reference has a group type
 	 * @param target                   access to cross-entity filter indexes
 	 */
@@ -1848,7 +1868,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param resolution               value resolution metadata
 	 * @param histogramShouldBeIndexed per-contribution owners that must have a histogram value
 	 * @param affected                 resolved affected groups
-	 * @param rtei                     the top-level referenced-type index
+	 * @param rtei                     the referenced-type index of an ungrouped reference, registered for modification,
+	 *                                 or the group-type index of a grouped one, which is only read
 	 * @param isGrouped                `true` when the reference has a group type
 	 * @param target                   access to entity collection indexes
 	 * @param referenceName            name of the reference
@@ -1890,7 +1911,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param resolution               value resolution metadata
 	 * @param histogramShouldBeIndexed per-contribution owners that must have a histogram value
 	 * @param affected                 resolved affected groups
-	 * @param rtei                     the top-level referenced-type index
+	 * @param rtei                     the referenced-type index of an ungrouped reference, registered for modification,
+	 *                                 or the group-type index of a grouped one, which is only read
 	 * @param isGrouped                `true` when the reference has a group type
 	 * @param target                   access to entity collection indexes
 	 * @param referenceName            name of the reference
@@ -1955,7 +1977,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param filterIndex            the `FilterIndex` for the reference attribute, or `null`
 	 * @param shouldBeIndexedBitmap  bitmap of eligible owner PKs
 	 * @param group                  the group being processed
-	 * @param rtei                   the top-level referenced-type index
+	 * @param rtei                   the referenced-type index of an ungrouped reference, registered for modification,
+	 *                               or the group-type index of a grouped one, which is only read
 	 * @param isGrouped              `true` when the reference has a group type
 	 * @param target                 access to entity collection indexes
 	 */
@@ -2166,10 +2189,23 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
-	 * Removes a histogram value from the RTEI and, for a grouped reference, from the histogram store of the group
-	 * (see {@link GroupHistogramEntityIndex}). Mirrors {@link #insertHistogramValue}. Skips the removal when the store
-	 * or the histogram index does not exist or does not contain the (value, ownerPK) pair (the entry was never created
-	 * — e.g. the condition was false, or the entity is in a different scope).
+	 * Removes a histogram value from the one index holding the histograms of the contribution - the referenced-type
+	 * index of an ungrouped reference, and for a grouped one the histogram store of the group (see
+	 * {@link GroupHistogramEntityIndex}) or, for a reference without a group, the referenced-type index, as the local
+	 * path routes it. Mirrors {@link #insertHistogramValue}. Skips the removal when that index or its histogram does
+	 * not exist or does not contain the (value, ownerPK) pair (the entry was never created — e.g. the condition was
+	 * false, or the entity is in a different scope).
+	 *
+	 * @param histogramName        name of the histogram definition
+	 * @param locale               locale for the histogram index, or `null` for non-localized
+	 * @param value                the value to remove
+	 * @param ownerPK              primary key of the owner entity
+	 * @param group                the contribution whose value is removed
+	 * @param rtei                 the referenced-type index of an ungrouped reference, registered for modification,
+	 *                             or the group-type index of a grouped one, which is only read
+	 * @param isGrouped            `true` when the reference has a group type
+	 * @param target               access to entity collection indexes
+	 * @param indexedDecimalPlaces the source attribute schema's indexed decimal places
 	 */
 	private static void removeHistogramValue(
 		@Nonnull String histogramName,
@@ -2181,21 +2217,18 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull IndexMutationTarget target,
 		int indexedDecimalPlaces
 	) {
-		if (isGrouped && group.groupPK() != null) {
-			final EntityIndexKey storeKey = GroupHistogramEntityIndex.keyOf(
-				rtei.getReferenceName(), group.groupPK(), rtei.getIndexKey().scope()
-			);
-			if (target.getIndexIfExists(storeKey) != null) {
-				// registered for modification, so the change is persisted
-				final GroupHistogramEntityIndex store = asGroupHistogramStore(
-					target.getOrCreateIndex(storeKey), storeKey
-				);
-				if (histogramContainsOwner(store.getHistogramIndex(histogramName), locale, value, ownerPK)) {
-					store.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
+		if (isGrouped) {
+			final EntityIndexKey histogramIndexKey = histogramIndexKeyOfGroupedContribution(rtei, group.groupPK());
+			final EntityIndex index = target.getIndexIfExists(histogramIndexKey);
+			if (index != null) {
+				final HistogramCapableEntityIndex histogramIndex = asHistogramIndex(index, histogramIndexKey);
+				if (histogramContainsOwner(histogramIndex.getHistogramIndex(histogramName), locale, value, ownerPK)) {
+					// registered for modification, so the change is persisted and a store it empties is dropped
+					target.getOrCreateIndex(histogramIndexKey);
+					histogramIndex.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 				}
 			}
-		}
-		if (histogramContainsOwner(rtei.getHistogramIndex(histogramName), locale, value, ownerPK)) {
+		} else if (histogramContainsOwner(rtei.getHistogramIndex(histogramName), locale, value, ownerPK)) {
 			rtei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 		}
 	}
@@ -2234,22 +2267,28 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
-	 * Inserts a histogram value into the RTEI and, for a grouped reference, into the histogram store of the group (see
-	 * {@link GroupHistogramEntityIndex}), which its first value creates. The store is one per reference, group and
-	 * scope, so the value is written once however many reduced indexes the group spans.
+	 * Inserts a histogram value into the one index holding the histograms of the contribution - the referenced-type
+	 * index of an ungrouped reference, and for a grouped one the histogram store of the group (see
+	 * {@link GroupHistogramEntityIndex}), which its first value creates, or, for a reference without a group, the
+	 * referenced-type index, as the local path routes it. The store is one per reference, group and scope, so the
+	 * value is written once however many reduced indexes the group spans. The referenced-type index of a reference
+	 * without a group is never created here: it exists whenever the schema indexes the entity component of the
+	 * reference, so its absence fails the insertion.
 	 *
 	 * @param histogramName  name of the histogram definition
 	 * @param locale         locale for the histogram index, or `null` for non-localized
 	 * @param value          the value to insert (a `Number` for plain numeric attributes or a `Range`
 	 *                       instance for Range-typed attributes)
 	 * @param ownerPK        primary key of the owner entity
-	 * @param group          the group whose histogram store receives the value
-	 * @param rtei           the top-level referenced-type index
+	 * @param group          the contribution whose value is inserted
+	 * @param rtei           the referenced-type index of an ungrouped reference, registered for modification, or the
+	 *                       group-type index of a grouped one, which is only read
 	 * @param isGrouped            `true` when the reference has a group type
 	 * @param target               access to entity collection indexes
 	 * @param valueType            the plain type of the attribute
 	 * @param indexedDecimalPlaces the source attribute schema's indexed decimal places, threaded to the
 	 *                             histogram-index write boundary for scale normalization
+	 * @throws GenericEvitaInternalError when the referenced-type index a reference without a group writes to is missing
 	 */
 	private static void insertHistogramValue(
 		@Nonnull String histogramName,
@@ -2263,34 +2302,68 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull Class<? extends Serializable> valueType,
 		int indexedDecimalPlaces
 	) {
-		if (isGrouped && group.groupPK() != null) {
-			final EntityIndexKey storeKey = GroupHistogramEntityIndex.keyOf(
-				rtei.getReferenceName(), group.groupPK(), rtei.getIndexKey().scope()
-			);
-			asGroupHistogramStore(target.getOrCreateIndex(storeKey), storeKey)
+		if (isGrouped) {
+			final EntityIndexKey histogramIndexKey = histogramIndexKeyOfGroupedContribution(rtei, group.groupPK());
+			if (group.groupPK() == null && target.getIndexIfExists(histogramIndexKey) == null) {
+				throw new GenericEvitaInternalError(
+					"Cannot insert histogram value: ReferencedTypeEntityIndex is missing for reference `" +
+						rtei.getReferenceName() + "`, histogram `" + histogramName + "`, owner primary key " + ownerPK +
+						", scope `" + histogramIndexKey.scope() + "`. A reference without a group keeps its " +
+						"histograms there; add `REFERENCED_ENTITY` to indexedComponentsInScopes for this scope."
+				);
+			}
+			// registered for modification, so the change is persisted
+			asHistogramIndex(target.getOrCreateIndex(histogramIndexKey), histogramIndexKey)
 				.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
+		} else {
+			rtei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
 		}
-		rtei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
 	}
 
 	/**
-	 * Casts the index registered under the key of the histogram store of a group to {@link GroupHistogramEntityIndex}.
-	 * The key resolves to a store by construction, so any other type is a programming error.
+	 * Returns the key of the index holding the histograms of one contribution of a grouped reference: the histogram
+	 * store of its group, or - for a reference without a group - the referenced-type index of the reference.
 	 *
-	 * @param index    the index registered under `storeKey`
-	 * @param storeKey the key of the store
-	 * @return the store
+	 * @param groupTypeIndex the group-type index of the reference, naming the reference and the scope
+	 * @param groupPK        the group of the contribution, or `null` when the reference has none
+	 * @return the key of the index holding the histograms of the contribution
 	 */
 	@Nonnull
-	private static GroupHistogramEntityIndex asGroupHistogramStore(
-		@Nonnull EntityIndex index,
-		@Nonnull EntityIndexKey storeKey
+	private static EntityIndexKey histogramIndexKeyOfGroupedContribution(
+		@Nonnull ReferencedTypeEntityIndex groupTypeIndex,
+		@Nullable Integer groupPK
 	) {
-		if (index instanceof GroupHistogramEntityIndex store) {
+		final String referenceName = groupTypeIndex.getReferenceName();
+		final Scope scope = groupTypeIndex.getIndexKey().scope();
+		return groupPK == null ?
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName) :
+			GroupHistogramEntityIndex.keyOf(referenceName, groupPK, scope);
+	}
+
+	/**
+	 * Casts the index registered under the key of an index holding histograms to its concrete type: a
+	 * {@link GroupHistogramEntityIndex} under the key of the store of a group, a {@link ReferencedTypeEntityIndex}
+	 * under a `REFERENCED_ENTITY_TYPE` key. The key resolves to that type by construction, so any other type is a
+	 * programming error.
+	 *
+	 * @param index the index registered under `key`
+	 * @param key   the key of the index
+	 * @return the index holding the histograms
+	 */
+	@Nonnull
+	private static HistogramCapableEntityIndex asHistogramIndex(
+		@Nonnull EntityIndex index,
+		@Nonnull EntityIndexKey key
+	) {
+		final EntityIndexType type = key.type();
+		if (type == EntityIndexType.REFERENCED_GROUP_HISTOGRAM && index instanceof GroupHistogramEntityIndex store) {
 			return store;
 		}
+		if (type == EntityIndexType.REFERENCED_ENTITY_TYPE && index instanceof ReferencedTypeEntityIndex typeIndex) {
+			return typeIndex;
+		}
 		throw new GenericEvitaInternalError(
-			"Expected GroupHistogramEntityIndex for " + storeKey + ", got " + index.getClass().getName() + "."
+			"Unexpected index " + index.getClass().getName() + " registered under " + key + "."
 		);
 	}
 

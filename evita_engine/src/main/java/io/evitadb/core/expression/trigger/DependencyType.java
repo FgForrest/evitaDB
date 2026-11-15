@@ -57,8 +57,10 @@ public enum DependencyType {
 	 * The mutated entity is the **referenced entity** of the reference, and the dependency is on a reference
 	 * attribute of that entity. Expression path: `$reference.referencedEntity.references['r'].attributes['x']`.
 	 *
-	 * The trigger fires when a reference mutation on the referenced entity affects reference 'r' (insert, remove,
-	 * or attribute 'x' change).
+	 * The trigger fires when attribute 'x' of reference 'r' of the referenced entity changes - written, defaulted or
+	 * propagated from the counterpart of the reference in another entity - and when that entity is removed or changes
+	 * its scope, which fires every trigger registered for its entity type. A reference mutation that changes no
+	 * attribute 'x' does not fire it.
 	 */
 	REFERENCED_ENTITY_REFERENCE_ATTRIBUTE,
 
@@ -85,8 +87,10 @@ public enum DependencyType {
 	 * and the dependency is on a reference attribute of that parent entity.
 	 * Expression path: `$entity.parentEntity.references['r'].attributes['x']`
 	 *
-	 * The trigger fires when a reference mutation on the parent entity affects reference 'r' (insert,
-	 * remove, or attribute 'x' change). Fan-out is bounded by the branching factor of the hierarchy.
+	 * The trigger fires when attribute 'x' of reference 'r' of the parent entity changes - written, defaulted or
+	 * propagated from the counterpart of the reference in another entity - and when the parent is removed or changes
+	 * its scope, which fires every trigger registered for its entity type. A reference mutation that changes no
+	 * attribute 'x' does not fire it. Fan-out is bounded by the branching factor of the hierarchy.
 	 */
 	PARENT_ENTITY_REFERENCE_ATTRIBUTE;
 
