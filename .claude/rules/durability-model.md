@@ -56,10 +56,11 @@ deferred to a checkpoint (`checkpointCoordinator`), so bytes can sit unpublished
 *Which flushes run* is the separate question, and the answer is not "all of them". A collection-level schema
 operation flushes mid-session only while the catalog schema validates and every entity type the running schema
 change has touched builds its expression triggers (`Catalog#flushMidSessionIfSchemaValid`,
-`Catalog#canBuildPendingExpressionTriggers`) — a schema half-built across several steps is legitimate, so the
-publication waits for the session close, or for the trigger build at the end of the schema change, rather than
-refusing. Nothing is lost by the wait: the changes stay in the data store buffer, and the session close
-publishes them once the schema is whole. So read the sentence above as "a flush that runs, publishes", never as
+`Catalog#canBuildPendingExpressionTriggers`) — a schema half-built across several steps is legitimate, so a
+flush that finds either condition unmet is skipped rather than refused. Nothing is lost by the skip: the changes
+stay in the data store buffer, and the next flush that runs publishes them — a later schema operation once both
+conditions hold, or the session close once the schema is whole. The trigger build at the end of a schema change
+flushes nothing itself. So read the sentence above as "a flush that runs, publishes", never as
 "every DDL operation reaches the disk".
 
 **A catalog whose *in-memory* state is broken is recovered completely by reload.** The disk was never damaged, so

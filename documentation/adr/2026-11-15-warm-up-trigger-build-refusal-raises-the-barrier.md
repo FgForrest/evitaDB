@@ -239,15 +239,16 @@ proved to be a real cost in imports and warm-up gained a journal of schema objec
     histogram condition refuses that form earlier, as a container read without a name. A method such as `any(...)` or
     `size()` on such a result, and a `??` whose result nothing steps into, are not refused by this rule. The reason:
     the finder continues the path of such a step from the `??` node, which is no variable. At the top level the path
-    starts at the step's own name or key, and the trigger build throws "Expected variable at path root" - measured for
-    `($entity.attributes ?? null)['status']`, traced for the histogram forms - so without the rule such a definition
+    starts at the step's own name or key, and the trigger build throws "Expected variable at path root" - seen for
+    `($entity.attributes ?? null)['status']` in a probe run before the rule existed, which no retained test repeats,
+    and traced for the histogram forms - so without the rule such a definition
     would cost a deactivation in warm-up instead of an ordinary refusal. Inside a predicate the name is appended to the
     predicate's receiver without the container: `$entity.references['tag'].any(($.attributes ?? null)['w'] > 1)` builds
     and records no dependency on `w`. A property step on the result of `??` in a facet condition, such as
     `($reference.referencedEntity ?? $reference.groupEntity).attributes['status']`, passes the check: in a facet
     condition this rule refuses only the container-name form. Its build verdict is not measured.
   - *A name in parentheses*, `$entity.attributes[('status')]`, is refused as a dynamic name. The finder takes a name
-    only from a key written as a bare constant; for any other key it records the container alone, and
+    only from a key written as a bare constant; for a constant in parentheses it records the container alone, and
     `ExpressionDependencyClassifier#extractLocalDependencies` finds no attribute in that path, so no hook learns that
     `status` is read. The trigger builds without error. The stale index this would cause is suspected, not measured.
 
