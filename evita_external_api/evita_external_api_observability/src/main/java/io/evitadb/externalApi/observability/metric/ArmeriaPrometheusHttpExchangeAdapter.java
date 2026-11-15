@@ -27,7 +27,6 @@ import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.ResponseHeaders;
 import com.linecorp.armeria.common.ResponseHeadersBuilder;
 import com.linecorp.armeria.server.ServiceRequestContext;
-import io.netty.util.AsciiString;
 import io.prometheus.metrics.exporter.common.PrometheusHttpExchange;
 import io.prometheus.metrics.exporter.common.PrometheusHttpRequest;
 import io.prometheus.metrics.exporter.common.PrometheusHttpResponse;
@@ -51,7 +50,7 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 	private final ArmeriaAdapterResponse response;
 
 	public ArmeriaPrometheusHttpExchangeAdapter(ServiceRequestContext ctx, HttpRequest req, ByteArrayOutputStream outputStream) {
-		this.request = new ArmeriaAdapterRequest(req);
+		this.request = new ArmeriaAdapterRequest(ctx, req);
 		this.response = new ArmeriaAdapterResponse(ctx, ResponseHeaders.builder(), outputStream);
 	}
 
@@ -93,16 +92,18 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 	 */
 	@RequiredArgsConstructor
 	public static class ArmeriaAdapterRequest implements PrometheusHttpRequest {
+		/** Retains the original query after prefix routers rewrite the request path. */
+		private final ServiceRequestContext context;
 		private final HttpRequest request;
 
 		@Override
 		public String getQueryString() {
-			return this.request.uri().getQuery();
+			return this.context.query();
 		}
 
 		@Override
 		public Enumeration<String> getHeaders(String name) {
-			return Collections.enumeration(this.request.headers().names().stream().map(AsciiString::toString).toList());
+			return Collections.enumeration(this.request.headers().getAll(name));
 		}
 
 		@Override
