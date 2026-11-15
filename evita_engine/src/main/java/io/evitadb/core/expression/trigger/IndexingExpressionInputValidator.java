@@ -39,10 +39,10 @@ import io.evitadb.api.query.expression.object.ObjectAccessOperator;
 import io.evitadb.api.query.expression.object.ObjectOperationStep;
 import io.evitadb.api.query.expression.object.PropertyAccessStep;
 import io.evitadb.api.query.expression.object.SpreadAccessStep;
-import io.evitadb.api.query.expression.operand.ConstantOperand;
-import io.evitadb.api.query.expression.operand.VariableOperand;
 import io.evitadb.api.query.expression.object.accessor.entity.EntityContractAccessor;
 import io.evitadb.api.query.expression.object.accessor.entity.ReferenceContractAccessor;
+import io.evitadb.api.query.expression.operand.ConstantOperand;
+import io.evitadb.api.query.expression.operand.VariableOperand;
 import io.evitadb.api.query.expression.utility.NestedOperator;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
@@ -90,18 +90,19 @@ import java.util.Objects;
  *
  * The check walks the expression tree itself, every operand and every step of every access chain included, never a
  * flattened list of accessed paths, so that a read nested in a predicate, a key, a spread mapping or on the right of
- * `??` is found as well. It needs neither a schema nor a collection: it runs on mutation payloads in the schema
- * mutation preflight of `Catalog` (`verifyEntitySchemaMutationsApplicable`), before a batch is applied, and on stored
- * reference schemas as the first step of both trigger factories, which is what makes a stored schema holding a
- * refused read fail the catalog load. The result of `??` may be either operand, so a step on it is judged on both;
- * the fallback of `*?` replaces `null` elements of a collection, so the result is the collection, and a step on an
- * element is judged on the collection's elements and on the fallback. Parentheses count for nothing where the
- * engine's own analysis of the data an expression reads looks through them - around `null`, a key, a receiver or an
- * operand - but a name in parentheses is no name the analysis knows. A data or `references` container stays a
- * container whatever it passes through, so a step on it must be a name written as a string constant wherever it is
- * applied; a name applied to the result of `??` or `*?` is refused even then, because the analysis records it on no
- * path through the container. A refusal is an {@link InvalidSchemaMutationException} naming the expression, its slot,
- * the reference, the entity type, the scope, the refused read and the reason.
+ * `??` is found as well. It reads nothing but a reference schema or a mutation payload - no entity schema, collection
+ * or catalog - so it runs on mutation payloads in the schema mutation preflight of `Catalog`
+ * (`verifyEntitySchemaMutationsApplicable`), before a batch is applied, and on stored reference schemas as the first
+ * step of both trigger factories, which is what makes a stored schema holding a refused read fail the catalog load.
+ * The result of `??` may be either operand, so a step on it is judged on both; the fallback of `*?` replaces `null`
+ * elements of a collection, so the result is the collection, and a step on an element is judged on the collection's
+ * elements and on the fallback. Parentheses count for nothing where the engine's own analysis of the data an
+ * expression reads looks through them - around `null`, a key, a receiver or an operand - but a name in parentheses is
+ * no name the analysis knows. A data or `references` container stays a container whatever it passes through, so a
+ * step on it must be a name written as a string constant wherever it is applied; a name applied to the result of `??`
+ * or `*?` is refused even then, because the analysis records it on no path through the container. A refusal is an
+ * {@link InvalidSchemaMutationException} naming the expression, its slot, the reference, the entity type, the scope,
+ * the refused read and the reason.
  *
  * What the check guarantees is scoped. For a histogram expression it is that every read of an accepted expression is
  * constant, hooked or dispatched under the schema it was accepted with; a later schema change can alter what an
@@ -122,6 +123,14 @@ public final class IndexingExpressionInputValidator {
 	private static final FunctionProcessor RANDOM_FUNCTION = FunctionProcessorRegistry.getInstance()
 		.getFunctionProcessor("random")
 		.orElseThrow(() -> new GenericEvitaInternalError("The expression language must provide `random()`."));
+
+	/**
+	 * The alternatives of a sub-expression producing a plain value: the one immutable list `Walked.PLAIN` holds,
+	 * returned for the result of a method, for a property of a plain value and once a refusal is found. Other steps
+	 * may yield a plain value in a list of their own, as `$entity.primaryKey` does through `derive`.
+	 */
+	@Nonnull
+	private static final List<Alternative> PLAIN_ALTERNATIVES = Walked.PLAIN.alternatives();
 
 	/**
 	 * The expression slots of a reference schema, each with the rules it is checked by.
@@ -417,6 +426,11 @@ public final class IndexingExpressionInputValidator {
 	 * the read itself, except in a condition reading an attribute through an entity one hop away: such a condition is
 	 * translated into a query, which reads an access chain only from the variable it starts with, so the condition is
 	 * walked again as written and that verdict counts.
+	 *
+	 * The check sees the one condition it is given. The histogram trigger factory combines `bucketedPartially` with
+	 * the `assignedWhen` condition of each histogram and translates the combination also when only the other condition
+	 * or the value expression reads through a hop, so a parenthesized prefix this check admits in a histogram condition
+	 * can still fail that translation when the trigger is built.
 	 *
 	 * @param root      the root node of the condition
 	 * @param histogram `true` for the histogram rules, `false` for the facet reject list
@@ -870,7 +884,28 @@ public final class IndexingExpressionInputValidator {
 		 * Any other value: a constant, an attribute value, the result of an operator or a method, or a collection of
 		 * values.
 		 */
-		VALUE
+		VALUE;
+
+		/**
+		 * Returns `true` for the containers a hop's attribute read passes through, during which the hop stays known.
+		 *
+		 * @return `true` for an attribute container
+		 */
+		boolean isAttributesContainer() {
+			return this == ATTRIBUTES || this == LOCALIZED_ATTRIBUTES;
+		}
+
+		/**
+		 * Returns `true` for the data containers and the `references` containers, which read data only through a
+		 * name that follows them.
+		 *
+		 * @return `true` for a container before its name
+		 */
+		boolean isContainer() {
+			return isAttributesContainer() ||
+				this == ASSOCIATED_DATA || this == LOCALIZED_ASSOCIATED_DATA ||
+				this == OWNER_REFERENCES || this == HOP_REFERENCES;
+		}
 	}
 
 	/**
@@ -907,6 +942,18 @@ public final class IndexingExpressionInputValidator {
 		}
 
 		/**
+		 * Creates an alternative of a shape alone: no hop kind, no text, and elements, if any, with only the shapes
+		 * of a collection's own elements.
+		 *
+		 * @param shape what the sub-expression produces
+		 * @return the alternative
+		 */
+		@Nonnull
+		static Alternative bare(@Nonnull Shape shape) {
+			return new Alternative(shape, null, "", List.of());
+		}
+
+		/**
 		 * Returns the same alternative with another text.
 		 *
 		 * @param newText the text
@@ -932,27 +979,15 @@ public final class IndexingExpressionInputValidator {
 	/**
 	 * The outcome of walking a sub-expression: every shape it may produce.
 	 *
-	 * @param alternatives the shapes, in the order of the operands they come from, none of them twice
+	 * @param alternatives the shapes, in the order of the operands they come from; `??` and a step join them without
+	 *                     repeating one, but adding the fallback of `*?` to each of them can make two of them equal
 	 */
 	private record Walked(@Nonnull List<Alternative> alternatives) {
 
 		/**
 		 * The outcome of a sub-expression producing a plain value.
 		 */
-		static final Walked PLAIN = of(Shape.VALUE, null, "");
-
-		/**
-		 * Creates the outcome of a sub-expression producing one shape.
-		 *
-		 * @param shape what the sub-expression produces
-		 * @param hop   the hop kind of an entity one hop away, otherwise `null`
-		 * @param text  the text of the sub-expression
-		 * @return the outcome
-		 */
-		@Nonnull
-		static Walked of(@Nonnull Shape shape, @Nullable HopKind hop, @Nonnull String text) {
-			return new Walked(List.of(Alternative.of(shape, hop, text)));
-		}
+		static final Walked PLAIN = new Walked(List.of(Alternative.bare(Shape.VALUE)));
 	}
 
 	/**
@@ -1014,10 +1049,12 @@ public final class IndexingExpressionInputValidator {
 
 	/**
 	 * Returns the shape of the own elements of a collection: a listed reference for a reference set, a value for a
-	 * list ordered by locale, a localized map and any other value.
+	 * list ordered by locale, a localized map and any other value. Every caller passes a collection: an entity, a
+	 * reference, a listed reference or a container has no elements.
 	 *
 	 * @param collection the shape of the collection
 	 * @return the shape of its elements
+	 * @throws GenericEvitaInternalError for a shape that has no elements
 	 */
 	@Nonnull
 	private static Shape ownElementShape(@Nonnull Shape collection) {
@@ -1040,7 +1077,7 @@ public final class IndexingExpressionInputValidator {
 	 */
 	@Nonnull
 	private static List<Alternative> elementsOf(@Nonnull Alternative collection) {
-		final Alternative own = Alternative.of(ownElementShape(collection.shape()), null, "");
+		final Alternative own = Alternative.bare(ownElementShape(collection.shape()));
 		if (collection.elements().isEmpty()) {
 			return List.of(own);
 		}
@@ -1361,7 +1398,8 @@ public final class IndexingExpressionInputValidator {
 		 * by locale, whose order the coalescing keeps for the consumer of the result to decide on. The result of `??`
 		 * is either operand, so it has the alternatives of both; the fallback of `*?` replaces the `null` elements of
 		 * the collection, so its result is the collection, with the fallback among the shapes of its elements. A
-		 * `null` operand adds nothing.
+		 * `null` fallback adds nothing, and neither does a `null` left operand of `??`; a `null` left operand of `*?`
+		 * is a value whose elements may have the shapes of the fallback.
 		 *
 		 * @param coalesce  the coalescing operator
 		 * @param boundThis the shapes `$` may stand for, or `null`
@@ -1481,7 +1519,7 @@ public final class IndexingExpressionInputValidator {
 				refuse(readText, RefusalReason.NESTED_ROOT);
 				return null;
 			}
-			return List.of(Alternative.of(shape, null, ""));
+			return List.of(Alternative.bare(shape));
 		}
 
 		/**
@@ -1512,7 +1550,7 @@ public final class IndexingExpressionInputValidator {
 				this.flattened = true;
 			}
 			final StringBuilder text = new StringBuilder(64);
-			List<Alternative> receivers;
+			final List<Alternative> receivers;
 			if (root instanceof VariableOperand variable) {
 				receivers = rootAlternatives(variable, boundThis, nested, accessText(access));
 				if (receivers == null) {
@@ -1527,54 +1565,88 @@ public final class IndexingExpressionInputValidator {
 				receivers = base.alternatives();
 				text.append(ExpressionPrecedence.objectAccessBaseText(operand));
 			}
+			final boolean operandIsCoalesce = isCoalesce(unwrapParentheses(operand));
 			// the engine maps no read through the result of `??` or `*?` at the top level: its steps reach no
 			// variable; inside a key, a predicate or a mapping they continue the path the step is applied to
-			final boolean coalescedReceiver = this.histogram && !nested && isCoalesce(unwrapParentheses(operand));
-			// a data or `references` container that is the result of `??` or `*?` ended the chain reaching it, and the
-			// engine records a name applied to the result on no path through the container, nested or not; set while
-			// the step walked is the first one, which is applied to the result itself
-			boolean onCoalesceResult = isCoalesce(unwrapParentheses(operand));
+			final boolean coalescedReceiver = this.histogram && !nested && operandIsCoalesce;
 			// a chain starting at `$entity` or `$reference`, parentheses and parenthesized chains looked through, has a
 			// path of its own; any other chain continues the path of the chain its key, predicate or mapping belongs
 			// to, and starts one without a variable outside them
 			final boolean enclosingRooted = this.rootedChain;
-			this.rootedChain = pathRoot(access) instanceof VariableOperand rootVariable && !rootVariable.isThis() ||
-				nested && enclosingRooted;
+			this.rootedChain = (pathRoot(access) instanceof VariableOperand rootVariable && !rootVariable.isThis()) ||
+				(nested && enclosingRooted);
 			try {
-				for (int chainIndex = chains.size() - 1; chainIndex >= 0; chainIndex--) {
-					for (ObjectOperationStep step = chains.get(chainIndex); step != null; step = step.getNext()) {
-						if (step instanceof NullSafeAccessStep) {
-							text.append('?');
-							continue;
-						}
-						text.append(stepText(step));
-						if (coalescedReceiver && namesData(step)) {
-							refuse(text.toString(), RefusalReason.COMPUTED_RECEIVER);
-							return Walked.PLAIN;
-						}
-						final ObjectOperationStep next = nextStep(step, chains, chainIndex);
-						// a step on several alternatives is a step on each, and is refused when it is refused on any
-						final List<Alternative> stepped = new ArrayList<>(receivers.size());
-						for (final Alternative receiver : receivers) {
-							for (final Alternative result : step(receiver, step, next, text, boundThis)) {
-								addDistinct(stepped, result);
-							}
-							if (onCoalesceResult && isContainer(receiver.shape())) {
-								// `step` has applied the container's name rule; a name passing it is refused as well
-								refuse(text.toString(), RefusalReason.COMPUTED_RECEIVER);
-							}
-							if (this.refusal != null) {
-								return Walked.PLAIN;
-							}
-						}
-						receivers = stepped;
-						onCoalesceResult = false;
-					}
+				final List<Alternative> stepped =
+					walkSteps(chains, receivers, text, boundThis, coalescedReceiver, operandIsCoalesce);
+				if (this.refusal != null) {
+					return Walked.PLAIN;
 				}
-				return finishChain(receivers, text);
+				return finishChain(stepped, text);
 			} finally {
 				this.rootedChain = enclosingRooted;
 			}
+		}
+
+		/**
+		 * Applies every step of the chains of an access, the innermost chain first, to each alternative its operand
+		 * produces, and appends the text of each step to the text of the chain.
+		 *
+		 * @param chains            the chains of an access walked as one, from the outermost to the innermost
+		 * @param operandShapes     the alternatives the operand of the innermost chain produces
+		 * @param text              the text of the chain, extended by every step walked
+		 * @param boundThis         the shapes `$` may stand for, or `null`
+		 * @param coalescedReceiver `true` when the operand is the result of `??` or `*?` at the top level of a
+		 *                          condition checked by the histogram rules, where a step naming data is refused
+		 * @param operandIsCoalesce `true` when the operand is the result of `??` or `*?`, so that the first step,
+		 *                          applied to a data or `references` container that is such a result, is refused
+		 *                          even with a constant name
+		 * @return the alternatives the last step produces, or a plain value once a refusal is found
+		 */
+		@Nonnull
+		private List<Alternative> walkSteps(
+			@Nonnull List<ObjectOperationStep> chains,
+			@Nonnull List<Alternative> operandShapes,
+			@Nonnull StringBuilder text,
+			@Nullable List<Alternative> boundThis,
+			boolean coalescedReceiver,
+			boolean operandIsCoalesce
+		) {
+			List<Alternative> receivers = operandShapes;
+			// a data or `references` container that is the result of `??` or `*?` ended the chain reaching it, and the
+			// engine records a name applied to the result on no path through the container, nested or not; set while
+			// the step walked is the first one, which is applied to the result itself
+			boolean onCoalesceResult = operandIsCoalesce;
+			for (int chainIndex = chains.size() - 1; chainIndex >= 0; chainIndex--) {
+				for (ObjectOperationStep step = chains.get(chainIndex); step != null; step = step.getNext()) {
+					if (step instanceof NullSafeAccessStep) {
+						text.append('?');
+						continue;
+					}
+					text.append(stepText(step));
+					if (coalescedReceiver && namesData(step)) {
+						refuse(text.toString(), RefusalReason.COMPUTED_RECEIVER);
+						return PLAIN_ALTERNATIVES;
+					}
+					final ObjectOperationStep next = nextStep(step, chains, chainIndex);
+					// a step on several alternatives is a step on each, and is refused when it is refused on any
+					final List<Alternative> stepped = new ArrayList<>(receivers.size());
+					for (final Alternative receiver : receivers) {
+						for (final Alternative result : step(receiver, step, next, text, boundThis)) {
+							addDistinct(stepped, result);
+						}
+						if (onCoalesceResult && receiver.shape().isContainer()) {
+							// `step` has applied the container's name rule; a name passing it is refused as well
+							refuse(text.toString(), RefusalReason.COMPUTED_RECEIVER);
+						}
+						if (this.refusal != null) {
+							return PLAIN_ALTERNATIVES;
+						}
+					}
+					receivers = stepped;
+					onCoalesceResult = false;
+				}
+			}
+			return receivers;
 		}
 
 		/**
@@ -1594,7 +1666,7 @@ public final class IndexingExpressionInputValidator {
 			for (final Alternative receiver : receivers) {
 				if (receiver.shape() == Shape.HOP) {
 					addDistinct(finished, receiver.withText(chainText));
-				} else if (isContainer(receiver.shape())) {
+				} else if (receiver.shape().isContainer()) {
 					if (this.histogram) {
 						refuse(chainText, RefusalReason.DYNAMIC_NAME);
 						return Walked.PLAIN;
@@ -1612,29 +1684,6 @@ public final class IndexingExpressionInputValidator {
 				}
 			}
 			return new Walked(finished);
-		}
-
-		/**
-		 * Returns `true` for the containers a hop's attribute read passes through, during which the hop stays known.
-		 *
-		 * @param shape the shape
-		 * @return `true` for an attribute container
-		 */
-		private static boolean isAttributesContainer(@Nonnull Shape shape) {
-			return shape == Shape.ATTRIBUTES || shape == Shape.LOCALIZED_ATTRIBUTES;
-		}
-
-		/**
-		 * Returns `true` for the data containers and the `references` containers, which read data only through a
-		 * name that follows them.
-		 *
-		 * @param shape the shape
-		 * @return `true` for a container before its name
-		 */
-		private static boolean isContainer(@Nonnull Shape shape) {
-			return isAttributesContainer(shape) ||
-				shape == Shape.ASSOCIATED_DATA || shape == Shape.LOCALIZED_ASSOCIATED_DATA ||
-				shape == Shape.OWNER_REFERENCES || shape == Shape.HOP_REFERENCES;
 		}
 
 		/**
@@ -1681,7 +1730,7 @@ public final class IndexingExpressionInputValidator {
 				case HOP -> derive(receiver, hopStep(Objects.requireNonNull(receiver.hop()), step, text), step);
 				case OWNER_REFERENCES, HOP_REFERENCES -> {
 					if (refusesUnnamedAccess(step, text)) {
-						yield Walked.PLAIN.alternatives();
+						yield PLAIN_ALTERNATIVES;
 					}
 					yield derive(
 						receiver,
@@ -1713,9 +1762,9 @@ public final class IndexingExpressionInputValidator {
 		) {
 			final HopKind hop;
 			if (shape == Shape.HOP) {
-				hop = receiver.shape() == Shape.HOP ? receiver.hop() : hopKindOf(step);
+				hop = hopKindOf(step);
 			} else {
-				hop = isAttributesContainer(shape) ? receiver.hop() : null;
+				hop = shape.isAttributesContainer() ? receiver.hop() : null;
 			}
 			return List.of(Alternative.of(shape, hop, ""));
 		}
@@ -1879,14 +1928,30 @@ public final class IndexingExpressionInputValidator {
 					refuseInHistogram(text, RefusalReason.UNTRACKED);
 					yield Shape.LOCALIZED_ATTRIBUTES;
 				}
-				// the entity of a reference read from the owner's or a hop entity's references is never loaded for
-				// indexing expressions
-				case ReferenceContractAccessor.REFERENCED_ENTITY_PROPERTY -> shape == Shape.REFERENCE ?
-					enterHop(HopKind.REFERENCED_ENTITY, text) : refuseValue(text.toString(), RefusalReason.ALWAYS_NULL);
-				case ReferenceContractAccessor.GROUP_ENTITY_PROPERTY -> shape == Shape.REFERENCE ?
-					enterHop(HopKind.GROUP_ENTITY, text) : refuseValue(text.toString(), RefusalReason.ALWAYS_NULL);
+				case ReferenceContractAccessor.REFERENCED_ENTITY_PROPERTY ->
+					hopOfReference(shape, HopKind.REFERENCED_ENTITY, text);
+				case ReferenceContractAccessor.GROUP_ENTITY_PROPERTY ->
+					hopOfReference(shape, HopKind.GROUP_ENTITY, text);
 				default -> refuseValue(text.toString(), RefusalReason.MISSING);
 			};
+		}
+
+		/**
+		 * Returns the entity one hop away a reference reaches through its referenced or group entity. Only the
+		 * reference being indexed has it: the entity of a reference read from the owner's or a hop entity's
+		 * references is never loaded for indexing expressions, so the read is refused as always `null`.
+		 *
+		 * @param shape which reference the step is applied to
+		 * @param hop   the hop kind the step reaches
+		 * @param text  the text of the chain up to and including the step
+		 * @return the hop shape, or a plain value when the read is refused
+		 */
+		@Nonnull
+		private Shape hopOfReference(@Nonnull Shape shape, @Nonnull HopKind hop, @Nonnull StringBuilder text) {
+			if (shape == Shape.REFERENCE) {
+				return enterHop(hop, text);
+			}
+			return refuseValue(text.toString(), RefusalReason.ALWAYS_NULL);
 		}
 
 		/**
@@ -1916,7 +1981,7 @@ public final class IndexingExpressionInputValidator {
 				return elements;
 			} else if (step instanceof MethodInvocationStep method) {
 				walkArguments(method, elements);
-				return Walked.PLAIN.alternatives();
+				return PLAIN_ALTERNATIVES;
 			} else if (step instanceof SpreadAccessStep spread) {
 				return spreadResult(receiver, walk(spread.getMappingExpression(), elements, true));
 			} else {
@@ -1941,7 +2006,7 @@ public final class IndexingExpressionInputValidator {
 			if (referenceSet && mapped.alternatives().size() == 1) {
 				final Alternative only = mapped.alternatives().get(0);
 				if (only.shape() == ownElementShape(collection.shape()) && only.elements().isEmpty()) {
-					return List.of(Alternative.of(collection.shape(), null, ""));
+					return List.of(Alternative.bare(collection.shape()));
 				}
 			}
 			consume(mapped);
@@ -1956,8 +2021,24 @@ public final class IndexingExpressionInputValidator {
 		}
 
 		/**
+		 * Walks the mapping of a spread over a collection, in which `$` stands for any shape an element may have, and
+		 * returns what the spread produces.
+		 *
+		 * @param receiver the collection the spread is applied to
+		 * @param spread   the spread step
+		 * @return the alternatives the spread produces
+		 */
+		@Nonnull
+		private List<Alternative> walkSpread(@Nonnull Alternative receiver, @Nonnull SpreadAccessStep spread) {
+			return spreadResult(receiver, walk(spread.getMappingExpression(), elementsOf(receiver), true));
+		}
+
+		/**
 		 * Applies a step to an attribute or associated data container: only an element access with a string constant
 		 * name reads from it. A non-localized name yields the value, a localized one the map of the value by locale.
+		 * A name read from an attribute container of an entity one hop away, on a chain mapped from a variable,
+		 * records an attribute read through the hop. With the histogram rules a localized name not followed by an
+		 * element access is refused, because the whole map follows the locale set of the entity.
 		 *
 		 * @param shape the container
 		 * @param hop   the hop kind when the container belongs to a hop entity, otherwise `null`
@@ -1977,7 +2058,7 @@ public final class IndexingExpressionInputValidator {
 			if (refusesUnnamedAccess(step, text)) {
 				return Shape.VALUE;
 			}
-			if (hop != null && isAttributesContainer(shape) && this.rootedChain) {
+			if (hop != null && shape.isAttributesContainer() && this.rootedChain) {
 				// only on a chain mapped from a variable does the engine see the hop's attribute
 				this.attributeReadThroughHop = true;
 				final HopUse use = this.hopUses.get(hop);
@@ -2021,16 +2102,16 @@ public final class IndexingExpressionInputValidator {
 				return elementsOf(receiver);
 			} else if (step instanceof PropertyAccessStep property &&
 				"entries".equals(property.getPropertyIdentifier())) {
-				return List.of(Alternative.of(Shape.LOCALE_LIST, null, ""));
+				return List.of(Alternative.bare(Shape.LOCALE_LIST));
 			} else if (step instanceof MethodInvocationStep method && "size".equals(method.getMethodIdentifier())) {
-				walkArguments(method, Walked.PLAIN.alternatives());
-				return Walked.PLAIN.alternatives();
+				walkArguments(method, PLAIN_ALTERNATIVES);
+				return PLAIN_ALTERNATIVES;
 			} else if (step instanceof SpreadAccessStep spread) {
 				// a spread over a map maps its values and keeps its keys, so the result is still a map by locale
-				return spreadResult(receiver, walk(spread.getMappingExpression(), elementsOf(receiver), true));
+				return walkSpread(receiver, spread);
 			}
 			refuse(text.toString(), RefusalReason.MISSING);
-			return Walked.PLAIN.alternatives();
+			return PLAIN_ALTERNATIVES;
 		}
 
 		/**
@@ -2052,16 +2133,16 @@ public final class IndexingExpressionInputValidator {
 					case "size", "any", "all", "none" -> walkArguments(method, elementsOf(receiver));
 					default -> refuse(text.toString(), RefusalReason.MISSING);
 				}
-				return Walked.PLAIN.alternatives();
+				return PLAIN_ALTERNATIVES;
 			} else if (step instanceof SpreadAccessStep spread) {
-				return spreadResult(receiver, walk(spread.getMappingExpression(), elementsOf(receiver), true));
+				return walkSpread(receiver, spread);
 			} else if (step instanceof ElementAccessStep) {
 				// the text of the list, without the index
 				refuse(textBefore(text, step), RefusalReason.POSITIONAL);
-				return Walked.PLAIN.alternatives();
+				return PLAIN_ALTERNATIVES;
 			}
 			refuse(text.toString(), RefusalReason.MISSING);
-			return Walked.PLAIN.alternatives();
+			return PLAIN_ALTERNATIVES;
 		}
 
 		/**
@@ -2083,9 +2164,9 @@ public final class IndexingExpressionInputValidator {
 			} else if (step instanceof MethodInvocationStep method) {
 				walkArguments(method, elementsOf(receiver));
 			} else if (step instanceof SpreadAccessStep spread) {
-				return spreadResult(receiver, walk(spread.getMappingExpression(), elementsOf(receiver), true));
+				return walkSpread(receiver, spread);
 			}
-			return Walked.PLAIN.alternatives();
+			return PLAIN_ALTERNATIVES;
 		}
 
 		/**

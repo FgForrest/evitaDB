@@ -74,7 +74,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * reads evitaDB keeps the histogram current with, histogram values only the four attribute sources, facet conditions
  * everything except the reject list.
  *
- * Expressions are parsed with `ExpressionFactory.parse` and validated directly; no schema and no engine are involved.
+ * Expressions are parsed with `ExpressionFactory.parse` and validated directly; no entity schema, catalog or engine is
+ * involved. The nested `SchemaLevelEntryPoints` covers the entry points that check whole mutation payloads and
+ * reference schemas, built in memory.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -453,6 +455,89 @@ class IndexingExpressionInputValidatorTest {
 			assertTrue(refusal.getMessage().startsWith("The `facetedPartially` condition "), refusal.getMessage());
 			assertTrue(refusal.getMessage().contains("in scope ARCHIVED cannot read `$entity.version`"),
 				refusal.getMessage());
+		}
+
+		/**
+		 * Proves that the check of a stored reference schema goes past the accepted `bucketedPartially` condition of
+		 * the live scope and names the scope of the refused one outside it.
+		 */
+		@Test
+		@DisplayName("name the scope of a refused bucketedPartially condition outside the live scope")
+		void shouldNameNonLiveScopeOfRefusedBucketedPartiallyCondition() {
+			final ReferenceSchemaContract referenceSchema = referenceSchema(
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(Scope.LIVE, HISTOGRAM_NAME, ExpressionFactory.parse(VALUE), null)
+				},
+				new ScopedBucketedPartially[]{
+					new ScopedBucketedPartially(Scope.LIVE, ExpressionFactory.parse(ACCEPTED_CONDITION)),
+					new ScopedBucketedPartially(Scope.ARCHIVED, ExpressionFactory.parse(REFUSED_CONDITION))
+				}
+			);
+
+			final InvalidSchemaMutationException refusal = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> IndexingExpressionInputValidator.validateHistogramExpressions(ENTITY_TYPE, referenceSchema)
+			);
+
+			assertTrue(refusal.getMessage().startsWith("The `bucketedPartially` condition "), refusal.getMessage());
+			assertTrue(refusal.getMessage().contains("in scope ARCHIVED cannot read `$entity.version`"),
+				refusal.getMessage());
+		}
+
+		/**
+		 * Proves that the payload check reads both expressions of a histogram a mutation sets - the value expression
+		 * and the `assignedWhen` condition - and names the histogram and the slot of the refused one.
+		 */
+		@Test
+		@DisplayName("check the value and the condition of a histogram a mutation sets")
+		void shouldCheckHistogramValueAndAssignedWhenOfMutationPayload() {
+			final ModifyEntitySchemaMutation refusedValue = new ModifyEntitySchemaMutation(
+				ENTITY_TYPE,
+				new SetReferenceSchemaBucketedMutation(
+					REFERENCE_NAME,
+					new ScopedHistogramIndexDefinition[]{
+						new ScopedHistogramIndexDefinition(
+							Scope.LIVE, HISTOGRAM_NAME, ExpressionFactory.parse(VALUE + " + 1"), null
+						)
+					}
+				)
+			);
+			final ModifyEntitySchemaMutation refusedCondition = new ModifyEntitySchemaMutation(
+				ENTITY_TYPE,
+				new SetReferenceSchemaBucketedMutation(
+					REFERENCE_NAME,
+					new ScopedHistogramIndexDefinition[]{
+						new ScopedHistogramIndexDefinition(
+							Scope.LIVE, HISTOGRAM_NAME, ExpressionFactory.parse(VALUE),
+							ExpressionFactory.parse(REFUSED_CONDITION)
+						)
+					}
+				)
+			);
+
+			final InvalidSchemaMutationException valueRefusal = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> IndexingExpressionInputValidator.validateEntitySchemaMutation(refusedValue)
+			);
+			final InvalidSchemaMutationException conditionRefusal = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> IndexingExpressionInputValidator.validateEntitySchemaMutation(refusedCondition)
+			);
+
+			assertTrue(
+				valueRefusal.getMessage().startsWith("The value expression of histogram `" + HISTOGRAM_NAME + "` "),
+				valueRefusal.getMessage()
+			);
+			assertTrue(valueRefusal.getMessage().contains("has an unsupported form"), valueRefusal.getMessage());
+			assertTrue(
+				conditionRefusal.getMessage().startsWith(
+					"The `assignedWhen` condition of histogram `" + HISTOGRAM_NAME + "` "
+				),
+				conditionRefusal.getMessage()
+			);
+			assertTrue(conditionRefusal.getMessage().contains("cannot read `$entity.version`"),
+				conditionRefusal.getMessage());
 		}
 
 		/**

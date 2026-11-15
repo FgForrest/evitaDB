@@ -39,6 +39,10 @@ import java.util.List;
  * with, histogram values only the four attribute sources, facet conditions everything except the reject list. A
  * refused cell names the read the message must name and a fragment of the reason it must give.
  *
+ * The prefix of a cell id names its table and verdict: `A-` and `R-` a histogram condition the validator accepts and
+ * refuses, `V-A` and `V-R` a histogram value, `FA-` and `FR-` a facet condition. The functional tests select cells by
+ * id, so an id stays as it is once a test names it.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class IndexingExpressionInputCells {
@@ -148,8 +152,30 @@ public final class IndexingExpressionInputCells {
 	 */
 	@Nonnull
 	private static List<Cell> histogramConditionCells() {
-		final List<Cell> cells = new ArrayList<>(112);
-		// accepted: constants, own attributes and associated data, the parent link, attributes through one hop
+		final List<Cell> cells = new ArrayList<>(128);
+		addHistogramTrackedReads(cells);
+		addHistogramParenthesizedPrefixes(cells);
+		addHistogramStepsOnCoalesceResults(cells);
+		addHistogramParenthesizedOperands(cells);
+		addHistogramCoalescedHopsAndFallbacks(cells);
+		addHistogramUnnamedContainers(cells);
+		addHistogramLocaleSetReads(cells);
+		addHistogramUntrackedReads(cells);
+		addHistogramHopsWithoutAttribute(cells);
+		addHistogramUnsupportedProperties(cells);
+		addHistogramDynamicNamesAndNestedRoots(cells);
+		addHistogramRandomAndUnknownVariables(cells);
+		return List.copyOf(cells);
+	}
+
+	/**
+	 * Adds accepted histogram conditions over every kind of tracked read: constants, the owner's own attributes and
+	 * associated data, the parent link, the presence of the reference, its attributes and attributes read through one
+	 * hop.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addHistogramTrackedReads(@Nonnull List<Cell> cells) {
 		cells.add(accepted("A-E1", "$entity.primaryKey > 0"));
 		cells.add(accepted("A-R1", "$reference.referencedPrimaryKey > 0"));
 		cells.add(accepted("A-E2", "$entity.attributes['status'] == 'A'"));
@@ -201,6 +227,15 @@ public final class IndexingExpressionInputCells {
 		cells.add(accepted("A-C9", "($entity.attributes['tags'] ?*? 'none').size() > 0"));
 		cells.add(accepted("A-K", "true"));
 		cells.add(accepted("A-M", "max($entity.attributes['delta'], 3) ^ ($entity.attributes['delta'] % 2 == 0)"));
+	}
+
+	/**
+	 * Adds histogram conditions with a parenthesized prefix of a read, walked as the read itself unless the
+	 * condition reads an attribute through a hop.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addHistogramParenthesizedPrefixes(@Nonnull List<Cell> cells) {
 		// a parenthesized prefix of a read is walked as the read itself
 		cells.add(accepted("A-par-root", "($entity).attributes['status'] == 'A'"));
 		cells.add(accepted("A-par-container", "($entity.attributes)['status'] == 'A'"));
@@ -217,6 +252,15 @@ public final class IndexingExpressionInputCells {
 		// walked as written, the attribute is still read through the hop: the parenthesized chain starts at
 		// `$reference`
 		cells.add(accepted("A-par-hop-prefix", "($reference.referencedEntity).attributes['status'] == 'A'"));
+	}
+
+	/**
+	 * Adds histogram conditions applying a step to the result of `??` or `*?`, at the top level and inside a
+	 * predicate.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addHistogramStepsOnCoalesceResults(@Nonnull List<Cell> cells) {
 		// a step on the result of `??` or `*?` reads data the engine cannot map to the operands
 		cells.add(refused("R-coalesce-index",
 			"($entity.attributes['tags'] ?? $entity.attributes['fallbackTags'])[0] == 'A'",
@@ -233,6 +277,15 @@ public final class IndexingExpressionInputCells {
 			"($reference.referencedEntity ?? $reference.referencedEntity).size() > 0 && " +
 				"$reference.referencedEntity.attributes['status'] == 'A'",
 			"($reference.referencedEntity ?? $reference.referencedEntity).size()", MISSING));
+	}
+
+	/**
+	 * Adds histogram conditions with parentheses around an operand compared with `null`, a name, a key or the
+	 * receiver of a step, and with keys computed from the element `$`.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addHistogramParenthesizedOperands(@Nonnull List<Cell> cells) {
 		// `null` in parentheses is `null`: the comparison depends only on whether the other operand is present
 		cells.add(accepted("A-par-null-parent", "$entity.parentEntity != (null)"));
 		cells.add(accepted("A-par-null-parent-left", "(null) == $entity.parentEntity"));
@@ -258,6 +311,15 @@ public final class IndexingExpressionInputCells {
 		cells.add(refused("R-coalesce-paren-receiver",
 			"((($entity.attributes['tags'] ?? $entity.attributes['fallbackTags'])))[0] == 'A'",
 			"((($entity.attributes['tags'] ?? $entity.attributes['fallbackTags'])))[0]", COMPUTED_RECEIVER));
+	}
+
+	/**
+	 * Adds histogram conditions applying a step to coalesced entities one hop away, reading through the fallback
+	 * of `*?`, applying a predicate to the result of `??` and selecting a locale of a coalesced localized map.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addHistogramCoalescedHopsAndFallbacks(@Nonnull List<Cell> cells) {
 		// a step on the result of `??` reads data the engine cannot map, whichever entity the operands are
 		cells.add(refused("R-coalesce-hop-attribute",
 			"($reference.referencedEntity ?? $reference.groupEntity).attributes['status'] == 'A'",
@@ -288,6 +350,14 @@ public final class IndexingExpressionInputCells {
 		cells.add(refused("R-coalesce-map-selector",
 			"($entity.localizedAttributes['name'] ?? $entity.localizedAttributes['alt'])['en'] != null",
 			"$entity.localizedAttributes['name']", LOCALE_SET));
+	}
+
+	/**
+	 * Adds histogram conditions reading a data container without a name, refused where its chain ends.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addHistogramUnnamedContainers(@Nonnull List<Cell> cells) {
 		// the read named by a refusal before a null-safe step ends at the read, not at the marker
 		cells.add(refused("R-nullsafe-attributes", "$entity.attributes?.size() > 0", "$entity.attributes", DYNAMIC));
 		// a data container without a name is refused where its chain ends, also as an operand of `??`, whatever the
@@ -299,7 +369,14 @@ public final class IndexingExpressionInputCells {
 			"$entity.attributes", DYNAMIC));
 		cells.add(refused("R-coalesce-container-name", "($entity.attributes ?? null)['status'] == 'A'",
 			"$entity.attributes", DYNAMIC));
-		// refused: the locale set, whose changes no hook withdraws on
+	}
+
+	/**
+	 * Adds histogram conditions reading the locale set, whose changes no hook withdraws on.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addHistogramLocaleSetReads(@Nonnull List<Cell> cells) {
 		cells.add(refused("R-E4", "$entity.localizedAttributes['name'].size() > 0",
 			"$entity.localizedAttributes['name']", LOCALE_SET));
 		cells.add(refused("R-E4n", "$entity.localizedAttributes['name'] != null",
@@ -318,7 +395,16 @@ public final class IndexingExpressionInputCells {
 		cells.add(refused("R-N3",
 			"$reference.referencedEntity.locales.size() > 0 && $reference.referencedEntity.attributes['status'] == 'A'",
 			"$reference.referencedEntity.locales", LOCALE_SET));
-		// refused: the owner's other references, the references of an entity one hop away, untracked hop data
+	}
+
+	/**
+	 * Adds histogram conditions reading data no hook withdraws on: the owner's other references, the references,
+	 * associated data and parent of an entity one hop away, the scope, the localized attributes of the reference and
+	 * the bare `$entity` and `$reference`.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addHistogramUntrackedReads(@Nonnull List<Cell> cells) {
 		cells.add(refused("R-E7", "$entity.references['tag'] != null", "$entity.references", UNTRACKED));
 		cells.add(refused("R-E8", "$entity.references['tag'].attributes['w'] > 0", "$entity.references", UNTRACKED));
 		cells.add(refused("R-N5", "$reference.referencedEntity.references['tag'].attributes['w'] > 0",
@@ -343,7 +429,14 @@ public final class IndexingExpressionInputCells {
 			"$reference.localizedAttributes", UNTRACKED));
 		cells.add(refused("R-bare", "$entity != null", "$entity", UNTRACKED));
 		cells.add(refused("R-bareR", "$reference == 'x'", "$reference", UNTRACKED));
-		// refused: a hop read without an attribute read through the same hop
+	}
+
+	/**
+	 * Adds histogram conditions reading an entity one hop away without an attribute read through the same hop.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addHistogramHopsWithoutAttribute(@Nonnull List<Cell> cells) {
 		cells.add(refused("R-E13s", "$entity.parentEntity?.primaryKey > 0", "$entity.parentEntity?.primaryKey", HOP));
 		cells.add(refused("R-E13c", "$entity.parentEntity?.scope == 'LIVE'", "$entity.parentEntity?.scope", HOP));
 		cells.add(refused("R-E13t", "$entity.parentEntity == $entity.parentEntity", "$entity.parentEntity", HOP));
@@ -354,7 +447,14 @@ public final class IndexingExpressionInputCells {
 		cells.add(refused("R-R7m",
 			"$reference.groupEntity == null && $reference.referencedEntity.attributes['status'] == 'A'",
 			"$reference.groupEntity", HOP));
-		// refused: data evitaDB maintains itself, prices, properties that do not exist
+	}
+
+	/**
+	 * Adds histogram conditions reading data evitaDB maintains itself, prices and properties that do not exist.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addHistogramUnsupportedProperties(@Nonnull List<Cell> cells) {
 		cells.add(refused("R-E19", "$entity.version >= 3", "$entity.version", ENGINE_MAINTAINED));
 		cells.add(refused("R-E20", "$entity.dropped == false", "$entity.dropped", ENGINE_MAINTAINED));
 		cells.add(refused("R-N10", "$reference.referencedEntity.version > 1",
@@ -372,6 +472,15 @@ public final class IndexingExpressionInputCells {
 		cells.add(refused("R-R8", "$reference.group == 1", "$reference.group", MISSING));
 		cells.add(refused("R-R8b", "$reference.referencedEntityType == 'brand'",
 			"$reference.referencedEntityType", MISSING));
+	}
+
+	/**
+	 * Adds histogram conditions naming data with something other than a string constant, and those reading an
+	 * `$entity` or `$reference` root nested in a predicate, a spread mapping or a key.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addHistogramDynamicNamesAndNestedRoots(@Nonnull List<Cell> cells) {
 		// refused: dynamic names
 		cells.add(refused("R-E10", "$entity.attributes['st' + 'atus'] == 'A'",
 			"$entity.attributes['st' + 'atus']", DYNAMIC));
@@ -385,13 +494,19 @@ public final class IndexingExpressionInputCells {
 			"$entity.primaryKey", NESTED_ROOT));
 		cells.add(refused("R-C3", "$entity.localizedAttributes['name'][$reference.attributes['k']] != null",
 			"$reference.attributes['k']", NESTED_ROOT));
-		// refused: random() and unknown variables
+	}
+
+	/**
+	 * Adds histogram conditions calling `random()` or reading a variable that is not available.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addHistogramRandomAndUnknownVariables(@Nonnull List<Cell> cells) {
 		cells.add(refused("R-X1", "random() > 5", "random()", RANDOM));
 		cells.add(refused("R-X1n", "$entity.attributes['tags'].any($ == random(3))", "random(3)", RANDOM));
 		cells.add(refused("R-X2", "$unknown == 1", "$unknown", VARIABLE));
 		cells.add(refused("R-X2p", "$other.attributes['x'] == 1", "$other", VARIABLE));
 		cells.add(refused("R-X2t", "$ == 1", "$", VARIABLE));
-		return List.copyOf(cells);
 	}
 
 	/**
@@ -401,7 +516,7 @@ public final class IndexingExpressionInputCells {
 	 */
 	@Nonnull
 	private static List<Cell> histogramValueCells() {
-		final List<Cell> cells = new ArrayList<>(24);
+		final List<Cell> cells = new ArrayList<>(25);
 		cells.add(accepted("V-A1", "$reference.attributes['share']"));
 		cells.add(accepted("V-A2", "$reference.attributes['share'] ?? 5"));
 		cells.add(accepted("V-A3", "$reference.localizedAttributes['lshare'] ?? 5"));
@@ -424,6 +539,12 @@ public final class IndexingExpressionInputCells {
 		cells.add(refused("V-R11", "$reference.referencedEntity.references['t'].attributes['w']", null, VALUE_FORM));
 		cells.add(refused("V-R12", "$reference.attributes['sh' + 'are']", null, VALUE_FORM));
 		cells.add(refused("V-R13", "$reference.attributes['share'] ?? 5 ?? 6", null, VALUE_FORM));
+		// an attribute source is read only as written: parentheses around the default, the source or the name and
+		// `?*?` instead of `??` are other forms
+		cells.add(refused("V-R14", "$reference.attributes['share'] ?? (5)", null, VALUE_FORM));
+		cells.add(refused("V-R15", "($reference.attributes['share']) ?? 5", null, VALUE_FORM));
+		cells.add(refused("V-R16", "$reference.attributes[('share')]", null, VALUE_FORM));
+		cells.add(refused("V-R17", "$reference.attributes['share'] ?*? 5", null, VALUE_FORM));
 		return cells.stream().map(cell -> cell.withKind(IndexingExpressionKind.HISTOGRAM_VALUE)).toList();
 	}
 
@@ -434,7 +555,30 @@ public final class IndexingExpressionInputCells {
 	 */
 	@Nonnull
 	private static List<Cell> facetConditionCells() {
-		final List<Cell> cells = new ArrayList<>(112);
+		final List<Cell> cells = new ArrayList<>(153);
+		addFacetAdmittedReads(cells);
+		addFacetUnnamedContainers(cells);
+		addFacetTranslatedConditions(cells);
+		addFacetRejectList(cells);
+		addFacetHopParentsAndIdentitySpreads(cells);
+		addFacetParenthesizedPrefixesAndNullSafeSteps(cells);
+		addFacetStepsOnCoalescedEntities(cells);
+		addFacetParenthesizedOperands(cells);
+		addFacetCoalescedContainers(cells);
+		addFacetSpreadCoalesceResults(cells);
+		addFacetCoalesceResults(cells);
+		addFacetTriggerBuildRefusals(cells);
+		return cells.stream().map(cell -> cell.withKind(IndexingExpressionKind.FACETED_PARTIALLY)).toList();
+	}
+
+	/**
+	 * Adds facet conditions the reject list admits, most of them refused by the histogram rules - references, the
+	 * scope, the locale set used regardless of its order, localized maps, bare hops, nested roots and the bare
+	 * `$entity` and `$reference` - beside the positional read of a spread over a localized map, which it refuses.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addFacetAdmittedReads(@Nonnull List<Cell> cells) {
 		cells.add(accepted("FA-1",
 			"$reference.referencedEntity.references['tag'].any(($.attributes['weight'] ?? 0) > 5)"));
 		cells.add(accepted("FA-1g",
@@ -462,6 +606,17 @@ public final class IndexingExpressionInputCells {
 		cells.add(accepted("FA-9", "$reference.localizedAttributes['note']['en'] != null"));
 		cells.add(accepted("FA-10", "$entity.associatedData['metadata'] != null"));
 		cells.add(accepted("FA-11", "$reference.referencedEntity.attributes['price'] + 5 > 10"));
+		// the bare `$entity` and `$reference`, which the histogram rules refuse, are on no reject list
+		cells.add(accepted("FA-bare-owner", "$entity != null"));
+		cells.add(accepted("FA-bare-reference", "$reference == 'x'"));
+	}
+
+	/**
+	 * Adds facet conditions comparing a data or `references` container that ends its chain with `null`.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addFacetUnnamedContainers(@Nonnull List<Cell> cells) {
 		// a data container ending the chain evaluates to the container, which is never `null`
 		cells.add(accepted("FA-12", "$entity.attributes != null"));
 		cells.add(accepted("FA-12l", "$entity.localizedAttributes != null"));
@@ -475,6 +630,16 @@ public final class IndexingExpressionInputCells {
 		cells.add(accepted("FA-12hr", "$reference.referencedEntity.references != null"));
 		cells.add(accepted("FA-12p", "$entity.parentEntity?.attributes != null"));
 		cells.add(accepted("FA-12m", "$entity.attributes != null && $entity.parentEntity != null"));
+	}
+
+	/**
+	 * Adds facet conditions pairing a container without a name with a read through a hop - refused when the read
+	 * is an attribute read the engine maps, because the condition is then translated into a query - and the shape of
+	 * a typical production condition.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addFacetTranslatedConditions(@Nonnull List<Cell> cells) {
 		// a condition reading an attribute through a hop is translated into a query, which cannot express a container
 		// without a name
 		cells.add(refused(
@@ -510,6 +675,13 @@ public final class IndexingExpressionInputCells {
 		cells.add(accepted(
 			"FA-12n", "$entity.attributes != null && $reference.referencedEntity.references['tag'] != null"
 		));
+		// a chain starting at the result of `??` maps no read from a variable, so an attribute read through a hop on
+		// it counts as none, and the container without a name beside it stays admitted
+		cells.add(accepted(
+			"FA-coalesce-hop-attribute-unrooted",
+			"$entity.attributes != null && " +
+				"($reference.referencedEntity ?? $reference.groupEntity).attributes['status'] == 'A'"
+		));
 		// the shape of a typical production condition: a boolean reference attribute combined with attributes of the
 		// referenced and the group entity, every read defaulted
 		cells.add(accepted(
@@ -518,6 +690,16 @@ public final class IndexingExpressionInputCells {
 				"(($reference.referencedEntity.attributes['weight'] ?? 0) > 0 || " +
 				"($reference.groupEntity?.attributes['type'] ?? '') == 'X')"
 		));
+	}
+
+	/**
+	 * Adds facet conditions for every kind of read the reject list refuses: properties that do not exist and steps
+	 * that fail at evaluation, data evitaDB maintains itself, order-dependent locale reads, `random()`, prices,
+	 * dynamic names, reads that are always `null` and unknown variables.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addFacetRejectList(@Nonnull List<Cell> cells) {
 		// reads that fail at evaluation on every non-null receiver
 		cells.add(refused("FR-14", "$entity.size() > 0", "$entity.size()", MISSING));
 		cells.add(refused("FR-15", "$entity.*[$ != null] != null", "$entity.*[$ != null]", MISSING));
@@ -562,7 +744,17 @@ public final class IndexingExpressionInputCells {
 		cells.add(refused("FR-11", "$reference.referencedEntity.references['tag'].any($.groupEntity != null)",
 			"$.groupEntity", NULL_HOP));
 		cells.add(refused("FR-12", "$foo == 1", "$foo", VARIABLE));
+		cells.add(refused("FR-this-unbound", "$ == 1", "$", VARIABLE));
 		cells.add(refused("FR-13", "$entity.dropped == false", "$entity.dropped", ENGINE_MAINTAINED));
+	}
+
+	/**
+	 * Adds facet conditions reading the parent of an entity one hop away and the elements of a spread over
+	 * references.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addFacetHopParentsAndIdentitySpreads(@Nonnull List<Cell> cells) {
 		// the reject list holds for the parent of an entity one hop away, whose attribute reads stay local
 		cells.add(refused("FR-hop-parent-version", "$entity.parentEntity?.parentEntity?.version > 0",
 			"$entity.parentEntity?.parentEntity?.version", ENGINE_MAINTAINED));
@@ -579,14 +771,36 @@ public final class IndexingExpressionInputCells {
 		cells.add(refused("FR-spread-identity-index", "$entity.references['tag'].*[$][0].group != null",
 			"$entity.references['tag'].*[$][0].group", MISSING));
 		cells.add(accepted("FA-spread-value", "$entity.references['tag'].*[$.attributes['w']].any($ > 1)"));
+	}
+
+	/**
+	 * Adds facet conditions with a parenthesized prefix of a read, walked as written when the condition reads an
+	 * attribute through a hop, and those naming a read before a null-safe step.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addFacetParenthesizedPrefixesAndNullSafeSteps(@Nonnull List<Cell> cells) {
 		// a condition reading an attribute through a hop is translated into a query, which accepts no parenthesized
 		// prefix of a read, so such a condition is walked as written: the container ends its chain there
 		cells.add(refused("FR-par-translated",
 			"($entity.attributes)['status'] == 'A' && $reference.referencedEntity.attributes['status'] == 'A'",
 			"$entity.attributes", DYNAMIC));
+		// a condition reading no attribute through a hop is walked with its parenthesized prefixes looked through;
+		// walked as written, a parenthesized chain starting at `$reference` still reads the attribute through the hop
+		cells.add(accepted("FA-par-container-local", "($entity.attributes)['status'] == 'A'"));
+		cells.add(accepted("FA-par-hop-prefix", "($reference.referencedEntity).attributes['status'] == 'A'"));
 		// the read named by a refusal before a null-safe step ends at the read, not at the marker
 		cells.add(refused("FR-nullsafe-locales", "$entity.locales?[0] == 'en'", "$entity.locales", POSITIONAL));
 		cells.add(refused("FR-nullsafe-references", "$entity.references?.size() > 0", "$entity.references", DYNAMIC));
+	}
+
+	/**
+	 * Adds facet conditions applying an element, method or spread step to the result of `??` that may be an
+	 * entity or a reference.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addFacetStepsOnCoalescedEntities(@Nonnull List<Cell> cells) {
 		// an element, method or spread step on an entity or a reference fails at evaluation, also when the entity or
 		// the reference is an operand of `??`
 		cells.add(refused("FR-coalesce-entity-method", "($entity ?? $entity).size() > 0",
@@ -601,6 +815,14 @@ public final class IndexingExpressionInputCells {
 			"($entity.references['tag'][0] ?? $entity.references['tag'][1]).size()", MISSING));
 		cells.add(refused("FR-coalesce-mixed", "($entity.attributes['status'] ?? $entity).size() > 0",
 			"($entity.attributes['status'] ?? $entity).size()", MISSING));
+	}
+
+	/**
+	 * Adds facet conditions with parentheses around `null`, a name or the element `$`.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addFacetParenthesizedOperands(@Nonnull List<Cell> cells) {
 		// `null` in parentheses is `null`: a list ordered by locale may be compared with it
 		cells.add(accepted("FA-par-null-locales", "$entity.locales != (null)"));
 		cells.add(accepted("FA-par-null-locales-left", "(null) == $entity.locales"));
@@ -608,6 +830,15 @@ public final class IndexingExpressionInputCells {
 			DYNAMIC));
 		cells.add(refused("FR-par-this", "$entity.references['tag'].any(($).referencedEntity != null)",
 			"$.referencedEntity", NULL_HOP));
+	}
+
+	/**
+	 * Adds facet conditions applying a step to a data or `references` container that is the result of `??` or
+	 * `*?`, or that a spread mapping or the fallback of `*?` makes an element `$` stands for.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addFacetCoalescedContainers(@Nonnull List<Cell> cells) {
 		// a data or `references` container that is the result of `??` or `*?` is still a container: it may be compared
 		// with `null`, a step on it must be a name written as a string constant, and even such a name is refused,
 		// because the engine maps no name applied to the result to the container
@@ -679,6 +910,15 @@ public final class IndexingExpressionInputCells {
 			"$entity.references['tag'].*[$.attributes].any($[('w')] > 1)", "$[('w')]", DYNAMIC));
 		cells.add(refused("FR-spread-coalesce-fallback-par-name",
 			"($entity.attributes['tags'] *? $entity.attributes).any($[('x')] == 1)", "$[('x')]", DYNAMIC));
+	}
+
+	/**
+	 * Adds facet conditions applying a step to the result of `*?`, which is the collection, or to its elements,
+	 * which are elements of the collection or the fallback.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addFacetSpreadCoalesceResults(@Nonnull List<Cell> cells) {
 		// the result of `*?` is the collection, whose `null` elements the fallback replaces: the fallback is an
 		// element, never the receiver of a step
 		cells.add(accepted("FA-spread-coalesce-reference", "($entity.references['tag'] *? $reference).size() > 0"));
@@ -702,6 +942,15 @@ public final class IndexingExpressionInputCells {
 		cells.add(refused("FR-coalesce-in-spread",
 			"(($entity.references['tag'] ?? null) *? $reference).any($.referencedEntity != null)",
 			"$.referencedEntity", NULL_HOP));
+	}
+
+	/**
+	 * Adds facet conditions applying a step to the result of `??`, which is either operand: the reject list holds
+	 * for it whichever operand it is, and what the reject list admits stays admitted.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addFacetCoalesceResults(@Nonnull List<Cell> cells) {
 		// the result of `??` is either operand, and the reject list holds for a step on it whichever it is
 		cells.add(refused("FR-coalesce-entity-version", "($entity ?? $entity).version >= 3",
 			"($entity ?? $entity).version", ENGINE_MAINTAINED));
@@ -740,14 +989,22 @@ public final class IndexingExpressionInputCells {
 			"$entity.references['tag'].any(($ ?? null).attributes['w'] > 1)"));
 		cells.add(accepted("FA-coalesce-this-pk",
 			"$entity.references['tag'].any(($ ?? null).referencedPrimaryKey > 0)"));
-		// admitted here and refused only when the trigger is built, which a warming-up catalog answers by deactivating;
-		// `IndexingExpressionInputRefusalTest$TriggerBuildRefusalInWarmUp` defines them
+	}
+
+	/**
+	 * Adds two facet conditions the validator admits and the trigger build refuses - a step and a predicate applied to
+	 * the result of `*?` whose fallback is `$reference` - which a warming-up catalog answers by deactivating;
+	 * `IndexingExpressionInputRefusalTest$TriggerBuildRefusalInWarmUp` defines them together with the other cells the
+	 * trigger build refuses.
+	 *
+	 * @param cells the list the cells are added to
+	 */
+	private static void addFacetTriggerBuildRefusals(@Nonnull List<Cell> cells) {
 		cells.add(accepted("FA-spread-translated",
 			"($entity.references['brand'] *? $reference).size() > 0 && " +
 				"$reference.referencedEntity.attributes['status'] == 'A'"));
 		cells.add(accepted("FA-spread-predicate",
 			"($entity.references['brand'] *? $reference).any($.attributes['share'] > 0)"));
-		return cells.stream().map(cell -> cell.withKind(IndexingExpressionKind.FACETED_PARTIALLY)).toList();
 	}
 
 	/**
