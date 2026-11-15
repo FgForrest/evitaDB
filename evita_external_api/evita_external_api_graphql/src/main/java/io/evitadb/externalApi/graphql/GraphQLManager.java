@@ -431,7 +431,7 @@ public class GraphQLManager {
 			catalogName,
 			GraphQLInstanceType.DATA,
 			buildType,
-			buildStatistics.dataApiSchemaBuildDuration().get(),
+			buildStatistics.dataApiInstanceBuildDuration().get(),
 			buildStatistics.dataApiSchemaBuildDuration().get(),
 			buildStatistics.dataApiSchemaDslLines().get()
 		).commit();
@@ -439,7 +439,7 @@ public class GraphQLManager {
 			catalogName,
 			GraphQLInstanceType.SCHEMA,
 			buildType,
-			buildStatistics.schemaApiSchemaBuildDuration().get(),
+			buildStatistics.schemaApiInstanceBuildDuration().get(),
 			buildStatistics.schemaApiSchemaBuildDuration().get(),
 			buildStatistics.schemaApiSchemaDslLines().get()
 		).commit();
