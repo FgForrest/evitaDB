@@ -1,12 +1,12 @@
 ---
 title: A warm-up schema change refused when its expression triggers are built raises the unpublishable barrier, and the inline DDL flush waits until they build
 date: 2026-11-15
-updated: 2026-11-15 14:37
+updated: 2026-11-15 21:01
 status: proposed
 kind: fix
 issues: [1922]
 prs: []
-areas: [evita_engine/src/main/java/io/evitadb/core/catalog, evita_api/src/main/java/io/evitadb/api]
+areas: [evita_engine/src/main/java/io/evitadb/core/catalog, evita_api/src/main/java/io/evitadb/api, evita_engine/src/main/java/io/evitadb/core/expression/trigger/IndexingExpressionInputValidator.java]
 supersedes: []
 superseded-by: []
 relates: [2026-09-08-warm-up-invalid-schema-refuses-to-publish, 2026-11-03-schema-builder-no-op-mutation-pruning]
@@ -163,7 +163,24 @@ Refuse a property or constant-key step on a chain that does not start at a varia
   the extension before it; the rule widens a refusal that also runs at load, where a refusal means `CORRUPTED`, beyond
   the shapes it was measured on; and it cannot decide refusals that depend on another entity type's schema, such as the
   numeric default. **Revisit when:** never as the way to close the class; single rules may still turn a common shape
-  into an ordinary preflight refusal.
+  into an ordinary preflight refusal. The validator applies such rules, narrower than this one, to the top-level forms
+  the build refuses: a property or constant-key step on the result of `??` or `*?` in a histogram condition, and a name
+  applied to a data container that is such a result (*The payload validator's step rules* under Key technical
+  details; Option H covers the forms that build without error).
+
+### Option H - drop the validator's step rules and rely on the barrier (declined)
+
+Accept every step on the result of `??` or `*?` and every parenthesized name in the payload validator, and leave the
+forms the trigger build refuses to the barrier of Option A.
+
+- **Pros:** fewer rules in the validator, whose every rule also runs at load, where a refusal means `CORRUPTED`.
+- **Rejected because:** the barrier catches only what the trigger build refuses. A parenthesized name and a name
+  applied to a coalesced container inside a predicate build without error and record no dependency on the data they
+  read, so nothing would refuse them, and the index would be expected to go stale when that data changes (suspected,
+  not measured). The forms the build does refuse would cost a deactivation in warm-up where the rule costs an ordinary
+  refusal at definition.
+  **Revisit when** the dependency analysis maps a step on the result of `??` or `*?` to each operand and reads a name
+  through parentheses; each rule can then go.
 
 ## Decision
 
@@ -210,6 +227,29 @@ proved to be a real cost in imports and warm-up gained a journal of schema objec
   by name and primary key; a published collection replacing one that is not published yet is accepted.
 - **The operator message is the validation barrier's.** `markUnpublishableDueToInvalidSchema` says the stored data is
   intact and activation loads the last published state; the cause attached to the log line names the build's refusal.
+- **The payload validator's step rules.** `IndexingExpressionInputValidator` refuses, by decision, two kinds of step
+  that the dependency analysis (`AccessedDataFinder`) cannot map to the data they read; `IndexingExpressionInputCells`
+  holds the verdicts.
+  - *A step on the result of `??` or `*?`.* In a histogram condition, outside a predicate, a spread mapping or a key,
+    every property step and constant-key element step of the chain applied to such a result is refused:
+    `($entity.attributes['tags'] ?? $entity.attributes['fallbackTags'])[0] == 'A'`,
+    `($entity.attributes['validity'] ?? $entity.attributes['fallbackValidity']).from != null`. In every indexing
+    expression, facet conditions and predicates included, a name applied to a data or `references` container that is
+    such a result is refused, also when it is a string constant: `($entity.attributes ?? null)['status'] == 'A'`; a
+    histogram condition refuses that form earlier, as a container read without a name. A method such as `any(...)` or
+    `size()` on such a result, and a `??` whose result nothing steps into, are not refused by this rule. The reason:
+    the finder continues the path of such a step from the `??` node, which is no variable. At the top level the path
+    starts at the step's own name or key, and the trigger build throws "Expected variable at path root" - measured for
+    `($entity.attributes ?? null)['status']`, traced for the histogram forms - so without the rule such a definition
+    would cost a deactivation in warm-up instead of an ordinary refusal. Inside a predicate the name is appended to the
+    predicate's receiver without the container: `$entity.references['tag'].any(($.attributes ?? null)['w'] > 1)` builds
+    and records no dependency on `w`. A property step on the result of `??` in a facet condition, such as
+    `($reference.referencedEntity ?? $reference.groupEntity).attributes['status']`, passes the check: in a facet
+    condition this rule refuses only the container-name form. Its build verdict is not measured.
+  - *A name in parentheses*, `$entity.attributes[('status')]`, is refused as a dynamic name. The finder takes a name
+    only from a key written as a bare constant; for any other key it records the container alone, and
+    `ExpressionDependencyClassifier#extractLocalDependencies` finds no attribute in that path, so no hook learns that
+    `status` is read. The trigger builds without error. The stale index this would cause is suspected, not measured.
 
 ## Verification
 
@@ -275,10 +315,11 @@ this change. The barrier the build raises appears exactly 29 times, all in the t
 change actually runs:
 
 - **Expressions the payload validator accepts and the build refuses cost a deactivation in warm-up**, not a preflight
-  refusal: a `*?` or `??` whose result is stepped into or filtered, in histogram and facet conditions; the histogram
-  conditions reading the primary key, the scope or the bare entity one hop away beside an attribute read through it;
-  arithmetic on an attribute of the referenced entity compared in a facet condition; the numeric default that does not
-  fit the attribute type; and every shape of the same families not yet found. In `ALIVE` they roll the transaction
+  refusal: a `*?` or `??` whose result is stepped into or filtered where the validator's step rules (Key technical
+  details) do not refuse it, in histogram and facet conditions; the histogram conditions reading the primary key, the
+  scope or the bare entity one hop away beside an attribute read through it; arithmetic on an attribute of the
+  referenced entity compared in a facet condition; the numeric default that does not fit the attribute type; and every
+  shape of the same families not yet found. In `ALIVE` they roll the transaction
   back.
 - **Removing or retyping an attribute another entity type's histogram reads is not refused**, in the same change or a
   later one, a catalog cascade included (a global attribute removed from the target type while the reader does not
@@ -323,6 +364,22 @@ change actually runs:
 - **The cost of the barrier is the session's unpublished work**, for an ordering mistake or a typo as much as for a real
   error. #1497 (deactivate and drop have no undo) matters more for it. The options above are the ways to lower it.
 
+Two limits of the payload validator itself are accepted as edge cases, documented and not fixed:
+
+- **The check's time grows exponentially with the nesting of predicates whose `$` passes through `??` or `*?`.** The
+  walk repeats an inner predicate once for every shape its receiver may have, and the result of `??` has the shapes of
+  both operands. Measured on `$entity.attributes['tags']`, then N times `.any(($ ?? ($ *? 'x'))`, then `.size() > 0`,
+  N closing parentheses and ` == true`: N = 16 (413 characters) 119 ms, N = 20 (505) 530 ms, N = 24 (597) 5.8 s. The
+  check runs when the schema is defined, on every catalog load and on every trigger rebuild, so all three pay it. A
+  fix must keep the order in which the walk finds refusals receiver by receiver, because the first refusal found is
+  the read the message names.
+- **A very long `??` chain overflows the thread stack in the check.** The walk takes two frames per operand
+  (`walk` and `walkCoalesce`). A chain of about 3,000 operands (81,000 characters), which the parser handles, ends in
+  `StackOverflowError` from the check; 2,600 operands still pass, with the default 1 MB thread stack.
+
+**Revisit both when** indexing expressions are accepted from untrusted clients; a limit on the length or the nesting
+depth of an indexing expression would cover both.
+
 ## Related work
 
 - `2026-09-08-warm-up-invalid-schema-refuses-to-publish` - introduced the validation barrier, its message and the
@@ -338,3 +395,6 @@ change actually runs:
   build gate on the inline DDL flushes chosen over restoring the pre-change schemas, holding the refusal pending,
   building in the preflight, publishing DDL at the end of the change, building in the failure handler and another
   validator rule; limited to warm-up deliberately; implemented under #1922, not merged yet
+- **2026-11-15** - the validator's refusals of a step on the result of `??` or `*?` and of a name in parentheses kept
+  as decisions over relying on the barrier; the validator's exponential time on nested coalescing predicates and its
+  stack overflow on very long `??` chains accepted as edge cases

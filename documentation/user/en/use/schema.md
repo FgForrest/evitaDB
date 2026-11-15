@@ -984,6 +984,7 @@ A histogram condition **cannot** read:
 - `$reference.localizedAttributes` — a histogram *value* may read it, a condition may not
 - the referenced, group or parent entity itself, its primary key or its scope — only its attributes can be read; `$entity.parentEntity != null` is the exception
 - `$entity` or `$reference` data inside a predicate, a spread mapping or a key — for example `$entity.attributes['tags'].any($ == $entity.attributes['code'])`
+- a property, or an element at a fixed index or key, of the result of `??` or `*?` outside a predicate, a spread mapping or a key — for example `($entity.attributes['tags'] ?? $entity.attributes['fallbackTags'])[0]`; apply the step to each operand of `??` instead
 
 A **facet condition** (`facetedPartially`) may read all of the above and more, including the owner's other references and a referenced, group, or parent entity's own references and their attributes. For example, `$reference.referencedEntity.references['tag'].any(($.attributes['weight'] ?? 0) > 5)` checks whether any `tag` reference on the referenced entity has a `weight` attribute greater than 5.
 
@@ -991,7 +992,8 @@ No indexing expression may read:
 
 - `version` or `dropped` — evitaDB maintains these values itself, not through your mutations
 - prices, or properties that do not exist (such as `$entity.parent` or `$reference.group`)
-- data named by anything other than a string literal, such as `$entity.attributes['a' + 'b']`
+- data named by anything other than a string literal written directly in the brackets, such as `$entity.attributes['a' + 'b']` or `$entity.attributes[('status')]`
+- an attribute, associated data or reference named on the result of `??` or `*?`, even by a string literal, such as `($entity.attributes ?? null)['status']` — name it on the container itself, as in `$entity.attributes['status']`
 - the result of `random()`, or a variable other than `$entity`, `$reference` and the `$` of a predicate or a spread mapping
 - the referenced or group entity of a reference reached through `$entity.references[...]` or through another entity's references — it is always `null` at indexing time
 - the locales of an entity by their position: their order is not stable, so `$entity.locales[0]`, `.entries[0]` of a localized value, or comparing a list of locales with anything but `null` are rejected — use `size()`, `any(...)`, `all(...)` or `none(...)` instead
