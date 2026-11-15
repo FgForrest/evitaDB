@@ -31,7 +31,7 @@ import java.io.Serial;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class RestTooManyValuesPresentException extends RestInternalError {
+public class RestTooManyValuesPresentException extends RestInvalidArgumentException {
 
 	@Serial private static final long serialVersionUID = -8350809265235877148L;
 

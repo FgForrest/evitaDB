@@ -65,9 +65,8 @@ class RestParameterRoutingTest extends CatalogRestDataEndpointFunctionalTest {
 		final String mixedCase = tester.test(TEST_CATALOG).get(path).requestParam("BODYFETCH", true)
 			.executeAndThen().statusCode(200).extract().asString();
 		assertEquals(fetched, mixedCase, "Declared parameter names remain case-insensitive");
-		// Keep the existing too-many-values exception mapping; this round changes transport only.
 		tester.test(TEST_CATALOG).get(path).requestParam("primaryKey", primaryKey)
-			.executeAndThen().statusCode(500)
+			.executeAndThen().statusCode(400)
 			.body("message", org.hamcrest.Matchers.containsString("found: 2"));
 		tester.test(TEST_CATALOG).get(path).requestParam("notDeclared", "value")
 			.executeAndThen().statusCode(400);
