@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
@@ -255,22 +256,26 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 					.build()
 			)
 		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> this.converter.convertFromInput(
-				map()
-					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-					.e(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(),
-						"tag")
-					.e(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME
-						.name(), "tags")
-					.build()
-			)
-		);
 		assertThrows(EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput((Object) null));
+	}
+
+	/** An omitted inheritance policy must mean what a freshly built reflected reference means in the Java API. */
+	@Test
+	@DisplayName("Defaults an omitted reflected-reference inheritance policy to the Java default")
+	void shouldDefaultOptionalInheritancePolicy() {
+		final CreateReflectedReferenceSchemaMutation mutation = this.converter.convertFromInput(Map.of(
+			"name", "related", "referencedEntityType", "target", "reflectedReferenceName", "original"
+		));
+		final ReflectedReferenceSchema javaDefault = ReflectedReferenceSchema._internalBuild(
+			"related", "target", "original", null, 1.0f
+		);
+		assertEquals(
+			javaDefault.getAttributesInheritanceBehavior(), mutation.getAttributeInheritanceBehavior()
+		);
+		assertEquals(AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED, mutation.getAttributeInheritanceBehavior());
 	}
 
 	@Test

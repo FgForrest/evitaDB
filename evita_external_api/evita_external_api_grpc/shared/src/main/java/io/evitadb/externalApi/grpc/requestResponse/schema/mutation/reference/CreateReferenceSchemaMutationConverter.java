@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
+import com.google.protobuf.FloatValue;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
@@ -120,7 +121,10 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			facetedPartiallyInScopes,
 			bucketedInScopes,
 			bucketedPartiallyInScopes,
-			toConflictResolutionOverride(mutation.getConflictResolutionOverride())
+			toConflictResolutionOverride(mutation.getConflictResolutionOverride()),
+			mutation.hasSearchableThroughInScopes()
+				? EvitaEnumConverter.toScopedReferenceSearchModes(mutation.getSearchableThroughInScopes()) : null,
+			mutation.hasSearchableThroughWeight() ? mutation.getSearchableThroughWeight().getValue() : null
 		);
 	}
 
@@ -190,6 +194,13 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			)
 		);
 
+		if (mutation.getSearchableThroughInScopes() != null) {
+			builder.setSearchableThroughInScopes(
+				EvitaEnumConverter.toGrpcReferenceSearchModes(mutation.getSearchableThroughInScopes()));
+		}
+		if (mutation.getSearchableThroughWeight() != null) {
+			builder.setSearchableThroughWeight(FloatValue.of(mutation.getSearchableThroughWeight()));
+		}
 		return builder.build();
 	}
 }

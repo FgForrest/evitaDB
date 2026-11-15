@@ -55,6 +55,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartially
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceSearchModeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
@@ -66,6 +67,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
@@ -179,6 +181,9 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		);
 		this.buildingContext.registerType(
 			ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedReferenceSearchModeDescriptor.THIS.to(this.objectBuilderTransformer).build()
 		);
 		this.buildingContext.registerType(
 			ScopedHistogramIndexDefinitionDescriptor.THIS.to(this.objectBuilderTransformer).build()
@@ -302,6 +307,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS,
 			RemoveAssociatedDataSchemaMutationDescriptor.THIS,
 			SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS,
+			SetAssociatedDataSchemaSearchableMutationDescriptor.THIS,
 			SetAssociatedDataSchemaNullableMutationDescriptor.THIS,
 			SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
@@ -316,6 +322,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
 			SetAttributeSchemaAcceleratedMutationDescriptor.THIS,
 			SetAttributeSchemaNormalizedMutationDescriptor.THIS,
+			SetAttributeSchemaSearchableMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS,
@@ -348,6 +355,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			SetReferenceSchemaBucketedMutationDescriptor.THIS,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS,
+			SetReferenceSchemaSearchableThroughMutationDescriptor.THIS,
 			SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
 			// catalog schema mutations
@@ -442,6 +450,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 					typeRefTo(ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS.name()),
 					typeRefTo(RemoveAssociatedDataSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS.name()),
+					typeRefTo(SetAssociatedDataSchemaSearchableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAssociatedDataSchemaNullableMutationDescriptor.THIS.name()),
 
 					// attribute schema mutations
@@ -455,6 +464,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 					typeRefTo(SetAttributeSchemaFilterableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaAcceleratedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaNormalizedMutationDescriptor.THIS.name()),
+					typeRefTo(SetAttributeSchemaSearchableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaLocalizedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaNullableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.name()),
@@ -485,6 +495,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 					typeRefTo(SetReferenceSchemaBucketedMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaFacetedMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaIndexedMutationDescriptor.THIS.name()),
+					typeRefTo(SetReferenceSchemaSearchableThroughMutationDescriptor.THIS.name()),
 
 					// data mutations
 

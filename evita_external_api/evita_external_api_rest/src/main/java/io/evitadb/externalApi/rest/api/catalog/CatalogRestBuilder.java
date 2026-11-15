@@ -62,6 +62,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
@@ -230,6 +231,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 					typeRefTo(ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS.name()),
 					typeRefTo(RemoveAssociatedDataSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS.name()),
+					typeRefTo(SetAssociatedDataSchemaSearchableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAssociatedDataSchemaNullableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS.name()),
 
@@ -244,6 +246,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 					typeRefTo(SetAttributeSchemaFilterableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaAcceleratedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaNormalizedMutationDescriptor.THIS.name()),
+					typeRefTo(SetAttributeSchemaSearchableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaLocalizedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaNullableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS.name()),
@@ -275,6 +278,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 					typeRefTo(SetReferenceSchemaBucketedMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaFacetedMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaIndexedMutationDescriptor.THIS.name()),
+					typeRefTo(SetReferenceSchemaSearchableThroughMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS.name()),
 
 					// data mutations
@@ -347,6 +351,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS_INPUT,
 			RemoveAssociatedDataSchemaMutationDescriptor.THIS_INPUT,
 			SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS_INPUT,
+			SetAssociatedDataSchemaSearchableMutationDescriptor.THIS_INPUT,
 			SetAssociatedDataSchemaNullableMutationDescriptor.THIS_INPUT,
 			SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT,
 
@@ -361,6 +366,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			SetAttributeSchemaFilterableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaAcceleratedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaNormalizedMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaSearchableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaNullableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT,
@@ -395,6 +401,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			SetReferenceSchemaBucketedMutationDescriptor.THIS_INPUT,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS_INPUT,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS_INPUT,
+			SetReferenceSchemaSearchableThroughMutationDescriptor.THIS_INPUT,
 			SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT,
 
 			LocalEntitySchemaMutationInputAggregateDescriptor.THIS_INPUT,
@@ -481,6 +488,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS,
 			RemoveAssociatedDataSchemaMutationDescriptor.THIS,
 			SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS,
+			SetAssociatedDataSchemaSearchableMutationDescriptor.THIS,
 			SetAssociatedDataSchemaNullableMutationDescriptor.THIS,
 			SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS,
 
@@ -495,6 +503,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
 			SetAttributeSchemaAcceleratedMutationDescriptor.THIS,
 			SetAttributeSchemaNormalizedMutationDescriptor.THIS,
+			SetAttributeSchemaSearchableMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
 			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS,
@@ -527,6 +536,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			SetReferenceSchemaBucketedMutationDescriptor.THIS,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS,
+			SetReferenceSchemaSearchableThroughMutationDescriptor.THIS,
 			SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS
 		);
 

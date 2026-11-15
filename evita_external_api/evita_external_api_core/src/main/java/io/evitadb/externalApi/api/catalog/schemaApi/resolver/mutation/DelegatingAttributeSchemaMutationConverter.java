@@ -71,6 +71,10 @@ public class DelegatingAttributeSchemaMutationConverter extends
 			SetAttributeSchemaNormalizedMutation.class,
 			new SetAttributeSchemaNormalizedMutationConverter(objectParser, exceptionFactory)
 		);
+		registerConverter(
+			SetAttributeSchemaSearchableMutation.class,
+			new SetAttributeSchemaSearchableMutationConverter(objectParser, exceptionFactory)
+		);
 		registerConverter(SetAttributeSchemaLocalizedMutation.class, new SetAttributeSchemaLocalizedMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SetAttributeSchemaNullableMutation.class, new SetAttributeSchemaNullableMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SetAttributeSchemaConflictResolutionOverrideMutation.class, new SetAttributeSchemaConflictResolutionOverrideMutationConverter(objectParser, exceptionFactory));

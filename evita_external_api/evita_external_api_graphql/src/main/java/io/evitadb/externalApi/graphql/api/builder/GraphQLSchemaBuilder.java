@@ -30,6 +30,8 @@ import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLUnionType;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaSearchableMutation;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
@@ -43,14 +45,18 @@ import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepInputDescriptors;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaSearchableMutationDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.TypeDescriptor;
 import io.evitadb.externalApi.api.model.UnionDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver.RegistryKey;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.AssociatedDataMutationTextExpressionDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.MutationDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.SchemaMutationSearchWeightDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.*;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.MutationTypeDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
@@ -293,6 +299,27 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 				MutationDescriptor.MUTATION_TYPE,
 				MutationTypeDataFetcher.getInstance()
 			);
+
+			// the default property fetcher would leave the `Expression` to the string scalar, which renders its
+			// `toString()` display form, whereas clients need the raw source they can send back as mutation input
+			if (mutationDescriptor.representedClass() == CreateAssociatedDataSchemaMutation.class ||
+				mutationDescriptor.representedClass() == SetAssociatedDataSchemaSearchableMutation.class) {
+				this.buildingContext.registerDataFetcher(
+					mutationDescriptor.name(),
+					SetAssociatedDataSchemaSearchableMutationDescriptor.TEXT_EXPRESSION,
+					AssociatedDataMutationTextExpressionDataFetcher.getInstance()
+				);
+			}
+
+			// ranking weights are `Float` in the mutations but decimals in the descriptors; they are matched by name,
+			// so a new weight property must use one of these names or register its own fetcher
+			for (final PropertyDescriptor property : mutationDescriptor.staticProperties()) {
+				if ("searchWeight".equals(property.name()) || "searchableThroughWeight".equals(property.name()) ||
+					"weight".equals(property.name())) {
+					this.buildingContext.registerDataFetcher(
+						mutationDescriptor.name(), property, SchemaMutationSearchWeightDataFetcher.getInstance());
+				}
+			}
 
 			// register dto mapping
 			//noinspection unchecked

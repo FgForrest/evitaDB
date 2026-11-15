@@ -1876,5 +1876,86 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder getSetSortableAttributeCompoundIndexedMutationOrBuilder();
 
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 128;</code>
+   * @return Whether the setAttributeSchemaSearchableMutation field is set.
+   */
+  boolean hasSetAttributeSchemaSearchableMutation();
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 128;</code>
+   * @return The setAttributeSchemaSearchableMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation getSetAttributeSchemaSearchableMutation();
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 128;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder getSetAttributeSchemaSearchableMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaSearchableMutation setAssociatedDataSchemaSearchableMutation = 129;</code>
+   * @return Whether the setAssociatedDataSchemaSearchableMutation field is set.
+   */
+  boolean hasSetAssociatedDataSchemaSearchableMutation();
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaSearchableMutation setAssociatedDataSchemaSearchableMutation = 129;</code>
+   * @return The setAssociatedDataSchemaSearchableMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaSearchableMutation getSetAssociatedDataSchemaSearchableMutation();
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaSearchableMutation setAssociatedDataSchemaSearchableMutation = 129;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaSearchableMutationOrBuilder getSetAssociatedDataSchemaSearchableMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaSearchableThroughMutation setReferenceSchemaSearchableThroughMutation = 130;</code>
+   * @return Whether the setReferenceSchemaSearchableThroughMutation field is set.
+   */
+  boolean hasSetReferenceSchemaSearchableThroughMutation();
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaSearchableThroughMutation setReferenceSchemaSearchableThroughMutation = 130;</code>
+   * @return The setReferenceSchemaSearchableThroughMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaSearchableThroughMutation getSetReferenceSchemaSearchableThroughMutation();
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaSearchableThroughMutation setReferenceSchemaSearchableThroughMutation = 130;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaSearchableThroughMutationOrBuilder getSetReferenceSchemaSearchableThroughMutationOrBuilder();
+
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.MutationCase getMutationCase();
 }

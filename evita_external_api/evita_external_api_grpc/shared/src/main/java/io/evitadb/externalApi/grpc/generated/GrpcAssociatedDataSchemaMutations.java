@@ -83,6 +83,11 @@ public final class GrpcAssociatedDataSchemaMutations {
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAssociatedDataSchemaConflictResolutionOverrideMutation_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAssociatedDataSchemaSearchableMutation_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAssociatedDataSchemaSearchableMutation_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -95,7 +100,7 @@ public final class GrpcAssociatedDataSchemaMutations {
       "\n\'GrpcAssociatedDataSchemaMutations.prot" +
       "o\022%io.evitadb.externalApi.grpc.generated" +
       "\032\017GrpcEnums.proto\032\036google/protobuf/wrapp" +
-      "ers.proto\"\232\003\n&GrpcCreateAssociatedDataSc" +
+      "ers.proto\"\271\005\n&GrpcCreateAssociatedDataSc" +
       "hemaMutation\022\014\n\004name\030\001 \001(\t\0221\n\013descriptio" +
       "n\030\002 \001(\0132\034.google.protobuf.StringValue\0227\n" +
       "\021deprecationNotice\030\003 \001(\0132\034.google.protob" +
@@ -105,30 +110,46 @@ public final class GrpcAssociatedDataSchemaMutations {
       "\n\tlocalized\030\005 \001(\010\022\020\n\010nullable\030\006 \001(\010\022i\n\032c" +
       "onflictResolutionOverride\030\007 \001(\0162E.io.evi" +
       "tadb.externalApi.grpc.generated.GrpcConf" +
-      "lictResolutionOverride\"\200\001\n7GrpcModifyAss" +
-      "ociatedDataSchemaDeprecationNoticeMutati" +
-      "on\022\014\n\004name\030\001 \001(\t\0227\n\021deprecationNotice\030\002 " +
-      "\001(\0132\034.google.protobuf.StringValue\"t\n1Grp" +
-      "cModifyAssociatedDataSchemaDescriptionMu" +
-      "tation\022\014\n\004name\030\001 \001(\t\0221\n\013description\030\002 \001(" +
-      "\0132\034.google.protobuf.StringValue\"K\n*GrpcM" +
-      "odifyAssociatedDataSchemaNameMutation\022\014\n" +
-      "\004name\030\001 \001(\t\022\017\n\007newName\030\002 \001(\t\"\242\001\n*GrpcMod" +
-      "ifyAssociatedDataSchemaTypeMutation\022\014\n\004n" +
-      "ame\030\001 \001(\t\022f\n\004type\030\002 \001(\0162X.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcEvitaAssocia" +
-      "tedDataDataType.GrpcEvitaDataType\"6\n&Grp" +
-      "cRemoveAssociatedDataSchemaMutation\022\014\n\004n" +
-      "ame\030\001 \001(\t\"O\n,GrpcSetAssociatedDataSchema" +
-      "LocalizedMutation\022\014\n\004name\030\001 \001(\t\022\021\n\tlocal" +
-      "ized\030\002 \001(\010\"M\n+GrpcSetAssociatedDataSchem" +
-      "aNullableMutation\022\014\n\004name\030\001 \001(\t\022\020\n\010nulla" +
-      "ble\030\002 \001(\010\"\270\001\n=GrpcSetAssociatedDataSchem" +
-      "aConflictResolutionOverrideMutation\022\014\n\004n" +
-      "ame\030\001 \001(\t\022i\n\032conflictResolutionOverride\030" +
-      "\002 \001(\0162E.io.evitadb.externalApi.grpc.gene" +
-      "rated.GrpcConflictResolutionOverrideB\014P\001" +
-      "\252\002\007EvitaDBb\006proto3"
+      "lictResolutionOverride\022R\n\022searchableInSc" +
+      "opes\030\010 \003(\01626.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcEntityScope\022.\n\010analyzer\030\t" +
+      " \001(\0132\034.google.protobuf.StringValue\0220\n\013le" +
+      "ngthPivot\030\n \001(\0132\033.google.protobuf.Int32V" +
+      "alue\0221\n\014searchWeight\030\013 \001(\0132\033.google.prot" +
+      "obuf.FloatValue\0224\n\016textExpression\030\014 \001(\0132" +
+      "\034.google.protobuf.StringValue\"\200\001\n7GrpcMo" +
+      "difyAssociatedDataSchemaDeprecationNotic" +
+      "eMutation\022\014\n\004name\030\001 \001(\t\0227\n\021deprecationNo" +
+      "tice\030\002 \001(\0132\034.google.protobuf.StringValue" +
+      "\"t\n1GrpcModifyAssociatedDataSchemaDescri" +
+      "ptionMutation\022\014\n\004name\030\001 \001(\t\0221\n\013descripti" +
+      "on\030\002 \001(\0132\034.google.protobuf.StringValue\"K" +
+      "\n*GrpcModifyAssociatedDataSchemaNameMuta" +
+      "tion\022\014\n\004name\030\001 \001(\t\022\017\n\007newName\030\002 \001(\t\"\242\001\n*" +
+      "GrpcModifyAssociatedDataSchemaTypeMutati" +
+      "on\022\014\n\004name\030\001 \001(\t\022f\n\004type\030\002 \001(\0162X.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcEvita" +
+      "AssociatedDataDataType.GrpcEvitaDataType" +
+      "\"6\n&GrpcRemoveAssociatedDataSchemaMutati" +
+      "on\022\014\n\004name\030\001 \001(\t\"O\n,GrpcSetAssociatedDat" +
+      "aSchemaLocalizedMutation\022\014\n\004name\030\001 \001(\t\022\021" +
+      "\n\tlocalized\030\002 \001(\010\"M\n+GrpcSetAssociatedDa" +
+      "taSchemaNullableMutation\022\014\n\004name\030\001 \001(\t\022\020" +
+      "\n\010nullable\030\002 \001(\010\"\270\001\n=GrpcSetAssociatedDa" +
+      "taSchemaConflictResolutionOverrideMutati" +
+      "on\022\014\n\004name\030\001 \001(\t\022i\n\032conflictResolutionOv" +
+      "erride\030\002 \001(\0162E.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcConflictResolutionOverr" +
+      "ide\"\334\002\n-GrpcSetAssociatedDataSchemaSearc" +
+      "hableMutation\022\014\n\004name\030\001 \001(\t\022R\n\022searchabl" +
+      "eInScopes\030\002 \003(\01626.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcEntityScope\022.\n\010analy" +
+      "zer\030\003 \001(\0132\034.google.protobuf.StringValue\022" +
+      "0\n\013lengthPivot\030\004 \001(\0132\033.google.protobuf.I" +
+      "nt32Value\0221\n\014searchWeight\030\005 \001(\0132\033.google" +
+      ".protobuf.FloatValue\0224\n\016textExpression\030\006" +
+      " \001(\0132\034.google.protobuf.StringValueB\014P\001\252\002" +
+      "\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -141,7 +162,7 @@ public final class GrpcAssociatedDataSchemaMutations {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateAssociatedDataSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateAssociatedDataSchemaMutation_descriptor,
-        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Type", "Localized", "Nullable", "ConflictResolutionOverride", });
+        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Type", "Localized", "Nullable", "ConflictResolutionOverride", "SearchableInScopes", "Analyzer", "LengthPivot", "SearchWeight", "TextExpression", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation_descriptor =
       getDescriptor().getMessageTypes().get(1);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation_fieldAccessorTable = new
@@ -190,6 +211,12 @@ public final class GrpcAssociatedDataSchemaMutations {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAssociatedDataSchemaConflictResolutionOverrideMutation_descriptor,
         new java.lang.String[] { "Name", "ConflictResolutionOverride", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAssociatedDataSchemaSearchableMutation_descriptor =
+      getDescriptor().getMessageTypes().get(9);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAssociatedDataSchemaSearchableMutation_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetAssociatedDataSchemaSearchableMutation_descriptor,
+        new java.lang.String[] { "Name", "SearchableInScopes", "Analyzer", "LengthPivot", "SearchWeight", "TextExpression", });
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();
   }

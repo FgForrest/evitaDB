@@ -96,6 +96,13 @@ public class DelegatingLocalCatalogSchemaMutationConverter implements SchemaMuta
 			new ToGrpc((b, m) -> b.setSetAttributeSchemaNormalizedMutation((GrpcSetAttributeSchemaNormalizedMutation) m),
 				SetAttributeSchemaNormalizedMutationConverter.INSTANCE)
 		);
+		TO_GRPC_CONVERTERS.put(
+			SetAttributeSchemaSearchableMutation.class,
+			new ToGrpc(
+				(b, m) -> b.setSetAttributeSchemaSearchableMutation((GrpcSetAttributeSchemaSearchableMutation) m),
+				SetAttributeSchemaSearchableMutationConverter.INSTANCE
+			)
+		);
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaGloballyUniqueMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaGloballyUniqueMutation((GrpcSetAttributeSchemaGloballyUniqueMutation) m), SetAttributeSchemaGloballyUniqueMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaLocalizedMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaLocalizedMutation((GrpcSetAttributeSchemaLocalizedMutation) m), SetAttributeSchemaLocalizedMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaNullableMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaNullableMutation((GrpcSetAttributeSchemaNullableMutation) m), SetAttributeSchemaNullableMutationConverter.INSTANCE));
@@ -113,6 +120,16 @@ public class DelegatingLocalCatalogSchemaMutationConverter implements SchemaMuta
 		// catalog schema mutations
 		TO_JAVA_CONVERTERS.put(MODIFYCATALOGSCHEMADESCRIPTIONMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getModifyCatalogSchemaDescriptionMutation, ModifyCatalogSchemaDescriptionMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getModifyCatalogSchemaConflictResolutionMutation, ModifyCatalogSchemaConflictResolutionMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(
+			ALLOWEVOLUTIONMODEINCATALOGSCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getAllowEvolutionModeInCatalogSchemaMutation,
+				AllowEvolutionModeInCatalogSchemaMutationConverter.INSTANCE)
+		);
+		TO_JAVA_CONVERTERS.put(
+			DISALLOWEVOLUTIONMODEINCATALOGSCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getDisallowEvolutionModeInCatalogSchemaMutation,
+				DisallowEvolutionModeInCatalogSchemaMutationConverter.INSTANCE)
+		);
 		// global attribute schema mutations
 		TO_JAVA_CONVERTERS.put(CREATEGLOBALATTRIBUTESCHEMAMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getCreateGlobalAttributeSchemaMutation, CreateGlobalAttributeSchemaMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(MODIFYATTRIBUTESCHEMADEFAULTVALUEMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getModifyAttributeSchemaDefaultValueMutation, ModifyAttributeSchemaDefaultValueMutationConverter.INSTANCE));
@@ -130,6 +147,11 @@ public class DelegatingLocalCatalogSchemaMutationConverter implements SchemaMuta
 			SETATTRIBUTESCHEMANORMALIZEDMUTATION,
 			new ToJava(GrpcLocalCatalogSchemaMutation::getSetAttributeSchemaNormalizedMutation,
 				SetAttributeSchemaNormalizedMutationConverter.INSTANCE)
+		);
+		TO_JAVA_CONVERTERS.put(
+			SETATTRIBUTESCHEMASEARCHABLEMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getSetAttributeSchemaSearchableMutation,
+				SetAttributeSchemaSearchableMutationConverter.INSTANCE)
 		);
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMAGLOBALLYUNIQUEMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getSetAttributeSchemaGloballyUniqueMutation, SetAttributeSchemaGloballyUniqueMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMALOCALIZEDMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getSetAttributeSchemaLocalizedMutation, SetAttributeSchemaLocalizedMutationConverter.INSTANCE));

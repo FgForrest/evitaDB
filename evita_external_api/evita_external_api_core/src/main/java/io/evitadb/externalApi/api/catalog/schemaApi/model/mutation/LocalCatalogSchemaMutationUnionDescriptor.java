@@ -66,6 +66,7 @@ public interface LocalCatalogSchemaMutationUnionDescriptor {
 		.type(SetAttributeSchemaFilterableMutationDescriptor.THIS)
 		.type(SetAttributeSchemaAcceleratedMutationDescriptor.THIS)
 		.type(SetAttributeSchemaNormalizedMutationDescriptor.THIS)
+		.type(SetAttributeSchemaSearchableMutationDescriptor.THIS)
 		.type(SetAttributeSchemaLocalizedMutationDescriptor.THIS)
 		.type(SetAttributeSchemaNullableMutationDescriptor.THIS)
 		.type(SetAttributeSchemaRepresentativeMutationDescriptor.THIS)

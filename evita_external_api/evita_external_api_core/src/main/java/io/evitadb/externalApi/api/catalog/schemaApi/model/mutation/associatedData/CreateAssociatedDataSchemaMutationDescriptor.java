@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDa
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -92,6 +93,23 @@ public interface CreateAssociatedDataSchemaMutationDescriptor extends Associated
 		.type(nullable(ConflictResolutionOverride.class))
 		.build();
 
+	/** Shared with the searchability replacement: omitted or empty means searchable nowhere in both. */
+	PropertyDescriptor SEARCHABLE_IN_SCOPES = SetAssociatedDataSchemaSearchableMutationDescriptor.SEARCHABLE_IN_SCOPES;
+	/** Same creation semantics as an attribute: omission means the default analyzer. */
+	PropertyDescriptor ANALYZER = CreateAttributeSchemaMutationDescriptor.ANALYZER;
+	/** Same creation semantics as an attribute: omission means the default length pivot. */
+	PropertyDescriptor LENGTH_PIVOT = CreateAttributeSchemaMutationDescriptor.LENGTH_PIVOT;
+	/** Same creation semantics as an attribute: omission means the default weight. */
+	PropertyDescriptor SEARCH_WEIGHT = CreateAttributeSchemaMutationDescriptor.SEARCH_WEIGHT;
+	/** Creation counterpart of {@link SetAssociatedDataSchemaSearchableMutationDescriptor#TEXT_EXPRESSION}. */
+	PropertyDescriptor TEXT_EXPRESSION = PropertyDescriptor.from(
+			SetAssociatedDataSchemaSearchableMutationDescriptor.TEXT_EXPRESSION
+		)
+		.description("""
+			Expression selecting the text of a complex data object value, as raw source; omission means none.
+			""")
+		.build();
+
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(CreateAssociatedDataSchemaMutation.class)
 		.description("""
@@ -99,6 +117,11 @@ public interface CreateAssociatedDataSchemaMutationDescriptor extends Associated
 			Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 			""")
 		.staticProperty(NAME)
+		.staticProperty(SEARCHABLE_IN_SCOPES)
+		.staticProperty(ANALYZER)
+		.staticProperty(LENGTH_PIVOT)
+		.staticProperty(SEARCH_WEIGHT)
+		.staticProperty(TEXT_EXPRESSION)
 		.staticProperty(DESCRIPTION)
 		.staticProperty(DEPRECATION_NOTICE)
 		.staticProperty(TYPE)

@@ -28,11 +28,14 @@ import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceSearchMode;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceSearchModeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaSearchableThroughMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.resolver.mutation.Input;
@@ -55,6 +58,29 @@ import java.util.Map;
  */
 public abstract class ReferenceSchemaMutationConverter<M extends ReferenceSchemaMutation>
 	extends SchemaMutationConverter<M> {
+
+	/**
+	 * Reads optional reference composition modes without collapsing an empty declaration into omission.
+	 *
+	 * @param input the mutation input to read the `searchableThroughInScopes` property from
+	 * @return `null` when the input omits the property, an empty array for an explicitly empty list, otherwise the
+	 *         declared scope and mode pairs
+	 */
+	@Nullable
+	protected ScopedReferenceSearchMode[] readSearchableThrough(@Nonnull Input input) {
+		return input.getOptionalProperty(
+			SetReferenceSchemaSearchableThroughMutationDescriptor.SEARCHABLE_THROUGH_IN_SCOPES.name(),
+			new PropertyObjectListMapper<>(
+				getMutationName(), getExceptionFactory(),
+				SetReferenceSchemaSearchableThroughMutationDescriptor.SEARCHABLE_THROUGH_IN_SCOPES,
+				ScopedReferenceSearchMode.class,
+				nested -> new ScopedReferenceSearchMode(
+					nested.getProperty(ScopedDataDescriptor.SCOPE),
+					nested.getProperty(ScopedReferenceSearchModeDescriptor.MODE)
+				)
+			)
+		);
+	}
 
 	protected ReferenceSchemaMutationConverter(
 		@Nonnull MutationObjectMapper objectParser,

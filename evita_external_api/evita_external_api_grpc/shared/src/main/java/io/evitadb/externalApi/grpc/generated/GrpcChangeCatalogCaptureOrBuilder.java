@@ -325,6 +325,33 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
 
   /**
    * <pre>
+   * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+   * @return Whether the catalogSchemaMutation field is set.
+   */
+  boolean hasCatalogSchemaMutation();
+  /**
+   * <pre>
+   * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+   * @return The catalogSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation getCatalogSchemaMutation();
+  /**
+   * <pre>
+   * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder getCatalogSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
    * Represents the timestamp of the commit.
    * </pre>
    *

@@ -23,7 +23,12 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
+import io.evitadb.dataType.expression.Expression;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaSearchableMutationDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.resolver.mutation.Input;
 import io.evitadb.externalApi.api.resolver.mutation.MutationConverter;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
@@ -46,9 +51,49 @@ public abstract class SchemaMutationConverter<M extends SchemaMutation> extends 
 	}
 
 	/**
+	 * Reads a ranking weight the API supplies as a decimal and narrows it to the `Float` the mutations store. An
+	 * absent property stays `null`, so omission remains distinct from an explicit zero.
+	 *
+	 * @param input the mutation input to read from
+	 * @param property the weight property, whose name differs between the mutation families
+	 * @return the weight narrowed to `float` precision, or `null` when the input omits it
+	 */
+	@Nullable
+	protected static Float readSearchWeight(@Nonnull Input input, @Nonnull PropertyDescriptor property) {
+		final BigDecimal weight = input.getProperty(property);
+		return weight == null ? null : weight.floatValue();
+	}
+
+	/**
+	 * Parses the raw expression source supplied by an associated-data mutation input.
+	 *
+	 * @param input the mutation input to read the `textExpression` property from
+	 * @return the parsed expression, or `null` when the input omits it
+	 */
+	@Nullable
+	protected static Expression readTextExpression(@Nonnull Input input) {
+		final String expression =
+			input.getProperty(SetAssociatedDataSchemaSearchableMutationDescriptor.TEXT_EXPRESSION);
+		return expression == null ? null : ExpressionFactory.parse(expression);
+	}
+
+	/**
+	 * Writes an expression as raw source before reflection reaches it, because {@link Output} cannot serialize an
+	 * {@link Expression}; the source parses back to the same expression on input. An absent expression writes nothing.
+	 *
+	 * @param expression the expression to write, or `null` to leave the property out
+	 * @param output the mutation output receiving the source
+	 */
+	protected static void writeTextExpression(@Nullable Expression expression, @Nonnull Output output) {
+		output.setProperty(
+			SetAssociatedDataSchemaSearchableMutationDescriptor.TEXT_EXPRESSION,
+			expression == null ? null : expression.toExpressionString()
+		);
+	}
+
+	/**
 	 * Writes a present ranking weight before reflection reaches it, because {@link Output} cannot serialize a `Float`.
-	 * The weight is output-only so far - it has no descriptor and no input counterpart - so the property is written
-	 * by name. A finite weight is written as a decimal; a non-finite one, which a mutation may carry until schema
+	 * A finite weight is written as a decimal; a non-finite one, which a mutation may carry until schema
 	 * validation refuses it, has no decimal form and is written verbatim (`NaN`, `Infinity`, `-Infinity`).
 	 *
 	 * @param propertyName the output property receiving the weight

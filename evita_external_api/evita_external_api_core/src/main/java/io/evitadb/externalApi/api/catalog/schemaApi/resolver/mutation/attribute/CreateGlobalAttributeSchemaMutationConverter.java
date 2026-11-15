@@ -123,8 +123,7 @@ public class CreateGlobalAttributeSchemaMutationConverter
 			uniqueGloballyInScopes,
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES),
 			acceleratorsInScopes,
-			// searchability has no GraphQL/REST mirror, so a mutation arriving this way never declares it
-			null,
+			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.SEARCHABLE_IN_SCOPES),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED, false),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE, false),
@@ -132,20 +131,23 @@ public class CreateGlobalAttributeSchemaMutationConverter
 			valueType,
 			input.getOptionalProperty(CreateGlobalAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0),
-			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE, ConflictResolutionOverride.INHERITED),
+			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE,
+				ConflictResolutionOverride.INHERITED),
 			readNormalization(input),
-			// the fulltext field settings have no GraphQL/REST mirror yet, so the defaults apply
-			null,
-			null,
-			null
+			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.ANALYZER),
+			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.LENGTH_PIVOT),
+			readSearchWeight(input, CreateGlobalAttributeSchemaMutationDescriptor.SEARCH_WEIGHT)
 		);
 	}
 
-	/** Serializes the custom normalization descriptions before the generic mutation properties. */
+	/** Serializes the normalization descriptions and the search weight before the generic mutation properties. */
 	@Override
 	protected void convertToOutput(@Nonnull CreateGlobalAttributeSchemaMutation mutation, @Nonnull Output output) {
 		writeNormalization(mutation.getNormalization(), output);
-		writeSearchWeight("searchWeight", mutation.getSearchWeight(), output);
+		writeSearchWeight(
+			CreateGlobalAttributeSchemaMutationDescriptor.SEARCH_WEIGHT.name(),
+			mutation.getSearchWeight(), output
+		);
 		super.convertToOutput(mutation, output);
 	}
 }

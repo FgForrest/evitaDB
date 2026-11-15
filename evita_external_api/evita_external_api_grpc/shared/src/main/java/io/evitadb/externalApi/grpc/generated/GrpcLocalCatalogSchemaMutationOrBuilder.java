@@ -751,5 +751,32 @@ public interface GrpcLocalCatalogSchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutationOrBuilder getSetAttributeSchemaNormalizedMutationOrBuilder();
 
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+   * @return Whether the setAttributeSchemaSearchableMutation field is set.
+   */
+  boolean hasSetAttributeSchemaSearchableMutation();
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+   * @return The setAttributeSchemaSearchableMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation getSetAttributeSchemaSearchableMutation();
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder getSetAttributeSchemaSearchableMutationOrBuilder();
+
   io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.MutationCase getMutationCase();
 }

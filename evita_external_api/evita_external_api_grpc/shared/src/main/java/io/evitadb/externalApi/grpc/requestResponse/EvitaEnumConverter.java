@@ -23,6 +23,11 @@
 
 package io.evitadb.externalApi.grpc.requestResponse;
 
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceSearchMode;
+import io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchMode;
+import io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes;
+import io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceSearchMode;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.observability.HealthProblem;
@@ -2130,4 +2135,63 @@ public class EvitaEnumConverter {
 			case PRICED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_PRICE_INDEXED;
 		};
 	}
+	/**
+	 * Converts a declared reference composition mode to its wire representation.
+	 *
+	 * @param mode the composition mode to convert
+	 * @return the wire representation of the mode
+	 */
+	@Nonnull
+	public static GrpcReferenceSearchMode toGrpcReferenceSearchMode(@Nonnull ReferenceSearchMode mode) {
+		return switch (mode) {
+			case COMPOSITION -> GrpcReferenceSearchMode.REFERENCE_SEARCH_COMPOSITION;
+		};
+	}
+
+	/**
+	 * Converts a wire composition mode, refusing values this version does not know.
+	 *
+	 * @param mode the wire composition mode
+	 * @return the composition mode
+	 * @throws EvitaInvalidUsageException when the wire value is unrecognized, e.g. one a newer peer added
+	 */
+	@Nonnull
+	public static ReferenceSearchMode toReferenceSearchMode(@Nonnull GrpcReferenceSearchMode mode) {
+		return switch (mode) {
+			case REFERENCE_SEARCH_COMPOSITION -> ReferenceSearchMode.COMPOSITION;
+			case UNRECOGNIZED -> throw new EvitaInvalidUsageException("Unrecognized reference search mode: " + mode);
+		};
+	}
+
+	/**
+	 * Writes a present declaration, including an explicitly empty replacement, which stays a present message.
+	 *
+	 * @param modes the scoped composition modes, possibly empty
+	 * @return the wire message carrying every scope and mode pair
+	 */
+	@Nonnull
+	public static GrpcReferenceSearchModes toGrpcReferenceSearchModes(@Nonnull ScopedReferenceSearchMode[] modes) {
+		final GrpcReferenceSearchModes.Builder builder = GrpcReferenceSearchModes.newBuilder();
+		for (final ScopedReferenceSearchMode mode : modes) {
+			builder.addModes(GrpcScopedReferenceSearchMode.newBuilder()
+				.setScope(toGrpcScope(mode.scope()))
+				.setMode(toGrpcReferenceSearchMode(mode.mode())));
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Reads the complete present replacement declaration without discarding an empty list.
+	 *
+	 * @param modes the wire message of a present declaration
+	 * @return the scoped composition modes, empty when the message carries none
+	 * @throws EvitaInvalidUsageException when a mode on the wire is unrecognized
+	 */
+	@Nonnull
+	public static ScopedReferenceSearchMode[] toScopedReferenceSearchModes(@Nonnull GrpcReferenceSearchModes modes) {
+		return modes.getModesList().stream()
+			.map(mode -> new ScopedReferenceSearchMode(toScope(mode.getScope()), toReferenceSearchMode(mode.getMode())))
+			.toArray(ScopedReferenceSearchMode[]::new);
+	}
+
 }

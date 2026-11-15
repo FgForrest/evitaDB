@@ -81,5 +81,8 @@ message GrpcLocalCatalogSchemaMutation {
     GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 36;
     // Replaces the declared normalization chain; an empty chain removes normalization.
     GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;
+    // Fulltext schema declaration.
+    GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;
+
   }
 }

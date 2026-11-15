@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
+import com.google.protobuf.FloatValue;
+import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
@@ -75,8 +77,7 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 			uniqueInScopes,
 			filterableInScopes,
 			acceleratorsInScopes,
-			// searchability has no gRPC mirror, so a mutation arriving this way never declares it
-			null,
+			mutation.getSearchableInScopesList().stream().map(EvitaEnumConverter::toScope).toArray(Scope[]::new),
 			sortableInScopes,
 			mutation.getLocalized(),
 			mutation.getNullable(),
@@ -87,10 +88,9 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 			toConflictResolutionOverride(mutation.getConflictResolutionOverride()),
 			mutation.getNormalizationCount() == 0 ? null :
 				toAnalysisSteps(mutation.getNormalizationList()).toArray(AnalysisStep[]::new),
-			// the fulltext field settings have no gRPC mirror yet, so the defaults apply
-			null,
-			null,
-			null
+			mutation.hasAnalyzer() ? mutation.getAnalyzer().getValue() : null,
+			mutation.hasLengthPivot() ? mutation.getLengthPivot().getValue() : null,
+			mutation.hasSearchWeight() ? mutation.getSearchWeight().getValue() : null
 		);
 	}
 
@@ -140,6 +140,18 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 		}
 		if (mutation.getDefaultValue() != null) {
 			builder.setDefaultValue(EvitaDataTypesConverter.toGrpcEvitaValue(mutation.getDefaultValue()));
+		}
+
+		builder.addAllSearchableInScopes(
+			Arrays.stream(mutation.getSearchableInScopes()).map(EvitaEnumConverter::toGrpcScope).toList());
+		if (mutation.getAnalyzer() != null) {
+			builder.setAnalyzer(StringValue.of(mutation.getAnalyzer()));
+		}
+		if (mutation.getLengthPivot() != null) {
+			builder.setLengthPivot(Int32Value.of(mutation.getLengthPivot()));
+		}
+		if (mutation.getSearchWeight() != null) {
+			builder.setSearchWeight(FloatValue.of(mutation.getSearchWeight()));
 		}
 
 		return builder.build();

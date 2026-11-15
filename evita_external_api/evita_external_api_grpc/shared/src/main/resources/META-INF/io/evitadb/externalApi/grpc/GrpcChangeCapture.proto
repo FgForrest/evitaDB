@@ -9,6 +9,7 @@ import "GrpcEngineMutation.proto";
 import "GrpcEntityMutation.proto";
 import "GrpcLocalMutation.proto";
 import "GrpcEntitySchemaMutation.proto";
+import "GrpcCatalogSchemaMutation.proto";
 import "GrpcInfrastrutureMutation.proto";
 import "GrpcEvitaDataTypes.proto";
 import "GrpcEnums.proto";
@@ -97,7 +98,9 @@ message GrpcChangeCatalogCapture {
   // Payload of the operation. Present only when the request's content mode is `CHANGE_BODY` (see
   // `GrpcChangeCaptureContent`); a `CHANGE_HEADER` request - the proto3 default when `content` is left unset -
   // always leaves every arm of this oneof unset. When present, exactly one arm is set, chosen by
-  // `area`/`operation`: `schemaMutation` for a SCHEMA area mutation, `entityMutation` for the top-level DATA
+  // `area`/`operation`: `schemaMutation` for a SCHEMA area mutation that can target an entity schema,
+  // `catalogSchemaMutation` for a SCHEMA area mutation that exists on the catalog level only (catalog
+  // description, evolution mode, global attribute creation), `entityMutation` for the top-level DATA
   // area entity mutation, `localMutation` for a DATA area field-level mutation nested inside an entity upsert
   // (it shares the parent entity mutation's `(version, index)` - see the `index` field comment above),
   // `infrastructureMutation` for the INFRASTRUCTURE area transaction header.
@@ -111,6 +114,8 @@ message GrpcChangeCatalogCapture {
     GrpcLocalMutation localMutation = 9;
     // Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
     GrpcInfrastructureMutation infrastructureMutation = 10;
+    // Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+    GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;
   }
   // Represents the timestamp of the commit.
   GrpcOffsetDateTime timestamp = 99;

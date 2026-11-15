@@ -31,6 +31,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
@@ -152,6 +153,10 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 		"setAssociatedDataSchemaLocalizedMutation",
 		SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS_INPUT
 	);
+	PropertyDescriptor SET_ASSOCIATED_DATA_SCHEMA_SEARCHABLE_MUTATION = PropertyDescriptor.nullableFromObject(
+		"setAssociatedDataSchemaSearchableMutation",
+		SetAssociatedDataSchemaSearchableMutationDescriptor.THIS_INPUT
+	);
 	PropertyDescriptor SET_ASSOCIATED_DATA_SCHEMA_NULLABLE_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setAssociatedDataSchemaNullableMutation",
 		SetAssociatedDataSchemaNullableMutationDescriptor.THIS_INPUT
@@ -205,6 +210,10 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_NORMALIZED_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setAttributeSchemaNormalizedMutation",
 		SetAttributeSchemaNormalizedMutationDescriptor.THIS_INPUT
+	);
+	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_SEARCHABLE_MUTATION = PropertyDescriptor.nullableFromObject(
+		"setAttributeSchemaSearchableMutation",
+		SetAttributeSchemaSearchableMutationDescriptor.THIS_INPUT
 	);
 	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setAttributeSchemaLocalizedMutation",
@@ -328,6 +337,10 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 		"setReferenceSchemaIndexedMutation",
 		SetReferenceSchemaIndexedMutationDescriptor.THIS_INPUT
 	);
+	PropertyDescriptor SET_REFERENCE_SCHEMA_SEARCHABLE_THROUGH_MUTATION = PropertyDescriptor.nullableFromObject(
+		"setReferenceSchemaSearchableThroughMutation",
+		SetReferenceSchemaSearchableThroughMutationDescriptor.THIS_INPUT
+	);
 	PropertyDescriptor SET_REFERENCE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setReferenceSchemaConflictResolutionOverrideMutation",
 		SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT
@@ -361,6 +374,7 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 			MODIFY_ASSOCIATED_DATA_SCHEMA_TYPE_MUTATION,
 			REMOVE_ASSOCIATED_DATA_SCHEMA_MUTATION,
 			SET_ASSOCIATED_DATA_SCHEMA_LOCALIZED_MUTATION,
+			SET_ASSOCIATED_DATA_SCHEMA_SEARCHABLE_MUTATION,
 			SET_ASSOCIATED_DATA_SCHEMA_NULLABLE_MUTATION,
 			SET_ASSOCIATED_DATA_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION,
 
@@ -374,6 +388,7 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 			SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_ACCELERATED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_NORMALIZED_MUTATION,
+			SET_ATTRIBUTE_SCHEMA_SEARCHABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION,
@@ -404,6 +419,7 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 			SET_REFERENCE_SCHEMA_BUCKETED_MUTATION,
 			SET_REFERENCE_SCHEMA_FACETED_MUTATION,
 			SET_REFERENCE_SCHEMA_INDEXED_MUTATION,
+			SET_REFERENCE_SCHEMA_SEARCHABLE_THROUGH_MUTATION,
 			SET_REFERENCE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION
 		))
 		.build();

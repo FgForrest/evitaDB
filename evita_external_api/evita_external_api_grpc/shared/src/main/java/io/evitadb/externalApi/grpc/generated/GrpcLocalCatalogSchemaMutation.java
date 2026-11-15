@@ -97,6 +97,7 @@ private static final long serialVersionUID = 0L;
     MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION(35),
     SETATTRIBUTESCHEMAACCELERATEDMUTATION(36),
     SETATTRIBUTESCHEMANORMALIZEDMUTATION(37),
+    SETATTRIBUTESCHEMASEARCHABLEMUTATION(38),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -139,6 +140,7 @@ private static final long serialVersionUID = 0L;
         case 35: return MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION;
         case 36: return SETATTRIBUTESCHEMAACCELERATEDMUTATION;
         case 37: return SETATTRIBUTESCHEMANORMALIZEDMUTATION;
+        case 38: return SETATTRIBUTESCHEMASEARCHABLEMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -1274,6 +1276,49 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.getDefaultInstance();
   }
 
+  public static final int SETATTRIBUTESCHEMASEARCHABLEMUTATION_FIELD_NUMBER = 38;
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+   * @return Whether the setAttributeSchemaSearchableMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasSetAttributeSchemaSearchableMutation() {
+    return mutationCase_ == 38;
+  }
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+   * @return The setAttributeSchemaSearchableMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation getSetAttributeSchemaSearchableMutation() {
+    if (mutationCase_ == 38) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder getSetAttributeSchemaSearchableMutationOrBuilder() {
+    if (mutationCase_ == 38) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1362,6 +1407,9 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 37) {
       output.writeMessage(37, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation) mutation_);
+    }
+    if (mutationCase_ == 38) {
+      output.writeMessage(38, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -1471,6 +1519,10 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 37) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(37, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation) mutation_);
+    }
+    if (mutationCase_ == 38) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(38, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -1589,6 +1641,10 @@ private static final long serialVersionUID = 0L;
         if (!getSetAttributeSchemaNormalizedMutation()
             .equals(other.getSetAttributeSchemaNormalizedMutation())) return false;
         break;
+      case 38:
+        if (!getSetAttributeSchemaSearchableMutation()
+            .equals(other.getSetAttributeSchemaSearchableMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -1703,6 +1759,10 @@ private static final long serialVersionUID = 0L;
       case 37:
         hash = (37 * hash) + SETATTRIBUTESCHEMANORMALIZEDMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getSetAttributeSchemaNormalizedMutation().hashCode();
+        break;
+      case 38:
+        hash = (37 * hash) + SETATTRIBUTESCHEMASEARCHABLEMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSetAttributeSchemaSearchableMutation().hashCode();
         break;
       case 0:
       default:
@@ -1917,6 +1977,9 @@ private static final long serialVersionUID = 0L;
       if (setAttributeSchemaNormalizedMutationBuilder_ != null) {
         setAttributeSchemaNormalizedMutationBuilder_.clear();
       }
+      if (setAttributeSchemaSearchableMutationBuilder_ != null) {
+        setAttributeSchemaSearchableMutationBuilder_.clear();
+      }
       mutationCase_ = 0;
       mutation_ = null;
       return this;
@@ -2057,6 +2120,10 @@ private static final long serialVersionUID = 0L;
       if (mutationCase_ == 37 &&
           setAttributeSchemaNormalizedMutationBuilder_ != null) {
         result.mutation_ = setAttributeSchemaNormalizedMutationBuilder_.build();
+      }
+      if (mutationCase_ == 38 &&
+          setAttributeSchemaSearchableMutationBuilder_ != null) {
+        result.mutation_ = setAttributeSchemaSearchableMutationBuilder_.build();
       }
     }
 
@@ -2203,6 +2270,10 @@ private static final long serialVersionUID = 0L;
         }
         case SETATTRIBUTESCHEMANORMALIZEDMUTATION: {
           mergeSetAttributeSchemaNormalizedMutation(other.getSetAttributeSchemaNormalizedMutation());
+          break;
+        }
+        case SETATTRIBUTESCHEMASEARCHABLEMUTATION: {
+          mergeSetAttributeSchemaSearchableMutation(other.getSetAttributeSchemaSearchableMutation());
           break;
         }
         case MUTATION_NOT_SET: {
@@ -2410,6 +2481,13 @@ private static final long serialVersionUID = 0L;
               mutationCase_ = 37;
               break;
             } // case 298
+            case 306: {
+              input.readMessage(
+                  getSetAttributeSchemaSearchableMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 38;
+              break;
+            } // case 306
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -7025,6 +7103,184 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 37;
       onChanged();
       return setAttributeSchemaNormalizedMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder> setAttributeSchemaSearchableMutationBuilder_;
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     * @return Whether the setAttributeSchemaSearchableMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasSetAttributeSchemaSearchableMutation() {
+      return mutationCase_ == 38;
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     * @return The setAttributeSchemaSearchableMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation getSetAttributeSchemaSearchableMutation() {
+      if (setAttributeSchemaSearchableMutationBuilder_ == null) {
+        if (mutationCase_ == 38) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 38) {
+          return setAttributeSchemaSearchableMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    public Builder setSetAttributeSchemaSearchableMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation value) {
+      if (setAttributeSchemaSearchableMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        setAttributeSchemaSearchableMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 38;
+      return this;
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    public Builder setSetAttributeSchemaSearchableMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.Builder builderForValue) {
+      if (setAttributeSchemaSearchableMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        setAttributeSchemaSearchableMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 38;
+      return this;
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    public Builder mergeSetAttributeSchemaSearchableMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation value) {
+      if (setAttributeSchemaSearchableMutationBuilder_ == null) {
+        if (mutationCase_ == 38 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 38) {
+          setAttributeSchemaSearchableMutationBuilder_.mergeFrom(value);
+        } else {
+          setAttributeSchemaSearchableMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 38;
+      return this;
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    public Builder clearSetAttributeSchemaSearchableMutation() {
+      if (setAttributeSchemaSearchableMutationBuilder_ == null) {
+        if (mutationCase_ == 38) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 38) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        setAttributeSchemaSearchableMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.Builder getSetAttributeSchemaSearchableMutationBuilder() {
+      return getSetAttributeSchemaSearchableMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder getSetAttributeSchemaSearchableMutationOrBuilder() {
+      if ((mutationCase_ == 38) && (setAttributeSchemaSearchableMutationBuilder_ != null)) {
+        return setAttributeSchemaSearchableMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 38) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder> 
+        getSetAttributeSchemaSearchableMutationFieldBuilder() {
+      if (setAttributeSchemaSearchableMutationBuilder_ == null) {
+        if (!(mutationCase_ == 38)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance();
+        }
+        setAttributeSchemaSearchableMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 38;
+      onChanged();
+      return setAttributeSchemaSearchableMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

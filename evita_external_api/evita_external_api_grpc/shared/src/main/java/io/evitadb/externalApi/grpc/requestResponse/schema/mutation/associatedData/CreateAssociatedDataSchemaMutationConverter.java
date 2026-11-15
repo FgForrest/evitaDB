@@ -23,15 +23,21 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.associatedData;
 
+import com.google.protobuf.FloatValue;
+import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutation;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toConflictResolutionOverride;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcConflictResolutionOverride;
@@ -54,7 +60,12 @@ public class CreateAssociatedDataSchemaMutationConverter implements SchemaMutati
 			EvitaDataTypesConverter.toEvitaDataType(mutation.getType()),
 			mutation.getLocalized(),
 			mutation.getNullable(),
-			toConflictResolutionOverride(mutation.getConflictResolutionOverride())
+			mutation.getSearchableInScopesList().stream().map(EvitaEnumConverter::toScope).toArray(Scope[]::new),
+			mutation.hasTextExpression() ? ExpressionFactory.parse(mutation.getTextExpression().getValue()) : null,
+			toConflictResolutionOverride(mutation.getConflictResolutionOverride()),
+			mutation.hasAnalyzer() ? mutation.getAnalyzer().getValue() : null,
+			mutation.hasLengthPivot() ? mutation.getLengthPivot().getValue() : null,
+			mutation.hasSearchWeight() ? mutation.getSearchWeight().getValue() : null
 		);
 	}
 
@@ -72,6 +83,21 @@ public class CreateAssociatedDataSchemaMutationConverter implements SchemaMutati
 		}
 		if (mutation.getDeprecationNotice() != null) {
 			builder.setDeprecationNotice(StringValue.of(mutation.getDeprecationNotice()));
+		}
+
+		builder.addAllSearchableInScopes(
+			Arrays.stream(mutation.getSearchableInScopes()).map(EvitaEnumConverter::toGrpcScope).toList());
+		if (mutation.getAnalyzer() != null) {
+			builder.setAnalyzer(StringValue.of(mutation.getAnalyzer()));
+		}
+		if (mutation.getLengthPivot() != null) {
+			builder.setLengthPivot(Int32Value.of(mutation.getLengthPivot()));
+		}
+		if (mutation.getSearchWeight() != null) {
+			builder.setSearchWeight(FloatValue.of(mutation.getSearchWeight()));
+		}
+		if (mutation.getTextExpression() != null) {
+			builder.setTextExpression(StringValue.of(mutation.getTextExpression().toExpressionString()));
 		}
 
 		return builder.build();

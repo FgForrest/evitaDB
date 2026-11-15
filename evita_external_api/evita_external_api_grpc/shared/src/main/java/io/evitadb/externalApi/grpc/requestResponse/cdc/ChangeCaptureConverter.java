@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -46,6 +47,7 @@ import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocal
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.associatedData.AssociatedDataMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEntitySchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLocalCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingInfrastructureMutationConverter;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VersionUtils.SemVer;
@@ -278,6 +280,9 @@ public class ChangeCaptureConverter {
 	 * the capture arrived in: the identity the subscription acknowledgement named, or the identity of the session
 	 * a history read was executed in.
 	 *
+	 * The body is decoded from whichever of the entity, local, catalog schema, entity schema or infrastructure
+	 * mutation fields is set; with none set, the capture carries no body.
+	 *
 	 * @param changeCatalogCapture the change catalog capture to convert
 	 * @param catalogId            identity of the catalog incarnation the capture belongs to, `null` only when
 	 *                             the context it arrived in does not know it
@@ -293,6 +298,9 @@ public class ChangeCaptureConverter {
 			mutation = DelegatingEntityMutationConverter.INSTANCE.convert(changeCatalogCapture.getEntityMutation());
 		} else if (changeCatalogCapture.hasLocalMutation()) {
 			mutation = DelegatingLocalMutationConverter.INSTANCE.convert(changeCatalogCapture.getLocalMutation());
+		} else if (changeCatalogCapture.hasCatalogSchemaMutation()) {
+			mutation = DelegatingLocalCatalogSchemaMutationConverter.INSTANCE.convert(
+				changeCatalogCapture.getCatalogSchemaMutation());
 		} else if (changeCatalogCapture.hasSchemaMutation()) {
 			mutation = DelegatingEntitySchemaMutationConverter.INSTANCE.convert(
 				changeCatalogCapture.getSchemaMutation());
@@ -334,10 +342,17 @@ public class ChangeCaptureConverter {
 	}
 
 	/**
-	 * Converts a {@link GrpcChangeCatalogCapture} to a {@link ChangeCatalogCapture}.
+	 * Converts a {@link ChangeCatalogCapture} to a {@link GrpcChangeCatalogCapture}.
+	 *
+	 * The body goes to the capture field of its kind: entity mutations, local mutations, catalog-level schema
+	 * mutations that are not entity schema mutations (`catalogSchemaMutation`), entity schema mutations
+	 * (`schemaMutation`) and transaction mutations (`infrastructureMutation`) each have their own field. A capture
+	 * without a body is written header-only.
 	 *
 	 * @param changeCatalogCapture the change catalog capture to convert
-	 * @return the converted request
+	 * @param clientVersion        version of the receiving client, which decides the form associated-data values are
+	 *                             written in; `null` when unknown, which selects the legacy JSON form
+	 * @return the converted capture
 	 */
 	@Nonnull
 	public static GrpcChangeCatalogCapture toGrpcChangeCatalogCapture(
@@ -367,6 +382,11 @@ public class ChangeCaptureConverter {
 					builder.setEntityMutation(DelegatingEntityMutationConverter.INSTANCE.convert(entityMutation));
 				} else if (changeCatalogCapture.body() instanceof LocalMutation<?, ?> localMutation) {
 					builder.setLocalMutation(DelegatingLocalMutationConverter.INSTANCE.convert(localMutation));
+				} else if (changeCatalogCapture.body() instanceof LocalCatalogSchemaMutation schemaMutation &&
+					!(schemaMutation instanceof EntitySchemaMutation)) {
+					builder.setCatalogSchemaMutation(
+						DelegatingLocalCatalogSchemaMutationConverter.INSTANCE.convert(schemaMutation)
+					);
 				} else if (changeCatalogCapture.body() instanceof EntitySchemaMutation schemaMutation) {
 					builder.setSchemaMutation(DelegatingEntitySchemaMutationConverter.INSTANCE.convert(schemaMutation));
 				} else if (changeCatalogCapture.body() instanceof TransactionMutation transactionMutation) {
