@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
@@ -63,6 +64,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
@@ -84,6 +86,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -92,8 +95,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * current with is refused when it is defined, before anything of the batch is applied: the refusal comes from
  * `Catalog#verifyEntitySchemaMutationsApplicable`, never from the deferred trigger rebuild, names the expression,
  * the refused read and the reason, and leaves no trace - a restart loads the catalog with the accepted definitions
- * only. In a warming-up catalog that is what keeps a refused definition from being published: a schema exchanged
- * before a refusal is published by the next flush.
+ * only. A refusal before anything is exchanged costs a warming-up catalog nothing. The expressions the preflight admits
+ * and the trigger build at the end of the schema change refuses are refused after the exchange, which deactivates a
+ * warming-up catalog - `TriggerBuildRefusalInWarmUp` covers them.
  *
  * The cells come from the table of `IndexingExpressionInputCells`; each is defined in one expression slot, on an owner
  * type of its own.
@@ -112,17 +116,32 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 	private static final String REFERENCE_NAME = "brand";
 	private static final String HISTOGRAM_NAME = "shares";
 	private static final String DEFAULT_VALUE = "$reference.attributes['share']";
-	private static final String PREFLIGHT_FRAME = "verifyEntitySchemaMutationsApplicable";
-	private static final String DRAIN_FRAME = "drainTriggerRebuildFrame";
 	private static final String EVALUATED_OWNER = "evaluatedProduct";
 
 	/**
-	 * Accepted histogram conditions the validator admits but the cross-entity translator refuses when the trigger is
-	 * built: the primary key, the scope or the bare entity one hop away, beside an attribute read through it, and a
-	 * parenthesized prefix of a read through it. They are not defined through the engine until the validator decides
-	 * them.
+	 * Histogram conditions the validator admits and the trigger build refuses: the primary key, the scope or the bare
+	 * entity one hop away, beside an attribute read through it, a parenthesized prefix of a read through it, and a
+	 * step or a predicate applied to the result of `*?` or `??`. They stay off the shared catalog of
+	 * `shouldRefuseUntrackedReadsAtDefinitionAndLeaveNoTrace`, because the barrier their refusal raises in a
+	 * warming-up catalog would deactivate it for every later cell; `TriggerBuildRefusalInWarmUp` defines them.
 	 */
-	private static final Set<String> REFUSED_BY_TRANSLATION = Set.of("A-E15h", "A-N9", "A-N9k", "A-par-hop-prefix");
+	private static final Set<String> REFUSED_BY_TRIGGER_BUILD = Set.of(
+		"A-E15h", "A-N9", "A-N9k", "A-par-hop-prefix", "A-spread-hop-fallback", "A-spread-constant-fallback",
+		"A-coalesce-element-index"
+	);
+	/**
+	 * The histogram value cell the validator admits and the trigger build refuses: a numeric default its attribute
+	 * type cannot hold. `TriggerBuildRefusalInWarmUp` defines it.
+	 */
+	private static final Set<String> VALUES_REFUSED_BY_TRIGGER_BUILD = Set.of("V-A7");
+	/**
+	 * The facet condition cells the validator admits and the trigger build refuses: arithmetic on an attribute of the
+	 * referenced entity compared with a number, and a step or a predicate applied to the result of `*?` or `??`.
+	 * `TriggerBuildRefusalInWarmUp` defines them.
+	 */
+	private static final Set<String> FACETS_REFUSED_BY_TRIGGER_BUILD = Set.of(
+		"FA-11", "FA-coalesce-set-predicate", "FA-spread-translated", "FA-spread-predicate"
+	);
 	/**
 	 * The refused cells defined through the engine: one or more of each refusal reason, each with its own owner type.
 	 */
@@ -133,14 +152,16 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 		"FR-2", "FR-6", "FR-8", "FR-10", "FR-par-translated", "FR-coalesce-entity-version", "FR-spread-coalesce-element"
 	);
 	/**
-	 * The histogram value cells defined through the engine.
+	 * The histogram value cells defined through the engine. The cell the trigger build refuses is defined by
+	 * `TriggerBuildRefusalInWarmUp` instead.
 	 */
 	private static final Set<String> VALUES_DEFINED = Set.of(
 		"V-A1", "V-A2", "V-A3", "V-A4", "V-A5", "V-A6", "V-A8", "V-R1", "V-R3", "V-R8"
 	);
 	/**
 	 * The accepted facet cells defined through the engine; the facet rules are exercised against entities by the
-	 * conditional facet indexing tests.
+	 * conditional facet indexing tests. The cells the trigger build refuses are defined by
+	 * `TriggerBuildRefusalInWarmUp` instead.
 	 */
 	private static final Set<String> FACET_ACCEPTANCES_DEFINED = Set.of(
 		"FA-1", "FA-3", "FA-par-null-locales", "FA-spread-coalesce-own"
@@ -363,9 +384,9 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * In a warming-up catalog a schema exchanged before a refusal is published by the next flush. A read refused by
-	 * the payload preflight is refused before any exchange, so a session closed without any repair publishes nothing
-	 * of it, and the catalog loads.
+	 * A read refused by the payload preflight is refused before any exchange, costs no deactivation, and a session
+	 * closed without any repair publishes nothing of it; a refusal after the exchange raises the barrier
+	 * (`TriggerBuildRefusalInWarmUp`).
 	 */
 	@Nested
 	@DisplayName("a warming-up catalog")
@@ -405,6 +426,98 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 			} finally {
 				cleanupTestPaths(paths);
 			}
+		}
+	}
+
+	/**
+	 * Expressions the payload preflight admits and the trigger build at the end of the schema change refuses. In a
+	 * warming-up catalog the schema change is already applied when the build refuses, so the refusal raises the
+	 * unpublishable barrier: nothing further is published, the catalog is deactivated, and a restart loads the last
+	 * state it published. Each cell is defined in a catalog of its own, because the barrier deactivates it.
+	 */
+	@Nested
+	@DisplayName("a definition the trigger build refuses in a warming-up catalog")
+	class TriggerBuildRefusalInWarmUp {
+
+		/**
+		 * Proves that the definition is refused by the trigger build and not by the payload preflight, that the
+		 * refusal deactivates the catalog, and that the restarted catalog loads without the refused reference while it
+		 * keeps the entity, published by a session of its own, and the owner type, published by the inline flush of
+		 * the create that precedes the refused definition in the same session.
+		 *
+		 * @param cell a cell the payload preflight admits and the trigger build refuses
+		 */
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("io.evitadb.api.functional.schema.IndexingExpressionInputRefusalTest#triggerBuildRefusedCells")
+		@DisplayName("deactivates the catalog, and a restart loads the last published state without the reference")
+		void shouldDeactivateAndLoadLastPublishedStateWhenTriggerBuildRefuses(@Nonnull Cell cell) {
+			final String owner = entityTypeOf(cell);
+			final TestPaths paths = createTestPaths("IndexingExpressionTriggerBuildRefusal_" + owner);
+			final EvitaConfiguration configuration = newTestEvitaConfigurationBuilder(paths).build();
+			final List<Executable> checks = new ArrayList<>(8);
+			try {
+				try (Evita evita = new Evita(configuration)) {
+					defineCatalog(evita, CatalogState.WARMING_UP);
+					// published by the close of its own session, before the refusal
+					evita.updateCatalog(TEST_CATALOG, session -> {
+						session.createNewEntity(BRAND, 1).setAttribute("status", "A").upsertVia(session);
+					});
+					final RuntimeException failure;
+					final Throwable deactivationFailure;
+					try (
+						final CatalogUnpublishableBarrierAssertions.SettledStateLatch deactivation =
+							CatalogUnpublishableBarrierAssertions.subscribeToSettledState(
+								evita, TEST_CATALOG, CatalogState.INACTIVE
+							)
+					) {
+						failure = defineCatching(evita, owner, cell);
+						// only a refusal of the trigger build deactivates; an accepted definition or a refusal of the
+						// payload preflight fails the verdict check below without waiting out the budget
+						deactivationFailure = isRefusedByTriggerBuild(failure) ? failureOf(deactivation::await) : null;
+					}
+					checks.add(() -> assertRefusedByTriggerBuild(cell, failure));
+					checks.add(() -> assertNull(
+						deactivationFailure, cell + ": the refusal must deactivate the catalog: " + deactivationFailure
+					));
+				}
+				try (Evita reopened = new Evita(configuration)) {
+					final Throwable loadFailure = failureOf(reopened::waitUntilFullyInitialized);
+					checks.add(() -> assertNull(loadFailure, cell + ": the restart must load: " + loadFailure));
+					// whether the deactivation was stored before the engine closed is a race; both sides read the
+					// same bootstrap record, the newest state that reached the disk
+					final Throwable activationFailure = failureOf(
+						() -> CatalogUnpublishableBarrierAssertions.activateIfDeactivated(reopened, TEST_CATALOG)
+					);
+					checks.add(() -> assertNull(
+						activationFailure, cell + ": the deactivated catalog must activate: " + activationFailure
+					));
+					final CatalogState reloaded = reopened.getCatalogState(TEST_CATALOG).orElse(null);
+					checks.add(() -> assertEquals(
+						CatalogState.WARMING_UP, reloaded,
+						cell + ": the restarted catalog must load the last state it published, never `CORRUPTED`"
+					));
+					if (reloaded == CatalogState.WARMING_UP) {
+						reopened.queryCatalog(TEST_CATALOG, session -> {
+							final Optional<SealedEntitySchema> ownerSchema = session.getEntitySchema(owner);
+							final boolean brandPresent = session.getEntity(BRAND, 1).isPresent();
+							checks.add(() -> assertTrue(
+								ownerSchema.isPresent(),
+								cell + ": the owner type, published by the inline flush of its create, must survive"
+							));
+							checks.add(() -> assertFalse(
+								ownerSchema.flatMap(schema -> schema.getReference(REFERENCE_NAME)).isPresent(),
+								cell + ": the refused reference must not be stored"
+							));
+							checks.add(() -> assertTrue(
+								brandPresent, cell + ": the entity published before the refusal must survive"
+							));
+						});
+					}
+				}
+			} finally {
+				cleanupTestPaths(paths);
+			}
+			assertAll(checks);
 		}
 	}
 
@@ -504,7 +617,7 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 	private static List<Cell> definedCells() {
 		final List<Cell> cells = new ArrayList<>(HISTOGRAM_CONDITION_CELLS.size() * 2 + 32);
 		for (final Cell cell : HISTOGRAM_CONDITION_CELLS) {
-			if (cell.refused() ? REFUSALS_DEFINED.contains(cell.id()) : !REFUSED_BY_TRANSLATION.contains(cell.id())) {
+			if (cell.refused() ? REFUSALS_DEFINED.contains(cell.id()) : !REFUSED_BY_TRIGGER_BUILD.contains(cell.id())) {
 				cells.add(cell);
 				cells.add(cell.withKind(IndexingExpressionKind.ASSIGNED_WHEN));
 			}
@@ -518,6 +631,43 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 			if (cell.refused() ? REFUSALS_DEFINED.contains(cell.id()) : FACET_ACCEPTANCES_DEFINED.contains(cell.id())) {
 				cells.add(cell);
 			}
+		}
+		return List.copyOf(cells);
+	}
+
+	/**
+	 * Selects the cells the payload preflight admits and the trigger build refuses: the histogram conditions in both
+	 * histogram slots, the histogram value cell and the facet condition cells.
+	 *
+	 * @return the cells
+	 */
+	@Nonnull
+	static List<Cell> triggerBuildRefusedCells() {
+		final List<Cell> cells = new ArrayList<>(REFUSED_BY_TRIGGER_BUILD.size() * 2 + 8);
+		for (final Cell cell : HISTOGRAM_CONDITION_CELLS) {
+			if (REFUSED_BY_TRIGGER_BUILD.contains(cell.id())) {
+				cells.add(cell);
+				cells.add(cell.withKind(IndexingExpressionKind.ASSIGNED_WHEN));
+			}
+		}
+		for (final Cell cell : HISTOGRAM_VALUE_CELLS) {
+			if (VALUES_REFUSED_BY_TRIGGER_BUILD.contains(cell.id())) {
+				cells.add(cell);
+			}
+		}
+		for (final Cell cell : FACET_CONDITION_CELLS) {
+			if (FACETS_REFUSED_BY_TRIGGER_BUILD.contains(cell.id())) {
+				cells.add(cell);
+			}
+		}
+		// an identifier missing from the table must fail the run rather than silently drop its cell
+		final int expectedCount = REFUSED_BY_TRIGGER_BUILD.size() * 2 + VALUES_REFUSED_BY_TRIGGER_BUILD.size() +
+			FACETS_REFUSED_BY_TRIGGER_BUILD.size();
+		if (cells.size() != expectedCount) {
+			throw new IllegalStateException(
+				"Expected " + expectedCount + " cells refused by the trigger build, found " + cells.size() + ": " +
+					cells
+			);
 		}
 		return List.copyOf(cells);
 	}
@@ -733,11 +883,64 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 			assertTrue(message.contains("cannot read `" + cell.read() + "`"),
 				cell + ": the read is missing in: " + message);
 		}
-		if (!hasCatalogFrame(refusal, PREFLIGHT_FRAME) || hasCatalogFrame(refusal, DRAIN_FRAME)) {
+		if (!hasCatalogFrame(refusal, PREFLIGHT_FRAME) || hasCatalogFrame(refusal, TRIGGER_BUILD_FRAME)) {
 			fail(cell + ": the refusal must come from the payload preflight, not the deferred trigger rebuild: " +
 				message, refusal);
 		}
 		assertTrue(message.contains("`" + entityType + "`"), cell + ": the entity type is missing in: " + message);
+	}
+
+	/**
+	 * Asserts that the definition was refused, and that the refusal came from the trigger build at the end of the
+	 * schema change rather than from the payload preflight. The whole cause chain is searched, because a refusal that
+	 * is not an evitaDB exception reaches the caller wrapped.
+	 *
+	 * @param cell    the cell
+	 * @param failure the failure the definition ended with
+	 */
+	private static void assertRefusedByTriggerBuild(@Nonnull Cell cell, @Nullable RuntimeException failure) {
+		assertNotNull(failure, cell + ": must be refused by the trigger build, but was accepted");
+		if (!isRefusedByTriggerBuild(failure)) {
+			fail(
+				cell + ": the refusal must come from the trigger build, not the payload preflight: " + failure,
+				failure
+			);
+		}
+	}
+
+	/**
+	 * Tells whether the failure is a refusal of the trigger build at the end of the schema change rather than of the
+	 * payload preflight. The whole cause chain is searched, because a refusal that is not an evitaDB exception reaches
+	 * the caller wrapped.
+	 *
+	 * @param failure the failure the definition ended with, or `null` when it was accepted
+	 * @return true when a cause comes from the trigger build and none from the payload preflight
+	 */
+	private static boolean isRefusedByTriggerBuild(@Nullable Throwable failure) {
+		boolean fromTriggerBuild = false;
+		boolean fromPreflight = false;
+		for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+			fromTriggerBuild = fromTriggerBuild || hasCatalogFrame(cause, TRIGGER_BUILD_FRAME);
+			fromPreflight = fromPreflight || hasCatalogFrame(cause, PREFLIGHT_FRAME);
+		}
+		return fromTriggerBuild && !fromPreflight;
+	}
+
+	/**
+	 * Runs the action and returns whatever it ended with, an assertion failure included, so that the checks recorded
+	 * after it still run.
+	 *
+	 * @param action the action
+	 * @return the throwable, or `null` when the action completed
+	 */
+	@Nullable
+	private static Throwable failureOf(@Nonnull Executable action) {
+		try {
+			action.execute();
+			return null;
+		} catch (Throwable e) {
+			return e;
+		}
 	}
 
 	/**

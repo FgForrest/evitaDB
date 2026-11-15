@@ -71,6 +71,10 @@ public final class IndexingExpressionInputCells {
 	public static final String VALUE_FORM = "a histogram value must be a single attribute read";
 	/** Reason: a step on the result of `??` or `*?`, which the engine cannot map to the data it reads. */
 	public static final String COMPUTED_RECEIVER = "cannot map a step applied to the result of `??` or `*?`";
+	/** Method of `Catalog` checking the payloads of a schema change before anything is exchanged. */
+	public static final String PREFLIGHT_FRAME = "verifyEntitySchemaMutationsApplicable";
+	/** Method of `Catalog` building the expression triggers at the end of a schema change. */
+	public static final String TRIGGER_BUILD_FRAME = "drainTriggerRebuildFrame";
 
 	/**
 	 * The histogram condition cells, in the `bucketedPartially` slot; each also applies to `assignedWhen`.
@@ -270,6 +274,16 @@ public final class IndexingExpressionInputCells {
 		// the fallback of `*?` is used as a value, as the default of `??` is
 		cells.add(refused("R-spread-coalesce-reference", "($entity.attributes['tags'] *? $reference).size() > 0",
 			"$reference", UNTRACKED));
+		// admitted here and refused only when the trigger is built, which a warming-up catalog answers by deactivating;
+		// `IndexingExpressionInputRefusalTest$TriggerBuildRefusalInWarmUp` defines them
+		cells.add(accepted("A-spread-hop-fallback",
+			"($entity.attributes['tags'] *? $reference.referencedEntity).size() > 0 && " +
+				"$reference.referencedEntity.attributes['status'] == 'A'"));
+		cells.add(accepted("A-spread-constant-fallback",
+			"($entity.attributes['tags'] *? 'none').size() > 0 && " +
+				"$reference.referencedEntity.attributes['status'] == 'A'"));
+		cells.add(accepted("A-coalesce-element-index",
+			"($entity.attributes['tags'] ?? $entity.attributes['fallbackTags']).any($[0] == 'x')"));
 		// a coalesced localized map follows the locale set of the entity, a selector after `??` notwithstanding
 		cells.add(refused("R-coalesce-map-selector",
 			"($entity.localizedAttributes['name'] ?? $entity.localizedAttributes['alt'])['en'] != null",
@@ -646,6 +660,13 @@ public final class IndexingExpressionInputCells {
 			"$entity.references['tag'].any(($ ?? null).attributes['w'] > 1)"));
 		cells.add(accepted("FA-coalesce-this-pk",
 			"$entity.references['tag'].any(($ ?? null).referencedPrimaryKey > 0)"));
+		// admitted here and refused only when the trigger is built, which a warming-up catalog answers by deactivating;
+		// `IndexingExpressionInputRefusalTest$TriggerBuildRefusalInWarmUp` defines them
+		cells.add(accepted("FA-spread-translated",
+			"($entity.references['brand'] *? $reference).size() > 0 && " +
+				"$reference.referencedEntity.attributes['status'] == 'A'"));
+		cells.add(accepted("FA-spread-predicate",
+			"($entity.references['brand'] *? $reference).any($.attributes['share'] > 0)"));
 		return cells.stream().map(cell -> cell.withKind(IndexingExpressionKind.FACETED_PARTIALLY)).toList();
 	}
 

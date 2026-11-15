@@ -998,6 +998,8 @@ No indexing expression may read:
 
 evitaDB checks these rules when the schema is defined and rejects a change that breaks them with a message naming the expression, the data it may not read and the reason. It checks them again when a catalog is loaded: a catalog whose stored schema holds an expression these rules reject cannot be loaded.
 
+A few of these checks need the schema of another entity type, or the compiled form of the expression, and run when the expression is compiled at the end of the schema change: whether the referenced entity type has the attribute a histogram value reads, whether a numeric default fits the attribute's type, and whether a condition that reads the referenced, group or parent entity can be translated. Because the compilation happens at the end of each schema change, the attribute a histogram value reads must be defined in the same schema change as the histogram or in an earlier one. In the [bulk indexing phase](../deep-dive/bulk-vs-incremental-indexing.md#failures-that-cannot-be-reverted) such a rejection cannot be undone: the catalog is deactivated, and activating it again loads the last state it published.
+
 <Note type="info">
 
 Expressions can reach at most **one entity deep** from the owner entity. You can navigate to the referenced entity, group entity, or parent entity and read its attributes — and, in a facet condition, its own references and their attributes — but you cannot follow those references further to reach a third entity. This limitation keeps the dependency graph between entities predictable and ensures that changes can be tracked and re-evaluated efficiently.
