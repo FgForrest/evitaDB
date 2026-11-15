@@ -1,10 +1,10 @@
 ---
 title: Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure
 date: 2026-11-14
-updated: 2026-11-14 17:48
+updated: 2026-11-15 12:30
 status: accepted
 kind: refactor
-issues: [1956, 1959]
+issues: [1956, 1959, 1967, 1968]
 prs: [1957]
 areas: [evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/routing, evita_external_api/evita_external_api_rest, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_system, evita_external_api/evita_external_api_lab, evita_external_api/evita_external_api_observability, evita_test/evita_performance_tests]
 supersedes: []
@@ -115,18 +115,41 @@ measurements below show it is faster and less allocating than what it replaces. 
   re-decorating them breaks isolation without failing any status-code assertion — the unit tests compare
   identity for this reason.
 - The prefix router rewrites `:path` to the encoded remainder for the nested level and drops the query there;
-  handlers read the query from `ctx.query()`. The rewritten `:path` is read by lab's `GuiHandler`, the Prometheus
-  adapter and error logging; certificate download and `FileService` (JFR dump) select their file without it.
-  The Prometheus adapter reads the query of the rewritten request, so its query parameters are lost (the old
-  router dropped them the same way; by reading, not tested).
+  handlers read the original query from `ctx.query()`. The Prometheus adapter now does so too, and returns the
+  values of the requested header name. `PrometheusEndpointRoutingTest` proves over the production server's two
+  prefix levels that two `name[]` filters each keep their own metric and exclude the other's, and that `Accept`
+  selects OpenMetrics with its end marker. Passing real header values made the exporter's gzip, debug and
+  empty-result branches reachable; each calls the adapter with a body length of 0, and the adapter set `:status`
+  only for a positive length, so a default Prometheus server scrape (it always sends `Accept-Encoding: gzip`) would
+  have answered 500. The adapter now always sets the status; the same test class covers gzip, `debug`, an empty
+  filter and `HEAD` (each red before). The rewritten `:path` is read
+  by lab's `GuiHandler` and error logging; certificate download and `FileService` select their file without it.
+- An upgrade to an ordinary REST GET closes with WebSocket code **1008**, reason
+  `WebSocket connection is not available for this path.`, with no server ERROR. HTTP decorators implement
+  `WebSocketHandler` even for HTTP-only leaves, so their shared `unwrapWebSocketHandler` returns the existing
+  not-found handler when the leaf lacks that capability. Endpoint capability detection and automatic CONNECT
+  registration stay unchanged. A temporary Armeria client test reproduced HTTP 500 handshakes and one
+  ``HttpService `CorsService` is not WebSocket handler.`` server ERROR per transport before the fix; after it,
+  HTTP/1.1 upgrade and HTTP/2 extended CONNECT both closed with 1008 and zero ERRORs. The real CDC control
+  acknowledged on both transports (101 and 200 respectively). The probe was deleted after passing;
+  `EndpointRoutingServiceTest.shouldCloseWebSocketsForWrappedHttpOnlyHandler` retains the fallback and CONNECT
+  forwarding assertions.
 - Looks like a bug but is intended: literal > parameter > wildcard with backtracking; an identical template
   registered twice for one method silently keeps the first handler, while an equivalent template with different
   parameter names throws; a `CONNECT` entry that exists only through the WebSocket auto-registration neither
   appears in `Allow` nor turns a 404 into a 405; a malformed escape or invalid UTF-8 answers 404 in-process.
   Over the wire Armeria 1.43 answers 400 for a malformed `%` triplet before routing (by reading its source), so a
   client sees our 404 only for invalid UTF-8.
-- A custom TLS certificate whose file name equals a fixed system route (`status`, `liveness`, `readiness`,
-  `server-name`) fails start-up instead of shadowing or being shadowed.
+- The server's public certificate is served at the fixed route `/system/server.crt` in both certificate modes
+  (generated, or `api.certificate.custom.certificate`) and advertised whenever an endpoint requires TLS;
+  `client.crt` / `client.key` only in generated mode (#1968). Serving a custom certificate under its own file name
+  was built first and dropped: it needed literal routes and start-up conflict checks against the fixed system
+  routes, no client could discover the name, and the same registration served client credentials stored next to
+  the certificate. A certificate downloaded over plain HTTP must be checked against the start-up fingerprint
+  (`documentation/user/en/operate/tls.md`), which the server now prints in both modes
+  (`ServerCertificateFingerprintTest`). `CustomCertificateDownloadTest` covers both modes, a server without TLS
+  endpoints and the Java client, whose "server does not distribute client certificates" message is reserved for the
+  server's 404 (a local write failure stays a download failure).
 - Path-traversal safety rests on Armeria rejecting dot segments (also `%2e%2e`) before routing and on lab's
   `GuiHandler` checking the remainder against an ASCII whitelist; the routers resolve no dot segments and pass
   escaped control characters such as TAB through to captures.
@@ -135,7 +158,8 @@ measurements below show it is faster and less allocating than what it replaces. 
 
 Functional: `PrefixRoutingServiceTest`, `EndpointRoutingServiceTest`, `RegionRoutingTableTest`, `RoutingPathTest`,
 `RestRouterTest`, `GraphQLRouterTest`, `CatalogRenameRoutingTest`, `RestParameterRoutingTest`,
-`CustomCertificateDownloadTest`. Until its
+`CustomCertificateDownloadTest`, `PrometheusEndpointRoutingTest`, `PrometheusServerRestartTest`,
+`CatalogSessionRegistryHandoverTest`, `StaleCatalogHostEventRoutingTest`, `ServerCertificateFingerprintTest`. Until its
 deletion a differential test fed the old and the new routers the same generated route sets and requests; the only
 permitted difference was the 405 oracle. The churn test's opt-in saturation ramp (`api.churn.mode=ramp`) has never
 been run, so no latency-under-load comparison of the two routers exists.
@@ -172,8 +196,9 @@ wrong-method request allocates 130–190 B more.
 
 - **Behaviour changes for clients** (upgrade notes are on issue #1956): 405 with `Allow` instead of 404 for a
   known path with an unsupported method; an escape that decodes to invalid UTF-8 answers 404; `internal_*` request
-  headers and the `?internal_<name>` query alias no longer supply parameters; a custom certificate is served at
-  `/system/<file>` (it was registered with a doubled slash and could not be downloaded).
+  headers and the `?internal_<name>` query alias no longer supply parameters; a REST parameter given in both
+  the path and the query answers 400 instead of 500. The certificate download changes have their own upgrade
+  notes on #1968.
 - **A write rebuilds the prefix table**, so its cost grows with the number of catalogs (29 µs at 100). Writes
   happen only on catalog lifecycle and schema changes. The cause of the slowdown at 100 catalogs was not isolated
   from reader pressure; a writer-only benchmark would settle it if catalog counts grow by orders of magnitude. The
@@ -184,7 +209,7 @@ wrong-method request allocates 130–190 B more.
   `HASHMAP` benchmark arm is kept so the choice can be re-measured.
 - **About 1.7–1.9 kB per request remain** on the full path. Each prefix level copies the request headers to
   rewrite `:path`. Passing an offset in the request context instead would remove the copies, but lab's
-  `GuiHandler`, the Prometheus adapter and error logging read the rewritten `:path` and would each need an adapter;
+  `GuiHandler` and error logging read the rewritten `:path` and would each need an adapter;
   not attributed by a profile and not attempted.
 - **Levels that never change after start-up** (server-wide, system, lab, observability) could use stock Armeria
   routes, as gRPC does with `serviceUnder`; left for a separate change. GraphQL WebSockets still need the single
@@ -202,9 +227,11 @@ wrong-method request allocates 130–190 B more.
   the instance swap for requests routed before a refresh; that an open WebSocket sees the swap, and the
   failed-registration cleanup in `GraphQLManager`, rest on reading the code. The churn test fails on a routing 404 of a
   replace target: 589 misses in 1,918 protected probes in one run with the old order restored, none in 976 (and in 961
-  on the final tree) without. The guarantee is routing continuity, not query success: while a rename is built the old
-  name stays routed but its sessions fail with "catalog not found" (400), and an overwritten target briefly serves its
-  previous API over the new catalog's data (by reading).
+  on the final tree) without. With the 500 acceptance removed and the engine fixes in, a 60-second run on 2026-11-15
+  had 46,757 requests, no failure, no routing miss in 1,028 protected probes and no ERROR in the log (the run before
+  the engine fix: two REST 500s and three session-close ERRORs). The guarantee is routing continuity, not query
+  success: while a rename is built the old name stays routed but its sessions fail with "catalog not found" (400),
+  and an overwritten target briefly serves its previous API over the new catalog's data (by reading).
 - **A late "inactive" or "removed" host event no longer unregisters a newer catalog of the same name.** Host
   events and engine mutations reach a CDC subscriber as separate executor tasks, so one drain can deliver
   "deactivate B" and "replace B with A" before the older INACTIVE(B) event; the observers used to unregister the
@@ -223,6 +250,26 @@ wrong-method request allocates 130–190 B more.
   not analysed. The test accepts any error
   carrying an error code on catalogs under churn and reports unlisted ones as `other`, because it guards
   routing; catalogs that are not being changed stay strict.
+- **The churn test also exposed an engine defect in a renamed/replaced session registry.** Its supplier cast
+  a transitional `UnusableCatalog` to `Catalog` while delete/deactivate drained sessions, skipping the termination
+  callback and proxy finalization. Fresh and derived registries now share the existing placeholder-exception
+  mapping in `Evita#getCatalogForSessionRegistry`. `CatalogSessionRegistryHandoverTest` proves complete public
+  termination callbacks in `shouldCompleteSessionTerminationWhenDeletingReplacedCatalog` and
+  `shouldCompleteSessionTerminationWhenDeactivatingRenamedCatalog`; restoring only the operator's cast makes
+  both fail again. A read-write session with an open transaction hit the same teardown one step later, for fresh
+  and derived registries alike: the drain marks the transaction rollback-only and counting the rollback asked the
+  supplier for the catalog being deleted. `SessionRegistry#reportTransactionResolution` now skips the count while
+  the catalog is transitioning (two transactional tests in the same class; removing the absorb makes them red).
+- **A stopped server releases its Prometheus meters** (#1967). Each `ExternalApiServer` creates a Micrometer
+  registry over the global Prometheus registry; it was never released, so after a second server start in one JVM
+  an unfiltered scrape answered 500 (`DuplicateLabelsException` for `armeria_build`). The server now closes and
+  clears it once Armeria has stopped, and also when construction fails after the registry exists;
+  `PrometheusServerRestartTest` guards both. A failed construction still leaves its worker event-loop group
+  running (by reading, not addressed). **Open:** two servers alive at the
+  same time in one JVM still register `armeria_build` twice (by reading). The functional-test JVM is such a case:
+  shared datasets keep their servers alive across classes, so an unfiltered scrape there answers 500 even with
+  `@Isolated` (the first full run showed it). The regression test therefore counts its own servers' series in the
+  global registry against a baseline instead of scraping over HTTP.
 - **The churn test's margin for a non-atomic REST refresh is thin**: that mutation was caught once per
   60-second run. The duration that makes detection reliable was not measured.
 - `removePrefixPath` does not remove an exact path of the same spelling; no production caller unregisters exact
@@ -238,3 +285,7 @@ wrong-method request allocates 130–190 B more.
 - **2026-11-12** — analysis of Armeria `reconfigure`, design reviewed, decisions on 405 and GraphQL publish-once
 - **2026-11-13** — routers, switched callers, encoded-path matching and tests; PR #1957 opened
 - **2026-11-14** — benchmarks and long-running tests executed; Undertow-derived tree deleted
+- **2026-11-15** — churn-found engine supplier fixed; REST duplicate parameters now answer 400; GraphQL build
+  events use instance durations; Prometheus query/header transport and HTTP-only REST WebSocket fallback fixed;
+  Prometheus meters released on server stop (#1967); public certificate at `/system/server.crt` in both modes
+  (#1968)
