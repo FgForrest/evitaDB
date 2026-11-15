@@ -2161,6 +2161,33 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Resolves the current catalog for both newly created and renamed session registries.
+	 *
+	 * Both suppliers must preserve transitional placeholders' representative exceptions: a lifecycle operation
+	 * publishes its placeholder before draining sessions, whose close must still finish through the registry.
+	 *
+	 * @param catalogName current name served by the registry
+	 * @return the usable catalog
+	 * @throws CatalogNotFoundException when the name resolves to no catalog
+	 * @throws RuntimeException the placeholder's representative exception when the name resolves to an
+	 *                          {@link UnusableCatalog}
+	 */
+	@Nonnull
+	public Catalog getCatalogForSessionRegistry(@Nonnull String catalogName) {
+		return this.getEngineState().getCatalog(catalogName)
+			.map(it -> {
+				if (it instanceof Catalog catalog) {
+					return catalog;
+				} else if (it instanceof UnusableCatalog unusableCatalog) {
+					throw unusableCatalog.getRepresentativeException();
+				} else {
+					throw new GenericEvitaInternalError("Could not happen!");
+				}
+			})
+			.orElseThrow(() -> new CatalogNotFoundException(catalogName));
+	}
+
+	/**
 	 * Creates and initializes a new instance of SessionRegistry using the provided session traits.
 	 *
 	 * @param sessionTraits the traits of the session, including catalog name and other properties,
@@ -2172,18 +2199,7 @@ public final class Evita implements EvitaContract {
 		final String catalogName = sessionTraits.catalogName();
 		return new SessionRegistry(
 			this.tracingContext,
-			() -> this.getEngineState()
-			          .getCatalog(catalogName)
-			          .map(it -> {
-				          if (it instanceof Catalog catalog) {
-					          return catalog;
-				          } else if (it instanceof UnusableCatalog unusableCatalog) {
-					          throw unusableCatalog.getRepresentativeException();
-				          } else {
-					          throw new GenericEvitaInternalError("Could not happen!");
-				          }
-			          })
-			          .orElseThrow(() -> new CatalogNotFoundException(catalogName)),
+			() -> getCatalogForSessionRegistry(catalogName),
 			this.sessionRegistryDataStore
 		);
 	}

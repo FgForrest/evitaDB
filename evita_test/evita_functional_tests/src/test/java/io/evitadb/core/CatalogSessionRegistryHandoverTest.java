@@ -44,6 +44,8 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -106,11 +108,15 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 
 	private TestPaths paths;
 	private Evita evita;
+	/** Session identifiers whose complete termination callback ran. */
+	private final Set<UUID> terminatedSessions = ConcurrentHashMap.newKeySet();
 
 	@BeforeEach
 	void setUp() {
 		this.paths = createTestPaths("CatalogSessionRegistryHandoverTest");
-		this.evita = new Evita(getEvitaConfiguration());
+		this.evita = new Evita(
+			getEvitaConfiguration(), null, session -> this.terminatedSessions.add(session.getId())
+		);
 	}
 
 	@AfterEach
@@ -162,7 +168,9 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 	 */
 	private void restartEngine() {
 		this.evita.close();
-		this.evita = new Evita(getEvitaConfiguration());
+		this.evita = new Evita(
+			getEvitaConfiguration(), null, session -> this.terminatedSessions.add(session.getId())
+		);
 		this.evita.waitUntilFullyInitialized();
 	}
 
@@ -201,6 +209,35 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
 		return newTestEvitaConfigurationBuilder(this.paths).build();
+	}
+
+	/** A delete drains the derived registry after publishing its transitional catalog placeholder. */
+	@Test
+	@DisplayName("Completes termination callbacks when deleting a replaced catalog")
+	void shouldCompleteSessionTerminationWhenDeletingReplacedCatalog() {
+		createCatalogWithBrands(SOURCE_CATALOG, BRANDS_IN_SOURCE);
+		createCatalogWithBrands(TARGET_CATALOG, BRANDS_IN_TARGET);
+		this.evita.replaceCatalog(SOURCE_CATALOG, TARGET_CATALOG);
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TARGET_CATALOG)) {
+			assertFalse(this.terminatedSessions.contains(session.getId()));
+			this.evita.deleteCatalogIfExists(TARGET_CATALOG);
+			assertFalse(session.isActive());
+			assertTrue(this.terminatedSessions.contains(session.getId()), "Session termination callback was skipped");
+		}
+	}
+
+	/** Deactivation also drains the derived registry while a transitional placeholder is visible. */
+	@Test
+	@DisplayName("Completes termination callbacks when deactivating a renamed catalog")
+	void shouldCompleteSessionTerminationWhenDeactivatingRenamedCatalog() {
+		createCatalogWithBrands(SOURCE_CATALOG, BRANDS_IN_SOURCE);
+		this.evita.renameCatalog(SOURCE_CATALOG, TARGET_CATALOG);
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TARGET_CATALOG)) {
+			assertFalse(this.terminatedSessions.contains(session.getId()));
+			this.evita.deactivateCatalog(TARGET_CATALOG);
+			assertFalse(session.isActive());
+			assertTrue(this.terminatedSessions.contains(session.getId()), "Session termination callback was skipped");
+		}
 	}
 
 	@Nested
