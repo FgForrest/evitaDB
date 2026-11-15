@@ -1,7 +1,7 @@
 ---
 title: Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure
 date: 2026-11-14
-updated: 2026-11-15 12:30
+updated: 2026-11-15 13:33
 status: accepted
 kind: refactor
 issues: [1956, 1959, 1967, 1968]
@@ -270,6 +270,11 @@ wrong-method request allocates 130–190 B more.
   shared datasets keep their servers alive across classes, so an unfiltered scrape there answers 500 even with
   `@Isolated` (the first full run showed it). The regression test therefore counts its own servers' series in the
   global registry against a baseline instead of scraping over HTTP.
+- **Seen while fixing, not addressed (both predate this work):** the Java client reuses its cached per-server
+  certificate folder when all three files exist, so after a server switches from generated to custom mode it keeps
+  the old files and skips the new "server does not distribute client certificates" message (by reading); and
+  `close()` on a read-write session whose transaction a forced drain already rolled back throws
+  `RollbackException` saying the rollback was requested by the user (seen in a test).
 - **The churn test's margin for a non-atomic REST refresh is thin**: that mutation was caught once per
   60-second run. The duration that makes detection reliable was not measured.
 - `removePrefixPath` does not remove an exact path of the same spelling; no production caller unregisters exact
