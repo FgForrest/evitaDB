@@ -592,10 +592,10 @@ class EndpointRoutingServiceTest {
 	}
 
 
-	/** Outer CORS capability drives CONNECT registration even when its delegate cannot handle WebSockets. */
+	/** Outer wrappers keep CONNECT dispatch while HTTP-only delegates close with a policy violation. */
 	@Test
-	@DisplayName("retains outer wrapper capability without unwrapping")
-	void shouldKeepOuterWrapperCapability() throws Exception {
+	@DisplayName("HTTP-only delegates behind wrappers close WebSockets with a policy violation")
+	void shouldCloseWebSocketsForWrappedHttpOnlyHandler() throws Exception {
 		final ProbeService http = new ProbeService("wrapped HTTP");
 		final HttpService wrapper = CorsService.standaloneFilter(http);
 		final EndpointRoutingService router = new EndpointRoutingService.Builder()
@@ -606,10 +606,7 @@ class EndpointRoutingServiceTest {
 			final ServiceRequestContext context = ServiceRequestContext.builder(request)
 				.sessionProtocol(protocol).build();
 			final RoutableWebSocket in = new RoutableWebSocket(WebSocket.of(StreamMessage.of()), "/ordinary");
-			final IllegalStateException failure = assertThrows(
-				IllegalStateException.class, () -> router.handle(context, in)
-			);
-			assertEquals("HttpService `CorsService` is not WebSocket handler.", failure.getMessage());
+			assertPolicyViolation(router.handle(context, in));
 		}
 	}
 
