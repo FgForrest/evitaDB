@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Exercises Prometheus query filtering and negotiation through the production server's nested prefix routers.
- * Filtered scrapes exclude unrelated process-wide Armeria metrics retained by earlier server tests.
+ * Filtered scrapes retain the selected metric and exclude other metrics in the shared scrape registry.
  * Isolation prevents concurrent registration of JVM-wide metric handlers by other server fixtures.
  * Uses the server startup and port allocation fixture of EvitaServerTest and CustomCertificateDownloadTest.
  *

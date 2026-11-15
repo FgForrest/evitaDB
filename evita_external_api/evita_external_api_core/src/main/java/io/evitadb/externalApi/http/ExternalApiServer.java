@@ -129,6 +129,12 @@ public class ExternalApiServer implements AutoCloseable {
 	 * second invocation is a silent no-op.
 	 */
 	private final Evita evita;
+	/**
+	 * Server-owned bridge into the global scrape registry. Closing alone leaves its collectors registered;
+	 * after Armeria stops, its meters must also be removed so later servers do not duplicate the same labels.
+	 */
+	@Nullable
+	private PrometheusMeterRegistry meterRegistry;
 	private CertificateService certificateService;
 	private CompletableFuture<Void> stopFuture;
 
@@ -503,6 +509,10 @@ public class ExternalApiServer implements AutoCloseable {
 				this.stopFuture = this.server.stop()
 					.thenAccept(
 						unused -> {
+							if (this.meterRegistry != null) {
+								this.meterRegistry.close();
+								this.meterRegistry.clear();
+							}
 							ConsoleWriter.write(
 								"External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n");
 							this.probesMaintainer.closeProbes();
@@ -555,14 +565,14 @@ public class ExternalApiServer implements AutoCloseable {
 
 		// Create a shared meter registry backed by the default PrometheusRegistry
 		// (the same registry scraped by PrometheusScrapeHandler)
-		final PrometheusMeterRegistry meterRegistry = new PrometheusMeterRegistry(
+		this.meterRegistry = new PrometheusMeterRegistry(
 			PrometheusConfig.DEFAULT, PrometheusRegistry.defaultRegistry, Clock.SYSTEM
 		);
 
 		// Bind EventLoop metrics to the shared registry
 		MoreMeterBinders
 			.eventLoopMetrics(workerGroup, new MeterIdPrefix("armeria.netty.worker"))
-			.bindTo(meterRegistry);
+			.bindTo(this.meterRegistry);
 
 		// reports RST_STREAM floods and erroneous GOAWAY teardowns that would otherwise leave no trace on the server
 		final Http2ConnectionMonitor http2ConnectionMonitor = Http2ConnectionMonitor.fromSystemProperties();
@@ -616,7 +626,7 @@ public class ExternalApiServer implements AutoCloseable {
 			.serviceWorkerGroup(workerGroup, true)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
 			.workerGroup(workerGroup, true)
-			.meterRegistry(meterRegistry)
+			.meterRegistry(this.meterRegistry)
 			.unloggedExceptionsReportInterval(Duration.ofMillis(10));
 
 		if (apiOptions.accessLog()) {
@@ -745,7 +755,7 @@ public class ExternalApiServer implements AutoCloseable {
 			// Bind certificate metrics (expiry, validity) to the shared registry
 			MoreMeterBinders
 				.certificateMetrics(new File(certificatePath.certificate()), new MeterIdPrefix("armeria.server.certificate"))
-				.bindTo(meterRegistry);
+				.bindTo(this.meterRegistry);
 		}
 
 		// we need to process APIs with PathHandlingMode.FIXED_PATH_HANDLING first,
