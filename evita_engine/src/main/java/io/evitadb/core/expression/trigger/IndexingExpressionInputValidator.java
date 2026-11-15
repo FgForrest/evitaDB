@@ -85,8 +85,8 @@ import java.util.Objects;
  * slot (`facetedPartially`) is checked against a reject list only: facet removals are presence-aware, so an untracked
  * facet input cannot cause the refused withdrawal the histogram rules prevent (facet writes can still fail for other
  * reasons), and only reads that can never be meaningful there - data evitaDB maintains itself, an unstable locale
- * order, `random()`, prices, properties that do not exist, names that are not constants, reads that are always `null`
- * and unknown variables - are refused.
+ * order, `random()`, prices, properties that do not exist, names that are not constants or are applied to a container
+ * that is the result of `??` or `*?`, reads that are always `null` and unknown variables - are refused.
  *
  * The check walks the expression tree itself, every operand and every step of every access chain included, never a
  * flattened list of accessed paths, so that a read nested in a predicate, a key, a spread mapping or on the right of
@@ -97,13 +97,17 @@ import java.util.Objects;
  * the fallback of `*?` replaces `null` elements of a collection, so the result is the collection, and a step on an
  * element is judged on the collection's elements and on the fallback. Parentheses count for nothing where the
  * engine's own analysis of the data an expression reads looks through them - around `null`, a key, a receiver or an
- * operand - but a name in parentheses is no name the analysis knows. A refusal is an
- * {@link InvalidSchemaMutationException} naming the expression, its slot, the reference, the entity type, the scope,
- * the refused read and the reason.
+ * operand - but a name in parentheses is no name the analysis knows. A data or `references` container stays a
+ * container whatever it passes through, so a step on it must be a name written as a string constant wherever it is
+ * applied; a name applied to the result of `??` or `*?` is refused even then, because the analysis records it on no
+ * path through the container. A refusal is an {@link InvalidSchemaMutationException} naming the expression, its slot,
+ * the reference, the entity type, the scope, the refused read and the reason.
  *
- * What the check guarantees is scoped: every read of an accepted expression is constant, hooked or dispatched under
- * the schema it was accepted with. A later schema change can alter what an accepted read answers without any entity
- * mutation (for instance a reference cardinality change); that is the schema rebuild's concern, not this check's.
+ * What the check guarantees is scoped. For a histogram expression it is that every read of an accepted expression is
+ * constant, hooked or dispatched under the schema it was accepted with; a later schema change can alter what an
+ * accepted read answers without any entity mutation (for instance a reference cardinality change), and that is the
+ * schema rebuild's concern, not this check's. For a facet condition the check is a reject list and guarantees only
+ * that an accepted condition reads nothing on it: an accepted facet condition may read data no hook tracks.
  *
  * The class is pure and stateless; every walk allocates its own state.
  *
@@ -242,11 +246,13 @@ public final class IndexingExpressionInputValidator {
 			"only `$entity`, `$reference` and, inside a predicate or a spread mapping, `$` are available"
 		),
 		/**
-		 * A property or a constant-key element step on the result of `??` or `*?`, whose path reaches no variable.
+		 * A step on the result of `??` or `*?` whose path reaches no variable: with the histogram rules a property or a
+		 * constant-key element step at the top level, with both rules a name applied to a data or `references`
+		 * container that is such a result.
 		 */
 		COMPUTED_RECEIVER(
 			"evitaDB cannot map a step applied to the result of `??` or `*?` to the data it reads, so it could not " +
-				"keep the histogram current when that data changes; apply the step to each operand of `??` instead"
+				"keep the index current when that data changes; apply the step to each operand of `??` instead"
 		),
 		/**
 		 * A histogram value expression of another form than a single attribute read.
@@ -873,8 +879,8 @@ public final class IndexingExpressionInputValidator {
 	 * collection or the fallback that replaced a `null` one.
 	 *
 	 * @param shape    what the sub-expression produces
-	 * @param hop      the hop kind when the shape is an entity one hop away or one of its attribute containers,
-	 *                 otherwise `null`
+	 * @param hop      the hop kind when the shape is an entity one hop away, or one of its attribute containers in the
+	 *                 chain that reaches it, otherwise `null`
 	 * @param text     the text of the sub-expression, for messages
 	 * @param elements the shapes an element of a collection may have besides those of the collection's own elements:
 	 *                 the fallback of `*?` and the result of a spread mapping; empty for anything else. They are kept
@@ -1524,6 +1530,10 @@ public final class IndexingExpressionInputValidator {
 			// the engine maps no read through the result of `??` or `*?` at the top level: its steps reach no
 			// variable; inside a key, a predicate or a mapping they continue the path the step is applied to
 			final boolean coalescedReceiver = this.histogram && !nested && isCoalesce(unwrapParentheses(operand));
+			// a data or `references` container that is the result of `??` or `*?` ended the chain reaching it, and the
+			// engine records a name applied to the result on no path through the container, nested or not; set while
+			// the step walked is the first one, which is applied to the result itself
+			boolean onCoalesceResult = isCoalesce(unwrapParentheses(operand));
 			// a chain starting at `$entity` or `$reference`, parentheses and parenthesized chains looked through, has a
 			// path of its own; any other chain continues the path of the chain its key, predicate or mapping belongs
 			// to, and starts one without a variable outside them
@@ -1549,11 +1559,16 @@ public final class IndexingExpressionInputValidator {
 							for (final Alternative result : step(receiver, step, next, text, boundThis)) {
 								addDistinct(stepped, result);
 							}
+							if (onCoalesceResult && isContainer(receiver.shape())) {
+								// `step` has applied the container's name rule; a name passing it is refused as well
+								refuse(text.toString(), RefusalReason.COMPUTED_RECEIVER);
+							}
 							if (this.refusal != null) {
 								return Walked.PLAIN;
 							}
 						}
 						receivers = stepped;
+						onCoalesceResult = false;
 					}
 				}
 				return finishChain(receivers, text);
@@ -1564,8 +1579,9 @@ public final class IndexingExpressionInputValidator {
 
 		/**
 		 * Judges where an access chain ends, for each alternative: at an entity one hop away, kept for the hop rule; at
-		 * a data or a `references` container without a name, refused by the histogram rules and recorded by the facet
-		 * rules; or at its shape.
+		 * a data or a `references` container without a name, refused by the histogram rules, and recorded and kept as
+		 * the container by the facet rules; or at its shape. Only an entity one hop away keeps its hop kind: the hop
+		 * kind of an attribute container counts for a name read in the chain that reaches the container.
 		 *
 		 * @param receivers the alternatives the last step produced
 		 * @param text      the text of the whole chain
@@ -1584,12 +1600,13 @@ public final class IndexingExpressionInputValidator {
 						return Walked.PLAIN;
 					}
 					// a container ending the chain evaluates to the container itself, which a facet condition may
-					// compare with `null`; only a step after it that is not a name fails, and so does a translated
-					// condition (see `check`)
+					// compare with `null`; it stays a container for whatever uses it, so a step applied to it later -
+					// on the result of `??` or `*?`, or on an element a predicate or a mapping reads - meets the name
+					// rule, and a translated condition fails on it (see `check`)
 					if (this.unnamedContainerText == null) {
 						this.unnamedContainerText = chainText;
 					}
-					addDistinct(finished, Alternative.of(Shape.VALUE, null, chainText));
+					addDistinct(finished, Alternative.of(receiver.shape(), null, chainText));
 				} else {
 					addDistinct(finished, new Alternative(receiver.shape(), null, chainText, receiver.elements()));
 				}

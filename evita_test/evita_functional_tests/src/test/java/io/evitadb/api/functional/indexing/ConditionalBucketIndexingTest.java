@@ -2104,6 +2104,13 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 			);
 		}
 
+		/**
+		 * Verifies that a histogram whose `bucketedPartially` condition reads the references of the referenced entity
+		 * is refused when it is defined, naming that read, and that the refused definition leaves no histogram on the
+		 * reference, in a warming-up and in a live catalog alike.
+		 *
+		 * @param state the state of the catalog the histogram is defined in
+		 */
 		@ParameterizedTest(name = "catalog state: {0}")
 		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should refuse a histogram condition reading the references of the referenced entity")

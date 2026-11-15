@@ -290,6 +290,15 @@ public final class IndexingExpressionInputCells {
 			"$entity.localizedAttributes['name']", LOCALE_SET));
 		// the read named by a refusal before a null-safe step ends at the read, not at the marker
 		cells.add(refused("R-nullsafe-attributes", "$entity.attributes?.size() > 0", "$entity.attributes", DYNAMIC));
+		// a data container without a name is refused where its chain ends, also as an operand of `??`, whatever the
+		// step on the result is
+		cells.add(refused("R-container-null", "$entity.attributes != null", "$entity.attributes", DYNAMIC));
+		cells.add(refused("R-coalesce-container-null", "($entity.attributes ?? null) != null", "$entity.attributes",
+			DYNAMIC));
+		cells.add(refused("R-coalesce-container-par-name", "($entity.attributes ?? null)[('status')] == 'A'",
+			"$entity.attributes", DYNAMIC));
+		cells.add(refused("R-coalesce-container-name", "($entity.attributes ?? null)['status'] == 'A'",
+			"$entity.attributes", DYNAMIC));
 		// refused: the locale set, whose changes no hook withdraws on
 		cells.add(refused("R-E4", "$entity.localizedAttributes['name'].size() > 0",
 			"$entity.localizedAttributes['name']", LOCALE_SET));
@@ -599,6 +608,77 @@ public final class IndexingExpressionInputCells {
 			DYNAMIC));
 		cells.add(refused("FR-par-this", "$entity.references['tag'].any(($).referencedEntity != null)",
 			"$.referencedEntity", NULL_HOP));
+		// a data or `references` container that is the result of `??` or `*?` is still a container: it may be compared
+		// with `null`, a step on it must be a name written as a string constant, and even such a name is refused,
+		// because the engine maps no name applied to the result to the container
+		cells.add(accepted("FA-coalesce-container-null", "($entity.attributes ?? null) != null"));
+		cells.add(accepted("FA-coalesce-hop-container-null",
+			"($reference.referencedEntity.attributes ?? null) != null"));
+		cells.add(refused("FR-coalesce-container-par-name", "($entity.attributes ?? null)[('status')] == 'A'",
+			"($entity.attributes ?? null)[('status')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-container-name", "($entity.attributes ?? null)['status'] == 'A'",
+			"($entity.attributes ?? null)['status']", COMPUTED_RECEIVER));
+		cells.add(refused("FR-coalesce-container-name-left", "(null ?? $entity.attributes)['status'] == 'A'",
+			"(null ?? $entity.attributes)['status']", COMPUTED_RECEIVER));
+		cells.add(refused("FR-spread-coalesce-container-name", "($entity.attributes *? 'x')['status'] == 'A'",
+			"($entity.attributes *? 'x')['status']", COMPUTED_RECEIVER));
+		cells.add(refused("FR-spread-coalesce-ns-container", "($entity.attributes ?*? 'x')[('status')] == 'A'",
+			"($entity.attributes ?*? 'x')[('status')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-container-mixed",
+			"($entity.attributes ?? $entity.associatedData)['code'] != null",
+			"($entity.attributes ?? $entity.associatedData)['code']", COMPUTED_RECEIVER));
+		cells.add(refused("FR-coalesce-container-method", "($entity.attributes ?? null).size() > 0",
+			"($entity.attributes ?? null)", DYNAMIC));
+		cells.add(refused("FR-coalesce-localized-attributes",
+			"($entity.localizedAttributes ?? null)[('name')]['en'] != null",
+			"($entity.localizedAttributes ?? null)[('name')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-associated-data", "($entity.associatedData ?? null)[('metadata')] != null",
+			"($entity.associatedData ?? null)[('metadata')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-localized-associated-data",
+			"($entity.localizedAssociatedData ?? null)[('label')]['en'] != null",
+			"($entity.localizedAssociatedData ?? null)[('label')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-references", "($entity.references ?? null)[('tag')] != null",
+			"($entity.references ?? null)[('tag')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-reference-attributes", "($reference.attributes ?? null)[('share')] > 1",
+			"($reference.attributes ?? null)[('share')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-reference-localized",
+			"($reference.localizedAttributes ?? null)[('note')]['en'] != null",
+			"($reference.localizedAttributes ?? null)[('note')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-hop-attributes",
+			"($reference.referencedEntity.attributes ?? null)[('status')] == 'A'",
+			"($reference.referencedEntity.attributes ?? null)[('status')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-hop-attributes-name",
+			"($reference.referencedEntity.attributes ?? null)['status'] == 'A'",
+			"($reference.referencedEntity.attributes ?? null)['status']", COMPUTED_RECEIVER));
+		cells.add(refused("FR-coalesce-hop-localized-attributes",
+			"($entity.parentEntity.localizedAttributes ?? null)[('name')]['en'] != null",
+			"($entity.parentEntity.localizedAttributes ?? null)[('name')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-hop-associated-data",
+			"($reference.groupEntity.associatedData ?? null)[('x')] != null",
+			"($reference.groupEntity.associatedData ?? null)[('x')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-hop-localized-associated-data",
+			"($reference.referencedEntity.localizedAssociatedData ?? null)[('label')]['en'] != null",
+			"($reference.referencedEntity.localizedAssociatedData ?? null)[('label')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-hop-references",
+			"($reference.referencedEntity.references ?? null)[('tag')] != null",
+			"($reference.referencedEntity.references ?? null)[('tag')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-hop-parent-attributes",
+			"($reference.referencedEntity.parentEntity.attributes ?? null)[('status')] == 'A'",
+			"($reference.referencedEntity.parentEntity.attributes ?? null)[('status')]", DYNAMIC));
+		cells.add(refused("FR-coalesce-this-attributes",
+			"$entity.references['tag'].any(($.attributes ?? null)[('w')] > 1)", "($.attributes ?? null)[('w')]",
+			DYNAMIC));
+		cells.add(refused("FR-coalesce-this-attributes-name",
+			"$entity.references['tag'].any(($.attributes ?? null)['w'] > 1)", "($.attributes ?? null)['w']",
+			COMPUTED_RECEIVER));
+		// a container a spread mapping produces, or the fallback of `*?`, is an element `$` may stand for, and a step
+		// on it must be a name written as a string constant; a mapping that is the access chain itself continues the
+		// path of the spread, so a constant name there is the name of the attribute the mapping reads
+		cells.add(accepted("FA-spread-container-name", "$entity.references['tag'].*[$.attributes].any($['w'] > 1)"));
+		cells.add(refused("FR-spread-container-par-name",
+			"$entity.references['tag'].*[$.attributes].any($[('w')] > 1)", "$[('w')]", DYNAMIC));
+		cells.add(refused("FR-spread-coalesce-fallback-par-name",
+			"($entity.attributes['tags'] *? $entity.attributes).any($[('x')] == 1)", "$[('x')]", DYNAMIC));
 		// the result of `*?` is the collection, whose `null` elements the fallback replaces: the fallback is an
 		// element, never the receiver of a step
 		cells.add(accepted("FA-spread-coalesce-reference", "($entity.references['tag'] *? $reference).size() > 0"));
