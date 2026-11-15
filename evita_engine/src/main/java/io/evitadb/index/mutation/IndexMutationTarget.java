@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation;
 
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.expression.trigger.DependencyType;
@@ -133,6 +134,17 @@ public interface IndexMutationTarget extends IndexProvider<EntityIndexKey, Entit
 	 */
 	@Nonnull
 	Set<Locale> getEntitySchemaLocales(@Nonnull String entityType);
+
+	/**
+	 * Returns what a write does when it must withdraw a reference-histogram value the index does not hold for the
+	 * entity - the server-wide `server.missingHistogramValueBehavior` switch. It lives on the target because the target
+	 * is the collection view an entity index executor is built over: the collection reads it here when it builds the
+	 * executor, which carries it from then on.
+	 *
+	 * @return the behavior on a missing histogram value
+	 */
+	@Nonnull
+	MissingHistogramValueBehavior getMissingHistogramValueBehavior();
 
 	/**
 	 * Returns the reference partition of this collection registered under the primary key, leniently - see

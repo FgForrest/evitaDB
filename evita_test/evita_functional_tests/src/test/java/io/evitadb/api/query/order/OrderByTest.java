@@ -311,7 +311,7 @@ class OrderByTest {
 	private static OrderBy createOrderBy(@Nullable String... values) {
 		return orderBy(
 			Arrays.stream(values)
-				.map(it -> attributeNatural(it))
+				.map(it -> new AttributeNatural(it))
 				.toArray(OrderConstraint[]::new)
 		);
 	}

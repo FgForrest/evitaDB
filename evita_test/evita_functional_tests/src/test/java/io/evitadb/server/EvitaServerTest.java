@@ -920,6 +920,31 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Test
+	void shouldResolveGraphQLDocumentCacheSizeFromConfiguration() {
+		// the size shorthand (`1KB`) passed as a property override must reach the GraphQL options as bytes
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments(
+				new HashMap<>(),
+				List.of(property("api.endpoints.graphQL.documentCacheSizeInBytes", "1KB")),
+				Set.of(GraphQLProvider.CODE)
+			)
+		);
+		try {
+			evitaServer.run();
+
+			final GraphQLProvider graphQLProvider = evitaServer.getExternalApiServer()
+				.getExternalApiProviderByCode(GraphQLProvider.CODE);
+			assertNotNull(graphQLProvider);
+			assertEquals(1024L, graphQLProvider.getConfiguration().getDocumentCacheSizeInBytes());
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
 	void shouldMergeMultipleYamlConfigurationTogether() {
 		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
 			DIR_EVITA_SERVER_TEST,

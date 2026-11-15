@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-20
-updated: 2026-11-04 23:55
+updated: 2026-11-10 12:15
 status: accepted
 kind: refactor
 issues: [1615]
@@ -200,9 +200,9 @@ table. A measured case where the index route is faster (none of the eight was) w
   called from `ReferenceContentTranslator`) with a constraint-check visitor and throws the result away. In check mode `NestedSet`
   resolves its nested query eagerly, so nested filters are validated and their capabilities counted whatever the data;
   in a fetch it is lazy and restricted to the targets and groups of the rows tested. A nested level is planned in the
-  locale its fetch uses (`ReferenceContentTranslator#getOwnerLocale` folds
+  locale its fetch uses (`ReferenceContentTranslator#resolveOwnerLevel` folds
   `ReferencedEntityFetcher#getReferencedEntityLocale` over the enclosing `referenceContent` requirements, outermost
-  first - the level-2 test pins that order).
+  first - the level-2 test pins that order), and since #1883 in the scope its fetch uses too.
 - **The owner must carry every row** (`getOwnerCarryingEveryRow`). Rows are read off the raw entity, never off the
   decorator, which hides names, rows and attributes the request did not ask for. A `ServerEntityDecorator` whose
   reference predicate covers the name carries every row that matters; one that requires no references is accepted on

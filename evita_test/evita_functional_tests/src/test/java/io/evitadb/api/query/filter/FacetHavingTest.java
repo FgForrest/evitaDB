@@ -25,6 +25,7 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -67,12 +68,14 @@ class FacetHavingTest {
 			assertEquals(entityPrimaryKeyInSet(1, 5, 7), facetHaving.getChildren()[0]);
 		}
 
+		/**
+		 * A reference name comes from the application, so a null one is a bug that must surface instead of dropping the
+		 * filter.
+		 */
 		@Test
-		@DisplayName("should return null when reference name is null")
-		void shouldReturnNullWhenReferenceNameIsNull() {
-			final FacetHaving result = facetHaving(null, entityPrimaryKeyInSet(1));
-
-			assertNull(result);
+		@DisplayName("should throw when reference name is null")
+		void shouldThrowWhenReferenceNameIsNull() {
+			assertThrows(EvitaInvalidUsageException.class, () -> facetHaving(null, entityPrimaryKeyInSet(1)));
 		}
 
 		@Test

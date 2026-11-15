@@ -26,6 +26,7 @@ package io.evitadb.core.collection;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
@@ -4158,6 +4159,7 @@ public final class EntityCollection implements
 			// their counters belong to the catalog rather than to whichever collection happened to write one
 			this.catalog.getUsageRegistry(),
 			this.catalog.isUsageStatisticsTracked(),
+			this.entityIndexCreator.getMissingHistogramValueBehavior(),
 			// the collector is shared by the whole root mutation, so its executors share the reservations too
 			localMutationExecutorCollector.getPartitionReservations()
 		);
@@ -5063,6 +5065,15 @@ public final class EntityCollection implements
 			final EntityCollection sourceCollection = EntityCollection.this.catalog
 				.getCollectionForEntityOrThrowException(entityType);
 			return sourceCollection.getInternalSchema().getLocales();
+		}
+
+		/**
+		 * Answers the server-wide switch through the catalog, so every executor of the collection reads the one value.
+		 */
+		@Nonnull
+		@Override
+		public MissingHistogramValueBehavior getMissingHistogramValueBehavior() {
+			return EntityCollection.this.catalog.getMissingHistogramValueBehavior();
 		}
 
 		/**

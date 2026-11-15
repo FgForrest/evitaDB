@@ -198,6 +198,16 @@ filterBy: {
 
 This is supported for all constraint value types: scalars, containers, and wrapper objects.
 
+In REST value lists, null items are ignored: `["A", null]` and `[null, "A"]` both mean `["A"]`.
+A list containing only null items means an empty list. For filters such as `attributeInSet`,
+`entityPrimaryKeyInSet` and `priceInPriceLists`, that empty list matches nothing; it does not omit the filter.
+Blank price-list values are ignored in the same way as null items. Names and enum settings are application
+settings: their lists reject null items with HTTP 400, and name lists also reject blank names.
+In both REST and GraphQL, a blank name supplied as a value, such as `accompanyingPriceName`, `outputName` or
+`histogramName`, is refused (HTTP 400 in REST, an error in the GraphQL response). An absent name keeps its
+documented default. A container left empty because all its children were omitted is omitted itself.
+GraphQL rejects null list items during schema validation, before constraint resolution.
+
 _Note: inner properties of wrapper objects that aren't nested constraint container don't behave this way. Instead,
 they are defined with proper nullability based on a constraint definition in the evitaDB core._
 
