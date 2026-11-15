@@ -200,6 +200,15 @@ class DefaultCatalogExpressionTriggerRegistry implements CatalogExpressionTrigge
 		return this.localIndex.getHistogramReferencesForEntityAttribute(ownerEntityType, scope, attributeName);
 	}
 
+	@Nonnull
+	@Override
+	public Set<String> getLocalHistogramReferencesWithLocalizedDefault(
+		@Nonnull String ownerEntityType,
+		@Nonnull Scope scope
+	) {
+		return this.localIndex.getHistogramReferencesWithLocalizedDefault(ownerEntityType, scope);
+	}
+
 	/**
 	 * Returns the total number of cross-entity triggers. Used for cold start logging.
 	 *

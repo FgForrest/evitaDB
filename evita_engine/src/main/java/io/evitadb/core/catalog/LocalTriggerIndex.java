@@ -26,6 +26,8 @@ package io.evitadb.core.catalog;
 import io.evitadb.dataType.Scope;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
+import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
+import io.evitadb.core.expression.trigger.HistogramValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -73,6 +75,15 @@ final class LocalTriggerIndex {
 	private final Map<String, Map<Scope, Map<String, Set<String>>>> histogramReferencesByEntityAttribute;
 
 	/**
+	 * Owner entity type -> scope -> names of the references with a local histogram whose value is a localized
+	 * reference attribute with a `??` default. Such a value is contributed in every locale of the owner, so a mutation
+	 * that may change the owner's locale set withdraws these references first. Built when the registry is rebuilt; an
+	 * owner type without such a histogram is absent, so its lookup is one missed map probe.
+	 */
+	@Nonnull
+	private final Map<String, Map<Scope, Set<String>>> histogramReferencesWithLocalizedDefault;
+
+	/**
 	 * Creates a frozen index from an already-frozen map. Callers must ensure the map and all nested
 	 * structures are unmodifiable.
 	 *
@@ -83,6 +94,7 @@ final class LocalTriggerIndex {
 	) {
 		this.index = frozenIndex;
 		this.histogramReferencesByEntityAttribute = indexHistogramEntityAttributes(frozenIndex);
+		this.histogramReferencesWithLocalizedDefault = indexHistogramReferencesWithLocalizedDefault(frozenIndex);
 	}
 
 	/**
@@ -141,6 +153,24 @@ final class LocalTriggerIndex {
 	}
 
 	/**
+	 * Returns the reference names whose local histogram in the given scope reads a localized reference attribute with
+	 * a `??` default.
+	 *
+	 * @param ownerEntityType the entity type owning the references
+	 * @param scope           the scope of the local mutation
+	 * @return immutable reference names, or an empty set
+	 */
+	@Nonnull
+	Set<String> getHistogramReferencesWithLocalizedDefault(@Nonnull String ownerEntityType, @Nonnull Scope scope) {
+		final Map<Scope, Set<String>> byScope = this.histogramReferencesWithLocalizedDefault.get(ownerEntityType);
+		if (byScope == null) {
+			return Collections.emptySet();
+		}
+		final Set<String> references = byScope.get(scope);
+		return references == null ? Collections.emptySet() : references;
+	}
+
+	/**
 	 * Inverts the frozen local histogram triggers into an immutable attribute relevance lookup. Duplicate dependency
 	 * variants and histograms sharing an owner attribute contribute their reference name only once.
 	 */
@@ -174,6 +204,55 @@ final class LocalTriggerIndex {
 		}
 		result.replaceAll((owner, scopes) -> Collections.unmodifiableMap(scopes));
 		return Collections.unmodifiableMap(result);
+	}
+
+	/**
+	 * Collects, per owner type and scope, the names of the references with a local histogram whose value is a
+	 * localized reference attribute with a `??` default, into an immutable lookup. A reference carrying several such
+	 * histograms contributes its name once.
+	 *
+	 * @param triggers the frozen local triggers
+	 * @return owner entity type -> scope -> reference names, only for owners with such a histogram
+	 */
+	@Nonnull
+	private static Map<String, Map<Scope, Set<String>>> indexHistogramReferencesWithLocalizedDefault(
+		@Nonnull Map<String, Map<String, Map<Scope, LocalReferenceTriggers>>> triggers
+	) {
+		if (triggers.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		final Map<String, Map<Scope, Set<String>>> result = createHashMap(triggers.size());
+		for (final Entry<String, Map<String, Map<Scope, LocalReferenceTriggers>>> owner : triggers.entrySet()) {
+			for (final Entry<String, Map<Scope, LocalReferenceTriggers>> reference : owner.getValue().entrySet()) {
+				for (final Entry<Scope, LocalReferenceTriggers> scope : reference.getValue().entrySet()) {
+					for (final HistogramExpressionTrigger trigger : scope.getValue().histogramTriggers().values()) {
+						if (hasLocalizedReferenceAttributeDefault(trigger)) {
+							result.computeIfAbsent(owner.getKey(), ignored -> new EnumMap<>(Scope.class))
+								.computeIfAbsent(scope.getKey(), ignored -> createHashSet(4))
+								.add(reference.getKey());
+						}
+					}
+				}
+			}
+		}
+		for (final Map<Scope, Set<String>> byScope : result.values()) {
+			byScope.replaceAll((scope, references) -> Collections.unmodifiableSet(references));
+		}
+		result.replaceAll((owner, scopes) -> Collections.unmodifiableMap(scopes));
+		return Collections.unmodifiableMap(result);
+	}
+
+	/**
+	 * Returns `true` when the trigger's value is a localized reference attribute with a `??` default - a value the
+	 * reference contributes in every locale of its owner, not only in the locales it holds a value in.
+	 *
+	 * @param trigger the local histogram trigger
+	 * @return `true` when the trigger's value depends on the owner's locale set
+	 */
+	private static boolean hasLocalizedReferenceAttributeDefault(@Nonnull HistogramExpressionTrigger trigger) {
+		final HistogramValueDescriptor descriptor = trigger.getValueDescriptor();
+		return descriptor.source() == HistogramValueSource.REFERENCE_ATTRIBUTE &&
+			descriptor.localized() && descriptor.defaultValue() != null;
 	}
 
 	/**

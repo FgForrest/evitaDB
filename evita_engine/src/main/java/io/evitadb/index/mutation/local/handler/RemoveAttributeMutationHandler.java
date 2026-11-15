@@ -32,6 +32,10 @@ import javax.annotation.Nonnull;
 /**
  * Handler for `RemoveAttributeMutation`. Delegates to the shared `AttributeMutationFanOut`
  * orchestration — see `UpsertAttributeMutationHandler` for the design rationale.
+ *
+ * Before the fan-out, the removal of a localized attribute withdraws the references whose local histogram reads a
+ * localized reference attribute with a `??` default, because it may take its locale from the entity
+ * (`EntityLocaleFanOut#withdrawBeforeAttributeChange`).
  */
 public final class RemoveAttributeMutationHandler implements LocalMutationHandler<RemoveAttributeMutation> {
 
@@ -53,6 +57,7 @@ public final class RemoveAttributeMutationHandler implements LocalMutationHandle
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
+		EntityLocaleFanOut.withdrawBeforeAttributeChange(executor, mutation);
 		AttributeMutationFanOut.apply(mutation, executor, globalIndex);
 	}
 

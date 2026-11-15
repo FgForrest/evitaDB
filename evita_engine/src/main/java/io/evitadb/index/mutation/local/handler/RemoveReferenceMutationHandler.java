@@ -30,10 +30,13 @@ import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import javax.annotation.Nonnull;
 
 /**
- * Handler for `RemoveReferenceMutation`. Routes through `ReferenceMutationFanOut`; the synchronous
- * histogram cleanup, `referenceRemovalGlobal` call, and per-component cleanup all live inside
- * `executor.updateReferences`. Unlike other mutations, this one does not defer facet expression
- * re-evaluation — the facet entry is removed synchronously.
+ * Handler for `RemoveReferenceMutation`. A removed reference holding a localized attribute may take its locales from
+ * the entity, so `EntityLocaleFanOut#withdrawBeforeReferenceRemoval` first withdraws the references whose local
+ * histogram reads a localized reference attribute with a `??` default - the removed reference among them when it
+ * carries such a value. Then routes through `ReferenceMutationFanOut`; the removed reference's histogram cleanup (its
+ * withdrawal, or only the cancellation of its final add when the hook has withdrawn it), `referenceRemovalGlobal`
+ * call, and per-component cleanup all live inside `executor.updateReferences`. Unlike other mutations, this one does
+ * not defer facet expression re-evaluation — the facet entry is removed synchronously.
  */
 public final class RemoveReferenceMutationHandler implements LocalMutationHandler<RemoveReferenceMutation> {
 
@@ -55,6 +58,7 @@ public final class RemoveReferenceMutationHandler implements LocalMutationHandle
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
+		EntityLocaleFanOut.withdrawBeforeReferenceRemoval(executor, mutation.getReferenceKey());
 		ReferenceMutationFanOut.apply(mutation, executor, globalIndex);
 	}
 

@@ -212,6 +212,23 @@ public interface CatalogExpressionTriggerRegistry {
 	);
 
 	/**
+	 * Returns reference names whose local histogram in this scope reads a localized reference attribute with a `??`
+	 * default. Such a histogram holds a value of the reference in every locale of the owner entity, so a mutation that
+	 * may change the owner's locale set must withdraw these references before it is applied. The lookup is rebuilt
+	 * together with the local histogram triggers; for an owner type without such a histogram it is one missed map
+	 * probe.
+	 *
+	 * @param ownerEntityType the entity type owning the references
+	 * @param scope           the scope of the local mutation
+	 * @return immutable affected reference names, or an empty set
+	 */
+	@Nonnull
+	Set<String> getLocalHistogramReferencesWithLocalizedDefault(
+		@Nonnull String ownerEntityType,
+		@Nonnull Scope scope
+	);
+
+	/**
 	 * Rebuilds the registry index for the given entity type based on the provided list of new triggers.
 	 * Called when an entity schema's reference definitions change.
 	 *

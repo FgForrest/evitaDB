@@ -548,8 +548,9 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 	static Stream<Arguments> localizedScenarios() {
 		final List<Scenario> scenarios = new ArrayList<>(4);
 		final Fixture fixture = Fixture.localizedShare();
-		// a localized share reaches the histogram only in the locales the product had before the upsert that sets it,
-		// so the product gets its locales by its titles first and its reference to the brand in a second upsert
+		// the product gets its locales by its titles first and its reference to the brand in a second upsert, so these
+		// scenarios do not depend on the locale set a single upsert enumerates a localized share over - that is what
+		// `ReferenceHistogramLocaleSetFunctionalTest` covers
 		final Consumer<EntityBuilder> englishProduct =
 			builder -> builder.setAttribute(ATTRIBUTE_TITLE, Locale.ENGLISH, "product");
 		final Consumer<EvitaSessionContract> englishShare = session -> session
@@ -1478,8 +1479,8 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 	 * and the brand sizes 10 and 20, active and not hidden, so every histogram of every group spans the range 10 to
 	 * 20 before the product enters it. Where the share is localized, the anchor products carry their title and their
 	 * shares in both locales, so the histogram of each locale spans that range too - the titles stored by one upsert,
-	 * the references by another, because a localized share reaches the histogram only in the locales the product had
-	 * before the upsert that sets it. The product is stored in the live scope, set up by `product`.
+	 * the references by another, so the setup does not depend on the locale set a single upsert enumerates a localized
+	 * share over. The product is stored in the live scope, set up by `product`.
 	 *
 	 * @param session the session of the catalog in warm-up
 	 * @param fixture the schema and the anchor products
@@ -1600,8 +1601,8 @@ class ReferenceHistogramNetChangeFunctionalTest implements EvitaTestSupport {
 				.setAttribute(ATTRIBUTE_VISIBLE, true);
 			final EntityBuilder anchor;
 			if (fixture.localized()) {
-				// a localized share reaches the histogram only in the locales the product had before the upsert that
-				// sets it, so the anchor gets its locales by its titles first and its references in a second upsert
+				// the anchor gets its locales by its titles first and its references in a second upsert, so the setup
+				// does not depend on the locale set a single upsert enumerates a localized share over
 				newAnchor
 					.setAttribute(ATTRIBUTE_TITLE, Locale.ENGLISH, "anchor")
 					.setAttribute(ATTRIBUTE_TITLE, Locale.GERMAN, "Anker")
