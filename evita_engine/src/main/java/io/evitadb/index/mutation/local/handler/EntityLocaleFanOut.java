@@ -139,7 +139,7 @@ final class EntityLocaleFanOut {
 		if (addition && getEntityLocales(executor).contains(locale)) {
 			return;
 		}
-		withdrawReferences(executor, referenceNames);
+		OwnerInputHistogramWithdrawal.withdraw(executor, referenceNames, executor.getScope());
 	}
 
 	/**
@@ -165,7 +165,7 @@ final class EntityLocaleFanOut {
 		if (removedReference == null || removedReference.getAttributeLocales().isEmpty()) {
 			return;
 		}
-		withdrawReferences(executor, referenceNames);
+		OwnerInputHistogramWithdrawal.withdraw(executor, referenceNames, executor.getScope());
 	}
 
 	/**
@@ -207,25 +207,6 @@ final class EntityLocaleFanOut {
 				EntityExistence.MUST_EXIST
 			)
 			.getLocales();
-	}
-
-	/**
-	 * Withdraws the histogram values of every stored existing reference of the given names and schedules its final
-	 * add; references already awaiting one are skipped by the withdrawal.
-	 *
-	 * @param executor       the active executor
-	 * @param referenceNames the names of the references to withdraw
-	 */
-	private static void withdrawReferences(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull Set<String> referenceNames
-	) {
-		final Scope scope = executor.getScope();
-		for (final ReferenceContract reference : executor.getReferencesStoragePart().getReferences()) {
-			if (reference.exists() && referenceNames.contains(reference.getReferenceName())) {
-				executor.withdrawHistogramValuesAndScheduleFinalAdd(reference.getReferenceKey(), scope);
-			}
-		}
 	}
 
 }

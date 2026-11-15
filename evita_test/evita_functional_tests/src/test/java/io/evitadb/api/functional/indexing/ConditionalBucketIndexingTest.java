@@ -29,6 +29,7 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -124,6 +125,13 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 	private static final String HISTOGRAM_DUAL = "dualHistogram";
 	private static final String HISTOGRAM_LOCALIZED = "localizedHistogram";
 	private static final String HISTOGRAM_NESTED_REF = "nestedRefHistogram";
+	/**
+	 * A condition reading the references of the referenced entity: admitted in a facet condition, refused in a
+	 * histogram condition.
+	 */
+	private static final String NESTED_REFERENCE_CONDITION =
+		"$reference.referencedEntity.references['" + REF_PV_TAG + "'].any(($.attributes['" + ATTR_TAG_WEIGHT +
+			"'] ?? 0) > 5)";
 	private static final String HISTOGRAM_AND = "andHistogram";
 	private static final String HISTOGRAM_PARENT = "parentHistogram";
 	private static final String HISTOGRAM_PARENT_MIX = "parentMixHistogram";
@@ -456,23 +464,16 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					)
 			)
 
-			// --- Ungrouped: condition on a reference attribute OF the referenced entity ---
+			// --- Ungrouped: FACET condition on a reference attribute OF the referenced entity ---
+			// a histogram condition may not read the references of the referenced entity (the insert and the
+			// removal of such a reference are not dispatched), so the read is exercised through a facet condition,
+			// which may; `shouldRefuseHistogramConditionReadingReferencesOfReferencedEntity` pins the refusal
 			.withReferenceToEntity(
 				REF_PARAM_BY_REF_ENTITY_REF_ATTR, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs
 					.indexedForFilteringAndPartitioning()
-					.bucketed(
-						HISTOGRAM_NESTED_REF,
-						ExpressionFactory.parse(
-							"$reference.referencedEntity?.attributes['basicUnitValue']"
-						)
-					)
-					.bucketedPartially(
-						ExpressionFactory.parse(
-							"$reference.referencedEntity.references['" + REF_PV_TAG
-								+ "'].any(($.attributes['" + ATTR_TAG_WEIGHT + "'] ?? 0) > 5)"
-						)
-					)
+					.faceted()
+					.facetedPartially(ExpressionFactory.parse(NESTED_REFERENCE_CONDITION))
 			)
 
 			// --- Ungrouped: condition reads ONLY the owner's parent ---
@@ -2105,8 +2106,57 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 		@ParameterizedTest(name = "catalog state: {0}")
 		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-		@DisplayName("Should fire cross-entity trigger for an implicitly defaulted reference attribute")
-		void shouldFireCrossEntityTriggerForImplicitlyDefaultedReferenceAttribute(CatalogState state) {
+		@DisplayName("Should refuse a histogram condition reading the references of the referenced entity")
+		void shouldRefuseHistogramConditionReadingReferencesOfReferencedEntity(CatalogState state) {
+			withCatalogInState(
+				state,
+				ConditionalBucketIndexingTest::defineConditionalBucketSchema,
+				session -> {
+					// the insert and the removal of the referenced entity's own reference are not dispatched to the
+					// owners, so evitaDB could not keep such a histogram current - the definition is refused before
+					// anything of it is applied
+					final InvalidSchemaMutationException refusal = assertThrows(
+						InvalidSchemaMutationException.class,
+						() -> session.getEntitySchemaOrThrowException(ENTITY_PRODUCT)
+							.openForWrite()
+							.withReferenceToEntity(
+								REF_PARAM_BY_REF_ENTITY_REF_ATTR, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+								whichIs -> whichIs
+									.indexedForFilteringAndPartitioning()
+									.bucketed(
+										HISTOGRAM_NESTED_REF,
+										ExpressionFactory.parse(
+											"$reference.referencedEntity?.attributes['basicUnitValue']"
+										)
+									)
+									.bucketedPartially(ExpressionFactory.parse(NESTED_REFERENCE_CONDITION))
+							)
+							.updateVia(session)
+					);
+					assertTrue(
+						refusal.getMessage().contains("cannot read `$reference.referencedEntity.references`"),
+						refusal.getMessage()
+					);
+					assertTrue(
+						session.getEntitySchemaOrThrowException(ENTITY_PRODUCT)
+							.getReference(REF_PARAM_BY_REF_ENTITY_REF_ATTR)
+							.orElseThrow()
+							.getAllHistogramIndexDefinitions()
+							.isEmpty(),
+						"the refused histogram must not be defined"
+					);
+				}
+			);
+		}
+
+		/**
+		 * The referenced entity's `pvTag` reference is inserted without stating `tagWeight`, so its default arrives as
+		 * an implicit local mutation, and the facet condition reading it must still be re-evaluated for the owners.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should fire cross-entity facet trigger for an implicitly defaulted reference attribute")
+		void shouldFireCrossEntityFacetTriggerForImplicitlyDefaultedReferenceAttribute(CatalogState state) {
 			withCatalogInState(
 				state,
 				session -> {
@@ -2114,7 +2164,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					session.createNewEntity(ENTITY_TAG, 100).upsertVia(session);
 
 					// neither parameter value carries the `pvTag` reference yet, so the condition
-					// (`tagWeight ?? 0 > 5`) is false for both and neither product is bucketed
+					// (`tagWeight ?? 0 > 5`) is false for both and neither product is faceted
 					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
 						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
 						.upsertVia(session);
@@ -2131,14 +2181,8 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				},
 				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
-					assertUngroupedHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_REF_ENTITY_REF_ATTR,
-						HISTOGRAM_NESTED_REF, 1
-					);
-					assertUngroupedHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_REF_ENTITY_REF_ATTR,
-						HISTOGRAM_NESTED_REF, 2
-					);
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_REF_ENTITY_REF_ATTR, 1, null, 1);
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_REF_ENTITY_REF_ATTR, 2, null, 2);
 
 					// CONTROL - PV#2 states `tagWeight` explicitly, so the root batch carries a
 					// ReferenceAttributeMutation and trigger discovery sees it. This pins the fixture:
@@ -2152,25 +2196,18 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						)
 						.upsertVia(session);
 
-					assertUngroupedHistogramBucketContains(
-						productCollection, REF_PARAM_BY_REF_ENTITY_REF_ATTR,
-						HISTOGRAM_NESTED_REF, new BigDecimal("75"), 2
-					);
+					assertFacetIndexed(productCollection, REF_PARAM_BY_REF_ENTITY_REF_ATTR, 2, null, 2);
 
-					// THE DEFECT - PV#1 leaves `tagWeight` unstated, so the value 10 arrives as an implicit
-					// local mutation from GENERATE_REFERENCE_ATTRIBUTES. The condition flips false -> true in
-					// exactly the same way, but trigger discovery scans the root batch only, so nothing is
-					// dispatched and the owner never enters the bucket (#1470, scenario B).
+					// PV#1 leaves `tagWeight` unstated, so the value 10 arrives as an implicit local mutation from
+					// GENERATE_REFERENCE_ATTRIBUTES. The condition flips false -> true in exactly the same way, and
+					// trigger discovery must see the implicit mutation too.
 					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
 						.orElseThrow()
 						.openForWrite()
 						.setReference(REF_PV_TAG, 100)
 						.upsertVia(session);
 
-					assertUngroupedHistogramBucketContains(
-						productCollection, REF_PARAM_BY_REF_ENTITY_REF_ATTR,
-						HISTOGRAM_NESTED_REF, new BigDecimal("50"), 1
-					);
+					assertFacetIndexed(productCollection, REF_PARAM_BY_REF_ENTITY_REF_ATTR, 1, null, 1);
 				}
 			);
 		}

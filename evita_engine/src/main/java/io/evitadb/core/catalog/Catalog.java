@@ -116,6 +116,7 @@ import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.expression.trigger.FacetExpressionTriggerFactory;
 import io.evitadb.core.expression.trigger.HistogramExpressionTriggerFactory;
+import io.evitadb.core.expression.trigger.IndexingExpressionInputValidator;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryPlan;
@@ -3711,12 +3712,24 @@ public final class Catalog
 	 * or modify, so that it raises a refusal depending on another collection's state only when nothing earlier in
 	 * the batch changed that state.
 	 *
+	 * Before that dry run, every indexing expression the batch carries is checked against the reads its slot admits
+	 * ({@link IndexingExpressionInputValidator}). The check reads the mutation payloads only - it needs no schema and
+	 * no collection - so it covers the collections the dry run skips: one the batch creates, and one whose dry run
+	 * ends without a verdict. Refusing here, before any schema is exchanged, is also what keeps a refused expression
+	 * out of a warming-up catalog: the trigger factories refuse the same expressions, but only in the deferred rebuild,
+	 * after the collection has already exchanged and buffered the schema the next flush publishes.
+	 *
 	 * @param schemaMutations the batch about to be applied
 	 * @throws io.evitadb.api.exception.InvalidSchemaMutationException when any affected collection refuses its share
 	 */
 	private void verifyEntitySchemaMutationsApplicable(
 		@Nonnull LocalCatalogSchemaMutation[] schemaMutations
 	) {
+		for (final LocalCatalogSchemaMutation theMutation : schemaMutations) {
+			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
+				IndexingExpressionInputValidator.validateEntitySchemaMutation(modifyEntitySchemaMutation);
+			}
+		}
 		final CatalogSchema currentCatalogSchema = getInternalSchema();
 		final Set<String> entityTypesChangedEarlier = new HashSet<>(schemaMutations.length);
 		for (final LocalCatalogSchemaMutation theMutation : schemaMutations) {
