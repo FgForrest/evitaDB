@@ -1,7 +1,7 @@
 ---
 title: Reuse formula results by declared value identity, inject complete tuples at execution, and disable the owning cache on a verified mismatch
 date: 2026-11-14
-updated: 2026-11-16 11:44
+updated: 2026-11-16 13:06
 status: accepted
 kind: refactor
 issues: [37]
@@ -199,9 +199,11 @@ other 472,121 take 0.33 to 0.36 s depending on the run, about 0.3 % of a 121.0 s
 full replay, 70 % of that time is one line of entity fetch, `BitmapSlicer#filterReferencedEntityIds`. No input
 repeats there within a query, yet its 622,253 calls carry only 220,489 distinct formula keys, counted per query and
 summed: the repeats are equal keys built for different source entities with equal referenced-id sets, about 580 ns
-each. Another 18 % is a nested entity filter resolved
-twice per query in one query shape, a duplicate resolution handled separately. The maintainer reopened the table on
-2026-11-16 and declined it the same day on these numbers. **Rejected because** at most about 0.2 % of query time
+each. Another 17 % sits in one query shape, once per query, inside a single evaluation of a nested entity filter:
+the union over the nested query plans has two children with equal keys, and the second is computed again, about
+50 µs per query. A per-query memo of nested filter resolutions was tried against it and hit none of the 10,983
+executed resolutions of the replay: no two of them in one query had an equal filter. The maintainer reopened the
+table on 2026-11-16 and declined it the same day on these numbers. **Rejected because** at most about 0.3 % of query time
 remains for it on this traffic, and the main site would need a keyed lookup on every call, which pays only below
 about 370 ns per call; that cost is not measured. Revisit when traffic shows repeated non-constant subtrees with a
 visible share of query time. Never intern hypothetical ancestors above a `MutableFormula`.
