@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCo
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
+import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +51,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link Reference} from/to binary format.
@@ -62,13 +63,19 @@ public class ReferenceSerializer extends Serializer<Reference> {
 	/**
 	 * One-entry memo of the last decoded reference name and what was resolved from it. The references of one entity
 	 * arrive grouped by name, so the previous answer serves the next reference almost every time - which replaces
-	 * a hash plus a set probe plus a schema map lookup per reference with one `String.equals`. An entity may carry
+	 * a hash plus a set probe plus a schema map lookup per reference with a memo comparison. An entity may carry
 	 * tens of thousands of references, and this method decodes every one of them.
 	 *
 	 * A plain field is safe: this serializer is instantiated once per {@link Kryo} instance (see
 	 * `EntityStoragePartConfigurer`), and a Kryo instance is never used by two threads at the same time.
 	 */
 	private String memoizedReferenceName;
+	/** Complete Kryo encoding belonging to the existing one-name memo. */
+	private byte[] memoizedEncodedReferenceName;
+	/** Whether a storage part has supplied coverage, including explicitly unrestricted coverage. */
+	private boolean partCoverageBound;
+	/** Coverage supplied by the enclosing storage part for the duration of its read. */
+	@Nullable private ReferenceDecodeCoverage partCoverage;
 	/**
 	 * The coverage the {@link #memoizedNameAdmission} decision was taken under, compared by identity - a different
 	 * coverage instance invalidates the decision even when the name repeats.
@@ -124,10 +131,24 @@ public class ReferenceSerializer extends Serializer<Reference> {
 	@Override
 	@Nullable
 	public Reference read(Kryo kryo, Input input, Class<? extends Reference> type) {
+		final ReferenceDecodeCoverage coverage = this.partCoverageBound ?
+			this.partCoverage : ReferenceDecodeCoverageContext.getDecodeCoverage();
 		final int version = input.readVarInt(true);
 		final int internalPrimaryKey = input.readVarInt(true);
-		final String referenceName = input.readString();
-		final ReferenceDecodeCoverage coverage = ReferenceDecodeCoverageContext.getDecodeCoverage();
+		final String referenceName;
+		if (this.memoizedEncodedReferenceName != null && input instanceof ObservableInput<?> observableInput &&
+			observableInput.trySkipString(this.memoizedEncodedReferenceName)) {
+			referenceName = this.memoizedReferenceName;
+		} else {
+			referenceName = input.readString();
+			if (!referenceName.equals(this.memoizedReferenceName)) {
+				// Encode only a changed name, using Kryo itself so every supported string form stays exact.
+				try (final Output encoded = new Output(64, -1)) {
+					encoded.writeString(referenceName);
+					this.memoizedEncodedReferenceName = encoded.toBytes();
+				}
+			}
+		}
 		if (!referenceName.equals(this.memoizedReferenceName) || coverage != this.memoizedCoverage) {
 			if (coverage == null || coverage.isNameDecodedWhole(referenceName)) {
 				// no narrowing at all, or this name narrowed by nothing but its own presence
@@ -165,6 +186,24 @@ public class ReferenceSerializer extends Serializer<Reference> {
 		// decoder so that both admissions consume the stream in exactly the same order
 		final int referencedPrimaryKey = input.readInt();
 		return readAdmittedReference(kryo, input, referenceName, version, internalPrimaryKey, referencedPrimaryKey);
+	}
+
+	/**
+	 * Supplies coverage resolved once by the enclosing part, restoring the previous binding even after
+	 * an exception. Direct reads retain the thread-context fallback. Kryo and its serializers are thread confined.
+	 */
+	@Nullable
+	<T> T withDecodeCoverage(@Nullable ReferenceDecodeCoverage coverage, @Nonnull Supplier<T> reader) {
+		final boolean previousBound = this.partCoverageBound;
+		final ReferenceDecodeCoverage previousCoverage = this.partCoverage;
+		this.partCoverageBound = true;
+		this.partCoverage = coverage;
+		try {
+			return reader.get();
+		} finally {
+			this.partCoverageBound = previousBound;
+			this.partCoverage = previousCoverage;
+		}
 	}
 
 	/**
@@ -237,9 +276,7 @@ public class ReferenceSerializer extends Serializer<Reference> {
 			schema,
 			referenceSchema,
 			version,
-			// the schema's own name instance, not the one just decoded: `input.readString()` hands back a fresh
-			// String for every reference, so keeping it would retain one per reference and force every later
-			// name comparison through String.equals instead of settling on identity
+			// Keep the schema's own name instance even after a memo miss decodes a fresh String.
 			new ReferenceKey(referenceSchema.getName(), referencedPrimaryKey, internalPrimaryKey),
 			group, attributes, dropped
 		);
@@ -280,8 +317,20 @@ public class ReferenceSerializer extends Serializer<Reference> {
 			input.readBoolean();
 		}
 		final int attributeCount = input.readVarInt(true);
-		for (int i = 0; i < attributeCount; i++) {
-			kryo.readObject(input, AttributeValue.class);
+		if (attributeCount > 0) {
+			final Serializer<AttributeValue> serializer = kryo.getSerializer(AttributeValue.class);
+			// Storage Kryo disables object references. Other callers keep Kryo's framing and reference bookkeeping.
+			if (!kryo.getReferences() && serializer instanceof SkippableSerializer<?> skippable) {
+				@SuppressWarnings("unchecked") final SkippableSerializer<AttributeValue> typed =
+					(SkippableSerializer<AttributeValue>) skippable;
+				for (int i = 0; i < attributeCount; i++) {
+					typed.skip(kryo, input, AttributeValue.class);
+				}
+			} else {
+				for (int i = 0; i < attributeCount; i++) {
+					kryo.readObject(input, AttributeValue.class, serializer);
+				}
+			}
 		}
 	}
 

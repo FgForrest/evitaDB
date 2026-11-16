@@ -65,12 +65,26 @@ import java.util.function.UnaryOperator;
  */
 @Deprecated(since = "2026.3", forRemoval = true)
 @RequiredArgsConstructor
-public class AttributeValueSerializer_2026_2 extends Serializer<AttributeValue> {
+public class AttributeValueSerializer_2026_2 extends Serializer<AttributeValue>
+	implements SkippableSerializer<AttributeValue> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
 	public void write(Kryo kryo, Output output, AttributeValue attributeValue) {
 		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
+	}
+
+	/**
+	 * Consumes the unchanged attribute layout without resolving its compressed key or building an attribute value.
+	 * The class-and-object value has no length prefix, so Kryo must decode it to find the following dropped flag.
+	 * Temporal normalization is unnecessary for a discarded value and consumes no bytes.
+	 */
+	@Override
+	public void skip(@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends AttributeValue> type) {
+		input.readVarInt(true);
+		input.readVarInt(true);
+		kryo.readClassAndObject(input);
+		input.readBoolean();
 	}
 
 	@Override

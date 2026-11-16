@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -71,6 +72,136 @@ import static io.evitadb.test.TestTags.SERIALIZATION;
 class ObservableInputTest extends AbstractObservableInputOutputTest {
 	private static final int REPETITIONS = 50;
 	private static final int BIG_PAYLOAD_SIZE = PAYLOAD_SIZE * REPETITIONS;
+
+	/**
+	 * Pins the fast comparison to bytes emitted by Kryo, including both prefix directions and refill fallbacks.
+	 */
+	@Test
+	@DisplayName("compares complete Kryo string encodings without consuming a mismatch")
+	void shouldCompareRememberedStringEncodings() {
+		final String[] names = {null, "", "a", "ab", "abc", "žluťoučký", "漢字", "x".repeat(600), "😀"};
+		for (final String remembered : names) {
+			final byte[] encoded = encodeString(remembered);
+			for (final String actual : names) {
+				for (final int bufferSize : new int[]{8, 32, 4_096}) {
+					try (final Output output = new Output(64, -1)) {
+						output.writeString(actual);
+						final int stringEnd = output.position();
+						output.writeInt(0x12345678);
+						try (final ObservableInput<?> input = createObservableInputFromBytes(output.toBytes(), bufferSize)) {
+							final long before = input.total();
+							final boolean matched = input.trySkipString(encoded);
+							if (matched) {
+								assertEquals(remembered, actual);
+							} else {
+								assertEquals(before, input.total());
+								assertEquals(actual, input.readString());
+							}
+							if (bufferSize == 4_096) {
+								assertEquals(java.util.Objects.equals(remembered, actual), matched);
+							}
+							assertEquals(stringEnd, input.total());
+							assertEquals(0x12345678, input.readInt());
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Compares the fast and ordinary readers inside real record lifecycles, where both CRC and total accounting run.
+	 */
+	@Test
+	@DisplayName("preserves record and cumulative CRC and totals across refills and compression")
+	void shouldPreserveStringSkipAccounting() {
+		final String[] names = {"", "a", "ab", "abc", "ab", "žluťoučký", "漢字".repeat(80)};
+		for (final boolean compressed : new boolean[]{false, true}) {
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream(4_096);
+			try (final ObservableOutput<?> output = new ObservableOutput<>(
+				bytes, new byte[4_096], Crc32CChecksumFactory.INSTANCE.createChecksum(),
+				compressed ? ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow() : null
+			)) {
+				for (int record = 0; record < 2; record++) {
+					output.markStart();
+					output.markRecordLengthPosition();
+					output.writeInt(0);
+					output.writeByte(0);
+					output.markPayloadStart();
+					// The five-byte header plus padding places this short name across a 32-byte refill.
+					output.writeBytes(new byte[25]);
+					output.writeString("category");
+					for (int repeat = 0; repeat < 3; repeat++) {
+						for (final String name : names) {
+							output.writeString(name);
+						}
+					}
+					output.markEnd((byte) 0);
+				}
+			}
+			for (final int bufferSize : new int[]{32, 4_096}) {
+				try (
+					final ObservableInput<?> ordinary =
+						createObservableInputFromBytesWithCompression(bytes.toByteArray(), bufferSize);
+					final ObservableInput<?> fast =
+						createObservableInputFromBytesWithCompression(bytes.toByteArray(), bufferSize)
+				) {
+					ordinary.markCumulativeChecksumStart();
+					fast.markCumulativeChecksumStart();
+					for (int record = 0; record < 2; record++) {
+						ordinary.markStart();
+						fast.markStart();
+						final int length = ordinary.readInt();
+						assertEquals(length, fast.readInt());
+						final byte control = ordinary.readByte();
+						assertEquals(compressed, BitUtils.isBitSet(control, StorageRecord.COMPRESSION_BIT));
+						assertEquals(control, fast.readByte());
+						ordinary.markPayloadStart(length, control);
+						fast.markPayloadStart(length, control);
+						assertArrayEquals(ordinary.readBytes(25), fast.readBytes(25));
+						assertEquals("category", ordinary.readString());
+						final boolean prefixSkipped = fast.trySkipString(encodeString("category"));
+						if (record == 0) {
+							assertEquals(bufferSize == 4_096, prefixSkipped, "short name straddles the small buffer");
+						}
+						if (!prefixSkipped) {
+							assertEquals("category", fast.readString());
+						}
+						assertEquals(ordinary.total(), fast.total());
+						int fastSkips = 0;
+						for (int repeat = 0; repeat < 3; repeat++) {
+							for (final String name : names) {
+								assertEquals(name, ordinary.readString());
+								if (fast.trySkipString(encodeString(name))) {
+									fastSkips++;
+								} else {
+									assertEquals(name, fast.readString());
+								}
+								assertEquals(ordinary.total(), fast.total());
+							}
+						}
+						assertTrue(fastSkips > 0, "accounting must exercise successful string skips");
+						ordinary.markEnd(control);
+						fast.markEnd(control);
+						assertEquals(ordinary.total(), fast.total());
+					}
+					assertEquals(ordinary.markCumulativeChecksumEnd(), fast.markCumulativeChecksumEnd());
+					assertEquals(bytes.size(), fast.total());
+				}
+			}
+		}
+	}
+
+	/**
+	 * Obtains a canonical string encoding from Kryo instead of duplicating its encoding algorithm in the test.
+	 */
+	@Nonnull
+	private static byte[] encodeString(@Nullable String name) {
+		try (final Output output = new Output(64, -1)) {
+			output.writeString(name);
+			return output.toBytes();
+		}
+	}
 
 	/**
 	 * Computes manual cumulative CRC32C checksum over all record bytes.

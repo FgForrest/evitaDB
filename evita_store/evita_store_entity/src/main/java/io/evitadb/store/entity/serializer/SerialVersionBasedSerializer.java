@@ -28,15 +28,14 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.store.entity.exception.StoredVersionNotSupportedException;
-import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import java.io.ObjectStreamClass;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
-import static java.util.Optional.ofNullable;
+import java.util.List;
+import java.util.Set;
 
 /**
  * This serializer stores serializable classes along with their `serialVersionUID` and check that number during
@@ -48,13 +47,14 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class SerialVersionBasedSerializer<T> extends Serializer<T> {
+public class SerialVersionBasedSerializer<T> extends Serializer<T> implements SkippableSerializer<T> {
 	private final Serializer<T> currentVersionSerializer;
 	private final long currentSerializerUID;
-	private Map<Long, Serializer<T>> backwardCompatibleSerializers;
+	/** Historical readers in registration order, with primitive UIDs for allocation-free lookup. */
+	private List<BackwardCompatibleSerializer<T>> backwardCompatibleSerializers;
 
 	public SerialVersionBasedSerializer(@Nonnull Serializer<T> currentVersionSerializer, @Nonnull Class<T> targetClass) {
-		this.currentSerializerUID = ObjectStreamClass.lookup(targetClass).getSerialVersionUID();;
+		this.currentSerializerUID = ObjectStreamClass.lookup(targetClass).getSerialVersionUID();
 		this.currentVersionSerializer = currentVersionSerializer;
 	}
 
@@ -65,13 +65,22 @@ public class SerialVersionBasedSerializer<T> extends Serializer<T> {
 	 * not fully compatible with the current state.
 	 */
 	@Nonnull
-	public SerialVersionBasedSerializer<T> addBackwardCompatibleSerializer(long serialVersionUID, @Nonnull Serializer<T> backwardCompatibleSerializer) {
-		final Map<Long, Serializer<T>> serializerIndex = ofNullable(this.backwardCompatibleSerializers)
-			.orElseGet(() -> {
-				this.backwardCompatibleSerializers = new HashMap<>(32);
-				return this.backwardCompatibleSerializers;
-			});
-		serializerIndex.put(serialVersionUID, backwardCompatibleSerializer);
+	public SerialVersionBasedSerializer<T> addBackwardCompatibleSerializer(
+		long serialVersionUID,
+		@Nonnull Serializer<T> backwardCompatibleSerializer
+	) {
+		if (this.backwardCompatibleSerializers == null) {
+			this.backwardCompatibleSerializers = new ArrayList<>(4);
+		}
+		final BackwardCompatibleSerializer<T> entry =
+			new BackwardCompatibleSerializer<>(serialVersionUID, backwardCompatibleSerializer);
+		for (int i = 0; i < this.backwardCompatibleSerializers.size(); i++) {
+			if (this.backwardCompatibleSerializers.get(i).serialVersionUID() == serialVersionUID) {
+				this.backwardCompatibleSerializers.set(i, entry);
+				return this;
+			}
+		}
+		this.backwardCompatibleSerializers.add(entry);
 		return this;
 	}
 
@@ -97,23 +106,72 @@ public class SerialVersionBasedSerializer<T> extends Serializer<T> {
 	 */
 	@Override
 	public T read(Kryo kryo, Input input, Class<? extends T> type) throws StoredVersionNotSupportedException {
-		final long serializedUID = input.readLong();
-		// fast line - this will be the most common way
-		if (serializedUID == this.currentSerializerUID) {
-			return this.currentVersionSerializer.read(kryo, input, type);
+		return resolveSerializer(input.readLong(), type).read(kryo, input, type);
+	}
+
+	/**
+	 * Consumes the version prefix and delegates payload skipping to the matching reader. Readers without a skip
+	 * implementation decode and discard their result, preserving support for every registered historical layout.
+	 */
+	@Override
+	public void skip(@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends T> type) {
+		final Serializer<T> serializer = resolveSerializer(input.readLong(), type);
+		if (serializer instanceof SkippableSerializer<?> skippable) {
+			@SuppressWarnings("unchecked") final SkippableSerializer<T> typed = (SkippableSerializer<T>) skippable;
+			typed.skip(kryo, input, type);
 		} else {
-			final Serializer<T> backwardCompatibleSerializer = ofNullable(this.backwardCompatibleSerializers)
-				.map(it -> it.get(serializedUID))
-				.orElse(null);
-			Assert.isTrue(
-				backwardCompatibleSerializer != null,
-				() -> new StoredVersionNotSupportedException(
-					type, serializedUID,
-					ofNullable(this.backwardCompatibleSerializers).map(Map::keySet).orElse(Collections.emptySet())
-				)
-			);
-			return backwardCompatibleSerializer.read(kryo, input, type);
+			serializer.read(kryo, input, type);
 		}
+	}
+
+	/**
+	 * Returns the current payload reader for a storage-part-local coverage hand-over, leaving version dispatch intact.
+	 */
+	@Nonnull
+	Serializer<T> getCurrentVersionSerializer() {
+		return this.currentVersionSerializer;
+	}
+
+	/**
+	 * Selects a reader without boxing the UID or allocating on a successful lookup. Only the unsupported-version
+	 * branch materializes the set of historical UIDs required by the existing exception contract.
+	 */
+	@Nonnull
+	private Serializer<T> resolveSerializer(long serializedUID, @Nonnull Class<? extends T> type) {
+		if (serializedUID == this.currentSerializerUID) {
+			return this.currentVersionSerializer;
+		}
+		if (this.backwardCompatibleSerializers != null) {
+			// Only a handful of historical readers exist per type; the primitive comparison avoids both boxing
+			// and hashing, and the overwhelmingly common historical layout is found by the first comparison.
+			for (int i = 0; i < this.backwardCompatibleSerializers.size(); i++) {
+				final BackwardCompatibleSerializer<T> entry = this.backwardCompatibleSerializers.get(i);
+				if (entry.serialVersionUID() == serializedUID) {
+					return entry.serializer();
+				}
+			}
+		}
+		final Set<Long> supportedVersions;
+		if (this.backwardCompatibleSerializers == null) {
+			supportedVersions = Collections.emptySet();
+		} else {
+			supportedVersions = CollectionUtils.createLinkedHashSet(this.backwardCompatibleSerializers.size());
+			for (int i = 0; i < this.backwardCompatibleSerializers.size(); i++) {
+				supportedVersions.add(this.backwardCompatibleSerializers.get(i).serialVersionUID());
+			}
+		}
+		throw new StoredVersionNotSupportedException(type, serializedUID, supportedVersions);
+	}
+
+	/**
+	 * One historical reader and its unboxed UID, retained in registration order.
+	 *
+	 * @param serialVersionUID historical UID identifying the payload layout
+	 * @param serializer reader of that layout
+	 * @param <T> the serialized type
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private record BackwardCompatibleSerializer<T>(long serialVersionUID, @Nonnull Serializer<T> serializer) {
 	}
 
 }

@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import lombok.RequiredArgsConstructor;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
 
 /**
@@ -41,7 +42,8 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
-public class AttributeValueSerializer extends Serializer<AttributeValue> {
+public class AttributeValueSerializer extends Serializer<AttributeValue>
+	implements SkippableSerializer<AttributeValue> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
@@ -50,6 +52,19 @@ public class AttributeValueSerializer extends Serializer<AttributeValue> {
 		output.writeVarInt(this.keyCompressor.getId(attributeValue.key()), true);
 		kryo.writeClassAndObject(output, attributeValue.value());
 		output.writeBoolean(attributeValue.dropped());
+	}
+
+	/**
+	 * Consumes the unchanged attribute layout without resolving its compressed key or building an attribute value.
+	 * The class-and-object value has no length prefix, so Kryo must decode it to find the following dropped flag.
+	 * Temporal normalization is unnecessary for a discarded value and consumes no bytes.
+	 */
+	@Override
+	public void skip(@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends AttributeValue> type) {
+		input.readVarInt(true);
+		input.readVarInt(true);
+		kryo.readClassAndObject(input);
+		input.readBoolean();
 	}
 
 	@Override

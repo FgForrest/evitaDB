@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadOnlyKeyCompressor;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
@@ -47,6 +49,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.SERIALIZATION;
@@ -55,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies that {@link AttributeValueSerializer_2026_2} brings out-of-window temporal values of a body written by
@@ -212,6 +216,44 @@ class AttributeValueSerializer_2026_2Test {
 		assertTrue(writtenVersion != LEGACY_ATTRIBUTE_VALUE_UID);
 		final AttributeValue read = read(current);
 		assertEquals(OffsetDateTime.MAX, read.value());
+	}
+
+	/**
+	 * An empty real key compressor makes any attempted key resolution fail, while skip must consume both vintages.
+	 */
+	@Test
+	@DisplayName("skips current and 2026.2 values with unknown keys without resolving them")
+	void shouldSkipBothLayoutsWithoutResolvingAttributeKeys() {
+		final Kryo reader = KryoFactory.createKryo(
+			SharedClassesConfigurer.INSTANCE.andThen(new EntityStoragePartConfigurer(new ReadOnlyKeyCompressor(Map.of())))
+		);
+		final SerialVersionBasedSerializer<?> serializer =
+			(SerialVersionBasedSerializer<?>) reader.getSerializer(AttributeValue.class);
+		@SuppressWarnings("unchecked") final SkippableSerializer<AttributeValue> skip =
+			(SkippableSerializer<AttributeValue>) serializer;
+		for (final long uid : new long[]{
+			ObjectStreamClass.lookup(AttributeValue.class).getSerialVersionUID(), LEGACY_ATTRIBUTE_VALUE_UID
+		}) {
+			for (final Serializable value : new Serializable[]{
+				null, "žluťoučký", 123, new BigDecimal("123.456"), OffsetDateTime.MAX,
+				new LocalDateTime[]{LocalDateTime.MIN, LocalDateTime.MAX}, new String[]{"č", "漢字"}
+			}) {
+				try (final Output output = new Output(256, -1)) {
+					output.writeLong(uid);
+					this.currentSerializer.write(this.kryo, output, new AttributeValue(3, KEY, value, true));
+					final int end = output.position();
+					output.writeInt(123456789);
+					final byte[] bytes = output.toBytes();
+					assertThrows(GenericEvitaInternalError.class,
+						() -> reader.readObject(new Input(bytes), AttributeValue.class));
+					try (final Input input = new Input(bytes)) {
+						skip.skip(reader, input, AttributeValue.class);
+						assertEquals(end, input.total());
+						assertEquals(123456789, input.readInt());
+					}
+				}
+			}
+		}
 	}
 
 	/**
