@@ -1,11 +1,11 @@
 ---
 title: Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure
-date: 2026-11-14
-updated: 2026-11-15 13:33
+date: 2026-11-16
+updated: 2026-11-16 11:30
 status: accepted
 kind: refactor
 issues: [1956, 1959, 1967, 1968]
-prs: [1957]
+prs: [1957, 1974]
 areas: [evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/routing, evita_external_api/evita_external_api_rest, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_system, evita_external_api/evita_external_api_lab, evita_external_api/evita_external_api_observability, evita_test/evita_performance_tests]
 supersedes: []
 superseded-by: []
@@ -284,6 +284,7 @@ wrong-method request allocates 130–190 B more.
 
 - [2026-08-02-editorconfig-formatting-parity](2026-08-02-editorconfig-formatting-parity.md) — carved the
   Undertow routing tree out of formatting as vendored code; that carve-out is removed with the tree here.
+- [HTTP request routing](../developer/external-api/routing.md) — developer guide to how both routers work.
 
 ## Timeline
 
@@ -294,3 +295,6 @@ wrong-method request allocates 130–190 B more.
   events use instance durations; Prometheus query/header transport and HTTP-only REST WebSocket fallback fixed;
   Prometheus meters released on server stop (#1967); public certificate at `/system/server.crt` in both modes
   (#1968)
+- **2026-11-16** — catalog bookkeeping made safe for change-capture callbacks that arrive while the web API is
+  still being built; `/` no longer matches a lone `/{id}`; developer guide to the routers written; PR #1957
+  merged, followed by PR #1974 (routing path bounds packed with `NumberUtils#pack`)

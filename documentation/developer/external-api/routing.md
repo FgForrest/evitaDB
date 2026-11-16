@@ -13,7 +13,7 @@ covers the five classes in the package `io.evitadb.externalApi.http.routing`:
 
 Why evitaDB routes requests itself instead of using Armeria's routing, which alternatives were rejected, and the
 benchmark numbers are recorded in the decision record
-[Route external API requests with own copy-on-write routers](../../adr/2026-11-14-copy-on-write-path-routing.md).
+[Route external API requests with own copy-on-write routers](../../adr/2026-11-16-copy-on-write-path-routing.md).
 This document describes how the routers work today.
 
 ## The two requirements that shape everything
