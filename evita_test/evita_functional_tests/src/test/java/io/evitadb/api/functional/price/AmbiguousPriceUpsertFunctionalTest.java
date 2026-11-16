@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
@@ -69,6 +70,7 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -410,6 +412,27 @@ class AmbiguousPriceUpsertFunctionalTest {
 	}
 
 	/**
+	 * Asserts that product 1 is stored exactly as the passed snapshot of it - version, handling and prices included -
+	 * so the upserts made since the snapshot was taken left it as it was.
+	 *
+	 * @param evita    the evitaDB instance
+	 * @param catalog  name of the catalog
+	 * @param original product 1 fetched with all its prices before the upserts
+	 */
+	private static void assertProductUnchanged(
+		@Nonnull Evita evita,
+		@Nonnull String catalog,
+		@Nonnull SealedEntity original
+	) {
+		evita.queryCatalog(
+			catalog,
+			session -> {
+				assertFalse(original.differsFrom(session.getEntity(PRODUCT, 1, priceContentAll()).orElseThrow()));
+			}
+		);
+	}
+
+	/**
 	 * Returns primary keys of the products selling for 90 to 110 in the basic price list in 2020, resolved from the
 	 * indexes.
 	 *
@@ -653,6 +676,48 @@ class AmbiguousPriceUpsertFunctionalTest {
 			() -> upsertProduct(evita, catalog, upsertPrice(30, PRICE_LIST_BASIC, 1, 95, secondYear()))
 		);
 		assertEquals(List.of(10, 30, 31), queryPriceIdsOfProduct(evita, catalog));
+	}
+
+	/**
+	 * Changing the handling touches every stored price, even when a later mutation of the same raw upsert restores
+	 * the original handling. A stored ambiguous pair therefore makes that upsert fail. A builder cancels the same
+	 * round trip against its original entity and produces no mutation, so its upsert succeeds without changing it.
+	 */
+	@ParameterizedTest(name = "alive: {0}")
+	@ValueSource(booleans = {false, true})
+	@DisplayName("should check handling changed and restored in one upsert, which a builder cancels out")
+	void shouldCheckHandlingChangedAndRestoredInOneUpsertWhichBuilderCancelsOut(boolean alive, Evita evita) {
+		final String catalog = createProducts(evita, PriceInnerRecordHandling.LOWEST_PRICE, alive);
+		plantPrice(evita, catalog, 1, upsertPrice(10, PRICE_LIST_BASIC, 1, 105, firstYear()));
+		assertEquals(List.of(10, 30), queryPriceIdsOfProduct(evita, catalog));
+		final SealedEntity original = evita.queryCatalog(
+			catalog,
+			session -> {
+				return session.getEntity(PRODUCT, 1, priceContentAll()).orElseThrow();
+			}
+		);
+
+		assertThrows(
+			AmbiguousPriceException.class,
+			() -> upsertProduct(
+				evita, catalog,
+				new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.NONE),
+				new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.LOWEST_PRICE)
+			)
+		);
+		assertProductUnchanged(evita, catalog, original);
+
+		assertDoesNotThrow(
+			() -> upsertProductThroughBuilder(
+				evita, catalog, 1,
+				product -> {
+					product.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE)
+						.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE);
+					assertTrue(product.toMutation().isEmpty(), "The builder must cancel the handling mutations");
+				}
+			)
+		);
+		assertProductUnchanged(evita, catalog, original);
 	}
 
 	@ParameterizedTest(name = "alive: {0}")
