@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.store.entity.exception.StoredVersionNotSupportedException;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -51,40 +52,57 @@ import java.util.Set;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class SerialVersionBasedSerializer<T> extends Serializer<T> implements SkippableSerializer<T> {
+	/** Serializer used for the current version of the target class. */
 	private final Serializer<T> currentVersionSerializer;
+	/** Serial version UID of the current target class. */
 	private final long currentSerializerUID;
+	/** Target class named in invalid registration errors. */
+	private final Class<T> targetClass;
 	/** Historical readers in registration order, with primitive UIDs for allocation-free lookup. */
 	private List<BackwardCompatibleSerializer<T>> backwardCompatibleSerializers;
 
+	/**
+	 * Creates a versioned serializer for the target class using its current payload serializer.
+	 */
 	public SerialVersionBasedSerializer(@Nonnull Serializer<T> currentVersionSerializer, @Nonnull Class<T> targetClass) {
 		this.currentSerializerUID = ObjectStreamClass.lookup(targetClass).getSerialVersionUID();
 		this.currentVersionSerializer = currentVersionSerializer;
+		this.targetClass = targetClass;
 	}
 
 	/**
 	 * Allows to register {@link Serializer} implementation that allows to read serialized data of particular
 	 * old version of the class that was connected with certain `serialVersionUID` number. This allows us to evolve
 	 * Java class structures through the time while still be able to deserialize old binary data even if they are
-	 * not fully compatible with the current state. Registering a `serialVersionUID` again replaces the serializer
-	 * registered under it earlier.
+	 * not fully compatible with the current state. Each historical `serialVersionUID` may be registered only once
+	 * and must differ from the current version's UID.
+	 *
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the UID is already registered or belongs to the
+	 *                                                       current version of the target class
 	 */
 	@Nonnull
 	public SerialVersionBasedSerializer<T> addBackwardCompatibleSerializer(
 		long serialVersionUID,
 		@Nonnull Serializer<T> backwardCompatibleSerializer
 	) {
+		Assert.isPremiseValid(
+			serialVersionUID != this.currentSerializerUID,
+			() -> "Cannot register a backward compatible serializer for " + this.targetClass.getName() +
+				" under the current serialVersionUID " + serialVersionUID + "."
+		);
 		if (this.backwardCompatibleSerializers == null) {
 			this.backwardCompatibleSerializers = new ArrayList<>(4);
 		}
-		final BackwardCompatibleSerializer<T> entry =
-			new BackwardCompatibleSerializer<>(serialVersionUID, backwardCompatibleSerializer);
 		for (int i = 0; i < this.backwardCompatibleSerializers.size(); i++) {
-			if (this.backwardCompatibleSerializers.get(i).serialVersionUID() == serialVersionUID) {
-				this.backwardCompatibleSerializers.set(i, entry);
-				return this;
-			}
+			Assert.isPremiseValid(
+				this.backwardCompatibleSerializers.get(i).serialVersionUID() != serialVersionUID,
+				() -> "A backward compatible serializer for " + this.targetClass.getName() +
+					" is already registered under serialVersionUID " + serialVersionUID + "."
+			);
 		}
-		this.backwardCompatibleSerializers.add(entry);
+		this.backwardCompatibleSerializers.add(
+			new BackwardCompatibleSerializer<>(serialVersionUID, backwardCompatibleSerializer)
+		);
 		return this;
 	}
 

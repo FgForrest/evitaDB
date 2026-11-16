@@ -31,6 +31,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.StringSerializer;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.entity.exception.StoredVersionNotSupportedException;
 import io.evitadb.store.schema.serializer.AttributeSchemaSerializer;
 import io.evitadb.utils.CollectionUtils;
@@ -52,6 +53,7 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SERIALIZATION;
@@ -171,18 +173,22 @@ class SerialVersionBasedSerializerTest {
 	}
 
 	/**
-	 * Registering a historical UID again replaces its reader instead of adding a second entry the lookup could find
-	 * first.
+	 * Rejects duplicate historical UIDs and preserves the first reader for subsequent reads and skips.
 	 */
 	@Test
-	@DisplayName("replaces the historical serializer registered again under the same UID")
-	void shouldReplaceHistoricalSerializerRegisteredUnderSameUid() {
-		final CountingStringSerializer replaced = new CountingStringSerializer();
-		final CountingStringSerializer replacement = new CountingStringSerializer();
+	@DisplayName("rejects a duplicate historical UID and preserves its first reader")
+	void shouldRejectHistoricalSerializerRegisteredUnderSameUid() {
+		final CountingStringSerializer first = new CountingStringSerializer();
+		final CountingStringSerializer rejected = new CountingStringSerializer();
 		final SerialVersionBasedSerializer<String> serializer =
 			new SerialVersionBasedSerializer<>(new CountingStringSerializer(), String.class);
-		serializer.addBackwardCompatibleSerializer(123L, replaced);
-		serializer.addBackwardCompatibleSerializer(123L, replacement);
+		serializer.addBackwardCompatibleSerializer(123L, first);
+		final GenericEvitaInternalError exception = assertThrows(
+			GenericEvitaInternalError.class,
+			() -> serializer.addBackwardCompatibleSerializer(123L, rejected)
+		);
+		assertTrue(exception.getMessage().contains(String.class.getName()));
+		assertTrue(exception.getMessage().contains("123"));
 		final byte[] bytes = versionedString(123L);
 
 		try (final Input input = new Input(bytes)) {
@@ -192,11 +198,70 @@ class SerialVersionBasedSerializerTest {
 			serializer.skip(this.kryo, input, String.class);
 		}
 
-		assertEquals(0, replaced.reads);
-		assertEquals(0, replaced.skips);
-		assertEquals(1, replacement.reads);
-		assertEquals(1, replacement.skips);
+		assertEquals(1, first.reads);
+		assertEquals(1, first.skips);
+		assertEquals(0, rejected.reads);
+		assertEquals(0, rejected.skips);
 		assertUnsupportedUid(serializer, false, Set.of(123L));
+	}
+
+	/**
+	 * Rejects a duplicate of every registered historical UID, not only of the first one, and leaves each original
+	 * reader serving its UID.
+	 */
+	@Test
+	@DisplayName("rejects a duplicate of any registered historical UID and preserves every original reader")
+	void shouldRejectDuplicateOfAnyRegisteredHistoricalUid() {
+		final long[] uids = {121L, 122L, 123L};
+		final CountingStringSerializer[] readers = new CountingStringSerializer[uids.length];
+		final SerialVersionBasedSerializer<String> serializer =
+			new SerialVersionBasedSerializer<>(new CountingStringSerializer(), String.class);
+		for (int i = 0; i < uids.length; i++) {
+			readers[i] = new CountingStringSerializer();
+			serializer.addBackwardCompatibleSerializer(uids[i], readers[i]);
+		}
+		final CountingStringSerializer duplicate = new CountingStringSerializer();
+
+		for (final long uid : uids) {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> serializer.addBackwardCompatibleSerializer(uid, duplicate),
+				"uid=" + uid
+			);
+		}
+
+		for (int i = 0; i < uids.length; i++) {
+			try (final Input input = new Input(versionedString(uids[i]))) {
+				assertEquals("payload", serializer.read(this.kryo, input, String.class), "uid=" + uids[i]);
+			}
+			assertEquals(1, readers[i].reads, "uid=" + uids[i]);
+		}
+	}
+
+	/**
+	 * Rejects historical registration under the current UID, which would never reach the historical reader.
+	 */
+	@Test
+	@DisplayName("rejects a historical serializer registered under the current UID")
+	void shouldRejectHistoricalSerializerRegisteredUnderCurrentUid() {
+		final CountingStringSerializer current = new CountingStringSerializer();
+		final CountingStringSerializer historical = new CountingStringSerializer();
+		final SerialVersionBasedSerializer<String> serializer =
+			new SerialVersionBasedSerializer<>(current, String.class);
+		final long currentUid = ObjectStreamClass.lookup(String.class).getSerialVersionUID();
+		final GenericEvitaInternalError exception = assertThrows(
+			GenericEvitaInternalError.class,
+			() -> serializer.addBackwardCompatibleSerializer(currentUid, historical)
+		);
+		assertTrue(exception.getMessage().contains(String.class.getName()));
+		assertTrue(exception.getMessage().contains(Long.toString(currentUid)));
+
+		try (final Input input = new Input(versionedString(currentUid))) {
+			assertEquals("payload", serializer.read(this.kryo, input, String.class));
+		}
+		assertEquals(1, current.reads);
+		assertEquals(0, historical.reads);
+		assertUnsupportedUid(serializer, false, Set.of());
 	}
 
 	/**
