@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import lombok.RequiredArgsConstructor;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
 
 /**
@@ -41,7 +42,8 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
-public class AttributeValueSerializer extends Serializer<AttributeValue> {
+public class AttributeValueSerializer extends Serializer<AttributeValue>
+	implements SkippableSerializer<AttributeValue> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
@@ -50,6 +52,20 @@ public class AttributeValueSerializer extends Serializer<AttributeValue> {
 		output.writeVarInt(this.keyCompressor.getId(attributeValue.key()), true);
 		kryo.writeClassAndObject(output, attributeValue.value());
 		output.writeBoolean(attributeValue.dropped());
+	}
+
+	/**
+	 * Consumes the version, compressed key id, class-and-object value and dropped flag that
+	 * {@link #write(Kryo, Output, AttributeValue)} emits, without resolving the key id through the compressor or
+	 * building an {@link AttributeValue}. The value has no length prefix, so Kryo must decode it to find the dropped
+	 * flag behind it.
+	 */
+	@Override
+	public void skip(@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends AttributeValue> type) {
+		input.readVarInt(true);
+		input.readVarInt(true);
+		kryo.readClassAndObject(input);
+		input.readBoolean();
 	}
 
 	@Override

@@ -55,7 +55,6 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Objects;
 
 /**
  * Mutation is responsible for setting value to a {@link AttributeSchemaContract#getDefaultValue()}
@@ -111,8 +110,9 @@ public class ModifyAttributeSchemaDefaultValueMutation
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		final Serializable theDefaultValue = EvitaDataTypes.toTargetType(this.defaultValue, attributeSchema.getType());
-		// compared by content: the default value may be an array, and an equal array is still another instance
-		if (Objects.deepEquals(attributeSchema.getDefaultValue(), theDefaultValue)) {
+		// compared as stored values: an equal array is still another instance, and two ranges are equal as soon as
+		// their bounds encode to the same numbers although a reader can tell them apart
+		if (!EvitaDataTypes.storedValueDiffers(attributeSchema.getDefaultValue(), theDefaultValue)) {
 			return attributeSchema;
 		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
@@ -242,8 +242,8 @@ public class ModifyAttributeSchemaDefaultValueMutation
 		);
 		try {
 			final Serializable theDefaultValue = EvitaDataTypes.toTargetType(this.defaultValue, existingAttributeSchema.getType());
-			// compared by content as at the attribute level - a rebuilt attribute differs by the identity of an array
-			if (Objects.deepEquals(existingAttributeSchema.getDefaultValue(), theDefaultValue)) {
+			// compared as stored values, as at the attribute level
+			if (!EvitaDataTypes.storedValueDiffers(existingAttributeSchema.getDefaultValue(), theDefaultValue)) {
 				return referenceSchema;
 			}
 			@SuppressWarnings({"unchecked", "rawtypes"})

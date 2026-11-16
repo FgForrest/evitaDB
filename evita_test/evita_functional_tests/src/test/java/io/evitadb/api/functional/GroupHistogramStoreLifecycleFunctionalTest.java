@@ -26,6 +26,7 @@ package io.evitadb.api.functional;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.index.EntityIndexType;
@@ -46,18 +47,25 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CollectionIndexSummary;
+import io.evitadb.api.statistics.CollectionIndexSummary.IndexTypeCount;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GroupHistogramEntityIndex;
+import io.evitadb.index.HistogramCapableEntityIndex;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.virtual.CatalogReloadTestSupport;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.ExceptionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -66,9 +74,13 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.query.Query.query;
@@ -82,10 +94,15 @@ import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.WAL;
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -130,6 +147,7 @@ class GroupHistogramStoreLifecycleFunctionalTest implements EvitaTestSupport {
 	private static final String CONDITION_RANKED = "($reference.attributes['" + ATTRIBUTE_RANK + "'] ?? 0) > 0";
 	private static final int PRODUCT_PK = 1;
 	private static final int ANCHOR_PK = 100;
+	private static final int SECOND_PRODUCT_PK = 2;
 	private static final int GROUP_PK = 1;
 	private static final int WEIGHTED_BRAND_PK = 10;
 	private static final int WEIGHTLESS_BRAND_PK = 11;
@@ -152,6 +170,14 @@ class GroupHistogramStoreLifecycleFunctionalTest implements EvitaTestSupport {
 	 * The description of a histogram the reference summary holds no entry for.
 	 */
 	private static final String NO_HISTOGRAM = "none";
+	/**
+	 * The description of a scope without the group-type index of the reference to a brand.
+	 */
+	private static final String NO_GROUP_TYPE_INDEX = "no group-type index";
+	/**
+	 * The checkpoint interval that keeps the committed tail of the write-ahead log unpublished until the engine closes.
+	 */
+	private static final long NEVER_ELAPSES_MILLIS = 3_600_000L;
 
 	/**
 	 * A running engine over the stored data of one case, restartable on the same data.
@@ -202,6 +228,21 @@ class GroupHistogramStoreLifecycleFunctionalTest implements EvitaTestSupport {
 		 */
 		void update(@Nonnull Consumer<EvitaSessionContract> upsert) {
 			this.evita.updateCatalog(TEST_CATALOG, upsert);
+		}
+	}
+
+	/**
+	 * The failure with which the application of a case gives up its transaction. The engine passes on an exception it
+	 * does not know wrapped, so a case finds this one in the cause chain of what the session throws.
+	 */
+	private static final class TransactionGivenUpException extends RuntimeException {
+		@Serial private static final long serialVersionUID = 1L;
+
+		/**
+		 * Creates the failure.
+		 */
+		TransactionGivenUpException() {
+			super("The application gives up the transaction.");
 		}
 	}
 
@@ -288,15 +329,15 @@ class GroupHistogramStoreLifecycleFunctionalTest implements EvitaTestSupport {
 
 	/**
 	 * Two changes of the referenced brand in one session create the store with a value and take the value away
-	 * again. The store stays registered without a value, is persisted that way and loads after a restart, and the
-	 * next value is added to it.
+	 * again. The change that empties the store drops it, a restart finds none, and the next admitted value creates a
+	 * store again, which a restart keeps.
 	 *
 	 * @param state the state the catalog is in when the case writes
 	 */
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-	@DisplayName("a store created and emptied by changes of the referenced entity in one session loads after a restart")
-	void shouldLoadStoreCreatedAndEmptiedByCrossEntityChangesInOneSession(@Nonnull CatalogState state) {
+	@DisplayName("a store created and emptied by changes of the referenced entity in one session is dropped")
+	void shouldDropStoreCreatedAndEmptiedByCrossEntityChangesInOneSession(@Nonnull CatalogState state) {
 		runCase(state, "crossEntityEmptied", engine -> {
 			engine.update(createProduct(PRODUCT_PK, WEIGHTLESS_BRAND_PK, UNRANKED, SHARE));
 			assertEquals(NO_STORE, describeStore(engine.evita(), Scope.LIVE));
@@ -305,21 +346,92 @@ class GroupHistogramStoreLifecycleFunctionalTest implements EvitaTestSupport {
 				weightOf(WEIGHTLESS_BRAND_PK, LATE_WEIGHT).accept(session);
 				weightOf(WEIGHTLESS_BRAND_PK, null).accept(session);
 			});
-			assertEquals("share=[] weight=[]", describeStore(engine.evita(), Scope.LIVE));
-			final int primaryKey = storePrimaryKey(engine.evita(), Scope.LIVE);
+			assertEquals(NO_STORE, describeStore(engine.evita(), Scope.LIVE), "dropped by the change emptying it");
 
 			engine.restart();
-			assertEquals("share=[] weight=[]", describeStore(engine.evita(), Scope.LIVE), "after a restart");
+			assertEquals(NO_STORE, describeStore(engine.evita(), Scope.LIVE), "after a restart");
 
 			engine.update(rankOfEveryReference(PRODUCT_PK, FIRST_RANK));
 			assertEquals("share=[5@1] weight=[]", describeStore(engine.evita(), Scope.LIVE));
-			assertEquals(primaryKey, storePrimaryKey(engine.evita(), Scope.LIVE), "the same store");
+
+			engine.restart();
+			assertEquals("share=[5@1] weight=[]", describeStore(engine.evita(), Scope.LIVE), "after a restart");
 		});
 	}
 
 	/**
-	 * A store that changes of the referenced brand left registered without a value gives a query no histogram of the
-	 * group, before and after a restart, while the next admitted value is read from it again.
+	 * A store persisted by a restart and then emptied by a change of the referenced brand is dropped by that change
+	 * and stays dropped over a restart. The next admitted value creates a store under another primary key, which a
+	 * restart keeps.
+	 *
+	 * @param state the state the catalog is in when the case writes
+	 */
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("a persisted store emptied by a change of the referenced entity is dropped")
+	void shouldDropPersistedStoreWhenCrossEntityChangeEmptiesIt(@Nonnull CatalogState state) {
+		runCase(state, "crossEntitySweptPersisted", engine -> {
+			engine.update(createProduct(PRODUCT_PK, WEIGHTED_BRAND_PK, UNRANKED, SHARE));
+			assertEquals("share=[] weight=[5@1]", describeStore(engine.evita(), Scope.LIVE));
+			final int primaryKey = storePrimaryKey(engine.evita(), Scope.LIVE);
+			engine.restart();
+			assertEquals("share=[] weight=[5@1]", describeStore(engine.evita(), Scope.LIVE), "persisted");
+
+			engine.update(weightOf(WEIGHTED_BRAND_PK, null));
+			assertEquals(NO_STORE, describeStore(engine.evita(), Scope.LIVE), "dropped by the change emptying it");
+
+			engine.restart();
+			assertEquals(NO_STORE, describeStore(engine.evita(), Scope.LIVE), "after a restart");
+
+			engine.update(weightOf(WEIGHTED_BRAND_PK, CHANGED_BRAND_WEIGHT));
+			assertEquals("share=[] weight=[6@1]", describeStore(engine.evita(), Scope.LIVE));
+			final int newPrimaryKey = storePrimaryKey(engine.evita(), Scope.LIVE);
+			assertNotEquals(primaryKey, newPrimaryKey, "a new store");
+
+			engine.restart();
+			assertEquals("share=[] weight=[6@1]", describeStore(engine.evita(), Scope.LIVE), "after a restart");
+			assertEquals(newPrimaryKey, storePrimaryKey(engine.evita(), Scope.LIVE), "the same store after a restart");
+		});
+	}
+
+	/**
+	 * A change of the referenced brand writes the values of a grouped reference into the store of the group only, so
+	 * the group-type index never holds a histogram. Once the last reference of the group leaves, the group-type index
+	 * is empty and is dropped, also after a restart.
+	 *
+	 * @param state the state the catalog is in when the case writes
+	 */
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("a change of the referenced entity leaves no histogram in the group-type index")
+	void shouldLeaveNoHistogramInGroupTypeIndexWhenReferencedEntityChanges(@Nonnull CatalogState state) {
+		runCase(state, "groupTypeIndexWithoutResidue", engine -> {
+			engine.update(createProduct(PRODUCT_PK, WEIGHTED_BRAND_PK, FIRST_RANK, SHARE));
+			assertEquals("share=[5@1] weight=[5@1]", describeStore(engine.evita(), Scope.LIVE));
+			assertEquals("share=[] weight=[]", describeGroupTypeIndex(engine.evita()), "after the local change");
+
+			engine.update(weightOf(WEIGHTED_BRAND_PK, CHANGED_BRAND_WEIGHT));
+			assertEquals("share=[5@1] weight=[6@1]", describeStore(engine.evita(), Scope.LIVE));
+			assertEquals(
+				"share=[] weight=[]", describeGroupTypeIndex(engine.evita()),
+				"after the change of the referenced entity"
+			);
+
+			engine.update(removeEveryReference(PRODUCT_PK));
+			assertEquals(NO_STORE, describeStore(engine.evita(), Scope.LIVE));
+			assertEquals(
+				NO_GROUP_TYPE_INDEX, describeGroupTypeIndex(engine.evita()),
+				"dropped once the last reference of the group left"
+			);
+
+			engine.restart();
+			assertEquals(NO_GROUP_TYPE_INDEX, describeGroupTypeIndex(engine.evita()), "after a restart");
+		});
+	}
+
+	/**
+	 * A store that changes of the referenced brand emptied is dropped, so a query computes no histogram of the group,
+	 * before and after a restart, while the next admitted value is read again.
 	 *
 	 * @param state the state the catalog is in when the case writes
 	 */
@@ -333,7 +445,7 @@ class GroupHistogramStoreLifecycleFunctionalTest implements EvitaTestSupport {
 				weightOf(WEIGHTLESS_BRAND_PK, LATE_WEIGHT).accept(session);
 				weightOf(WEIGHTLESS_BRAND_PK, null).accept(session);
 			});
-			assertEquals("share=[] weight=[]", describeStore(engine.evita(), Scope.LIVE), "a registered empty store");
+			assertEquals(NO_STORE, describeStore(engine.evita(), Scope.LIVE), "dropped by the change emptying it");
 			assertEquals("share=none weight=none", describeQueriedHistograms(engine.evita()));
 
 			engine.restart();
@@ -534,19 +646,271 @@ class GroupHistogramStoreLifecycleFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Sets the catalog up in warm-up, makes it alive where `state` says so, runs the case and closes the engine.
+	 * A persisted store a change of the referenced brand empties and drops comes back whole when the transaction making
+	 * the change is rolled back, and the same change committed drops it for good.
+	 *
+	 * The rollback is the transaction's. A change of a referenced entity drops the store in the dispatch that follows
+	 * the consistency check of its own mutation, and a nested change of another entity writes only references of that
+	 * entity, which a histogram may not read - so no failure of the mutation dropping the store can follow the drop.
+	 *
+	 * In one transaction of an alive catalog, removing the weight of the brand 10 withdraws the last value of the store
+	 * and drops it, which the transaction reads itself, and a later upsert of the same transaction fails its
+	 * consistency check, so the whole transaction is rolled back. The store keeps its primary key, its value and its
+	 * place in both index maps, the index summary counts it once, a query reads its value, and a restart keeps it.
+	 */
+	@Test
+	@DisplayName("a rolled-back transaction brings back the store a change of the referenced entity dropped")
+	void shouldRestoreStoreWhenTransactionDroppingItIsRolledBack() {
+		runCase(CatalogState.ALIVE, "sweepRolledBack", engine -> {
+			engine.update(createProduct(PRODUCT_PK, WEIGHTED_BRAND_PK, UNRANKED, SHARE));
+			assertEquals("share=[] weight=[5@1]", describeStore(engine.evita(), Scope.LIVE));
+			final int primaryKey = storePrimaryKey(engine.evita(), Scope.LIVE);
+			engine.restart();
+			assertEquals("share=[] weight=[5@1]", describeStore(engine.evita(), Scope.LIVE), "persisted");
+			assertEquals(1, countedStores(engine.evita()), "the index summary counts the persisted store");
+
+			assertThrows(
+				MandatoryAttributesNotProvidedException.class,
+				() -> engine.update(session -> {
+					weightOf(WEIGHTED_BRAND_PK, null).accept(session);
+					// the transaction reads its own drop, so the rollback below has a drop to undo
+					assertEquals(NO_STORE, describeStore(engine.evita(), Scope.LIVE), "the transaction dropped it");
+					assertNull(
+						productCollection(engine.evita()).getIndexByPrimaryKeyIfExists(primaryKey),
+						"the transaction resolves the primary key of the dropped store to nothing"
+					);
+					assertEquals(
+						NO_HISTOGRAM,
+						describeQueriedHistogram(queryGroupStatistics(session, HISTOGRAM_WEIGHT), HISTOGRAM_WEIGHT),
+						"a query of the transaction reads no histogram"
+					);
+					// the owner lacks its mandatory code, so the upsert fails and takes the transaction down with it
+					session.upsertEntity(
+						newProduct(session, SECOND_PRODUCT_PK, WEIGHTED_BRAND_PK, UNRANKED, SHARE, false)
+					);
+				})
+			);
+			assertEquals("share=[] weight=[5@1]", describeStore(engine.evita(), Scope.LIVE), "the store came back");
+			assertEquals(primaryKey, storePrimaryKey(engine.evita(), Scope.LIVE), "under its primary key");
+			assertSame(
+				store(engine.evita(), Scope.LIVE),
+				productCollection(engine.evita()).getIndexByPrimaryKeyIfExists(primaryKey),
+				"the same store under its key and under its primary key"
+			);
+			assertEquals(1, countedStores(engine.evita()), "the index summary counts the store once");
+			assertEquals("share=none weight=5..5", describeQueriedHistograms(engine.evita()), "a query reads it");
+
+			engine.restart();
+			assertEquals("share=[] weight=[5@1]", describeStore(engine.evita(), Scope.LIVE), "after a restart");
+			assertEquals(primaryKey, storePrimaryKey(engine.evita(), Scope.LIVE), "the same store after a restart");
+			assertEquals(1, countedStores(engine.evita()), "the index summary counts the store after a restart");
+
+			engine.update(weightOf(WEIGHTED_BRAND_PK, null));
+			assertEquals(NO_STORE, describeStore(engine.evita(), Scope.LIVE), "dropped by the change committed");
+			assertEquals(0, countedStores(engine.evita()), "the index summary counts no store");
+
+			engine.restart();
+			assertEquals(NO_STORE, describeStore(engine.evita(), Scope.LIVE), "after a restart");
+		});
+	}
+
+	/**
+	 * Two changes of referenced brands in one transaction drop the store through the first and create it again
+	 * through the second, so the store is replaced within the transaction; a rollback restores the old store, and the
+	 * same changes committed leave the new one.
+	 *
+	 * The rollback is the transaction's, for the reason
+	 * {@link #shouldRestoreStoreWhenTransactionDroppingItIsRolledBack} gives, and the two changes are two mutations of
+	 * one transaction, because each change of a referenced entity reaches the store in a dispatch of its own.
+	 *
+	 * The product 1 references the brand 10 and holds the only value of the store; the product 2 references the brand
+	 * 11, which weighs nothing, and so contributes nothing. In one transaction the weight of the brand 10 is removed,
+	 * which drops the store, and the brand 11 gets a weight, which creates the store again under another primary key
+	 * with the value of the product 2 only - the transaction reads both itself. The application then gives up the
+	 * transaction: the old store comes back with its primary key, its value and its place in both index maps, and the
+	 * primary key of the new one resolves to nothing. Committed, the changes leave the new store only, the old primary
+	 * key resolves to nothing, and a restart keeps the new store.
+	 */
+	@Test
+	@DisplayName("one transaction drops the store and creates it again; a rollback restores the old one")
+	void shouldReplaceStoreDroppedAndCreatedAgainInOneTransaction() {
+		runCase(CatalogState.ALIVE, "sweptAndRecreated", engine -> {
+			engine.update(createProduct(PRODUCT_PK, WEIGHTED_BRAND_PK, UNRANKED, SHARE));
+			engine.update(createProduct(SECOND_PRODUCT_PK, WEIGHTLESS_BRAND_PK, UNRANKED, SHARE));
+			assertEquals(
+				"share=[] weight=[5@1]", describeStore(engine.evita(), Scope.LIVE), "the product 2 contributes nothing"
+			);
+			final int primaryKey = storePrimaryKey(engine.evita(), Scope.LIVE);
+
+			final AtomicInteger rolledBackPrimaryKey = new AtomicInteger();
+			final RuntimeException givenUp = assertThrows(
+				RuntimeException.class,
+				() -> engine.update(session -> {
+					weightOf(WEIGHTED_BRAND_PK, null).accept(session);
+					assertEquals(NO_STORE, describeStore(engine.evita(), Scope.LIVE), "the first change dropped it");
+					weightOf(WEIGHTLESS_BRAND_PK, LATE_WEIGHT).accept(session);
+					assertEquals(
+						"share=[] weight=[7@2]", describeStore(engine.evita(), Scope.LIVE),
+						"the second change created it again"
+					);
+					rolledBackPrimaryKey.set(storePrimaryKey(engine.evita(), Scope.LIVE));
+					assertNotEquals(primaryKey, rolledBackPrimaryKey.get(), "under another primary key");
+					assertNull(
+						productCollection(engine.evita()).getIndexByPrimaryKeyIfExists(primaryKey),
+						"the transaction resolves the old primary key to nothing"
+					);
+					assertEquals(
+						"7..7",
+						describeQueriedHistogram(queryGroupStatistics(session, HISTOGRAM_WEIGHT), HISTOGRAM_WEIGHT),
+						"a query of the transaction reads the new store"
+					);
+					throw new TransactionGivenUpException();
+				})
+			);
+			assertNotNull(
+				ExceptionUtils.findInCauseChain(givenUp, TransactionGivenUpException.class),
+				() -> "The session must fail with the failure the application gave up with, but threw " + givenUp
+			);
+			assertEquals("share=[] weight=[5@1]", describeStore(engine.evita(), Scope.LIVE), "the old store came back");
+			assertEquals(primaryKey, storePrimaryKey(engine.evita(), Scope.LIVE), "under its primary key");
+			assertSame(
+				store(engine.evita(), Scope.LIVE),
+				productCollection(engine.evita()).getIndexByPrimaryKeyIfExists(primaryKey),
+				"the same store under its key and under its primary key"
+			);
+			assertNull(
+				productCollection(engine.evita()).getIndexByPrimaryKeyIfExists(rolledBackPrimaryKey.get()),
+				"the primary key of the rolled-back store resolves to nothing"
+			);
+			assertEquals(1, countedStores(engine.evita()), "the index summary counts the old store once");
+			assertEquals("share=none weight=5..5", describeQueriedHistograms(engine.evita()), "a query reads it");
+
+			engine.update(session -> {
+				weightOf(WEIGHTED_BRAND_PK, null).accept(session);
+				weightOf(WEIGHTLESS_BRAND_PK, LATE_WEIGHT).accept(session);
+			});
+			assertEquals(
+				"share=[] weight=[7@2]", describeStore(engine.evita(), Scope.LIVE), "the store holds the new value only"
+			);
+			final int newPrimaryKey = storePrimaryKey(engine.evita(), Scope.LIVE);
+			assertNotEquals(
+				primaryKey, newPrimaryKey, "the first change dropped the store before it was created again"
+			);
+			assertNull(
+				productCollection(engine.evita()).getIndexByPrimaryKeyIfExists(primaryKey),
+				"the old primary key resolves to nothing"
+			);
+			assertSame(
+				store(engine.evita(), Scope.LIVE),
+				productCollection(engine.evita()).getIndexByPrimaryKeyIfExists(newPrimaryKey),
+				"the new store under its key and under its primary key"
+			);
+			assertEquals(1, countedStores(engine.evita()), "the index summary counts the new store only");
+
+			engine.restart();
+			assertEquals("share=[] weight=[7@2]", describeStore(engine.evita(), Scope.LIVE), "after a restart");
+			assertEquals(newPrimaryKey, storePrimaryKey(engine.evita(), Scope.LIVE), "the new store after a restart");
+			assertNull(
+				productCollection(engine.evita()).getIndexByPrimaryKeyIfExists(primaryKey),
+				"the old primary key resolves to nothing after a restart"
+			);
+			assertEquals(1, countedStores(engine.evita()), "the index summary counts one store after a restart");
+		});
+	}
+
+	/**
+	 * A transaction that drops the store, committed into the write-ahead log but not yet checkpointed, is replayed
+	 * when the engine starts again, without a session, and drops the store again.
+	 *
+	 * The checkpoint is deferred, so the committed tail stays unpublished until the engine closes. The store of the
+	 * weight of the brand 10 is persisted by a restart; the transaction removing the weight empties and drops it, and
+	 * the storage is copied into an image before the transaction is published. The engine booted over the image loads
+	 * the persisted store, replays the transaction and ends at its version without a store, which the index summary
+	 * does not count. The next admitted value creates a store, which a restart keeps.
+	 */
+	@Test
+	@Tag(WAL)
+	@DisplayName("the replay of a write-ahead log tail drops the store its transaction emptied")
+	void shouldDropStoreWhenReplayingTransactionEmptyingItFromWriteAheadLog() {
+		final TestPaths paths = createTestPaths("GroupHistogramStoreLifecycle_sweepReplayed");
+		final TestPaths image = createTestPaths("GroupHistogramStoreLifecycle_sweepReplayed_image");
+		final TransactionOptions deferredCheckpoint = TransactionOptions.builder()
+			.checkpointIntervalInMillis(NEVER_ELAPSES_MILLIS)
+			.build();
+		final Engine engine = new Engine(
+			newTestEvitaConfigurationBuilder(paths).transaction(deferredCheckpoint).build()
+		);
+		Engine replayed = null;
+		try {
+			engine.evita().defineCatalog(TEST_CATALOG);
+			engine.update(session -> {
+				setUpCatalog(session);
+				session.goLiveAndClose();
+			});
+			engine.update(createProduct(PRODUCT_PK, WEIGHTED_BRAND_PK, UNRANKED, SHARE));
+			// going live and the product are deferred like any other round; the clean close of the restart publishes
+			// them
+			engine.restart();
+			assertEquals("share=[] weight=[5@1]", describeStore(engine.evita(), Scope.LIVE), "persisted");
+
+			engine.update(weightOf(WEIGHTED_BRAND_PK, null));
+			assertEquals(NO_STORE, describeStore(engine.evita(), Scope.LIVE), "dropped by the change emptying it");
+			final long appliedVersion = takeImageOfUnpublishedTail(engine.evita(), paths, image);
+			engine.evita().close();
+
+			replayed = new Engine(newTestEvitaConfigurationBuilder(image).transaction(deferredCheckpoint).build());
+			CatalogReloadTestSupport.awaitCatalogLoaded(replayed.evita(), TEST_CATALOG);
+			assertEquals(appliedVersion, catalog(replayed.evita()).getVersion(), "the image reaches the transaction");
+			assertEquals(NO_STORE, describeStore(replayed.evita(), Scope.LIVE), "dropped by the replayed transaction");
+			assertEquals(0, countedStores(replayed.evita()), "the index summary counts no store");
+
+			replayed.update(weightOf(WEIGHTED_BRAND_PK, CHANGED_BRAND_WEIGHT));
+			assertEquals("share=[] weight=[6@1]", describeStore(replayed.evita(), Scope.LIVE));
+
+			replayed.restart();
+			assertEquals("share=[] weight=[6@1]", describeStore(replayed.evita(), Scope.LIVE), "after a restart");
+		} finally {
+			engine.evita().close();
+			if (replayed != null) {
+				replayed.evita().close();
+			}
+			cleanupTestPaths(paths);
+			cleanupTestPaths(image);
+		}
+	}
+
+	/**
+	 * Runs a case on the catalog {@link #setUpCatalog} sets up, see
+	 * {@link #runCase(CatalogState, String, Consumer, CaseBody)}.
 	 *
 	 * @param state the state the catalog is in when the case writes
 	 * @param label names the directory of the case
 	 * @param body  the case
 	 */
 	private void runCase(@Nonnull CatalogState state, @Nonnull String label, @Nonnull CaseBody body) {
+		runCase(state, label, GroupHistogramStoreLifecycleFunctionalTest::setUpCatalog, body);
+	}
+
+	/**
+	 * Sets the catalog up in warm-up, makes it alive where `state` says so, runs the case and closes the engine.
+	 *
+	 * @param state   the state the catalog is in when the case writes
+	 * @param label   names the directory of the case
+	 * @param setUp   defines the schemas and stores the entities of the case, in warm-up
+	 * @param body    the case
+	 */
+	private void runCase(
+		@Nonnull CatalogState state,
+		@Nonnull String label,
+		@Nonnull Consumer<EvitaSessionContract> setUp,
+		@Nonnull CaseBody body
+	) {
 		final TestPaths paths = createTestPaths("GroupHistogramStoreLifecycle_" + label + "_" + state);
 		final Engine engine = new Engine(newTestEvitaConfigurationBuilder(paths).build());
 		try {
 			engine.evita().defineCatalog(TEST_CATALOG);
 			engine.update(session -> {
-				setUpCatalog(session);
+				setUp.accept(session);
 				if (state == CatalogState.ALIVE) {
 					session.goLiveAndClose();
 				}
@@ -615,16 +979,63 @@ class GroupHistogramStoreLifecycleFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Describes the contributions of one histogram of the store as `value@owner`, in ascending order of the values
+	 * Returns how many histogram stores of groups the index summary of the product collection counts in the live
+	 * scope. The summary reads the index population of the collection, which the drop of a store and its reinstatement
+	 * by a rollback move - in place in warm-up, at the commit in a transaction.
+	 *
+	 * @param evita the engine
+	 * @return the number of stores the summary counts
+	 */
+	private static int countedStores(@Nonnull Evita evita) {
+		final CollectionIndexSummary summary = evita.management()
+			.getEntityCollectionStatistics(
+				TEST_CATALOG, ENTITY_PRODUCT, EnumSet.of(CatalogStatisticsComponent.INDEX_SUMMARY)
+			)
+			.indexSummaryIfPresent()
+			.orElseThrow();
+		int count = 0;
+		for (final IndexTypeCount typeCount : summary.byTypeAndScope()) {
+			final boolean liveStores = typeCount.indexType() == EntityIndexType.REFERENCED_GROUP_HISTOGRAM &&
+				typeCount.scope() == Scope.LIVE;
+			if (liveStores) {
+				count += typeCount.count();
+			}
+		}
+		return count;
+	}
+
+	/**
+	 * Describes the histograms the group-type index of the reference to a brand holds in the live scope: the
+	 * contributions of the share and of the weight histogram, see {@link #describeHistogram}, or
+	 * {@link #NO_GROUP_TYPE_INDEX}.
+	 *
+	 * @param evita the engine
+	 * @return the description, `share=[] weight=[]` when the index holds no histogram
+	 */
+	@Nonnull
+	private static String describeGroupTypeIndex(@Nonnull Evita evita) {
+		final EntityIndex index = productCollection(evita).getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, Scope.LIVE, REFERENCE_BRAND)
+		);
+		if (index == null) {
+			return NO_GROUP_TYPE_INDEX;
+		}
+		final ReferencedTypeEntityIndex groupTypeIndex = assertInstanceOf(ReferencedTypeEntityIndex.class, index);
+		return "share=" + describeHistogram(groupTypeIndex, HISTOGRAM_SHARE) +
+			" weight=" + describeHistogram(groupTypeIndex, HISTOGRAM_WEIGHT);
+	}
+
+	/**
+	 * Describes the contributions of one histogram of an index as `value@owner`, in ascending order of the values
 	 * and the owners.
 	 *
-	 * @param store         the store
+	 * @param index         the index holding the histogram
 	 * @param histogramName the name of the histogram
 	 * @return the description, for instance `[5@1, 10@100]`
 	 */
 	@Nonnull
-	private static String describeHistogram(@Nonnull GroupHistogramEntityIndex store, @Nonnull String histogramName) {
-		final HistogramIndex histogram = store.getHistogramIndex(histogramName);
+	private static String describeHistogram(@Nonnull HistogramCapableEntityIndex index, @Nonnull String histogramName) {
+		final HistogramIndex histogram = index.getHistogramIndex(histogramName);
 		final FilterIndex filterIndex = histogram == null ? null : histogram.getFilterIndex(null);
 		final List<String> contributions = new ArrayList<>(4);
 		if (filterIndex != null) {
@@ -647,25 +1058,42 @@ class GroupHistogramStoreLifecycleFunctionalTest implements EvitaTestSupport {
 	@Nonnull
 	private static String describeQueriedHistograms(@Nonnull Evita evita) {
 		return evita.queryCatalog(TEST_CATALOG, session -> {
-			final EvitaResponse<EntityReference> response = session.query(
-				query(
-					collection(ENTITY_PRODUCT),
-					filterBy(scope(Scope.LIVE)),
-					require(
-						referenceSummaryOfReferenceWithHistograms(
-							REFERENCE_BRAND, FacetStatisticsDepth.COUNTS, null, null,
-							histogramStatistics(BUCKET_COUNT, HISTOGRAM_SHARE, HISTOGRAM_WEIGHT)
-						)
-					)
-				),
-				EntityReference.class
+			final ReferenceGroupStatistics statistics = queryGroupStatistics(
+				session, HISTOGRAM_SHARE, HISTOGRAM_WEIGHT
 			);
-			final ReferenceSummary summary = response.getExtraResult(ReferenceSummary.class);
-			final ReferenceGroupStatistics statistics = summary == null ?
-				null : summary.getReferenceGroupStatistics(REFERENCE_BRAND, GROUP_PK);
 			return "share=" + describeQueriedHistogram(statistics, HISTOGRAM_SHARE) +
 				" weight=" + describeQueriedHistogram(statistics, HISTOGRAM_WEIGHT);
 		});
+	}
+
+	/**
+	 * Queries the statistics of the group 1 the reference summary of the live scope computes in `session`, with the
+	 * histograms `histogramNames`. A query reads what its own session has written, also inside a transaction.
+	 *
+	 * @param session        the session to query in
+	 * @param histogramNames the names of the histograms to compute
+	 * @return the statistics of the group, or `null` when the summary holds none
+	 */
+	@Nullable
+	private static ReferenceGroupStatistics queryGroupStatistics(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String... histogramNames
+	) {
+		final EvitaResponse<EntityReference> response = session.query(
+			query(
+				collection(ENTITY_PRODUCT),
+				filterBy(scope(Scope.LIVE)),
+				require(
+					referenceSummaryOfReferenceWithHistograms(
+						REFERENCE_BRAND, FacetStatisticsDepth.COUNTS, null, null,
+						histogramStatistics(BUCKET_COUNT, histogramNames)
+					)
+				)
+			),
+			EntityReference.class
+		);
+		final ReferenceSummary summary = response.getExtraResult(ReferenceSummary.class);
+		return summary == null ? null : summary.getReferenceGroupStatistics(REFERENCE_BRAND, GROUP_PK);
 	}
 
 	/**
@@ -688,6 +1116,53 @@ class GroupHistogramStoreLifecycleFunctionalTest implements EvitaTestSupport {
 		}
 		return histogram.getMin().stripTrailingZeros().toPlainString() + ".." +
 			histogram.getMax().stripTrailingZeros().toPlainString();
+	}
+
+	/**
+	 * Waits until the alive catalog has applied everything its write-ahead log holds, asserts that the last checkpoint
+	 * lies behind it, and copies the storage into the image - the state a crash would leave, with the committed tail
+	 * not yet published. The copy is taken while the engine is idle and before it closes, because a clean close
+	 * publishes the tail.
+	 *
+	 * @param evita the running engine
+	 * @param paths the directories of the engine
+	 * @param image the directories to copy the storage into
+	 * @return the catalog version the tail reaches
+	 */
+	private static long takeImageOfUnpublishedTail(
+		@Nonnull Evita evita,
+		@Nonnull TestPaths paths,
+		@Nonnull TestPaths image
+	) {
+		await()
+			.atMost(30, TimeUnit.SECONDS)
+			.pollInterval(50, TimeUnit.MILLISECONDS)
+			.until(() -> {
+				final Catalog current = catalog(evita);
+				return current.getVersion() == current.getLastCatalogVersionInMutationStream();
+			});
+		final Catalog catalog = catalog(evita);
+		final long appliedVersion = catalog.getVersion();
+		final long persistedVersion = catalog.getLastPersistedCatalogVersion();
+		assertTrue(
+			persistedVersion < appliedVersion,
+			"The image must hold the write in the write-ahead log past the last checkpoint: applied " +
+				appliedVersion + ", checkpointed " + persistedVersion
+		);
+		CatalogReloadTestSupport.copyRecursively(paths.storage(), image.storage());
+		assertSame(catalog, catalog(evita), "The catalog must not move while its storage is copied");
+		return appliedVersion;
+	}
+
+	/**
+	 * Returns the current catalog of the engine.
+	 *
+	 * @param evita the engine
+	 * @return the catalog
+	 */
+	@Nonnull
+	private static Catalog catalog(@Nonnull Evita evita) {
+		return (Catalog) evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
 	}
 
 	/**

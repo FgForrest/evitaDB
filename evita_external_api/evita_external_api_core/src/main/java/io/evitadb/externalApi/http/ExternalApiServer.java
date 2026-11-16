@@ -59,8 +59,8 @@ import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.http.ExternalApiProvider.HttpServiceDefinition;
 import io.evitadb.externalApi.http.ExternalApiProvider.PathHandlingMode;
+import io.evitadb.externalApi.http.routing.PrefixRoutingService;
 import io.evitadb.externalApi.trace.TracingDecorator;
-import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
@@ -129,6 +129,12 @@ public class ExternalApiServer implements AutoCloseable {
 	 * second invocation is a silent no-op.
 	 */
 	private final Evita evita;
+	/**
+	 * Server-owned bridge into the global scrape registry. Closing alone leaves its collectors registered;
+	 * after Armeria stops, its meters must also be removed so later servers do not duplicate the same labels.
+	 */
+	@Nullable
+	private PrometheusMeterRegistry meterRegistry;
 	private CertificateService certificateService;
 	private CompletableFuture<Void> stopFuture;
 
@@ -224,12 +230,9 @@ public class ExternalApiServer implements AutoCloseable {
 				}
 			}
 
-			getServerCertificateFingerPrint(serverCertificateManager)
-				.ifPresent(it -> {
-					ConsoleWriter.write(StringUtils.rightPad("Server certificate fingerprint: ", " ", PADDING_START_UP));
-					ConsoleWriter.write(it, ConsoleColor.BRIGHT_YELLOW);
-					ConsoleWriter.write("\n", ConsoleColor.WHITE);
-				});
+			printServerCertificateFingerprint(
+				serverCertificateManager.getCertificatePath(CertificateUtils.getServerCertName()).toFile()
+			);
 
 		} else {
 			if ((certificatePath.certificate() == null || !new File(certificatePath.certificate()).exists())
@@ -241,13 +244,28 @@ public class ExternalApiServer implements AutoCloseable {
 	}
 
 	/**
+	 * Prints the fingerprint of the server certificate to the console, if the certificate file exists. It is what a
+	 * client that downloaded the certificate over plain HTTP verifies the download against.
+	 *
+	 * @param rootCaFile the server certificate file
+	 */
+	private static void printServerCertificateFingerprint(@Nonnull File rootCaFile) {
+		getServerCertificateFingerPrint(rootCaFile)
+			.ifPresent(it -> {
+				ConsoleWriter.write(StringUtils.rightPad("Server certificate fingerprint: ", " ", PADDING_START_UP));
+				ConsoleWriter.write(it, ConsoleColor.BRIGHT_YELLOW);
+				ConsoleWriter.write("\n", ConsoleColor.WHITE);
+			});
+	}
+
+	/**
 	 * Reads server certificate from the file if exists and if so, return its fingerprint.
+	 *
+	 * @param rootCaFile the server certificate file
+	 * @return the fingerprint, or empty when the file does not exist
 	 */
 	@Nonnull
-	private static Optional<String> getServerCertificateFingerPrint(
-		@Nonnull ServerCertificateManager serverCertificateManager
-	) {
-		final File rootCaFile = serverCertificateManager.getCertificatePath(CertificateUtils.getServerCertName()).toFile();
+	private static Optional<String> getServerCertificateFingerPrint(@Nonnull File rootCaFile) {
 		if (rootCaFile.exists()) {
 			try (InputStream in = new FileInputStream(rootCaFile)) {
 				final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
@@ -392,32 +410,52 @@ public class ExternalApiServer implements AutoCloseable {
 		}
 
 		try {
-			final CertificateOptions certificateSettings = apiOptions.certificate();
-			final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(certificateSettings);
-			final CertificatePath certificatePath = certificateSettings.generateAndUseSelfSigned() ?
-				initCertificate(apiOptions, serverCertificateManager) :
-				(
-					certificateSettings.custom() != null &&
-					certificateSettings.custom().certificate() != null && !certificateSettings.custom().certificate().isBlank() &&
-						certificateSettings.custom().privateKey() != null && !certificateSettings.custom().privateKey().isBlank() ?
-						new CertificatePath(
-							certificateSettings.custom().certificate(),
-							certificateSettings.custom().privateKey(),
-							certificateSettings.custom().privateKeyPassword()
-						) : null
+			try {
+				final CertificateOptions certificateSettings = apiOptions.certificate();
+				final ServerCertificateManager serverCertificateManager =
+					new ServerCertificateManager(certificateSettings);
+				final CertificatePath certificatePath = certificateSettings.generateAndUseSelfSigned() ?
+					initCertificate(apiOptions, serverCertificateManager) :
+					(
+						certificateSettings.custom() != null &&
+							certificateSettings.custom().certificate() != null &&
+							!certificateSettings.custom().certificate().isBlank() &&
+							certificateSettings.custom().privateKey() != null &&
+							!certificateSettings.custom().privateKey().isBlank() ?
+							new CertificatePath(
+								certificateSettings.custom().certificate(),
+								certificateSettings.custom().privateKey(),
+								certificateSettings.custom().privateKeyPassword()
+							) : null
+					);
+				// a custom certificate is downloadable over plain HTTP just like a generated one, so it needs the same
+				// start-up fingerprint to be verified against (generated mode prints it in `initCertificate`)
+				if (!certificateSettings.generateAndUseSelfSigned() && certificatePath != null &&
+					apiOptions.atLeastOneEndpointRequiresTls()) {
+					printServerCertificateFingerprint(new File(certificatePath.certificate()));
+				}
+				configureArmeria(evita, serverBuilder, certificatePath, apiOptions);
+			} catch (CertificateException | UnrecoverableKeyException | KeyStoreException | IOException |
+			         NoSuchAlgorithmException e) {
+				throw new GenericEvitaInternalError(
+					"Failed to configure Armeria server with provided certificate and private key: " + e.getMessage(),
+					"Failed to configure Armeria server with provided certificate and private key.",
+					e
 				);
-			configureArmeria(evita, serverBuilder, certificatePath, apiOptions);
-		} catch (CertificateException | UnrecoverableKeyException | KeyStoreException | IOException |
-		         NoSuchAlgorithmException e) {
-			throw new GenericEvitaInternalError(
-				"Failed to configure Armeria server with provided certificate and private key: " + e.getMessage(),
-				"Failed to configure Armeria server with provided certificate and private key.",
-				e
-			);
-		}
+			}
 
-		this.server = serverBuilder.build();
-		this.registeredApiProviders.values().forEach(ExternalApiProvider::afterAllInitialized);
+			this.server = serverBuilder.build();
+			this.registeredApiProviders.values().forEach(ExternalApiProvider::afterAllInitialized);
+		} catch (Throwable ex) {
+			// the meter registry joins the JVM-wide scrape registry as soon as it is created, and a server that fails
+			// to construct is never stopped - its meters would stay and collide with the next server's in this JVM
+			try {
+				releaseMeterRegistry();
+			} catch (RuntimeException releaseFailure) {
+				ex.addSuppressed(releaseFailure);
+			}
+			throw ex;
+		}
 	}
 
 	/**
@@ -491,6 +529,11 @@ public class ExternalApiServer implements AutoCloseable {
 
 	/**
 	 * Stops this running HTTP server and its registered APIs.
+	 *
+	 * Once Armeria has stopped, the server's meters are also removed from the JVM-wide Prometheus scrape registry,
+	 * so a server started later in the same JVM does not expose the same series twice.
+	 *
+	 * @return future completed when the server has stopped; repeated calls return the same future
 	 */
 	@Nonnull
 	public CompletableFuture<Void> closeAsynchronously() {
@@ -503,6 +546,7 @@ public class ExternalApiServer implements AutoCloseable {
 				this.stopFuture = this.server.stop()
 					.thenAccept(
 						unused -> {
+							releaseMeterRegistry();
 							ConsoleWriter.write(
 								"External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n");
 							this.probesMaintainer.closeProbes();
@@ -511,6 +555,18 @@ public class ExternalApiServer implements AutoCloseable {
 			}
 		}
 		return this.stopFuture;
+	}
+
+	/**
+	 * Removes this server's meters from the JVM-wide scrape registry. Closing the registry alone leaves its
+	 * collectors registered, so the meters are cleared as well; a later server in the same JVM would otherwise
+	 * expose the same series twice and its scrape would fail.
+	 */
+	private void releaseMeterRegistry() {
+		if (this.meterRegistry != null) {
+			this.meterRegistry.close();
+			this.meterRegistry.clear();
+		}
 	}
 
 	/**
@@ -555,14 +611,14 @@ public class ExternalApiServer implements AutoCloseable {
 
 		// Create a shared meter registry backed by the default PrometheusRegistry
 		// (the same registry scraped by PrometheusScrapeHandler)
-		final PrometheusMeterRegistry meterRegistry = new PrometheusMeterRegistry(
+		this.meterRegistry = new PrometheusMeterRegistry(
 			PrometheusConfig.DEFAULT, PrometheusRegistry.defaultRegistry, Clock.SYSTEM
 		);
 
 		// Bind EventLoop metrics to the shared registry
 		MoreMeterBinders
 			.eventLoopMetrics(workerGroup, new MeterIdPrefix("armeria.netty.worker"))
-			.bindTo(meterRegistry);
+			.bindTo(this.meterRegistry);
 
 		// reports RST_STREAM floods and erroneous GOAWAY teardowns that would otherwise leave no trace on the server
 		final Http2ConnectionMonitor http2ConnectionMonitor = Http2ConnectionMonitor.fromSystemProperties();
@@ -616,7 +672,7 @@ public class ExternalApiServer implements AutoCloseable {
 			.serviceWorkerGroup(workerGroup, true)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
 			.workerGroup(workerGroup, true)
-			.meterRegistry(meterRegistry)
+			.meterRegistry(this.meterRegistry)
 			.unloggedExceptionsReportInterval(Duration.ofMillis(10));
 
 		if (apiOptions.accessLog()) {
@@ -631,7 +687,7 @@ public class ExternalApiServer implements AutoCloseable {
 
 		final List<FixedPathService> fixedPathHandlingServices = new LinkedList<>();
 		// objects lazily initialized on first use
-		PathHandlingService dynamicPathHandlingService = null;
+		PrefixRoutingService dynamicPathHandlingService = null;
 
 		// list of proxy provider configurations
 		final AbstractApiOptions[] proxyConfigs = this.registeredApiProviders.values()
@@ -713,7 +769,7 @@ public class ExternalApiServer implements AutoCloseable {
 						} else {
 							// else use path handling service to route requests to the service's own custom router
 							if (dynamicPathHandlingService == null) {
-								dynamicPathHandlingService = new PathHandlingService();
+								dynamicPathHandlingService = new PrefixRoutingService();
 							}
 							dynamicPathHandlingService.addPrefixPath(servicePath, service);
 
@@ -745,7 +801,7 @@ public class ExternalApiServer implements AutoCloseable {
 			// Bind certificate metrics (expiry, validity) to the shared registry
 			MoreMeterBinders
 				.certificateMetrics(new File(certificatePath.certificate()), new MeterIdPrefix("armeria.server.certificate"))
-				.bindTo(meterRegistry);
+				.bindTo(this.meterRegistry);
 		}
 
 		// we need to process APIs with PathHandlingMode.FIXED_PATH_HANDLING first,

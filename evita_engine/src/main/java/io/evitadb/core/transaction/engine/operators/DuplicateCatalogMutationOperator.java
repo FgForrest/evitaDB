@@ -148,9 +148,9 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 					}
 				);
 
-				// Emit the host event AFTER the engine state update so the freshly-duplicated
-				// (and INACTIVE-by-default) target catalog is observable on the system stream
-				// strictly after the underlying mutation.
+				// Emit the host event AFTER the engine state update so that a subscriber handling it finds the
+				// freshly-duplicated (and INACTIVE-by-default) target catalog
+				// (delivery is not ordered with engine mutations, see `HostSystemEvent`).
 				evita.notifyCatalogStateSettled(targetCatalogName, CatalogState.INACTIVE);
 
 				return null;

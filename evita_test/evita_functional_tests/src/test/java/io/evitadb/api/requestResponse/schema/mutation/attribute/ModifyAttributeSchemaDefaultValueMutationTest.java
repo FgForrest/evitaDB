@@ -37,6 +37,8 @@ import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import org.junit.jupiter.api.DisplayName;
@@ -45,6 +47,9 @@ import org.mockito.Mockito;
 import org.junit.jupiter.api.Tag;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
 import static java.util.Optional.of;
@@ -342,6 +347,125 @@ class ModifyAttributeSchemaDefaultValueMutationTest {
 			.thenReturn(of(createStringArrayAttributeSchema(new String[]{"a", "b"})));
 		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
 			ATTRIBUTE_NAME, new String[]{"a", "b"}
+		);
+
+		final ReferenceSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(EntitySchemaContract.class), referenceSchema
+		);
+
+		assertSame(referenceSchema, mutatedSchema);
+	}
+
+	@Test
+	@DisplayName("Should replace a range default value by a range whose bounds merely encode to the same numbers")
+	void shouldMutateAttributeSchemaWhenRangeDefaultValueDiffersOnlyInRepresentation() {
+		final AttributeSchemaContract existingSchema = createAttributeSchemaWithDefaultValue(
+			BigDecimalNumberRange.class, BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+		);
+		final BigDecimalNumberRange newDefaultValue = BigDecimalNumberRange.between(
+			new BigDecimal("1.0"), new BigDecimal("2.0")
+		);
+		// the two ranges are equal, because equality of a range is the equality of its encoded bounds
+		assertEquals(existingSchema.getDefaultValue(), newDefaultValue);
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, newDefaultValue
+		);
+
+		final AttributeSchemaContract mutatedSchema = mutation.mutate(
+			null, existingSchema, AttributeSchemaContract.class
+		);
+
+		assertNotSame(existingSchema, mutatedSchema);
+		assertEquals("[1.0,2.0]", String.valueOf(mutatedSchema.getDefaultValue()));
+	}
+
+	@Test
+	@DisplayName("Should return the same attribute schema when an identical range default value comes again")
+	void shouldReturnSameAttributeSchemaWhenIdenticalRangeDefaultValueComesAgain() {
+		final AttributeSchemaContract existingSchema = createAttributeSchemaWithDefaultValue(
+			BigDecimalNumberRange.class, BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+		);
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+		);
+
+		final AttributeSchemaContract mutatedSchema = mutation.mutate(
+			null, existingSchema, AttributeSchemaContract.class
+		);
+
+		assertSame(existingSchema, mutatedSchema);
+	}
+
+	@Test
+	@DisplayName("Should replace a date-time range default value by one naming the same instants at another offset")
+	void shouldMutateAttributeSchemaWhenDateTimeRangeDefaultValueDiffersOnlyInOffset() {
+		final LocalDateTime noon = LocalDateTime.of(2024, 1, 1, 12, 0);
+		final AttributeSchemaContract existingSchema = createAttributeSchemaWithDefaultValue(
+			DateTimeRange.class,
+			DateTimeRange.between(
+				noon.atOffset(ZoneOffset.ofHours(2)), noon.plusHours(1).atOffset(ZoneOffset.ofHours(2))
+			)
+		);
+		final DateTimeRange newDefaultValue = DateTimeRange.between(
+			noon.minusHours(1).atOffset(ZoneOffset.ofHours(1)), noon.atOffset(ZoneOffset.ofHours(1))
+		);
+		// the two ranges are equal, because they name the same instants
+		assertEquals(existingSchema.getDefaultValue(), newDefaultValue);
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, newDefaultValue
+		);
+
+		final AttributeSchemaContract mutatedSchema = mutation.mutate(
+			null, existingSchema, AttributeSchemaContract.class
+		);
+
+		assertNotSame(existingSchema, mutatedSchema);
+		assertEquals(newDefaultValue.toString(), String.valueOf(mutatedSchema.getDefaultValue()));
+	}
+
+	@Test
+	@DisplayName("Should replace a range default value of a reference attribute by a range of another representation")
+	void shouldMutateReferenceSchemaWhenRangeDefaultValueDiffersOnlyInRepresentation() {
+		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
+		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME))
+			.thenReturn(
+				of(
+					createAttributeSchemaWithDefaultValue(
+						BigDecimalNumberRange.class,
+						BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+					)
+				)
+			);
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+		);
+
+		final ReferenceSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(EntitySchemaContract.class), referenceSchema
+		);
+
+		assertNotSame(referenceSchema, mutatedSchema);
+		assertEquals(
+			"[1.0,2.0]",
+			String.valueOf(mutatedSchema.getAttribute(ATTRIBUTE_NAME).orElseThrow().getDefaultValue())
+		);
+	}
+
+	@Test
+	@DisplayName("Should return the same reference schema when an identical range default value comes again")
+	void shouldReturnSameReferenceSchemaWhenIdenticalRangeDefaultValueComesAgain() {
+		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
+		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME))
+			.thenReturn(
+				of(
+					createAttributeSchemaWithDefaultValue(
+						BigDecimalNumberRange.class,
+						BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+					)
+				)
+			);
+		final ModifyAttributeSchemaDefaultValueMutation mutation = new ModifyAttributeSchemaDefaultValueMutation(
+			ATTRIBUTE_NAME, BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
 		);
 
 		final ReferenceSchemaContract mutatedSchema = mutation.mutate(

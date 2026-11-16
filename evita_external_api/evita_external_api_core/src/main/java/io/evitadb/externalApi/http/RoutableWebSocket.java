@@ -29,11 +29,14 @@ import javax.annotation.Nonnull;
 
 /**
  * Incoming {@link WebSocket} extended with metadata for routers.
+ * The path is encoded, with raw slash boundaries. Prefix routers transport the encoded remainder and drop
+ * the real query; the original request context retains its query. Decoding is local to segment matching.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
 public record RoutableWebSocket(@Nonnull WebSocket incomingWebSocket, @Nonnull String path)  {
 
+	/** Returns the same stream with an encoded path remainder for the next router. */
 	@Nonnull
 	public RoutableWebSocket withPath(@Nonnull String path) {
 		return new RoutableWebSocket(this.incomingWebSocket, path);

@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data;
 
 
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleComputationResult;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleContext;
@@ -94,6 +95,10 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 	 */
 	@Nullable private final AccompanyingPrice[] accompanyingPrices;
 	/**
+	 * Price mode whose amounts decide which inner record sells the entity and which prices bound its range.
+	 */
+	@Nonnull private final QueryPriceMode queryPriceMode;
+	/**
 	 * Rich computation cache populated lazily by the first {@code compute*} call that needs the per-bucket
 	 * detail. Drives {@link #computePriceForSale}, {@link #computeRange}, and
 	 * {@link #computeRangeWithAccompanyingPrices}. Declared `volatile` so the field reference is safely
@@ -117,18 +122,65 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 	 */
 	private volatile ComputedHolder<Map<String, Integer>> cachedPriorityIndex;
 
+	/**
+	 * Creates a context that computes in {@link QueryPriceMode#WITH_TAX}.
+	 *
+	 * @param priceListPriority  price lists in the order of their priority
+	 * @param currency           currency of the price for sale
+	 * @param atTheMoment        moment the prices must be valid at, `null` ignores the validity
+	 * @param accompanyingPrices accompanying prices computed together with the price for sale
+	 * @deprecated a context computes in the price mode of the query it serves, so evitaDB itself never calls this
+	 * constructor; it is retained only because it shipped in `2026.2`. Use
+	 * {@link #PriceForSaleContextWithCachedResult(String[], Currency, OffsetDateTime, AccompanyingPrice[],
+	 * QueryPriceMode)} and pass the price mode explicitly.
+	 */
+	@Deprecated(since = "2026.3")
 	public PriceForSaleContextWithCachedResult(
 		@Nullable String[] priceListPriority,
 		@Nullable Currency currency,
 		@Nullable OffsetDateTime atTheMoment,
 		@Nullable AccompanyingPrice[] accompanyingPrices
 	) {
+		this(priceListPriority, currency, atTheMoment, accompanyingPrices, QueryPriceMode.WITH_TAX);
+	}
+
+	/**
+	 * Creates a context that computes in the passed price mode.
+	 *
+	 * @param priceListPriority  price lists in the order of their priority
+	 * @param currency           currency of the price for sale
+	 * @param atTheMoment        moment the prices must be valid at, `null` ignores the validity
+	 * @param accompanyingPrices accompanying prices computed together with the price for sale
+	 * @param queryPriceMode     price mode whose amounts decide the price for sale and the range bounds
+	 */
+	public PriceForSaleContextWithCachedResult(
+		@Nullable String[] priceListPriority,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nullable AccompanyingPrice[] accompanyingPrices,
+		@Nonnull QueryPriceMode queryPriceMode
+	) {
 		this.priceListPriority = priceListPriority;
 		this.currency = currency;
 		this.atTheMoment = atTheMoment;
 		this.accompanyingPrices = accompanyingPrices;
+		this.queryPriceMode = queryPriceMode;
 	}
 
+	/**
+	 * Creates a context in {@link QueryPriceMode#WITH_TAX} pre-seeded with the price for sale computed elsewhere.
+	 *
+	 * @param priceListPriority                  price lists in the order of their priority
+	 * @param currency                           currency of the price for sale
+	 * @param atTheMoment                        moment the prices must be valid at, `null` ignores the validity
+	 * @param accompanyingPrices                 accompanying prices computed together with the price for sale
+	 * @param priceForSaleWithAccompanyingPrices the already computed price for sale with its accompanying prices
+	 * @deprecated a context computes in the price mode of the query it serves, so evitaDB itself never calls this
+	 * constructor; it is retained only because it shipped in `2026.2`. Use
+	 * {@link #PriceForSaleContextWithCachedResult(String[], Currency, OffsetDateTime, AccompanyingPrice[],
+	 * QueryPriceMode, PriceForSaleWithAccompanyingPrices)} and pass the price mode explicitly.
+	 */
+	@Deprecated(since = "2026.3")
 	public PriceForSaleContextWithCachedResult(
 		@Nullable String[] priceListPriority,
 		@Nullable Currency currency,
@@ -136,7 +188,33 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 		@Nullable AccompanyingPrice[] accompanyingPrices,
 		@Nonnull PriceForSaleWithAccompanyingPrices priceForSaleWithAccompanyingPrices
 	) {
-		this(priceListPriority, currency, atTheMoment, accompanyingPrices);
+		this(
+			priceListPriority, currency, atTheMoment, accompanyingPrices, QueryPriceMode.WITH_TAX,
+			priceForSaleWithAccompanyingPrices
+		);
+	}
+
+	/**
+	 * Creates a context in the passed price mode pre-seeded with the price for sale computed elsewhere. The mode still
+	 * decides the price range, which is never pre-seeded.
+	 *
+	 * @param priceListPriority                  price lists in the order of their priority
+	 * @param currency                           currency of the price for sale
+	 * @param atTheMoment                        moment the prices must be valid at, `null` ignores the validity
+	 * @param accompanyingPrices                 accompanying prices computed together with the price for sale
+	 * @param queryPriceMode                     price mode whose amounts decide the price for sale and the range
+	 *                                           bounds
+	 * @param priceForSaleWithAccompanyingPrices the already computed price for sale with its accompanying prices
+	 */
+	public PriceForSaleContextWithCachedResult(
+		@Nullable String[] priceListPriority,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nullable AccompanyingPrice[] accompanyingPrices,
+		@Nonnull QueryPriceMode queryPriceMode,
+		@Nonnull PriceForSaleWithAccompanyingPrices priceForSaleWithAccompanyingPrices
+	) {
+		this(priceListPriority, currency, atTheMoment, accompanyingPrices, queryPriceMode);
 		this.cachedResult = new ComputedHolder<>(priceForSaleWithAccompanyingPrices);
 	}
 
@@ -162,6 +240,12 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 	@Override
 	public Optional<AccompanyingPrice[]> accompanyingPrices() {
 		return ofNullable(this.accompanyingPrices);
+	}
+
+	@Nonnull
+	@Override
+	public QueryPriceMode queryPriceMode() {
+		return this.queryPriceMode;
 	}
 
 	/**
@@ -316,7 +400,8 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 			ofNullable(this.currency).orElseThrow(ContextMissingException::new),
 			this.atTheMoment,
 			ensurePriorityIndex(),
-			Objects::nonNull
+			Objects::nonNull,
+			this.queryPriceMode
 		);
 		this.cachedComputation = new ComputedHolder<>(computation);
 		return computation;

@@ -55,6 +55,17 @@ public enum NegationResolution {
 	 * The formula **is the answer** — nothing re-examines the rows behind it, so a negation inside it has to stay a
 	 * real subtraction. Widening here would hand back the whole reference family instead of the complement.
 	 */
-	IN_PLACE
+	IN_PLACE,
+
+	/**
+	 * The formula is the body of a `referenceHaving`, which
+	 * {@link io.evitadb.core.query.filter.translator.reference.ReferenceBodyTransposer} rebuilds one reference row at
+	 * a time. A negation is never widened, as under {@link #IN_PLACE}, and a placeholder no level of the body
+	 * resolves is left to the rebuild, which subtracts it from the owners of each row's own index. An `inScope`
+	 * container, which elsewhere resolves the negations among its children itself, leaves them to the rebuild as
+	 * well: subtracted from every row of the container's scope, a negation would answer whether the owner has no
+	 * matching row of that scope at all.
+	 */
+	TRANSPOSED
 
 }

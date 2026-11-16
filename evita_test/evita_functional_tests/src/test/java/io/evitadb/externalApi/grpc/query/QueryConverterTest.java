@@ -46,6 +46,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour;
 import io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.QueryParamCase;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -67,8 +68,10 @@ import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -290,6 +293,26 @@ class QueryConverterTest {
 		final EntityScope parsedScope = QueryUtils.findFilter(parsed, EntityScope.class);
 		assertNotNull(parsedScope);
 		assertArrayEquals(new Scope[]{Scope.ARCHIVED, Scope.LIVE}, parsedScope.getScopesInRequestedOrder());
+	}
+
+	@Test
+	@DisplayName("should keep the precision a decimal range parameter takes from the scale of its bounds")
+	void shouldKeepImplicitPrecisionOfDecimalRangeParameter() {
+		final BigDecimalNumberRange sent = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+		final BigDecimalNumberRange readBack = convertQueryParam(sent);
+		// `2.4` lies above `10..20`, yet rounds into `1..2`
+		final BigDecimal probe = new BigDecimal("2.4");
+		assertFalse(sent.isWithin(probe), "the probe must lie outside the sent range");
+		assertAll(
+			() -> assertEquals(
+				sent.getEffectiveRetainedDecimalPlaces(), readBack.getEffectiveRetainedDecimalPlaces(),
+				"effective retained decimal places of " + sent
+			),
+			() -> assertEquals(sent.getFrom(), readBack.getFrom(), "encoded lower bound of " + sent),
+			() -> assertEquals(sent.getTo(), readBack.getTo(), "encoded upper bound of " + sent),
+			() -> assertFalse(readBack.isWithin(probe), sent + " isWithin " + probe),
+			() -> assertEquals(sent, readBack, "equality of " + sent)
+		);
 	}
 
 	@SuppressWarnings("unchecked")

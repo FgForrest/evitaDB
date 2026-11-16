@@ -97,7 +97,7 @@ public final class UpsertAttributeMutation extends AttributeSchemaEvolvingMutati
 		if (existingValue == null) {
 			// create new attribute value
 			return new AttributeValue(this.attributeKey, this.value);
-		} else if (!Objects.equals(existingValue.value(), this.value) || existingValue.dropped()) {
+		} else if (EvitaDataTypes.storedValueDiffers(existingValue.value(), this.value) || existingValue.dropped()) {
 			// update attribute version (we changed it) and return mutated value
 			return new AttributeValue(existingValue.version() + 1, this.attributeKey, this.value);
 		} else {

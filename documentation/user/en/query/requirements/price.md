@@ -36,6 +36,13 @@ The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query
 controls which price type is used when calculating the sales price and filtering or sorting by it. If no such
 requirement is specified, **the price with tax is used by default**.
 
+The price type also governs the price for sale the fetched entities report. For a product with variants (the
+`LOWEST_PRICE` [inner record handling](../../deep-dive/price-for-sale-calculation.md#product-variants-extension)), the
+variant that sells the product, the bounds of its price range and the accompanying prices of that variant are chosen
+by the amounts of this price type - so the entity reports the very price the query filtered and sorted it by. This
+holds also when the price for sale is requested with an explicit currency, time and price lists on an entity fetched by
+the query.
+
 To demonstrate the effect of this requirement, let's say the user wants to find all products with a selling price
 between `€100` and `€105`. The following query will do that:
 

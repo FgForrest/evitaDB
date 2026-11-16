@@ -28,6 +28,7 @@ import com.linecorp.armeria.server.HttpService;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
@@ -56,13 +57,14 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -113,9 +115,12 @@ public class GraphQLManager {
 
 	/**
 	 * Statistics for each catalog build.
-	 * The key is the catalog name.
+	 * The key is the catalog name. Concurrent, because live system change capture callbacks add and remove catalogs
+	 * on the capture executor while {@link #emitObservabilityEvents()} iterates them on the thread initializing the
+	 * web API server, for example when an embedded engine is still loading catalogs. Mutations committed before the
+	 * subscription do not overlap: they are replayed synchronously on the subscribing thread.
 	 */
-	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
+	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createConcurrentHashMap(20);
 
 	public GraphQLManager(@Nonnull Evita evita, @Nonnull HeaderOptions headers, @Nonnull GraphQLOptions graphQLConfig) {
 		this.evita = evita;
@@ -182,6 +187,18 @@ public class GraphQLManager {
 		return this.registeredCatalogs.contains(catalogName);
 	}
 
+	/**
+	 * Returns the current engine state under a catalog name, which may be ahead of a queued host event.
+	 * The system observer uses this to preserve endpoints of a later active catalog incarnation.
+	 *
+	 * @param catalogName name whose current binding is inspected
+	 * @return current catalog state, or empty when the name no longer exists
+	 */
+	@Nonnull
+	public Optional<CatalogState> getCatalogState(@Nonnull String catalogName) {
+		return this.evita.getCatalogState(catalogName);
+	}
+
 	@Nonnull
 	public HttpService getGraphQLRouter() {
 		return this.graphQLRouter;
@@ -210,6 +227,13 @@ public class GraphQLManager {
 
 	/**
 	 * Registers new Evita catalog to API. It creates new endpoint and {@link GraphQL} instance for it.
+	 * An internal error while building or publishing the APIs is logged and leaves no route, registration or build
+	 * statistics of the catalog behind; any other exception propagates.
+	 *
+	 * @param catalogName name of the catalog to publish
+	 * @return true when both APIs of the catalog are published, false when the catalog is unusable and was skipped or
+	 *         its APIs failed with an internal error
+	 * @throws GraphQLInternalError when the catalog is already registered
 	 */
 	public boolean registerCatalog(@Nonnull String catalogName) {
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
@@ -236,7 +260,6 @@ public class GraphQLManager {
 				this.objectMapper
 			).build(this.graphQLConfig);
 
-			this.graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.DATA, dataApi);
 			final long dataApiInstanceBuildDuration = System.currentTimeMillis() - dataApiInstanceBuildStartTime;
 
 			// build schema API instance
@@ -252,7 +275,7 @@ public class GraphQLManager {
 				this.objectMapper
 			).build(this.graphQLConfig);
 
-			this.graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, schemaApi);
+			this.graphQLRouter.registerCatalogApi(catalogName, dataApi, schemaApi);
 			final long schemaApiInstanceBuildDuration = System.currentTimeMillis() - schemaApiInstanceBuildStartTime;
 
 			this.registeredCatalogs.add(catalogName);
@@ -276,7 +299,8 @@ public class GraphQLManager {
 			// log and skip the catalog entirely
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by GraphQL API.", ex);
 
-			// cleanup corrupted paths
+			// cleanup corrupted paths and registration bookkeeping
+			this.registeredCatalogs.remove(catalogName);
 			this.graphQLRouter.unregisterCatalogApis(catalogName);
 			this.catalogBuildStatistics.remove(catalogName);
 			return false;
@@ -284,7 +308,14 @@ public class GraphQLManager {
 	}
 
 	/**
-	 * Refreshes already registered catalog endpoint and its {@link GraphQL} instance.
+	 * Rebuilds the DATA and SCHEMA {@link GraphQL} instances of a registered catalog and swaps them in behind its
+	 * existing endpoints. Both instances are built before either is swapped, so a build failure propagates and leaves
+	 * the previous instances serving. A catalog that is not registered yet is registered by
+	 * {@link #registerCatalog(String)} instead.
+	 *
+	 * @param catalogName name of the catalog to refresh or register
+	 * @return true when the catalog's APIs are published afterwards, false only when the fallback registration skipped
+	 *         the catalog or failed with an internal error
 	 */
 	public boolean refreshCatalog(@Nonnull String catalogName) {
 		final boolean catalogRegistered = this.registeredCatalogs.contains(catalogName);
@@ -310,7 +341,6 @@ public class GraphQLManager {
 			this.objectMapper
 		).build(this.graphQLConfig);
 
-		this.graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.DATA, newDataApi);
 		final long dataApiInstanceBuildDuration = System.currentTimeMillis() - dataApiInstanceBuildStartTime;
 
 		// rebuild schema API instance
@@ -326,8 +356,11 @@ public class GraphQLManager {
 			this.objectMapper
 		).build(this.graphQLConfig);
 
-		this.graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, newSchemaApi);
 		final long schemaApiInstanceBuildDuration = System.currentTimeMillis() - schemaApiInstanceBuildStartTime;
+
+		// Publish both completed instances through the references retained by HTTP and WebSocket handlers.
+		this.graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.DATA, newDataApi);
+		this.graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, newSchemaApi);
 
 		// build metrics
 		final CatalogBuildStatistics buildStatistics = this.catalogBuildStatistics.get(catalogName);
@@ -382,7 +415,10 @@ public class GraphQLManager {
 			this.systemBuildStatistics.markAsReported();
 		}
 
-		this.catalogBuildStatistics.keySet().forEach(this::emitObservabilityEvents);
+		// iterate the entries rather than looking each key up: a catalog may be removed concurrently, see the field
+		for (final Map.Entry<String, CatalogBuildStatistics> entry : this.catalogBuildStatistics.entrySet()) {
+			emitCatalogBuiltEvents(entry.getKey(), entry.getValue());
+		}
 	}
 
 	/**
@@ -395,13 +431,25 @@ public class GraphQLManager {
 			buildStatistics != null,
 			() -> new GraphQLInternalError("No build statistics found for catalog `" + catalogName + "`")
 		);
+		emitCatalogBuiltEvents(catalogName, buildStatistics);
+	}
 
+	/**
+	 * Emits the build events of a catalog's data and schema GraphQL APIs from its build statistics.
+	 *
+	 * @param catalogName     name of the catalog the statistics belong to
+	 * @param buildStatistics statistics of the catalog's latest build
+	 */
+	private static void emitCatalogBuiltEvents(
+		@Nonnull String catalogName,
+		@Nonnull CatalogBuildStatistics buildStatistics
+	) {
 		final BuildType buildType = buildStatistics.buildCount().get() == 1 ? BuildType.NEW : BuildType.REFRESH;
 		new BuiltEvent(
 			catalogName,
 			GraphQLInstanceType.DATA,
 			buildType,
-			buildStatistics.dataApiSchemaBuildDuration().get(),
+			buildStatistics.dataApiInstanceBuildDuration().get(),
 			buildStatistics.dataApiSchemaBuildDuration().get(),
 			buildStatistics.dataApiSchemaDslLines().get()
 		).commit();
@@ -409,7 +457,7 @@ public class GraphQLManager {
 			catalogName,
 			GraphQLInstanceType.SCHEMA,
 			buildType,
-			buildStatistics.schemaApiSchemaBuildDuration().get(),
+			buildStatistics.schemaApiInstanceBuildDuration().get(),
 			buildStatistics.schemaApiSchemaBuildDuration().get(),
 			buildStatistics.schemaApiSchemaDslLines().get()
 		).commit();

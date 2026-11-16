@@ -26,6 +26,8 @@ package io.evitadb.core.query.extraResult.translator.reference;
 import io.evitadb.api.exception.ReferenceContentMisplacedException;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.ReferenceContent;
@@ -36,6 +38,7 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -45,6 +48,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 import static java.util.Optional.of;
 
@@ -57,9 +61,10 @@ import static java.util.Optional.of;
  * The filter and the ordering of the fetched references are checked against the schemas here, while the query is
  * planned - see {@link ReferencedEntityFetcher#verifyReferenceContentConstraints}. The fetch evaluates them only when
  * there is a reference to filter or order, so a constraint the schemas refuse would otherwise fail the query or pass
- * depending on the data it returns. The check is handed the locale the owners of the references are fetched in:
- * the locale of the query at its top level, and below it the locale each enclosing `referenceContent` fetches its
- * entity or group bodies in (see {@link #getOwnerLocale}).
+ * depending on the data it returns. The check is handed the locale and the scopes the owners of the references are
+ * fetched in: those of the query at its top level, and below it those each enclosing `referenceContent` fetches its
+ * entity or group bodies in (see {@link #resolveOwnerLevel}). A scope named for the bodies also bounds what an
+ * `inScope` of the filter may name, as it does in the fetch.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -78,7 +83,10 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 				)
 			);
 			final EntitySchemaContract schema = entitySchema.get();
-			final Locale ownerLocale = getOwnerLocale(referenceContent, extraResultPlanningVisitor);
+			final OwnerLevel owner = resolveOwnerLevel(referenceContent, extraResultPlanningVisitor);
+			final QueryUtils.ReferenceBodyScopes ownerScope = owner.scope();
+			final Set<Scope> ownerScopes = ownerScope == null ?
+				extraResultPlanningVisitor.getProcessingScope().getScopes() : ownerScope.scopes();
 
 			of(referenceContent.getReferenceNames())
 				.filter(it -> !ArrayUtils.isEmpty(it))
@@ -92,8 +100,9 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 						referenceSchema,
 						referenceContent.getFilterBy().orElse(null),
 						referenceContent.getOrderBy().orElse(null),
-						extraResultPlanningVisitor.getProcessingScope().getScopes(),
-						ownerLocale
+						ownerScopes,
+						ownerScope == null ? null : ownerScope.requestedScopes(),
+						owner.locale()
 					);
 					extraResultPlanningVisitor.executeInContext(
 						referenceContent,
@@ -117,16 +126,21 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 	}
 
 	/**
-	 * Returns the locale of the owners of the references being planned. Walking the requirements outermost first,
-	 * each enclosing entity fetch resolves the referenced-entity level, and each enclosing group fetch resolves the
-	 * group level. Either inherits the reference level's opinion, then its owner's locale, when it has no opinion.
+	 * Resolves the level owning the references being planned. Walking the requirements outermost first, each enclosing
+	 * entity fetch resolves the referenced-entity level, and each enclosing group fetch resolves the group level:
+	 *
+	 * - the locale of the level, which inherits the reference level's opinion, then its owner's locale, when it has no
+	 *   opinion of its own
+	 * - the scope of the level, which the referenced entity bodies take from the referenced entity level and the group
+	 *   bodies from the group level's alternatives ({@link QueryUtils#resolveReferenceBodyScopes(FilterBy, boolean)}),
+	 *   as the requests fetching them do, and inherit when their level names none
 	 *
 	 * @param referenceContent           the `referenceContent` being planned
 	 * @param extraResultPlanningVisitor the visitor planning it
-	 * @return the locale of the owners, NULL when there is none
+	 * @return the locale and the scope of the owners
 	 */
-	@Nullable
-	private static Locale getOwnerLocale(
+	@Nonnull
+	private static OwnerLevel resolveOwnerLevel(
 		@Nonnull ReferenceContent referenceContent,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor
 	) {
@@ -145,7 +159,59 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 				enclosing = null;
 			}
 		}
-		return ownerLocale;
+		return new OwnerLevel(ownerLocale, resolveOwnerScope(referenceContent, extraResultPlanningVisitor));
+	}
+
+	/**
+	 * Resolves searched and admitted scopes of the entity owning a requirement, outermost body level first.
+	 * Each entity or group fetch materializes its own matching alternatives against the immediate owner's pair.
+	 * A deeper inheriting level retains any outer explicit pair. Plain inheritance uses processing scopes for search
+	 * and the query's requested scopes for admission, preserving the planning context's existing inheritance base.
+	 *
+	 * @param requirement the requirement being planned
+	 * @param extraResultPlanningVisitor the visitor planning it
+	 * @return the explicit owner pair, NULL when every enclosing body level inherits
+	 */
+	@Nullable
+	static QueryUtils.ReferenceBodyScopes resolveOwnerScope(
+		@Nonnull EntityContentRequire requirement,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor
+	) {
+		QueryUtils.ReferenceBodyScopes ownerScope = null;
+		ReferenceContent enclosing = null;
+		final Iterator<RequireConstraint> requirementChain =
+			extraResultPlanningVisitor.getEntityContentRequireChain(requirement).iterator();
+		while (requirementChain.hasNext()) {
+			final RequireConstraint chained = requirementChain.next();
+			if (chained != requirement && chained instanceof ReferenceContent parent) {
+				enclosing = parent;
+			} else if (enclosing != null && chained instanceof EntityFetchRequire) {
+				final Set<Scope> inheritedScopes = ownerScope == null ?
+					extraResultPlanningVisitor.getProcessingScope().getScopes() : ownerScope.scopes();
+				final Set<Scope> inheritedRequestedScopes = ownerScope == null ?
+					extraResultPlanningVisitor.getQueryContext().getEvitaRequest().getRequestedScopes() :
+					ownerScope.requestedScopes();
+				final QueryUtils.ReferenceBodyScopes bodyScope = QueryUtils.materializeReferenceBodyScopes(
+					QueryUtils.resolveReferenceBodyScopes(
+						enclosing.getFilterBy().orElse(null), chained instanceof EntityGroupFetch
+					), inheritedScopes, inheritedRequestedScopes
+				);
+				if (bodyScope != null) {
+					ownerScope = bodyScope;
+				}
+				enclosing = null;
+			}
+		}
+		return ownerScope;
+	}
+
+	/**
+	 * The level owning the references being planned.
+	 *
+	 * @param locale the locale the owners are fetched in, NULL when there is none
+	 * @param scope the searched and admitted owner scopes, NULL for plain planning inheritance
+	 */
+	private record OwnerLevel(@Nullable Locale locale, @Nullable QueryUtils.ReferenceBodyScopes scope) {
 	}
 
 }

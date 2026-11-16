@@ -26,7 +26,6 @@ package io.evitadb.core.collection;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
@@ -147,6 +146,7 @@ import io.evitadb.index.mutation.IndexMutationExecutorRegistry;
 import io.evitadb.index.mutation.IndexMutationTarget;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.MissingHistogramValueBehavior;
 import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
@@ -2177,16 +2177,20 @@ public final class EntityCollection implements
 
 
 	/**
-	 * Dispatches {@link IndexMutation} instances to their registered {@link IndexMutationExecutor}. Passes the
-	 * {@link EntityIndexMaintainer} (which implements {@link IndexMutationTarget}) so executors can access indexes,
+	 * Dispatches {@link IndexMutation} instances to their registered {@link IndexMutationExecutor}. Passes a
+	 * {@link DispatchMaintainer} (which implements {@link IndexMutationTarget}) so executors can access indexes,
 	 * schema, triggers, and query evaluation without seeing the full {@link EntityCollection} API surface.
-	 *
-	 * Zero allocations — `entityIndexCreator` is the target (already exists as a field).
 	 * No switch/case or orchestration logic in the collection.
 	 *
-	 * The session is temporarily set on the `entityIndexCreator` for the duration of the dispatch so that
-	 * `evaluateFilter()` can create a `QueryPlanningContext`. The session reference is cleared in a `finally`
-	 * block to prevent leaking beyond the dispatch scope.
+	 * Each call creates its own maintainer, see {@link #createDispatchMaintainer}: it carries the session, which
+	 * `evaluateFilter()` needs to create a `QueryPlanningContext`, and records the histogram stores of groups the
+	 * dispatch writes to. Once every mutation of the envelope is dispatched, the stores the dispatch left empty are
+	 * dropped. A failed dispatch drops nothing, because its exception leaves before the drop: in a root mutation
+	 * bracketed by a savepoint, the rollback of the savepoint then reverts what the dispatch changed, while WAL replay
+	 * opens no savepoint and discards the whole transaction instead (see `LocalMutationExecutorCollector#rollback`).
+	 * Nothing of the dispatch is kept on the shared maintainer of the collection, so concurrent dispatches into this
+	 * collection never see each other's state. The cost is one small object per envelope, plus a set when the
+	 * dispatch writes into a store.
 	 *
 	 * @param entityIndexMutation transport envelope containing mutations to dispatch
 	 * @param session             active session for query evaluation during dispatch, may be null during WAL replay
@@ -2196,14 +2200,22 @@ public final class EntityCollection implements
 		@Nonnull EntityIndexMutation entityIndexMutation,
 		@Nullable EvitaSessionContract session
 	) {
-		this.entityIndexCreator.setSession(session);
-		try {
-			for (final IndexMutation mutation : entityIndexMutation.mutations()) {
-				IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator);
-			}
-		} finally {
-			this.entityIndexCreator.setSession(null);
+		final DispatchMaintainer target = createDispatchMaintainer(session);
+		for (final IndexMutation mutation : entityIndexMutation.mutations()) {
+			IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, target);
 		}
+		target.dropEmptiedGroupHistogramStores();
+	}
+
+	/**
+	 * Creates the target of one dispatch of index mutations, see {@link #applyIndexMutations}.
+	 *
+	 * @param session the session of the dispatch, or `null` during WAL replay
+	 * @return a maintainer used by this one dispatch only
+	 */
+	@Nonnull
+	DispatchMaintainer createDispatchMaintainer(@Nullable EvitaSessionContract session) {
+		return new DispatchMaintainer(session);
 	}
 
 	/**
@@ -2215,8 +2227,9 @@ public final class EntityCollection implements
 	 * {@link io.evitadb.index.mutation.ReevaluateExpressionExecutor#evaluateHistogramConditionState} for why the
 	 * executor cannot derive it itself.
 	 *
-	 * The session is set for the duration of the evaluation exactly as in {@link #applyIndexMutations}, because
-	 * condition evaluation goes through `evaluateFilter()` and needs a `QueryPlanningContext`.
+	 * The session is set on the shared maintainer of the collection for the duration of the evaluation and cleared
+	 * in a `finally` block, because condition evaluation goes through `evaluateFilter()` and needs a
+	 * `QueryPlanningContext`.
 	 *
 	 * @param mutation the cross-entity re-evaluation signal about to be applied
 	 * @param session  active session for query evaluation, may be null during WAL replay
@@ -4654,16 +4667,15 @@ public final class EntityCollection implements
 	private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex>, IndexMutationTarget {
 
 		/**
-		 * Active session for query evaluation during cross-entity trigger dispatch. Set temporarily by
-		 * `applyIndexMutations()` for the duration of the dispatch and cleared in a `finally` block.
-		 * May be null during WAL replay when no session context is available.
+		 * Active session for query evaluation. The shared maintainer of the collection gets it temporarily from
+		 * `evaluateHistogramConditionState()` and clears it in a `finally` block; a {@link DispatchMaintainer} carries
+		 * the session of its one dispatch. May be null during WAL replay when no session context is available.
 		 */
 		@Nullable
 		private EvitaSessionContract session;
 
 		/**
-		 * Sets the active session for query evaluation. Called by `applyIndexMutations()` before dispatch
-		 * and cleared after dispatch completes.
+		 * Sets the active session for query evaluation.
 		 *
 		 * @param session the active session, or null to clear
 		 */
@@ -5081,7 +5093,7 @@ public final class EntityCollection implements
 		}
 
 		/**
-		 * Answers the server-wide switch through the catalog, so every executor of the collection reads the one value.
+		 * Answers the catalog's behavior, so every executor of the collection reads the one value.
 		 */
 		@Nonnull
 		@Override
@@ -5135,6 +5147,66 @@ public final class EntityCollection implements
 			EntityCollection.this
 				.getSchema()
 				.getReferenceOrThrowException(referenceName);
+		}
+
+	}
+
+	/**
+	 * The {@link IndexMutationTarget} of one dispatch of index mutations, see {@link #applyIndexMutations}. It is an
+	 * {@link EntityIndexMaintainer} carrying the session of the dispatch, which also records the key of every histogram
+	 * store of a group ({@link GroupHistogramEntityIndex}) the dispatch registers for modification, and drops the
+	 * stores the dispatch left empty once it ends - the local executor drops the indexes a local mutation empties the
+	 * same way, but a dispatch never reaches it.
+	 *
+	 * A new instance serves each dispatch: the collection, and with it its shared maintainer, is one object for every
+	 * session writing into it, so a record kept there would be shared by concurrent dispatches.
+	 */
+	final class DispatchMaintainer extends EntityIndexMaintainer {
+		/**
+		 * The keys of the histogram stores the dispatch registered for modification, created with the first one.
+		 */
+		@Nullable private Set<EntityIndexKey> touchedGroupHistogramStores;
+
+		/**
+		 * Creates the maintainer of one dispatch.
+		 *
+		 * @param session the session of the dispatch, or `null` during WAL replay
+		 */
+		DispatchMaintainer(@Nullable EvitaSessionContract session) {
+			setSession(session);
+		}
+
+		/**
+		 * Also records the key when it names the histogram store of a group, so that
+		 * {@link #dropEmptiedGroupHistogramStores} drops the store if the dispatch leaves it empty.
+		 */
+		@Nonnull
+		@Override
+		public EntityIndex getOrCreateIndex(@Nonnull EntityIndexKey entityIndexKey) {
+			final EntityIndex index = super.getOrCreateIndex(entityIndexKey);
+			if (entityIndexKey.type() == EntityIndexType.REFERENCED_GROUP_HISTOGRAM) {
+				if (this.touchedGroupHistogramStores == null) {
+					this.touchedGroupHistogramStores = CollectionUtils.createHashSet(4);
+				}
+				this.touchedGroupHistogramStores.add(entityIndexKey);
+			}
+			return index;
+		}
+
+		/**
+		 * Drops every recorded histogram store that holds no value any more and forgets the records. A store the
+		 * dispatch filled again after emptying it is kept.
+		 */
+		void dropEmptiedGroupHistogramStores() {
+			if (this.touchedGroupHistogramStores != null) {
+				for (final EntityIndexKey storeKey : this.touchedGroupHistogramStores) {
+					final EntityIndex store = getIndexIfExists(storeKey);
+					if (store != null && store.isEmpty()) {
+						removeIndex(storeKey);
+					}
+				}
+				this.touchedGroupHistogramStores = null;
+			}
 		}
 
 	}

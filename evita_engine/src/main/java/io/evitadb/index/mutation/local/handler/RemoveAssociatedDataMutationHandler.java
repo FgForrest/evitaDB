@@ -26,12 +26,16 @@ package io.evitadb.index.mutation.local.handler;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.handler.EntityLocaleFanOut.LocalizedValueChange;
 
 import javax.annotation.Nonnull;
 
 /**
- * Handler for `RemoveAssociatedDataMutation`. Same deferred-facet-only side-effect as the upsert
- * branch — see `UpsertAssociatedDataMutationHandler` and `AssociatedDataMutationFanOut`.
+ * Handler for `RemoveAssociatedDataMutation`. The removal of localized associated data may take its locale from the
+ * entity, so it first withdraws the references whose local histogram reads a localized reference attribute with a
+ * `??` default (`EntityLocaleFanOut`); a removal is not examined further, because whether the locale survives depends
+ * on every other value of the entity. Then the same deferred facet re-evaluation as the upsert branch — see
+ * `UpsertAssociatedDataMutationHandler` and `AssociatedDataMutationFanOut`.
  */
 public final class RemoveAssociatedDataMutationHandler implements LocalMutationHandler<RemoveAssociatedDataMutation> {
 
@@ -53,6 +57,9 @@ public final class RemoveAssociatedDataMutationHandler implements LocalMutationH
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
+		EntityLocaleFanOut.withdrawBeforeLocalizedValueChange(
+			executor, mutation.getAssociatedDataKey().locale(), LocalizedValueChange.REMOVAL
+		);
 		AssociatedDataMutationFanOut.apply(mutation.getAssociatedDataKey().associatedDataName(), executor, globalIndex);
 	}
 

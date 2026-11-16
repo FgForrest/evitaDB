@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.io;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.require.EntityFetch;
@@ -74,15 +75,24 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 		return this.requestExecutedEvent;
 	}
 
+	/**
+	 * Returns the session provided for this exchange by {@link #provideSession(EvitaSessionContract)}.
+	 *
+	 * @return the provided session, active at the moment of the call
+	 * @throws RestInternalError when no session has been provided
+	 * @throws InstanceTerminatedException when the session is no longer active - closed by
+	 * {@link #closeSessionIfOpen()} or by the engine, e.g. while it drains the sessions of a catalog being replaced;
+	 * the client receives it as HTTP 400 with an error code, not as an internal error
+	 */
 	@Nonnull
 	public EvitaSessionContract session() {
 		Assert.isPremiseValid(
 			this.session != null,
 			() -> new RestInternalError("Session is not available for this exchange.")
 		);
-		Assert.isPremiseValid(
+		Assert.isTrue(
 			this.session.isActive(),
-			() -> new RestInternalError("Session has been already closed. No one should access the session!")
+			() -> new InstanceTerminatedException("session")
 		);
 		return this.session;
 	}

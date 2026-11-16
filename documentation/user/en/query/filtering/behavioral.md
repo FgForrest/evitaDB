@@ -56,6 +56,9 @@ a different scope the inner constraints would apply only to entities that are in
 and with the same scope the inner container would be redundant - so the query is rejected with an error in both cases.
 Place the containers side by side instead. This includes the body of
 [`referenceHaving`](references.md#reference-having), whose reference attributes belong to the queried entities.
+There the container restricts the references of the entities of its scope: in a query over both scopes,
+`referenceHaving` with an `inScope(LIVE, ...)` body matches the live entities having a reference of that name that
+satisfies the container's constraints, and every archived entity having at least one reference of that name.
 A container that filters another entity - [`entityHaving`](references.md#entity-having),
 [`groupHaving`](references.md#group-having), [`hierarchyWithin`](hierarchy.md#hierarchy-within), or
 [`hierarchyWithinRoot`](hierarchy.md#hierarchy-within-root) - may contain its own `inScope` anywhere among its children,
