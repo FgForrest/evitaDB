@@ -26,7 +26,6 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintVisitor;
-import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -222,7 +221,7 @@ class RequireTest {
 	private static Require createRequireConstraint(@Nullable String... values) {
 		return require(
 			Arrays.stream(values)
-				.map(QueryConstraints::associatedDataContent)
+				.map(it -> new AssociatedDataContent(it))
 				.toArray(RequireConstraint[]::new)
 		);
 	}

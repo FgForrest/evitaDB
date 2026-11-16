@@ -245,17 +245,21 @@ class EntityPricesTest {
 			assertEquals(150, lowestPrices[0].priceWithoutTax());
 		}
 
+		/**
+		 * Two prices tied on the price without tax are told apart by the price id the entity knows them by, never by
+		 * the internal price id the index assigned - the entity side prefers the lower price id among prices of equal
+		 * standing, and the internal ids follow the order the prices happened to be indexed in.
+		 */
 		@Test
-		@DisplayName("should break tie in lowest price by internalPriceId")
-		void shouldReturnLowestPriceBreakingTieByInternalPriceId() {
-			// both prices have the same priceWithoutTax; tie broken by internalPriceId (ascending)
-			final EntityPrices ep = EntityPrices.create(createPlainPrice(5, 100, 200));
-			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 100, 200));
+		@DisplayName("should break tie in lowest price by price id")
+		void shouldReturnLowestPriceBreakingTieByPriceId() {
+			// the price indexed first holds the lower internal price id but the higher price id
+			final EntityPrices ep = EntityPrices.create(createPriceWithDistinctIds(1, 30, 100, 200));
+			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPriceWithDistinctIds(2, 10, 100, 200));
 
 			final PriceRecordContract[] lowestPrices = result.getLowestPriceRecords();
 			assertEquals(1, lowestPrices.length);
-			// internalPriceId 2 < 5, so price with id 2 wins
-			assertEquals(2, lowestPrices[0].priceId());
+			assertEquals(10, lowestPrices[0].priceId());
 		}
 
 		@Test
@@ -367,6 +371,31 @@ class EntityPricesTest {
 			// group 2: price 4 (priceWithoutTax=590) < price 3 (850) => price 4 wins
 			// sorted by internalPriceId ascending
 			assertArrayEquals(new int[]{1, 4}, lowestPriceIds);
+		}
+
+		/**
+		 * Two prices of one inner record tied on the price without tax are told apart by the price id the entity knows
+		 * them by, never by the internal price id the index assigned - the entity side prefers the lower price id among
+		 * prices of one inner record in one price list, and the internal ids follow the order the prices happened to be
+		 * indexed in. Picking the other price would make the inner record lose a tie the entity side lets it win.
+		 */
+		@Test
+		@DisplayName("should break tie within an inner record group by price id")
+		void shouldReturnLowestPricePerInnerRecordGroupBreakingTieByPriceId() {
+			// inner record 1: the price indexed first holds the lower internal price id but the higher price id
+			final EntityPrices ep1 = EntityPrices.create(createInnerRecordPriceWithDistinctIds(1, 30, 1, 100, 100));
+			final EntityPrices ep2 = EntityPrices.addPriceRecord(
+				ep1, createInnerRecordPriceWithDistinctIds(2, 10, 1, 100, 100)
+			);
+			final EntityPrices result = EntityPrices.addPriceRecord(
+				ep2, createInnerRecordPriceWithDistinctIds(3, 20, 2, 100, 100)
+			);
+
+			final int[] lowestPriceIds = Arrays.stream(result.getLowestPriceRecords())
+				.mapToInt(PriceRecordContract::priceId)
+				.toArray();
+			// ordered by internal price id: the winner of inner record 1 (internal id 2) precedes inner record 2's (3)
+			assertArrayEquals(new int[]{10, 20}, lowestPriceIds);
 		}
 
 		@Test
@@ -1016,6 +1045,30 @@ class EntityPricesTest {
 	) {
 		return new PriceRecordInnerRecordSpecific(
 			priceId, priceId, 1, innerRecordId, priceWithTax, priceWithoutTax
+		);
+	}
+
+	/**
+	 * Creates an inner-record-specific {@link PriceRecordInnerRecordSpecific} whose internal price id differs from its
+	 * price id, so that a selection reading one id cannot pass for a selection reading the other.
+	 *
+	 * @param internalPriceId the id the entity-prices holder indexes and orders its prices by
+	 * @param priceId         the id the price is known by within its entity
+	 * @param innerRecordId   the inner record group identifier
+	 * @param priceWithTax    the price amount including tax
+	 * @param priceWithoutTax the price amount excluding tax
+	 * @return new inner-record-specific price record for entity primary key 1
+	 */
+	@Nonnull
+	private static PriceRecordContract createInnerRecordPriceWithDistinctIds(
+		int internalPriceId,
+		int priceId,
+		int innerRecordId,
+		int priceWithTax,
+		int priceWithoutTax
+	) {
+		return new PriceRecordInnerRecordSpecific(
+			internalPriceId, priceId, 1, innerRecordId, priceWithTax, priceWithoutTax
 		);
 	}
 }

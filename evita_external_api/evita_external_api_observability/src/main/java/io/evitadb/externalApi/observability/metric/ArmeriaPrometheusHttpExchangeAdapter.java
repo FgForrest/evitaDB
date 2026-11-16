@@ -27,13 +27,13 @@ import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.ResponseHeaders;
 import com.linecorp.armeria.common.ResponseHeadersBuilder;
 import com.linecorp.armeria.server.ServiceRequestContext;
-import io.netty.util.AsciiString;
 import io.prometheus.metrics.exporter.common.PrometheusHttpExchange;
 import io.prometheus.metrics.exporter.common.PrometheusHttpRequest;
 import io.prometheus.metrics.exporter.common.PrometheusHttpResponse;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -50,8 +50,20 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 	private final ArmeriaAdapterRequest request;
 	private final ArmeriaAdapterResponse response;
 
-	public ArmeriaPrometheusHttpExchangeAdapter(ServiceRequestContext ctx, HttpRequest req, ByteArrayOutputStream outputStream) {
-		this.request = new ArmeriaAdapterRequest(req);
+	/**
+	 * Built once per scrape: the exporter reads the request through it, writes the body into `outputStream` and
+	 * the status and headers into `headersBuilder()`, from which the caller assembles the Armeria response.
+	 *
+	 * @param ctx          context of the scrape, which keeps the original query after prefix routers rewrote the path
+	 * @param req          the scrape request
+	 * @param outputStream receives the scrape body
+	 */
+	public ArmeriaPrometheusHttpExchangeAdapter(
+		@Nonnull ServiceRequestContext ctx,
+		@Nonnull HttpRequest req,
+		@Nonnull ByteArrayOutputStream outputStream
+	) {
+		this.request = new ArmeriaAdapterRequest(ctx, req);
 		this.response = new ArmeriaAdapterResponse(ctx, ResponseHeaders.builder(), outputStream);
 	}
 
@@ -93,16 +105,19 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 	 */
 	@RequiredArgsConstructor
 	public static class ArmeriaAdapterRequest implements PrometheusHttpRequest {
+		/** Retains the original query after prefix routers rewrite the request path. */
+		private final ServiceRequestContext context;
 		private final HttpRequest request;
 
+		@Nullable
 		@Override
 		public String getQueryString() {
-			return this.request.uri().getQuery();
+			return this.context.query();
 		}
 
 		@Override
 		public Enumeration<String> getHeaders(String name) {
-			return Collections.enumeration(this.request.headers().names().stream().map(AsciiString::toString).toList());
+			return Collections.enumeration(this.request.headers().getAll(name));
 		}
 
 		@Override
@@ -133,8 +148,9 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 
 		@Override
 		public OutputStream sendHeadersAndGetBody(int statusCode, int contentLength) {
+			// a length of 0 (body of unknown length, e.g. compressed) or -1 (no body, HEAD) still carries a status
+			this.headersBuilder.status(statusCode);
 			if (contentLength > 0) {
-				this.headersBuilder.status(statusCode);
 				this.headersBuilder.contentLength(contentLength);
 				this.context.setMaxRequestLength(contentLength);
 			}

@@ -1967,6 +1967,54 @@ class EvitaRequestTest {
 	@Nested
 	@DisplayName("Scopes admitted by derived filters")
 	class RequestedScopesTest {
+		/**
+		 * The owner searches the live scope and admits both. An explicit live pair narrows its admission as well, and
+		 * the derived request still carries the content it fetches.
+		 */
+		@Test
+		@DisplayName("Narrow both sets to an explicit scope pair when deriving fetched content")
+		void shouldNarrowSearchedAndAdmittedScopesWhenExplicitPairIsNarrow() {
+			final EvitaRequest root = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
+			final EvitaRequest owner = root.deriveCopyWith("b", null, null, null, Set.of(Scope.LIVE));
+
+			final EvitaRequest copy = owner.deriveCopyWithScopes("c", new FilterBy(), null,
+				entityFetch(attributeContent("code"), attributeContent("label")),
+				Set.of(Scope.LIVE), Set.of(Scope.LIVE));
+
+			assertEquals(Set.of(Scope.LIVE), copy.getScopes());
+			assertEquals(Set.of(Scope.LIVE), copy.getRequestedScopes());
+			assertEquals(Set.of("code", "label"), copy.getEntityAttributeSet());
+		}
+
+		/** An explicit pair searching the archived scope admits both, independently of what the owner searches. */
+		@Test
+		@DisplayName("Keep an admitted set wider than the searched one when deriving fetched content")
+		void shouldKeepWiderAdmittedScopesWhenExplicitPairDiffers() {
+			final EvitaRequest root = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
+			final EvitaRequest owner = root.deriveCopyWith("b", null, null, null, Set.of(Scope.LIVE));
+
+			final EvitaRequest copy = owner.deriveCopyWithScopes("c", new FilterBy(), null, entityFetch(),
+				Set.of(Scope.ARCHIVED), Set.of(Scope.values()));
+
+			assertEquals(Set.of(Scope.ARCHIVED), copy.getScopes());
+			assertEquals(Set.of(Scope.values()), copy.getRequestedScopes());
+		}
+
+		/** A further derivation whose filter names no scope inherits the explicit pair of its source. */
+		@Test
+		@DisplayName("Inherit the explicit scope pair when deriving without scopes")
+		void shouldInheritExplicitPairWhenDerivingWithoutScopes() {
+			final EvitaRequest root = createRequest(query(collection("a"), filterBy(scope(Scope.values()))));
+			final EvitaRequest owner = root.deriveCopyWith("b", null, null, null, Set.of(Scope.LIVE));
+			final EvitaRequest source = owner.deriveCopyWithScopes("c", new FilterBy(), null, entityFetch(),
+				Set.of(Scope.ARCHIVED), Set.of(Scope.values()));
+
+			final EvitaRequest copy = source.deriveCopyWith("d", new FilterBy(), null, entityFetch());
+
+			assertEquals(Set.of(Scope.ARCHIVED), copy.getScopes());
+			assertEquals(Set.of(Scope.values()), copy.getRequestedScopes());
+		}
+
 		/** A root request admits precisely the scopes it searches. */
 		@Test
 		@DisplayName("Root request admits its searched scopes")
@@ -2175,8 +2223,7 @@ class EvitaRequestTest {
 						collection('b'),
 						filterBy(
 							scope(ARCHIVED)
-						),
-						require()
+						)
 					)""",
 				copy.getQuery().prettyPrint()
 			);
@@ -2218,8 +2265,7 @@ class EvitaRequestTest {
 						collection('b'),
 						filterBy(
 							scope(ARCHIVED)
-						),
-						require()
+						)
 					)""",
 				copy.getQuery().prettyPrint()
 			);
@@ -2259,8 +2305,7 @@ class EvitaRequestTest {
 						collection('b'),
 						filterBy(
 							scope(ARCHIVED)
-						),
-						require()
+						)
 					)""",
 				copy.getQuery().prettyPrint()
 			);
@@ -2312,8 +2357,7 @@ class EvitaRequestTest {
 						collection('b'),
 						filterBy(
 							scope(ARCHIVED)
-						),
-						require()
+						)
 					)""",
 				copy.getQuery().prettyPrint()
 			);

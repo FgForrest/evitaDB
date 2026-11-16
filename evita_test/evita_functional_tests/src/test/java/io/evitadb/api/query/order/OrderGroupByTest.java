@@ -291,7 +291,7 @@ class OrderGroupByTest {
 	private static OrderGroupBy createOrderGroupBy(@Nullable String... values) {
 		return orderGroupBy(
 			Arrays.stream(values)
-				.map(it -> attributeNatural(it))
+				.map(it -> new AttributeNatural(it))
 				.toArray(OrderConstraint[]::new)
 		);
 	}

@@ -50,7 +50,6 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CatalogNotAliveException;
 import io.evitadb.api.exception.CollectionNotFoundException;
@@ -151,6 +150,7 @@ import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.MissingHistogramValueBehavior;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.index.usage.SchemaCapabilityUsageProjection;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
@@ -366,6 +366,12 @@ public final class Catalog
 	 */
 	private final EvitaConfiguration evitaConfiguration;
 	/**
+	 * What a write in this catalog does when it must withdraw a reference-histogram value the index does not hold for
+	 * the entity. The engine resolves it once when it starts and hands it to the catalog it creates or loads; every
+	 * later version of the catalog copies it from the version before, so it cannot change under a running catalog.
+	 */
+	@Nonnull private final MissingHistogramValueBehavior missingHistogramValueBehavior;
+	/**
 	 * Reference to the engine this catalog belongs to. Held only for the state the engine owns *about* this catalog
 	 * but does not store in it - today that is the session registry, which is created lazily on the first session and
 	 * therefore cannot be handed to the constructor. It is carried across catalog generations like the transaction
@@ -515,6 +521,8 @@ public final class Catalog
 	 *                                  one or the instance its write-ahead log was replayed to
 	 * @param onFailure                 callback function to be invoked upon failure, receiving the catalog name and the encountered exception
 	 * @param tracingContext            tracing context used for distributed tracing and monitoring
+	 * @param missingHistogramValueBehavior what a write does when it must withdraw a reference-histogram value the
+	 *                                  index does not hold, as the engine resolved it when it started
 	 * @return a {@link ProgressingFuture} object that tracks the progress of the catalog loading process and eventually
 	 * resolves to the {@link Catalog} instance `onSuccess` settled on
 	 */
@@ -530,7 +538,8 @@ public final class Catalog
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull BiFunction<String, Catalog, Catalog> onSuccess,
 		@Nonnull BiConsumer<String, Throwable> onFailure,
-		@Nonnull TracingContext tracingContext
+		@Nonnull TracingContext tracingContext,
+		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior
 	) {
 		return new ProgressingFuture<>(
 			1,
@@ -550,7 +559,8 @@ public final class Catalog
 					collections,
 					collectionByPk,
 					entitySchemaIndex,
-					readOnly
+					readOnly,
+					missingHistogramValueBehavior
 				);
 
 				final CatalogHeader<? extends LogRecordReference, ? extends CollectionReference> catalogHeader =
@@ -714,6 +724,20 @@ public final class Catalog
 		);
 	}
 
+	/**
+	 * Creates a brand-new, empty catalog in the warm-up state and stores its first header.
+	 *
+	 * @param catalogSchema                 the schema of the new catalog
+	 * @param cacheSupervisor               the supervisor of the engine's cache
+	 * @param evita                         the engine the catalog belongs to
+	 * @param proxyFactory                  the factory of entity proxies
+	 * @param exportService                 the service handling file exports
+	 * @param fileManagementService         the service managing the files the engine produces for a user
+	 * @param newCatalogVersionConsumer     receives every new version of the catalog
+	 * @param tracingContext                the tracing context
+	 * @param missingHistogramValueBehavior what a write does when it must withdraw a reference-histogram value the
+	 *                                      index does not hold, as the engine resolved it when it started
+	 */
 	public Catalog(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull CacheSupervisor cacheSupervisor,
@@ -722,13 +746,15 @@ public final class Catalog
 		@Nonnull ExportService exportService,
 		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
-		@Nonnull TracingContext tracingContext
+		@Nonnull TracingContext tracingContext,
+		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior
 	) {
 		final String catalogName = catalogSchema.getName();
 		final long catalogVersion = 0L;
 
 		this.evita = evita;
 		this.evitaConfiguration = evita.getConfiguration();
+		this.missingHistogramValueBehavior = missingHistogramValueBehavior;
 		this.scheduler = evita.getServiceExecutor();
 		this.transactionalExecutor = evita.getTransactionExecutor();
 
@@ -808,6 +834,26 @@ public final class Catalog
 		);
 	}
 
+	/**
+	 * Reads the header, the schema and the catalog indexes of a stored catalog at the last catalog version its
+	 * persistence service reports, without its collections: the maps are filled by {@link #loadCatalog} as the
+	 * collections are read.
+	 *
+	 * @param catalogName                   the name of the catalog
+	 * @param cacheSupervisor               the supervisor of the engine's cache
+	 * @param evita                         the engine the catalog belongs to
+	 * @param proxyFactory                  the factory of entity proxies
+	 * @param exportService                 the service handling file exports
+	 * @param fileManagementService         the service managing the files the engine produces for a user
+	 * @param newCatalogVersionConsumer     receives every new version of the catalog
+	 * @param tracingContext                the tracing context
+	 * @param collections                   the collections by entity type, filled by the caller
+	 * @param collectionByPk                the collections by entity type primary key, filled by the caller
+	 * @param entitySchemaIndex             the entity schemas by entity type, filled by the caller
+	 * @param readOnly                      whether the catalog refuses mutations
+	 * @param missingHistogramValueBehavior what a write does when it must withdraw a reference-histogram value the
+	 *                                      index does not hold, as the engine resolved it when it started
+	 */
 	private Catalog(
 		@Nonnull String catalogName,
 		@Nonnull CacheSupervisor cacheSupervisor,
@@ -820,10 +866,12 @@ public final class Catalog
 		@Nonnull Map<String, EntityCollection> collections,
 		@Nonnull Map<Integer, EntityCollection> collectionByPk,
 		@Nonnull Map<String, EntitySchemaContract> entitySchemaIndex,
-		boolean readOnly
+		boolean readOnly,
+		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior
 	) {
 		this.evita = evita;
 		this.evitaConfiguration = evita.getConfiguration();
+		this.missingHistogramValueBehavior = missingHistogramValueBehavior;
 		this.scheduler = evita.getServiceExecutor();
 		this.transactionalExecutor = evita.getTransactionExecutor();
 		//noinspection unchecked
@@ -954,6 +1002,7 @@ public final class Catalog
 		this.proxyFactory = previousCatalogVersion.proxyFactory;
 		this.evita = previousCatalogVersion.evita;
 		this.evitaConfiguration = previousCatalogVersion.evitaConfiguration;
+		this.missingHistogramValueBehavior = previousCatalogVersion.missingHistogramValueBehavior;
 		this.scheduler = previousCatalogVersion.scheduler;
 		this.transactionalExecutor = previousCatalogVersion.transactionalExecutor;
 		this.newCatalogVersionConsumer = previousCatalogVersion.newCatalogVersionConsumer;
@@ -2349,15 +2398,15 @@ public final class Catalog
 
 	/**
 	 * What a write in this catalog does when it must withdraw a reference-histogram value the index does not hold for
-	 * the entity - the server-wide `server.missingHistogramValueBehavior` switch, answered here so that every site
-	 * withdrawing a histogram value reads the one value rather than each reaching for the configuration. The switch
-	 * cannot change under a running catalog.
+	 * the entity - fixed when the engine started (see {@link MissingHistogramValueBehavior#fromSystemProperty()}) and
+	 * answered here so that every site withdrawing a histogram value reads the one value. It cannot change under a
+	 * running catalog.
 	 *
 	 * @return the behavior on a missing histogram value
 	 */
 	@Nonnull
 	public MissingHistogramValueBehavior getMissingHistogramValueBehavior() {
-		return this.evitaConfiguration.server().missingHistogramValueBehavior();
+		return this.missingHistogramValueBehavior;
 	}
 
 	/**

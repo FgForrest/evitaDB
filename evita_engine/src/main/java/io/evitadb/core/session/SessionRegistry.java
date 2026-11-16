@@ -916,7 +916,15 @@ public final class SessionRegistry {
 				rolledBack ? TransactionResolution.ROLLBACK : TransactionResolution.COMMIT
 			).commit();
 		if (rolledBack) {
-			this.catalogSupplier.get().getTransactionManager().recordRolledBackTransaction();
+			try {
+				this.catalogSupplier.get().getTransactionManager().recordRolledBackTransaction();
+			} catch (CatalogTransitioningException ignored) {
+				// a delete or deactivation publishes its placeholder before draining the sessions, and the drain marks
+				// every open transaction rollback-only - there is no live catalog left to count it on, and throwing
+				// here would skip the census release and proxy finalization of an orderly close. The go-live
+				// placeholder's `CatalogGoingLiveException` cannot reach this line: it drains a warming-up catalog,
+				// whose sessions never hold a transaction
+			}
 		}
 	}
 
