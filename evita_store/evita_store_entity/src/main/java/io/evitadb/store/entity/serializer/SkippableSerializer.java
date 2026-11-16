@@ -32,6 +32,11 @@ import javax.annotation.Nonnull;
  * Optional payload-only skip contract for serializers. Callers own Kryo's object framing; implementations consume
  * exactly the payload their reader would consume, including any version prefix they own.
  *
+ * Because the framing stays with the caller, calling `skip` in place of `Kryo#readObject` consumes the same bytes
+ * only while Kryo object references are disabled - with references enabled, `readObject` also reads the reference
+ * marker in front of the payload. The storage Kryo disables them.
+ *
+ * @param <T> the type whose serialized payload is skipped
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public interface SkippableSerializer<T> {

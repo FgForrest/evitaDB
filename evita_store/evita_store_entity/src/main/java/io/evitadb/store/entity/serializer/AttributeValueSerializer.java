@@ -55,9 +55,10 @@ public class AttributeValueSerializer extends Serializer<AttributeValue>
 	}
 
 	/**
-	 * Consumes the unchanged attribute layout without resolving its compressed key or building an attribute value.
-	 * The class-and-object value has no length prefix, so Kryo must decode it to find the following dropped flag.
-	 * Temporal normalization is unnecessary for a discarded value and consumes no bytes.
+	 * Consumes the version, compressed key id, class-and-object value and dropped flag that
+	 * {@link #write(Kryo, Output, AttributeValue)} emits, without resolving the key id through the compressor or
+	 * building an {@link AttributeValue}. The value has no length prefix, so Kryo must decode it to find the dropped
+	 * flag behind it.
 	 */
 	@Override
 	public void skip(@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends AttributeValue> type) {

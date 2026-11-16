@@ -29,9 +29,9 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
-import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadOnlyKeyCompressor;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadOnlyKeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
@@ -48,8 +48,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.SERIALIZATION;
@@ -57,8 +58,8 @@ import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that {@link AttributeValueSerializer_2026_2} brings out-of-window temporal values of a body written by
@@ -79,7 +80,7 @@ class AttributeValueSerializer_2026_2Test {
 	 * `serialVersionUID` the {@link AttributeValue} record carried in release 2026.2, i.e. the discriminator
 	 * {@link AttributeValueSerializer_2026_2} is registered under.
 	 */
-	private static final long LEGACY_ATTRIBUTE_VALUE_UID = -5387437940533059959L;
+	static final long LEGACY_ATTRIBUTE_VALUE_UID = -5387437940533059959L;
 	/** The attribute every value is written under - known to the key compressor, so both readers resolve it. */
 	private static final AttributeKey KEY = new AttributeKey("until");
 	/** Kryo with the entity storage registrations: the version in front of a body selects the reader. */
@@ -238,18 +239,24 @@ class AttributeValueSerializer_2026_2Test {
 				null, "žluťoučký", 123, new BigDecimal("123.456"), OffsetDateTime.MAX,
 				new LocalDateTime[]{LocalDateTime.MIN, LocalDateTime.MAX}, new String[]{"č", "漢字"}
 			}) {
+				final String scenario = "uid=" + uid + ", value=" + Arrays.deepToString(new Object[]{value});
 				try (final Output output = new Output(256, -1)) {
 					output.writeLong(uid);
 					this.currentSerializer.write(this.kryo, output, new AttributeValue(3, KEY, value, true));
 					final int end = output.position();
 					output.writeInt(123456789);
 					final byte[] bytes = output.toBytes();
-					assertThrows(GenericEvitaInternalError.class,
-						() -> reader.readObject(new Input(bytes), AttributeValue.class));
+					try (final Input input = new Input(bytes)) {
+						assertThrows(
+							GenericEvitaInternalError.class,
+							() -> reader.readObject(input, AttributeValue.class),
+							scenario
+						);
+					}
 					try (final Input input = new Input(bytes)) {
 						skip.skip(reader, input, AttributeValue.class);
-						assertEquals(end, input.total());
-						assertEquals(123456789, input.readInt());
+						assertEquals(end, input.total(), scenario);
+						assertEquals(123456789, input.readInt(), scenario);
 					}
 				}
 			}

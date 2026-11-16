@@ -75,9 +75,14 @@ public class AttributeValueSerializer_2026_2 extends Serializer<AttributeValue>
 	}
 
 	/**
-	 * Consumes the unchanged attribute layout without resolving its compressed key or building an attribute value.
-	 * The class-and-object value has no length prefix, so Kryo must decode it to find the following dropped flag.
-	 * Temporal normalization is unnecessary for a discarded value and consumes no bytes.
+	 * Consumes the version, compressed key id, class-and-object value and dropped flag that
+	 * {@link #read(Kryo, Input, Class)} reads, without resolving the key id through the compressor or building an
+	 * {@link AttributeValue}. The value has no length prefix, so Kryo must decode it to find the dropped flag behind
+	 * it. The window clamping `read` applies is left out: a discarded value needs none, and the clamp consumes no
+	 * bytes.
+	 *
+	 * The body deliberately repeats {@link AttributeValueSerializer#skip(Kryo, Input, Class)} instead of sharing it:
+	 * this reader is bound to the layout release 2026.2 wrote and must not follow a later change of the current one.
 	 */
 	@Override
 	public void skip(@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends AttributeValue> type) {

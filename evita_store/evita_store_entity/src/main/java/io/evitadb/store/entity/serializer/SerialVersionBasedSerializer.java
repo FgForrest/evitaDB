@@ -45,6 +45,9 @@ import java.util.Set;
  * `serialVersionUID` and use it for deserialization of the data in old format. If no proper implementation is found
  * {@link StoredVersionNotSupportedException} is thrown.
  *
+ * Skipping follows the same dispatch: {@link #skip(Kryo, Input, Class)} delegates to the matching serializer, and one
+ * that is not a {@link SkippableSerializer} reads the payload and discards it.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class SerialVersionBasedSerializer<T> extends Serializer<T> implements SkippableSerializer<T> {
@@ -62,7 +65,8 @@ public class SerialVersionBasedSerializer<T> extends Serializer<T> implements Sk
 	 * Allows to register {@link Serializer} implementation that allows to read serialized data of particular
 	 * old version of the class that was connected with certain `serialVersionUID` number. This allows us to evolve
 	 * Java class structures through the time while still be able to deserialize old binary data even if they are
-	 * not fully compatible with the current state.
+	 * not fully compatible with the current state. Registering a `serialVersionUID` again replaces the serializer
+	 * registered under it earlier.
 	 */
 	@Nonnull
 	public SerialVersionBasedSerializer<T> addBackwardCompatibleSerializer(
@@ -112,6 +116,9 @@ public class SerialVersionBasedSerializer<T> extends Serializer<T> implements Sk
 	/**
 	 * Consumes the version prefix and delegates payload skipping to the matching reader. Readers without a skip
 	 * implementation decode and discard their result, preserving support for every registered historical layout.
+	 *
+	 * @throws StoredVersionNotSupportedException when the stored `serialVersionUID` matches neither the current version
+	 *                                            nor any registered backward compatible serializer
 	 */
 	@Override
 	public void skip(@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends T> type) {

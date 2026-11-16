@@ -29,6 +29,7 @@ import com.esotericsoftware.kryo.io.ByteBufferInput;
 import com.esotericsoftware.kryo.io.ByteBufferOutput;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.serializers.DefaultSerializers.StringSerializer;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.store.entity.exception.StoredVersionNotSupportedException;
 import io.evitadb.store.schema.serializer.AttributeSchemaSerializer;
@@ -107,7 +108,6 @@ class SerialVersionBasedSerializerTest {
 		final CountingStringSerializer current = new CountingStringSerializer();
 		final CountingStringSerializer old = new CountingStringSerializer();
 		final SerialVersionBasedSerializer<String> serializer = new SerialVersionBasedSerializer<>(current, String.class);
-		serializer.addBackwardCompatibleSerializer(123L, new CountingStringSerializer());
 		serializer.addBackwardCompatibleSerializer(123L, old);
 		for (final long uid : new long[]{ObjectStreamClass.lookup(String.class).getSerialVersionUID(), 123L}) {
 			final byte[] bytes = versionedString(uid);
@@ -134,7 +134,7 @@ class SerialVersionBasedSerializerTest {
 	@Test
 	@DisplayName("falls back to reading when a current or historical serializer has no skip implementation")
 	void shouldFallBackToReadForSerializersWithoutSkip() {
-		final Serializer<String> payload = new com.esotericsoftware.kryo.serializers.DefaultSerializers.StringSerializer();
+		final Serializer<String> payload = new StringSerializer();
 		final SerialVersionBasedSerializer<String> serializer = new SerialVersionBasedSerializer<>(payload, String.class);
 		serializer.addBackwardCompatibleSerializer(123L, payload);
 		for (final long uid : new long[]{ObjectStreamClass.lookup(String.class).getSerialVersionUID(), 123L}) {
@@ -156,33 +156,110 @@ class SerialVersionBasedSerializerTest {
 		final SerialVersionBasedSerializer<String> serializer =
 			new SerialVersionBasedSerializer<>(new CountingStringSerializer(), String.class);
 		final Set<Long> supportedVersions = CollectionUtils.createHashSet(40);
-		for (final boolean registered : new boolean[]{false, true}) {
-			if (registered) {
-				for (int i = 0; i < 40; i++) {
-					final long uid = i * 32L + 1;
-					final Serializer<String> reader = new CountingStringSerializer();
-					serializer.addBackwardCompatibleSerializer(uid, reader);
-					supportedVersions.add(uid);
-				}
+		assertUnsupportedUid(serializer, false, supportedVersions);
+		assertUnsupportedUid(serializer, true, supportedVersions);
+
+		for (int i = 0; i < 40; i++) {
+			final long uid = i * 32L + 1;
+			final Serializer<String> reader = new CountingStringSerializer();
+			serializer.addBackwardCompatibleSerializer(uid, reader);
+			supportedVersions.add(uid);
+		}
+
+		assertUnsupportedUid(serializer, false, supportedVersions);
+		assertUnsupportedUid(serializer, true, supportedVersions);
+	}
+
+	/**
+	 * Registering a historical UID again replaces its reader instead of adding a second entry the lookup could find
+	 * first.
+	 */
+	@Test
+	@DisplayName("replaces the historical serializer registered again under the same UID")
+	void shouldReplaceHistoricalSerializerRegisteredUnderSameUid() {
+		final CountingStringSerializer replaced = new CountingStringSerializer();
+		final CountingStringSerializer replacement = new CountingStringSerializer();
+		final SerialVersionBasedSerializer<String> serializer =
+			new SerialVersionBasedSerializer<>(new CountingStringSerializer(), String.class);
+		serializer.addBackwardCompatibleSerializer(123L, replaced);
+		serializer.addBackwardCompatibleSerializer(123L, replacement);
+		final byte[] bytes = versionedString(123L);
+
+		try (final Input input = new Input(bytes)) {
+			assertEquals("payload", serializer.read(this.kryo, input, String.class));
+		}
+		try (final Input input = new Input(bytes)) {
+			serializer.skip(this.kryo, input, String.class);
+		}
+
+		assertEquals(0, replaced.reads);
+		assertEquals(0, replaced.skips);
+		assertEquals(1, replacement.reads);
+		assertEquals(1, replacement.skips);
+		assertUnsupportedUid(serializer, false, Set.of(123L));
+	}
+
+	/**
+	 * Every historical UID reaches the reader registered under it, not merely the first one registered.
+	 */
+	@Test
+	@DisplayName("dispatches each historical UID to the serializer registered under it")
+	void shouldDispatchEachHistoricalUidToItsOwnSerializer() {
+		final long[] uids = {121L, 122L, 123L};
+		final CountingStringSerializer[] readers = new CountingStringSerializer[uids.length];
+		final SerialVersionBasedSerializer<String> serializer =
+			new SerialVersionBasedSerializer<>(new CountingStringSerializer(), String.class);
+		for (int i = 0; i < uids.length; i++) {
+			readers[i] = new CountingStringSerializer();
+			serializer.addBackwardCompatibleSerializer(uids[i], readers[i]);
+		}
+
+		for (int i = 1; i < uids.length; i++) {
+			final byte[] bytes = versionedString(uids[i]);
+			try (final Input input = new Input(bytes)) {
+				assertEquals("payload", serializer.read(this.kryo, input, String.class), "uid=" + uids[i]);
 			}
-			for (final boolean skip : new boolean[]{false, true}) {
-				try (final Input input = new Input(versionedString(456L))) {
-					final StoredVersionNotSupportedException error = assertThrows(
-						StoredVersionNotSupportedException.class,
-						() -> {
-							if (skip) {
-								serializer.skip(this.kryo, input, String.class);
-							} else {
-								serializer.read(this.kryo, input, String.class);
-							}
-						}
-					);
-					assertEquals(String.class, error.getSerializedClass());
-					assertEquals(456L, error.getEncounteredVersion());
-					assertEquals(supportedVersions, error.getCurrentlySupportedVersions());
-					assertEquals(8, input.total());
-				}
+			try (final Input input = new Input(bytes)) {
+				serializer.skip(this.kryo, input, String.class);
 			}
+		}
+
+		assertEquals(0, readers[0].reads, "uid=" + uids[0]);
+		assertEquals(0, readers[0].skips, "uid=" + uids[0]);
+		for (int i = 1; i < uids.length; i++) {
+			assertEquals(1, readers[i].reads, "uid=" + uids[i]);
+			assertEquals(1, readers[i].skips, "uid=" + uids[i]);
+		}
+	}
+
+	/**
+	 * Reads or skips a payload of an unregistered UID and pins the exception type, the offending UID, the supported
+	 * UIDs, and that nothing beyond the UID was consumed.
+	 *
+	 * @param serializer        the serializer under test
+	 * @param skip              whether to skip the payload rather than read it
+	 * @param expectedSupported the historical UIDs the exception must report
+	 */
+	private void assertUnsupportedUid(
+		@Nonnull SerialVersionBasedSerializer<String> serializer,
+		boolean skip,
+		@Nonnull Set<Long> expectedSupported
+	) {
+		try (final Input input = new Input(versionedString(456L))) {
+			final StoredVersionNotSupportedException error = assertThrows(
+				StoredVersionNotSupportedException.class,
+				() -> {
+					if (skip) {
+						serializer.skip(this.kryo, input, String.class);
+					} else {
+						serializer.read(this.kryo, input, String.class);
+					}
+				}
+			);
+			assertEquals(String.class, error.getSerializedClass());
+			assertEquals(456L, error.getEncounteredVersion());
+			assertEquals(expectedSupported, error.getCurrentlySupportedVersions());
+			assertEquals(Long.BYTES, input.total());
 		}
 	}
 

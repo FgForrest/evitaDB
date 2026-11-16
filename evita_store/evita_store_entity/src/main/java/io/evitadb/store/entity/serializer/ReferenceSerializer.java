@@ -56,21 +56,32 @@ import java.util.function.Supplier;
 /**
  * This {@link Serializer} implementation reads/writes {@link Reference} from/to binary format.
  *
+ * It is registered behind a {@link SerialVersionBasedSerializer}. When `ReferencesStoragePartSerializer` reads a part,
+ * it binds the decode coverage once for all the part's references (`withDecodeCoverage`); every other read, including
+ * one inside a part of the 2025.6 layout, takes the coverage from {@link ReferenceDecodeCoverageContext}.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
 public class ReferenceSerializer extends Serializer<Reference> {
 	/**
-	 * One-entry memo of the last decoded reference name and what was resolved from it. The references of one entity
-	 * arrive grouped by name, so the previous answer serves the next reference almost every time - which replaces
-	 * a hash plus a set probe plus a schema map lookup per reference with a memo comparison. An entity may carry
-	 * tens of thousands of references, and this method decodes every one of them.
+	 * One-entry memo of the last reference name and what was resolved from it. The references of one entity arrive
+	 * grouped by name, so the previous answer serves the next reference almost every time - which replaces a hash
+	 * plus a set probe plus a schema map lookup per reference with a memo comparison. On an {@link ObservableInput}
+	 * the comparison runs on the encoded bytes ({@link #memoizedEncodedReferenceName} through
+	 * {@link ObservableInput#trySkipString(byte[])}), so a repeated name whose encoding is fully buffered is not
+	 * decoded into a String at all. An entity may carry tens of thousands of references, and
+	 * {@link #read(Kryo, Input, Class)} walks every one of them.
 	 *
-	 * A plain field is safe: this serializer is instantiated once per {@link Kryo} instance (see
-	 * `EntityStoragePartConfigurer`), and a Kryo instance is never used by two threads at the same time.
+	 * Plain fields are safe, for the memo and for the part coverage binding alike: this serializer is instantiated
+	 * once per {@link Kryo} instance (see `EntityStoragePartConfigurer`), and a Kryo instance is never used by two
+	 * threads at the same time.
 	 */
 	private String memoizedReferenceName;
-	/** Complete Kryo encoding belonging to the existing one-name memo. */
+	/**
+	 * {@link #memoizedReferenceName} as `Output#writeString` encodes it, replaced together with the name so that
+	 * matching these bytes in the stream always stands for that name.
+	 */
 	private byte[] memoizedEncodedReferenceName;
 	/** Whether a storage part has supplied coverage, including explicitly unrestricted coverage. */
 	private boolean partCoverageBound;
@@ -136,20 +147,16 @@ public class ReferenceSerializer extends Serializer<Reference> {
 		final int version = input.readVarInt(true);
 		final int internalPrimaryKey = input.readVarInt(true);
 		final String referenceName;
+		final boolean nameChanged;
 		if (this.memoizedEncodedReferenceName != null && input instanceof ObservableInput<?> observableInput &&
 			observableInput.trySkipString(this.memoizedEncodedReferenceName)) {
 			referenceName = this.memoizedReferenceName;
+			nameChanged = false;
 		} else {
 			referenceName = input.readString();
-			if (!referenceName.equals(this.memoizedReferenceName)) {
-				// Encode only a changed name, using Kryo itself so every supported string form stays exact.
-				try (final Output encoded = new Output(64, -1)) {
-					encoded.writeString(referenceName);
-					this.memoizedEncodedReferenceName = encoded.toBytes();
-				}
-			}
+			nameChanged = !referenceName.equals(this.memoizedReferenceName);
 		}
-		if (!referenceName.equals(this.memoizedReferenceName) || coverage != this.memoizedCoverage) {
+		if (nameChanged || coverage != this.memoizedCoverage) {
 			if (coverage == null || coverage.isNameDecodedWhole(referenceName)) {
 				// no narrowing at all, or this name narrowed by nothing but its own presence
 				this.memoizedNameAdmission = NameAdmission.WHOLE;
@@ -160,7 +167,15 @@ public class ReferenceSerializer extends Serializer<Reference> {
 					NameAdmission.NONE : NameAdmission.BY_KEY;
 			}
 			this.memoizedCoverage = coverage;
-			this.memoizedReferenceName = referenceName;
+			if (nameChanged) {
+				// Encode only a changed name, using Kryo itself so every supported string form stays exact. The
+				// encoding and the name are replaced together, so a matched encoding always stands for this name.
+				try (final Output encoded = new Output(64, -1)) {
+					encoded.writeString(referenceName);
+					this.memoizedEncodedReferenceName = encoded.toBytes();
+				}
+				this.memoizedReferenceName = referenceName;
+			}
 			// the name decides the reference schema, so a new name invalidates that resolution too
 			this.memoizedEntitySchema = null;
 			this.memoizedReferenceSchema = null;
@@ -214,7 +229,7 @@ public class ReferenceSerializer extends Serializer<Reference> {
 	 *
 	 * @param kryo                 the Kryo instance used to decode attribute values
 	 * @param input                the input positioned right after the referenced entity primary key
-	 * @param referenceName        name decoded from the header, used to resolve the reference schema
+	 * @param referenceName        name of the reference taken from its header, used to resolve the reference schema
 	 * @param version              version decoded from the header
 	 * @param internalPrimaryKey   internal primary key decoded from the header
 	 * @param referencedPrimaryKey primary key of the referenced entity, already consumed from the stream
@@ -276,7 +291,8 @@ public class ReferenceSerializer extends Serializer<Reference> {
 			schema,
 			referenceSchema,
 			version,
-			// Keep the schema's own name instance even after a memo miss decodes a fresh String.
+			// the schema's own name instance, not the one read from the stream: a memo miss decodes a fresh String,
+			// and keeping it would retain one per reference and push later name comparisons from identity to equals
 			new ReferenceKey(referenceSchema.getName(), referencedPrimaryKey, internalPrimaryKey),
 			group, attributes, dropped
 		);
@@ -288,8 +304,10 @@ public class ReferenceSerializer extends Serializer<Reference> {
 	 *
 	 * The binary layout is written by {@link #write(Kryo, Output, Reference)} and must be mirrored field for field -
 	 * the stream is not self-delimiting, so an incorrect skip desynchronizes the rest of the storage part rather
-	 * than failing at the reference itself. Attribute values are the one part that still has to be decoded: they are
-	 * variable length records with no length prefix, so the only way past them is through their own serializer.
+	 * than failing at the reference itself. Attribute values have no length prefix, so the only way past them is
+	 * through their own serializer: while Kryo object references are disabled and that serializer is
+	 * a {@link SkippableSerializer}, each value is decoded and discarded without resolving its key or building an
+	 * {@link AttributeValue}, otherwise it is read in full.
 	 *
 	 * @param kryo  the Kryo instance used to decode the skipped attribute values
 	 * @param input the input positioned right after the reference name
