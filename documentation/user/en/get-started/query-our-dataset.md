@@ -112,14 +112,6 @@ API `gRPC` listening on                 https://localhost:5555/
 API `system` listening on               http://localhost:5555/system/
    - server name served at:             http://localhost:5555/system/server-name
    - server certificate served at:      http://localhost:5555/system/server.crt
-   - client certificate served at:      http://localhost:5555/system/client.crt
-   - client private key served at:      http://localhost:5555/system/client.key
-
-************************* WARNING!!! *************************
-You use mTLS with automatically generated client certificate.
-This is not safe for production environments!
-Supply the certificate for production manually and set `useGeneratedCertificate` to false.
-************************* WARNING!!! *************************
 ```
 
 It means that your evitaDB server is up and running, and also that it has loaded the `evita` catalog dataset with some
