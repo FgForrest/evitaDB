@@ -396,16 +396,21 @@ The query returns the following entity body of the `Brand` entity:
 
 ```evitaql-syntax
 attributeContent(
-    argument:string+
+    argument:string*
 )
 ```
 
 <dl>
-    <dt>argument:string+</dt>
+    <dt>argument:string*</dt>
     <dd>
-        one or more mandatory entity or reference attribute names to be fetched along with the entity
+        zero or more entity or reference attribute names to be fetched along with the entity
     </dd>
 </dl>
+
+An empty list in the Java factory or a bound EvitaQL list requests **all attributes**. A null Java array has
+this same meaning. In EvitaQL, bind an empty list explicitly; a lone list parameter bound to null is a syntax
+error. Use `attributeContentAll()` when no selection is needed.
+Null name items are rejected by both the Java factory and EvitaQL.
 
 The `attributeContent` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AttributeContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/AttributeContent.cs</SourceClass></LS>)
 requirement is used to retrieve one or more entity or reference [attributes](../../use/data-model.md#attributes-unique-filterable-sortable-localized). [Localized attributes](../../use/data-model.md#localized-attributes)
@@ -413,11 +418,12 @@ are only fetched if there is a *locale context* in the query, either by using th
 filter constraint or the [`dataInLocales`](#data-in-locales) require constraint.
 
 For a named localized attribute in a nested `entityFetch` or `entityGroupFetch`, the locale context belongs to that
-body's level. Its own `entityHaving` or `groupHaving` locale takes precedence, followed by the reference filter's
-locale and then the enclosing body's locale. A `dataInLocales` requirement also supplies a locale context: the
-one in the body's own fetch, or, when that fetch names none, the one of the enclosing fetch. Entity and group bodies
-are separate levels: `entityHaving` does not supply the group's locale. Named localized attributes and associated
-data require a resolved locale or a `dataInLocales` that reaches their fetch level.
+body's level. The locale of its own `entityHaving` or `groupHaving` takes precedence when no `or`, `not` or `inScope`
+of the reference filter encloses it, followed by the reference filter's locale and then the enclosing body's locale.
+A `dataInLocales` requirement also supplies a locale context: the one in the body's own fetch, or, when that fetch
+names none, the one of the enclosing fetch. Entity and group bodies are separate levels: `entityHaving` does not
+supply the group's locale. Named localized attributes and associated data require a resolved locale or a
+`dataInLocales` that reaches their fetch level.
 
 <Note type="info">
 
@@ -604,16 +610,21 @@ All the localized attributes are missing, because there is no localization conte
 
 ```evitaql-syntax
 associatedDataContent(
-    argument:string+
+    argument:string*
 )
 ```
 
 <dl>
-    <dt>argument:string+</dt>
+    <dt>argument:string*</dt>
     <dd>
-        one or more mandatory entity associated data names to be fetched along with the entity
+        zero or more entity associated data names to be fetched along with the entity
     </dd>
 </dl>
+
+An empty list in the Java factory or a bound EvitaQL list requests **all associated data**. A null Java array has
+this same meaning. In EvitaQL, bind an empty list explicitly; a lone list parameter bound to null is a syntax
+error. Use `associatedDataContentAll()` when no selection is needed.
+Null name items are rejected by both the Java factory and EvitaQL.
 
 The `associatedDataContent` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AssociatedDataContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/AssociatedDataContent.cs</SourceClass></LS>)
 requirement is used to retrieve one or more entity [associated data](../../use/data-model.md#associated-data).
@@ -802,18 +813,23 @@ All the localized associated data are missing, because there is no localization 
 
 ```evitaql-syntax
 dataInLocales(
-    argument:string+
+    argument:string*
 )
 ```
 
 <dl>
-    <dt>argument:string+</dt>
+    <dt>argument:string*</dt>
     <dd>
-        a mandatory specification of the one or more [locales](https://en.wikipedia.org/wiki/IETF_language_tag) in which
+        zero or more [locales](https://en.wikipedia.org/wiki/IETF_language_tag) in which
         the localized entity or reference localized attributes and entity associated data will be fetched; examples of
         a valid language tags are: `en-US` or `en-GB`, `cs` or `cs-CZ`, `de` or `de-AT`, `de-CH`, `fr` or `fr-CA` etc.
     </dd>
 </dl>
+
+An empty list in the Java factory or a bound EvitaQL list requests **all locales**. A null Java array has
+this same meaning. In EvitaQL, bind an empty list explicitly; a lone list parameter bound to null is a syntax
+error. Use `dataInLocalesAll()` when no selection is needed.
+Null locale items are ignored; a list containing only nulls requests all locales.
 
 The `dataInLocales` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/DataInLocales.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/DataInLocales.cs</SourceClass></LS>)
 requirement is used in two scenarios:
@@ -1771,7 +1787,7 @@ As you can see, the filtered price list is returned.
 ```evitaql-syntax
 referenceContent(
     argument:enum(ANY|EXISTING)?,
-    argument:string*,
+    argument:string+,
     filterConstraint:filterBy?,
     orderConstraint:orderBy?,
     requireConstraint:entityFetch?,
@@ -1791,9 +1807,9 @@ referenceContent(
         they point to to existing or non-existing entities (see [managed references behaviour](#managed-references-behaviour) chapter for more details)
         </p>
     </dd>
-    <dt>argument:string*</dt>
+    <dt>argument:string+</dt>
     <dd>
-        optional zero or more string arguments representing the names of the references to fetch for the entity;
+        one or more string arguments representing the names of the references to fetch for the entity;
         if more than one name is given in the argument, any corresponding constraints in the same `referenceContent`
         container will apply to all of them;
         if none are given, all references are fetched and any corresponding constraints in the same `referenceContent`
@@ -1817,9 +1833,10 @@ referenceContent(
         by the locale of the referenced entity, wrap the constraint in `entityHaving`.
         </p>
         <p>
-        referenced entity bodies and their ordering use the locale named by their `entityHaving` level; group bodies
-        and their ordering use the locale named by their `groupHaving` level. A level without its own opinion inherits
-        the reference filter's locale, then the enclosing owner's locale. Each body fetch can also use
+        referenced entity bodies and their ordering use the locale named by an `entityHaving` of this filter that no
+        `or`, `not` or `inScope` encloses; group bodies and their ordering use the locale named by such a
+        `groupHaving`. A level without its own opinion inherits the reference filter's locale, then the enclosing
+        owner's locale. Each body fetch can also use
         [`dataInLocales`](#data-in-locales) to specify which localized data to fetch
         </p>
     </dd>
@@ -1848,6 +1865,12 @@ referenceContent(
         constraint allows you specify offset and limit for the returned references
     </dd>
 </dl>
+
+An empty list in the Java factory or a bound EvitaQL list requests **all references**. A null Java array has
+this same meaning. In EvitaQL, bind an empty list explicitly; a lone list parameter bound to null is a syntax
+error. Use `referenceContentAll()` when no selection is needed.
+Null name items are rejected by both the Java factory and EvitaQL.
+A null scalar reference name is also rejected. The literal `referenceContent()` does not parse.
 
 The `referenceContent` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass></LS>)
 requirement allows you to access the information about the references the entity has towards other entities (either
@@ -2129,6 +2152,18 @@ must be managed by evitaDB, otherwise the query is refused. A filter outside of 
 the references of the entities in all the queried scopes; wrap its part in [`inScope`](../filtering/behavioral.md#in-scope)
 to apply it to the references of the entities living in a single scope only.
 
+The referenced entities fetched by `entityFetch` are fetched in the [`scope`](../filtering/constant.md#scope) named
+by an `entityHaving` of the filter that no `or`, `not` or `inScope` encloses, and the groups fetched by
+`entityGroupFetch` in the `scope` named by such a `groupHaving`. Otherwise they are fetched in the scopes of every way
+a reference can pass the filter: the scope each enclosed `entityHaving` (or `groupHaving`) names, and the scopes the
+entities owning the references are fetched in for every way that names none. So
+`or(entityHaving(and(scope(ARCHIVED), …)), attributeEquals("rank", 1))` fetches the referenced entities in the
+archived scope and in the scopes of their owners, and a filter that names no scope for the level fetches them in the
+scopes of their owners. A `referenceContent` nested in that `entityFetch` or `entityGroupFetch` filters the
+references of the fetched entities, so an `inScope` in its filter may name the scopes they are fetched in - even a
+scope the query itself doesn't request - and a scope its own filter names, at its root or in its own `entityHaving`.
+Any other scope is refused, whether or not some reference reaches the filter.
+
 </Note>
 
 <Note type="info">
@@ -2160,8 +2195,9 @@ the query is refused unless the attribute is unique across all locales.
 ##### What happens to the references to missing entities or groups?
 </NoteTitle>
 
-When the `referenceContent` has a filter, only the references to entities that exist in the queried scopes (and in the
-required locale, if the entity type has localized data) can match; a reference to a missing entity is not returned.
+When the `referenceContent` has a filter, only the references to entities that exist in the queried scopes or in a
+scope the filter names (and in the required locale, if the entity type has localized data) can match; a reference to a
+missing entity is not returned.
 A reference to a group that doesn't exist or was removed has no group, and `groupHaving` doesn't match it.
 
 </Note>

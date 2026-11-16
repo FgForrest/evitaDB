@@ -66,7 +66,13 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *                                {@link #indexReferences(ReferencesStoragePart)}.
  * @param parentEntity            nested parent entity proxy - needed by ParentPartial when the expression
  *                                accesses parent entity attributes (e.g., `$entity.parentEntity.attributes[...]`).
- *                                Null when the expression only checks parent existence or the entity has no parent.
+ *                                Null when the expression only checks parent existence, when the entity has no
+ *                                parent, or when the parent sits in another scope than the evaluated one.
+ * @param parentEntityRequested   TRUE when the expression navigates into the parent (`$entity.parentEntity.x`,
+ *                                its primary key included), so `parentEntity` was resolved for it and `null` there
+ *                                means that no parent is visible in the evaluated scope; FALSE when the expression
+ *                                reads at most the parent's existence (`$entity.parentEntity` alone), which the
+ *                                entity body answers
  */
 public record EntityProxyState(
 	@Nonnull EntitySchemaContract schema,
@@ -75,10 +81,38 @@ public record EntityProxyState(
 	@Nullable Map<Locale, AttributesStoragePart> localeAttributesParts,
 	@Nullable Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataParts,
 	@Nullable Map<String, List<ReferenceContract>> referencesByName,
-	@Nullable SealedEntity parentEntity
+	@Nullable SealedEntity parentEntity,
+	boolean parentEntityRequested
 ) implements Serializable {
 
 	@Serial private static final long serialVersionUID = -6951184351029566L;
+
+	/**
+	 * Creates a state for an expression that does not navigate into the parent: `getParentEntity()` answers from the
+	 * parent primary key in `bodyPart`, unless `parentEntity` is given.
+	 *
+	 * @param schema                entity schema
+	 * @param bodyPart              entity body, or `null`
+	 * @param globalAttributesPart  global attributes storage part, or `null`
+	 * @param localeAttributesParts locale-specific attribute parts, or `null`
+	 * @param associatedDataParts   associated data storage parts, or `null`
+	 * @param referencesByName      references pre-indexed by name, or `null`
+	 * @param parentEntity          nested parent entity proxy, or `null`
+	 */
+	public EntityProxyState(
+		@Nonnull EntitySchemaContract schema,
+		@Nullable EntityBodyStoragePart bodyPart,
+		@Nullable AttributesStoragePart globalAttributesPart,
+		@Nullable Map<Locale, AttributesStoragePart> localeAttributesParts,
+		@Nullable Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataParts,
+		@Nullable Map<String, List<ReferenceContract>> referencesByName,
+		@Nullable SealedEntity parentEntity
+	) {
+		this(
+			schema, bodyPart, globalAttributesPart, localeAttributesParts, associatedDataParts, referencesByName,
+			parentEntity, false
+		);
+	}
 
 	/**
 	 * Returns the entity body storage part or throws {@link ExpressionEvaluationException} if it is not available.

@@ -1650,20 +1650,21 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Generates a superset formula containing all relevant primary keys for the indices that fall within the specified
-	 * scope. This method tries to find first {@link TargetIndexes} set that contain at least one index that falls within
-	 * the specified scope, combines all primary keys from this set of indexes and returns the resulting formula.
+	 * Returns all relevant primary keys of the requested scope from the current processing scope's indexes.
+	 * A nested `executeInContext` pass answers from its own indexes alone - they hold every key the pass examines, so
+	 * a scope it holds no index of contributes nothing. Only the root processing scope may fall back to
+	 * {@link TargetIndexes}: these belong to the top-level query and their keys may be of another domain than a nested
+	 * pass's keys (owners versus reference partitions).
 	 *
-	 * It tries to optimize formula in a way, that it uses the formula with the lowest estimated cost. A set reading
-	 * some of its partitions from registry rows is never consulted - see {@link #holdsIndexObjectsOnly(TargetIndexes)}.
+	 * The root fallback chooses the formula with the lowest estimated cost. A set reading some of its partitions
+	 * from registry rows is never consulted - see {@link #holdsIndexObjectsOnly(TargetIndexes)}.
 	 *
 	 * A query naming no collection searches the catalog index, which holds no set of all the entities of a scope, so
 	 * its superset of the scope is the entities its lookups found that live in the scope, told apart on their prefetched
 	 * bodies - an empty formula would make an `inScope` container answer nothing.
 	 *
 	 * @param scope the scope within which to filter and compute the superset formula
-	 * @return the resulting superset formula combining primary keys of the relevant indices;
-	 *         returns an EmptyFormula instance if no relevant indices are found.
+	 * @return the superset of the relevant indexes, or {@link EmptyFormula#INSTANCE} when the scope contributes nothing
 	 */
 	@Nonnull
 	public Formula getSuperSetFormula(@Nonnull Scope scope) {
@@ -1685,8 +1686,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 					.filter(formula -> !(formula instanceof EmptyFormula))
 					.toArray(Formula[]::new)
 			);
-		} else {
-			// but fallback to global scope
+		} else if (this.scope.size() == 1) {
+			// only the root may use top-level indexes; a nested pass holds every row it examines in its own key domain
 			return this.targetIndexes.stream()
 				// must precede the scope test: `getIndexes` resolves the index objects of a set lazily, and fails on a
 				// set whose partitions include registry rows
@@ -1706,6 +1707,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				)
 				.min(Comparator.comparingLong(Formula::getEstimatedCost))
 				.orElse(EmptyFormula.INSTANCE);
+		} else {
+			return EmptyFormula.INSTANCE;
 		}
 	}
 

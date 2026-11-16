@@ -23,7 +23,10 @@
 
 package io.evitadb.core.query.filter.translator.reference;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -33,10 +36,15 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.reference.IndexTaggedFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +58,7 @@ import java.lang.management.ThreadMXBean;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -74,9 +83,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Pins how {@link ReferenceBodyTransposer#transpose(Formula, Supplier)} rebuilds a `referenceHaving` body one index
- * at a time - when it returns the body as it stands instead, that the rebuild agrees with the previous algorithm,
- * and that it is linear in the size of the index family.
+ * Pins how {@link ReferenceBodyTransposer#transpose(Formula, Set, Supplier)} rebuilds a `referenceHaving` body one
+ * index at a time - when it returns the body as it stands instead, that the rebuild agrees with the previous
+ * algorithm, how it decides an `inScope` container for each row, and that it is linear in the size of the index
+ * family.
  *
  * Skipping the rebuild for a body whose contributions meet only under `or` is what keeps a single attribute leaf
  * cheap on a reference with a six-figure partition count - and every attribute leaf arrives wrapped in an
@@ -101,6 +111,14 @@ class ReferenceBodyTransposerTest {
 	private static final Supplier<List<EntityIndex>> NO_INDEXES_EXPECTED = () -> {
 		throw new AssertionError("The index supplier must not be consulted for a body without a negation!");
 	};
+	/**
+	 * The scopes of the rows of a body holding no scope container - every row lives in the live scope.
+	 */
+	private static final Set<Scope> ONE_SCOPE = EnumSet.of(Scope.LIVE);
+	/**
+	 * The scopes of the rows of a body evaluated in a query over both scopes.
+	 */
+	private static final Set<Scope> BOTH_SCOPES = EnumSet.of(Scope.LIVE, Scope.ARCHIVED);
 
 	@DisplayName("Should return a wrapped union of per-index leaves as it stands")
 	@Test
@@ -114,7 +132,7 @@ class ReferenceBodyTransposerTest {
 		}
 		final Formula body = wrap(new OrFormula(leaves));
 
-		final Formula result = ReferenceBodyTransposer.transpose(body, NO_INDEXES_EXPECTED);
+		final Formula result = ReferenceBodyTransposer.transpose(body, ONE_SCOPE, NO_INDEXES_EXPECTED);
 
 		// the rebuild would have produced an `or` of 64 wrappers - the wrapper at the root is the fast path
 		final AttributeFormula wrapper = assertInstanceOf(AttributeFormula.class, result);
@@ -136,7 +154,7 @@ class ReferenceBodyTransposerTest {
 			requestedPredicate
 		);
 
-		final Formula result = ReferenceBodyTransposer.transpose(body, NO_INDEXES_EXPECTED);
+		final Formula result = ReferenceBodyTransposer.transpose(body, ONE_SCOPE, NO_INDEXES_EXPECTED);
 
 		assertSame(requestedPredicate, assertInstanceOf(AttributeFormula.class, result).getRequestedPredicate());
 	}
@@ -155,7 +173,7 @@ class ReferenceBodyTransposerTest {
 		);
 
 		assertArrayEquals(
-			new int[]{2}, ReferenceBodyTransposer.transpose(body, NO_INDEXES_EXPECTED).compute().getArray()
+			new int[]{2}, ReferenceBodyTransposer.transpose(body, ONE_SCOPE, NO_INDEXES_EXPECTED).compute().getArray()
 		);
 	}
 
@@ -167,7 +185,7 @@ class ReferenceBodyTransposerTest {
 			wrap(new OrFormula(new IndexTaggedFormula(1, constant(2)), new IndexTaggedFormula(2, constant(1))))
 		);
 
-		final Formula result = ReferenceBodyTransposer.transpose(body, NO_INDEXES_EXPECTED);
+		final Formula result = ReferenceBodyTransposer.transpose(body, ONE_SCOPE, NO_INDEXES_EXPECTED);
 
 		assertFalse(result instanceof AndFormula, "A conjunction across indexes must be rebuilt per index!");
 		assertArrayEquals(new int[]{2}, result.compute().getArray());
@@ -231,6 +249,24 @@ class ReferenceBodyTransposerTest {
 	}
 
 	/**
+	 * Returns a mocked reduced index of a scope with the passed primary key and owners.
+	 *
+	 * @param primaryKey primary key of the index
+	 * @param scope      the scope of the index, and of the rows it holds
+	 * @param owners     owners of the index - the super set a negation inside it is complemented against
+	 * @return the index
+	 */
+	@Nonnull
+	private static EntityIndex index(int primaryKey, @Nonnull Scope scope, @Nonnull Set<Integer> owners) {
+		final EntityIndex index = index(primaryKey, owners);
+		final EntityIndexKey indexKey = new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY, scope, new RepresentativeReferenceKey(new ReferenceKey("r", primaryKey))
+		);
+		when(index.getIndexKey()).thenReturn(indexKey);
+		return index;
+	}
+
+	/**
 	 * Computes the formula into sorted owner primary keys.
 	 *
 	 * @param formula the formula
@@ -256,7 +292,7 @@ class ReferenceBodyTransposerTest {
 			for (int round = 0; round < 2_000; round++) {
 				final RandomBody body = RandomBody.generate(random);
 				final Formula expected = LegacyTransposer.transpose(body.formula(), body.indexes());
-				final Formula actual = ReferenceBodyTransposer.transpose(body.formula(), body::indexes);
+				final Formula actual = ReferenceBodyTransposer.transpose(body.formula(), ONE_SCOPE, body::indexes);
 				assertArrayEquals(
 					owners(expected), owners(actual),
 					"Round " + round + " diverged for body:\n" + body.formula()
@@ -298,7 +334,7 @@ class ReferenceBodyTransposerTest {
 			);
 			assertArrayEquals(
 				new int[]{2, 3},
-				owners(ReferenceBodyTransposer.transpose(body, List::of)),
+				owners(ReferenceBodyTransposer.transpose(body, ONE_SCOPE, List::of)),
 				"owner 1 satisfies each conjunct only on a different index"
 			);
 		}
@@ -318,8 +354,314 @@ class ReferenceBodyTransposerTest {
 			);
 			assertArrayEquals(
 				new int[]{2, 3},
-				owners(ReferenceBodyTransposer.transpose(body, () -> scope)),
+				owners(ReferenceBodyTransposer.transpose(body, ONE_SCOPE, () -> scope)),
 				"A \\ {1} = {2} and B \\ {2} = {3}; owner 2 matches through its row in A"
+			);
+		}
+	}
+
+	/**
+	 * Row semantics of an `inScope` container: it restricts the rows of its own scope and is satisfied by the rows of
+	 * another one, each row deciding it by the scope of its index.
+	 */
+	@Nested
+	@DisplayName("Scope containers")
+	class ScopeContainers {
+		private static final int LIVE_A = FIRST_INDEX_PK;
+		private static final int LIVE_B = FIRST_INDEX_PK + 1;
+		private static final int ARCHIVED_C = FIRST_INDEX_PK + 2;
+		private static final int ARCHIVED_D = FIRST_INDEX_PK + 3;
+
+		/**
+		 * Returns the indexes of both scopes: the live A owned by 1 and 2, the live B owned by 2 and 3, the archived C
+		 * owned by 4 and the archived D owned by 5 and 6.
+		 *
+		 * @return the indexes
+		 */
+		@Nonnull
+		private static List<EntityIndex> indexesOfBothScopes() {
+			return List.of(
+				index(LIVE_A, Scope.LIVE, Set.of(1, 2)),
+				index(LIVE_B, Scope.LIVE, Set.of(2, 3)),
+				index(ARCHIVED_C, Scope.ARCHIVED, Set.of(4)),
+				index(ARCHIVED_D, Scope.ARCHIVED, Set.of(5, 6))
+			);
+		}
+
+		@Test
+		@DisplayName("a container keeps the matching rows of its scope and every row of another scope")
+		void shouldKeepEveryRowOfAnotherScopeWhenContainerRestrictsOneScope() {
+			// inScope(LIVE, leaf): the leaf matches owner 1 in A only - C and D tagged nothing
+			final Formula body = new ScopeContainerFormula(
+				Scope.LIVE, new IndexTaggedFormula(LIVE_A, constant(Set.of(1)))
+			);
+			final List<EntityIndex> indexes = indexesOfBothScopes();
+			assertArrayEquals(
+				new int[]{1, 4, 5, 6},
+				owners(ReferenceBodyTransposer.transpose(body, BOTH_SCOPES, () -> indexes))
+			);
+		}
+
+		@Test
+		@DisplayName("a negation inside a container is complemented against the owners of each index of its scope")
+		void shouldComplementNegationInsideContainerPerIndex() {
+			// inScope(LIVE, not(leaf)): the leaf matches owner 1 in A and owners 2 and 3 in B - owner 3 holds no row
+			// failing it, so it must not match although no row of A matches it either
+			final Formula body = new ScopeContainerFormula(
+				Scope.LIVE,
+				new FutureNotFormula(
+					new OrFormula(
+						new IndexTaggedFormula(LIVE_A, constant(Set.of(1))),
+						new IndexTaggedFormula(LIVE_B, constant(Set.of(2, 3)))
+					)
+				)
+			);
+			final List<EntityIndex> indexes = indexesOfBothScopes();
+			assertArrayEquals(
+				new int[]{2, 4, 5, 6},
+				owners(ReferenceBodyTransposer.transpose(body, BOTH_SCOPES, () -> indexes)),
+				"A \\ {1} = {2}, B \\ {2, 3} is empty, and C and D are of another scope"
+			);
+		}
+
+		@Test
+		@DisplayName("a negated container excludes every row of another scope")
+		void shouldExcludeEveryRowOfAnotherScopeWhenContainerIsNegated() {
+			// not(inScope(LIVE, leaf)): a row of another scope satisfies the container, so it fails its negation
+			final Formula body = new FutureNotFormula(
+				new ScopeContainerFormula(
+					Scope.LIVE, new IndexTaggedFormula(LIVE_A, constant(Set.of(1)))
+				)
+			);
+			final List<EntityIndex> indexes = indexesOfBothScopes();
+			assertArrayEquals(
+				new int[]{2, 3},
+				owners(ReferenceBodyTransposer.transpose(body, BOTH_SCOPES, () -> indexes))
+			);
+		}
+
+		@Test
+		@DisplayName("a container of each scope applies to the rows of its scope only")
+		void shouldApplyEachContainerToRowsOfItsScopeWhenBothScopesAreRestricted() {
+			// and(inScope(LIVE, x), inScope(ARCHIVED, y)): x matches owner 2 in B, y matches owner 6 in D
+			final Formula body = new AndFormula(
+				new ScopeContainerFormula(
+					Scope.LIVE, new IndexTaggedFormula(LIVE_B, constant(Set.of(2)))
+				),
+				new ScopeContainerFormula(
+					Scope.ARCHIVED, new IndexTaggedFormula(ARCHIVED_D, constant(Set.of(6)))
+				)
+			);
+			final List<EntityIndex> indexes = indexesOfBothScopes();
+			assertArrayEquals(
+				new int[]{2, 6},
+				owners(ReferenceBodyTransposer.transpose(body, BOTH_SCOPES, () -> indexes))
+			);
+		}
+
+		@Test
+		@DisplayName("a container of a scope no row lives in restricts nothing")
+		void shouldKeepEveryRowWhenContainerRestrictsScopeOfNoRow() {
+			// inScope(ARCHIVED, ...) in an evaluation of the live rows alone carries no children - and a conjunct
+			// next to it still decides the row
+			final Formula body = new AndFormula(
+				new ScopeContainerFormula(Scope.ARCHIVED),
+				new OrFormula(
+					new IndexTaggedFormula(LIVE_A, constant(Set.of(1))),
+					new IndexTaggedFormula(LIVE_B, constant(Set.of(3)))
+				)
+			);
+			final List<EntityIndex> liveIndexes = indexesOfBothScopes().subList(0, 2);
+			assertArrayEquals(
+				new int[]{1, 3},
+				owners(ReferenceBodyTransposer.transpose(body, ONE_SCOPE, () -> liveIndexes))
+			);
+		}
+
+		@Test
+		@DisplayName("a container of the one scope of all rows is rebuilt from the indexes that tagged something")
+		void shouldNotConsultIndexesWhenContainerRestrictsTheOnlyScope() {
+			// inScope(LIVE, and(x, y)) in a query over the live scope: owner 2 holds x in A and y in B only
+			final Formula body = new ScopeContainerFormula(
+				Scope.LIVE,
+				new OrFormula(
+					new IndexTaggedFormula(LIVE_A, constant(Set.of(1, 2))),
+					new IndexTaggedFormula(LIVE_B, constant(Set.of(3)))
+				),
+				new OrFormula(
+					new IndexTaggedFormula(LIVE_A, constant(Set.of(1))),
+					new IndexTaggedFormula(LIVE_B, constant(Set.of(2, 3)))
+				)
+			);
+			final Formula result = ReferenceBodyTransposer.transpose(body, ONE_SCOPE, NO_INDEXES_EXPECTED);
+			assertArrayEquals(new int[]{1, 3}, owners(result));
+			assertTrue(
+				FormulaFinder.find(result, ScopeContainerFormula.class, LookUp.DEEP).isEmpty(),
+				"No container may reach the enclosing level: " + result
+			);
+		}
+
+		@Test
+		@DisplayName("a container of the one scope of all rows keeps an index-independent child as it stands")
+		void shouldKeepIndexIndependentChildWhenContainerRestrictsTheOnlyScope() {
+			// inScope(LIVE, constant) in a query over the live scope reads as the constant alone, which tags no index
+			final Formula body = new ScopeContainerFormula(Scope.LIVE, constant(Set.of(1)));
+			assertArrayEquals(
+				new int[]{1},
+				owners(ReferenceBodyTransposer.transpose(body, ONE_SCOPE, NO_INDEXES_EXPECTED))
+			);
+		}
+
+		@Test
+		@DisplayName("an index-independent child of a container is kept for every index of its scope")
+		void shouldKeepIndexIndependentChildWhenContainerRestrictsOneOfTwoScopes() {
+			// no index tagged anything, so the live indexes contribute only through the constant
+			final Formula body = new ScopeContainerFormula(Scope.LIVE, constant(Set.of(1)));
+			final List<EntityIndex> indexes = indexesOfBothScopes();
+			assertArrayEquals(
+				new int[]{1, 4, 5, 6},
+				owners(ReferenceBodyTransposer.transpose(body, BOTH_SCOPES, () -> indexes))
+			);
+		}
+
+		@Test
+		@DisplayName("a negated container of the one scope of all rows holding a negation cancels both")
+		void shouldCancelNegationsAroundContainerOfTheOnlyScope() {
+			// not(inScope(LIVE, not(leaf))) in a query over the live scope: the container hid the inner negation from
+			// the outer one, so the pair meets only once the container is unwrapped - and reads as the leaf
+			final Formula body = new FutureNotFormula(
+				new ScopeContainerFormula(
+					Scope.LIVE,
+					new FutureNotFormula(
+						new OrFormula(
+							new IndexTaggedFormula(LIVE_A, constant(Set.of(1))),
+							new IndexTaggedFormula(LIVE_B, constant(Set.of(2, 3)))
+						)
+					)
+				)
+			);
+			final List<EntityIndex> indexes = List.of(index(LIVE_A, Set.of(1, 2)), index(LIVE_B, Set.of(2, 3)));
+			assertArrayEquals(
+				new int[]{1, 2, 3},
+				owners(ReferenceBodyTransposer.transpose(body, ONE_SCOPE, () -> indexes))
+			);
+		}
+
+		@Test
+		@DisplayName("a negated container holding a negation keeps each negation in its scope across both scopes")
+		void shouldResolveNegationsAroundContainerPerIndexWhenScopesDiffer() {
+			// not(inScope(LIVE, not(leaf))): a live row matches when it matches the leaf, an archived row never
+			final Formula body = new FutureNotFormula(
+				new ScopeContainerFormula(
+					Scope.LIVE,
+					new FutureNotFormula(new IndexTaggedFormula(LIVE_A, constant(Set.of(1))))
+				)
+			);
+			final List<EntityIndex> indexes = indexesOfBothScopes();
+			assertArrayEquals(
+				new int[]{1},
+				owners(ReferenceBodyTransposer.transpose(body, BOTH_SCOPES, () -> indexes))
+			);
+		}
+
+		@Test
+		@DisplayName("a negation inside a container of the one scope of all rows is complemented per index")
+		void shouldComplementNegationInsideContainerOfTheOnlyScopePerIndex() {
+			// inScope(LIVE, not(leaf)) in a query over the live scope - the indexes carry no scope, because a
+			// container restricting every row is unwrapped and never decided by the scope of an index
+			final Formula body = new ScopeContainerFormula(
+				Scope.LIVE,
+				new FutureNotFormula(
+					new OrFormula(
+						new IndexTaggedFormula(LIVE_A, constant(Set.of(1))),
+						new IndexTaggedFormula(LIVE_B, constant(Set.of(2, 3)))
+					)
+				)
+			);
+			final List<EntityIndex> indexes = List.of(index(LIVE_A, Set.of(1, 2)), index(LIVE_B, Set.of(2, 3)));
+			assertArrayEquals(
+				new int[]{2},
+				owners(ReferenceBodyTransposer.transpose(body, ONE_SCOPE, () -> indexes)),
+				"A \\ {1} = {2} and B \\ {2, 3} is empty - owner 3 holds no row failing the leaf"
+			);
+		}
+
+		@Test
+		@DisplayName("a negated disjunction holding a negating container of the one scope of all rows is resolved")
+		void shouldCancelNegationsAcrossDisjunctionWhenContainerRestrictsTheOnlyScope() {
+			// not(or(inScope(LIVE, not(x)), y)) is `x and not y` for a live row: x matches owners 1 and 2 in A, y
+			// owner 2 in A - unwrapped, the disjunction hands its negation up as a placeholder to the negation above
+			final Formula body = new FutureNotFormula(
+				new OrFormula(
+					new ScopeContainerFormula(
+						Scope.LIVE, new FutureNotFormula(new IndexTaggedFormula(LIVE_A, constant(Set.of(1, 2))))
+					),
+					new IndexTaggedFormula(LIVE_A, constant(Set.of(2)))
+				)
+			);
+			final List<EntityIndex> indexes = indexesOfBothScopes().subList(0, 2);
+
+			assertArrayEquals(
+				new int[]{1},
+				owners(ReferenceBodyTransposer.transpose(body, ONE_SCOPE, () -> indexes)),
+				"A \\ {2} = {1} for the rows matching x, and no row of B matches x"
+			);
+			assertArrayEquals(
+				new int[]{1},
+				owners(ReferenceBodyTransposer.transpose(body, BOTH_SCOPES, () -> indexes)),
+				"the projection of every index must agree with the unwrapped body"
+			);
+		}
+
+		@Test
+		@DisplayName("a container holding several children is their conjunction on each index of its scope")
+		void shouldConjoinChildrenPerIndexWhenContainerRestrictsOneOfTwoScopes() {
+			// inScope(LIVE, x, y): x matches owners 1 and 2 in A and owner 3 in B, y owner 1 in A and owners 2 and 3
+			// in B - owner 2 matches each of them in a different row only
+			final Formula body = new ScopeContainerFormula(
+				Scope.LIVE,
+				new OrFormula(
+					new IndexTaggedFormula(LIVE_A, constant(Set.of(1, 2))),
+					new IndexTaggedFormula(LIVE_B, constant(Set.of(3)))
+				),
+				new OrFormula(
+					new IndexTaggedFormula(LIVE_A, constant(Set.of(1))),
+					new IndexTaggedFormula(LIVE_B, constant(Set.of(2, 3)))
+				)
+			);
+			final List<EntityIndex> indexes = indexesOfBothScopes();
+
+			assertArrayEquals(
+				new int[]{1, 3, 4, 5, 6},
+				owners(ReferenceBodyTransposer.transpose(body, BOTH_SCOPES, () -> indexes)),
+				"A: {1, 2} and {1} is {1}, B: {3} and {2, 3} is {3}, and C and D are of another scope"
+			);
+		}
+
+		@Test
+		@DisplayName("an unwrapped container of the one scope of all rows answers as projected, on 2,000 random bodies")
+		void shouldAnswerAsProjectionWhenContainerOfTheOnlyScopeIsUnwrapped() {
+			// over indexes of the live scope alone, a live container is the conjunction of its children for every
+			// row: unwrapped, the body takes the paths of a body without containers, while projected, every container
+			// is decided by the scope of each index - and both must give the same per-row answer
+			final Random random = new Random(31L);
+			int negating = 0;
+			for (int round = 0; round < 2_000; round++) {
+				final RandomBody body = RandomBody.generateWithScopeContainers(random);
+				final Formula unwrapped = ReferenceBodyTransposer.transpose(body.formula(), ONE_SCOPE, body::indexes);
+				final Formula projected = ReferenceBodyTransposer.transpose(body.formula(), BOTH_SCOPES, body::indexes);
+				assertArrayEquals(
+					owners(projected), owners(unwrapped),
+					"Round " + round + " diverged for body:\n" + body.formula()
+				);
+				if (ReferenceBodyTransposerTest.containsFutureNot(body.formula())) {
+					negating++;
+				}
+			}
+			assertTrue(
+				negating > 200 && negating < 1_800,
+				"The generator must exercise both the negating and the negation-free path, got " + negating +
+					" negating bodies of 2,000."
 			);
 		}
 	}
@@ -360,7 +702,7 @@ class ReferenceBodyTransposerTest {
 				threads.setThreadCpuTimeEnabled(true);
 			}
 			final long start = threads.getCurrentThreadCpuTime();
-			final Formula transposed = ReferenceBodyTransposer.transpose(body, List::of);
+			final Formula transposed = ReferenceBodyTransposer.transpose(body, ONE_SCOPE, List::of);
 			final long end = threads.getCurrentThreadCpuTime();
 			assertTrue(start >= 0 && end >= start, "Thread CPU time must be measured, got " + start + " -> " + end);
 			final long elapsedMillis = (end - start) / 1_000_000L;
@@ -393,6 +735,72 @@ class ReferenceBodyTransposerTest {
 	}
 
 	/**
+	 * Returns TRUE when a negation placeholder sits in the tree outside every scope container - one the translation
+	 * of a `not` above the tree would see. A container hides the placeholders inside it from the levels above.
+	 *
+	 * @param node tree root
+	 * @return whether a placeholder is visible from above the tree
+	 */
+	private static boolean containsVisibleFutureNot(@Nonnull Formula node) {
+		if (node instanceof FutureNotFormula) {
+			return true;
+		}
+		if (node instanceof ScopeContainerFormula) {
+			return false;
+		}
+		for (final Formula child : node.getInnerFormulas()) {
+			if (containsVisibleFutureNot(child)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Returns TRUE when a scope container sits anywhere in the tree, below a negation placeholder included.
+	 *
+	 * @param node tree root
+	 * @return whether the tree restricts a scope
+	 */
+	private static boolean containsScopeContainer(@Nonnull Formula node) {
+		if (node instanceof ScopeContainerFormula) {
+			return true;
+		}
+		if (node instanceof final FutureNotFormula futureNot) {
+			// the placeholder holds its operand apart from its inner formulas
+			return containsScopeContainer(futureNot.getInnerFormula());
+		}
+		for (final Formula child : node.getInnerFormulas()) {
+			if (containsScopeContainer(child)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * What the generator of {@link RandomBody} may emit at a node.
+	 */
+	private enum BodyShape {
+		/**
+		 * Tagged leaves and index-independent constants, no scope container - the bodies the previous algorithm
+		 * answers too.
+		 */
+		WITHOUT_CONTAINERS,
+		/**
+		 * Tagged leaves only, and live scope containers above them. Index-independent constants are left out: the
+		 * rebuild bounds them by the owners of the index only where it complements them, and a projected container
+		 * complements its children where the unwrapped one does not - `not(inScope(LIVE, not(c)))` projects to the
+		 * owners of the index within `c`, but unwraps to `c`.
+		 */
+		WITH_CONTAINERS,
+		/**
+		 * Tagged leaves only, inside a container, which holds no other container.
+		 */
+		INSIDE_CONTAINER
+	}
+
+	/**
 	 * A randomly generated body and the index family it was generated over.
 	 *
 	 * @param formula the body
@@ -413,6 +821,33 @@ class ReferenceBodyTransposerTest {
 		 */
 		@Nonnull
 		static RandomBody generate(@Nonnull Random random) {
+			return generate(random, BodyShape.WITHOUT_CONTAINERS);
+		}
+
+		/**
+		 * Generates a body as {@link #generate(Random)} does, but holding at least one `inScope` container of the
+		 * live scope, over live indexes, without index-independent constants and up to four levels deep. Containers
+		 * are never nested and never empty, as the translation of a query over the live scope produces them, and a
+		 * negation placeholder may sit above a container holding another one: the container hides it from the
+		 * `not` above, which therefore does not cancel the pair as it does without the container.
+		 *
+		 * @param random source of randomness
+		 * @return the body
+		 */
+		@Nonnull
+		static RandomBody generateWithScopeContainers(@Nonnull Random random) {
+			return generate(random, BodyShape.WITH_CONTAINERS);
+		}
+
+		/**
+		 * Generates a body of the shape.
+		 *
+		 * @param random source of randomness
+		 * @param shape  what the body may hold
+		 * @return the body
+		 */
+		@Nonnull
+		private static RandomBody generate(@Nonnull Random random, @Nonnull BodyShape shape) {
 			final int indexCount = 1 + random.nextInt(12);
 			final Map<Integer, Set<Integer>> ownersByIndex = new HashMap<>(indexCount * 2);
 			final List<Integer> indexPks = new ArrayList<>(indexCount);
@@ -422,12 +857,19 @@ class ReferenceBodyTransposerTest {
 				final Set<Integer> owners = randomSubset(random, allOwners(), 5 + random.nextInt(16));
 				indexPks.add(indexPk);
 				ownersByIndex.put(indexPk, owners);
-				indexes.add(index(indexPk, owners));
+				// a container projected per index is decided by the scope of the index
+				indexes.add(
+					shape == BodyShape.WITHOUT_CONTAINERS ? index(indexPk, owners) : index(indexPk, Scope.LIVE, owners)
+				);
 			}
+			final int depth = shape == BodyShape.WITHOUT_CONTAINERS ? 3 : 4;
 			Formula formula;
 			do {
-				formula = node(random, 3, indexPks, ownersByIndex);
-			} while (formula instanceof EmptyFormula);
+				formula = node(random, depth, shape, indexPks, ownersByIndex);
+			} while (
+				formula instanceof EmptyFormula ||
+					(shape == BodyShape.WITH_CONTAINERS && !containsScopeContainer(formula))
+			);
 			return new RandomBody(formula, indexes);
 		}
 
@@ -436,6 +878,7 @@ class ReferenceBodyTransposerTest {
 		 *
 		 * @param random        source of randomness
 		 * @param depth         remaining depth
+		 * @param shape         what the node may hold
 		 * @param indexPks      the index family
 		 * @param ownersByIndex owners of every index
 		 * @return the node, possibly {@link EmptyFormula#INSTANCE}
@@ -444,24 +887,38 @@ class ReferenceBodyTransposerTest {
 		private static Formula node(
 			@Nonnull Random random,
 			int depth,
+			@Nonnull BodyShape shape,
 			@Nonnull List<Integer> indexPks,
 			@Nonnull Map<Integer, Set<Integer>> ownersByIndex
 		) {
 			final int roll = random.nextInt(100);
 			if (depth == 0 || roll < 30) {
-				return roll % 4 == 0 ?
+				return shape == BodyShape.WITHOUT_CONTAINERS && roll % 4 == 0 ?
 					constant(randomSubset(random, allOwners(), random.nextInt(12))) :
 					perIndexConstraint(random, indexPks, ownersByIndex);
 			}
 			if (roll < 50) {
-				final Formula inner = node(random, depth - 1, indexPks, ownersByIndex);
-				// translation never nests one placeholder inside another - `NotTranslator` collapses `not(not(x))`
-				// and `not(or(a, not(b)))` at the only level where both are still visible - so neither does this
-				return inner instanceof EmptyFormula || containsFutureNot(inner) ? inner : new FutureNotFormula(inner);
+				final Formula inner = node(random, depth - 1, shape, indexPks, ownersByIndex);
+				// translation never nests one placeholder inside another it can see - `NotTranslator` collapses
+				// `not(not(x))` and `not(or(a, not(b)))` at the only level where both are still visible - so neither
+				// does this; a placeholder inside a scope container is hidden from it
+				return inner instanceof EmptyFormula || containsVisibleFutureNot(inner) ?
+					inner : new FutureNotFormula(inner);
+			}
+			if (shape == BodyShape.WITH_CONTAINERS && roll < 60) {
+				final Formula[] containerChildren = new Formula[1 + random.nextInt(2)];
+				for (int i = 0; i < containerChildren.length; i++) {
+					containerChildren[i] = node(random, depth - 1, BodyShape.INSIDE_CONTAINER, indexPks, ownersByIndex);
+				}
+				final Formula[] nonEmptyChildren = Arrays.stream(containerChildren)
+					.filter(it -> !(it instanceof EmptyFormula))
+					.toArray(Formula[]::new);
+				return nonEmptyChildren.length == 0 ?
+					EmptyFormula.INSTANCE : new ScopeContainerFormula(Scope.LIVE, nonEmptyChildren);
 			}
 			final Formula[] children = new Formula[2 + random.nextInt(2)];
 			for (int i = 0; i < children.length; i++) {
-				children[i] = node(random, depth - 1, indexPks, ownersByIndex);
+				children[i] = node(random, depth - 1, shape, indexPks, ownersByIndex);
 			}
 			final Formula[] nonEmpty = Arrays.stream(children)
 				.filter(it -> !(it instanceof EmptyFormula))
