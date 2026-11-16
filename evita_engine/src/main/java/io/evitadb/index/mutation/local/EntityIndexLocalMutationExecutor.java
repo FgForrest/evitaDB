@@ -4343,8 +4343,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							groupId, scope, existingDataSupplierFactory
 						);
 					}
-					// histogram: added at once from the full entity body, which carries every locale the entity has
-					// now - the pre-mutation storage view the deferred run reads would miss a locale this upsert added.
+					// histogram: added at once, over the locales of the reference's own values in the full entity body
+					// and - for a value with a default - every locale the entity has now, read from its in-flight body,
+					// by the rule the deferred final add follows (`ReferenceIndexMutator#resolveHistogramLocales`).
 					// The empty awaiting set is asserted at the start of this method. No final add is scheduled here;
 					// a later mutation withdraws these values and schedules its own final add in the new scope.
 					ReferenceIndexMutator.addHistogramToIndex(

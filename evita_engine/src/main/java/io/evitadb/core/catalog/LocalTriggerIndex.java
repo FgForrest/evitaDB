@@ -27,6 +27,8 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
+import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
+import io.evitadb.core.expression.trigger.HistogramValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -45,12 +47,13 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 /**
  * Immutable local trigger index with one {@link OwnerTriggers} object per owner entity type.
  * Each owner holds its reference and scope lookup once, with {@link LocalReferenceTriggers} combining facet and
- * histogram triggers. Reverse lookups start with separate kind maps for owner attributes, the parent and associated
- * data, keyed by owner. A lookup that finds nothing stops at the first level that lacks the kind, the owner or the
- * scope - a catalog without any reader of the kind answers from an empty map without hashing - so an entity type
- * none of whose histogram conditions reads that kind of input (any attribute, the parent, any associated data) in any
- * scope pays at most one map probe. Each kind map leads directly to the owner's populated scopes and inputs, without
- * passing through the forward index.
+ * histogram triggers. Reverse lookups start with separate kind maps for owner attributes, the parent, associated data
+ * and localized defaulted values, keyed by owner. A lookup that finds nothing stops at the first level that lacks the
+ * kind, the owner or the scope - a catalog without any reader of the kind answers from an empty map without hashing -
+ * so an entity type none of whose histograms uses that kind of input (a condition reading any attribute, the parent or
+ * any associated data, or a value read from a localized reference attribute with a `??` default) in any scope pays at
+ * most one map probe. Each kind map leads directly to the owner's populated scopes and inputs, without passing
+ * through the forward index.
  *
  * Rebuilds replace complete owners. {@link #toBuilder()} shallowly copies the owner map and shares unchanged frozen
  * owners; only owners the builder inserts triggers for, whether new to the index or removed and reinserted, are
@@ -99,6 +102,14 @@ final class LocalTriggerIndex {
 	private final Map<String, ReferenceNamesByScopeAndInput> histogramReferencesByAssociatedData;
 
 	/**
+	 * Owner entity type to the references whose histogram value is a localized reference attribute with a `??`
+	 * default, empty when no owner has such a histogram. Such a value is contributed in every locale of the owner, so a
+	 * mutation that may change the owner's locale set withdraws these references first.
+	 */
+	@Nonnull
+	private final Map<String, ReferenceNamesByScope> histogramReferencesWithLocalizedDefault;
+
+	/**
 	 * Takes ownership of a private frozen owner map and assembles the reverse kind maps from every owner, including
 	 * shared unchanged owners. Internal maps must never be exposed or mutated after construction.
 	 *
@@ -109,6 +120,7 @@ final class LocalTriggerIndex {
 		final Map<String, ReferenceNamesByScopeAndInput> byEntityAttribute = createHashMap(triggersByOwner.size());
 		final Map<String, ReferenceNamesByScope> readingParent = createHashMap(triggersByOwner.size());
 		final Map<String, ReferenceNamesByScopeAndInput> byAssociatedData = createHashMap(triggersByOwner.size());
+		final Map<String, ReferenceNamesByScope> withLocalizedDefault = createHashMap(triggersByOwner.size());
 		for (final Entry<String, OwnerTriggers> entry : triggersByOwner.entrySet()) {
 			final OwnerTriggers owner = entry.getValue();
 			if (owner.histogramReferencesByEntityAttribute != null) {
@@ -120,12 +132,17 @@ final class LocalTriggerIndex {
 			if (owner.histogramReferencesByAssociatedData != null) {
 				byAssociatedData.put(entry.getKey(), owner.histogramReferencesByAssociatedData);
 			}
+			if (owner.histogramReferencesWithLocalizedDefault != null) {
+				withLocalizedDefault.put(entry.getKey(), owner.histogramReferencesWithLocalizedDefault);
+			}
 		}
 		this.histogramReferencesByEntityAttribute = byEntityAttribute.isEmpty() ? Collections.emptyMap() :
 			byEntityAttribute;
 		this.histogramReferencesReadingParent = readingParent.isEmpty() ? Collections.emptyMap() : readingParent;
 		this.histogramReferencesByAssociatedData = byAssociatedData.isEmpty() ? Collections.emptyMap() :
 			byAssociatedData;
+		this.histogramReferencesWithLocalizedDefault = withLocalizedDefault.isEmpty() ? Collections.emptyMap() :
+			withLocalizedDefault;
 	}
 
 	/**
@@ -220,6 +237,33 @@ final class LocalTriggerIndex {
 	}
 
 	/**
+	 * Returns the reference names whose local histogram in the given scope reads a localized reference attribute with
+	 * a `??` default.
+	 *
+	 * @param ownerEntityType the entity type owning the references
+	 * @param scope           the scope of the local mutation
+	 * @return immutable affected reference names, or an empty set
+	 */
+	@Nonnull
+	Set<String> getHistogramReferencesWithLocalizedDefault(@Nonnull String ownerEntityType, @Nonnull Scope scope) {
+		final ReferenceNamesByScope references = this.histogramReferencesWithLocalizedDefault.get(ownerEntityType);
+		return references == null ? Collections.emptySet() : references.get(scope);
+	}
+
+	/**
+	 * Returns `true` when the trigger's value is a localized reference attribute with a `??` default - a value the
+	 * reference contributes in every locale of its owner, not only in the locales it holds a value in.
+	 *
+	 * @param trigger the local histogram trigger
+	 * @return `true` when the trigger's value depends on the owner's locale set
+	 */
+	private static boolean hasLocalizedReferenceAttributeDefault(@Nonnull HistogramExpressionTrigger trigger) {
+		final HistogramValueDescriptor descriptor = trigger.getValueDescriptor();
+		return descriptor.source() == HistogramValueSource.REFERENCE_ATTRIBUTE &&
+			descriptor.localized() && descriptor.defaultValue() != null;
+	}
+
+	/**
 	 * Returns `true` if this index contains no triggers.
 	 *
 	 * @return true if empty
@@ -281,6 +325,13 @@ final class LocalTriggerIndex {
 		private final ReferenceNamesByScopeAndInput histogramReferencesByAssociatedData;
 
 		/**
+		 * Derived references whose histogram value is a localized reference attribute with a `??` default, or null when
+		 * this owner has no such histogram.
+		 */
+		@Nullable
+		private final ReferenceNamesByScope histogramReferencesWithLocalizedDefault;
+
+		/**
 		 * Takes ownership of the frozen forward lookup and derives all local reverse dependencies in one traversal.
 		 * Only populated kinds, scopes and inputs are retained, so unchanged owners can reuse these structures.
 		 *
@@ -291,6 +342,7 @@ final class LocalTriggerIndex {
 			final Map<Scope, Map<String, Set<String>>> byEntityAttribute = new EnumMap<>(Scope.class);
 			final Map<Scope, Set<String>> readingParent = new EnumMap<>(Scope.class);
 			final Map<Scope, Map<String, Set<String>>> byAssociatedData = new EnumMap<>(Scope.class);
+			final Map<Scope, Set<String>> withLocalizedDefault = new EnumMap<>(Scope.class);
 			for (final Entry<String, Map<Scope, LocalReferenceTriggers>> referenceEntry :
 				triggersByReference.entrySet()) {
 				for (final Entry<Scope, LocalReferenceTriggers> scopeEntry : referenceEntry.getValue().entrySet()) {
@@ -309,6 +361,10 @@ final class LocalTriggerIndex {
 								.computeIfAbsent(associatedData, ignored -> createHashSet(4))
 								.add(referenceEntry.getKey());
 						}
+						if (hasLocalizedReferenceAttributeDefault(trigger)) {
+							withLocalizedDefault.computeIfAbsent(scopeEntry.getKey(), ignored -> createHashSet(4))
+								.add(referenceEntry.getKey());
+						}
 					}
 				}
 			}
@@ -318,6 +374,8 @@ final class LocalTriggerIndex {
 				new ReferenceNamesByScope(readingParent);
 			this.histogramReferencesByAssociatedData = byAssociatedData.isEmpty() ? null :
 				new ReferenceNamesByScopeAndInput(byAssociatedData);
+			this.histogramReferencesWithLocalizedDefault = withLocalizedDefault.isEmpty() ? null :
+				new ReferenceNamesByScope(withLocalizedDefault);
 		}
 
 		/**

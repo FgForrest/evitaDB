@@ -94,6 +94,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -2434,8 +2435,10 @@ public interface ReferenceIndexMutator {
 	 * `REFERENCE_ATTRIBUTE` (read from reference storage) and `REFERENCED_ENTITY_ATTRIBUTE` (read from the
 	 * referenced entity's global attribute storage) value sources.
 	 *
-	 * For localized source attributes, iterates all available locales for the source and inserts a separate
-	 * histogram entry per locale. For non-localized attributes, a single entry with `locale = null` is inserted.
+	 * For localized source attributes, iterates the locales `resolveHistogramLocales` resolves for the source - for a
+	 * reference attribute the locales of the reference's values, and every locale of the entity when the value has a
+	 * default - and inserts a separate histogram entry per locale. For non-localized attributes, a single entry with
+	 * `locale = null` is inserted.
 	 *
 	 * @param executor             the mutation executor providing schema, storage access, and index operations
 	 * @param referenceKey         identifies the specific referenced entity
@@ -2471,9 +2474,11 @@ public interface ReferenceIndexMutator {
 				}
 
 				if (resolution.localized()) {
-					// localized source: iterate all available locales and insert per-locale entries
+					// localized source: iterate the locales resolved for the value source and insert per-locale entries
 					if (resolution.source() == HistogramValueSource.REFERENCE_ATTRIBUTE) {
-						final Set<Locale> locales = existingDataSupplier.getEntityExistingAttributeLocales();
+						final Set<Locale> locales = resolveHistogramLocales(
+							executor, referenceKey, resolution, existingDataSupplier
+						);
 						for (final Locale locale : locales) {
 							final Serializable rawValue = readReferenceAttributeValue(
 								existingDataSupplier, resolution.sourceAttributeName(), locale
@@ -3945,14 +3950,31 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Resolves the set of locales for a histogram trigger. For non-localized attributes returns a
-	 * singleton set with a `null` locale. For localized attributes, resolves the locale set from
-	 * the appropriate source (reference attribute locales or referenced entity attribute locales).
+	 * Resolves the set of locales a histogram trigger's values are enumerated over. For a non-localized source returns
+	 * a singleton set with a `null` locale. A localized referenced-entity attribute is enumerated over the locales of
+	 * the referenced entity's attributes.
+	 *
+	 * A localized reference attribute is enumerated over the locales the reference holds a value of the source
+	 * attribute in, read through `refAttrSupplier` - storage before the mutation for the withdrawal, storage after it
+	 * for the final add, the full entity body for the scope-change re-index. A value with a `??` default is contributed
+	 * in every locale of the owner entity in which the reference has no value of its own, because a query admits an
+	 * owner by all its locales, associated data included, and the histogram synthesizes no default at read time. Its
+	 * set therefore adds the entity's locales (`EntityBodyStoragePart#getLocales`) as the in-flight body has them at
+	 * this moment: every mutation that may change them withdraws the references carrying such a value before it is
+	 * applied (`handler/EntityLocaleFanOut`), so a withdrawal reads the set the reference's last add used, and the
+	 * final add of the run reads the set the run left. The removal of the whole entity is the one path no such
+	 * withdrawal precedes: it removes the references before the attributes and associated data, and a removed
+	 * reference may take a locale its sibling still holds the default in, so it reads the entity's locales from before
+	 * the removal started.
+	 *
+	 * The entity's locales are not read through the supplier, which answers the attribute locales the entity had
+	 * before the whole upsert - at the final add too - and, after a scope change, only those of the entity's own
+	 * attributes.
 	 *
 	 * @param executor        the mutation executor
 	 * @param referenceKey    the reference key
 	 * @param resolution      the value descriptor
-	 * @param refAttrSupplier supplier for reference attribute locales
+	 * @param refAttrSupplier supplier of the reference's attribute values
 	 * @return set of locales (contains `null` for non-localized)
 	 */
 	@Nonnull
@@ -3966,7 +3988,16 @@ public interface ReferenceIndexMutator {
 			return Collections.singleton(null);
 		}
 		if (resolution.source() == HistogramValueSource.REFERENCE_ATTRIBUTE) {
-			return refAttrSupplier.getEntityExistingAttributeLocales();
+			final Set<Locale> locales = resolveReferenceValueLocales(resolution.sourceAttributeName(), refAttrSupplier);
+			if (resolution.defaultValue() == null) {
+				return locales == null ? Collections.emptySet() : locales;
+			}
+			final Set<Locale> defaultedLocales = resolveDefaultedEntityLocales(executor);
+			if (locales == null) {
+				return defaultedLocales;
+			}
+			locales.addAll(defaultedLocales);
+			return locales;
 		} else if (resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE) {
 			return ((ContainerizedLocalMutationExecutor) executor.getContainerAccessor())
 				.getReferencedEntityAttributeLocales(
@@ -3976,6 +4007,51 @@ public interface ReferenceIndexMutator {
 		} else {
 			throw new GenericEvitaInternalError("Unexpected histogram value source: " + resolution.source());
 		}
+	}
+
+	/**
+	 * Returns the locales the reference holds a value of the source attribute in. The set is allocated only when the
+	 * reference holds such a value, and the caller owns it.
+	 *
+	 * @param sourceAttributeName the localized attribute the histogram value is read from
+	 * @param refAttrSupplier     supplier of the reference's attribute values
+	 * @return a new mutable set of the locales, or `null` when the reference holds no value of the attribute
+	 */
+	@Nullable
+	private static Set<Locale> resolveReferenceValueLocales(
+		@Nonnull String sourceAttributeName,
+		@Nonnull ExistingAttributeValueSupplier refAttrSupplier
+	) {
+		Set<Locale> locales = null;
+		final Iterator<AttributeValue> attributeValues = refAttrSupplier.getAttributeValues().iterator();
+		while (attributeValues.hasNext()) {
+			final AttributeKey attributeKey = attributeValues.next().key();
+			if (attributeKey.locale() != null && sourceAttributeName.equals(attributeKey.attributeName())) {
+				if (locales == null) {
+					locales = new HashSet<>();
+				}
+				locales.add(attributeKey.locale());
+			}
+		}
+		return locales;
+	}
+
+	/**
+	 * Returns the locales a `??` default covers: every locale of the owner entity as its in-flight body has them now,
+	 * or, while the whole entity is being removed, as it had them before the removal started.
+	 *
+	 * @param executor the mutation executor
+	 * @return the entity's locales, possibly an unmodifiable view of the entity body
+	 */
+	@Nonnull
+	private static Set<Locale> resolveDefaultedEntityLocales(@Nonnull EntityIndexLocalMutationExecutor executor) {
+		final ContainerizedLocalMutationExecutor storageAccessor =
+			(ContainerizedLocalMutationExecutor) executor.getContainerAccessor();
+		final Set<Locale> entityLocales = storageAccessor.getEntityStoragePart(
+			executor.getEntityType(), storageAccessor.getEntityPrimaryKey(), EntityExistence.MUST_EXIST
+		).getLocales();
+		return storageAccessor.isEntityRemovedEntirely() ?
+			getLocalesBeforeMutation(storageAccessor, entityLocales, LocaleScope.ENTITY) : entityLocales;
 	}
 
 	/**

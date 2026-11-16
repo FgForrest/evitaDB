@@ -29,6 +29,7 @@ import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.RollbackException;
+import io.evitadb.api.functional.schema.CatalogUnpublishableBarrierAssertions;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -69,6 +70,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.TransactionContract.CommitBehavior.WAIT_FOR_CHANGES_VISIBLE;
+import static io.evitadb.core.expression.trigger.IndexingExpressionInputCells.TRIGGER_BUILD_FRAME;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.awaitility.Awaitility.await;
@@ -161,18 +163,50 @@ class RefusedSchemaMutationTransactionFunctionalTest implements EvitaTestSupport
 		});
 	}
 
-	/** Warm-up has no transaction to poison and retains its existing catch-and-continue behavior. */
-	@ParameterizedTest(name = "histogram validation: {0}")
-	@ValueSource(booleans = {false, true})
-	@DisplayName("Caught warm-up schema refusals still allow later writes")
-	void shouldContinueAfterWarmUpSchemaRefusal(boolean histogram) {
+	/** A refusal reverted by its collection keeps the warm-up session usable. */
+	@Test
+	@DisplayName("A caught warm-up refusal reverted by its collection still allows later writes")
+	void shouldContinueAfterWarmUpSchemaRefusal() {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			refuseMutation(session, histogram);
+			refuseMutation(session, false);
 			assertFalse(session.isRollbackOnly());
-			continueWriting(session, histogram);
+			continueWriting(session, false);
 		});
 		restart();
-		assertStoredState("continued", histogram);
+		assertStoredState("continued", false);
+	}
+
+	/**
+	 * A warm-up refusal of the trigger build comes after the change has been applied to its collection, which warm-up
+	 * cannot revert, so it deactivates the catalog; activating it again loads the last published state, on which the
+	 * same definition in the corrected order is accepted.
+	 */
+	@Test
+	@DisplayName("A warm-up refusal of the trigger build deactivates the catalog and activation returns the last " +
+		"published state")
+	void shouldDeactivateWhenWarmUpTriggerBuildRefuses() {
+		final InvalidSchemaMutationException exception =
+			CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+				this.evita, TEST_CATALOG, InvalidSchemaMutationException.class,
+				() -> this.evita.updateCatalog(TEST_CATALOG, session -> {
+					defineHistogramReadingMissingAttribute(session);
+				})
+			);
+		assertRefusalSource(exception, true);
+		restartActivatingDeactivatedCatalog();
+		assertStoredState(null, false);
+
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.getEntitySchemaOrThrowException("brand").openForWrite()
+				.withAttribute("missing", Integer.class, attribute -> attribute.filterable().nullable())
+				.updateVia(session);
+			defineHistogramReadingMissingAttribute(session);
+			session.getEntitySchemaOrThrowException("brand").openForWrite().withDescription("continued")
+				.updateVia(session);
+			session.upsertEntity(session.createNewEntity("product", 3).setAttribute("name", "after"));
+		});
+		restart();
+		assertStoredState("continued", true);
 	}
 
 	/** Preflight rejects an accelerator on a populated collection before any mutation is registered. */
@@ -319,21 +353,31 @@ class RefusedSchemaMutationTransactionFunctionalTest implements EvitaTestSupport
 	) {
 		final InvalidSchemaMutationException exception = assertThrows(InvalidSchemaMutationException.class, () -> {
 			if (histogram) {
-				session.getEntitySchemaOrThrowException("product").openForWrite()
-					.withReferenceToEntity("brand", "brand", Cardinality.ZERO_OR_MORE, reference -> reference.bucketed(
-						"value", ExpressionFactory.parse("$reference.referencedEntity?.attributes['missing']")))
-					.updateVia(session);
+				defineHistogramReadingMissingAttribute(session);
 			} else {
 				session.updateEntitySchema(new ModifyEntitySchemaMutation("product",
 					new ModifyAttributeSchemaNameMutation("missing", "renamed")));
 			}
 		});
+		assertRefusalSource(exception, histogram);
+		return exception;
+	}
+
+	/** Defines a histogram on the product's brand reference whose value reads the brand attribute `missing`. */
+	private static void defineHistogramReadingMissingAttribute(@Nonnull EvitaSessionContract session) {
+		session.getEntitySchemaOrThrowException("product").openForWrite()
+			.withReferenceToEntity("brand", "brand", Cardinality.ZERO_OR_MORE, reference -> reference.bucketed(
+				"value", ExpressionFactory.parse("$reference.referencedEntity?.attributes['missing']")))
+			.updateVia(session);
+	}
+
+	/** Checks that the refusal names its cause and comes from the deferred rebuild or the collection's own check. */
+	private static void assertRefusalSource(@Nonnull InvalidSchemaMutationException exception, boolean histogram) {
 		assertTrue(exception.getMessage().contains(histogram ? "does not exist on entity type" : "is not defined"));
 		assertTrue(Arrays.stream(exception.getStackTrace()).anyMatch(frame ->
-			frame.getMethodName().equals(histogram ? "drainTriggerRebuildFrame" : "updateSchema") &&
+			frame.getMethodName().equals(histogram ? TRIGGER_BUILD_FRAME : "updateSchema") &&
 			frame.getClassName().equals(histogram ? "io.evitadb.core.catalog.Catalog" :
 				"io.evitadb.core.collection.EntityCollection")));
-		return exception;
 	}
 
 	/** Writes after the caught refusal, completing the missing expression dependency when testing a histogram. */
@@ -376,6 +420,16 @@ class RefusedSchemaMutationTransactionFunctionalTest implements EvitaTestSupport
 		this.evita.close();
 		this.evita = new Evita(configuration());
 		this.evita.waitUntilFullyInitialized();
+	}
+
+	/**
+	 * Reopens the engine after a refusal that deactivated the catalog. Whether the deactivation was stored before the
+	 * engine closed is a race, so the catalog comes back either inactive, and is activated here, or loaded; both read
+	 * the last published state.
+	 */
+	private void restartActivatingDeactivatedCatalog() {
+		restart();
+		CatalogUnpublishableBarrierAssertions.activateIfDeactivated(this.evita, TEST_CATALOG);
 	}
 
 	/** Builds the same storage configuration for initial startup and every restart. */
