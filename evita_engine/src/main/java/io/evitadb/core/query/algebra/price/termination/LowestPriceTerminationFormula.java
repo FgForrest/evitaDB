@@ -28,6 +28,7 @@ import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesForHistogram;
@@ -610,16 +611,15 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * the reference price with the inner record of the selected record, so a different pick changes the order of the
 	 * result.
 	 *
-	 * The rule is the one `PricesContract#isBetterByPriceIdThenInner` applies on the entity side to candidates tied on
-	 * the amount of the query price mode. A record without inner record reports inner record id `0` and so wins the
-	 * tie against every other inner record of the same price id, as a missing inner record id does on the entity side,
-	 * because inner record ids are positive. The entity side also represents an inner record by the same price this
-	 * formula receives from its lookups: the cheapest without tax, a tie going to the lower price id (see
-	 * `EntityPrices`), or, for a query naming a validity moment, the one valid at it. The one exception is an entity
-	 * holding a stored ambiguous pair - two prices of an inner record valid at that moment, which the ambiguity check
-	 * leaves in place as long as neither is touched - where the two sides may represent the inner record by different
-	 * prices. The two also compare different numbers for amounts with more decimal places than the schema indexes,
-	 * which this formula sees rounded.
+	 * The rule itself is {@link PricesContract#isBetterByPriceIdThenInnerRecordId(int, int, int, int)}, which the
+	 * entity side applies to candidates tied on the amount of the query price mode. A record without inner record
+	 * reports inner record id `0`, the value that method expects for a missing inner record. The entity side also
+	 * represents an inner record by the same price this formula receives from its lookups: the cheapest without tax, a
+	 * tie going to the lower price id (see `EntityPrices`), or, for a query naming a validity moment, the one valid at
+	 * it. The one exception is an entity holding a stored ambiguous pair - two prices of an inner record valid at that
+	 * moment, which the ambiguity check leaves in place as long as neither is touched - where the two sides may
+	 * represent the inner record by different prices. The two also compare different numbers for amounts with more
+	 * decimal places than the schema indexes, which this formula sees rounded.
 	 *
 	 * @param candidate the record examined now
 	 * @param incumbent the record selected so far, selling for the same amount as `candidate`
@@ -629,8 +629,9 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 		@Nonnull PriceRecordContract candidate,
 		@Nonnull PriceRecordContract incumbent
 	) {
-		final int byPriceId = Integer.compare(candidate.priceId(), incumbent.priceId());
-		return byPriceId < 0 || (byPriceId == 0 && candidate.innerRecordId() < incumbent.innerRecordId());
+		return PricesContract.isBetterByPriceIdThenInnerRecordId(
+			candidate.priceId(), candidate.innerRecordId(), incumbent.priceId(), incumbent.innerRecordId()
+		);
 	}
 
 	@Override

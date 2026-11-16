@@ -43,6 +43,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mockito;
 
@@ -2083,6 +2084,44 @@ class PricesContractTest extends AbstractBuilderTest {
 					new PriceKey(2, VIP, EUR), -1,
 					new BigDecimal("100"), new BigDecimal("10"), new BigDecimal("110"), null, true
 				)
+			)
+		);
+	}
+
+	/**
+	 * The tie rule the entity and the engine share: the lower price id wins, then the lower inner record id, where `0`
+	 * stands for a price without inner record and wins against any positive inner record id of the same price id.
+	 * Equal ids are no win, so the incumbent stays.
+	 *
+	 * @param candidatePriceId       price id of the price examined now
+	 * @param candidateInnerRecordId inner record id of the price examined now, `0` when it has none
+	 * @param currentPriceId         price id of the price selected so far
+	 * @param currentInnerRecordId   inner record id of the price selected so far, `0` when it has none
+	 * @param expected               whether the price examined now takes the place of the price selected so far
+	 */
+	@ParameterizedTest(name = "price {0} inner record {1} against price {2} inner record {3}: {4}")
+	@CsvSource({
+		"1, 5, 2, 1, true",
+		"2, 1, 1, 5, false",
+		"3, 1, 3, 2, true",
+		"3, 2, 3, 1, false",
+		"3, 0, 3, 1, true",
+		"3, 1, 3, 0, false",
+		"3, 0, 3, 0, false",
+		"3, 4, 3, 4, false"
+	})
+	@DisplayName("should break a tie by the lower price id, then the lower inner record id, a missing one first")
+	void shouldBreakTieByPriceIdThenInnerRecordId(
+		int candidatePriceId,
+		int candidateInnerRecordId,
+		int currentPriceId,
+		int currentInnerRecordId,
+		boolean expected
+	) {
+		assertEquals(
+			expected,
+			PricesContract.isBetterByPriceIdThenInnerRecordId(
+				candidatePriceId, candidateInnerRecordId, currentPriceId, currentInnerRecordId
 			)
 		);
 	}

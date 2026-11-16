@@ -904,35 +904,47 @@ public interface PricesContract extends Versioned, Serializable {
 	}
 
 	/**
-	 * Deterministic tie-break helper used when two candidates tie on everything compared before it: lower `priceId`
-	 * wins, then lower `innerRecordId` (`null` sorts before any non-null id). Returns `true` when `candidate` strictly
-	 * beats `current` under this rule, and also when `current` is `null` (no incumbent). The price index represents a
-	 * missing inner record id by `0` and compares the ids as numbers; the two orders agree because a price accepts
-	 * positive inner record ids only.
+	 * The tie rule the entity and the engine share for two prices that tie on everything compared before it: the
+	 * lower price id wins, then the lower inner record id. Inner record id `0` stands for a price without inner
+	 * record, so such a price wins against any other inner record of the same price id, because a price accepts
+	 * positive inner record ids only. The entity side calls it for prices tied on their amount, the engine's
+	 * `LowestPriceTerminationFormula` for price records tied on the amount of the query price mode; keeping the rule
+	 * in one place keeps the two selections in agreement.
+	 *
+	 * @param candidatePriceId       price id of the price examined now
+	 * @param candidateInnerRecordId inner record id of the price examined now, `0` when it has none
+	 * @param currentPriceId         price id of the price selected so far
+	 * @param currentInnerRecordId   inner record id of the price selected so far, `0` when it has none
+	 * @return `true` when the price examined now takes the place of the price selected so far
+	 */
+	static boolean isBetterByPriceIdThenInnerRecordId(
+		int candidatePriceId,
+		int candidateInnerRecordId,
+		int currentPriceId,
+		int currentInnerRecordId
+	) {
+		return candidatePriceId < currentPriceId ||
+			(candidatePriceId == currentPriceId && candidateInnerRecordId < currentInnerRecordId);
+	}
+
+	/**
+	 * Applies {@link #isBetterByPriceIdThenInnerRecordId(int, int, int, int)} to two prices, a missing inner record
+	 * id passed as `0`.
+	 *
+	 * @param candidate the price examined now
+	 * @param current   the price selected so far
+	 * @return `true` when `candidate` takes the place of `current`
 	 */
 	private static boolean isBetterByPriceIdThenInner(
 		@Nonnull PriceContract candidate,
-		@Nullable PriceContract current
+		@Nonnull PriceContract current
 	) {
-		if (current == null) {
-			return true;
-		}
-		final int byPriceId = Integer.compare(candidate.priceId(), current.priceId());
-		if (byPriceId != 0) {
-			return byPriceId < 0;
-		}
-		final Integer candidateInner = candidate.innerRecordId();
-		final Integer currentInner = current.innerRecordId();
-		if (candidateInner == null && currentInner != null) {
-			return true;
-		}
-		if (candidateInner != null && currentInner == null) {
-			return false;
-		}
-		if (candidateInner != null) {
-			return candidateInner < currentInner;
-		}
-		return false;
+		final Integer candidateInnerRecordId = candidate.innerRecordId();
+		final Integer currentInnerRecordId = current.innerRecordId();
+		return isBetterByPriceIdThenInnerRecordId(
+			candidate.priceId(), candidateInnerRecordId == null ? 0 : candidateInnerRecordId,
+			current.priceId(), currentInnerRecordId == null ? 0 : currentInnerRecordId
+		);
 	}
 
 	/**
