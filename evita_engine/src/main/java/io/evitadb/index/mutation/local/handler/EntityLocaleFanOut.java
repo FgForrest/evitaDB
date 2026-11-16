@@ -25,6 +25,7 @@ package io.evitadb.index.mutation.local.handler;
 
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
@@ -92,23 +93,45 @@ final class EntityLocaleFanOut {
 	}
 
 	/**
-	 * Withdraws the references carrying a localized defaulted histogram value before an entity attribute or reference
-	 * attribute mutation that may change the entity's locale set: an upsert or a removal of a localized attribute. An
-	 * applied delta changes a value the entity has already and never its locales.
+	 * What a change of a localized value can do to the locale set of the entity that owns it.
+	 */
+	enum LocalizedValueChange {
+
+		/**
+		 * The value is upserted; it adds its locale to the entity unless the entity has that locale already.
+		 */
+		UPSERT,
+
+		/**
+		 * The value is removed; its locale may leave the entity, which depends on every other value of the entity, so
+		 * it is not examined further.
+		 */
+		REMOVAL
+
+	}
+
+	/**
+	 * Withdraws the references carrying a localized defaulted histogram value before a reference attribute mutation
+	 * that may change the entity's locale set is applied. The mutation wraps an upsert, a removal or a delta of the
+	 * attribute: an upsert or a removal of a localized attribute may change the locale set, an applied delta changes a
+	 * value the entity has already and never its locales.
 	 *
 	 * @param executor          the active executor
-	 * @param attributeMutation the attribute mutation about to be applied, of the entity or of one of its references
+	 * @param attributeMutation the attribute mutation wrapped by the reference attribute mutation about to be applied
 	 */
-	static void withdrawBeforeAttributeChange(
+	static void withdrawBeforeReferenceAttributeChange(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull AttributeMutation attributeMutation
 	) {
-		final Locale locale = attributeMutation.getAttributeKey().locale();
-		if (locale != null) {
-			if (attributeMutation instanceof UpsertAttributeMutation) {
-				withdrawBeforeLocalizedValueChange(executor, locale, true);
-			} else if (attributeMutation instanceof RemoveAttributeMutation) {
-				withdrawBeforeLocalizedValueChange(executor, locale, false);
+		switch (attributeMutation) {
+			case UpsertAttributeMutation upsert -> withdrawBeforeLocalizedValueChange(
+				executor, upsert.getAttributeKey().locale(), LocalizedValueChange.UPSERT
+			);
+			case RemoveAttributeMutation removal -> withdrawBeforeLocalizedValueChange(
+				executor, removal.getAttributeKey().locale(), LocalizedValueChange.REMOVAL
+			);
+			case ApplyDeltaAttributeMutation<?> delta -> {
+				// a delta changes a value the entity has already, never its locale set
 			}
 		}
 	}
@@ -121,12 +144,12 @@ final class EntityLocaleFanOut {
 	 *
 	 * @param executor the active executor
 	 * @param locale   the locale of the value, or `null` for a non-localized value, which withdraws nothing
-	 * @param addition `true` for an upsert, `false` for a removal
+	 * @param change   whether the value is upserted or removed
 	 */
 	static void withdrawBeforeLocalizedValueChange(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nullable Locale locale,
-		boolean addition
+		@Nonnull LocalizedValueChange change
 	) {
 		if (locale == null) {
 			return;
@@ -136,7 +159,7 @@ final class EntityLocaleFanOut {
 			return;
 		}
 		// an upsert in a locale the entity has already leaves its locale set unchanged
-		if (addition && getEntityLocales(executor).contains(locale)) {
+		if (change == LocalizedValueChange.UPSERT && getEntityLocales(executor).contains(locale)) {
 			return;
 		}
 		OwnerInputHistogramWithdrawal.withdraw(executor, referenceNames, executor.getScope());

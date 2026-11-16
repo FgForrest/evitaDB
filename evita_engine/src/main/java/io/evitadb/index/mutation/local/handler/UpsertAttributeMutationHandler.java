@@ -26,6 +26,7 @@ package io.evitadb.index.mutation.local.handler;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.handler.EntityLocaleFanOut.LocalizedValueChange;
 
 import javax.annotation.Nonnull;
 
@@ -38,7 +39,7 @@ import javax.annotation.Nonnull;
  *
  * Before the fan-out, a localized upsert in a locale the entity lacks withdraws the references whose local histogram
  * reads a localized reference attribute with a `??` default, a value contributed in every locale of the entity
- * (`EntityLocaleFanOut#withdrawBeforeAttributeChange`).
+ * (`EntityLocaleFanOut#withdrawBeforeLocalizedValueChange`).
  */
 public final class UpsertAttributeMutationHandler implements LocalMutationHandler<UpsertAttributeMutation> {
 
@@ -63,7 +64,9 @@ public final class UpsertAttributeMutationHandler implements LocalMutationHandle
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
-		EntityLocaleFanOut.withdrawBeforeAttributeChange(executor, mutation);
+		EntityLocaleFanOut.withdrawBeforeLocalizedValueChange(
+			executor, mutation.getAttributeKey().locale(), LocalizedValueChange.UPSERT
+		);
 		AttributeMutationFanOut.apply(mutation, executor, globalIndex);
 	}
 

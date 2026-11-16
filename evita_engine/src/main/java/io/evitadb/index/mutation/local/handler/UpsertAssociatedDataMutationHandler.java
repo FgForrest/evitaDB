@@ -26,6 +26,7 @@ package io.evitadb.index.mutation.local.handler;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.handler.EntityLocaleFanOut.LocalizedValueChange;
 
 import javax.annotation.Nonnull;
 
@@ -58,7 +59,7 @@ public final class UpsertAssociatedDataMutationHandler implements LocalMutationH
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
 		EntityLocaleFanOut.withdrawBeforeLocalizedValueChange(
-			executor, mutation.getAssociatedDataKey().locale(), true
+			executor, mutation.getAssociatedDataKey().locale(), LocalizedValueChange.UPSERT
 		);
 		AssociatedDataMutationFanOut.apply(mutation.getAssociatedDataKey().associatedDataName(), executor, globalIndex);
 	}

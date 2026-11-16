@@ -37,8 +37,8 @@ import javax.annotation.Nonnull;
  *
  * A reference attribute's locales count among the entity's locales, so before the fan-out a localized upsert in a
  * locale the entity lacks, or a localized removal, withdraws the references whose local histogram reads a localized
- * reference attribute with a `??` default (`EntityLocaleFanOut#withdrawBeforeAttributeChange`). It runs first because
- * the fan-out returns early for a reference not indexed in the scope, whose locales still count.
+ * reference attribute with a `??` default (`EntityLocaleFanOut#withdrawBeforeReferenceAttributeChange`). It runs first
+ * because the fan-out returns early for a reference not indexed in the scope, whose locales still count.
  */
 public final class ReferenceAttributeMutationHandler implements LocalMutationHandler<ReferenceAttributeMutation> {
 
@@ -60,7 +60,7 @@ public final class ReferenceAttributeMutationHandler implements LocalMutationHan
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
-		EntityLocaleFanOut.withdrawBeforeAttributeChange(executor, mutation.getAttributeMutation());
+		EntityLocaleFanOut.withdrawBeforeReferenceAttributeChange(executor, mutation.getAttributeMutation());
 		ReferenceMutationFanOut.apply(mutation, executor, globalIndex);
 	}
 
