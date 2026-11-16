@@ -23,6 +23,7 @@
 
 package io.evitadb.index.price;
 
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.exception.PriceAlreadyAssignedToEntityException;
@@ -117,12 +118,13 @@ public class PriceListAndCurrencyPriceSuperIndex
 		// PersistentTransactionalMap defensive copy is sized to the distinct-entity count, instead of starting
 		// at the default capacity and rehashing repeatedly as the build loop populates it
 		final Map<Integer, EntityPrices> entityPricesBase = createHashMap(priceRecords.length);
+		final boolean groupedByInnerRecord = isGroupedByInnerRecord(priceIndexKey);
 		for (final PriceRecordContract priceRecord : priceRecords) {
 			entityPricesBase.compute(
 				priceRecord.entityPrimaryKey(),
 				(entityId, existingPriceRecords) -> existingPriceRecords == null ?
 					EntityPrices.create(priceRecord) :
-					EntityPrices.addPriceRecord(existingPriceRecords, priceRecord)
+					EntityPrices.addPriceRecord(existingPriceRecords, priceRecord, groupedByInnerRecord)
 			);
 		}
 		this.entityPrices = new PersistentTransactionalMap<>(entityPricesBase);
@@ -195,6 +197,7 @@ public class PriceListAndCurrencyPriceSuperIndex
 		final Map<Integer, EntityPrices> entityPricesBase = createHashMap(records.length);
 		final int[] entityIds = new int[records.length];
 		final int[] priceIds = new int[records.length];
+		final boolean groupedByInnerRecord = isGroupedByInnerRecord(priceIndexKey);
 		for (int i = 0; i < records.length; i++) {
 			final PriceRecordContract record = records[i];
 			entityIds[i] = record.entityPrimaryKey();
@@ -203,7 +206,7 @@ public class PriceListAndCurrencyPriceSuperIndex
 				record.entityPrimaryKey(),
 				(entityId, existingPriceRecords) -> existingPriceRecords == null ?
 					EntityPrices.create(record) :
-					EntityPrices.addPriceRecord(existingPriceRecords, record)
+					EntityPrices.addPriceRecord(existingPriceRecords, record, groupedByInnerRecord)
 			);
 		}
 		return new PriceListAndCurrencyPriceSuperIndex(
@@ -657,7 +660,9 @@ public class PriceListAndCurrencyPriceSuperIndex
 				if (existingPriceRecords == null) {
 					return EntityPrices.create(priceRecord);
 				} else {
-					return EntityPrices.addPriceRecord(existingPriceRecords, priceRecord);
+					return EntityPrices.addPriceRecord(
+						existingPriceRecords, priceRecord, isGroupedByInnerRecord(this.priceIndexKey)
+					);
 				}
 			}
 		);
@@ -667,8 +672,23 @@ public class PriceListAndCurrencyPriceSuperIndex
 	private EntityPrices removeEntityPrice(@Nonnull PriceRecordContract priceRecord) {
 		return this.entityPrices.computeIfPresent(
 			priceRecord.entityPrimaryKey(),
-			(entityId, existingPriceRecords) -> EntityPrices.removePrice(existingPriceRecords, priceRecord)
+			(entityId, existingPriceRecords) -> EntityPrices.removePrice(
+				existingPriceRecords, priceRecord, isGroupedByInnerRecord(this.priceIndexKey)
+			)
 		);
+	}
+
+	/**
+	 * Tells whether the entities of the index keep the lowest price of each inner record. An entity without inner
+	 * record handling has a single price for sale per price list, so its index keeps a single lowest price of the
+	 * entity whatever inner record ids its prices carry - otherwise the query would see one price per inner record and
+	 * test, and sort by, a price the entity never sells for.
+	 *
+	 * @param priceIndexKey the price list, currency and inner record handling of the index
+	 * @return `false` for an index of entities without inner record handling, `true` otherwise
+	 */
+	private static boolean isGroupedByInnerRecord(@Nonnull PriceIndexKey priceIndexKey) {
+		return priceIndexKey.getRecordHandling() != PriceInnerRecordHandling.NONE;
 	}
 
 }
