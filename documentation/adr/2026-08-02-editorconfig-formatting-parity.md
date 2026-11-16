@@ -1,7 +1,7 @@
 ---
 title: Keep IDEA and Claude formatting in step with a shared .editorconfig and a diff-scoped hook, not Spotless
 date: 2026-08-02
-updated: 2026-08-02 14:25
+updated: 2026-11-14 11:15
 status: accepted
 kind: infrastructure
 issues: [1119]
@@ -9,7 +9,7 @@ prs: []
 areas: [.editorconfig, .claude/hooks, .claude/rules, .claude/settings.json]
 supersedes: []
 superseded-by: []
-relates: [2026-03-15-javadoc-summarizer, 2026-07-07-roaring-bitmap-vendoring]
+relates: [2026-03-15-javadoc-summarizer, 2026-07-07-roaring-bitmap-vendoring, 2026-11-14-copy-on-write-path-routing]
 ---
 
 # Keep IDEA and Claude formatting in step with a shared `.editorconfig`, not a formatter plugin
@@ -215,6 +215,8 @@ swallowed it; the portable `^ [^*]` revealed the 243 files.
   whose coupling to a paid API is the single strongest argument against any formatter here.
 - [2026-07-07-roaring-bitmap-vendoring](2026-07-07-roaring-bitmap-vendoring.md) — establishes the
   vendored tree whose whitespace must stay byte-identical to upstream, hence its carve-out.
+- [2026-11-14-copy-on-write-path-routing](2026-11-14-copy-on-write-path-routing.md) — deletes the
+  vendored Undertow routing tree, and with it that tree's carve-out in `.editorconfig` and in the hook.
 
 ## Timeline
 

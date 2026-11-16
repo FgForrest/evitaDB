@@ -187,9 +187,9 @@ public class CreateCatalogMutationOperator
 							}
 						}
 					}
-					// Emit the host event AFTER the engine state has been updated so the catalog's
-					// settled state (typically WARMING_UP for a freshly-created catalog) is observable
-					// by HOST-area subscribers strictly after the underlying mutation.
+					// Emit the host event AFTER the engine state has been updated so that a subscriber handling it
+					// finds the catalog's settled state (typically WARMING_UP for a freshly-created catalog)
+					// (delivery is not ordered with engine mutations, see `HostSystemEvent`).
 					evita.notifyCatalogStateSettled(catalogName, theCatalog.getCatalogState());
 					return new CommitVersions(theCatalog.getVersion(), theCatalog.getSchema().version());
 				}

@@ -439,6 +439,7 @@ Host system events have intentionally narrower delivery guarantees than engine m
 - **Host-local and non-replicable.** Each host produces its own host events for its own live view; they are not part of the WAL and do not propagate between replicas.
 - **Opt-in.** As described in the `criteria` parameter above, host events are only delivered when the subscription explicitly includes the `HOST` area in its criteria. The default (omitted criteria) is `ENGINE`-only.
 - **Correlation only — not a version cursor.** Each capture wrapping a host event reports the engine version observed at the moment of emission for correlation with the surrounding engine mutation flow, but emitting a host event does not advance the engine version counter.
+- **Not ordered with engine mutations.** A host event and the engine mutations around it are delivered by separate tasks, so a host event can arrive after engine mutations that were applied later, and two host events can arrive in either order. A subscriber that drops endpoints because a catalogue was reported inactive or removed should check the catalogue's current state (`getCatalogState`) first: the name may already belong to a newer, active catalogue.
 
 ## Catalogue change capture
 
