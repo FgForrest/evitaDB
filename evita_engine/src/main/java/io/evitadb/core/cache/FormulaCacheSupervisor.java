@@ -317,7 +317,10 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		}
 	}
 
-	/** Renders the bounded description of one detected mismatch, retaining no payload or query object. */
+	/**
+	 * Renders the bounded description of one detected mismatch, retaining no payload or query object. A `null`
+	 * entity type is rendered as `<unknown>`.
+	 */
 	@Nonnull
 	private static String describeMismatch(
 		@Nonnull String catalogName, @Nullable String entityType, @Nonnull FormulaKey key,
@@ -325,8 +328,8 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		@Nonnull CachedResult recomputed
 	) {
 		final String bounded = description.substring(0, Math.min(description.length(), MAX_WITNESS_LENGTH_CHARS));
-		return Instant.now() + ": " + catalogName + "/" + entityType + ", class=" + formulaClass +
-			", classId=" + key.getClassId() +
+		return Instant.now() + ": " + catalogName + "/" + (entityType == null ? "<unknown>" : entityType) +
+			", class=" + formulaClass + ", classId=" + key.getClassId() +
 			", hash64=" + key.getHash64() + ", " + bounded + ", cached=" + summary(cached) +
 			", recomputed=" + summary(recomputed) + ", differences=" + differences(cached, recomputed);
 	}

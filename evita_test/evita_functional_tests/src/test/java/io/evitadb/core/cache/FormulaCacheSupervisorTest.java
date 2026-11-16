@@ -760,6 +760,21 @@ class FormulaCacheSupervisorTest implements EvitaTestSupport {
 			assertNull(statistics().witness());
 		}
 
+		/** A mismatch under a request without an entity type names the type with a placeholder, never `null`. */
+		@Test
+		@DisplayName("Describes a mismatch under a request without an entity type with a placeholder")
+		void shouldRenderPlaceholderWhenRequestHasNoEntityType() {
+			final EvitaRequest wideRequest = new EvitaRequest(Query.query(filterBy(entityPrimaryKeyInSet(1))),
+				OffsetDateTime.now(), EntityReference.class, null);
+			final QueryPlanningContext wide = new QueryPlanningContext(FormulaCacheSupervisorTest.this.catalog, null,
+				FormulaCacheSupervisorTest.this.session, wideRequest, Map.of(), Map.of(), cache());
+			final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class, () ->
+				cache().verify(wide.createExecutionContext(),
+					new OrFormula(new BaseBitmap(1), new BaseBitmap(2)).getKey(), "C", "d",
+					new CachedBitmapResult(new BaseBitmap(1), 1), new CachedBitmapResult(new BaseBitmap(2), 1), 0L));
+			assertTrue(error.getPrivateMessage().contains("cacheTest/<unknown>, class=C"), error.getPrivateMessage());
+		}
+
 		/** The stored first witness and the detecting caller's description have separate lifetimes. */
 		@Test
 		@DisplayName("Keeps the first witness while each mismatch describes its own records")
