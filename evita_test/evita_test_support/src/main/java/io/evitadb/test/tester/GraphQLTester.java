@@ -69,17 +69,19 @@ import static org.hamcrest.Matchers.nullValue;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class GraphQLTester extends JsonExternalApiTester<Request> {
+public class GraphQLTester extends JsonExternalApiTester<Request> implements AutoCloseable {
 
 	/**
 	 * Ceiling for the unconditional websocket waits ({@link #testWebSocket} and
 	 * {@link WebSocketContext#awaitEvents(int)}).
 	 *
-	 * This is a hang detector, not a correctness bound. Every CDC stream these waits sit on is
+	 * This is a hang detector, not a correctness bound. Catalog and engine CDC streams are
 	 * ring-buffer plus WAL backed, so a subscriber that registers late still reads the committed
 	 * history back from disk (`ChangeCatalogCaptureSharedPublisher#fillBuffer` falls back to
-	 * `readWal` whenever the ring buffer cannot serve the requested WAL pointer) - delivery is
-	 * guaranteed, only its timing is not. Raising the ceiling therefore cannot mask a lost event:
+	 * `readWal` whenever the ring buffer cannot serve the requested WAL pointer). A catalog shared
+	 * publisher catches up with commits published while it is being created, and the engine stream's
+	 * single publisher is created with the engine, so replay needs no later commit to wake it.
+	 * Raising the ceiling therefore cannot mask a lost event:
 	 * a genuinely undelivered event still fails the test, just later. What it does buy is immunity
 	 * to a full-reactor run where dozens of test classes each drive an embedded evitaDB instance
 	 * concurrently and a normally sub-second delivery gets starved past 30 seconds.
@@ -90,8 +92,25 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 	 */
 	private static final int WEBSOCKET_EVENT_TIMEOUT_SECONDS = 120;
 
+	/**
+	 * Shared factory for this tester's WebSocket connections. The connect timeout also covers TLS negotiation,
+	 * which can take longer under concurrent functional-test load. Closed when the dataset releases this tester.
+	 */
+	private final ClientFactory webSocketClientFactory = ClientFactory.builder()
+		.tlsNoVerify()
+		.connectTimeout(Duration.ofSeconds(30))
+		.build();
+
 	public GraphQLTester(@Nonnull String baseUrl) {
 		super(baseUrl);
+	}
+
+	/**
+	 * Releases the factory shared by this tester's WebSocket connections.
+	 */
+	@Override
+	public void close() {
+		this.webSocketClientFactory.close();
 	}
 
 	/**
@@ -139,7 +158,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 		@Nonnull Consumer<List<String>> validator
 	) {
 		final WebSocketClient client = WebSocketClient.builder(this.baseUrl)
-			.factory(ClientFactory.insecure())
+			.factory(this.webSocketClientFactory)
 			.subprotocols("graphql-transport-ws")
 			.build();
 		final WebSocketSession session = client.connect("/" + catalogName + (urlPathSuffix != null ? urlPathSuffix : "")).join();
@@ -173,8 +192,12 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 	 * Test-side context exposing both the outbound {@link WebSocketWriter} and a barrier method
 	 * that blocks until at least a given number of inbound text frames has been received. Used
 	 * by subscription tests to wait for `connection_ack` (or other early control frames) before
-	 * triggering data-emitting operations, which closes the race between a server-side
-	 * `subscribe` registration and the data change firing on the same thread.
+	 * triggering data-emitting operations. The ack only confirms handling of `connection_init`,
+	 * before `subscribe` is processed; it does not confirm CDC registration. Catalog and engine
+	 * streams replay commits from the WAL even when registration follows the commit, provided the
+	 * subscription's `sinceVersion` was taken before the commit - without it the stream starts after
+	 * the version live at registration. Live host events instead require the bounded retry helpers
+	 * below.
 	 */
 	public interface WebSocketContext {
 
