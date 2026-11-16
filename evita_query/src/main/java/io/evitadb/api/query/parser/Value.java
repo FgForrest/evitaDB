@@ -34,6 +34,7 @@ import lombok.Getter;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -54,6 +55,9 @@ import java.util.stream.StreamSupport;
  * types, either literals or arguments. Types of {@link EvitaDataTypes} plus iterables and arrays have first-class
  * support. Variadic arrays can be arrays or iterables.
  *
+ * The value is null for an undefined bound parameter, and the nullable scalar accessors then return null. Null items
+ * of an array or iterable stay null in the array accessors, so the constraint factory decides whether to ignore them.
+ *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  * @see EvitaDataTypes
  */
@@ -65,7 +69,7 @@ public class Value {
 	/**
 	 * Concrete value of parsed literal or parameter in target data type.
 	 */
-	@Nonnull
+	@Nullable
 	private final Object actualValue;
 
 	/**
@@ -77,35 +81,37 @@ public class Value {
 	/**
 	 * Casts a variadic value item to the expected type, throwing if the type does not match.
 	 */
-	@Nonnull
-	private static <T> T variadicValueItemAsSpecificType(@Nonnull Object item, @Nonnull Class<T> type) {
+	@Nullable
+	private static <T> T variadicValueItemAsSpecificType(@Nullable Object item, @Nonnull Class<T> type) {
 		// verified type is a precondition ensured by the parser visitor
 		Assert.isPremiseValid(
-			type.isInstance(item),
+			item == null || type.isInstance(item),
 			"Expected variadic value items of type `" + type.getName() + "` but got `"
-				+ item.getClass().getName() + "`."
+				+ (item == null ? "null" : item.getClass().getName()) + "`."
 		);
 		return type.cast(item);
 	}
 
 	/**
-	 * Asserts that the given value is an instance of the expected type.
+	 * Asserts that a defined value is an instance of the expected type.
 	 */
-	private static void assertValueIsOfType(@Nonnull Object theValue, @Nonnull Class<?> type) {
+	private static void assertValueIsOfType(@Nullable Object theValue, @Nonnull Class<?> type) {
 		// verified type is a precondition ensured by the parser visitor
 		Assert.isPremiseValid(
-			type.isInstance(theValue),
+			theValue == null || type.isInstance(theValue),
 			"Expected value of type `" + type.getName() + "` but got `"
-				+ theValue.getClass().getName() + "`."
+				+ (theValue == null ? "null" : theValue.getClass().getName()) + "`."
 		);
 	}
 
 	/**
 	 * Converts a value to an enum instance, handling both direct enum values and {@link EnumWrapper}.
 	 */
-	@Nonnull
-	private static <T extends Enum<T>> T valueAsEnum(@Nonnull Object theValue, @Nonnull Class<T> enumType) {
-		if (theValue instanceof Enum<?>) {
+	@Nullable
+	private static <T extends Enum<T>> T valueAsEnum(@Nullable Object theValue, @Nonnull Class<T> enumType) {
+		if (theValue == null) {
+			return null;
+		} else if (theValue instanceof Enum<?>) {
 			return asSpecificType(theValue, enumType);
 		} else if (theValue instanceof EnumWrapper) {
 			return asSpecificType(theValue, EnumWrapper.class).toEnum(enumType);
@@ -119,21 +125,26 @@ public class Value {
 	/**
 	 * Casts the given value to the expected type after asserting type compatibility.
 	 */
-	@Nonnull
-	private static <T> T asSpecificType(@Nonnull Object theValue, @Nonnull Class<T> type) {
+	@Nullable
+	private static <T> T asSpecificType(@Nullable Object theValue, @Nonnull Class<T> type) {
 		assertValueIsOfType(theValue, type);
 		return type.cast(theValue);
 	}
 
-	public Value(@Nonnull Object actualValue) {
+	/**
+	 * Wraps a parsed value.
+	 *
+	 * @param actualValue parsed value, or null for an undefined bound parameter, whose type is then `Void`
+	 */
+	public Value(@Nullable Object actualValue) {
 		this.actualValue = actualValue;
-		this.type = actualValue.getClass();
+		this.type = actualValue == null ? Void.class : actualValue.getClass();
 	}
 
 	/**
 	 * Returns the value cast to {@link Serializable}.
 	 */
-	@Nonnull
+	@Nullable
 	public Serializable asSerializable() {
 		return asSpecificType(this.actualValue, Serializable.class);
 	}
@@ -141,7 +152,7 @@ public class Value {
 	/**
 	 * Returns the value cast to {@link Comparable}.
 	 */
-	@Nonnull
+	@Nullable
 	public Comparable<?> asComparable() {
 		return asSpecificType(this.actualValue, Comparable.class);
 	}
@@ -149,7 +160,7 @@ public class Value {
 	/**
 	 * Returns the value cast to both {@link Serializable} and {@link Comparable}.
 	 */
-	@Nonnull
+	@Nullable
 	public <T extends Serializable & Comparable<?>> T asSerializableAndComparable() {
 		assertValueIsOfType(this.actualValue, Serializable.class);
 		assertValueIsOfType(this.actualValue, Comparable.class);
@@ -160,7 +171,7 @@ public class Value {
 	/**
 	 * Returns the value as a {@link String}, converting from {@link Character} if needed.
 	 */
-	@Nonnull
+	@Nullable
 	public String asString() {
 		if (this.actualValue instanceof final Character characterValue) {
 			return characterValue.toString();
@@ -171,7 +182,7 @@ public class Value {
 	/**
 	 * Returns the value cast to {@link Number}.
 	 */
-	@Nonnull
+	@Nullable
 	public Number asNumber() {
 		return asSpecificType(this.actualValue, Number.class);
 	}
@@ -179,15 +190,17 @@ public class Value {
 	/**
 	 * Returns the value converted to the specified number type.
 	 */
-	@Nonnull
+	@Nullable
 	public <T extends Number> T asNumber(@Nonnull Class<T> numberType) {
-		return Objects.requireNonNull(EvitaDataTypes.toTargetType(asNumber(), numberType));
+		return this.actualValue == null ? null :
+			Objects.requireNonNull(EvitaDataTypes.toTargetType(asNumber(), numberType));
 	}
 
 	/**
 	 * Returns the value as an int, with overflow protection for Long values.
 	 */
-	public int asInt() {
+	@Nullable
+	public Integer asInt() {
 		if (this.actualValue instanceof final Long longNumber) {
 			try {
 				return Math.toIntExact(longNumber);
@@ -198,27 +211,51 @@ public class Value {
 				);
 			}
 		}
-		return asNumber().intValue();
+		return this.actualValue == null ? null : asNumber().intValue();
+	}
+
+	/**
+	 * Returns a required integer for positions whose Java API accepts only a primitive.
+	 *
+	 * @return the integer value
+	 * @throws EvitaInvalidUsageException when the value is undefined
+	 */
+	public int asRequiredInt() {
+		Assert.notNull(this.actualValue, "This integer argument must not be null.");
+		return asInt();
+	}
+
+	/**
+	 * Returns a required long for positions whose Java API accepts only a primitive.
+	 *
+	 * @return the long value
+	 * @throws EvitaInvalidUsageException when the value is undefined
+	 */
+	public long asRequiredLong() {
+		Assert.notNull(this.actualValue, "This long argument must not be null.");
+		return asLong();
 	}
 
 	/**
 	 * Returns the value as a long.
 	 */
-	public long asLong() {
-		return asNumber().longValue();
+	@Nullable
+	public Long asLong() {
+		return this.actualValue == null ? null : asNumber().longValue();
 	}
 
 	/**
 	 * Returns the value cast to boolean.
 	 */
-	public boolean asBoolean() {
+	@Nullable
+	public Boolean asBoolean() {
 		return asSpecificType(this.actualValue, Boolean.class);
 	}
 
 	/**
 	 * Returns the value cast to {@link BigDecimal}.
 	 */
-	@Nonnull
+	@Nullable
 	public BigDecimal asBigDecimal() {
 		return asSpecificType(this.actualValue, BigDecimal.class);
 	}
@@ -226,7 +263,7 @@ public class Value {
 	/**
 	 * Returns the value cast to {@link OffsetDateTime}.
 	 */
-	@Nonnull
+	@Nullable
 	public OffsetDateTime asOffsetDateTime() {
 		return asSpecificType(this.actualValue, OffsetDateTime.class);
 	}
@@ -234,7 +271,7 @@ public class Value {
 	/**
 	 * Returns the value cast to {@link LocalDateTime}.
 	 */
-	@Nonnull
+	@Nullable
 	public LocalDateTime asLocalDateTime() {
 		return asSpecificType(this.actualValue, LocalDateTime.class);
 	}
@@ -242,7 +279,7 @@ public class Value {
 	/**
 	 * Returns the value cast to {@link LocalDate}.
 	 */
-	@Nonnull
+	@Nullable
 	public LocalDate asLocalDate() {
 		return asSpecificType(this.actualValue, LocalDate.class);
 	}
@@ -250,7 +287,7 @@ public class Value {
 	/**
 	 * Returns the value cast to {@link LocalTime}.
 	 */
-	@Nonnull
+	@Nullable
 	public LocalTime asLocalTime() {
 		return asSpecificType(this.actualValue, LocalTime.class);
 	}
@@ -258,7 +295,7 @@ public class Value {
 	/**
 	 * Returns the value cast to {@link DateTimeRange}.
 	 */
-	@Nonnull
+	@Nullable
 	public DateTimeRange asDateTimeRange() {
 		return asSpecificType(this.actualValue, DateTimeRange.class);
 	}
@@ -266,7 +303,7 @@ public class Value {
 	/**
 	 * Returns the value cast to {@link BigDecimalNumberRange}.
 	 */
-	@Nonnull
+	@Nullable
 	public BigDecimalNumberRange asBigDecimalNumberRange() {
 		return asSpecificType(this.actualValue, BigDecimalNumberRange.class);
 	}
@@ -274,7 +311,7 @@ public class Value {
 	/**
 	 * Returns the value cast to {@link LongNumberRange}.
 	 */
-	@Nonnull
+	@Nullable
 	public LongNumberRange asLongNumberRange() {
 		return asSpecificType(this.actualValue, LongNumberRange.class);
 	}
@@ -282,7 +319,7 @@ public class Value {
 	/**
 	 * Returns the value converted to the specified enum type.
 	 */
-	@Nonnull
+	@Nullable
 	public <T extends Enum<T>> T asEnum(@Nonnull Class<T> enumType) {
 		return valueAsEnum(this.actualValue, enumType);
 	}
@@ -304,9 +341,11 @@ public class Value {
 	/**
 	 * Returns the value as a {@link Locale}, converting from string if needed.
 	 */
-	@Nonnull
+	@Nullable
 	public Locale asLocale() {
-		if (this.actualValue instanceof Locale) {
+		if (this.actualValue == null) {
+			return null;
+		} else if (this.actualValue instanceof Locale) {
 			return asSpecificType(this.actualValue, Locale.class);
 		} else if (this.actualValue instanceof String) {
 			return Objects.requireNonNull(
@@ -323,9 +362,11 @@ public class Value {
 	/**
 	 * Returns the value as a {@link Currency}, converting from string if needed.
 	 */
-	@Nonnull
+	@Nullable
 	public Currency asCurrency() {
-		if (this.actualValue instanceof Currency) {
+		if (this.actualValue == null) {
+			return null;
+		} else if (this.actualValue instanceof Currency) {
 			return asSpecificType(this.actualValue, Currency.class);
 		} else if (this.actualValue instanceof String) {
 			return Objects.requireNonNull(
@@ -341,9 +382,11 @@ public class Value {
 	/**
 	 * Returns the value as a {@link UUID}, converting from string if needed.
 	 */
-	@Nonnull
+	@Nullable
 	public UUID asUuid() {
-		if (this.actualValue instanceof UUID) {
+		if (this.actualValue == null) {
+			return null;
+		} else if (this.actualValue instanceof UUID) {
 			return asSpecificType(this.actualValue, UUID.class);
 		} else if (this.actualValue instanceof String) {
 			return Objects.requireNonNull(
@@ -458,7 +501,7 @@ public class Value {
 
 			//noinspection unchecked
 			return StreamSupport.stream(iterableValues.spliterator(), false)
-				.map(itemTransformer)
+				.map(item -> item == null ? null : itemTransformer.apply(item))
 				.toArray(size -> (T[]) Array.newInstance(expectedItemType, size));
 		} else if (values.getClass().isArray()) {
 			final int length = Array.getLength(values);
@@ -475,7 +518,7 @@ public class Value {
 
 			//noinspection unchecked
 			return Arrays.stream(iterableValues)
-				.map(itemTransformer)
+				.map(item -> item == null ? null : itemTransformer.apply(item))
 				.toArray(size -> (T[]) Array.newInstance(expectedItemType, size));
 		} else {
 			throw new EvitaInvalidUsageException(

@@ -42,6 +42,9 @@ import io.evitadb.utils.StringUtils;
 import org.antlr.v4.runtime.ParserRuleContext;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.LocalDate;
@@ -51,7 +54,6 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Currency;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -216,7 +218,9 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
             ctx,
             () -> {
                 final Object argument = ctx.positionalParameter().accept(this.parameterVisitor);
-                assertDataTypeIsAllowed(ctx, argument.getClass());
+				if (argument != null) {
+					assertDataTypeIsAllowed(ctx, argument.getClass());
+				}
                 return new Value(argument);
             }
         );
@@ -228,7 +232,9 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
             ctx,
             () -> {
                 final Object argument = ctx.namedParameter().accept(this.parameterVisitor);
-                assertDataTypeIsAllowed(ctx, argument.getClass());
+				if (argument != null) {
+					assertDataTypeIsAllowed(ctx, argument.getClass());
+				}
                 return new Value(argument);
             }
         );
@@ -449,19 +455,50 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     /**
      * Parses list of arguments from client or creates new list from single argument because only list expected.
      * Supports iterables, arrays and single values.
+	 * Every defined item is checked against the allowed types; null items are kept for the constraint factory,
+	 * which ignores or refuses them.
+	 *
+	 * @param ctx argument syntax, used for diagnostics
+	 * @param argument bound list or single value
+	 * @return the list wrapped as a value
+	 * @throws EvitaSyntaxException when the argument is a lone null, which could mean either no list or one
+	 *                              undefined item, or when an item has a type that is not allowed here
      */
     @Nonnull
-    protected Value parseVariadicArguments(@Nonnull ParserRuleContext ctx, @Nonnull Object argument) {
+	protected Value parseVariadicArguments(@Nonnull ParserRuleContext ctx, @Nullable Object argument) {
+		if (argument == null) {
+			ParserRuleContext constraint = ctx;
+			while (constraint.getParent() != null && !(constraint instanceof FilterConstraintContext)
+				&& !(constraint instanceof OrderConstraintContext) && !(constraint instanceof RequireConstraintContext)
+				&& !(constraint instanceof HeadConstraintContext)) {
+				constraint = constraint.getParent();
+			}
+			final String constraintName = constraint.getStart().getText();
+			throw new EvitaSyntaxException(ctx, "A lone null parameter in the list of `" + constraintName
+				+ "` is ambiguous. Bind an empty list or leave the constraint out.");
+		}
         if (argument instanceof final Iterable<?> iterableArgument) {
-            final Iterator<?> iterator = iterableArgument.iterator();
-            if (iterator.hasNext()) {
-                assertDataTypeIsAllowed(ctx, iterator.next().getClass());
+			for (final Object item : iterableArgument) {
+				if (item != null) {
+					assertDataTypeIsAllowed(ctx, item.getClass());
+				}
             }
             return new Value(argument);
         } else if (argument.getClass().isArray()) {
-            assertDataTypeIsAllowed(ctx, argument.getClass().getComponentType());
+			final Class<?> component = argument.getClass().getComponentType();
+			if (component != Object.class && component != Serializable.class) {
+				assertDataTypeIsAllowed(ctx, component);
+			}
+			final int length = Array.getLength(argument);
+			for (int i = 0; i < length; i++) {
+				final Object item = Array.get(argument, i);
+				if (item != null) {
+					assertDataTypeIsAllowed(ctx, item.getClass());
+				}
+			}
             return new Value(argument);
         } else {
+			assertDataTypeIsAllowed(ctx, argument.getClass());
             return new Value(List.of(argument));
         }
     }

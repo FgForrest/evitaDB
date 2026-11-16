@@ -157,7 +157,7 @@ public final class PathToPartialMapper {
 		}
 
 		// handle parent entity sub-path processing (e.g., $entity.parentEntity.attributes['code'])
-		if (EntityContractAccessor.PARENT_ENTITY_PROPERTY.equals(property) || "parent".equals(property)) {
+		if (EntityContractAccessor.PARENT_ENTITY_PROPERTY.equals(property)) {
 			processParentEntitySubPath(path, ctx);
 		}
 	}
@@ -182,14 +182,11 @@ public final class PathToPartialMapper {
 				acc.needsEntityBody = true;
 				acc.partials.add(EntityPrimaryKeyPartial.GET_PRIMARY_KEY);
 			}
-			case "version", "scope", "locales", "allLocales" -> {
+			case "scope", "locales", "allLocales" -> {
 				// handled by always-included VersionAndDroppablePartial
 				acc.needsEntityBody = true;
 			}
-			case "type" -> {
-				// handled by always-included SchemaPartial
-			}
-			case "parent", "parentEntity" -> {
+			case "parentEntity" -> {
 				acc.needsEntityBody = true;
 				acc.partials.add(EntityParentPartial.PARENT_AVAILABLE);
 				acc.partials.add(EntityParentPartial.GET_PARENT_ENTITY);
@@ -417,7 +414,7 @@ public final class PathToPartialMapper {
 				ctx.referencePartials.add(GroupReferencePartial.GET_GROUP);
 			}
 			default -> {
-				// referencedPrimaryKey, referencedEntityType, etc. — handled by always-included identity partial
+				// referencedPrimaryKey — handled by always-included identity partial
 			}
 		}
 	}

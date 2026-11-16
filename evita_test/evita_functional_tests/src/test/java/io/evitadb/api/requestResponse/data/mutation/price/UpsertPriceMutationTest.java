@@ -28,13 +28,17 @@ import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Currency;
 import org.junit.jupiter.api.Tag;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -136,6 +140,37 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 		assertEquals(DateTimeRange.since(theAnotherDay), updatedPrice.validity());
 		assertFalse(updatedPrice.indexed());
 		assertFalse(updatedPrice.dropped());
+	}
+
+	/**
+	 * A validity naming the same instants at another zone offset compares equal by its encoded bounds, yet a reader
+	 * gets other bounds back. Upserting it is a real change of the price, and the stored price differs from the
+	 * mutated one.
+	 */
+	@Test
+	@DisplayName("should update a price whose validity names the same instants at another offset")
+	void shouldUpdatePriceWhoseValidityNamesSameInstantsAtAnotherOffset() {
+		final LocalDateTime noon = LocalDateTime.of(2024, 1, 1, 12, 0);
+		final DateTimeRange storedValidity = DateTimeRange.between(
+			noon.atOffset(ZoneOffset.ofHours(2)), noon.plusHours(1).atOffset(ZoneOffset.ofHours(2))
+		);
+		final DateTimeRange newValidity = DateTimeRange.between(
+			noon.minusHours(1).atOffset(ZoneOffset.ofHours(1)), noon.atOffset(ZoneOffset.ofHours(1))
+		);
+		final PriceKey priceKey = new PriceKey(1, "basic", CZK);
+		final Price stored = new Price(
+			1, priceKey, null, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, storedValidity, true, false
+		);
+
+		final PriceContract updatedPrice = new UpsertPriceMutation(
+			priceKey, null, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, newValidity, true
+		).mutateLocal(this.productSchema, stored);
+
+		assertAll(
+			() -> assertEquals(newValidity.toString(), String.valueOf(updatedPrice.validity())),
+			() -> assertEquals(2L, updatedPrice.version()),
+			() -> assertTrue(stored.differsFrom(updatedPrice))
+		);
 	}
 
 	@Test

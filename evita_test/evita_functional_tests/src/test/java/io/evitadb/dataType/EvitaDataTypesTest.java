@@ -23,15 +23,28 @@
 
 package io.evitadb.dataType;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.dataType.data.DataItem;
+import io.evitadb.dataType.data.DataItemArray;
+import io.evitadb.dataType.data.DataItemMap;
+import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.store.shared.kryo.KryoFactory;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.JolHeapSize;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import java.io.ByteArrayOutputStream;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -42,12 +55,18 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
+
+import javax.annotation.Nonnull;
 
 import static io.evitadb.dataType.EvitaDataTypes.formatValue;
 import static io.evitadb.dataType.EvitaDataTypes.getWrappingPrimitiveClass;
@@ -4019,6 +4038,497 @@ class EvitaDataTypesTest {
 					.REFERENCE_SIZE,
 				MemoryMeasuringConstants
 					.getElementSize(String.class)
+			);
+		}
+	}
+
+
+	@Nested
+	@DisplayName("Telling stored values apart")
+	class StoredValueDiffersTest {
+
+		@Test
+		@DisplayName("should tell apart decimal ranges whose bounds encode to the same longs")
+		void shouldTellApartDecimalRangesEncodedToSameLongs() {
+			final BigDecimalNumberRange oneToTwo =
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+			final BigDecimalNumberRange tenToTwenty =
+				BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"));
+
+			// equality is the index identity and stays encoded
+			assertEquals(oneToTwo, tenToTwenty);
+			assertTrue(EvitaDataTypes.storedValueDiffers(oneToTwo, tenToTwenty));
+		}
+
+		@Test
+		@DisplayName("should treat decimal ranges of equal bounds and effective scale as the same value")
+		void shouldTreatDecimalRangesOfEqualBoundsAndEffectiveScaleAsSameValue() {
+			final BigDecimalNumberRange implicitScale =
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+
+			assertFalse(
+				EvitaDataTypes.storedValueDiffers(
+					implicitScale, BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+				)
+			);
+			// the explicit scale equals the scale the bounds carry
+			assertFalse(
+				EvitaDataTypes.storedValueDiffers(
+					implicitScale, BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"), 1)
+				)
+			);
+			// the same bounds retained at another scale
+			assertTrue(
+				EvitaDataTypes.storedValueDiffers(
+					implicitScale, BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"), 2)
+				)
+			);
+			// the same numbers written at another scale, as for a plain BigDecimal
+			assertTrue(
+				EvitaDataTypes.storedValueDiffers(
+					implicitScale, BigDecimalNumberRange.between(new BigDecimal("1.00"), new BigDecimal("2.00"), 1)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should tell apart date-time ranges naming the same instants at different offsets")
+		void shouldTellApartDateTimeRangesOfSameInstantsAtDifferentOffsets() {
+			final LocalDateTime noon = LocalDateTime.of(2024, 1, 1, 12, 0);
+			final DateTimeRange atTwo = DateTimeRange.between(
+				noon.atOffset(ZoneOffset.ofHours(2)), noon.plusHours(1).atOffset(ZoneOffset.ofHours(2))
+			);
+			final DateTimeRange atOne = DateTimeRange.between(
+				noon.minusHours(1).atOffset(ZoneOffset.ofHours(1)), noon.atOffset(ZoneOffset.ofHours(1))
+			);
+
+			assertEquals(atTwo, atOne);
+			assertTrue(EvitaDataTypes.storedValueDiffers(atTwo, atOne));
+			assertFalse(
+				EvitaDataTypes.storedValueDiffers(
+					atTwo,
+					DateTimeRange.between(
+						noon.atOffset(ZoneOffset.ofHours(2)), noon.plusHours(1).atOffset(ZoneOffset.ofHours(2))
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should tell apart an open long range from one with the materialized sentinel bound")
+		void shouldTellApartOpenLongRangeFromMaterializedSentinelBound() {
+			final LongNumberRange open = LongNumberRange.to(5L);
+			final LongNumberRange materialized = LongNumberRange.between(Long.MIN_VALUE, 5L);
+
+			assertEquals(open, materialized);
+			assertTrue(EvitaDataTypes.storedValueDiffers(open, materialized));
+			assertFalse(EvitaDataTypes.storedValueDiffers(open, LongNumberRange.to(5L)));
+		}
+
+		@Test
+		@DisplayName("should tell apart ranges of different classes with the same bounds")
+		void shouldTellApartRangesOfDifferentClasses() {
+			final IntegerNumberRange integerRange = IntegerNumberRange.between(1, 2);
+			final LongNumberRange longRange = LongNumberRange.between(1L, 2L);
+
+			assertEquals(integerRange, longRange);
+			assertTrue(EvitaDataTypes.storedValueDiffers(integerRange, longRange));
+		}
+
+		@Test
+		@DisplayName("should compare arrays element by element under the same rule")
+		void shouldCompareArraysElementByElement() {
+			final BigDecimalNumberRange[] ranges = {
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+			};
+
+			assertFalse(
+				EvitaDataTypes.storedValueDiffers(
+					ranges,
+					new BigDecimalNumberRange[]{
+						BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+					}
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.storedValueDiffers(
+					ranges,
+					new BigDecimalNumberRange[]{
+						BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+					}
+				)
+			);
+			assertTrue(EvitaDataTypes.storedValueDiffers(ranges, new BigDecimalNumberRange[0]));
+			assertFalse(EvitaDataTypes.storedValueDiffers(new Integer[]{1, 2}, new Integer[]{1, 2}));
+			assertTrue(EvitaDataTypes.storedValueDiffers(new Integer[]{1, 2}, new Integer[]{1, 3}));
+			assertTrue(EvitaDataTypes.storedValueDiffers(new Integer[]{1}, 1));
+		}
+
+		@Test
+		@DisplayName("should compare arrays of primitives element by element")
+		void shouldCompareArraysOfPrimitivesElementByElement() {
+			assertFalse(EvitaDataTypes.storedValueDiffers(new int[]{1, 2}, new int[]{1, 2}));
+			assertTrue(EvitaDataTypes.storedValueDiffers(new int[]{1, 2}, new int[]{1, 3}));
+		}
+
+		@Test
+		@DisplayName("should compare other values by equals")
+		void shouldCompareOtherValuesByEquals() {
+			assertTrue(EvitaDataTypes.storedValueDiffers(new BigDecimal("1.0"), new BigDecimal("1.00")));
+			assertFalse(EvitaDataTypes.storedValueDiffers(new BigDecimal("1.0"), new BigDecimal("1.0")));
+			assertFalse(EvitaDataTypes.storedValueDiffers(null, null));
+			assertTrue(EvitaDataTypes.storedValueDiffers(null, "a"));
+			assertTrue(EvitaDataTypes.storedValueDiffers("a", null));
+		}
+
+		@Test
+		@DisplayName("should leave every value but a range to the base comparison")
+		void shouldLeaveEveryValueButRangeToBaseComparison() {
+			// the range question only - a rescaled decimal number is the business of the base comparison
+			assertFalse(EvitaDataTypes.rangeRepresentationDiffers(new BigDecimal("1.0"), new BigDecimal("1.00")));
+			assertFalse(EvitaDataTypes.rangeRepresentationDiffers(new Integer[]{1}, new Integer[]{1}));
+			assertFalse(EvitaDataTypes.rangeRepresentationDiffers(null, null));
+		}
+
+		@Test
+		@DisplayName("should tell apart ranges and arrays of ranges a base comparison finds the same")
+		void shouldTellApartRangesAndArraysOfRangesBaseComparisonFindsSame() {
+			final BigDecimalNumberRange oneToTwo =
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+			final BigDecimalNumberRange tenToTwenty =
+				BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"));
+
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(oneToTwo, tenToTwenty));
+			assertFalse(
+				EvitaDataTypes.rangeRepresentationDiffers(
+					oneToTwo, BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.rangeRepresentationDiffers(
+					new BigDecimalNumberRange[]{oneToTwo}, new BigDecimalNumberRange[]{tenToTwenty}
+				)
+			);
+			assertFalse(
+				EvitaDataTypes.rangeRepresentationDiffers(
+					new BigDecimalNumberRange[]{oneToTwo, null}, new BigDecimalNumberRange[]{oneToTwo, null}
+				)
+			);
+		}
+
+		/**
+		 * Complex data compare equal by their trees, and a range leaf of the tree compares equal by its encoded bounds,
+		 * so two complex objects differing only in such a leaf are equal. Each shape a range can sit in - a property of
+		 * a map, an item of nested arrays next to a null item, a property of a map inside an array root - must tell the
+		 * two apart on its own.
+		 */
+		@Test
+		@DisplayName("should tell apart complex data differing only in a range leaf encoded to the same longs")
+		void shouldTellApartComplexDataDifferingOnlyInRangeLeaf() {
+			final List<ComplexDataObject> oneToTwo = complexDataShapesHolding(
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+			);
+			final List<ComplexDataObject> tenToTwenty = complexDataShapesHolding(
+				BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+			);
+			final List<ComplexDataObject> sameAsOneToTwo = complexDataShapesHolding(
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+			);
+
+			for (int i = 0; i < oneToTwo.size(); i++) {
+				final ComplexDataObject stored = oneToTwo.get(i);
+				final ComplexDataObject replacement = tenToTwenty.get(i);
+				final ComplexDataObject same = sameAsOneToTwo.get(i);
+				final String shape = "shape " + i + ": " + stored;
+				// equality of complex data reaches the range leaf, whose equality is the index identity
+				assertEquals(stored, replacement, shape);
+				assertTrue(EvitaDataTypes.storedValueDiffers(stored, replacement), shape);
+				assertTrue(EvitaDataTypes.rangeRepresentationDiffers(stored, replacement), shape);
+				assertFalse(EvitaDataTypes.storedValueDiffers(stored, same), shape);
+				assertFalse(EvitaDataTypes.rangeRepresentationDiffers(stored, same), shape);
+			}
+		}
+
+		/**
+		 * A leaf of complex data that is not a range is the business of the base comparison - a rescaled decimal number
+		 * is a change for `equals` and no change for `compareTo`, and the range question must answer neither way.
+		 */
+		@Test
+		@DisplayName("should leave complex data without a range leaf to the base comparison")
+		void shouldLeaveComplexDataWithoutRangeLeafToBaseComparison() {
+			assertFalse(
+				EvitaDataTypes.rangeRepresentationDiffers(
+					new ComplexDataObject(new DataItemMap(Map.of("amount", new DataItemValue(new BigDecimal("1.0"))))),
+					new ComplexDataObject(new DataItemMap(Map.of("amount", new DataItemValue(new BigDecimal("1.00")))))
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should treat complex data read back from the storage serialization as the same value")
+		void shouldTreatComplexDataReadBackFromStorageAsSameValue() {
+			final Kryo kryo = KryoFactory.createKryo();
+			final List<ComplexDataObject> values =
+				complexDataShapesHolding(BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0")));
+			for (final ComplexDataObject stored : values) {
+				final ByteArrayOutputStream bytes = new ByteArrayOutputStream(256);
+				try (final Output output = new Output(bytes, 256)) {
+					kryo.writeClassAndObject(output, stored);
+				}
+				final Serializable readBack;
+				try (final Input input = new Input(bytes.toByteArray())) {
+					readBack = (Serializable) kryo.readClassAndObject(input);
+				}
+
+				assertNotSame(stored, readBack);
+				assertFalse(
+					EvitaDataTypes.storedValueDiffers(stored, readBack),
+					() -> "Value read back differs from the stored one: " +
+						Arrays.deepToString(new Object[]{stored, readBack})
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should treat a value read back from the storage serialization as the same value")
+		void shouldTreatValueReadBackFromStorageAsSameValue() {
+			final Kryo kryo = KryoFactory.createKryo();
+			final Serializable[] values = {
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0")),
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"), 1),
+				BigDecimalNumberRange.from(new BigDecimal("1.5")),
+				LongNumberRange.from(5L),
+				LongNumberRange.between(Long.MIN_VALUE, Long.MAX_VALUE),
+				DateTimeRange.between(
+					OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 123_456_789, ZoneOffset.ofHours(2)),
+					OffsetDateTime.of(2024, 1, 2, 12, 0, 0, 0, ZoneOffset.ofHours(2))
+				),
+				new BigDecimalNumberRange[]{
+					BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0")),
+					BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+				},
+				new Integer[]{1, 2}
+			};
+			for (final Serializable value : values) {
+				// the value as an upsert stores it
+				final Serializable stored = EvitaDataTypes.toSupportedStoredTypeOrItsArray(value);
+				final ByteArrayOutputStream bytes = new ByteArrayOutputStream(128);
+				try (final Output output = new Output(bytes, 128)) {
+					kryo.writeClassAndObject(output, stored);
+				}
+				final Serializable readBack;
+				try (final Input input = new Input(bytes.toByteArray())) {
+					readBack = (Serializable) kryo.readClassAndObject(input);
+				}
+
+				assertNotSame(stored, readBack);
+				assertFalse(
+					EvitaDataTypes.storedValueDiffers(stored, readBack),
+					() -> "Value read back differs from the stored one: " +
+						Arrays.deepToString(new Object[]{stored, readBack})
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should tell apart an open decimal range from one with the materialized sentinel bound")
+		void shouldTellApartOpenDecimalRangeFromMaterializedSentinelBound() {
+			final BigDecimalNumberRange open = BigDecimalNumberRange.from(new BigDecimal("1"));
+			final BigDecimalNumberRange materialized =
+				BigDecimalNumberRange.between(new BigDecimal("1"), new BigDecimal(Long.MAX_VALUE));
+
+			assertEquals(open, materialized);
+			assertTrue(EvitaDataTypes.storedValueDiffers(open, materialized));
+		}
+
+		@Test
+		@DisplayName("should compare object arrays holding null elements or nested arrays element by element")
+		void shouldCompareObjectArraysHoldingNullElementsOrNestedArraysElementByElement() {
+			assertFalse(EvitaDataTypes.storedValueDiffers(new Integer[]{1, null}, new Integer[]{1, null}));
+			assertTrue(EvitaDataTypes.storedValueDiffers(new Integer[]{1, null}, new Integer[]{1, 2}));
+			assertTrue(EvitaDataTypes.storedValueDiffers(new Integer[]{1, 2}, new Integer[]{1, null}));
+			assertFalse(
+				EvitaDataTypes.storedValueDiffers(new Integer[][]{{1}, {2, 3}}, new Integer[][]{{1}, {2, 3}})
+			);
+			assertTrue(
+				EvitaDataTypes.storedValueDiffers(new Integer[][]{{1}, {2, 3}}, new Integer[][]{{1}, {2, 4}})
+			);
+		}
+
+		/**
+		 * Only a range, an array of ranges or complex data stored so far puts the candidate the range question - any
+		 * other stored value leaves the decision to the base comparison, whatever the candidate is.
+		 */
+		@Test
+		@DisplayName("should tell a stored range apart from a candidate of another type, not the other way round")
+		void shouldTellStoredRangeApartFromCandidateOfAnotherTypeOnly() {
+			final BigDecimalNumberRange oneToTwo =
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+			final ComplexDataObject complexData =
+				new ComplexDataObject(new DataItemMap(Map.of("range", new DataItemValue(oneToTwo))));
+
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(oneToTwo, null));
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(oneToTwo, new BigDecimal("1.0")));
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(new BigDecimalNumberRange[]{oneToTwo}, oneToTwo));
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(complexData, oneToTwo));
+			assertFalse(EvitaDataTypes.rangeRepresentationDiffers(new BigDecimal("1.0"), oneToTwo));
+			assertFalse(EvitaDataTypes.rangeRepresentationDiffers(null, oneToTwo));
+		}
+
+		@Test
+		@DisplayName("should tell apart arrays of ranges of other length or with a null element on one side only")
+		void shouldTellApartArraysOfRangesOfOtherLengthOrWithNullElementOnOneSideOnly() {
+			final BigDecimalNumberRange oneToTwo =
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+
+			assertTrue(
+				EvitaDataTypes.rangeRepresentationDiffers(
+					new BigDecimalNumberRange[]{oneToTwo}, new BigDecimalNumberRange[]{oneToTwo, oneToTwo}
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.rangeRepresentationDiffers(
+					new BigDecimalNumberRange[]{oneToTwo, null}, new BigDecimalNumberRange[]{oneToTwo, oneToTwo}
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.rangeRepresentationDiffers(
+					new BigDecimalNumberRange[]{oneToTwo, oneToTwo}, new BigDecimalNumberRange[]{oneToTwo, null}
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should tell apart arrays of decimal ranges of equal bounds retained at another precision")
+		void shouldTellApartArraysOfDecimalRangesOfEqualBoundsRetainedAtAnotherPrecision() {
+			final BigDecimalNumberRange[] onePlace = {
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"), 1)
+			};
+			final BigDecimalNumberRange[] twoPlaces = {
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"), 2)
+			};
+
+			assertTrue(EvitaDataTypes.rangeRepresentationDiffers(onePlace, twoPlaces));
+			assertTrue(EvitaDataTypes.storedValueDiffers(onePlace, twoPlaces));
+		}
+
+		/**
+		 * The walk over complex data reports two trees of a different shape as told apart, whether or not they hold a
+		 * range leaf - none of the trees here does.
+		 *
+		 * @param shape     description of the difference
+		 * @param existing  root of the complex data stored so far
+		 * @param candidate root of the complex data about to be stored
+		 */
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("complexDataOfDifferentShape")
+		@DisplayName("should tell apart complex data of a different shape")
+		void shouldTellApartComplexDataOfDifferentShape(
+			@Nonnull String shape,
+			@Nonnull DataItem existing,
+			@Nonnull DataItem candidate
+		) {
+			assertTrue(
+				EvitaDataTypes.rangeRepresentationDiffers(
+					new ComplexDataObject(existing), new ComplexDataObject(candidate)
+				),
+				shape
+			);
+		}
+
+		/**
+		 * Pairs of complex data roots that differ in shape only, none of them holding a range leaf.
+		 *
+		 * @return description of the difference, the root stored so far and the root about to be stored
+		 */
+		@Nonnull
+		static Stream<Arguments> complexDataOfDifferentShape() {
+			final DataItem one = new DataItemValue(1);
+			return Stream.of(
+				Arguments.of(
+					"value versus array",
+					new DataItemMap(Map.of("p", one)),
+					new DataItemMap(Map.of("p", new DataItemArray(new DataItem[]{one})))
+				),
+				Arguments.of(
+					"array versus map",
+					new DataItemMap(Map.of("p", new DataItemArray(new DataItem[]{one}))),
+					new DataItemMap(Map.of("p", new DataItemMap(Map.of("x", one))))
+				),
+				Arguments.of(
+					"map versus value",
+					new DataItemMap(Map.of("p", new DataItemMap(Map.of("x", one)))),
+					new DataItemMap(Map.of("p", one))
+				),
+				Arguments.of(
+					"map root versus array root",
+					new DataItemMap(Map.of("p", one)),
+					new DataItemArray(new DataItem[]{one})
+				),
+				Arguments.of(
+					"arrays of other length",
+					new DataItemMap(Map.of("p", new DataItemArray(new DataItem[]{one}))),
+					new DataItemMap(Map.of("p", new DataItemArray(new DataItem[]{one, one})))
+				),
+				Arguments.of(
+					"maps of other size",
+					new DataItemMap(Map.of("a", one)),
+					new DataItemMap(Map.of("a", one, "b", one))
+				),
+				Arguments.of(
+					"maps of the same size with another property name",
+					new DataItemMap(Map.of("a", one)),
+					new DataItemMap(Map.of("b", one))
+				),
+				Arguments.of(
+					"null leaf value on one side only",
+					new DataItemMap(Map.of("a", new DataItemValue(null))),
+					new DataItemMap(Map.of("a", one))
+				),
+				Arguments.of(
+					"null array item on one side only",
+					new DataItemMap(Map.of("p", new DataItemArray(new DataItem[]{null}))),
+					new DataItemMap(Map.of("p", new DataItemArray(new DataItem[]{one})))
+				)
+			);
+		}
+
+		/**
+		 * Builds a fresh complex object for every shape a range leaf can sit in, each holding the passed range as its
+		 * only range leaf next to leaves of other types.
+		 *
+		 * @param range the range leaf
+		 * @return complex objects in a stable order of shapes
+		 */
+		@Nonnull
+		private static List<ComplexDataObject> complexDataShapesHolding(@Nonnull BigDecimalNumberRange range) {
+			// a property of a map, next to a plain value and a null value
+			final Map<String, DataItem> mapProperties = CollectionUtils.createLinkedHashMap(3);
+			mapProperties.put("name", new DataItemValue("holder"));
+			mapProperties.put("missing", new DataItemValue(null));
+			mapProperties.put("range", new DataItemValue(range));
+			// an item of arrays nested in a map, next to a null item
+			final Map<String, DataItem> nestedProperties = CollectionUtils.createLinkedHashMap(1);
+			nestedProperties.put(
+				"ranges",
+				new DataItemArray(
+					new DataItem[]{
+						new DataItemArray(new DataItem[]{new DataItemValue(range)}),
+						null
+					}
+				)
+			);
+			// a property of a map inside an array root
+			final DataItemArray arrayRoot = new DataItemArray(
+				new DataItem[]{
+					new DataItemValue(1),
+					new DataItemMap(Map.of("range", new DataItemValue(range)))
+				}
+			);
+			return List.of(
+				new ComplexDataObject(new DataItemMap(mapProperties)),
+				new ComplexDataObject(new DataItemMap(nestedProperties)),
+				new ComplexDataObject(arrayRoot)
 			);
 		}
 	}

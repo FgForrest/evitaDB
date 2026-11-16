@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.data.DataItem;
+import io.evitadb.dataType.data.DataItemArray;
 import io.evitadb.dataType.data.DataItemMap;
 import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -47,6 +49,7 @@ import io.evitadb.test.TestConstants;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serial;
@@ -64,6 +67,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
 
@@ -175,6 +179,69 @@ class UpsertAssociatedDataMutationConverterTest {
 				new ComplexDataObject(new DataItemMap(Map.of("s", new DataItemValue("string"))))
 			),
 			localMutation
+		);
+	}
+
+	@Test
+	@DisplayName("should resolve a complex data object whose root is an array")
+	void shouldResolveMutationWithComplexDataObjectArrayRoot() {
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
+			map()
+				.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
+				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), List.of(map()
+					.e("s", "string")
+					.build()))
+				.build(),
+			this.mutationConverterContext
+		);
+
+		assertEquals(
+			new UpsertAssociatedDataMutation(
+				ASSOCIATED_DATA_LABELS,
+				new ComplexDataObject(
+					new DataItemArray(new DataItem[]{new DataItemMap(Map.of("s", new DataItemValue("string")))})
+				)
+			),
+			localMutation
+		);
+	}
+
+	@Test
+	@DisplayName("should resolve a complex data object whose root is an empty array")
+	void shouldResolveMutationWithComplexDataObjectEmptyArrayRoot() {
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
+			map()
+				.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
+				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), List.of())
+				.build(),
+			this.mutationConverterContext
+		);
+
+		assertEquals(
+			new UpsertAssociatedDataMutation(
+				ASSOCIATED_DATA_LABELS,
+				new ComplexDataObject(new DataItemArray(new DataItem[0]))
+			),
+			localMutation
+		);
+	}
+
+	@Test
+	@DisplayName("should refuse a complex data object from a scalar value")
+	void shouldNotResolveComplexDataObjectFromScalarValue() {
+		final EvitaInvalidUsageException exception = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> this.converter.convertFromInput(
+				map()
+					.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
+					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "string")
+					.build(),
+				this.mutationConverterContext
+			)
+		);
+
+		assertTrue(
+			exception.getMessage().contains("expected to be an object or an array"), exception.getMessage()
 		);
 	}
 

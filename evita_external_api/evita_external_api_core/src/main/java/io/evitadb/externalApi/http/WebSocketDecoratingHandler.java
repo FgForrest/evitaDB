@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.common.util.Unwrappable;
+import io.evitadb.externalApi.utils.NotFoundWebSocketHandler;
 
 import javax.annotation.Nonnull;
 
@@ -38,14 +39,14 @@ import javax.annotation.Nonnull;
 public interface WebSocketDecoratingHandler extends WebSocketHandler, Unwrappable {
 
 	/**
-	 * Retrieves the underlying {@link WebSocketHandler}.
+	 * Retrieves the underlying {@link WebSocketHandler}, or the not-found fallback for an HTTP-only delegate.
+	 *
+	 * HTTP decorators also implement this interface when their leaf only serves HTTP. An upgrade to such a
+	 * route must close with a policy violation just like any other unavailable WebSocket path.
 	 */
 	@Nonnull
 	default WebSocketHandler unwrapWebSocketHandler() {
 		final WebSocketHandler webSocketHandler = this.unwrap().as(WebSocketHandler.class);
-		if (webSocketHandler == null) {
-			throw new IllegalStateException("HttpService `" + this.getClass().getSimpleName() + "` is not WebSocket handler.");
-		}
-		return webSocketHandler;
+		return webSocketHandler == null ? new NotFoundWebSocketHandler() : webSocketHandler;
 	}
 }

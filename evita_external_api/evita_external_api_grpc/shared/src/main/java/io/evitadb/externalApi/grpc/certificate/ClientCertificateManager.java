@@ -48,6 +48,7 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -100,14 +101,26 @@ public class ClientCertificateManager {
 	}
 
 	/**
-	 * Fetches the certificate from the server and stores it in the client certificate folder.
+	 * Fetches the certificate from the server and stores it in the client certificate folder. A server folder that
+	 * already holds the server certificate and both client files is reused without downloading anything.
 	 *
-	 * @param host server host
-	 * @param port server port
+	 * @param host                        server host
+	 * @param port                        server port
+	 * @param certificateClientFolderPath folder holding one subfolder of downloaded certificates per server name
+	 * @param certificateType             the certificates to download - the server certificate, the client
+	 *                                    credentials, or both
 	 * @return path to the folder with the certificates specific to the server instance
+	 * @throws EvitaInvalidUsageException when no certificate type is given, when the server does not distribute the
+	 *                                    requested client credentials, and when any other download or storing of a
+	 *                                    downloaded file fails
 	 */
 	@Nonnull
-	private static Path getCertificatesFromServer(@Nonnull String host, int port, @Nonnull Path certificateClientFolderPath, @Nonnull CertificateType... certificateType) {
+	private static Path getCertificatesFromServer(
+		@Nonnull String host,
+		int port,
+		@Nonnull Path certificateClientFolderPath,
+		@Nonnull CertificateType... certificateType
+	) {
 		if (ArrayUtils.isEmpty(certificateType)) {
 			throw new EvitaInvalidUsageException("At least one certificate type must be provided");
 		}
@@ -129,12 +142,32 @@ public class ClientCertificateManager {
 			}
 
 			if (Arrays.asList(certificateType).contains(CertificateType.SERVER)) {
-				downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedServerCertificateFileName());
+				final String serverCertificate = CertificateUtils.getGeneratedServerCertificateFileName();
+				storeServerFile(
+					openServerFile(apiEndpoint, serverCertificate), serverSpecificDirectory, serverCertificate
+				);
 			}
 
 			if (Arrays.asList(certificateType).contains(CertificateType.CLIENT)) {
-				downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificateFileName());
-				downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
+				final String[] clientFiles = {
+					CertificateUtils.getGeneratedClientCertificateFileName(),
+					CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()
+				};
+				for (final String clientFile : clientFiles) {
+					final InputStream serverFile;
+					try {
+						serverFile = openServerFile(apiEndpoint, clientFile);
+					} catch (FileNotFoundException e) {
+						// only the server answering `not found` means it keeps client credentials to itself - a
+						// local file that cannot be created is a download failure like any other
+						throw new EvitaInvalidUsageException(
+							"The server does not distribute client certificates. Configure a client certificate and " +
+								"private key and set useGeneratedCertificate to false.",
+							e
+						);
+					}
+					storeServerFile(serverFile, serverSpecificDirectory, clientFile);
+				}
 			}
 
 			return serverSpecificDirectory;
@@ -166,17 +199,35 @@ public class ClientCertificateManager {
 	}
 
 	/**
-	 * Downloads a file from the server and stores it in the client certificate folder.
+	 * Opens a file the server publishes at its System API. Kept apart from {@link #storeServerFile} so that a
+	 * `FileNotFoundException` from here can only mean the server does not serve the file, never that the local copy
+	 * cannot be created.
 	 *
-	 * @param apiEndpoint The endpoint to fetch the file from.
-	 * @param baseDir     the name of the directory for the file
-	 * @param filename    The name of the file to fetch.
-	 * @throws IOException If the file could not be downloaded.
+	 * @param apiEndpoint the System API endpoint to fetch the file from
+	 * @param filename    the name of the file to fetch
+	 * @return the stream of the served file, which the caller must close
+	 * @throws FileNotFoundException when the server does not serve the file
+	 * @throws IOException           when the server cannot be reached
 	 */
-	private static void downloadFileFromServer(@Nonnull String apiEndpoint, @Nonnull Path baseDir, @Nonnull String filename) throws IOException {
-		final URL website = new URL(apiEndpoint + filename);
+	@Nonnull
+	private static InputStream openServerFile(@Nonnull String apiEndpoint, @Nonnull String filename)
+		throws IOException {
+		return new URL(apiEndpoint + filename).openStream();
+	}
+
+	/**
+	 * Stores a file opened by {@link #openServerFile} in the client certificate folder and closes its stream.
+	 *
+	 * @param serverFile the stream of the served file
+	 * @param baseDir    the directory the file is stored in
+	 * @param filename   the name of the stored file
+	 * @throws IOException when the file cannot be read or stored locally
+	 */
+	private static void storeServerFile(
+		@Nonnull InputStream serverFile, @Nonnull Path baseDir, @Nonnull String filename
+	) throws IOException {
 		try (
-			final ReadableByteChannel rbc = Channels.newChannel(website.openStream());
+			final ReadableByteChannel rbc = Channels.newChannel(serverFile);
 			final FileOutputStream fos = new FileOutputStream(baseDir.resolve(filename).toFile());
 			final FileChannel channel = fos.getChannel()
 		) {

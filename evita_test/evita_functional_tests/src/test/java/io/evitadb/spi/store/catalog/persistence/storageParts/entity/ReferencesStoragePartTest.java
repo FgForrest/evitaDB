@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart.MissingReferenceBehavior;
 import org.junit.jupiter.api.DisplayName;
@@ -54,6 +55,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -992,6 +994,76 @@ class ReferencesStoragePartTest {
 		for (int i = 1; i < arr.length; i++) {
 			assertTrue(
 				ReferenceKey.FULL_COMPARATOR.compare(arr[i - 1].getReferenceKey(), arr[i].getReferenceKey()) < 0);
+		}
+	}
+
+	@Nested
+	@DisplayName("Replacement of a reference attribute")
+	class ReferenceAttributeReplacementTest {
+
+		/**
+		 * Creates reference `A` to entity 1 holding the passed range in its attribute `range`.
+		 *
+		 * @param range the value of the attribute
+		 * @return new reference
+		 */
+		@Nonnull
+		private static Reference referenceWithRange(@Nonnull BigDecimalNumberRange range) {
+			return new Reference(
+				ReferencesBuilder.createImplicitSchema(
+					mockEntitySchema(), "A", EXAMPLE_ENTITY_TYPE, Cardinality.ZERO_OR_MORE, null
+				),
+				1,
+				new ReferenceKey("A", 1, 1),
+				null,
+				new ReferenceAttributes(
+					mockEntitySchema(),
+					Mockito.mock(ReferenceSchemaContract.class),
+					List.of(new AttributeValue(1, new AttributeKey("range"), range)),
+					Map.of("range", Mockito.mock(AttributeSchemaContract.class))
+				),
+				false
+			);
+		}
+
+		/**
+		 * `[1.0,2.0]` and `[10,20]` compare equal by their encoded bounds, yet a reader gets other bounds back. The
+		 * part must take the new reference and become dirty, and stay clean when the very same range arrives again.
+		 */
+		@Test
+		@DisplayName("should mark dirty when a range attribute differs only in bounds encoded to the same longs")
+		void shouldMarkDirtyWhenRangeAttributeDiffersOnlyInBoundsEncodedToSameLongs() {
+			final BigDecimalNumberRange oneToTwo =
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+			final ReferencesStoragePart changed =
+				new ReferencesStoragePart(8, 1, new Reference[]{referenceWithRange(oneToTwo)}, -1);
+
+			changed.replaceOrAddReference(
+				new ReferenceKey("A", 1, 1),
+				existing -> referenceWithRange(
+					BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+				),
+				() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+			);
+
+			assertTrue(changed.isDirty());
+			assertEquals(
+				"[10,20]",
+				String.valueOf(
+					(Object) changed.findReferenceOrThrowException(new ReferenceKey("A", 1)).getAttribute("range")
+				)
+			);
+
+			final ReferencesStoragePart unchanged =
+				new ReferencesStoragePart(8, 1, new Reference[]{referenceWithRange(oneToTwo)}, -1);
+			unchanged.replaceOrAddReference(
+				new ReferenceKey("A", 1, 1),
+				existing -> referenceWithRange(
+					BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+				),
+				() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+			);
+			assertFalse(unchanged.isDirty());
 		}
 	}
 

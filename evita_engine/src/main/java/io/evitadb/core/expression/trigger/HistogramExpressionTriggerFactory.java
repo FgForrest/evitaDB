@@ -72,6 +72,11 @@ public class HistogramExpressionTriggerFactory {
 	 * @param referenceSchema the reference schema to build triggers from
 	 * @param schemaResolver  function resolving entity type name to entity schema
 	 * @return list of triggers (empty if no histogram definitions exist)
+	 * @throws io.evitadb.api.exception.InvalidSchemaMutationException when a `bucketedPartially` condition, an
+	 *                                                                 `assignedWhen` condition or a value expression
+	 *                                                                 reads data its slot does not admit; checked
+	 *                                                                 first, also for a reference without histograms,
+	 *                                                                 so a stored schema holding one fails the load
 	 */
 	@Nonnull
 	public static List<HistogramExpressionTrigger> buildTriggersForReference(
@@ -79,6 +84,9 @@ public class HistogramExpressionTriggerFactory {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Function<String, EntitySchemaContract> schemaResolver
 	) {
+		// first, before any early return: a stored schema holding an expression its slot does not admit must fail
+		// here, on load as well as on every rebuild, whatever else the reference defines
+		IndexingExpressionInputValidator.validateHistogramExpressions(ownerEntityType, referenceSchema);
 		final Map<Scope, Map<String, HistogramIndexDefinition>> allDefinitions =
 			referenceSchema.getAllHistogramIndexDefinitions();
 		if (allDefinitions.isEmpty()) {

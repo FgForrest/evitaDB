@@ -206,6 +206,19 @@ class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 		}
 	}
 
+	/** Verifies that a known query path advertises its registered methods when PUT is unsupported. */
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should answer 405 with Allow for an unsupported REST query method")
+	void shouldRejectUnsupportedQueryMethod(@Nonnull RestTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/collections")
+			.httpMethod(Request.METHOD_PUT)
+			.executeAndThen()
+			.statusCode(405)
+			.header("Allow", org.hamcrest.Matchers.equalTo("OPTIONS, GET"));
+	}
+
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should ignore trailing slash in endpoint URLs")

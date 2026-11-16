@@ -354,10 +354,11 @@ public class ClassSchemaAnalyzer {
 			attributesAlreadyDefined.put(attributeName, definer);
 		}
 		final Consumer<AttributeSchemaEditor<?>> attributeBuilder = editor -> {
-			// default value - only set if different (using deep comparison for arrays)
+			// default value - only set if different, compared as stored values: arrays by their items, ranges also
+			// by the representation of their bounds, which `equals` of a range does not compare
 			ofNullable(defaultValue)
 				.map(it -> EvitaDataTypes.toTargetType(it, editor.getType()))
-				.filter(targetValue -> !isDefaultValueEqual(editor.getDefaultValue(), targetValue))
+				.filter(targetValue -> EvitaDataTypes.storedValueDiffers(editor.getDefaultValue(), targetValue))
 				.ifPresent(editor::withDefaultValue);
 
 			// description - only set if different
@@ -535,26 +536,6 @@ public class ClassSchemaAnalyzer {
 		final String normalizedExisting = existing == null || existing.isBlank() ? null : existing;
 		final String normalizedNew = newValue == null || newValue.isBlank() ? null : newValue;
 		return !Objects.equals(normalizedExisting, normalizedNew);
-	}
-
-	/**
-	 * Compares two default values for equality, handling arrays properly.
-	 *
-	 * @param existing the existing default value from schema
-	 * @param newValue the new default value from annotation
-	 * @return true if values are equal
-	 */
-	private static boolean isDefaultValueEqual(@Nullable Serializable existing, @Nullable Serializable newValue) {
-		if (existing == newValue) {
-			return true;
-		}
-		if (existing == null || newValue == null) {
-			return false;
-		}
-		if (existing.getClass().isArray() && newValue.getClass().isArray()) {
-			return Arrays.deepEquals(new Object[]{existing}, new Object[]{newValue});
-		}
-		return Objects.equals(existing, newValue);
 	}
 
 	/**

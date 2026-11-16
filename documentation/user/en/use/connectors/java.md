@@ -248,9 +248,9 @@ TLS and certificate settings are configured via
     <dt>useGeneratedCertificate</dt>
     <dd>
         <p>**Default: `true`**</p>
-        <p>When set to `true`, the client automatically downloads the root certificate of the server CA from
-        the `system` endpoint. When set to `false`, the client expects the root certificate to be provided manually
-        via the `serverCertificatePath` property.</p>
+        <p>When set to `true`, the client automatically downloads the server certificate from the `system` endpoint.
+        When set to `false`, the client expects the server certificate to be provided manually via
+        the `serverCertificatePath` property.</p>
     </dd>
     <dt>trustCertificate</dt>
     <dd>

@@ -26,12 +26,17 @@ package io.evitadb.index.mutation.local.handler;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.handler.EntityLocaleFanOut.LocalizedValueChange;
 
 import javax.annotation.Nonnull;
 
 /**
  * Handler for `RemoveAttributeMutation`. Delegates to the shared `AttributeMutationFanOut`
  * orchestration — see `UpsertAttributeMutationHandler` for the design rationale.
+ *
+ * Before the fan-out, the removal of a localized attribute withdraws the references whose local histogram reads a
+ * localized reference attribute with a `??` default, because it may take its locale from the entity
+ * (`EntityLocaleFanOut#withdrawBeforeLocalizedValueChange`).
  */
 public final class RemoveAttributeMutationHandler implements LocalMutationHandler<RemoveAttributeMutation> {
 
@@ -53,6 +58,9 @@ public final class RemoveAttributeMutationHandler implements LocalMutationHandle
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
+		EntityLocaleFanOut.withdrawBeforeLocalizedValueChange(
+			executor, mutation.getAttributeKey().locale(), LocalizedValueChange.REMOVAL
+		);
 		AttributeMutationFanOut.apply(mutation, executor, globalIndex);
 	}
 

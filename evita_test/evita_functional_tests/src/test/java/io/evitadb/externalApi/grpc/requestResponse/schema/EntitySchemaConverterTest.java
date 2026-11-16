@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPa
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchema;
@@ -51,12 +52,16 @@ import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
@@ -424,6 +429,145 @@ class EntitySchemaConverterTest {
 		assertEntitySchema(
 			entitySchema,
 			EntitySchemaConverter.convert(grpcEntitySchema)
+		);
+	}
+
+	/**
+	 * A decimal range created without explicit retained decimal places compares at the scale of its own bounds. As the
+	 * default value of an attribute it must come back from gRPC at that precision, otherwise the attribute schema a
+	 * client reads differs from the one the server holds. `[0.0,0.0]` encodes to the same bounds at any precision, so
+	 * only its precision tells the two apart.
+	 *
+	 * @param from lower bound of the default value
+	 * @param to   upper bound of the default value
+	 */
+	@ParameterizedTest(name = "default value [{0},{1}]")
+	@CsvSource({"0.0, 0.0", "1.0, 2.0"})
+	@DisplayName("should keep the decimal range default value of an entity, a global and a reference attribute")
+	@Tag(ATTRIBUTE)
+	void shouldKeepDecimalRangeDefaultValueOfAttributes(@Nonnull BigDecimal from, @Nonnull BigDecimal to) {
+		final EntitySchema entitySchema = createEntitySchemaWithDecimalRangeDefaults(
+			BigDecimalNumberRange.between(from, to)
+		);
+		final CatalogSchema catalogSchema = createCatalogSchemaWithSingleEntitySchema(entitySchema);
+
+		final EntitySchemaContract roundTripped = EntitySchemaConverter.convert(
+			EntitySchemaConverter.convert(catalogSchema, entitySchema, true)
+		);
+
+		final ReferenceSchemaContract reference = entitySchema.getReferenceOrThrowException(Entities.BRAND);
+		final ReferenceSchemaContract roundTrippedReference = roundTripped.getReferenceOrThrowException(Entities.BRAND);
+		assertAll(
+			() -> assertDecimalRangeDefaultRoundTripped(
+				entitySchema.getAttribute("entityRange").orElseThrow(),
+				roundTripped.getAttribute("entityRange").orElseThrow()
+			),
+			() -> assertDecimalRangeDefaultRoundTripped(
+				entitySchema.getAttribute("globalRange").orElseThrow(),
+				roundTripped.getAttribute("globalRange").orElseThrow()
+			),
+			() -> assertDecimalRangeDefaultRoundTripped(
+				reference.getAttribute("referenceRange").orElseThrow(),
+				roundTrippedReference.getAttribute("referenceRange").orElseThrow()
+			)
+		);
+	}
+
+	/**
+	 * Builds an entity schema whose entity attribute `entityRange`, global attribute `globalRange` and attribute
+	 * `referenceRange` of the `brand` reference share the given default value - one attribute for each kind of
+	 * attribute schema the reader of the entity schema rebuilds.
+	 *
+	 * @param defaultValue default value of all three attributes
+	 * @return a newly built entity schema
+	 */
+	@Nonnull
+	private static EntitySchema createEntitySchemaWithDecimalRangeDefaults(
+		@Nonnull BigDecimalNumberRange defaultValue
+	) {
+		return EntitySchema._internalBuild(
+			1,
+			Entities.PRODUCT,
+			null,
+			null,
+			null,
+			false,
+			false,
+			Scope.NO_SCOPE,
+			false,
+			Scope.NO_SCOPE,
+			2,
+			Set.of(),
+			Set.of(),
+			Map.of(
+				"entityRange", EntityAttributeSchema._internalBuild(
+					"entityRange", null, null, null, null, false, false, false,
+					BigDecimalNumberRange.class, defaultValue, ConflictResolutionOverride.INHERITED
+				),
+				"globalRange", GlobalAttributeSchema._internalBuild(
+					"globalRange", null, null, null, null, null, false, false, false,
+					BigDecimalNumberRange.class, defaultValue, ConflictResolutionOverride.INHERITED
+				)
+			),
+			Map.of(),
+			Map.of(
+				Entities.BRAND, ReferenceSchema._internalBuild(
+					Entities.BRAND,
+					NamingConvention.generate(Entities.BRAND),
+					null, null,
+					Entities.BRAND,
+					NamingConvention.generate(Entities.BRAND),
+					false,
+					Cardinality.ZERO_OR_ONE,
+					null,
+					Collections.emptyMap(),
+					false,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					},
+					null,
+					Scope.NO_SCOPE,
+					null, null, null,
+					Map.of(
+						"referenceRange", AttributeSchema._internalBuild(
+							"referenceRange", null, null, null, null, false, false, false,
+							BigDecimalNumberRange.class, defaultValue, ConflictResolutionOverride.INHERITED
+						)
+					),
+					Collections.emptyMap(),
+					ConflictResolutionOverride.INHERITED
+				)
+			),
+			EnumSet.noneOf(EvolutionMode.class),
+			Map.of()
+		);
+	}
+
+	/**
+	 * Asserts that an attribute schema read back from gRPC equals the one sent - which compares the default values as
+	 * stored values - and, to name the default value as the culprit when it does not, that its decimal range default
+	 * value compares at the same effective precision.
+	 *
+	 * @param sent     the attribute schema sent
+	 * @param received the attribute schema read back
+	 */
+	private static void assertDecimalRangeDefaultRoundTripped(
+		@Nonnull AttributeSchemaContract sent,
+		@Nonnull AttributeSchemaContract received
+	) {
+		final BigDecimalNumberRange sentDefault = (BigDecimalNumberRange) Objects.requireNonNull(
+			sent.getDefaultValue()
+		);
+		final BigDecimalNumberRange receivedDefault = assertInstanceOf(
+			BigDecimalNumberRange.class, received.getDefaultValue(),
+			"The default value of `" + sent.getName() + "` must be read back as a decimal range."
+		);
+		assertAll(
+			() -> assertEquals(sent, received, "Attribute schema `" + sent.getName() + "`."),
+			() -> assertEquals(
+				sentDefault.getEffectiveRetainedDecimalPlaces(), receivedDefault.getEffectiveRetainedDecimalPlaces(),
+				"Effective retained decimal places of the default value of `" + sent.getName() + "`."
+			)
 		);
 	}
 

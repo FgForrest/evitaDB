@@ -24,15 +24,24 @@
 package io.evitadb.api.functional.schema;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaAcceleratedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -51,18 +60,26 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static io.evitadb.core.expression.trigger.IndexingExpressionInputCells.PREFLIGHT_FRAME;
+import static io.evitadb.core.expression.trigger.IndexingExpressionInputCells.TRIGGER_BUILD_FRAME;
+import static io.evitadb.core.expression.trigger.IndexingExpressionInputCells.hasCatalogFrame;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -100,6 +117,11 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * {@link AttributeFilterAcceleratorRefusalTest} pins the same accelerator case from the schema API's side.
  *
+ * A second refusal comes from inside the schema change rather than from its session's close: the build of the
+ * expression triggers at the end of every schema change refuses a histogram reading an attribute the referenced entity
+ * type does not have, after the change has been applied to its collections. It raises the same barrier, and the inline
+ * flushes in the middle of the change must not publish ahead of it - see {@link TriggerBuildRefusal}.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Schema refused in warm-up must not reach the disk")
@@ -124,6 +146,34 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 	private static final int PUBLISHED_PRODUCT_PK = 1;
 	/** Primary key of the entity written by the session whose close is refused, and which therefore never publishes. */
 	private static final int DISCARDED_PRODUCT_PK = 2;
+	/** An entity type holding one published entity, which the schema changes below remove or rename. */
+	private static final String EXTRA = "extra";
+	/** An entity type a schema change creates. */
+	private static final String CREATED = "createdType";
+	/** A second entity type a schema change creates, or the name a created collection is renamed to. */
+	private static final String SECOND = "secondType";
+	/** An entity type created implicitly, by a modification of an entity type that does not exist yet. */
+	private static final String IMPLICIT = "implicitType";
+	/** The name a renamed collection gets, or the first name in a chain of two renames. */
+	private static final String RENAMED_ONCE = "renamedOnce";
+	/** The second name in a chain of two renames. */
+	private static final String RENAMED_TWICE = "renamedTwice";
+	/** An entity type whose definition the payload preflight refuses before anything is exchanged. */
+	private static final String PREFLIGHT_OWNER = "preflightOwner";
+	/** Name of the histogram the schema changes below declare on a reference. */
+	private static final String HISTOGRAM_NAME = "weights";
+	/** An attribute of the brand that is never defined, so a histogram reading it cannot be built. */
+	private static final String MISSING_ATTRIBUTE = "missing";
+	/** An attribute of the brand a histogram reads, which the same schema change defines after the histogram. */
+	private static final String WEIGHT_ATTRIBUTE = "weight";
+	/** A global attribute the `extra` collection adopts. */
+	private static final String GLOBAL_ATTRIBUTE = "globalWeight";
+	/** A reference of the `extra` collection to itself, whose histogram reads the global attribute. */
+	private static final String REFERENCE_SELF = "relatedExtra";
+	/** Primary key of the entity the `extra` collection holds before every schema change. */
+	private static final int EXTRA_PK = 1;
+	/** Primary key of an entity written after a schema change, in the same session. */
+	private static final int LATER_PK = 2;
 
 	private TestPaths paths;
 	private Evita evita;
@@ -784,6 +834,926 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Schema changes whose histogram the trigger build at the end of the change refuses, after the change has been
+	 * applied to its collections, and the changes beside them that must keep working. The refusal raises the barrier
+	 * before the change returns, and the inline flush a collection-level operation runs in the middle of the change
+	 * waits while an entity type the change has touched cannot build its triggers, so the refused definition never
+	 * reaches the disk. A rename finds the data file of its source through the published catalog header, so a rename
+	 * of a collection that waiting flush left unpublished is refused before any part of it is applied.
+	 *
+	 * Every assertion about what reached the disk reads a reopened catalog, and every reopened catalog must load:
+	 * a refused definition on the disk is refused again by the load's own trigger build, which reports the catalog
+	 * `CORRUPTED`.
+	 */
+	@Nested
+	@Tag(HISTOGRAM)
+	@DisplayName("refused when the expression triggers are built")
+	class TriggerBuildRefusal {
+
+		/**
+		 * Publishes the brand, the product with its reference to the brand and one entity, and the `extra` collection
+		 * with one entity.
+		 */
+		@BeforeEach
+		void defineFixture() {
+			WarmUpRefusedSchemaPersistenceTest.this.defineTriggerBuildFixture();
+		}
+
+		/**
+		 * Proves that a collection created after a refused definition, in the same schema change, does not publish
+		 * the refused definition through its inline flush, and is not published itself.
+		 */
+		@Test
+		@DisplayName("should publish neither the refused definition nor a collection created after it")
+		void shouldPublishNeitherRefusedDefinitionNorCollectionCreatedAfterIt() {
+			// the create flushes inline in warm-up, before the build at the end of the change refuses the histogram
+			assertTriggerBuildRefusalRaisesTheBarrier(session -> new LocalCatalogSchemaMutation[]{
+				productHistogramReading(session, MISSING_ATTRIBUTE),
+				new CreateEntitySchemaMutation(CREATED)
+			});
+
+			reopenCatalogExpectingItLoads();
+			assertFalse(readEntityTypes().contains(CREATED), "The created collection must not have been published");
+			assertFalse(isProductHistogramStored(), "The refused histogram must not have been published");
+		}
+
+		/**
+		 * Proves that a collection created implicitly after a refused definition, by a modification of an entity type
+		 * that does not exist yet, does not publish the refused definition through its inline flush.
+		 */
+		@Test
+		@DisplayName("should publish neither the refused definition nor a collection created implicitly after it")
+		void shouldPublishNeitherRefusedDefinitionNorCollectionCreatedImplicitlyAfterIt() {
+			assertTriggerBuildRefusalRaisesTheBarrier(session -> new LocalCatalogSchemaMutation[]{
+				productHistogramReading(session, MISSING_ATTRIBUTE),
+				new ModifyEntitySchemaMutation(
+					IMPLICIT, new ModifyEntitySchemaDescriptionMutation("implicitly created")
+				)
+			});
+
+			reopenCatalogExpectingItLoads();
+			assertFalse(
+				readEntityTypes().contains(IMPLICIT), "The implicitly created collection must not be published"
+			);
+			assertFalse(isProductHistogramStored(), "The refused histogram must not have been published");
+		}
+
+		/**
+		 * Proves that a removal after a refused definition does not publish the refused definition through its inline
+		 * flush, and does not unlink the data file of the removed collection, which the published state still names.
+		 */
+		@Test
+		@DisplayName("should publish neither the refused definition nor a removal after it")
+		void shouldPublishNeitherRefusedDefinitionNorRemovalAfterIt() {
+			final List<String> dataFilesBefore = listCollectionDataFileNames();
+
+			assertTriggerBuildRefusalRaisesTheBarrier(session -> new LocalCatalogSchemaMutation[]{
+				productHistogramReading(session, MISSING_ATTRIBUTE),
+				new RemoveEntitySchemaMutation(EXTRA)
+			});
+
+			reopenCatalogExpectingItLoads();
+			assertTrue(readEntityTypes().contains(EXTRA), "The removal must not have been published");
+			assertTrue(isEntityStored(EXTRA, EXTRA_PK), "The removed collection must keep its published entity");
+			assertTrue(
+				listCollectionDataFileNames().containsAll(dataFilesBefore),
+				() -> "The refused change must not unlink a data file the published state names, but the folder no " +
+					"longer holds all of " + dataFilesBefore
+			);
+			assertFalse(isProductHistogramStored(), "The refused histogram must not have been published");
+		}
+
+		/**
+		 * Proves that a rename after a refused definition does not publish the refused definition through its inline
+		 * flush, and that the published state keeps the collection under its first name.
+		 */
+		@Test
+		@DisplayName("should publish neither the refused definition nor a rename after it")
+		void shouldPublishNeitherRefusedDefinitionNorRenameAfterIt() {
+			final List<String> dataFilesBefore = listCollectionDataFileNames();
+
+			assertTriggerBuildRefusalRaisesTheBarrier(session -> new LocalCatalogSchemaMutation[]{
+				productHistogramReading(session, MISSING_ATTRIBUTE),
+				new ModifyEntitySchemaNameMutation(EXTRA, RENAMED_ONCE, false)
+			});
+
+			reopenCatalogExpectingItLoads();
+			final Set<String> entityTypes = readEntityTypes();
+			assertTrue(entityTypes.contains(EXTRA), "The collection must keep its published name");
+			assertFalse(entityTypes.contains(RENAMED_ONCE), "The rename must not have been published");
+			assertTrue(isEntityStored(EXTRA, EXTRA_PK), "The collection must keep its published entity");
+			// the rename's storage step wrote the data file of the new name, which nothing publishes; it is inert
+			// dead space, so the folder only has to keep every file the published state names
+			assertTrue(
+				listCollectionDataFileNames().containsAll(dataFilesBefore),
+				() -> "The refused change must not unlink a data file the published state names, but the folder no " +
+					"longer holds all of " + dataFilesBefore
+			);
+			assertFalse(isProductHistogramStored(), "The refused histogram must not have been published");
+		}
+
+		/**
+		 * Proves that a collection created before a refused definition, in the same schema change, is published by
+		 * its inline flush. Nothing publishes after the barrier, so finding it on the disk proves the publication
+		 * happened mid-change, before the trigger build refused.
+		 */
+		@Test
+		@DisplayName("should publish a collection created before the refused definition, and not the definition")
+		void shouldPublishCollectionCreatedBeforeRefusedDefinition() {
+			assertTriggerBuildRefusalRaisesTheBarrier(session -> new LocalCatalogSchemaMutation[]{
+				new CreateEntitySchemaMutation(CREATED),
+				productHistogramReading(session, MISSING_ATTRIBUTE)
+			});
+
+			reopenCatalogExpectingItLoads();
+			assertTrue(
+				readEntityTypes().contains(CREATED),
+				"A collection created before the refused definition is published by its own inline flush"
+			);
+			assertFalse(isProductHistogramStored(), "The refused histogram must not have been published");
+		}
+
+		/**
+		 * Proves that a refused definition after a catalog mutation whose cascade changed another collection raises
+		 * the barrier, so neither the cascade nor the definition is published.
+		 */
+		@Test
+		@DisplayName("should publish neither the refused definition nor a catalog cascade before it")
+		void shouldPublishNeitherRefusedDefinitionNorCatalogCascadeBeforeIt() {
+			defineGlobalAttributeAdoptedByExtra(false);
+
+			assertTriggerBuildRefusalRaisesTheBarrier(session -> new LocalCatalogSchemaMutation[]{
+				new RemoveAttributeSchemaMutation(GLOBAL_ATTRIBUTE),
+				productHistogramReading(session, MISSING_ATTRIBUTE)
+			});
+
+			reopenCatalogExpectingItLoads();
+			WarmUpRefusedSchemaPersistenceTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(
+						session.getCatalogSchema().getAttribute(GLOBAL_ATTRIBUTE).isPresent(),
+						"The removal of the global attribute must not have been published"
+					);
+					assertTrue(
+						session.getEntitySchemaOrThrowException(EXTRA).getAttribute(GLOBAL_ATTRIBUTE).isPresent(),
+						"The cascade of the removal must not have been published"
+					);
+				}
+			);
+			assertFalse(isProductHistogramStored(), "The refused histogram must not have been published");
+		}
+
+		/**
+		 * Proves that a catalog mutation whose cascade leaves a histogram unbuildable is refused by the trigger build
+		 * of the cascade itself, which is applied as a nested schema change, and that the refusal raises the barrier.
+		 */
+		@Test
+		@DisplayName("should not publish a catalog cascade whose own trigger build refuses")
+		void shouldNotPublishCatalogCascadeWhoseOwnTriggerBuildRefuses() {
+			defineGlobalAttributeAdoptedByExtra(true);
+
+			final InvalidSchemaMutationException exception = assertTriggerBuildRefusalRaisesTheBarrier(
+				session -> new LocalCatalogSchemaMutation[]{new RemoveAttributeSchemaMutation(GLOBAL_ATTRIBUTE)}
+			);
+			final long schemaChangeFrames = Arrays.stream(exception.getStackTrace())
+				.filter(frame -> frame.getMethodName().equals("updateSchema") &&
+					frame.getClassName().equals("io.evitadb.core.catalog.Catalog"))
+				.count();
+			assertTrue(
+				schemaChangeFrames >= 2,
+				() -> "The refusal must come from the nested schema change applying the cascade, but the stack holds " +
+					schemaChangeFrames + " schema change frame(s)"
+			);
+
+			reopenCatalogExpectingItLoads();
+			WarmUpRefusedSchemaPersistenceTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EntitySchemaContract extraSchema = session.getEntitySchemaOrThrowException(EXTRA);
+					assertTrue(
+						extraSchema.getAttribute(GLOBAL_ATTRIBUTE).isPresent(),
+						"The cascade of the removal must not have been published"
+					);
+					assertTrue(
+						isHistogramDeclared(extraSchema, REFERENCE_SELF),
+						"The histogram the cascade broke must survive as it was published"
+					);
+				}
+			);
+		}
+
+		/**
+		 * Proves that two collections created in one schema change are both published, and that the session goes on
+		 * accepting entity writes.
+		 */
+		@Test
+		@DisplayName("should publish two collections created in one schema change")
+		void shouldPublishTwoCollectionsCreatedInOneSchemaChange() {
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateCatalogSchema(
+						new CreateEntitySchemaMutation(CREATED),
+						new CreateEntitySchemaMutation(SECOND)
+					);
+					session.upsertEntity(session.createNewEntity(EXTRA, LATER_PK));
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			assertTrue(readEntityTypes().containsAll(Set.of(CREATED, SECOND)), "Both collections must be published");
+			assertTrue(isEntityStored(EXTRA, LATER_PK), "The entity written after the change must be published");
+		}
+
+		/**
+		 * Proves that a collection created and renamed in one schema change is published under its new name. The
+		 * rename finds the data file of the collection on the published catalog header, so this works only because
+		 * the create's inline flush published the collection.
+		 */
+		@Test
+		@DisplayName("should publish a collection created and renamed in one schema change under its new name")
+		void shouldPublishCollectionCreatedAndRenamedInOneSchemaChange() {
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateCatalogSchema(
+						new CreateEntitySchemaMutation(CREATED),
+						new ModifyEntitySchemaNameMutation(CREATED, SECOND, false)
+					);
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			final Set<String> entityTypes = readEntityTypes();
+			assertTrue(entityTypes.contains(SECOND), "The collection must be published under its new name");
+			assertFalse(entityTypes.contains(CREATED), "The collection must not be published under its first name");
+		}
+
+		/**
+		 * Proves that two renames in a row succeed when the first one's inline flush publishes - here forced by a
+		 * modification of another collection earlier in the same schema change, because the rename itself gives the
+		 * flush no change to detect.
+		 */
+		@Test
+		@DisplayName("should publish two renames in a row when the first one is published")
+		void shouldPublishTwoRenamesInARowWhenTheFirstOneIsPublished() {
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateCatalogSchema(
+						new ModifyEntitySchemaMutation(
+							Entities.BRAND, new ModifyEntitySchemaDescriptionMutation("changed before the renames")
+						),
+						new ModifyEntitySchemaNameMutation(EXTRA, RENAMED_ONCE, false),
+						new ModifyEntitySchemaNameMutation(RENAMED_ONCE, RENAMED_TWICE, false)
+					);
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			final Set<String> entityTypes = readEntityTypes();
+			assertTrue(entityTypes.contains(RENAMED_TWICE), "The collection must be published under its last name");
+			assertFalse(entityTypes.contains(EXTRA), "The collection must not be published under its first name");
+			assertFalse(
+				entityTypes.contains(RENAMED_ONCE), "The collection must not be published under its interim name"
+			);
+			assertTrue(isEntityStored(RENAMED_TWICE, EXTRA_PK), "The renamed collection must keep its entity");
+		}
+
+		/**
+		 * Proves that a second rename whose source the first rename's inline flush did not publish is refused before
+		 * any part of it is applied, and leaves the collection under the name the first rename gave it.
+		 */
+		@Test
+		@DisplayName("should refuse a second rename whose source the first rename did not publish")
+		void shouldRefuseSecondRenameWhoseSourceTheFirstRenameDidNotPublish() {
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final InvalidSchemaMutationException refusal = assertThrows(
+						InvalidSchemaMutationException.class,
+						() -> session.updateCatalogSchema(
+							new ModifyEntitySchemaNameMutation(EXTRA, RENAMED_ONCE, false),
+							new ModifyEntitySchemaNameMutation(RENAMED_ONCE, RENAMED_TWICE, false)
+						)
+					);
+					assertRefusedBeforeTheRename(refusal, RENAMED_ONCE, RENAMED_TWICE);
+					final Set<String> entityTypes = session.getAllEntityTypes();
+					assertTrue(entityTypes.contains(RENAMED_ONCE), "The first rename must stay applied");
+					assertFalse(entityTypes.contains(RENAMED_TWICE), "The refused rename must not be applied");
+				}
+			);
+		}
+
+		/**
+		 * Proves that a histogram defined before the attribute it reads, in one schema change, is accepted and
+		 * published.
+		 */
+		@Test
+		@DisplayName("should publish a histogram defined before the attribute it reads in one schema change")
+		void shouldPublishHistogramDefinedBeforeTheAttributeItReads() {
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateCatalogSchema(
+						productHistogramReading(session, WEIGHT_ATTRIBUTE),
+						brandWeightAttribute(session)
+					);
+					session.upsertEntity(session.createNewEntity(EXTRA, LATER_PK));
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			assertTrue(isProductHistogramStored(), "The histogram must be published");
+			assertTrue(isBrandWeightStored(), "The attribute the histogram reads must be published");
+			assertTrue(isEntityStored(EXTRA, LATER_PK), "The entity written after the change must be published");
+		}
+
+		/**
+		 * Proves that a collection created while the histogram defined before it cannot be built yet is accepted: the
+		 * inline flush of the create waits, and the session close publishes everything once the change is whole.
+		 */
+		@Test
+		@DisplayName("should publish a collection created while a histogram of the same change cannot be built yet")
+		void shouldPublishCollectionCreatedWhileHistogramOfTheSameChangeCannotBeBuiltYet() {
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateCatalogSchema(
+						productHistogramReading(session, WEIGHT_ATTRIBUTE),
+						new CreateEntitySchemaMutation(CREATED),
+						brandWeightAttribute(session)
+					);
+					// accepted, so the change raised no barrier
+					session.upsertEntity(session.createNewEntity(EXTRA, LATER_PK));
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			assertTrue(readEntityTypes().contains(CREATED), "The created collection must be published by the close");
+			assertTrue(isProductHistogramStored(), "The histogram must be published");
+			assertTrue(isBrandWeightStored(), "The attribute the histogram reads must be published");
+			assertTrue(isEntityStored(EXTRA, LATER_PK), "The entity written after the change must be published");
+		}
+
+		/**
+		 * Proves that a definition the payload preflight refuses is refused before anything is exchanged, raises no
+		 * barrier, and leaves the session usable for a later schema change and entity write.
+		 */
+		@Test
+		@DisplayName("should keep the session usable after a refusal of the payload preflight")
+		void shouldKeepSessionUsableAfterPreflightRefusal() {
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final InvalidSchemaMutationException refusal = assertThrows(
+						InvalidSchemaMutationException.class,
+						() -> session.defineEntitySchema(PREFLIGHT_OWNER)
+							.withoutGeneratedPrimaryKey()
+							.withReferenceToEntity(
+								REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+								whichIs -> whichIs.indexedForFilteringAndPartitioning()
+									.withAttribute("share", Integer.class, attribute -> attribute.filterable())
+									.bucketed(HISTOGRAM_NAME, ExpressionFactory.parse("$reference.attributes['share']"))
+									.bucketedPartially(ExpressionFactory.parse("$entity.version >= 3"))
+							)
+							.updateVia(session)
+					);
+					assertTrue(
+						hasCatalogFrame(refusal, PREFLIGHT_FRAME) && !hasCatalogFrame(refusal, TRIGGER_BUILD_FRAME),
+						() -> "The refusal must come from the payload preflight: " + refusal
+					);
+					// the barrier is raised before a refusal returns, so writes that succeed prove there is none
+					session.getEntitySchemaOrThrowException(Entities.BRAND)
+						.openForWrite()
+						.withDescription("changed after the refusal")
+						.updateVia(session);
+					session.upsertEntity(session.createNewEntity(EXTRA, LATER_PK));
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			WarmUpRefusedSchemaPersistenceTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertEquals(
+						"changed after the refusal",
+						session.getEntitySchemaOrThrowException(Entities.BRAND).getDescription(),
+						"The schema change after the refusal must be published"
+					);
+					assertFalse(
+						session.getEntitySchemaOrThrowException(PREFLIGHT_OWNER).getReference(REFERENCE_BRAND)
+							.isPresent(),
+						"The refused reference must not be published"
+					);
+				}
+			);
+			assertTrue(isEntityStored(EXTRA, LATER_PK), "The entity written after the refusal must be published");
+		}
+
+		/**
+		 * Proves that a collection created implicitly by an entity upsert is published with the entity.
+		 */
+		@Test
+		@DisplayName("should publish a collection created implicitly by an entity upsert")
+		void shouldPublishCollectionCreatedImplicitlyByEntityUpsert() {
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.upsertEntity(session.createNewEntity(IMPLICIT, 1).setAttribute(ATTRIBUTE_CODE, "x"));
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			assertTrue(readEntityTypes().contains(IMPLICIT), "The implicitly created collection must be published");
+			assertTrue(isEntityStored(IMPLICIT, 1), "The entity that created the collection must be published");
+		}
+
+		/**
+		 * Proves that a rename of a collection whose create the inline flush skipped - a histogram of the same change
+		 * could not be built yet - is refused before any part of it is applied, while the rest of the change stays
+		 * applied, raises no barrier and is published by the session close.
+		 */
+		@Test
+		@DisplayName("should refuse a rename of a collection created earlier in the change and not published yet")
+		void shouldRefuseRenameOfCollectionCreatedEarlierAndNotPublishedYet() {
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final InvalidSchemaMutationException refusal = assertThrows(
+						InvalidSchemaMutationException.class,
+						() -> session.updateCatalogSchema(
+							productHistogramReading(session, WEIGHT_ATTRIBUTE),
+							new CreateEntitySchemaMutation(CREATED),
+							brandWeightAttribute(session),
+							new ModifyEntitySchemaNameMutation(CREATED, SECOND, false)
+						)
+					);
+					assertRefusedBeforeTheRename(refusal, CREATED, SECOND);
+					assertSessionAcceptsWritesUnderNames(session, Set.of(CREATED), Set.of(SECOND), EXTRA);
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			final Set<String> entityTypes = readEntityTypes();
+			assertTrue(entityTypes.contains(CREATED), "The created collection must be published by the close");
+			assertFalse(entityTypes.contains(SECOND), "The refused rename must not be published");
+			assertTrue(isProductHistogramStored(), "The histogram must be published");
+			assertTrue(isBrandWeightStored(), "The attribute the histogram reads must be published");
+			assertTrue(isEntityStored(EXTRA, LATER_PK), "The entity written after the refusal must be published");
+		}
+
+		/**
+		 * Proves that a rename whose source an earlier rename of the same change left unpublished - a histogram of the
+		 * change could not be built at that rename's inline flush - is refused before any part of it is applied.
+		 */
+		@Test
+		@DisplayName("should refuse a rename of a collection renamed earlier in the change and not published yet")
+		void shouldRefuseRenameOfCollectionRenamedEarlierAndNotPublishedYet() {
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final InvalidSchemaMutationException refusal = assertThrows(
+						InvalidSchemaMutationException.class,
+						() -> session.updateCatalogSchema(
+							productHistogramReading(session, WEIGHT_ATTRIBUTE),
+							new ModifyEntitySchemaNameMutation(EXTRA, RENAMED_ONCE, false),
+							brandWeightAttribute(session),
+							new ModifyEntitySchemaNameMutation(RENAMED_ONCE, RENAMED_TWICE, false)
+						)
+					);
+					assertRefusedBeforeTheRename(refusal, RENAMED_ONCE, RENAMED_TWICE);
+					assertSessionAcceptsWritesUnderNames(
+						session, Set.of(RENAMED_ONCE), Set.of(EXTRA, RENAMED_TWICE), RENAMED_ONCE
+					);
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			final Set<String> entityTypes = readEntityTypes();
+			assertTrue(entityTypes.contains(RENAMED_ONCE), "The first rename must be published by the close");
+			assertFalse(entityTypes.contains(RENAMED_TWICE), "The refused rename must not be published");
+			assertTrue(isEntityStored(RENAMED_ONCE, EXTRA_PK), "The renamed collection must keep its entity");
+			assertTrue(
+				isEntityStored(RENAMED_ONCE, LATER_PK), "The entity written after the refusal must be published"
+			);
+			assertTrue(isProductHistogramStored(), "The histogram must be published");
+			assertTrue(isBrandWeightStored(), "The attribute the histogram reads must be published");
+		}
+
+		/**
+		 * Proves that an overwriting rename whose source is a collection created earlier in the change and not
+		 * published yet is refused before any part of it is applied, and leaves the target untouched.
+		 */
+		@Test
+		@DisplayName("should refuse an overwriting rename of a collection created earlier and not published yet")
+		void shouldRefuseOverwritingRenameOfCollectionCreatedEarlierAndNotPublishedYet() {
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final InvalidSchemaMutationException refusal = assertThrows(
+						InvalidSchemaMutationException.class,
+						() -> session.updateCatalogSchema(
+							productHistogramReading(session, WEIGHT_ATTRIBUTE),
+							new CreateEntitySchemaMutation(CREATED),
+							brandWeightAttribute(session),
+							new ModifyEntitySchemaNameMutation(CREATED, EXTRA, true)
+						)
+					);
+					assertRefusedBeforeTheRename(refusal, CREATED, EXTRA);
+					assertSessionAcceptsWritesUnderNames(session, Set.of(CREATED, EXTRA), Set.of(), EXTRA);
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			assertTrue(readEntityTypes().containsAll(Set.of(CREATED, EXTRA)), "Both collections must be published");
+			assertTrue(isEntityStored(EXTRA, EXTRA_PK), "The collection the refused rename targeted keeps its entity");
+			assertTrue(isEntityStored(EXTRA, LATER_PK), "The entity written after the refusal must be published");
+			assertTrue(isProductHistogramStored(), "The histogram must be published");
+		}
+
+		/**
+		 * Proves that an overwriting rename of a published collection onto a collection created earlier in the change
+		 * and not published yet is accepted: only the source must be on the published catalog header.
+		 */
+		@Test
+		@DisplayName("should accept an overwriting rename of a published collection onto one not published yet")
+		void shouldAcceptOverwritingRenameOfPublishedCollectionOntoOneNotPublishedYet() {
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateCatalogSchema(
+						productHistogramReading(session, WEIGHT_ATTRIBUTE),
+						new CreateEntitySchemaMutation(CREATED),
+						brandWeightAttribute(session),
+						new ModifyEntitySchemaNameMutation(EXTRA, CREATED, true)
+					);
+					session.upsertEntity(session.createNewEntity(CREATED, LATER_PK));
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			final Set<String> entityTypes = readEntityTypes();
+			assertTrue(entityTypes.contains(CREATED), "The renamed collection must be published under the new name");
+			assertFalse(entityTypes.contains(EXTRA), "The renamed collection must not be published under its old name");
+			assertTrue(isEntityStored(CREATED, EXTRA_PK), "The renamed collection must keep its entity");
+			assertTrue(isEntityStored(CREATED, LATER_PK), "The entity written after the change must be published");
+			assertTrue(isProductHistogramStored(), "The histogram must be published");
+		}
+
+		/**
+		 * Proves that a rename of a collection removed and re-created under its published name in one schema change,
+		 * while a histogram of the change could not be built at the inline flushes, is refused before any part of it
+		 * is applied: the published catalog header names the removed collection under that name, not the re-created
+		 * one.
+		 */
+		@Test
+		@DisplayName("should refuse a rename of a collection re-created under a published name and not published yet")
+		void shouldRefuseRenameOfCollectionRecreatedUnderPublishedName() {
+			WarmUpRefusedSchemaPersistenceTest.this.publishRenameOfExtra();
+
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final InvalidSchemaMutationException refusal = assertThrows(
+						InvalidSchemaMutationException.class,
+						() -> session.updateCatalogSchema(
+							productHistogramReading(session, WEIGHT_ATTRIBUTE),
+							new RemoveEntitySchemaMutation(RENAMED_ONCE),
+							new CreateEntitySchemaMutation(RENAMED_ONCE),
+							brandWeightAttribute(session),
+							new ModifyEntitySchemaNameMutation(RENAMED_ONCE, RENAMED_TWICE, false)
+						)
+					);
+					assertRefusedBeforeTheRename(refusal, RENAMED_ONCE, RENAMED_TWICE);
+					assertSessionAcceptsWritesUnderNames(
+						session, Set.of(RENAMED_ONCE), Set.of(RENAMED_TWICE), RENAMED_ONCE
+					);
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			final Set<String> entityTypes = readEntityTypes();
+			assertTrue(entityTypes.contains(RENAMED_ONCE), "The re-created collection must be published by the close");
+			assertFalse(entityTypes.contains(RENAMED_TWICE), "The refused rename must not be published");
+			assertFalse(
+				isEntityStored(RENAMED_ONCE, EXTRA_PK), "The entity of the removed collection must not be published"
+			);
+			assertTrue(
+				isEntityStored(RENAMED_ONCE, LATER_PK), "The entity written after the refusal must be published"
+			);
+			assertTrue(isProductHistogramStored(), "The histogram must be published");
+			assertTrue(isBrandWeightStored(), "The attribute the histogram reads must be published");
+		}
+
+		/**
+		 * Proves that a rename of a collection published under the name an earlier rename gave it is accepted: the
+		 * published catalog header names that very collection, and the rename keeps its entity.
+		 */
+		@Test
+		@DisplayName("should publish a rename of a collection published under the name an earlier rename gave it")
+		void shouldPublishRenameOfCollectionPublishedUnderTheNameAnEarlierRenameGaveIt() {
+			WarmUpRefusedSchemaPersistenceTest.this.publishRenameOfExtra();
+
+			WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateCatalogSchema(new ModifyEntitySchemaNameMutation(RENAMED_ONCE, RENAMED_TWICE, false));
+					session.upsertEntity(session.createNewEntity(RENAMED_TWICE, LATER_PK));
+				}
+			);
+
+			reopenCatalogExpectingItLoads();
+			final Set<String> entityTypes = readEntityTypes();
+			assertTrue(entityTypes.contains(RENAMED_TWICE), "The collection must be published under its new name");
+			assertFalse(
+				entityTypes.contains(RENAMED_ONCE), "The collection must not be published under its previous name"
+			);
+			assertTrue(isEntityStored(RENAMED_TWICE, EXTRA_PK), "The renamed collection must keep its entity");
+			assertTrue(
+				isEntityStored(RENAMED_TWICE, LATER_PK), "The entity written after the rename must be published"
+			);
+		}
+	}
+
+	/**
+	 * Applies a schema change expected to be refused by the build of its expression triggers, as one call that throws
+	 * out of the session, and asserts that the refusal raised the unpublishable barrier.
+	 *
+	 * @param schemaChange produces the mutations of the schema change from the session it is applied in
+	 * @return the refusal; never null
+	 */
+	@Nonnull
+	private InvalidSchemaMutationException assertTriggerBuildRefusalRaisesTheBarrier(
+		@Nonnull Function<EvitaSessionContract, LocalCatalogSchemaMutation[]> schemaChange
+	) {
+		final InvalidSchemaMutationException exception =
+			CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+				this.evita, TEST_CATALOG,
+				InvalidSchemaMutationException.class,
+				() -> this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.updateCatalogSchema(schemaChange.apply(session));
+					}
+				)
+			);
+		assertTrue(
+			exception.getMessage().contains("does not exist on entity type"),
+			() -> "The refusal must name the attribute the histogram reads, but was: " + exception.getMessage()
+		);
+		assertTrue(
+			hasCatalogFrame(exception, TRIGGER_BUILD_FRAME) && !hasCatalogFrame(exception, PREFLIGHT_FRAME),
+			() -> "The refusal must come from the trigger build at the end of the schema change: " + exception
+		);
+		return exception;
+	}
+
+	/**
+	 * Asserts that a rename was refused before any part of it was applied, because its source has not been published.
+	 *
+	 * @param refusal the refusal
+	 * @param source  the collection the rename renamed
+	 * @param target  the name the rename gave it
+	 */
+	private static void assertRefusedBeforeTheRename(
+		@Nonnull InvalidSchemaMutationException refusal, @Nonnull String source, @Nonnull String target
+	) {
+		final String message = refusal.getMessage();
+		assertTrue(
+			message.contains("cannot be renamed") && message.contains("`" + source + "`") &&
+				message.contains("`" + target + "`"),
+			() -> "The refusal must name the unpublished collection and its new name, but was: " + message
+		);
+	}
+
+	/**
+	 * Asserts the collections the session holds after a refused rename, and that it still accepts an entity write -
+	 * which the barrier would refuse.
+	 *
+	 * @param session      the session the rename was refused in
+	 * @param presentTypes the entity types the session must hold
+	 * @param absentTypes  the entity types the session must not hold
+	 * @param writtenType  the entity type the write goes into; it must hold no reference, because the change failed
+	 *                     before its trigger build and the owners it modified keep their previous triggers
+	 */
+	private static void assertSessionAcceptsWritesUnderNames(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Set<String> presentTypes,
+		@Nonnull Set<String> absentTypes,
+		@Nonnull String writtenType
+	) {
+		final Set<String> entityTypes = session.getAllEntityTypes();
+		assertTrue(
+			entityTypes.containsAll(presentTypes),
+			() -> "The session must hold " + presentTypes + ", but holds " + entityTypes
+		);
+		for (final String absentType : absentTypes) {
+			assertFalse(entityTypes.contains(absentType), () -> "The session must not hold `" + absentType + "`");
+		}
+		session.upsertEntity(session.createNewEntity(writtenType, LATER_PK));
+	}
+
+	/**
+	 * Builds, without applying it, the modification of the product that declares a histogram on its brand reference
+	 * whose value is the given attribute of the brand.
+	 *
+	 * @param session        the session the mutation is built in
+	 * @param brandAttribute the attribute of the brand the histogram reads
+	 * @return the mutation; never null
+	 */
+	@Nonnull
+	private static ModifyEntitySchemaMutation productHistogramReading(
+		@Nonnull EvitaSessionContract session, @Nonnull String brandAttribute
+	) {
+		return session.getEntitySchemaOrThrowException(Entities.PRODUCT)
+			.openForWrite()
+			.withReferenceToEntity(
+				REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs.indexedForFilteringAndPartitioning()
+					.bucketed(
+						HISTOGRAM_NAME,
+						ExpressionFactory.parse("$reference.referencedEntity?.attributes['" + brandAttribute + "']")
+					)
+			)
+			.toMutation()
+			.orElseThrow();
+	}
+
+	/**
+	 * Builds, without applying it, the modification of the brand that defines the filterable attribute the histogram
+	 * of {@link #productHistogramReading} reads.
+	 *
+	 * @param session the session the mutation is built in
+	 * @return the mutation; never null
+	 */
+	@Nonnull
+	private static ModifyEntitySchemaMutation brandWeightAttribute(@Nonnull EvitaSessionContract session) {
+		return session.getEntitySchemaOrThrowException(Entities.BRAND)
+			.openForWrite()
+			.withAttribute(WEIGHT_ATTRIBUTE, Integer.class, AttributeSchemaEditor::filterable)
+			.toMutation()
+			.orElseThrow();
+	}
+
+	/**
+	 * Publishes the fixture of {@link TriggerBuildRefusal}: the brand without attributes, the product with a reference
+	 * to the brand and one entity, and the `extra` collection with one entity.
+	 */
+	private void defineTriggerBuildFixture() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.BRAND)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withReferenceToEntity(
+						REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+					)
+					.updateVia(session);
+				session.defineEntitySchema(EXTRA)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				session.upsertEntity(session.createNewEntity(EXTRA, EXTRA_PK));
+				session.upsertEntity(session.createNewEntity(Entities.PRODUCT, PUBLISHED_PRODUCT_PK));
+			}
+		);
+	}
+
+	/**
+	 * Renames the `extra` collection to `renamedOnce` in a session of its own, after a modification of the brand in
+	 * the same schema change, and publishes it: the published catalog header then names `renamedOnce` with the primary
+	 * key of the `extra` collection.
+	 */
+	private void publishRenameOfExtra() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.updateCatalogSchema(
+					new ModifyEntitySchemaMutation(
+						Entities.BRAND, new ModifyEntitySchemaDescriptionMutation("changed before the rename")
+					),
+					new ModifyEntitySchemaNameMutation(EXTRA, RENAMED_ONCE, false)
+				);
+			}
+		);
+	}
+
+	/**
+	 * Publishes a filterable global attribute and lets the `extra` collection adopt it, optionally together with a
+	 * reference of `extra` to itself whose histogram reads that attribute of the referenced entity.
+	 *
+	 * @param withSelfHistogram whether to declare the self reference with the histogram
+	 */
+	private void defineGlobalAttributeAdoptedByExtra(boolean withSelfHistogram) {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(GLOBAL_ATTRIBUTE, Integer.class, attribute -> attribute.filterable().nullable())
+					.updateVia(session);
+				final EntitySchemaBuilder extraBuilder = session.getEntitySchemaOrThrowException(EXTRA)
+					.openForWrite()
+					.withGlobalAttribute(GLOBAL_ATTRIBUTE);
+				if (withSelfHistogram) {
+					extraBuilder.withReferenceToEntity(
+						REFERENCE_SELF, EXTRA, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+							.bucketed(
+								HISTOGRAM_NAME,
+								ExpressionFactory.parse(
+									"$reference.referencedEntity?.attributes['" + GLOBAL_ATTRIBUTE + "']"
+								)
+							)
+					);
+				}
+				extraBuilder.updateVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Reopens the catalog and asserts that it loads the last state it published. Nothing a refused trigger build left
+	 * behind may reach the disk, where the load's own trigger build would refuse it and report the catalog
+	 * `CORRUPTED`.
+	 */
+	private void reopenCatalogExpectingItLoads() {
+		reopenCatalog();
+		assertEquals(
+			CatalogState.WARMING_UP,
+			this.evita.getCatalogState(TEST_CATALOG).orElse(null),
+			"The reopened catalog must load the last state it published, never `CORRUPTED`"
+		);
+	}
+
+	/**
+	 * Tells whether the product's brand reference of the open catalog declares the histogram.
+	 *
+	 * @return true when the histogram is declared
+	 */
+	private boolean isProductHistogramStored() {
+		return this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return isHistogramDeclared(session.getEntitySchemaOrThrowException(Entities.PRODUCT), REFERENCE_BRAND);
+			}
+		);
+	}
+
+	/**
+	 * Tells whether the given reference of the entity schema declares the histogram in the live scope.
+	 *
+	 * @param entitySchema  the entity schema
+	 * @param referenceName the reference
+	 * @return true when the histogram is declared
+	 */
+	private static boolean isHistogramDeclared(
+		@Nonnull EntitySchemaContract entitySchema, @Nonnull String referenceName
+	) {
+		return entitySchema.getReferenceOrThrowException(referenceName)
+			.getAllHistogramIndexDefinitions()
+			.getOrDefault(Scope.LIVE, Map.of())
+			.containsKey(HISTOGRAM_NAME);
+	}
+
+	/**
+	 * Tells whether the brand of the open catalog defines the attribute the histogram reads.
+	 *
+	 * @return true when the attribute is defined
+	 */
+	private boolean isBrandWeightStored() {
+		return this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntitySchemaOrThrowException(Entities.BRAND)
+					.getAttribute(WEIGHT_ATTRIBUTE)
+					.isPresent();
+			}
+		);
+	}
+
+	/**
+	 * Tells whether the open catalog holds the entity.
+	 *
+	 * @param entityType the entity type, which must exist
+	 * @param primaryKey the primary key
+	 * @return true when the entity is stored
+	 */
+	private boolean isEntityStored(@Nonnull String entityType, int primaryKey) {
+		return this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(entityType, primaryKey).isPresent();
+			}
+		);
+	}
+
+	/**
 	 * Defines the product schema with a single `String` attribute that is neither filterable nor unique in any scope,
 	 * so that an accelerator declared on it has no filter index to sit on.
 	 */
@@ -836,9 +1806,7 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 		// depend on. When it does land, the INACTIVE state is persisted and the reopened engine leaves the catalog
 		// unloaded; when the close wins, the catalog comes back loaded. Both sides read the same bootstrap record -
 		// the newest state that reached the disk - which is the state under assertion
-		if (this.evita.getCatalogState(TEST_CATALOG).orElse(null) == CatalogState.INACTIVE) {
-			CatalogUnpublishableBarrierAssertions.activateWithConflictRetry(this.evita, TEST_CATALOG);
-		}
+		CatalogUnpublishableBarrierAssertions.activateIfDeactivated(this.evita, TEST_CATALOG);
 	}
 
 	/**

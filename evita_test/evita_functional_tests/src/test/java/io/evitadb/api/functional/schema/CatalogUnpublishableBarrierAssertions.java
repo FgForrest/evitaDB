@@ -55,11 +55,13 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * Shared by {@link WarmUpRefusedSchemaPersistenceTest} and {@link AttributeFilterAcceleratorRefusalTest}, which
  * both pin refusals of {@code SetAttributeSchemaAcceleratedMutation} - a mutation that deliberately skips its own
- * pre-flight applicability check today, one edit away from gaining one.
+ * pre-flight applicability check today, one edit away from gaining one - and by the tests of indexing expressions
+ * whose trigger build refuses them in a warming-up catalog, in this package and outside it, which is why the helper
+ * is public.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class CatalogUnpublishableBarrierAssertions {
+public final class CatalogUnpublishableBarrierAssertions {
 
 	/**
 	 * Upper bound on how long the deactivation a refusal schedules is waited for. Generous on purpose - a latch
@@ -84,7 +86,7 @@ final class CatalogUnpublishableBarrierAssertions {
 	 * @return the exception the action was refused with; never null
 	 */
 	@Nonnull
-	static <T extends RuntimeException> T assertRefusalRaisesTheBarrier(
+	public static <T extends RuntimeException> T assertRefusalRaisesTheBarrier(
 		@Nonnull Evita evita,
 		@Nonnull String catalogName,
 		@Nonnull Class<T> expectedException,
@@ -117,7 +119,7 @@ final class CatalogUnpublishableBarrierAssertions {
 	 * @return the subscription, which closes the underlying publisher and carries the latch; never null
 	 */
 	@Nonnull
-	static SettledStateLatch subscribeToSettledState(
+	public static SettledStateLatch subscribeToSettledState(
 		@Nonnull Evita evita,
 		@Nonnull String catalogName,
 		@Nonnull CatalogState expectedState
@@ -155,7 +157,7 @@ final class CatalogUnpublishableBarrierAssertions {
 	 * @param evita       the running instance the catalog lives in; must not be null
 	 * @param catalogName name of the catalog to activate; must not be null
 	 */
-	static void activateWithConflictRetry(@Nonnull Evita evita, @Nonnull String catalogName) {
+	public static void activateWithConflictRetry(@Nonnull Evita evita, @Nonnull String catalogName) {
 		final long deadline = System.currentTimeMillis() + AWAIT_BUDGET_MILLIS;
 		RuntimeException lastConflict;
 		do {
@@ -175,6 +177,22 @@ final class CatalogUnpublishableBarrierAssertions {
 	}
 
 	/**
+	 * Activates the named catalog when a reopened engine reports it inactive, and leaves it as it is otherwise.
+	 *
+	 * Whether the deactivation a refusal scheduled was stored before the engine closed is a race a test must not
+	 * depend on: when it was, the reopened engine leaves the catalog unloaded and it is activated here; when the close
+	 * won, the catalog comes back loaded. Both read the same bootstrap record - the last state the catalog published.
+	 *
+	 * @param evita       the reopened instance the catalog lives in; must not be null
+	 * @param catalogName name of the catalog; must not be null
+	 */
+	public static void activateIfDeactivated(@Nonnull Evita evita, @Nonnull String catalogName) {
+		if (evita.getCatalogState(catalogName).orElse(null) == CatalogState.INACTIVE) {
+			activateWithConflictRetry(evita, catalogName);
+		}
+	}
+
+	/**
 	 * Waits out one backoff interval between two attempts at an operation the engine currently refuses, turning an
 	 * interrupt into a test failure rather than a silent early return.
 	 */
@@ -191,7 +209,7 @@ final class CatalogUnpublishableBarrierAssertions {
 	 * A {@link Flow.Subscriber} over the system change stream that opens a latch when the named catalog is reported
 	 * as having settled into one particular state.
 	 */
-	static final class SettledStateLatch implements Flow.Subscriber<ChangeSystemCapture>, AutoCloseable {
+	public static final class SettledStateLatch implements Flow.Subscriber<ChangeSystemCapture>, AutoCloseable {
 		private final ChangeCapturePublisher<ChangeSystemCapture> publisher;
 		private final String catalogName;
 		private final CatalogState expectedState;
@@ -236,7 +254,7 @@ final class CatalogUnpublishableBarrierAssertions {
 		/**
 		 * Blocks until the expected state is reported, failing the test when it is not reported in time.
 		 */
-		void await() {
+		public void await() {
 			try {
 				if (!this.latch.await(AWAIT_BUDGET_MILLIS, TimeUnit.MILLISECONDS)) {
 					fail(

@@ -65,12 +65,31 @@ import java.util.function.UnaryOperator;
  */
 @Deprecated(since = "2026.3", forRemoval = true)
 @RequiredArgsConstructor
-public class AttributeValueSerializer_2026_2 extends Serializer<AttributeValue> {
+public class AttributeValueSerializer_2026_2 extends Serializer<AttributeValue>
+	implements SkippableSerializer<AttributeValue> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
 	public void write(Kryo kryo, Output output, AttributeValue attributeValue) {
 		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
+	}
+
+	/**
+	 * Consumes the version, compressed key id, class-and-object value and dropped flag that
+	 * {@link #read(Kryo, Input, Class)} reads, without resolving the key id through the compressor or building an
+	 * {@link AttributeValue}. The value has no length prefix, so Kryo must decode it to find the dropped flag behind
+	 * it. The window clamping `read` applies is left out: a discarded value needs none, and the clamp consumes no
+	 * bytes.
+	 *
+	 * The body deliberately repeats {@link AttributeValueSerializer#skip(Kryo, Input, Class)} instead of sharing it:
+	 * this reader is bound to the layout release 2026.2 wrote and must not follow a later change of the current one.
+	 */
+	@Override
+	public void skip(@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends AttributeValue> type) {
+		input.readVarInt(true);
+		input.readVarInt(true);
+		kryo.readClassAndObject(input);
+		input.readBoolean();
 	}
 
 	@Override
