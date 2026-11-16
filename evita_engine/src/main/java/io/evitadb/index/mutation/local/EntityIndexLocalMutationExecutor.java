@@ -268,6 +268,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nonnull private final MissingHistogramValueBehavior missingHistogramValueBehavior;
 	/**
+	 * TRUE when the initial catalog-load replay applies the mutation, which reports a missing histogram value whatever
+	 * {@link #missingHistogramValueBehavior} says. This flag belongs to one root mutation and is copied only to the
+	 * executors of its other owners.
+	 */
+	private final boolean startupReplay;
+	/**
 	 * Whether this executor writes the registry of single-owner partitions - records the sort values and chain
 	 * predecessors it writes into a partition in the partition's registry row (see
 	 * {@link VirtualReferencePartitionWriter}). TRUE for every executor but one writing as another owner of a partition
@@ -480,9 +486,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * partitions.
 	 *
 	 * @param missingHistogramValueBehavior what the withdrawal of a reference-histogram value the index does not hold
-	 *                                      does - see {@link #missingHistogramValueBehavior}
+	 *                                      does in an ordinary write - see {@link #missingHistogramValueBehavior}
 	 * @param partitionReservations         the reservations of the root mutation the executor belongs to, shared by
 	 *                                      all its executors - see {@link PartitionReservations}
+	 * @param startupReplay                 TRUE when the initial catalog-load replay applies the mutation - see
+	 *                                      {@link #startupReplay}
 	 */
 	public EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -500,13 +508,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
 		boolean usageStatisticsTracking,
 		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior,
-		@Nonnull PartitionReservations partitionReservations
+		@Nonnull PartitionReservations partitionReservations,
+		boolean startupReplay
 	) {
 		this(
 			containerAccessor, entityPrimaryKey, entityIndexCreatingAccessor, catalogIndexCreatingAccessor,
 			schemaAccessor, priceInternalIdSupplier, fullEntitySupplier, triggerRegistrySupplier,
 			localFacetTriggerSupplier, crossEntitySchemaResolver, entityTypeClassifierResolver, usageRegistry,
-			catalogUsageRegistry, usageStatisticsTracking, missingHistogramValueBehavior, true, partitionReservations
+			catalogUsageRegistry, usageStatisticsTracking, missingHistogramValueBehavior, true, partitionReservations,
+			startupReplay
 		);
 	}
 
@@ -520,6 +530,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *                                      {@link #partitionRegistryWritten}
 	 * @param partitionReservations         the reservations of the root mutation the executor belongs to, shared by
 	 *                                      all its executors - see {@link PartitionReservations}
+	 * @param startupReplay                 TRUE when the initial catalog-load replay applies the mutation - see
+	 *                                      {@link #startupReplay}
 	 */
 	private EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -538,7 +550,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		boolean usageStatisticsTracking,
 		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior,
 		boolean partitionRegistryWritten,
-		@Nonnull PartitionReservations partitionReservations
+		@Nonnull PartitionReservations partitionReservations,
+		boolean startupReplay
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add((anyType, anyPurpose) -> entityPrimaryKey);
@@ -557,8 +570,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.catalogUsageRegistry = catalogUsageRegistry;
 		this.usageStatisticsTracking = usageStatisticsTracking;
 		this.missingHistogramValueBehavior = missingHistogramValueBehavior;
+		this.startupReplay = startupReplay;
 		this.partitionRegistryWritten = partitionRegistryWritten;
 		this.partitionReservations = partitionReservations;
+	}
+
+	/**
+	 * Returns whether this executor belongs to initial catalog-load replay rather than a live mutation.
+	 *
+	 * @return true only for the initial startup replay
+	 */
+	boolean isStartupReplay() {
+		return this.startupReplay;
 	}
 
 	/**
@@ -692,7 +715,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			false,
 			this.missingHistogramValueBehavior,
 			false,
-			PartitionReservations.REFUSING
+			PartitionReservations.REFUSING,
+			this.startupReplay
 		);
 	}
 

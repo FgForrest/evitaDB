@@ -255,6 +255,13 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex {
 				(LoadedComponentBundle.GroupCardinality) bundles.get(LoadedComponentBundle.GroupCardinality.class);
 			final io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart manifest =
 				context.entityIndexStoragePart();
+			// no current writer lists histogram keys here and the storage migration removes the legacy ones, so keys in
+			// this manifest mean an image that bypassed that migration - this plan has no loader for them
+			Assert.isPremiseValid(
+				manifest.getHistogramIndexes().isEmpty(),
+				() -> "Index " + manifest.getPrimaryKey() + " (`" + manifest.getEntityIndexKey() +
+					"`) contains legacy histogram keys " + manifest.getHistogramIndexes() + " - refusing to load it."
+			);
 			final Scope scope = manifest.getEntityIndexKey().scope();
 			return new ReducedGroupEntityIndex(
 				manifest.getPrimaryKey(),

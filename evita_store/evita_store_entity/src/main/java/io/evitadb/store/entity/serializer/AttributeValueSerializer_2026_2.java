@@ -56,7 +56,7 @@ import java.util.function.UnaryOperator;
  * that were not updated byte for byte, so such a body keeps its old version until its entity is next written.
  *
  * @deprecated kept for backward compatibility; can be removed once no catalog holds an entity body written before
- *             2026.3 - which upgrading to protocol 7 does NOT establish. `Migration_2026_3` rewrites no entity body,
+ *             2026.3 - which upgrading to protocol 9 does NOT establish. `Migration_2026_3` rewrites no entity body,
  *             so every body 2026.2 wrote keeps this vintage's `serialVersionUID` and stays readable only through this
  *             class until its entity is next written. This reader therefore outlives the migration rather than
  *             leaving with it. It only reads: `SerialVersionBasedSerializer` writes every value with

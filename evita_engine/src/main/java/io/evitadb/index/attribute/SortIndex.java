@@ -441,9 +441,10 @@ public abstract sealed class SortIndex
 	 * {@link SortIndexView} is built; otherwise an {@link OwnerSortIndex} is rebuilt from the persisted arrays.
 	 * `sortedRecords` is always taken as-is, and so are the persisted values - nothing here normalizes a raw temporal
 	 * value an owner part of 2026.2 or an older release stored, nor re-sorts the localized texts or locales such a
-	 * release ordered by the bare collator or the language tag: the storage migration to protocol 7 rewrites every
-	 * such part before a catalog of that release loads. A catalog that reaches protocol 7 with such a part otherwise -
-	 * only a development build of 2026.3 writes one - is not supported, and its values are read as they are stored.
+	 * release ordered by the bare collator or the language tag: the storage migration to protocol 9 rewrites every
+	 * such part before a catalog of that release loads. A catalog that reaches the load path with such a part
+	 * otherwise - only a development build of 2026.3 writes one - is not supported, and its values are read as they are
+	 * stored.
 	 *
 	 * @param comparatorBase       one descriptor per element (a single entry for plain attributes)
 	 * @param referenceKey         owning reference discriminator, or `null` for the global index

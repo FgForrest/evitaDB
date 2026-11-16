@@ -35,7 +35,9 @@ import javax.annotation.Nullable;
  * Before a write changes a reference whose attribute feeds a reference histogram, the engine withdraws the value the
  * reference contributed so far, and it asserts that the value is there. A value that is missing means the derived
  * histogram index has drifted from the stored entities - the entity bodies themselves are intact. The engine is
- * expected to keep its histograms consistent, so such drift stops the write by default.
+ * expected to keep its histograms consistent, so such drift stops the write by default. The initial replay of the
+ * write-ahead log while a catalog loads is not governed by this behavior: it reports every value it cannot withdraw
+ * and goes on, because a refusal there would fail the load and mark the catalog corrupted.
  *
  * Other histogram consistency checks - the final add of the values, the bookkeeping of the references awaiting it,
  * the shape of the values - are not governed by this behavior and always fail the write.
@@ -54,10 +56,9 @@ import javax.annotation.Nullable;
  * - a line is logged per application of the write, and a write to an alive catalog is applied twice - once in its
  *   session and once more when its transaction is incorporated into the catalog - so it logs two lines per value;
  * - a write accepted under `REPORT` and not yet covered by a checkpoint is replayed from the write-ahead log when the
- *   engine starts after an unclean shutdown; an engine started without the property meets the same missing value in
- *   the replay and marks the catalog corrupted. After an unclean shutdown, start the engine with `REPORT` and drop
- *   the property only at a later start, once that engine has loaded the catalog and closed cleanly - the clean close
- *   publishes the replayed state.
+ *   engine starts after an unclean shutdown, and the replay reports the same missing value again under either
+ *   behavior - no property is needed to load the catalog. The clean close of that engine publishes the replayed
+ *   state, so a later start has nothing left to replay.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -65,8 +66,9 @@ import javax.annotation.Nullable;
 public enum MissingHistogramValueBehavior {
 
 	/**
-	 * The write fails with an error naming the entity, the reference, the histogram and the missing value. Chosen when
-	 * the property is absent or blank.
+	 * The write fails with an error naming the entity, the reference, the histogram and the missing value - except in
+	 * the initial replay of the write-ahead log, which reports it as `REPORT` does. Chosen when the property is absent
+	 * or blank.
 	 */
 	REFUSE,
 	/**

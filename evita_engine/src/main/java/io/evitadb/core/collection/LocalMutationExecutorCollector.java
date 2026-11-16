@@ -137,6 +137,11 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	 */
 	private final DataStoreReader dataStoreReader;
 	/**
+	 * True only for a root mutation applied by initial catalog-load replay. Nested mutations share this collector,
+	 * so their executors receive the same override without changing catalog or engine configuration.
+	 */
+	private final boolean startupReplay;
+	/**
 	 * The list of all involved local mutation executors.
 	 */
 	private final List<LocalMutationExecutor> executors = new ArrayList<>(16);
@@ -970,6 +975,15 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 			// they are discarded with the transaction anyway)
 			rollbackOpenSavepoint();
 		}
+	}
+
+	/**
+	 * Returns whether this root mutation and its nested mutations belong to initial startup replay.
+	 *
+	 * @return true only for initial catalog-load replay
+	 */
+	boolean isStartupReplay() {
+		return this.startupReplay;
 	}
 
 }

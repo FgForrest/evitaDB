@@ -150,10 +150,10 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("loadingFixtures")
-	@DisplayName("the fixture loads after the upgrade with its header at storage protocol 7")
+	@DisplayName("the fixture loads after the upgrade with its header at storage protocol 9")
 	void shouldLoadWhenFixtureIsUpgraded(@Nonnull String fixture) {
 		this.harness.withUpgradedCatalog(
-			fixture, evita -> assertEquals(7, ReleaseFixtureHarness.headerStorageProtocol(evita, fixture))
+			fixture, evita -> assertEquals(9, ReleaseFixtureHarness.headerStorageProtocol(evita, fixture))
 		);
 	}
 
@@ -176,7 +176,7 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 		@ValueSource(strings = {"d1b", "d1b2", "d9", "d9o", "d13"})
 		void shouldLoadWhenFixtureIsUpgraded(@Nonnull String fixture) {
 			Release2026_2UpgradeDefectsTest.this.harness.withUpgradedCatalog(
-				fixture, evita -> assertEquals(7, ReleaseFixtureHarness.headerStorageProtocol(evita, fixture))
+				fixture, evita -> assertEquals(9, ReleaseFixtureHarness.headerStorageProtocol(evita, fixture))
 			);
 		}
 
@@ -199,20 +199,20 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 	class StorageProtocol {
 
 		@Test
-		@DisplayName("a native 2026.2 catalog is republished at protocol 7 on top of its release bootstrap records")
-		void shouldStampProtocolSevenWhenNativeCatalogIsUpgraded() {
+		@DisplayName("a native 2026.2 catalog is republished at protocol 9 on top of its release bootstrap records")
+		void shouldStampProtocolNineWhenNativeCatalogIsUpgraded() {
 			final ReleaseFixtureHarness harness = Release2026_2UpgradeDefectsTest.this.harness;
 			final TestPaths paths = harness.copy("dU");
 			try {
 				final List<CatalogBootstrap> before = harness.bootstrapRecords(paths, "dU");
 				try (Evita evita = harness.boot(paths)) {
 					ReleaseFixtureHarness.requireAlive(evita, "dU");
-					assertEquals(7, ReleaseFixtureHarness.headerStorageProtocol(evita, "dU"));
+					assertEquals(9, ReleaseFixtureHarness.headerStorageProtocol(evita, "dU"));
 				}
 				final List<CatalogBootstrap> after = harness.bootstrapRecords(paths, "dU");
 				assertTrue(after.size() > before.size(), "the upgrade must publish a new bootstrap record");
 				assertEquals(before, after.subList(0, before.size()), "release bootstrap records stay as they were");
-				assertEquals(7, harness.lastBootstrapStorageProtocol(paths, "dU"));
+				assertEquals(9, harness.lastBootstrapStorageProtocol(paths, "dU"));
 			} finally {
 				harness.cleanup(paths);
 			}

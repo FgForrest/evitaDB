@@ -674,7 +674,20 @@ public final class EntityCollection implements
 	 */
 	@Nonnull
 	LocalMutationExecutorCollector createLocalMutationExecutorCollector() {
-		return new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader);
+		return createLocalMutationExecutorCollector(false);
+	}
+
+	/**
+	 * Creates one call-scoped root collector, carrying the startup override to every nested executor.
+	 *
+	 * @param startupReplay whether initial catalog-load replay owns this mutation
+	 * @return a fresh collector for this root mutation
+	 */
+	@Nonnull
+	private LocalMutationExecutorCollector createLocalMutationExecutorCollector(boolean startupReplay) {
+		return new LocalMutationExecutorCollector(
+			this.catalog, this.persistenceService, this.dataStoreReader, startupReplay
+		);
 	}
 
 	/**
@@ -1069,11 +1082,18 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Same method as {@link #applyMutation(EvitaSessionContract, EntityMutation)}, but in internal API that doesn't
-	 * require session in the input. This method is used from transactional replayer that doesn't have session available.
+	 * Applies one internal entity mutation with a collector confined to this call. Unlike
+	 * {@link #applyMutation(EvitaSessionContract, EntityMutation)} it needs no session: the transactional replay that
+	 * calls it has none.
+	 *
+	 * @param entityMutation the entity mutation to apply
+	 * @param startupReplay whether initial catalog-load replay owns this mutation
+	 * @throws InvalidMutationException when the mutation type is unsupported
 	 */
-	public void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		applyMutationInternal(null, entityMutation);
+	public void applyMutation(
+		@Nonnull EntityMutation entityMutation, boolean startupReplay
+	) throws InvalidMutationException {
+		applyMutationInternal(null, entityMutation, createLocalMutationExecutorCollector(startupReplay));
 	}
 
 	@Override
@@ -2726,9 +2746,24 @@ public final class EntityCollection implements
 	 * @throws InvalidMutationException if an unsupported mutation type is encountered.
 	 */
 	private void applyMutationInternal(@Nullable EvitaSessionContract session, @Nonnull EntityMutation entityMutation) {
+		applyMutationInternal(session, entityMutation, createLocalMutationExecutorCollector());
+	}
+
+	/**
+	 * Applies the root mutation using its collector, also shared by its implicit and reflected mutations.
+	 *
+	 * @param session the session, or null for internal replay
+	 * @param entityMutation the mutation to apply
+	 * @param collector the call-scoped collector carrying the startup flag
+	 */
+	private void applyMutationInternal(
+		@Nullable EvitaSessionContract session,
+		@Nonnull EntityMutation entityMutation,
+		@Nonnull LocalMutationExecutorCollector collector
+	) {
 		switch (entityMutation) {
 			case EntityUpsertMutation upsertMutation ->
-				upsertEntityInternal(session, upsertMutation, null, Void.class);
+				upsertEntityInternal(session, upsertMutation, null, Void.class, collector);
 			case ServerEntityRemoveMutation removeMutation -> applyMutations(
 				session,
 				removeMutation,
@@ -2736,7 +2771,7 @@ public final class EntityCollection implements
 				removeMutation.shouldVerifyConsistency(),
 				null,
 				removeMutation.getImplicitMutationsBehavior(),
-				createLocalMutationExecutorCollector(),
+				collector,
 				Void.class
 			);
 			case EntityRemoveMutation entityRemoveMutation -> applyMutations(
@@ -2746,7 +2781,7 @@ public final class EntityCollection implements
 				true,
 				null,
 				EnumSet.noneOf(ImplicitMutationBehavior.class),
-				createLocalMutationExecutorCollector(),
+				collector,
 				Void.class
 			);
 			default -> throw new InvalidMutationException(
@@ -3983,6 +4018,30 @@ public final class EntityCollection implements
 		@Nullable EvitaRequest returnUpdatedEntity,
 		@Nonnull Class<T> returnType
 	) {
+		return upsertEntityInternal(
+			session, entityMutation, returnUpdatedEntity, returnType, createLocalMutationExecutorCollector()
+		);
+	}
+
+	/**
+	 * Validates and applies an upsert with the collector of its root mutation.
+	 *
+	 * @param session the session, or null for internal replay
+	 * @param entityMutation the entity upsert
+	 * @param returnUpdatedEntity the requested returned content, or null
+	 * @param returnType the result type
+	 * @param collector the root collector carrying the startup flag
+	 * @param <T> the returned result type
+	 * @return the requested result when present
+	 */
+	@Nonnull
+	private <T> Optional<T> upsertEntityInternal(
+		@Nullable EvitaSessionContract session,
+		@Nonnull EntityMutation entityMutation,
+		@Nullable EvitaRequest returnUpdatedEntity,
+		@Nonnull Class<T> returnType,
+		@Nonnull LocalMutationExecutorCollector collector
+	) {
 		// verify mutation against schema
 		// it was already executed when mutation was created, but there are two reasons to do it again
 		// - we don't trust clients - in future it may be some external JS application
@@ -4040,7 +4099,7 @@ public final class EntityCollection implements
 				veum.shouldVerifyConsistency(),
 				returnUpdatedEntity,
 				veum.getImplicitMutationsBehavior(),
-				createLocalMutationExecutorCollector(),
+				collector,
 				returnType
 			);
 		} else {
@@ -4052,7 +4111,7 @@ public final class EntityCollection implements
 				true,
 				returnUpdatedEntity,
 				EnumSet.allOf(ImplicitMutationBehavior.class),
-				createLocalMutationExecutorCollector(),
+				collector,
 				returnType
 			);
 		}
@@ -4174,7 +4233,8 @@ public final class EntityCollection implements
 			this.catalog.isUsageStatisticsTracked(),
 			this.entityIndexCreator.getMissingHistogramValueBehavior(),
 			// the collector is shared by the whole root mutation, so its executors share the reservations too
-			localMutationExecutorCollector.getPartitionReservations()
+			localMutationExecutorCollector.getPartitionReservations(),
+			localMutationExecutorCollector.isStartupReplay()
 		);
 
 		return localMutationExecutorCollector.execute(

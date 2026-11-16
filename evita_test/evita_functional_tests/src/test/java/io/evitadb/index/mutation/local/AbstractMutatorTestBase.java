@@ -170,7 +170,8 @@ abstract class AbstractMutatorTestBase {
 
 			true,
 			MissingHistogramValueBehavior.REFUSE,
-			new PartitionReservations()
+			new PartitionReservations(),
+			false
 		);
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);

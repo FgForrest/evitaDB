@@ -67,7 +67,7 @@ import java.util.Objects;
  * The owner-`PAGED` root and the view-slim part carry no cardinality section; they are read exactly as the current
  * serializer reads them.
  *
- * @deprecated retained while any sort part carries the released UID. Upgrading to protocol 7 does not establish
+ * @deprecated retained while any sort part carries the released UID. Upgrading to protocol 9 does not establish
  * that every part was rewritten: already-correct parts retain their released UID until a later flush.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

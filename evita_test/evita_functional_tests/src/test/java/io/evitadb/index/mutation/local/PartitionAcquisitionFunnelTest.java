@@ -212,7 +212,8 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			this.catalogUsageRegistry,
 			true,
 			MissingHistogramValueBehavior.REFUSE,
-			reservations
+			reservations,
+			false
 		);
 	}
 

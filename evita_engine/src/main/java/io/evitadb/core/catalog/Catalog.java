@@ -2337,22 +2337,24 @@ public final class Catalog
 	}
 
 	/**
-	 * Applies a given {@link Mutation} to the appropriate target within the system.
-	 * The method determines the type of the mutation and performs the required action,
-	 * such as applying a schema mutation to the catalog or applying an entity mutation
-	 * to the relevant entity collection.
+	 * Applies an internal mutation: a catalog schema mutation to this catalog, an entity mutation to the collection of
+	 * its entity type. The startup replay flag is carried by this call only; the replay of the write-ahead log in
+	 * {@link TransactionManager} passes `true` only while it replays the log as the catalog loads.
 	 *
-	 * @param mutation the mutation instance to be applied; must not be null
-	 * @throws InvalidMutationException if the mutation type is not recognized or supported
+	 * @param evita the engine applying the mutation
+	 * @param mutation the mutation to apply
+	 * @param startupReplay whether the initial catalog-load replay is applying this mutation
+	 * @throws InvalidMutationException when the mutation is neither a catalog schema nor an entity mutation
 	 */
 	public void applyMutation(
-		@Nonnull EvitaContract evita, @Nonnull Mutation mutation) throws InvalidMutationException {
+		@Nonnull EvitaContract evita, @Nonnull Mutation mutation, boolean startupReplay
+	) throws InvalidMutationException {
 		if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
 			// apply schema mutation to the catalog
 			updateSchema(evita, null, schemaMutation);
 		} else if (mutation instanceof EntityMutation entityMutation) {
 			getCollectionForEntityOrThrowException(entityMutation.getEntityType())
-				.applyMutation(entityMutation);
+				.applyMutation(entityMutation, startupReplay);
 		} else {
 			throw new InvalidMutationException(
 				"Unexpected mutation type: " + mutation.getClass().getName(),

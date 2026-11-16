@@ -73,6 +73,12 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramCardinalityStoragePartRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramRootRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramLeafStreamKey.StreamKind;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.CatalogIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
@@ -133,13 +139,15 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * Upgrades a catalog from storage protocol version 6 to 7 by re-keying every persisted
+ * Upgrades a catalog from storage protocol version 6 to 9 by re-keying every persisted
  * {@link AttributeCardinalityIndex} onto the canonical form its sibling value tree keys on, every persisted
  * standalone unique index onto the key space of the filter index (see *Standalone unique indexes* below), by
  * rewriting every owner sort index that stores temporal values raw or holds localized texts in the order of the bare
  * collator, locales in the order of their language tag or date time ranges in the order of whole seconds (see *Owner
- * sort indexes* below), and by converting the single-owner reference partitions into rows of their registry (see
- * *Single-owner reference partitions* below) - one migration, published once.
+ * sort indexes* below), by converting the single-owner reference partitions into rows of their registry (see
+ * *Single-owner reference partitions* below), and by removing the histograms of the group membership indexes (see
+ * *Grouped histograms* below) - one migration, published once. It stamps protocol 9 rather than 7: protocols 7 and 8
+ * are development formats of 2026.3, which `DefaultCatalogPersistenceService` refuses rather than reads or upgrades.
  *
  * # What was wrong
  *
@@ -299,12 +307,29 @@ import java.util.function.Function;
  * when a listed condition holds. The REINDEX advice belongs to the separate report of the cardinality counters that
  * could not be checked.
  *
+ * # Grouped histograms
+ *
+ * A protocol-6 catalog may list histogram keys in the manifests of its group membership indexes
+ * (`REFERENCED_GROUP_ENTITY` and `REFERENCED_GROUP_ENTITY_TYPE`); this version keeps the histograms of a group in a
+ * histogram store of the group ({@link io.evitadb.index.GroupHistogramEntityIndex}) and refuses to load a membership
+ * index whose manifest still lists histogram keys. Every such manifest is rewritten without them, and the root, the
+ * cardinality part and every bucket and range leaf page of each histogram it listed are removed
+ * ({@link #planGroupedHistogramCleanup}). The histograms of an ungrouped reference, kept by its
+ * `REFERENCED_ENTITY_TYPE` index, stay as they are. No store is filled: a grouped histogram is empty after the
+ * upgrade, and a write withdrawing a value it held refuses unless missing histogram values are reported
+ * (`MissingHistogramValueBehavior`).
+ *
+ * The pre-pass refuses the upgrade over two representations only a development image holds: the manifest of a
+ * histogram store (`REFERENCED_GROUP_HISTOGRAM`), and a grouped manifest that lists histogram keys and still carries an
+ * inline bitmap. Like every refusal of the pre-pass it writes and publishes nothing, so the published protocol-6 state
+ * stays as it was written.
+ *
  * # Publication
  *
  * Everything above only appends to the data files: a collection data store is flushed into records and an offset
  * index fragment no published header names, and the new collection headers and the re-keyed catalog-level parts wait
  * unflushed in the catalog data store. The post-upgrade action publishes all of it at once - the catalog header of
- * protocol 7 and one bootstrap record. A failure before it leaves the published state of protocol 6 as it was, and the
+ * protocol 9 and one bootstrap record. A failure before it leaves the published state of protocol 6 as it was, and the
  * next start runs the whole migration again from it. No file is deleted on the way.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -340,9 +365,10 @@ public interface Migration_2026_3 {
 	 * global unique index of the catalog, onto its normalized form, rewrites every owner sort index storing temporal
 	 * values raw, localized texts in the order of the bare collator, locales in the order of their language tag or
 	 * date time ranges in the order of whole seconds, converts the single-owner reference partitions of every
-	 * collection into registry rows, and commits the catalog header at protocol version 7. Refuses the upgrade, before
-	 * writing anything, when two persisted unique values of different owners name one key - see
-	 * {@link #refuseUpgradeOverUniqueKeyCollisions}.
+	 * collection into registry rows, removes the histograms of every group membership index, and commits the catalog
+	 * header at protocol version 9. Refuses the upgrade, before writing anything, when two persisted unique values of
+	 * different owners name one key - see {@link #refuseUpgradeOverUniqueKeyCollisions} - and when a collection holds
+	 * the manifest of a histogram store or a group membership manifest listing histogram keys over an inline bitmap.
 	 *
 	 * Every collection persistence service the upgrade opens through the factory is closed before it returns, whether
 	 * it succeeds, refuses or fails - an open service keeps a handle of the collection's data file, which on some
@@ -354,7 +380,7 @@ public interface Migration_2026_3 {
 	 *                                                  instance on every call, closed by the upgrade
 	 * @param postUpgradeAction                         commits the rewritten catalog header
 	 */
-	static void upgradeFromStorageProtocolVersion_6_to_7(
+	static void upgradeFromStorageProtocolVersion_6_to_9(
 		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
 		@Nonnull Function<EntityCollectionFileHeader, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServiceFactory,
@@ -394,9 +420,9 @@ public interface Migration_2026_3 {
 	 * Re-keys every persisted attribute cardinality index and standalone unique index of every collection, and every
 	 * global unique index of the catalog, rewrites every owner sort index storing temporal values raw, localized texts
 	 * in the order of the bare collator, locales in the order of their language tag or date time ranges in the order of
-	 * whole seconds, converts the single-owner reference partitions of every collection into registry rows, and commits
-	 * the catalog header at protocol version 7 - the work of {@link #upgradeFromStorageProtocolVersion_6_to_7}, which
-	 * owns the collection persistence services it opens.
+	 * whole seconds, converts the single-owner reference partitions of every collection into registry rows, removes the
+	 * histograms of every group membership index, and commits the catalog header at protocol version 9 - the work of
+	 * {@link #upgradeFromStorageProtocolVersion_6_to_9}, which owns the collection persistence services it opens.
 	 *
 	 * @param catalogHeader                 the catalog header being upgraded
 	 * @param storagePartPersistenceService the catalog-level storage part service
@@ -510,6 +536,20 @@ public interface Migration_2026_3 {
 			);
 			findOutOfWindowRepresentativeKeys(catalogVersion, collection, unrepairableRepresentativeKeys);
 		}
+		final Map<String, List<StoragePart>> groupedHistogramCleanup =
+			CollectionUtils.createHashMap(collections.size());
+		final List<String> unsupportedGroupedHistograms = new ArrayList<>();
+		for (final CollectionUnderUpgrade collection : collections) {
+			groupedHistogramCleanup.put(collection.header().entityType(),
+				planGroupedHistogramCleanup(catalogVersion, collection, unsupportedGroupedHistograms));
+		}
+		if (!unsupportedGroupedHistograms.isEmpty()) {
+			throw new ObsoleteStorageProtocolException(
+				"Catalog `" + catalogHeader.catalogName() + "` cannot be upgraded from protocol 6: " +
+					String.join("; ", unsupportedGroupedHistograms) + ". Recreate this unsupported development image.",
+				"The catalog contains an unsupported grouped histogram representation."
+			);
+		}
 		if (!collisions.isEmpty()) {
 			refuseUpgradeOverUniqueKeyCollisions(catalogHeader.catalogName(), collisions);
 		}
@@ -527,6 +567,17 @@ public interface Migration_2026_3 {
 				collectionPersistenceService.getStoragePartPersistenceService();
 
 			final EntitySchema entitySchema = collection.entitySchema();
+			final List<StoragePart> histogramCleanup = groupedHistogramCleanup.get(entityCollectionHeader.entityType());
+			if (!histogramCleanup.isEmpty()) {
+				final TrappedChanges changes = new TrappedChanges();
+				histogramCleanup.forEach(changes::addChangeToStore);
+				drain(catalogVersion, changes, collectionStoragePartService);
+				ConsoleWriter.writeLine(
+					"Entity collection `" + entityCollectionHeader.entityType() + "`: removed legacy grouped " +
+						"histogram keys and their root, cardinality and leaf parts; no stores were filled.",
+					ConsoleColor.BRIGHT_BLUE
+				);
+			}
 
 			// the filter trees first: the cardinality audit below compares each counter with the bucket it names, and
 			// reads the tree as this step left it
@@ -593,9 +644,9 @@ public interface Migration_2026_3 {
 			// whether the steps running before the conversion left anything unflushed in the data store - each such
 			// step adds its own term here, the publication below does not need to know which of them wrote; a
 			// collection with only a sort index or range companion rewrite must still publish its new header, or
-			// protocol 7 would be published over the legacy parts
+			// protocol 9 would be published over the legacy parts
 			final boolean changedBeforeConversion =
-				rekeyed || rewrittenSortIndexes > 0 || !rewrittenFilterIndexes.isEmpty();
+				rekeyed || rewrittenSortIndexes > 0 || !rewrittenFilterIndexes.isEmpty() || !histogramCleanup.isEmpty();
 
 			// the parts written so far are still unflushed - the conversion reads them like any other part (the offset
 			// index serves a record before it is flushed), removes those of the partitions it converts, and its final
@@ -715,6 +766,69 @@ public interface Migration_2026_3 {
 				PersistenceService.STORAGE_PROTOCOL_VERSION + ".",
 			ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD
 		);
+	}
+
+	/**
+	 * Plans removal of every grouped membership histogram and its complete persisted footprint. The pre-pass writes
+	 * nothing: unsupported store manifests and inline bitmap carriers are collected before any collection changes.
+	 * Ungrouped type-index histograms are retained, and no histogram store is populated by this repair. A listed key
+	 * whose root is missing is an internal error, not a collected refusal.
+	 *
+	 * @param catalogVersion the published version being upgraded
+	 * @param collection the collection whose manifests are inspected
+	 * @param refusals unsupported protocol-6 representations found during planning
+	 * @return for each grouped manifest listing histogram keys, the removals of its histogram parts followed by its
+	 * replacement manifest without histogram keys; empty when the collection has none
+	 */
+	@Nonnull
+	private static List<StoragePart> planGroupedHistogramCleanup(
+		long catalogVersion,
+		@Nonnull CollectionUnderUpgrade collection,
+		@Nonnull List<String> refusals
+	) {
+		final OffsetIndexStoragePartPersistenceService service =
+			collection.service().getStoragePartPersistenceService();
+		final List<StoragePart> changes = new ArrayList<>();
+		for (final int indexId : collection.indexIds()) {
+			final EntityIndexStoragePart manifest = requireEntityIndexPart(service, catalogVersion, indexId);
+			final EntityIndexType kind = manifest.getEntityIndexKey().type();
+			if (kind == EntityIndexType.REFERENCED_GROUP_HISTOGRAM) {
+				refusals.add("collection `" + collection.header().entityType() + "`, index " + indexId +
+					" contains a store manifest, which no released protocol-6 catalog can contain");
+				continue;
+			}
+			if ((kind != EntityIndexType.REFERENCED_GROUP_ENTITY &&
+				kind != EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE) || manifest.getHistogramIndexes().isEmpty()) {
+				continue;
+			}
+			if (manifest.getEntityIds() != null || manifest.getEntityIdsByLanguage() != null) {
+				refusals.add("collection `" + collection.header().entityType() + "`, index " + indexId +
+					" contains a legacy inline bitmap carrier after the bitmap eviction upgrade");
+				continue;
+			}
+			for (final HistogramIndexStorageKey key : manifest.getHistogramIndexes()) {
+				final long rootId = key.computeUniquePartId(indexId, service.getReadOnlyKeyCompressor());
+				final HistogramIndexStoragePart root = service.getStoragePart(
+					catalogVersion, rootId, HistogramIndexStoragePart.class
+				);
+				Assert.isPremiseValid(root != null,
+					"Histogram root " + key + " of index " + indexId + " is missing during grouped histogram cleanup.");
+				for (final int page : root.getLeafPageSequences()) {
+					changes.add(new HistogramIndexLeafPageRemoval(
+						indexId, key.histogramName(), key.locale(), StreamKind.BUCKET, page));
+				}
+				for (final int page : root.getRangeLeafPageSequences()) {
+					changes.add(new HistogramIndexLeafPageRemoval(
+						indexId, key.histogramName(), key.locale(), StreamKind.RANGE, page));
+				}
+				changes.add(new HistogramCardinalityStoragePartRemoval(indexId, key.histogramName(), key.locale()));
+				changes.add(new HistogramRootRemoval(indexId, key.histogramName(), key.locale()));
+			}
+			changes.add(new EntityIndexStoragePart(manifest.getPrimaryKey(), manifest.getVersion(),
+				manifest.getEntityIndexKey(), manifest.getAttributeIndexes(), manifest.getPriceIndexes(),
+				manifest.isHierarchyIndex(), manifest.getFacetIndexes(), Set.of()));
+		}
+		return changes;
 	}
 
 	/**

@@ -981,12 +981,13 @@ all values are present for the owner in the locale bucket: in the referenced-typ
 every reduced index listed for the group. A grouped reference requires the group-type index and at least one
 listed index. Missing indexes, histograms, locale buckets or value-owner pairs fail loudly, unless the engine
 was started with the hidden system property `evitadb.referenceHistogram.missingValueBehavior=REPORT` (a temporary
-safety valve read once by the `Evita` constructor; see `MissingHistogramValueBehavior`). Then a value missing from
-an index that exists is logged at error level and skipped, and the rest of the withdrawal goes on. Where the index
-itself is missing - the type index, the group-type index or its listing for the group, or a listed reduced index
-the executor answers as missing - its values are reported the same way, and the write then fails only if the run
-adds a value into that index, on the final add's own check. A reduced index the group still lists but the
-collection no longer holds fails the write in either mode: the collection's accessor behind
+safety valve read once by the `Evita` constructor; see `MissingHistogramValueBehavior`), or unless the initial replay
+of the write-ahead log is applying the write while the catalog loads, which reports whatever the property says.
+Then a value missing from an index that exists is logged at error level and skipped, and the rest of the withdrawal
+goes on. Where the index itself is missing - the type index, the group-type index or its listing for the group, or a
+listed reduced index the executor answers as missing - its values are reported the same way, and the write then fails
+only if the run adds a value into that index, on the final add's own check. A reduced index the group still lists but
+the collection no longer holds fails the write in either mode: the collection's accessor behind
 `getGroupIndexByPrimaryKeyForModification` refuses its primary key with its own error, and nothing is reported for
 it. The values must have the shape the histogram descriptor declares: `resolveHistogramValues` fails on an array
 where a single value is declared or vice versa, and on a value or element of the wrong number or range kind, rather than
