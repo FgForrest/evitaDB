@@ -31,11 +31,12 @@ import javax.annotation.Nonnull;
 import java.util.Set;
 
 /**
- * Withdraws the histogram values of the owner's stored references whose histogram condition reads an owner input
- * that is about to change - the parent or an associated data. Shared by {@link ParentMutationFanOut} and
- * {@link AssociatedDataMutationFanOut}: each looks the affected reference names up in the trigger registry and passes
- * them here. The withdrawal runs before the input changes in storage, so each condition is evaluated against the input
- * the index reflects; the final add of the current run evaluates it against the new one.
+ * Withdraws the histogram values of the owner's stored references whose histogram reads an owner input that is about
+ * to change - the parent or an associated data in a condition, or the owner's locale set through a localized value
+ * with a default. Shared by {@link ParentMutationFanOut}, {@link AssociatedDataMutationFanOut} and
+ * {@link EntityLocaleFanOut}: each looks the affected reference names up in the trigger registry and passes them here.
+ * The withdrawal runs before the input changes in storage, so each histogram is evaluated against the input the index
+ * reflects; the final add of the current run evaluates it against the new one.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -55,7 +56,7 @@ final class OwnerInputHistogramWithdrawal {
 	 * references are read only when `referenceNames` is not empty.
 	 *
 	 * @param executor       the active executor
-	 * @param referenceNames the names of the references whose histogram conditions read the changing input
+	 * @param referenceNames the names of the references whose histograms read the changing input
 	 * @param scope          the scope of the current run, in which `referenceNames` were looked up
 	 */
 	static void withdraw(

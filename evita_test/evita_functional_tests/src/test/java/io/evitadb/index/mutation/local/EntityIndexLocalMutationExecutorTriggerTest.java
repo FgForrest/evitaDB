@@ -24,7 +24,6 @@
 package io.evitadb.index.mutation.local;
 
 import io.evitadb.api.index.EntityIndexType;
-import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;

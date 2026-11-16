@@ -45,7 +45,7 @@ When you start the evitaDB server you should see the following information in th
 You'll see some version here
 Visit us at: https://evitadb.io
 
-Root CA Certificate fingerprint:        You'll see some fingerprint here
+Server certificate fingerprint:         You'll see some fingerprint here
 API `graphQL` listening on              https://your-server:5555/gql/
 API `rest` listening on                 https://your-server:5555/rest/
 API `gRPC` listening on                 https://your-server:5555/

@@ -73,27 +73,27 @@ The following settings must be configured in the
 <SourceClass>EvitaDB.Client/Config/EvitaClientConfiguration.cs</SourceClass>
 configuration on the client side:
 
-- **`UseGeneratedCertificate`**: (`true` by default) if set to `true`, the client downloads the root certificate of
-  the server Certificate Authority from the `system` endpoint automatically
-- **`TrustCertificate`**: (`false` by default) when set to `true`, the certificate retrieved from the `system`
-  endpoint or manually by `CertificatePath` is automatically added to the local trust store.
+- **`UseGeneratedCertificate`**: (`true` by default) if set to `true`, the client downloads the server certificate
+  (`server.crt`) from the `system` endpoint automatically. When `MtlsEnabled` is `true` as well, it also downloads
+  the generated client certificate and its private key.
+- **`UsingTrustedRootCaCertificate`**: (`false` by default) when set to `false`, the client accepts only the server
+  certificate that is identical to the `server.crt` file in the server's sub-folder of `CertificateFolderPath`. If
+  `UseGeneratedCertificate` is `false`, you have to place that file there yourself, otherwise the verification
+  process will fail and the connection will not be established.
 
-  If set to `false` and an untrusted (self-signed) certificate is provided, it will not be trusted by the client and
-  the connection to the server will fail. Using `true` for this setting on production is generally not recommended.
-- **`CertificateFolderPath`**: (the sub-folder `evita-client-certificates` in the working directory by default)
-  it represents a path to a folder where the authority certificate is stored
-- **`RootCaCertificatePath`**: (`null` by default) it is a relative path from `CertificateFolderPath` to the root
-  certificate of the server. If the `UseGeneratedCertificate` flag is off, it is necessary to set a path to
-  the manually provided certificate, otherwise the verification process will fail and the connection will not be
-  established.
-- **`CertificatePath`**: (`null` by default) is a relative path from `CertificateFolderPath` to the client certificate.
-- **`CertificateKeyPath`**: (`null` by default) is a relative path from `CertificateFolderPath` to the client private key
+  Set it to `true` when the server uses a certificate issued by a certificate authority your operating system
+  trusts; the standard .NET certificate validation is used then.
+- **`CertificateFolderPath`**: (the sub-folder `evita-client-certificates` in the system temporary folder by default)
+  it represents a path to a folder where the certificates are stored. Each server gets its own sub-folder named
+  after the server name the `system` endpoint reports.
+- **`CertificateFileName`**: (`null` by default) is a relative path to the client certificate.
+- **`CertificateKeyFileName`**: (`null` by default) is a relative path to the client private key
 - **`CertificateKeyPassword`**: (`null` by default) is the password for the client's private key (if one is set)
 
 <Note type="warning">
 If `mTLS` is enabled on the server side and `UseGeneratedCertificate` is set to `false`, you must provide your
-manually generated certificate in settings `CertificatePath` and `CertificateKeyPath`, otherwise the verification
-process will fail and the connection will not be established.
+manually generated certificate in settings `CertificateFileName` and `CertificateKeyFileName`, otherwise
+the verification process will fail and the connection will not be established.
 </Note>
 
 ### Schema caching

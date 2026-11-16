@@ -1,10 +1,10 @@
 ---
 title: Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes
 date: 2026-09-11
-updated: 2026-11-11 23:23
+updated: 2026-11-16 15:07
 status: accepted
 kind: optimization
-issues: [1547, 1554]
+issues: [1547, 1554, 1972, 1976]
 prs: [1548]
 areas: [evita_store/evita_store_entity, evita_store/evita_store_server, evita_engine/src/main/java/io/evitadb/spi/store/catalog/persistence, evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/predicate]
 supersedes: []
@@ -179,9 +179,19 @@ Three follow-ups, ranked by measured cost:
   `byte[]`, then compare. That is a scan rather than a read, and because the encoding is mixed a fast
   path has to handle both branches. Costs a dependency on Kryo's string encoding, which must be pinned
   by a test that writes with Kryo and reads with the fast path.
+  **Done in #1972, without a scan.** References arrive grouped by name, so the decoder keeps the name
+  of the previous reference together with its encoding as `Output#writeString` produces it, and
+  compares the next bytes of the stream with that encoding (`ObservableInput#trySkipString`). Either
+  encoding branch ends unambiguously, so equal bytes mean an equal name. A name is still decoded when
+  it differs from the previous one, when its encoding is not fully buffered, or when the input is a plain
+  Kryo `Input`. `ObservableInputTest` writes with Kryo and reads with the comparison.
 - **Skip attribute values without decoding them** — 5.0 % of JVM CPU, 16.6 % of all allocation. Needs
   a length-aware skip in `AttributeValueSerializer`; same format-coupling argument. Note that skipped
   back-references are **not** attribute-free: a reflected reference inherits its source's attributes.
+  **Partly done in #1972.** A skipped attribute value no longer resolves its key or builds an
+  `AttributeValue`, in the current and in the previous release layout (`SkippableSerializer`). The
+  value itself is still decoded to find its end; the length-aware skip is tracked in #1976.
+  A replay of 132,848 recorded production read queries ran 8.3 % faster with both changes.
 - **Split the record itself** — #1554. Both items above become unnecessary if the record stops being
   all-or-nothing, and only that removes the `O(total references)` term.
 

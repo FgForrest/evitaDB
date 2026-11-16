@@ -466,7 +466,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 					final SessionRegistry targetRegistry = prevailingCatalogSessionRegistry
 						.map(
 							sessionRegistry -> sessionRegistry.withDifferentCatalogSupplier(
-								() -> (Catalog) evita.getCatalogInstanceOrThrowException(catalogNameToBeReplaced)
+								() -> evita.getCatalogForSessionRegistry(catalogNameToBeReplaced)
 							)
 						)
 						.orElse(null);

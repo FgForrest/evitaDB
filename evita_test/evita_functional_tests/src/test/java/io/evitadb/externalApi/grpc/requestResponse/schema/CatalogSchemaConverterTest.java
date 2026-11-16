@@ -41,12 +41,17 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.NamingConvention;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +62,11 @@ import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.ascii
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.lowercase;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.removeCharacters;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.trim;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
@@ -149,6 +159,62 @@ class CatalogSchemaConverterTest {
 			CatalogSchemaConverter.convert(
 				CatalogSchemaConverter.convert(catalogSchema, true),
 				EmptyEntitySchemaAccessor.INSTANCE
+			)
+		);
+	}
+
+	/**
+	 * A decimal range created without explicit retained decimal places compares at the scale of its own bounds. As the
+	 * default value of a global attribute it must come back from gRPC at that precision, otherwise the catalog schema a
+	 * client reads differs from the one the server holds. `[0.0,0.0]` encodes to the same bounds at any precision, so
+	 * only its precision tells the two apart.
+	 *
+	 * @param from lower bound of the default value
+	 * @param to   upper bound of the default value
+	 */
+	@ParameterizedTest(name = "default value [{0},{1}]")
+	@CsvSource({"0.0, 0.0", "1.0, 2.0"})
+	@DisplayName("should keep the decimal range default value of a global attribute")
+	@Tag(ATTRIBUTE)
+	void shouldKeepDecimalRangeDefaultValueOfGlobalAttribute(@Nonnull BigDecimal from, @Nonnull BigDecimal to) {
+		final BigDecimalNumberRange defaultValue = BigDecimalNumberRange.between(from, to);
+		final GlobalAttributeSchema sent = GlobalAttributeSchema._internalBuild(
+			"range", null, null,
+			(ScopedAttributeUniquenessType[]) null, (ScopedGlobalAttributeUniquenessType[]) null, (Scope[]) null,
+			null, (Scope[]) null, (Scope[]) null, false, false, false,
+			BigDecimalNumberRange.class, defaultValue, 0, ConflictResolutionOverride.INHERITED,
+			null, FulltextAnalyzerSchemaContract.TEXT,
+			AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
+		);
+		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
+			1,
+			TestConstants.TEST_CATALOG,
+			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			null,
+			null,
+			EnumSet.noneOf(CatalogEvolutionMode.class),
+			Map.of("range", sent),
+			Map.of(), Map.of(), Map.of(),
+			EmptyEntitySchemaAccessor.INSTANCE
+		);
+
+		final GlobalAttributeSchemaContract received = CatalogSchemaConverter.convert(
+				CatalogSchemaConverter.convert(catalogSchema, true),
+				EmptyEntitySchemaAccessor.INSTANCE
+			)
+			.getAttribute("range")
+			.orElseThrow();
+
+		final BigDecimalNumberRange receivedDefault = assertInstanceOf(
+			BigDecimalNumberRange.class, received.getDefaultValue(),
+			"The default value must be read back as a decimal range."
+		);
+		assertAll(
+			// the equality of attribute schemas compares their default values as stored values
+			() -> assertEquals(sent, received, "Global attribute schema."),
+			() -> assertEquals(
+				defaultValue.getEffectiveRetainedDecimalPlaces(), receivedDefault.getEffectiveRetainedDecimalPlaces(),
+				"Effective retained decimal places of the default value."
 			)
 		);
 	}

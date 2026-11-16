@@ -540,8 +540,8 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * have no replay path). Otherwise the demand is decremented exactly once.
 	 *
 	 * **Ordering.** Acquires the same lock as `consumeQueue` so the host-event `onNext` cannot
-	 * interleave with a queued mutation `onNext`, preserving the strict-ordering guarantee
-	 * documented on the host-event contract. Before activation it only replaces the pending slot and returns without
+	 * interleave with a queued mutation `onNext`. The lock does not order the two: whichever
+	 * caller takes it first delivers first. Before activation it only replaces the pending slot and returns without
 	 * waiting for or invoking subscriber code. After activation it may wait behind a queue fill or another
 	 * {@code onNext}, and its own delivery invokes the subscriber's {@code onNext} on the calling thread.
 	 *

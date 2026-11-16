@@ -24,7 +24,6 @@
 package io.evitadb.index.mutation.local;
 
 import io.evitadb.api.index.EntityIndexType;
-import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;

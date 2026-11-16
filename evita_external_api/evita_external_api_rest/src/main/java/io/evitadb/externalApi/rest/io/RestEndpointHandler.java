@@ -25,6 +25,7 @@ package io.evitadb.externalApi.rest.io;
 
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.QueryParams;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
@@ -32,6 +33,7 @@ import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.routing.RouteParameters;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
@@ -51,12 +53,11 @@ import javax.annotation.Nonnull;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
-import static io.evitadb.externalApi.http.AdditionalHttpHeaderNames.INTERNAL_HEADER_PREFIX;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -181,50 +182,30 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext>
 		return false;
 	}
 
+	/**
+	 * Collects URL query values followed by path captures; client headers never supply REST parameters. Values of
+	 * one name from the query and from a capture accumulate in arrival order, and a name that no declared
+	 * parameter claims throws {@link RestInvalidArgumentException}.
+	 */
 	@Nonnull
 	protected Map<String, Object> getParametersFromRequest(@Nonnull RestEndpointExecutionContext context) {
 		final Operation operation = this.restHandlingContext.getEndpointOperation();
-		//create builder representation of query params
-		final Map<String, Deque<String>> queryParams = context
-			.httpRequest()
-			.headers()
-			.stream()
-			.filter(header -> header.getKey().startsWith(INTERNAL_HEADER_PREFIX))
-			.collect(Collectors.toMap(
-				key -> {
-					final String queryParamNameCaseInsensitive = key
-						.getKey()
-						.toString()
-						.replace(
-							INTERNAL_HEADER_PREFIX,
-							""
-						);
-					return operation.getParameters()
-					                .stream()
-					                .filter(
-						                parameter -> parameter.getName()
-						                                      .equalsIgnoreCase(
-							                                      queryParamNameCaseInsensitive)
-					                )
-					                .findFirst()
-					                .map(Parameter::getName)
-					                .orElse(queryParamNameCaseInsensitive);
-				},
-				value -> {
-					Deque<String> deque = new ArrayDeque<>(4);
-					deque.add(value.getValue());
-					return deque;
-				},
-				(existingDeque, newDeque) -> {
-					existingDeque.addAll(newDeque);
-					return existingDeque;
-				}
-			));
+		final Map<String, Deque<String>> queryParams = createHashMap(8);
+		for (final Map.Entry<String, String> entry : QueryParams.fromQueryString(
+			context.serviceRequestContext().query())) {
+			addParameter(queryParams, operation, entry.getKey(), entry.getValue());
+		}
+		final RouteParameters pathParameters = context.serviceRequestContext().attr(RouteParameters.KEY);
+		if (pathParameters != null) {
+			for (int i = 0; i < pathParameters.size(); i++) {
+				addParameter(queryParams, operation, pathParameters.nameAt(i), pathParameters.valueAt(i));
+			}
+		}
 
 		final HashMap<String, Object> parameterData = createHashMap(operation.getParameters().size());
 
 		if (operation.getParameters() != null) {
-			for (Parameter parameter : operation.getParameters()) {
+			for (final Parameter parameter : operation.getParameters()) {
 				getParameterFromRequest(queryParams, parameter).ifPresent(data -> {
 					parameterData.put(parameter.getName(), data);
 					queryParams.remove(parameter.getName());
@@ -239,6 +220,31 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext>
 					", ", queryParams.keySet()));
 		}
 		return parameterData;
+	}
+
+	/**
+	 * Maps names case-insensitively to declared spelling and retains every value in arrival order; an undeclared name
+	 * is stored lower-cased.
+	 */
+	private static void addParameter(
+		@Nonnull Map<String, Deque<String>> parameters, @Nonnull Operation operation,
+		@Nonnull String name, @Nonnull String value
+	) {
+		String declaredName = name.toLowerCase(Locale.ROOT);
+		if (operation.getParameters() != null) {
+			for (final Parameter parameter : operation.getParameters()) {
+				if (parameter.getName().equalsIgnoreCase(name)) {
+					declaredName = parameter.getName();
+					break;
+				}
+			}
+		}
+		Deque<String> values = parameters.get(declaredName);
+		if (values == null) {
+			values = new ArrayDeque<>(4);
+			parameters.put(declaredName, values);
+		}
+		values.add(value);
 	}
 
 	@Nonnull

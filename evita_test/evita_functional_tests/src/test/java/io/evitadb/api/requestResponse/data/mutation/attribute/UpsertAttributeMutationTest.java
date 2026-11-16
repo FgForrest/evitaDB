@@ -26,11 +26,14 @@ package io.evitadb.api.requestResponse.data.mutation.attribute;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.DateTimeRange;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -42,6 +45,7 @@ import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
@@ -205,6 +209,100 @@ class UpsertAttributeMutationTest extends AbstractMutationTest {
 		final Instant earliestInstant = Instant.ofEpochMilli((Long.MIN_VALUE / 1_000L + 1L) * 1_000L);
 		assertEquals(LocalDateTime.ofInstant(latestInstant, ZoneOffset.UTC), latest.getAttributeValue());
 		assertEquals(OffsetDateTime.ofInstant(earliestInstant, ZoneOffset.MAX), earliest.getAttributeValue());
+	}
+
+	/**
+	 * `[1.0,2.0]` and `[10,20]` are different ranges whose bounds encode to the same comparable longs, each at its own
+	 * scale. Upserting one over the other is a real change of the value and must replace it.
+	 */
+	@Test
+	@DisplayName("should replace a decimal range by a different range whose bounds encode to the same longs")
+	void shouldReplaceDecimalRangeByDifferentRangeEncodedToSameLongs() {
+		final AttributeKey key = new AttributeKey("range");
+		final BigDecimalNumberRange stored =
+			BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+		final BigDecimalNumberRange replacement =
+			BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"));
+
+		final AttributeValue newValue = new UpsertAttributeMutation(key, replacement)
+			.mutateLocal(this.productSchema, new AttributeValue(key, stored));
+
+		assertEquals("[10,20]", String.valueOf(newValue.value()));
+		assertEquals(2L, newValue.version());
+	}
+
+	/**
+	 * A date-time range naming the same instants at another zone offset compares equal by its encoded bounds, yet a
+	 * reader gets back other bounds. Upserting it is a real change, as it is for a plain offset date-time.
+	 */
+	@Test
+	@DisplayName("should replace a date-time range by a range of the same instants at another offset")
+	void shouldReplaceDateTimeRangeByRangeOfSameInstantsAtAnotherOffset() {
+		final AttributeKey key = new AttributeKey("validity");
+		final LocalDateTime noon = LocalDateTime.of(2024, 1, 1, 12, 0);
+		final DateTimeRange stored = DateTimeRange.between(
+			noon.atOffset(ZoneOffset.ofHours(2)), noon.plusHours(1).atOffset(ZoneOffset.ofHours(2))
+		);
+		final DateTimeRange replacement = DateTimeRange.between(
+			noon.minusHours(1).atOffset(ZoneOffset.ofHours(1)), noon.atOffset(ZoneOffset.ofHours(1))
+		);
+
+		final AttributeValue newValue = new UpsertAttributeMutation(key, replacement)
+			.mutateLocal(this.productSchema, new AttributeValue(key, stored));
+
+		assertEquals(replacement.toString(), String.valueOf(newValue.value()));
+		assertEquals(2L, newValue.version());
+	}
+
+	/**
+	 * Arrays are compared element by element under the same rule as single values: an array of ranges encoded to the
+	 * same longs as the stored ones is a real change.
+	 *
+	 * The test does not fail where arrays are compared by identity, because there every new array instance counts as
+	 * a change. What it pins is the element comparison that replaced the identity one: comparing the elements by
+	 * `equals` would drop this upsert, since the elements are equal by their encoded bounds.
+	 */
+	@Test
+	@DisplayName("should replace a decimal range array by an array of ranges encoded to the same longs")
+	void shouldReplaceDecimalRangeArrayByArrayOfRangesEncodedToSameLongs() {
+		final AttributeKey key = new AttributeKey("ranges");
+		final BigDecimalNumberRange[] stored = {
+			BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+		};
+		final BigDecimalNumberRange[] replacement = {
+			BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+		};
+
+		final AttributeValue newValue = new UpsertAttributeMutation(key, replacement)
+			.mutateLocal(this.productSchema, new AttributeValue(key, stored));
+
+		assertEquals("[10,20]", String.valueOf(((Object[]) newValue.value())[0]));
+		assertEquals(2L, newValue.version());
+	}
+
+	/**
+	 * An array holding the very same values as the stored one is no change, exactly as a single value equal to the
+	 * stored one is not - the array instances are compared by their elements, not by identity.
+	 */
+	@Test
+	@DisplayName("should keep the stored value when an array of the very same values is upserted")
+	void shouldKeepStoredValueWhenArrayOfSameValuesIsUpserted() {
+		final AttributeKey key = new AttributeKey("ranges");
+		final AttributeValue stored = new AttributeValue(
+			key,
+			new BigDecimalNumberRange[]{
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+			}
+		);
+
+		final AttributeValue newValue = new UpsertAttributeMutation(
+			key,
+			new BigDecimalNumberRange[]{
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+			}
+		).mutateLocal(this.productSchema, stored);
+
+		assertSame(stored, newValue);
 	}
 
 	/**

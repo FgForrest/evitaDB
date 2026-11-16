@@ -375,8 +375,9 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 						}
 
 						try {
-							// Emit the host event AFTER the live-view callback so the system CDC stream
-							// reflects the ALIVE settlement strictly after the underlying mutation.
+							// Emit the host event AFTER the live-view callback so that a subscriber handling it
+							// finds the ALIVE settlement (delivery is not ordered with engine mutations,
+							// see `HostSystemEvent`).
 							evita.notifyCatalogStateSettled(catalogName, CatalogState.ALIVE);
 						} catch (Throwable ex) {
 							log.error(

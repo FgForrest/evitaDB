@@ -38,6 +38,7 @@ import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -141,6 +142,23 @@ public class JsonToComplexDataObjectConverter {
 	@Nonnull
 	public ComplexDataObject fromMap(@Nonnull Map<String, Object> map) throws JsonProcessingException {
 		final JsonNode jsonNode = this.objectMapper.valueToTree(map);
+		return new ComplexDataObject(
+			Objects.requireNonNull(convertToDataItem(jsonNode))
+		);
+	}
+
+	/**
+	 * Creates one complex data object whose root holds the entire JSON array represented by the list - the array-root
+	 * counterpart of {@link #fromMap(Map)}, which creates an object root.
+	 *
+	 * @param array the JSON array elements
+	 * @return the complex data object with an array root
+	 * @throws JsonProcessingException declared for parity with {@link #fromMap(Map)}; the list is converted in memory
+	 *                                 without parsing JSON text, so it is not thrown
+	 */
+	@Nonnull
+	public ComplexDataObject fromArray(@Nonnull List<?> array) throws JsonProcessingException {
+		final JsonNode jsonNode = this.objectMapper.valueToTree(array);
 		return new ComplexDataObject(
 			Objects.requireNonNull(convertToDataItem(jsonNode))
 		);

@@ -1,7 +1,7 @@
 ---
 title: Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
 date: 2026-11-03
-updated: 2026-11-14 17:16
+updated: 2026-11-15 15:35
 status: accepted
 kind: fix
 issues: [1837, 1843, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 1863, 1864, 1865, 1868, 1869, 1870]
@@ -9,7 +9,7 @@ prs: [1841, 1844]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/builder, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReflectedReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ClassSchemaAnalyzer.java, evita_query/src/main/java/io/evitadb/api/query/expression, evita_external_api/evita_external_api_grpc/shared, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/catalog/Catalog.java, evita_query/src/main/resources/META-INF/io/evitadb/api/query/parser/evitaEL, evita_store/evita_store_server/src/main/java/io/evitadb/store/shared/serializer/dataType/ExpressionSerializer.java, evita_common/src/main/java/io/evitadb/dataType/EvitaDataTypes.java]
 supersedes: []
 superseded-by: []
-relates: [2026-10-05-schema-changes-never-refused-dormant-accelerator]
+relates: [2026-10-05-schema-changes-never-refused-dormant-accelerator, 2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier]
 ---
 
 # Schema builders drop the mutations that leave their level of the schema unchanged, judged by value at toMutation()
@@ -515,8 +515,10 @@ Every follow-up listed in #1843 except the server-side guard is fixed here, and 
   rolls the whole transaction back at its close, even when the session caught the error.
 - A cascade validates the cross-entity triggers of the entities it reaches at its own position, so removing a
   global attribute that a histogram of another entity reads is refused even when a later mutation of the batch
-  removes that entity. The replay, which applies every mutation on its own, refuses it the same way; reorder the
-  batch.
+  removes that entity - provided the histogram's owner is among the entity types the change rebuilds. A change that
+  rebuilds only the target type is not refused (*Known limitations* in
+  `2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier`). Where it is refused, the replay, which applies
+  every mutation on its own, refuses it the same way; reorder the batch.
 - A catalog builder whose replay cascaded into an entity schema emits every collected mutation, even when the batch
   as a whole changes nothing - renaming a global attribute an entity uses from A to B and back to A emits both
   renames. Re-defining a schema never renames, so #1843 stays fixed.

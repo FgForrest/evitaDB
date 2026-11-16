@@ -45,6 +45,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
@@ -59,6 +60,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -251,6 +253,84 @@ class CreateAttributeSchemaMutationTest {
 		);
 	}
 
+	/**
+	 * Builds a non-filterable, capability-free attribute schema of the requested type holding the default value. The
+	 * tests of a default value compared as a stored value - a range told apart from an `equals` one - start from it.
+	 *
+	 * @param type         the attribute data type
+	 * @param defaultValue the default value the attribute holds
+	 * @param <T>          the attribute data type
+	 * @return the attribute schema
+	 */
+	@Nonnull
+	static <T extends Serializable> AttributeSchemaContract createAttributeSchemaWithDefaultValue(
+		@Nonnull Class<T> type,
+		@Nonnull T defaultValue
+	) {
+		return AttributeSchema._internalBuild(
+			ATTRIBUTE_NAME, null, null,
+			null,
+			Scope.NO_SCOPE, null, Scope.NO_SCOPE, Scope.NO_SCOPE,
+			false, false, false,
+			type, defaultValue, 0,
+			ConflictResolutionOverride.INHERITED,
+			null, FulltextAnalyzerSchemaContract.TEXT,
+			AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
+		);
+	}
+
+	/**
+	 * The entity-level counterpart of {@link #createAttributeSchemaWithDefaultValue(Class, Serializable)}.
+	 *
+	 * @param type         the attribute data type
+	 * @param defaultValue the default value the attribute holds
+	 * @param <T>          the attribute data type
+	 * @return the entity attribute schema
+	 */
+	@Nonnull
+	static <T extends Serializable> EntityAttributeSchemaContract createEntityAttributeSchemaWithDefaultValue(
+		@Nonnull Class<T> type,
+		@Nonnull T defaultValue
+	) {
+		return EntityAttributeSchema._internalBuild(
+			ATTRIBUTE_NAME, null, null,
+			null,
+			Scope.NO_SCOPE, null, Scope.NO_SCOPE, Scope.NO_SCOPE,
+			false, false, false,
+			type, defaultValue, 0,
+			ConflictResolutionOverride.INHERITED,
+			null, FulltextAnalyzerSchemaContract.TEXT,
+			AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
+		);
+	}
+
+	/**
+	 * The catalog-level counterpart of {@link #createAttributeSchemaWithDefaultValue(Class, Serializable)}.
+	 *
+	 * @param type         the attribute data type
+	 * @param defaultValue the default value the attribute holds
+	 * @param <T>          the attribute data type
+	 * @return the global attribute schema
+	 */
+	@Nonnull
+	static <T extends Serializable> GlobalAttributeSchemaContract createGlobalAttributeSchemaWithDefaultValue(
+		@Nonnull Class<T> type,
+		@Nonnull T defaultValue
+	) {
+		// the untyped nulls would leave the array- and map-shaped overloads equally applicable
+		return GlobalAttributeSchema._internalBuild(
+			ATTRIBUTE_NAME, null, null,
+			null,
+			(ScopedGlobalAttributeUniquenessType[]) null,
+			Scope.NO_SCOPE, null, Scope.NO_SCOPE, Scope.NO_SCOPE,
+			false, false, false,
+			type, defaultValue, 0,
+			ConflictResolutionOverride.INHERITED,
+			null, FulltextAnalyzerSchemaContract.TEXT,
+			AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
+		);
+	}
+
 	@Test
 	@DisplayName("Should throw exception when invalid type is provided")
 	void shouldThrowExceptionWhenInvalidTypeIsProvided() {
@@ -297,6 +377,68 @@ class CreateAttributeSchemaMutationTest {
 		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaFilterableMutation.class::isInstance));
 		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaSortableMutation.class::isInstance));
 		assertTrue(Arrays.stream(result.current()).anyMatch(SetAttributeSchemaRepresentativeMutation.class::isInstance));
+	}
+
+	@Test
+	@DisplayName("Should leave only the default value mutation when the new range merely encodes to the same numbers")
+	void shouldLeaveOnlyDefaultValueMutationWhenRangeDefaultValueDiffersOnlyInRepresentation() {
+		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+			ATTRIBUTE_NAME, null, null,
+			AttributeUniquenessType.NOT_UNIQUE, false, false, false, false, false,
+			BigDecimalNumberRange.class, BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0")), 0
+		);
+		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME))
+			.thenReturn(
+				of(
+					createEntityAttributeSchemaWithDefaultValue(
+						BigDecimalNumberRange.class,
+						BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+					)
+				)
+			);
+
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+			Mockito.mock(CatalogSchemaContract.class), entitySchema, new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME)
+		);
+
+		// the removed attribute differs in its default value alone, so the only mutation left is the one replacing it
+		assertNotNull(result);
+		assertNull(result.origin());
+		assertNotNull(result.current());
+		assertEquals(1, result.current().length, () -> Arrays.toString(result.current()));
+		final ModifyAttributeSchemaDefaultValueMutation defaultValueMutation = assertInstanceOf(
+			ModifyAttributeSchemaDefaultValueMutation.class, result.current()[0]
+		);
+		assertEquals("[1.0,2.0]", String.valueOf(defaultValueMutation.getDefaultValue()));
+	}
+
+	@Test
+	@DisplayName("Should discard both mutations when the attribute comes again with the identical range default value")
+	void shouldDiscardBothMutationsWhenAttributeComesAgainWithIdenticalRangeDefaultValue() {
+		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+			ATTRIBUTE_NAME, null, null,
+			AttributeUniquenessType.NOT_UNIQUE, false, false, false, false, false,
+			BigDecimalNumberRange.class, BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20")), 0
+		);
+		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME))
+			.thenReturn(
+				of(
+					createEntityAttributeSchemaWithDefaultValue(
+						BigDecimalNumberRange.class,
+						BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+					)
+				)
+			);
+
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+			Mockito.mock(CatalogSchemaContract.class), entitySchema, new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME)
+		);
+
+		assertNotNull(result);
+		assertNull(result.origin());
+		assertNull(result.current(), () -> Arrays.toString(result.current()));
 	}
 
 	@Test

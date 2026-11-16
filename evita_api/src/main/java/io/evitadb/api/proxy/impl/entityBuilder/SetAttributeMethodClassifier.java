@@ -259,7 +259,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		Assert.notNull(locale, "Locale must not be null!");
 		final EntityBuilder entityBuilder = theState.entityBuilder();
 		if (value == null) {
-			entityBuilder.removeAttribute(attributeName);
+			entityBuilder.removeAttribute(attributeName, locale);
 		} else {
 			entityBuilder.setAttribute(
 				attributeName, locale,

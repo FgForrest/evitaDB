@@ -1,10 +1,10 @@
 ---
 title: A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue
 date: 2026-11-11
-updated: 2026-11-12 22:20
+updated: 2026-11-15 01:00
 status: accepted
 kind: fix
-issues: [1911, 1916, 1918, 1923]
+issues: [1911, 1916, 1918, 1923, 1948]
 prs: []
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation/local, evita_engine/src/main/java/io/evitadb/core/catalog,
   evita_engine/src/main/java/io/evitadb/core/expression/proxy]
@@ -137,11 +137,16 @@ A scope change removes the entity from one scope and indexes it into the other. 
 in the new scope would make the scope change one more instance of the rule.
 
 - **Pros:** no special case; later mutations of the same upsert find the reference pending and do nothing.
-- **Rejected because:** it was implemented and measured as a regression. The deferred add reads the locales of a
-  reference through a view of the entity's locales **before** the batch, while the re-index reads the full
+- **Rejected because:** it was implemented and measured as a regression. The deferred add then read the locales of
+  a reference through a view of the entity's locales **before** the batch, while the re-index read the full
   entity body. An upsert that adds a locale and then changes the scope lost the new locale's value in the new
-  scope: green before, red with the pending variant, green again with the synchronous add. Revisit once the
-  deferred add reads the current locale set (see the follow-ups).
+  scope: green before, red with the pending variant, green again with the synchronous add.
+- **Since #1922** the deferred add reads the current locale set, by the same rule as the re-index
+  (`ReferenceIndexMutator#resolveHistogramLocales`), so that reason no longer holds. The synchronous re-index stays
+  anyway: no defect requires the change, the pending variant was neither re-implemented nor re-measured under the
+  new rule, and the synchronous add is what the scope-change cells of `ReferenceHistogramLocaleSetFunctionalTest`
+  and their re-index counterfactuals pin. Revisit only together with a measurement of the pending variant under
+  the current rule.
 
 ## Decision
 
@@ -264,17 +269,61 @@ into the range of anchor products, in memory and after a restart; only the secon
   `ConditionalBucketQueryTest` 8, `HistogramScopeChangeTest` 12, and the four
   `EntityIndexLocalMutationExecutor*Test` classes 74.
 
-No benchmark was run. The cost was assessed by reading only: an unrelated attribute change is cheaper than
-before, a second mutation of one reference costs a set lookup, and an entity attribute change read by a histogram
-condition pays one more condition evaluation per affected reference and histogram.
+No benchmark was run. The cost was assessed by reading only: an unrelated non-localized attribute change is cheaper
+than before, a second mutation of one reference costs a set lookup, and an entity attribute change read by a
+histogram condition pays one more condition evaluation per affected reference and histogram. Since #1922 an unrelated
+localized change is not cheaper on an entity type with a localized defaulted reference-attribute histogram: an
+upsert in a locale the entity lacks, any localized removal and the removal of a reference holding localized
+attributes walk the N stored references and withdraw and re-add the K that carry such a histogram, evaluating every
+histogram trigger of each - O(N·K). On any other entity type it costs one registry map probe.
 
 ## Consequences & open follow-ups
 
-- **The deferred add reads the locales the entity had before the upsert.** *Open: #1922.* A new product stored
-  with a localized value in one upsert gets no histogram value for it, and a localized value changed after a scope
-  change in the same upsert is neither withdrawn nor added in the new locale. The first was measured and behaved
-  the same before this change; the second is read from the code and matches the previous behaviour, but was not
-  run. Fixing it removes the reason for the synchronous re-index.
+- **The deferred add read the locales the entity had before the upsert.** *Fixed: #1922.* Every path of a localized
+  `REFERENCE_ATTRIBUTE` value read `ExistingAttributeValueSupplier#getEntityExistingAttributeLocales`: the entity's
+  attribute locales from before the upsert, at the final add too; after a scope change only the locales of the entity's
+  own attributes, so a locale only a reference gave the entity was lost; and a lost associated-data-only locale counted
+  as an attribute locale, so a withdrawal asked for a default never added.
+  `ReferenceIndexMutator#resolveHistogramLocales` now serves the final add, the re-index, the withdrawal and both
+  removals with one rule:
+  - without a default, the locales of the reference's own values of the source attribute;
+  - with a `??` default, those plus every locale of the entity as its in-flight body has them at that moment,
+    associated data included, because a query admits an owner by all its locales and the histogram synthesizes no
+    default at read time. Whole-entity removal reads the locales from before the removal: it removes the references
+    first, and a removed reference can take a locale a sibling still holds the default in.
+  - **Every mutation that may change the entity's locale set withdraws first.** `handler/EntityLocaleFanOut`, called at
+    the top of six handlers - a localized entity or reference attribute upserted or removed, localized associated data
+    upserted or removed, a reference removed - withdraws every stored reference whose histogram reads a localized
+    defaulted reference attribute (`CatalogExpressionTriggerRegistry#getLocalHistogramReferencesWithLocalizedDefault`).
+    A withdrawal therefore reads the set the reference's last add used, and the run's final add the set the run left.
+  - **Binding on later work.** A new writer of the entity's locale set needs the same hook, or the next withdrawal of a
+    defaulted value is refused. The two reference hooks must precede `ReferenceMutationFanOut#apply`: it returns early
+    for a reference not indexed in the scope, whose locales still count, and a removal there cancels the removed
+    reference's final add. A path that adds or removes a defaulted localized value - the cross-entity path included -
+    must use the same rule.
+  - **Declined:** the hook in `upsertEntityLocale` / `removeEntityLocale`, because they run in `applyChanges` after the
+    last final add, so a withdrawal there is never re-added; and a delta of default units in `applyChanges`, because it
+    is a second update protocol with its own finishing-phase lifecycle that the in-protocol hook makes unnecessary -
+    revisit only if a locale writer turns up that the index executor cannot see before storage applies it.
+  - **Cost.** An owner type without such a histogram pays one registry map probe per localized mutation or reference
+    removal, a non-localized mutation nothing. With one, an upsert in a locale the entity has costs one set lookup
+    more; a possible change walks the N stored references and withdraws the K selected, each withdrawal resolving its
+    attribute supplier by a linear scan and evaluating every histogram trigger of the reference: O(N·K). Removals are
+    conservative and re-add what they withdrew. No benchmark was run.
+  - The scope-change re-index stays synchronous; Option H is not revisited in 2026.3. Catalogs written before the fix
+    hold defaults over the old set, so a withdrawal there may ask for a default that was never added - read from the
+    code, not run; the full reindex the release recommends rebuilds them.
+  - **Verified** by `ReferenceHistogramLocaleSetFunctionalTest`, 64 cases in both catalog states: the 8 cases #1922
+    was reported with, 4 owner-side scenarios of the #1778 sweep and 24 locale-set scenarios. Of the first 54 cases,
+    40 were red before the fix (26 of them refusing a write); the scenario applying a delta to a localized value and
+    the four of a reference holding no value of the source attribute in any locale - its owner gains or loses a
+    locale, it gets its first value, it loses its last - were added later and never run on the code before the fix.
+    All 64 green after. Nineteen counterfactual arms - each of the six hooks, both halves of the rule, the default
+    alone of a reference holding no value, the original enumeration of a defaulted value, the entity domain, the
+    scope-blind leak of a lost associated-data-only locale, the re-index, the removal domain, the removal guard and
+    the two hook placements - each turn their own cells red; the arm returning no locale for a reference holding no
+    value turns exactly the eight cases of those four scenarios red, by a missing default rather than a refusal. In
+    the campaign's nine repro classes only #1922's four failing cases changed, to green.
 - **A reference inserted together with a scope change got no schema default values.** *Fixed in the same pull
   request: #1930.* The scope-change branch of `ContainerizedLocalMutationExecutor#popImplicitMutations` skipped
   the reference attribute verification, so the default values were missing from the stored reference and a
@@ -315,8 +364,13 @@ condition pays one more condition evaluation per affected reference and histogra
 - **Catalogs written by the previous release may hold doubled or stale values.** *Not repaired by this change.*
   A correct writer stops new drift and does not look for old drift; where a withdrawal expects a value such a
   catalog lacks, the write fails loudly until the catalog is rebuilt. The release already recommends a full
-  reindex. The server setting `missingHistogramValueBehavior: REPORT` (#1948) lets such writes go on until then: each
-  value the withdrawal cannot find is logged at error level and skipped.
+  reindex. An engine started with the hidden system property `evitadb.referenceHistogram.missingValueBehavior=REPORT`
+  lets such writes go on until then: each value the withdrawal cannot find is logged at error level and skipped. The
+  property is a temporary safety valve, read once when the engine starts and deliberately absent from
+  `ServerOptions`, the server YAML and `documentation/user/`, because the engine is expected to keep its histograms
+  consistent; documenting or promoting it reverses this decision. It replaces the public setting
+  `missingHistogramValueBehavior` of #1953, which existed on `dev` only and was withdrawn before any release, and it
+  is removed in a later release under #1948.
 - **Local and cross-entity work can apply one contribution twice.** *Open: #1925.* For a self-referencing entity
   type, and for a reference with a reflected counterpart, one upsert engages the local or nested path and the
   cross-entity path on the same contribution, and the value is added twice. Measured: 36 failing cases in three

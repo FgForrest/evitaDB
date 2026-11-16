@@ -156,8 +156,9 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 							CatalogTerminationHelper.terminateQuietly(log, installed, catalogName, TERMINATION_FAILURE);
 						}
 					}
-					// Emit the host event AFTER the engine state has been updated so the host
-					// event lands strictly after the underlying mutation in the system CDC stream.
+					// Emit the host event AFTER the engine state has been updated so that a subscriber
+					// handling it finds the settled state (delivery is not ordered with engine mutations,
+					// see `HostSystemEvent`).
 					evita.notifyCatalogStateSettled(catalogName, installed.getCatalogState());
 					return null;
 				}
@@ -211,8 +212,9 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 							);
 						} finally {
 							// Emit the host event AFTER the engine state and the live `Catalog`
-							// resources have been torn down so subscribers see the INACTIVE settlement
-							// strictly after the mutation in the system CDC stream. Only when the state
+							// resources have been torn down so that a subscriber handling it finds the
+							// INACTIVE settlement (delivery is not ordered with engine mutations, see
+							// `HostSystemEvent`). Only when the state
 							// actually transitioned, though: announcing a settlement the engine state never
 							// took would misinform every subscriber.
 							if (engineStateTransitioned) {

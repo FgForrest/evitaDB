@@ -259,7 +259,7 @@ public class SetReferenceAttributeMethodClassifier extends DirectMethodClassific
 		Assert.notNull(locale, "Locale must not be null!");
 		final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 		if (value == null) {
-			referenceBuilder.removeAttribute(attributeName);
+			referenceBuilder.removeAttribute(attributeName, locale);
 		} else {
 			referenceBuilder.setAttribute(
 				attributeName, locale,

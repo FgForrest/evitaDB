@@ -246,13 +246,13 @@ class PathToPartialMapperTest {
 	}
 
 	@Test
-	@DisplayName("$entity.parent → body needed + ParentPartial")
-	void shouldProduceParentPartialsForParentPath() {
+	@DisplayName("$entity.parentEntity → body needed + ParentPartial")
+	void shouldProduceParentPartialsForParentEntityPath() {
 		final MappingResult result = PathToPartialMapper.map(List.of(
-			path(new VariablePathItem("entity"), new IdentifierPathItem("parent"))
+			path(new VariablePathItem("entity"), new IdentifierPathItem("parentEntity"))
 		));
 
-		assertTrue(result.entityRecipe().needsEntityBody(), "Body should be needed for parent");
+		assertTrue(result.entityRecipe().needsEntityBody(), "Body should be needed for the parent");
 		assertTrue(
 			containsPartial(result.entityPartials(), EntityParentPartial.PARENT_AVAILABLE),
 			"ParentPartial should be present"
@@ -555,30 +555,6 @@ class PathToPartialMapperTest {
 			)),
 			"Unknown variable should throw ExpressionEvaluationException"
 		);
-	}
-
-	@Test
-	@DisplayName("$entity.type → handled by always-included schema partial, no body needed")
-	void shouldNotNeedBodyForTypePath() {
-		final MappingResult result = PathToPartialMapper.map(List.of(
-			path(new VariablePathItem("entity"), new IdentifierPathItem("type"))
-		));
-
-		assertFalse(result.entityRecipe().needsEntityBody(), "Body should not be needed for type");
-		assertTrue(
-			containsPartial(result.entityPartials(), EntitySchemaPartial.GET_TYPE),
-			"GET_TYPE should be present (always included)"
-		);
-	}
-
-	@Test
-	@DisplayName("$entity.version → body needed, handled by always-included version partial")
-	void shouldNeedBodyForVersionPath() {
-		final MappingResult result = PathToPartialMapper.map(List.of(
-			path(new VariablePathItem("entity"), new IdentifierPathItem("version"))
-		));
-
-		assertTrue(result.entityRecipe().needsEntityBody(), "Body should be needed for version");
 	}
 
 	@Test
