@@ -44,11 +44,11 @@ import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
-import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Custom HTTP router for REST APIs. Each API name owns one prefix bound to an immutable
@@ -69,8 +69,14 @@ public class RestRouter implements HttpService, WebSocketHandler {
 	/** One prefix per API name, each bound to that API's immutable endpoint router. */
 	private final PrefixRoutingService delegateRouter = new PrefixRoutingService();
 
-	/** Names whose prefix this router has published, so that unregistering knows which routes to remove. */
-	@Nonnull private final Set<String> registeredApis = createHashSet(20);
+	/**
+	 * Names whose prefix this router has published, so that unregistering knows which routes to remove. Concurrent,
+	 * because the system API is registered by the thread constructing the REST manager after it subscribed, while
+	 * live system change capture callbacks register catalog APIs on the capture executor, for example when an
+	 * embedded engine is still loading catalogs. Mutations committed before the subscription do not overlap: they
+	 * are replayed synchronously on the subscribing thread before the system API is registered.
+	 */
+	@Nonnull private final Set<String> registeredApis = Collections.newSetFromMap(createConcurrentHashMap(20));
 
 	/**
 	 * Registers new system API.

@@ -63,7 +63,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -106,7 +106,14 @@ public class RestManager {
 	private final CompletableFuture<Void> fullyInitialized;
 
 	@Nullable private SystemBuildStatistics systemBuildStatistics;
-	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
+	/**
+	 * Build statistics of each registered catalog, keyed by catalog name. Concurrent, because live system change
+	 * capture callbacks add and remove catalogs on the capture executor while {@link #emitObservabilityEvents()}
+	 * iterates them on the thread initializing the web API server, for example when an embedded engine is still
+	 * loading catalogs. Mutations committed before the subscription do not overlap: they are replayed synchronously
+	 * on the subscribing thread.
+	 */
+	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createConcurrentHashMap(20);
 
 	public RestManager(@Nonnull Evita evita, @Nonnull HeaderOptions headerOptions, @Nonnull RestOptions restOptions) {
 		this.evita = evita;
@@ -347,7 +354,10 @@ public class RestManager {
 			this.systemBuildStatistics.markAsReported();
 		}
 
-		this.catalogBuildStatistics.keySet().forEach(this::emitObservabilityEvents);
+		// iterate the entries rather than looking each key up: a catalog may be removed concurrently, see the field
+		for (final Map.Entry<String, CatalogBuildStatistics> entry : this.catalogBuildStatistics.entrySet()) {
+			emitCatalogBuiltEvent(entry.getKey(), entry.getValue());
+		}
 	}
 
 	/**
@@ -360,7 +370,19 @@ public class RestManager {
 			buildStatistics != null,
 			() -> new RestInternalError("No build statistics found for catalog `" + catalogName + "`.")
 		);
+		emitCatalogBuiltEvent(catalogName, buildStatistics);
+	}
 
+	/**
+	 * Emits the build event of a catalog's REST API from its build statistics.
+	 *
+	 * @param catalogName     name of the catalog the statistics belong to
+	 * @param buildStatistics statistics of the catalog's latest build
+	 */
+	private static void emitCatalogBuiltEvent(
+		@Nonnull String catalogName,
+		@Nonnull CatalogBuildStatistics buildStatistics
+	) {
 		new BuiltEvent(
 			catalogName,
 			RestInstanceType.CATALOG,

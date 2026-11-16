@@ -255,6 +255,24 @@ class EndpointRoutingServiceTest {
 		assertSame(service, call(nested, HttpMethod.GET, "/foo/tail").handler());
 	}
 
+	/** Only a wildcard takes the empty segment of `/`; a lone parameter needs a real segment, as `/a/{id}` does. */
+	@Test
+	@DisplayName("root path does not fill a lone parameter with an empty value")
+	void shouldReturnNotFoundWhenRootPathMeetsLoneParameter() throws Exception {
+		final ProbeService service = new ProbeService("lone parameter");
+		final EndpointRoutingService router = new EndpointRoutingService.Builder()
+			.add(HttpMethod.GET, "/{id}", service).build();
+		for (final String path : new String[]{"/", "/?id=query"}) {
+			final RoutingResult result = call(router, HttpMethod.GET, path);
+			assertEquals(HttpStatus.NOT_FOUND, result.response().status());
+			assertNull(result.handler());
+		}
+		final RoutingResult otherMethod = call(router, HttpMethod.POST, "/");
+		assertEquals(HttpStatus.NOT_FOUND, otherMethod.response().status());
+		assertNull(otherMethod.response().headers().get(HttpHeaderNames.ALLOW));
+		assertEquals(java.util.Map.of("id", "value"), parameters(call(router, HttpMethod.GET, "/value")));
+	}
+
 	/** A wildcard must be the only route out of its node, independently of insertion order. */
 	@Test
 	@DisplayName("rejects unsupported and ambiguous wildcard grammar")

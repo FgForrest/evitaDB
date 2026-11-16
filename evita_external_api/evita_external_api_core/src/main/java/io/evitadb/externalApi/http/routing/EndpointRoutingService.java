@@ -66,6 +66,7 @@ import java.util.Set;
  * Each HTTP method has its own trie. The literal child, the parameter child and the wildcard are tried in that
  * order, backtracking out of a branch that fails deeper down. A wildcard captures the rest of the path, slashes
  * included, and needs one more segment: `/a/*` does not match `/a`, while `/*` matches `/` with an empty capture.
+ * A parameter needs one more segment too, and gets no such exception: `/{id}` does not match `/`.
  * Input is the encoded request target, bounded before its real query and trailing slashes. Segments split only
  * on raw slashes; escaped literal probes compare decoded characters without temporary strings. Captured strings
  * are decoded once after selection.
@@ -229,14 +230,15 @@ public final class EndpointRoutingService implements HttpService, WebSocketHandl
 		if (node == null) {
 			return null;
 		}
-		// the path ends at this node, or it is the root path `/`, whose single empty segment may still continue
-		if (start > limit || (start == 1 && limit == 1)) {
-			if (node.terminal != null && (!explicitOnly || node.terminal.explicit)) {
-				return node.terminal;
-			}
-			if (start > limit) {
-				return null;
-			}
+		// the path ends at this node
+		if (start > limit) {
+			return eligible(node.terminal, explicitOnly);
+		}
+		// the root path `/`: a route ending at the root wins, and only a wildcard takes its empty segment, so that
+		// `/` never fills a parameter with an empty value, just as `/a` does not match `/a/{id}`
+		if (start == 1 && limit == 1) {
+			final EndpointRouteTerminal rootRoute = eligible(node.terminal, explicitOnly);
+			return rootRoute != null ? rootRoute : eligible(node.wildcard, explicitOnly);
 		}
 		final long segment = RoutingPath.segment(path, start, limit, escaped);
 		final int end = (int) (segment >>> 1);
@@ -254,7 +256,20 @@ public final class EndpointRoutingService implements HttpService, WebSocketHandl
 				return parameterMatch;
 			}
 		}
-		return node.wildcard != null && (!explicitOnly || node.wildcard.explicit) ? node.wildcard : null;
+		return eligible(node.wildcard, explicitOnly);
+	}
+
+	/**
+	 * Returns the route when it may answer the current probe: always for dispatch, and for the 405 probe only when it
+	 * was registered explicitly rather than as the automatic CONNECT twin of a GET WebSocket handler.
+	 *
+	 * @param route        route found at a node, or null
+	 * @param explicitOnly true to ignore automatically registered routes, as the 405 probe does
+	 * @return the route, or null when there is none or it does not count for this probe
+	 */
+	@Nullable
+	private static EndpointRouteTerminal eligible(@Nullable EndpointRouteTerminal route, boolean explicitOnly) {
+		return route != null && (!explicitOnly || route.explicit) ? route : null;
 	}
 
 	/**
