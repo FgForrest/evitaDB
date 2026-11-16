@@ -57,9 +57,9 @@ public class GraphQLOptions extends AbstractApiOptions implements ApiWithSpecifi
 	 * Controls whether the data fetchers wrapped in
 	 * {@link io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher} run asynchronously: reads on
 	 * the request executor, writes on the transaction executor. These are the fetchers of all top-level query and
-	 * mutation fields of the data API and the schema API of every catalog and of the system API, plus a few nested
-	 * schema API fields; subscription fields are not wrapped and are not affected. When disabled, the wrapped
-	 * fetchers run on the calling thread. Default value is `true`.
+	 * mutation fields of the data API and the schema API of every catalog and of the system API; subscription fields
+	 * are not wrapped and are not affected. When disabled, the wrapped fetchers run on the calling thread. Default
+	 * value is `true`.
 	 */
 	@Getter private final boolean parallelize;
 	/**
