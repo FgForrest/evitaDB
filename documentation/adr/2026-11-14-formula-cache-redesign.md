@@ -1,7 +1,7 @@
 ---
 title: Reuse formula results by declared value identity, inject complete tuples at execution, and disable the owning cache on a verified mismatch
 date: 2026-11-14
-updated: 2026-11-16 11:06
+updated: 2026-11-16 11:44
 status: accepted
 kind: refactor
 issues: [37]
@@ -191,16 +191,20 @@ The proving tests and recorded counterfactuals are:
 
 ## Consequences & open follow-ups
 
-**Query-scoped result sharing: measured, reopened, outside this pull request.** Per-instance memoization and plan
-deduplication exist; there is no additional table sharing results across separately built trees. A measurement-only
-counter on the replay above, cache off, recorded 6,027,494 formula computations, 2,541,919 of them repeating a key
-already computed in the same query. 2,069,798 of the repeats are constants whose recorded time is mostly the
-counter's own timer. The other 472,121 take 0.36 s, about 0.30 % of a 121.0 s pass; 14.2 % of the queries repeat
-anything, and the query shape with the most repeat time loses about 1.1 % of its time. The maintainer reopened the
-table on 2026-11-16, valuing it as always on, independent of the cache switch and holding nothing beyond the query;
-a prototype is planned outside this pull request. Its cost per lookup is not measured, and the gain is below the 3
-to 7 % spread between replay passes, so a prototype would be judged by repeats removed, equal results and no
-regression. Never intern hypothetical ancestors above a `MutableFormula`.
+**Query-scoped result sharing: measured and declined.** Per-instance memoization and plan deduplication exist;
+there is no additional table sharing results across separately built trees. A measurement-only counter on the
+replay above, cache off, recorded 6,027,494 formula computations, 2,541,919 of them repeating a key already computed
+in the same query. 2,069,798 of the repeats are constants whose recorded time is mostly the counter's own timer. The
+other 472,121 take 0.33 to 0.36 s depending on the run, about 0.3 % of a 121.0 s pass. Counted by call site over the
+full replay, 70 % of that time is one line of entity fetch, `BitmapSlicer#filterReferencedEntityIds`. No input
+repeats there within a query, yet its 622,253 calls carry only 220,489 distinct formula keys, counted per query and
+summed: the repeats are equal keys built for different source entities with equal referenced-id sets, about 580 ns
+each. Another 18 % is a nested entity filter resolved
+twice per query in one query shape, a duplicate resolution handled separately. The maintainer reopened the table on
+2026-11-16 and declined it the same day on these numbers. **Rejected because** at most about 0.2 % of query time
+remains for it on this traffic, and the main site would need a keyed lookup on every call, which pays only below
+about 370 ns per call; that cost is not measured. Revisit when traffic shows repeated non-constant subtrees with a
+visible share of query time. Never intern hypothetical ancestors above a `MutableFormula`.
 
 The final execution rulings are decisions taken, not open design questions:
 
@@ -313,4 +317,5 @@ open cache findings.
 - **2026-11-15** — recorded production read traffic replayed: correctness clean, the cross-query cache about 3 to 5 %
   faster at the edge of noise, non-constant in-query repeats about 0.30 % of query time.
 - **2026-11-16** — declared keys measured against `dev` with no planning slowdown found; the maintainer decided that
-  the cache ships disabled by default and reopened the query-scoped sharing table for a separate prototype.
+  the cache ships disabled by default, reopened the query-scoped sharing table and declined it after a census by
+  call site.
