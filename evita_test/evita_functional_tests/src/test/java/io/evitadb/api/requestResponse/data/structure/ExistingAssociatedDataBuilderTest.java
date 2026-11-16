@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,22 +27,33 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.data.DataItemMap;
+import io.evitadb.dataType.data.DataItemValue;
+import io.evitadb.dataType.exception.SerializationFailedException;
+import io.evitadb.utils.ReflectionLookup;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -1017,6 +1028,261 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 				newAssociatedData.getAssociatedData("int")
 			);
 		}
+	}
+
+	@Nested
+	@DisplayName("Values equal by their encoded bounds")
+	class EncodedEqualValuesTest {
+
+		/**
+		 * `[1.0,2.0]` and `[10,20]` compare equal by their encoded bounds, yet a reader gets other bounds back. Setting
+		 * one over the other must produce a mutation and the builder must show the new value.
+		 */
+		@Test
+		@DisplayName("should not drop a decimal range whose bounds encode to the same longs as the stored one")
+		void shouldNotDropDecimalRangeEncodedToSameLongsAsStoredOne() {
+			final AssociatedData initial = new InitialAssociatedDataBuilder(EntitySchema._internalBuild("whatever"))
+				.setAssociatedData(
+					"decimalRange", BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+				)
+				.build();
+
+			final ExistingAssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initial);
+			builder.setAssociatedData(
+				"decimalRange", BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+			);
+
+			assertEquals("[10,20]", String.valueOf((Object) builder.getAssociatedData("decimalRange")));
+			assertEquals(1, builder.buildChangeSet().count());
+		}
+
+		/**
+		 * A DTO with a range property is stored as complex data, whose range leaf compares equal by its encoded bounds.
+		 * Setting a DTO whose range encodes to the same longs as the stored one must produce a mutation and the
+		 * builder must show the new range.
+		 */
+		@Test
+		@DisplayName("should not drop a DTO whose range property encodes to the same longs as the stored one")
+		void shouldNotDropDtoWithRangePropertyEncodedToSameLongsAsStoredOne() {
+			final AssociatedData initial = new InitialAssociatedDataBuilder(EntitySchema._internalBuild("whatever"))
+				.setAssociatedData(
+					"holder",
+					new RangeHolder(
+						"holder", BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+					)
+				)
+				.build();
+
+			final ExistingAssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initial);
+			builder.setAssociatedData(
+				"holder",
+				new RangeHolder("holder", BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20")))
+			);
+
+			assertEquals(
+				"[10,20]",
+				String.valueOf(
+					builder.getAssociatedData("holder", RangeHolder.class, ReflectionLookup.NO_CACHE_INSTANCE).range()
+				)
+			);
+			assertEquals(1, builder.buildChangeSet().count());
+		}
+
+		/**
+		 * Setting a DTO equal to the stored one, range property included, is no change.
+		 */
+		@Test
+		@DisplayName("should emit no mutation for a DTO with the very same range property as the stored one")
+		void shouldEmitNoMutationForDtoWithSameRangePropertyAsStoredOne() {
+			final AssociatedData initial = new InitialAssociatedDataBuilder(EntitySchema._internalBuild("whatever"))
+				.setAssociatedData(
+					"holder",
+					new RangeHolder(
+						"holder", BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+					)
+				)
+				.build();
+
+			final ExistingAssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initial);
+			builder.setAssociatedData(
+				"holder",
+				new RangeHolder("holder", BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0")))
+			);
+
+			assertEquals(0, builder.buildChangeSet().count());
+		}
+	}
+
+	@Nested
+	@DisplayName("Array associated data")
+	class ArrayAssociatedDataTest {
+
+		@Test
+		@DisplayName("should replace an array declared by the schema")
+		void shouldReplaceArrayDeclaredBySchema() {
+			final EntitySchemaContract schema = createSchemaDeclaringArrays();
+			final AssociatedData associatedData = new InitialAssociatedDataBuilder(schema)
+				.setAssociatedData("intArray", new Integer[]{1, 2})
+				.build();
+
+			final AssociatedData newVersion = new ExistingAssociatedDataBuilder(schema, associatedData)
+				.setAssociatedData("intArray", new Integer[]{3})
+				.build();
+
+			final Serializable[] value = newVersion.getAssociatedDataArray("intArray");
+			assertArrayEquals(new Integer[]{3}, value);
+			assertSame(Integer[].class, value.getClass());
+			assertEquals(
+				2,
+				newVersion.getAssociatedDataValue(new AssociatedDataKey("intArray")).orElseThrow().version()
+			);
+		}
+
+		@Test
+		@DisplayName("should replace a localized array declared by the schema")
+		void shouldReplaceLocalizedArrayDeclaredBySchema() {
+			final EntitySchemaContract schema = createSchemaDeclaringArrays();
+			final AssociatedData associatedData = new InitialAssociatedDataBuilder(schema)
+				.setAssociatedData("localizedIntArray", Locale.ENGLISH, new Integer[]{1, 2})
+				.build();
+
+			final AssociatedData newVersion = new ExistingAssociatedDataBuilder(schema, associatedData)
+				.setAssociatedData("localizedIntArray", Locale.ENGLISH, new Integer[]{3})
+				.build();
+
+			final Serializable[] value = newVersion.getAssociatedDataArray("localizedIntArray", Locale.ENGLISH);
+			assertArrayEquals(new Integer[]{3}, value);
+			assertSame(Integer[].class, value.getClass());
+			assertEquals(
+				2,
+				newVersion.getAssociatedDataValue(new AssociatedDataKey("localizedIntArray", Locale.ENGLISH))
+					.orElseThrow()
+					.version()
+			);
+		}
+
+		@Test
+		@DisplayName("should upsert the typed array when the schema does not declare it")
+		void shouldUpsertTypedArrayWhenSchemaDoesNotDeclareIt() {
+			final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(
+				PRODUCT_SCHEMA,
+				ExistingAssociatedDataBuilderTest.this.initialAssociatedData
+			)
+				.setAssociatedData("intArray", new Integer[]{1, 2, 3})
+				.setAssociatedData("stringArray", Locale.ENGLISH, new String[]{"Hello"});
+
+			final Map<AssociatedDataKey, Serializable> upsertedValues = builder.buildChangeSet()
+				.map(UpsertAssociatedDataMutation.class::cast)
+				.collect(
+					Collectors.toMap(
+						AssociatedDataMutation::getAssociatedDataKey,
+						UpsertAssociatedDataMutation::getAssociatedDataValue
+					)
+				);
+			assertSame(Integer[].class, upsertedValues.get(new AssociatedDataKey("intArray")).getClass());
+			assertSame(
+				String[].class,
+				upsertedValues.get(new AssociatedDataKey("stringArray", Locale.ENGLISH)).getClass()
+			);
+		}
+
+		@Test
+		@DisplayName("should convert an array of complex objects the way the initial builder does")
+		void shouldConvertArrayOfComplexObjectsTheWayInitialBuilderDoes() {
+			final EntitySchemaContract schema = new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+				.withAssociatedData("dimensions", Dimension[].class)
+				.toInstance();
+			final Dimension[] dimensions = new Dimension[]{new Dimension("width", 10), new Dimension("height", 20)};
+			final Serializable initiallySet = new InitialAssociatedDataBuilder(schema)
+				.setAssociatedData("dimensions", dimensions)
+				.build()
+				.getAssociatedData("dimensions");
+
+			final Serializable value = new ExistingAssociatedDataBuilder(
+				schema, new InitialAssociatedDataBuilder(schema).build()
+			)
+				.setAssociatedData("dimensions", dimensions)
+				.build()
+				.getAssociatedData("dimensions");
+
+			assertInstanceOf(ComplexDataObject.class, value);
+			assertEquals(initiallySet, value);
+		}
+
+		@Test
+		@DisplayName("should convert a localized array of complex objects the way the initial builder does")
+		void shouldConvertLocalizedArrayOfComplexObjectsTheWayInitialBuilderDoes() {
+			final EntitySchemaContract schema = new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+				.withLocale(Locale.ENGLISH)
+				.withAssociatedData("dimensions", Dimension[].class, AssociatedDataSchemaEditor::localized)
+				.toInstance();
+			final Dimension[] dimensions = new Dimension[]{new Dimension("width", 10), new Dimension("height", 20)};
+			final Serializable initiallySet = new InitialAssociatedDataBuilder(schema)
+				.setAssociatedData("dimensions", Locale.ENGLISH, dimensions)
+				.build()
+				.getAssociatedData("dimensions", Locale.ENGLISH);
+
+			final Serializable value = new ExistingAssociatedDataBuilder(
+				schema, new InitialAssociatedDataBuilder(schema).build()
+			)
+				.setAssociatedData("dimensions", Locale.ENGLISH, dimensions)
+				.build()
+				.getAssociatedData("dimensions", Locale.ENGLISH);
+
+			assertInstanceOf(ComplexDataObject.class, value);
+			assertEquals(initiallySet, value);
+		}
+
+		@Test
+		@DisplayName("should refuse an array of complex data objects")
+		void shouldRefuseArrayOfComplexDataObjects() {
+			final EntitySchemaContract schema = new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+				.withLocale(Locale.ENGLISH)
+				.toInstance();
+			final ExistingAssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(
+				schema, new InitialAssociatedDataBuilder(schema).build()
+			);
+			final ComplexDataObject[] objects = {
+				new ComplexDataObject(new DataItemMap(Map.of("name", new DataItemValue("width"))))
+			};
+
+			assertAll(
+				() -> assertThrows(
+					SerializationFailedException.class,
+					() -> builder.setAssociatedData("objects", objects)
+				),
+				() -> assertThrows(
+					SerializationFailedException.class,
+					() -> builder.setAssociatedData("objects", Locale.ENGLISH, objects)
+				)
+			);
+		}
+
+		/**
+		 * Creates a product schema declaring a non-localized and a localized integer array associated data.
+		 *
+		 * @return the schema
+		 */
+		@Nonnull
+		private static EntitySchemaContract createSchemaDeclaringArrays() {
+			return new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+				.withLocale(Locale.ENGLISH)
+				.withAssociatedData("intArray", Integer[].class)
+				.withAssociatedData("localizedIntArray", Integer[].class, AssociatedDataSchemaEditor::localized)
+				.toInstance();
+		}
+	}
+
+	/**
+	 * Complex object stored as an item of an array associated data.
+	 *
+	 * @param name  name of the dimension
+	 * @param value size of the dimension
+	 */
+	public record Dimension(
+		@Nonnull String name,
+		@Nonnull Integer value
+	) implements Serializable {
 	}
 
 }

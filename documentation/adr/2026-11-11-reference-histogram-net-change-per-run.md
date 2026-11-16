@@ -1,10 +1,10 @@
 ---
 title: A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue
 date: 2026-11-11
-updated: 2026-11-12 23:10
+updated: 2026-11-15 01:00
 status: accepted
 kind: fix
-issues: [1911, 1916, 1918, 1923]
+issues: [1911, 1916, 1918, 1923, 1948]
 prs: []
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation/local, evita_engine/src/main/java/io/evitadb/core/catalog,
   evita_engine/src/main/java/io/evitadb/core/expression/proxy]
@@ -364,8 +364,13 @@ histogram trigger of each - O(N·K). On any other entity type it costs one regis
 - **Catalogs written by the previous release may hold doubled or stale values.** *Not repaired by this change.*
   A correct writer stops new drift and does not look for old drift; where a withdrawal expects a value such a
   catalog lacks, the write fails loudly until the catalog is rebuilt. The release already recommends a full
-  reindex. The server setting `missingHistogramValueBehavior: REPORT` (#1948) lets such writes go on until then: each
-  value the withdrawal cannot find is logged at error level and skipped.
+  reindex. An engine started with the hidden system property `evitadb.referenceHistogram.missingValueBehavior=REPORT`
+  lets such writes go on until then: each value the withdrawal cannot find is logged at error level and skipped. The
+  property is a temporary safety valve, read once when the engine starts and deliberately absent from
+  `ServerOptions`, the server YAML and `documentation/user/`, because the engine is expected to keep its histograms
+  consistent; documenting or promoting it reverses this decision. It replaces the public setting
+  `missingHistogramValueBehavior` of #1953, which existed on `dev` only and was withdrawn before any release, and it
+  is removed in a later release under #1948.
 - **Local and cross-entity work can apply one contribution twice.** *Open: #1925.* For a self-referencing entity
   type, and for a reference with a reflected counterpart, one upsert engages the local or nested path and the
   cross-entity path on the same contribution, and the value is added twice. Measured: 36 failing cases in three

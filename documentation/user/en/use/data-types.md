@@ -674,8 +674,11 @@ The complex types are intended for the client POCO classes to carry larger data 
 <LS to="e,j">
 
 <Note type="info">
-Associated data may even contain array of complex objects. Such data will be automatically converted to an array of
-`ComplexDataObject` types - i.e. `ComplexDataObject[]`.
+Associated data may even contain an array of complex objects. Such an array is stored as a single `ComplexDataObject`
+whose root is an array holding one item per object - there is no separate array type for complex objects, and the
+schema declares the associated data as `ComplexDataObject`. The entity builders convert an array of your objects
+into this form automatically, and the entity proxies do the same for an array or a collection. An array of
+`ComplexDataObject` instances (`ComplexDataObject[]`) is not a valid associated data value and is refused.
 </Note>
 
 ### The complex type can contain the properties of
@@ -691,8 +694,9 @@ Associated data may even contain array of complex objects. Such data will be aut
 <LS to="c">
 
 <Note type="info">
-Associated data may even contain array of complex objects. Such data will be automatically converted to an array of
-`ComplexDataObject` types - i.e. `ComplexDataObject[]`.
+Associated data may even contain an array of complex objects. Such an array is stored as a single `ComplexDataObject`
+whose root is an array holding one item per object - there is no separate array type for complex objects, and the
+schema declares the associated data as `ComplexDataObject`.
 </Note>
 
 ### The complex type can contain the properties of
@@ -708,8 +712,8 @@ Associated data may even contain array of complex objects. Such data will be aut
 <LS to="g,r">
 
 <Note type="info">
-Associated data may even contain array of complex objects. Such data will be automatically converted to an array of
-`ComplexDataObject` types - i.e. `ComplexDataObjectArray`.
+Associated data may even contain an array of complex objects. Such an array is stored as a single value of the
+`ComplexDataObject` type whose content is the array itself - there is no separate array type for complex objects.
 </Note>
 
 </LS>

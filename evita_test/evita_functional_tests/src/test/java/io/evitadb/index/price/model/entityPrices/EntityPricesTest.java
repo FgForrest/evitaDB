@@ -218,7 +218,7 @@ class EntityPricesTest {
 		void shouldCreateFromTwoPlainPrices() {
 			final EntityPrices single = EntityPrices.create(createPlainPrice(1, 200, 250));
 
-			final EntityPrices result = EntityPrices.addPriceRecord(single, createPlainPrice(2, 100, 150));
+			final EntityPrices result = EntityPrices.addPriceRecord(single, createPlainPrice(2, 100, 150), true);
 
 			assertInstanceOf(MultiplePriceEntityPrices.class, result);
 		}
@@ -227,7 +227,7 @@ class EntityPricesTest {
 		@DisplayName("should return correct size")
 		void shouldReturnCorrectSize() {
 			final EntityPrices ep = EntityPrices.create(createPlainPrice(1, 200, 250));
-			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 100, 150));
+			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 100, 150), true);
 
 			assertEquals(2, result.getSize());
 		}
@@ -236,7 +236,7 @@ class EntityPricesTest {
 		@DisplayName("should return lowest price by priceWithoutTax")
 		void shouldReturnLowestPriceByWithoutTax() {
 			final EntityPrices ep = EntityPrices.create(createPlainPrice(1, 200, 250));
-			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 100, 150));
+			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 100, 150), true);
 
 			final PriceRecordContract[] lowestPrices = result.getLowestPriceRecords();
 			assertEquals(1, lowestPrices.length);
@@ -245,17 +245,23 @@ class EntityPricesTest {
 			assertEquals(150, lowestPrices[0].priceWithoutTax());
 		}
 
+		/**
+		 * Two prices tied on the price without tax are told apart by the price id the entity knows them by, never by
+		 * the internal price id the index assigned - the entity side prefers the lower price id among prices of equal
+		 * standing, and the internal ids follow the order the prices happened to be indexed in.
+		 */
 		@Test
-		@DisplayName("should break tie in lowest price by internalPriceId")
-		void shouldReturnLowestPriceBreakingTieByInternalPriceId() {
-			// both prices have the same priceWithoutTax; tie broken by internalPriceId (ascending)
-			final EntityPrices ep = EntityPrices.create(createPlainPrice(5, 100, 200));
-			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 100, 200));
+		@DisplayName("should break tie in lowest price by price id")
+		void shouldReturnLowestPriceBreakingTieByPriceId() {
+			// the price indexed first holds the lower internal price id but the higher price id
+			final EntityPrices ep = EntityPrices.create(createPriceWithDistinctIds(1, 30, 100, 200));
+			final EntityPrices result = EntityPrices.addPriceRecord(
+				ep, createPriceWithDistinctIds(2, 10, 100, 200), true
+			);
 
 			final PriceRecordContract[] lowestPrices = result.getLowestPriceRecords();
 			assertEquals(1, lowestPrices.length);
-			// internalPriceId 2 < 5, so price with id 2 wins
-			assertEquals(2, lowestPrices[0].priceId());
+			assertEquals(10, lowestPrices[0].priceId());
 		}
 
 		@Test
@@ -263,7 +269,7 @@ class EntityPricesTest {
 		void shouldReturnSortedInternalPriceIds() {
 			// add prices in descending order to verify sorting
 			final EntityPrices ep = EntityPrices.create(createPlainPrice(10, 100, 120));
-			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(3, 200, 250));
+			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(3, 200, 250), true);
 
 			final int[] ids = result.getInternalPriceIds();
 			// prices are stored sorted by internalPriceId via PRICE_ID_COMPARATOR
@@ -274,7 +280,7 @@ class EntityPricesTest {
 		@DisplayName("should contain price record by price ID")
 		void shouldContainPriceRecordByPriceId() {
 			final EntityPrices ep = EntityPrices.create(createPlainPrice(1, 100, 120));
-			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 200, 250));
+			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 200, 250), true);
 
 			assertTrue(result.containsPriceRecord(1));
 			assertTrue(result.containsPriceRecord(2));
@@ -284,7 +290,7 @@ class EntityPricesTest {
 		@DisplayName("should not contain non-existent price record")
 		void shouldNotContainNonExistentPriceRecord() {
 			final EntityPrices ep = EntityPrices.create(createPlainPrice(1, 100, 120));
-			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 200, 250));
+			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 200, 250), true);
 
 			assertFalse(result.containsPriceRecord(99));
 		}
@@ -293,7 +299,7 @@ class EntityPricesTest {
 		@DisplayName("should not contain any inner record")
 		void shouldNotContainAnyInnerRecord() {
 			final EntityPrices ep = EntityPrices.create(createPlainPrice(1, 100, 120));
-			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 200, 250));
+			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 200, 250), true);
 
 			assertFalse(result.containsInnerRecord(1));
 			assertFalse(result.containsInnerRecord(0));
@@ -303,7 +309,7 @@ class EntityPricesTest {
 		@DisplayName("should not be empty")
 		void shouldNotBeEmpty() {
 			final EntityPrices ep = EntityPrices.create(createPlainPrice(1, 100, 120));
-			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 200, 250));
+			final EntityPrices result = EntityPrices.addPriceRecord(ep, createPlainPrice(2, 200, 250), true);
 
 			assertFalse(result.isEmpty());
 		}
@@ -319,7 +325,7 @@ class EntityPricesTest {
 			final EntityPrices ep = EntityPrices.create(createInnerRecordPrice(1, 1, 100, 120));
 
 			final EntityPrices result = EntityPrices.addPriceRecord(
-				ep, createInnerRecordPrice(2, 1, 200, 250)
+				ep, createInnerRecordPrice(2, 1, 200, 250), true
 			);
 
 			assertInstanceOf(FullBlownEntityPrices.class, result);
@@ -330,13 +336,13 @@ class EntityPricesTest {
 		void shouldReturnCorrectSize() {
 			final EntityPrices ep1 = EntityPrices.create(createInnerRecordPrice(1, 1, 123, 155));
 			final EntityPrices ep2 = EntityPrices.addPriceRecord(
-				ep1, createInnerRecordPrice(2, 1, 100, 200)
+				ep1, createInnerRecordPrice(2, 1, 100, 200), true
 			);
 			final EntityPrices ep3 = EntityPrices.addPriceRecord(
-				ep2, createInnerRecordPrice(3, 2, 800, 850)
+				ep2, createInnerRecordPrice(3, 2, 800, 850), true
 			);
 			final EntityPrices result = EntityPrices.addPriceRecord(
-				ep3, createInnerRecordPrice(4, 2, 500, 590)
+				ep3, createInnerRecordPrice(4, 2, 500, 590), true
 			);
 
 			assertEquals(4, result.getSize());
@@ -347,13 +353,13 @@ class EntityPricesTest {
 		void shouldReturnLowestPricePerInnerRecordGroup() {
 			final EntityPrices ep1 = EntityPrices.create(createInnerRecordPrice(1, 1, 123, 155));
 			final EntityPrices ep2 = EntityPrices.addPriceRecord(
-				ep1, createInnerRecordPrice(2, 1, 100, 200)
+				ep1, createInnerRecordPrice(2, 1, 100, 200), true
 			);
 			final EntityPrices ep3 = EntityPrices.addPriceRecord(
-				ep2, createInnerRecordPrice(3, 2, 800, 850)
+				ep2, createInnerRecordPrice(3, 2, 800, 850), true
 			);
 			final EntityPrices result = EntityPrices.addPriceRecord(
-				ep3, createInnerRecordPrice(4, 2, 500, 590)
+				ep3, createInnerRecordPrice(4, 2, 500, 590), true
 			);
 
 			final PriceRecordContract[] lowestPrices = result.getLowestPriceRecords();
@@ -369,18 +375,43 @@ class EntityPricesTest {
 			assertArrayEquals(new int[]{1, 4}, lowestPriceIds);
 		}
 
+		/**
+		 * Two prices of one inner record tied on the price without tax are told apart by the price id the entity knows
+		 * them by, never by the internal price id the index assigned - the entity side prefers the lower price id among
+		 * prices of one inner record in one price list, and the internal ids follow the order the prices happened to be
+		 * indexed in. Picking the other price would make the inner record lose a tie the entity side lets it win.
+		 */
+		@Test
+		@DisplayName("should break tie within an inner record group by price id")
+		void shouldReturnLowestPricePerInnerRecordGroupBreakingTieByPriceId() {
+			// inner record 1: the price indexed first holds the lower internal price id but the higher price id
+			final EntityPrices ep1 = EntityPrices.create(createInnerRecordPriceWithDistinctIds(1, 30, 1, 100, 100));
+			final EntityPrices ep2 = EntityPrices.addPriceRecord(
+				ep1, createInnerRecordPriceWithDistinctIds(2, 10, 1, 100, 100), true
+			);
+			final EntityPrices result = EntityPrices.addPriceRecord(
+				ep2, createInnerRecordPriceWithDistinctIds(3, 20, 2, 100, 100), true
+			);
+
+			final int[] lowestPriceIds = Arrays.stream(result.getLowestPriceRecords())
+				.mapToInt(PriceRecordContract::priceId)
+				.toArray();
+			// ordered by internal price id: the winner of inner record 1 (internal id 2) precedes inner record 2's (3)
+			assertArrayEquals(new int[]{10, 20}, lowestPriceIds);
+		}
+
 		@Test
 		@DisplayName("should return sorted internal price IDs")
 		void shouldReturnSortedInternalPriceIds() {
 			final EntityPrices ep1 = EntityPrices.create(createInnerRecordPrice(1, 1, 123, 155));
 			final EntityPrices ep2 = EntityPrices.addPriceRecord(
-				ep1, createInnerRecordPrice(2, 1, 100, 200)
+				ep1, createInnerRecordPrice(2, 1, 100, 200), true
 			);
 			final EntityPrices ep3 = EntityPrices.addPriceRecord(
-				ep2, createInnerRecordPrice(3, 2, 800, 850)
+				ep2, createInnerRecordPrice(3, 2, 800, 850), true
 			);
 			final EntityPrices result = EntityPrices.addPriceRecord(
-				ep3, createInnerRecordPrice(4, 2, 500, 590)
+				ep3, createInnerRecordPrice(4, 2, 500, 590), true
 			);
 
 			assertArrayEquals(new int[]{1, 2, 3, 4}, result.getInternalPriceIds());
@@ -391,7 +422,7 @@ class EntityPricesTest {
 		void shouldContainPriceRecordByPriceId() {
 			final EntityPrices ep1 = EntityPrices.create(createInnerRecordPrice(1, 1, 100, 120));
 			final EntityPrices result = EntityPrices.addPriceRecord(
-				ep1, createInnerRecordPrice(2, 2, 200, 250)
+				ep1, createInnerRecordPrice(2, 2, 200, 250), true
 			);
 
 			assertTrue(result.containsPriceRecord(1));
@@ -403,7 +434,7 @@ class EntityPricesTest {
 		void shouldNotContainNonExistentPriceRecord() {
 			final EntityPrices ep1 = EntityPrices.create(createInnerRecordPrice(1, 1, 100, 120));
 			final EntityPrices result = EntityPrices.addPriceRecord(
-				ep1, createInnerRecordPrice(2, 2, 200, 250)
+				ep1, createInnerRecordPrice(2, 2, 200, 250), true
 			);
 
 			assertFalse(result.containsPriceRecord(99));
@@ -414,7 +445,7 @@ class EntityPricesTest {
 		void shouldContainInnerRecord() {
 			final EntityPrices ep1 = EntityPrices.create(createInnerRecordPrice(1, 10, 100, 120));
 			final EntityPrices result = EntityPrices.addPriceRecord(
-				ep1, createInnerRecordPrice(2, 20, 200, 250)
+				ep1, createInnerRecordPrice(2, 20, 200, 250), true
 			);
 
 			assertTrue(result.containsInnerRecord(10));
@@ -426,7 +457,7 @@ class EntityPricesTest {
 		void shouldNotContainNonExistentInnerRecord() {
 			final EntityPrices ep1 = EntityPrices.create(createInnerRecordPrice(1, 10, 100, 120));
 			final EntityPrices result = EntityPrices.addPriceRecord(
-				ep1, createInnerRecordPrice(2, 20, 200, 250)
+				ep1, createInnerRecordPrice(2, 20, 200, 250), true
 			);
 
 			assertFalse(result.containsInnerRecord(99));
@@ -437,11 +468,56 @@ class EntityPricesTest {
 		void shouldNotBeEmpty() {
 			final EntityPrices ep1 = EntityPrices.create(createInnerRecordPrice(1, 1, 100, 120));
 			final EntityPrices result = EntityPrices.addPriceRecord(
-				ep1, createInnerRecordPrice(2, 2, 200, 250)
+				ep1, createInnerRecordPrice(2, 2, 200, 250), true
 			);
 
 			assertFalse(result.isEmpty());
 		}
+	}
+
+	@Nested
+	@DisplayName("Prices of an entity without inner record handling")
+	class EntityWithoutInnerRecordHandlingTest {
+
+		@Test
+		@DisplayName("should keep a single lowest price whatever inner records the prices carry")
+		void shouldKeepSingleLowestPriceWhateverInnerRecordsPricesCarry() {
+			final EntityPrices ep = EntityPrices.addPriceRecord(
+				EntityPrices.addPriceRecord(
+					EntityPrices.create(createInnerRecordPrice(1, 10, 300, 300)),
+					createInnerRecordPrice(2, 20, 100, 100), false
+				),
+				createInnerRecordPrice(3, 30, 200, 200), false
+			);
+
+			assertInstanceOf(MultiplePriceEntityPrices.class, ep);
+			final PriceRecordContract[] lowestPrices = ep.getLowestPriceRecords();
+			assertEquals(1, lowestPrices.length);
+			assertEquals(2, lowestPrices[0].priceId());
+		}
+
+		@Test
+		@DisplayName("should keep a single lowest price after a price is removed")
+		void shouldKeepSingleLowestPriceAfterPriceIsRemoved() {
+			final PriceRecordContract cheapest = createInnerRecordPrice(2, 20, 100, 100);
+			final EntityPrices ep = EntityPrices.addPriceRecord(
+				EntityPrices.addPriceRecord(
+					EntityPrices.create(createInnerRecordPrice(1, 10, 300, 300)),
+					cheapest, false
+				),
+				createInnerRecordPrice(3, 30, 200, 200), false
+			);
+
+			final EntityPrices result = EntityPrices.removePrice(
+				EntityPrices.addPriceRecord(ep, createInnerRecordPrice(4, 40, 400, 400), false), cheapest, false
+			);
+
+			assertInstanceOf(MultiplePriceEntityPrices.class, result);
+			final PriceRecordContract[] lowestPrices = result.getLowestPriceRecords();
+			assertEquals(1, lowestPrices.length);
+			assertEquals(3, lowestPrices[0].priceId());
+		}
+
 	}
 
 	@Nested
@@ -462,7 +538,7 @@ class EntityPricesTest {
 			final EntityPrices single = EntityPrices.create(createPlainPrice(1, 100, 120));
 
 			final EntityPrices result = EntityPrices.addPriceRecord(
-				single, createPlainPrice(2, 200, 250)
+				single, createPlainPrice(2, 200, 250), true
 			);
 
 			assertInstanceOf(MultiplePriceEntityPrices.class, result);
@@ -474,7 +550,7 @@ class EntityPricesTest {
 			final EntityPrices single = EntityPrices.create(createPlainPrice(1, 100, 120));
 
 			final EntityPrices result = EntityPrices.addPriceRecord(
-				single, createInnerRecordPrice(2, 5, 200, 250)
+				single, createInnerRecordPrice(2, 5, 200, 250), true
 			);
 
 			assertInstanceOf(FullBlownEntityPrices.class, result);
@@ -486,7 +562,7 @@ class EntityPricesTest {
 			final EntityPrices single = EntityPrices.create(createInnerRecordPrice(1, 5, 100, 120));
 
 			final EntityPrices result = EntityPrices.addPriceRecord(
-				single, createPlainPrice(2, 200, 250)
+				single, createPlainPrice(2, 200, 250), true
 			);
 
 			assertInstanceOf(FullBlownEntityPrices.class, result);
@@ -497,11 +573,11 @@ class EntityPricesTest {
 		void shouldTransitionBackToSingleWhenRemovingFromTwo() {
 			final EntityPrices single = EntityPrices.create(createPlainPrice(1, 100, 120));
 			final EntityPrices multiple = EntityPrices.addPriceRecord(
-				single, createPlainPrice(2, 200, 250)
+				single, createPlainPrice(2, 200, 250), true
 			);
 
 			final EntityPrices result = EntityPrices.removePrice(
-				multiple, createPlainPrice(2, 200, 250)
+				multiple, createPlainPrice(2, 200, 250), true
 			);
 
 			assertInstanceOf(SinglePriceEntityPrices.class, result);
@@ -515,7 +591,7 @@ class EntityPricesTest {
 			final EntityPrices single = EntityPrices.create(createPlainPrice(1, 100, 120));
 
 			final EntityPrices result = EntityPrices.removePrice(
-				single, createPlainPrice(1, 100, 120)
+				single, createPlainPrice(1, 100, 120), true
 			);
 
 			assertTrue(result.isEmpty());
@@ -527,14 +603,14 @@ class EntityPricesTest {
 		void shouldStayFullBlownWhenRemovingFromThreePlusInnerRecord() {
 			final EntityPrices ep1 = EntityPrices.create(createInnerRecordPrice(1, 1, 100, 120));
 			final EntityPrices ep2 = EntityPrices.addPriceRecord(
-				ep1, createInnerRecordPrice(2, 1, 200, 250)
+				ep1, createInnerRecordPrice(2, 1, 200, 250), true
 			);
 			final EntityPrices ep3 = EntityPrices.addPriceRecord(
-				ep2, createInnerRecordPrice(3, 2, 300, 350)
+				ep2, createInnerRecordPrice(3, 2, 300, 350), true
 			);
 
 			final EntityPrices result = EntityPrices.removePrice(
-				ep3, createInnerRecordPrice(2, 1, 200, 250)
+				ep3, createInnerRecordPrice(2, 1, 200, 250), true
 			);
 
 			assertInstanceOf(FullBlownEntityPrices.class, result);
@@ -545,10 +621,10 @@ class EntityPricesTest {
 		@DisplayName("should stay MultiplePriceEntityPrices when removing from 3+ plain prices")
 		void shouldStayMultipleWhenRemovingFromThreePlusPlain() {
 			final EntityPrices ep1 = EntityPrices.create(createPlainPrice(1, 100, 120));
-			final EntityPrices ep2 = EntityPrices.addPriceRecord(ep1, createPlainPrice(2, 200, 250));
-			final EntityPrices ep3 = EntityPrices.addPriceRecord(ep2, createPlainPrice(3, 300, 350));
+			final EntityPrices ep2 = EntityPrices.addPriceRecord(ep1, createPlainPrice(2, 200, 250), true);
+			final EntityPrices ep3 = EntityPrices.addPriceRecord(ep2, createPlainPrice(3, 300, 350), true);
 
-			final EntityPrices result = EntityPrices.removePrice(ep3, createPlainPrice(2, 200, 250));
+			final EntityPrices result = EntityPrices.removePrice(ep3, createPlainPrice(2, 200, 250), true);
 
 			assertInstanceOf(MultiplePriceEntityPrices.class, result);
 			assertEquals(2, result.getSize());
@@ -574,8 +650,8 @@ class EntityPricesTest {
 			final PriceRecordContract price2 = createInnerRecordPrice(2, 1, 200, 250);
 			final PriceRecordContract price3 = createInnerRecordPrice(3, 2, 300, 350);
 			final EntityPrices ep1 = EntityPrices.create(price1);
-			final EntityPrices ep2 = EntityPrices.addPriceRecord(ep1, price2);
-			final EntityPrices ep3 = EntityPrices.addPriceRecord(ep2, price3);
+			final EntityPrices ep2 = EntityPrices.addPriceRecord(ep1, price2, true);
+			final EntityPrices ep3 = EntityPrices.addPriceRecord(ep2, price3, true);
 
 			// price1 is in the entity, so the first element matches
 			assertTrue(ep3.containsAnyOf(new PriceRecordContract[]{price1}));
@@ -590,8 +666,8 @@ class EntityPricesTest {
 			// non-existent with internalPriceId between existing ones (sorted order maintained)
 			final PriceRecordContract nonExistent = createInnerRecordPrice(3, 5, 500, 600);
 			final EntityPrices ep1 = EntityPrices.create(price1);
-			final EntityPrices ep2 = EntityPrices.addPriceRecord(ep1, price2);
-			final EntityPrices ep3 = EntityPrices.addPriceRecord(ep2, price5);
+			final EntityPrices ep2 = EntityPrices.addPriceRecord(ep1, price2, true);
+			final EntityPrices ep3 = EntityPrices.addPriceRecord(ep2, price5, true);
 
 			// input sorted by internalPriceId: nonExistent(3) < price5(5)
 			assertTrue(ep3.containsAnyOf(new PriceRecordContract[]{nonExistent, price5}));
@@ -605,7 +681,7 @@ class EntityPricesTest {
 			final PriceRecordContract nonExistent1 = createInnerRecordPrice(50, 5, 500, 600);
 			final PriceRecordContract nonExistent2 = createInnerRecordPrice(60, 6, 600, 700);
 			final EntityPrices ep1 = EntityPrices.create(price1);
-			final EntityPrices ep2 = EntityPrices.addPriceRecord(ep1, price2);
+			final EntityPrices ep2 = EntityPrices.addPriceRecord(ep1, price2, true);
 
 			assertFalse(ep2.containsAnyOf(new PriceRecordContract[]{nonExistent1, nonExistent2}));
 		}
@@ -618,8 +694,8 @@ class EntityPricesTest {
 			final PriceRecordContract price100 = createPlainPrice(100, 200, 250);
 			final PriceRecordContract price1000 = createPlainPrice(1000, 300, 350);
 			final EntityPrices ep1 = EntityPrices.create(price10);
-			final EntityPrices ep2 = EntityPrices.addPriceRecord(ep1, price100);
-			final EntityPrices ep3 = EntityPrices.addPriceRecord(ep2, price1000);
+			final EntityPrices ep2 = EntityPrices.addPriceRecord(ep1, price100, true);
+			final EntityPrices ep3 = EntityPrices.addPriceRecord(ep2, price1000, true);
 
 			assertTrue(ep3.containsAnyOf(new PriceRecordContract[]{price100}));
 			assertTrue(ep3.containsAnyOf(new PriceRecordContract[]{price1000}));
@@ -697,14 +773,14 @@ class EntityPricesTest {
 		void shouldThrowWhenRemovingANonExistentPriceFromATwoPriceEntity() {
 			final EntityPrices single = EntityPrices.create(createPlainPrice(1, 100, 120));
 			final EntityPrices two = EntityPrices.addPriceRecord(
-				single, createPlainPrice(2, 200, 250)
+				single, createPlainPrice(2, 200, 250), true
 			);
 			assertInstanceOf(MultiplePriceEntityPrices.class, two);
 
 			final PriceRecordContract nonExistent = createPlainPrice(99, 300, 350);
 			final GenericEvitaInternalError exception = assertThrows(
 				GenericEvitaInternalError.class,
-				() -> EntityPrices.removePrice(two, nonExistent)
+				() -> EntityPrices.removePrice(two, nonExistent, true)
 			);
 
 			assertTrue(
@@ -772,9 +848,9 @@ class EntityPricesTest {
 			final EntityPrices multiple = EntityPrices.addPriceRecord(
 				EntityPrices.addPriceRecord(
 					EntityPrices.create(createPlainPrice(1, 300, 350)),
-					createPlainPrice(2, 100, 120)
+					createPlainPrice(2, 100, 120), true
 				),
-				createPlainPrice(3, 200, 250)
+				createPlainPrice(3, 200, 250), true
 			);
 
 			assertInstanceOf(MultiplePriceEntityPrices.class, multiple);
@@ -787,9 +863,9 @@ class EntityPricesTest {
 			final EntityPrices fullBlown = EntityPrices.addPriceRecord(
 				EntityPrices.addPriceRecord(
 					EntityPrices.create(createInnerRecordPrice(1, 10, 300, 350)),
-					createInnerRecordPrice(2, 10, 100, 120)
+					createInnerRecordPrice(2, 10, 100, 120), true
 				),
-				createInnerRecordPrice(3, 20, 200, 250)
+				createInnerRecordPrice(3, 20, 200, 250), true
 			);
 
 			assertInstanceOf(FullBlownEntityPrices.class, fullBlown);
@@ -844,11 +920,11 @@ class EntityPricesTest {
 		void shouldRejectAnOutOfRangeInternalPriceIdIndexOnEveryShape() {
 			final EntityPrices multiple = EntityPrices.addPriceRecord(
 				EntityPrices.create(createPlainPrice(1, 300, 350)),
-				createPlainPrice(2, 100, 120)
+				createPlainPrice(2, 100, 120), true
 			);
 			final EntityPrices fullBlown = EntityPrices.addPriceRecord(
 				EntityPrices.create(createInnerRecordPrice(1, 10, 300, 350)),
-				createInnerRecordPrice(2, 20, 100, 120)
+				createInnerRecordPrice(2, 20, 100, 120), true
 			);
 
 			assertInstanceOf(MultiplePriceEntityPrices.class, multiple);
@@ -942,10 +1018,10 @@ class EntityPricesTest {
 		void shouldShedBothArraysWhenBackToOnePrice() {
 			final PriceRecordContract first = createPlainPrice(1, 300, 350);
 			final PriceRecordContract second = createPlainPrice(2, 100, 120);
-			final EntityPrices two = EntityPrices.addPriceRecord(EntityPrices.create(first), second);
+			final EntityPrices two = EntityPrices.addPriceRecord(EntityPrices.create(first), second, true);
 			assertInstanceOf(MultiplePriceEntityPrices.class, two);
 
-			final EntityPrices backToOne = EntityPrices.removePrice(two, second);
+			final EntityPrices backToOne = EntityPrices.removePrice(two, second, true);
 
 			assertInstanceOf(SinglePriceEntityPrices.class, backToOne);
 			assertEquals(1, backToOne.getSize());
@@ -1016,6 +1092,30 @@ class EntityPricesTest {
 	) {
 		return new PriceRecordInnerRecordSpecific(
 			priceId, priceId, 1, innerRecordId, priceWithTax, priceWithoutTax
+		);
+	}
+
+	/**
+	 * Creates an inner-record-specific {@link PriceRecordInnerRecordSpecific} whose internal price id differs from its
+	 * price id, so that a selection reading one id cannot pass for a selection reading the other.
+	 *
+	 * @param internalPriceId the id the entity-prices holder indexes and orders its prices by
+	 * @param priceId         the id the price is known by within its entity
+	 * @param innerRecordId   the inner record group identifier
+	 * @param priceWithTax    the price amount including tax
+	 * @param priceWithoutTax the price amount excluding tax
+	 * @return new inner-record-specific price record for entity primary key 1
+	 */
+	@Nonnull
+	private static PriceRecordContract createInnerRecordPriceWithDistinctIds(
+		int internalPriceId,
+		int priceId,
+		int innerRecordId,
+		int priceWithTax,
+		int priceWithoutTax
+	) {
+		return new PriceRecordInnerRecordSpecific(
+			internalPriceId, priceId, 1, innerRecordId, priceWithTax, priceWithoutTax
 		);
 	}
 }

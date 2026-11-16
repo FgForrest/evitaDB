@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.EvitaDataTypes;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -238,7 +239,7 @@ public final class UpsertPriceMutation extends PriceMutation implements SchemaEv
 			!Objects.equals(existingValue.priceWithoutTax(), this.priceWithoutTax) ||
 			!Objects.equals(existingValue.taxRate(), this.taxRate) ||
 			!Objects.equals(existingValue.priceWithTax(), this.priceWithTax) ||
-			!Objects.equals(existingValue.validity(), this.validity) ||
+			EvitaDataTypes.storedValueDiffers(existingValue.validity(), this.validity) ||
 				existingValue.indexed() != this.indexed ||
 				existingValue.dropped()
 		) {

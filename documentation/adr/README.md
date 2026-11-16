@@ -33,10 +33,11 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-11-16 | [Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure](2026-11-16-copy-on-write-path-routing.md) | refactor | accepted | #1956, #1959, #1967, #1968, PR #1957, PR #1974 |
 | 2026-11-15 | [A warm-up schema change refused when its expression triggers are built raises the unpublishable barrier, and the inline DDL flush waits until they build](2026-11-15-warm-up-trigger-build-refusal-raises-the-barrier.md) | fix | proposed | #1922 |
 | 2026-11-13 | [Cache parsed and validated GraphQL documents per GraphQL instance in a Caffeine cache bounded by bytes](2026-11-13-graphql-parsed-document-cache.md) | optimization | proposed | #1191 |
 | 2026-11-12 | [Null arguments in query constraints follow one rule set in Java, EvitaQL and REST](2026-11-12-null-arguments-in-query-constraints.md) | fix | accepted | #1943 |
-| 2026-11-11 | [A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue](2026-11-11-reference-histogram-net-change-per-run.md) | fix | accepted | #1911, #1916, #1918, #1923 |
+| 2026-11-11 | [A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue](2026-11-11-reference-histogram-net-change-per-run.md) | fix | accepted | #1911, #1916, #1918, #1923, #1948 |
 | 2026-11-06 | [A catalog rename or replace waits for the commit pipeline on the caller's thread, then acts on the instance that wait found](2026-11-06-catalog-handover-waits-for-commit-pipeline.md) | fix | accepted | #1889, PR #1890 |
 | 2026-11-05 | [An export that cannot fit the export storage stops at the limit and names the setting to raise](2026-11-05-backup-stops-at-the-export-limit.md) | fix | accepted | #1881, PR #1885 |
 | 2026-11-05 | [A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front](2026-11-05-nested-inscope-requested-scopes.md) | fix | accepted | #1880, #1883, #1897, #1915, #1917, PR #1884, PR #1913, PR #1914, PR #1919 |
@@ -78,7 +79,7 @@ filename date that disagrees with `date:`.
 | 2026-09-13 | [Define the per-entity I/O statistic as standalone cost and attribute it at the read, not by walking the returned object graph](2026-09-13-per-entity-io-statistics-attribution.md) | refactor | accepted | #1547, #1561, #1562, #1563, #1564, #1565, #1566, #1567, PR #1548 |
 | 2026-09-12 | [Restore a live catalog to an earlier version by composing backup, restore, activate and replace](2026-09-12-restore-catalog-to-earlier-version.md) | feature | accepted | #1553 |
 | 2026-09-12 | [Derive the enrichment shortcut from committed-snapshot provenance, not from a caller-supplied flag](2026-09-12-committed-snapshot-provenance-for-enrichment.md) | fix | accepted | #1547, #1559, PR #1548 |
-| 2026-09-11 | [Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes](2026-09-11-reference-name-narrowing.md) | optimization | accepted | #1547, #1554, PR #1548 |
+| 2026-09-11 | [Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes](2026-09-11-reference-name-narrowing.md) | optimization | accepted | #1547, #1554, #1972, #1976, PR #1548 |
 | 2026-09-10 | [Virtual threads and ScopedValue stay out of the JDK 21 server; the executor defects the analysis exposed are fixed on their own terms](2026-09-10-jdk21-virtual-threads-and-scoped-values/) | infrastructure | accepted | #1518, #1532, #1533, #1534, #1535, #1536, #1537, #1538, PR #1519 |
 | 2026-09-10 | [SIMD through the JDK Vector API is pursued in the roaring containers and two query kernels behind an optional provider, and nowhere in object-shaped code](2026-09-10-simd-vector-api-feasibility/) | optimization | proposed | #1518, #1539, #1540, #1541, #1542, #1543, #1544, #1545, #1546, PR #1519 |
 | 2026-09-09 | [Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one](2026-09-09-sibling-resolver-partition-cardinality.md) | optimization | accepted | #1529, PR #1557 |

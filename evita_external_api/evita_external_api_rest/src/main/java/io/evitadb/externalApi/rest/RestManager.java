@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
@@ -55,13 +56,14 @@ import javax.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -104,7 +106,14 @@ public class RestManager {
 	private final CompletableFuture<Void> fullyInitialized;
 
 	@Nullable private SystemBuildStatistics systemBuildStatistics;
-	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
+	/**
+	 * Build statistics of each registered catalog, keyed by catalog name. Concurrent, because live system change
+	 * capture callbacks add and remove catalogs on the capture executor while {@link #emitObservabilityEvents()}
+	 * iterates them on the thread initializing the web API server, for example when an embedded engine is still
+	 * loading catalogs. Mutations committed before the subscription do not overlap: they are replayed synchronously
+	 * on the subscribing thread.
+	 */
+	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createConcurrentHashMap(20);
 
 	public RestManager(@Nonnull Evita evita, @Nonnull HeaderOptions headerOptions, @Nonnull RestOptions restOptions) {
 		this.evita = evita;
@@ -112,7 +121,7 @@ public class RestManager {
 		this.restOptions = restOptions;
 
 		final ObjectMapper objectMapper = new ObjectMapper();
-		this.restRouter = new RestRouter(objectMapper, headerOptions, restOptions);
+		this.restRouter = new RestRouter(objectMapper, headerOptions);
 
 		// listen to any evita catalog changes — explicitly opt into BOTH areas:
 		// `ENGINE` carries durable WAL-replicated engine mutations (catalog schema create /
@@ -166,6 +175,18 @@ public class RestManager {
 		return this.registeredCatalogs.contains(catalogName);
 	}
 
+	/**
+	 * Returns the current engine state under a catalog name, which may be ahead of a queued host event.
+	 * The system observer uses this to preserve endpoints of a later active catalog incarnation.
+	 *
+	 * @param catalogName name whose current binding is inspected
+	 * @return current catalog state, or empty when the name no longer exists
+	 */
+	@Nonnull
+	public Optional<CatalogState> getCatalogState(@Nonnull String catalogName) {
+		return this.evita.getCatalogState(catalogName);
+	}
+
 	@Nonnull
 	public HttpService getRestRouter() {
 		return this.restRouter;
@@ -199,7 +220,14 @@ public class RestManager {
 	}
 
 	/**
-	 * Register REST endpoints for new catalog.
+	 * Register REST endpoints for new catalog. The catalog is recorded as registered only after the router publishes
+	 * its endpoints. An internal error while building or publishing them is logged and leaves no route, registration or
+	 * build statistics of the catalog behind; any other exception propagates.
+	 *
+	 * @param catalogName name of the catalog to publish
+	 * @return true when the catalog's endpoints are published, false when the catalog is unusable and was skipped or
+	 *         its endpoints failed with an internal error
+	 * @throws RestInternalError when the catalog is already registered
 	 */
 	public boolean registerCatalog(@Nonnull String catalogName) {
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
@@ -220,8 +248,8 @@ public class RestManager {
 			final Rest api = catalogRestBuilder.build();
 			final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
-			this.registeredCatalogs.add(catalogName);
 			this.restRouter.registerCatalogApi(catalogName, api);
+			this.registeredCatalogs.add(catalogName);
 			final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
 
 			// build metrics
@@ -241,7 +269,8 @@ public class RestManager {
 			// log and skip the catalog entirely
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by REST API.", ex);
 
-			// cleanup corrupted paths
+			// cleanup corrupted paths and registration bookkeeping
+			this.registeredCatalogs.remove(catalogName);
 			this.restRouter.unregisterCatalogApi(catalogName);
 			this.catalogBuildStatistics.remove(catalogName);
 			return false;
@@ -260,7 +289,13 @@ public class RestManager {
 	}
 
 	/**
-	 * Update REST endpoints and OpenAPI schema of catalog.
+	 * Update REST endpoints and OpenAPI schema of catalog. The new endpoints replace the old ones in one step once they
+	 * are built, so a build failure propagates and leaves the previous endpoints serving. A catalog that is not
+	 * registered yet is registered by {@link #registerCatalog(String)} instead.
+	 *
+	 * @param catalogName name of the catalog to refresh or register
+	 * @return true when the catalog's endpoints are published afterwards, false only when the fallback registration
+	 *         skipped the catalog or failed with an internal error
 	 */
 	public boolean refreshCatalog(@Nonnull String catalogName) {
 		if (!this.registeredCatalogs.contains(catalogName)) {
@@ -278,8 +313,7 @@ public class RestManager {
 		final Rest newApi = catalogRestBuilder.build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
-		this.restRouter.unregisterCatalogApi(catalogName);
-		this.restRouter.registerCatalogApi(catalogName, newApi);
+		this.restRouter.refreshCatalogApi(catalogName, newApi);
 		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
 
 		// build metrics
@@ -320,7 +354,10 @@ public class RestManager {
 			this.systemBuildStatistics.markAsReported();
 		}
 
-		this.catalogBuildStatistics.keySet().forEach(this::emitObservabilityEvents);
+		// iterate the entries rather than looking each key up: a catalog may be removed concurrently, see the field
+		for (final Map.Entry<String, CatalogBuildStatistics> entry : this.catalogBuildStatistics.entrySet()) {
+			emitCatalogBuiltEvent(entry.getKey(), entry.getValue());
+		}
 	}
 
 	/**
@@ -333,7 +370,19 @@ public class RestManager {
 			buildStatistics != null,
 			() -> new RestInternalError("No build statistics found for catalog `" + catalogName + "`.")
 		);
+		emitCatalogBuiltEvent(catalogName, buildStatistics);
+	}
 
+	/**
+	 * Emits the build event of a catalog's REST API from its build statistics.
+	 *
+	 * @param catalogName     name of the catalog the statistics belong to
+	 * @param buildStatistics statistics of the catalog's latest build
+	 */
+	private static void emitCatalogBuiltEvent(
+		@Nonnull String catalogName,
+		@Nonnull CatalogBuildStatistics buildStatistics
+	) {
 		new BuiltEvent(
 			catalogName,
 			RestInstanceType.CATALOG,

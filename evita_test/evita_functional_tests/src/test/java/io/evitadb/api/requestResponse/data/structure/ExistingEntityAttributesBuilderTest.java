@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.BeforeEach;
@@ -884,6 +885,38 @@ class ExistingEntityAttributesBuilderTest
 				Integer.valueOf(99),
 				newAttributes.getAttribute("int")
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Values equal by their encoded bounds")
+	class EncodedEqualValuesTest {
+
+		/**
+		 * `[1.0,2.0]` and `[10,20]` compare equal by their encoded bounds, yet a reader gets other bounds back. Setting
+		 * one over the other must produce a mutation and the builder must show the new value.
+		 */
+		@Test
+		@DisplayName("should not drop a decimal range whose bounds encode to the same longs as the stored one")
+		void shouldNotDropDecimalRangeEncodedToSameLongsAsStoredOne() {
+			final EntityAttributes initial = new InitialEntityAttributesBuilder(
+				new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+					.verifySchemaButCreateOnTheFly()
+					.withAttribute("decimalRange", BigDecimalNumberRange.class)
+					.toInstance()
+			)
+				.setAttribute(
+					"decimalRange", BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+				)
+				.build();
+
+			final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initial)
+				.setAttribute(
+					"decimalRange", BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+				);
+
+			assertEquals("[10,20]", String.valueOf((Object) builder.getAttribute("decimalRange")));
+			assertEquals(1, builder.buildChangeSet().count());
 		}
 	}
 }

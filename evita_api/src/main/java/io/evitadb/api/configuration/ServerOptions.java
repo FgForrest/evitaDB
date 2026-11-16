@@ -75,19 +75,6 @@ import javax.annotation.Nullable;
  *                                              write path resolves a capability holder. The surfaces keep working and
  *                                              keep listing every declared capability - each row simply reports itself
  *                                              as not measured rather than as never requested.
- * @param missingHistogramValueBehavior         What a write does when it must withdraw a reference-histogram value
- *                                              the index does not hold for the entity - see
- *                                              {@link MissingHistogramValueBehavior}. `REFUSE`, the default, fails
- *                                              the write. `REPORT` logs the missing value at error level and skips its
- *                                              withdrawal, so a write meeting a value missing from an existing index
- *                                              completes while a drifted catalog awaits its rebuild. Where the
- *                                              histogram's index itself is missing, the histogram checks fail the write
- *                                              only if it goes on to add a value into that index, on a check the
- *                                              setting does not govern - except a group index the catalog still lists
- *                                              for the group but no longer holds, which fails the write in either
- *                                              mode. The price is a histogram that may stay wrong where the write does
- *                                              not repair it. The setting is read when the engine starts and cannot
- *                                              change under a running catalog.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ServerOptions(
@@ -102,8 +89,7 @@ public record ServerOptions(
 	@Nonnull TrafficRecordingOptions trafficRecording,
 	boolean readOnly,
 	boolean quiet,
-	boolean usageStatisticsTracking,
-	@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior
+	boolean usageStatisticsTracking
 ) {
 	public static final long DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS = 5000L;
 	/** Default read-write transaction timeout: 5 minutes (`300 * 1000` ms). */
@@ -136,13 +122,6 @@ public record ServerOptions(
 	 * when the question finally gets asked.
 	 */
 	public static final boolean DEFAULT_USAGE_STATISTICS_TRACKING = true;
-	/**
-	 * A write that has to withdraw a reference-histogram value the index does not hold fails by default: the default
-	 * keeps the consistency check loud. This constant is the one place the engine's default is decided - the server
-	 * distribution's `evita-configuration.yaml` names the same value for its own placeholder.
-	 */
-	public static final MissingHistogramValueBehavior DEFAULT_MISSING_HISTOGRAM_VALUE_BEHAVIOR =
-		MissingHistogramValueBehavior.REFUSE;
 
 	/**
 	 * Builder for the server options. Recommended to use to avoid binary compatibility problems in the future.
@@ -160,8 +139,8 @@ public record ServerOptions(
 
 	/**
 	 * Canonical constructor that normalizes optional inputs: any `null` thread-pool, change-data-capture, or
-	 * traffic-recording component is replaced with its default build, and a `null` missing-histogram-value behavior
-	 * with {@link #DEFAULT_MISSING_HISTOGRAM_VALUE_BEHAVIOR}, so the resulting record never holds a `null` component.
+	 * traffic-recording component is replaced with its default build, so the resulting record never holds a
+	 * `null` component.
 	 */
 	public ServerOptions(
 		@Nullable ThreadPoolOptions requestThreadPool,
@@ -175,8 +154,7 @@ public record ServerOptions(
 		@Nullable TrafficRecordingOptions trafficRecording,
 		boolean readOnly,
 		boolean quiet,
-		boolean usageStatisticsTracking,
-		@Nullable MissingHistogramValueBehavior missingHistogramValueBehavior
+		boolean usageStatisticsTracking
 	) {
 		this.requestThreadPool = requestThreadPool == null ? ThreadPoolOptions.requestThreadPoolBuilder().build() : requestThreadPool;
 		this.transactionThreadPool = transactionThreadPool == null ? ThreadPoolOptions.transactionThreadPoolBuilder().build() : transactionThreadPool;
@@ -190,8 +168,6 @@ public record ServerOptions(
 		this.readOnly = readOnly;
 		this.quiet = quiet;
 		this.usageStatisticsTracking = usageStatisticsTracking;
-		this.missingHistogramValueBehavior = missingHistogramValueBehavior == null ?
-			DEFAULT_MISSING_HISTOGRAM_VALUE_BEHAVIOR : missingHistogramValueBehavior;
 	}
 
 	public ServerOptions() {
@@ -207,8 +183,7 @@ public record ServerOptions(
 			TrafficRecordingOptions.builder().build(),
 			DEFAULT_READ_ONLY,
 			DEFAULT_QUIET,
-			DEFAULT_USAGE_STATISTICS_TRACKING,
-			DEFAULT_MISSING_HISTOGRAM_VALUE_BEHAVIOR
+			DEFAULT_USAGE_STATISTICS_TRACKING
 		);
 	}
 
@@ -229,7 +204,6 @@ public record ServerOptions(
 		private boolean readOnly = DEFAULT_READ_ONLY;
 		private boolean quiet = DEFAULT_QUIET;
 		private boolean usageStatisticsTracking = DEFAULT_USAGE_STATISTICS_TRACKING;
-		private MissingHistogramValueBehavior missingHistogramValueBehavior = DEFAULT_MISSING_HISTOGRAM_VALUE_BEHAVIOR;
 
 		Builder() {
 		}
@@ -247,7 +221,6 @@ public record ServerOptions(
 			this.readOnly = serverOptions.readOnly();
 			this.quiet = serverOptions.quiet();
 			this.usageStatisticsTracking = serverOptions.usageStatisticsTracking();
-			this.missingHistogramValueBehavior = serverOptions.missingHistogramValueBehavior();
 		}
 
 		@Nonnull
@@ -334,20 +307,6 @@ public record ServerOptions(
 			return this;
 		}
 
-		/**
-		 * Sets what a write does when it must withdraw a reference-histogram value the index does not hold - see the
-		 * record's own `missingHistogramValueBehavior` documentation for what `REPORT` keeps going and what it costs.
-		 *
-		 * @param missingHistogramValueBehavior `REFUSE` to fail such a write, `REPORT` to log the value and skip it
-		 */
-		@Nonnull
-		public ServerOptions.Builder missingHistogramValueBehavior(
-			@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior
-		) {
-			this.missingHistogramValueBehavior = missingHistogramValueBehavior;
-			return this;
-		}
-
 		@Nonnull
 		public ServerOptions build() {
 			return new ServerOptions(
@@ -362,8 +321,7 @@ public record ServerOptions(
 				this.trafficRecording,
 				this.readOnly,
 				this.quiet,
-				this.usageStatisticsTracking,
-				this.missingHistogramValueBehavior
+				this.usageStatisticsTracking
 			);
 		}
 
