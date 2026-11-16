@@ -1360,7 +1360,11 @@ This allows you to set common settings for all endpoints in one place.
     <dt>parallelize</dt>
     <dd>
         <p>**Default:** `true`</p>
-        <p>Controls whether queries that fetch data from evitaDB engine will be executed in parallel.</p>
+        <p>Controls whether GraphQL queries and mutations are executed asynchronously on the evitaDB engine thread
+        pools - queries on the `requestThreadPool`, mutations on the `transactionThreadPool` (see
+        [server configuration](#server-configuration)) - which lets the top-level fields of a single query be fetched
+        concurrently. When `false`, they run on the thread that processes the request. Subscriptions are not
+        affected.</p>
     </dd>
     <dt>documentCacheSizeInBytes</dt>
     <dd>

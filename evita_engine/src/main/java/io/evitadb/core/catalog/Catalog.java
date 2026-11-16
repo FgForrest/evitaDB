@@ -115,6 +115,7 @@ import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.expression.trigger.FacetExpressionTriggerFactory;
 import io.evitadb.core.expression.trigger.HistogramExpressionTriggerFactory;
+import io.evitadb.core.expression.trigger.IndexingExpressionInputValidator;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryPlan;
@@ -246,6 +247,10 @@ public final class Catalog
 	 * Nesting is supported: the recursive `updateSchema` call right after a catalog mutation (which
 	 * applies the `ModifyEntitySchemaMutation`s it cascades) pushes its own frame and drains it before
 	 * returning, so outer / inner frames never interfere.
+	 *
+	 * The warm-up flush a collection-level DDL operation runs mid-batch reads every frame on the stack and is skipped
+	 * while one of their entity types does not build its triggers. In a warming-up catalog a refused drain raises the
+	 * unpublishable barrier.
 	 */
 	private static final ThreadLocal<Deque<Set<String>>> PENDING_TRIGGER_REBUILDS =
 		ThreadLocal.withInitial(ArrayDeque::new);
@@ -441,12 +446,12 @@ public final class Catalog
 	@Nullable private Map<Integer, EntityCollectionHeader> flushedHeadersByPrimaryKey;
 	/**
 	 * The failure that made this catalog's in-memory state impossible to publish - a warm-up flush or rollback, a
-	 * {@link #goLive()} that threw after publishing its ALIVE bootstrap record, or a warm-up schema change refused
-	 * by validation - or `null` while the catalog can still be persisted. Set by
-	 * {@link #recordUnpublishableCause(Throwable)} through one of two public entry points:
-	 * {@link #markUnpublishable(Throwable)} for the engine failures, {@link #markUnpublishableDueToInvalidSchema}
-	 * for the refused schema change. Never cleared - a catalog recovers by being reloaded from disk, not by this
-	 * field going back to `null`.
+	 * {@link #goLive()} that threw after publishing its ALIVE bootstrap record, or a warm-up schema change refused by
+	 * validation or by the build of its expression triggers - or `null` while the catalog can still be persisted. Set
+	 * by {@link #recordUnpublishableCause(Throwable)} through one of two public entry points:
+	 * {@link #markUnpublishable(Throwable)} for the engine failures, {@link #markUnpublishableDueToInvalidSchema} for
+	 * the refused schema change. Never cleared - a catalog recovers by being reloaded from disk, not by this field
+	 * going back to `null`.
 	 *
 	 * Holds the cause atomically so the FIRST failure wins - it is the one that explains every refusal after it -
 	 * and so that the deactivation it schedules is issued exactly once. Written from more than one thread: the
@@ -1185,9 +1190,9 @@ public final class Catalog
 					updatedSchema = currentSchema;
 				}
 			}
-			// drain deferred trigger rebuilds inside the try block so any cross-entity
-			// validation failure (e.g. a histogram value expression referencing a missing
-			// attribute) propagates into the revert branch just like an eager rebuild would
+			// drain deferred trigger rebuilds inside the try block; a refused build is handled like any refusal below,
+			// and in warm-up the drain has already raised the unpublishable barrier, because nothing here reverts the
+			// entity schemas the batch exchanged
 			drainTriggerRebuildFrame(rebuildFrame);
 			// store the updated catalog schema inside the try, so that a failed write is handled like any refusal
 			final CatalogSchema schemaToStore = getInternalSchema();
@@ -1200,7 +1205,8 @@ public final class Catalog
 			if (mutationRegistered) {
 				transactionRef.ifPresent(it -> it.setRollbackOnlyWithException(ex));
 			}
-			// Restore the catalog schema; collection changes may remain until the transaction rolls back.
+			// Restore the catalog schema; collection changes may remain until the transaction rolls back, and in
+			// warm-up they remain for good - the barrier, not a revert, protects the disk when the build refused them.
 			this.schema.set(new CatalogSchemaDecorator(originalSchema));
 
 			// finish the recording with error
@@ -1211,10 +1217,11 @@ public final class Catalog
 
 			throw ex;
 		} finally {
-			// always pop our own frame; if no exception was thrown the frame was already
-			// drained and is empty, if an exception was thrown we discard any remaining
-			// pending rebuilds (the revert above restored the pre-batch schema so there is
-			// nothing new to rebuild)
+			// always pop our own frame; if no exception was thrown the frame was already drained and is empty. If an
+			// exception was thrown, the pending rebuilds are discarded: in a transaction the rollback discards the
+			// exchanged schemas with them; in warm-up a refused build has raised the barrier, while a batch that failed
+			// before its drain keeps its exchanged schemas with their previous triggers (a known limitation, see ADR
+			// `2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier`)
 			rebuildStack.pop();
 			if (rebuildStack.isEmpty()) {
 				PENDING_TRIGGER_REBUILDS.remove();
@@ -1230,14 +1237,36 @@ public final class Catalog
 	 * catalog mutation are applied as a nested batch, so their frame is drained right after that
 	 * mutation, before the enclosing batch goes on.
 	 *
+	 * **In a warming-up catalog a refused build raises the unpublishable barrier** through
+	 * {@link #markUnpublishableDueToInvalidSchema(Throwable)} before the exception leaves. The `catch` of
+	 * {@link #updateSchema} restores only the catalog schema: the entity schemas the batch exchanged stay in memory
+	 * and in the data store buffer, and warm-up has no transaction to discard them, so the next publication would
+	 * write a definition the next load refuses. The build's exception is rethrown unchanged; a failure of the marking
+	 * itself is attached to it as suppressed, and the barrier stands anyway, because the cause is recorded before the
+	 * deactivation is scheduled. A catalog in a transaction is left to the rollback, which discards the exchanged
+	 * schemas with it.
+	 *
 	 * @param frame the batch frame holding deferred entity type names
 	 */
 	private void drainTriggerRebuildFrame(@Nonnull Set<String> frame) {
 		if (frame.isEmpty()) {
 			return;
 		}
-		for (final String entityType : frame) {
-			rebuildExpressionTriggerRegistryForEntityType(entityType);
+		try {
+			for (final String entityType : frame) {
+				rebuildExpressionTriggerRegistryForEntityType(entityType);
+			}
+		} catch (RuntimeException | Error ex) {
+			// the state check is defensive: a call without a transaction is expected only in warm-up, and a barrier in
+			// a live catalog would deactivate it
+			if (Transaction.getTransaction().isEmpty() && getCatalogState() == CatalogState.WARMING_UP) {
+				try {
+					markUnpublishableDueToInvalidSchema(ex);
+				} catch (RuntimeException | Error markingFailure) {
+					ex.addSuppressed(markingFailure);
+				}
+			}
+			throw ex;
 		}
 		frame.clear();
 	}
@@ -2898,8 +2927,8 @@ public final class Catalog
 	 * This is the **public entry point** for all three: it raises the barrier and reports it in the operator's own
 	 * terms. A caller that has already reported its situation accurately - the message here would contradict it -
 	 * raises the same barrier through {@link #recordUnpublishableCause(Throwable)} instead, and a warm-up schema
-	 * change refused by validation takes {@link #markUnpublishableDueToInvalidSchema}, which is that pattern with a
-	 * message of its own.
+	 * change refused by validation or by the build of its expression triggers takes
+	 * {@link #markUnpublishableDueToInvalidSchema}, which is that pattern with a message of its own.
 	 *
 	 * @param cause the warm-up failure that made the in-memory state unpublishable
 	 */
@@ -2928,6 +2957,11 @@ public final class Catalog
 	 * mutation would exchange again ON TOP of that work rather than reverse it - so the in-memory catalog cannot be
 	 * argued back into a state worth publishing.
 	 *
+	 * The build of the expression triggers at the end of every schema change is the second caller
+	 * ({@link #drainTriggerRebuildFrame(Set)}). Some definitions are refused only there, from inside the schema change,
+	 * after the change has exchanged the schemas and before it returns - and for the same reason: warm-up has no undo
+	 * that spans the collections the change reached.
+	 *
 	 * **Nothing on disk is damaged.** The last bootstrap record still names a complete, correct state, and the
 	 * deactivation this schedules is what lets the operator get back to it: activating the catalog again loads
 	 * exactly that state, with a schema that validates. What is lost is everything written since - which was never
@@ -2941,7 +2975,8 @@ public final class Catalog
 	 * schema unvalidated. All of them mean the same thing here - the schema as it stands cannot be vouched for and
 	 * cannot be un-applied.
 	 *
-	 * @param cause the validation failure that refused the schema change, or the exception the validation failed with
+	 * @param cause the validation failure that refused the schema change, the exception the validation failed with, or
+	 *              the refusal of the trigger build
 	 */
 	public void markUnpublishableDueToInvalidSchema(@Nonnull Throwable cause) {
 		if (recordUnpublishableCause(cause)) {
@@ -2988,8 +3023,10 @@ public final class Catalog
 	 * {@link CatalogSchemaContract#validate()}.
 	 *
 	 * Exists for the publications that happen while a warm-up session is **still open**, which the barrier cannot
-	 * help with: the barrier is raised when a session closes and validation refuses it, so anything publishing
-	 * earlier in that same session publishes before there is a barrier to consult. Those callers ask this instead.
+	 * help with: the barrier is raised when a session closes and validation refuses it, or when the trigger build at
+	 * the end of a schema change refuses it, so anything publishing earlier in that same session publishes before
+	 * there is a barrier to consult. Those callers ask this instead; the build condition of those publications is
+	 * {@link #canBuildPendingExpressionTriggers()}.
 	 *
 	 * It is deliberately a question rather than an assertion. A schema that does not validate mid-session is not an
 	 * error - building one across several steps whose intermediate states do not validate is supported, a reflected
@@ -3016,15 +3053,57 @@ public final class Catalog
 	}
 
 	/**
+	 * Tells whether every entity type on the pending trigger rebuild frames of this thread builds its expression
+	 * triggers as its schema currently stands. It is the build condition of {@link #flushMidSessionIfSchemaValid()}:
+	 * a collection-level DDL operation publishes in the middle of a warm-up schema change, before the build at the
+	 * end of the change has decided, and a definition that build refuses must not reach the disk ahead of the refusal.
+	 *
+	 * Every frame on the stack is read, not only the top one, so a flush inside a nested schema change also checks the
+	 * entity types the enclosing change has exchanged so far. The triggers are built and discarded: nothing is
+	 * registered, and the trigger factories keep no state. Only the entity types on the frames are checked - an entity
+	 * type whose definition a change of another entity type broke is not among them.
+	 *
+	 * It is a question, never a refusal. A definition that cannot be built yet is legitimate in the middle of a
+	 * change - a histogram defined before the attribute it reads, in the same change, is the worked example - so the
+	 * caller skips its publication, and the build at the end of the change gives the verdict. **Every
+	 * {@link RuntimeException} is caught, {@link io.evitadb.exception.EvitaInternalError} included**, unlike in
+	 * {@link #isSchemaValid()}: the factories refuse user input with several exception types, an internal error among
+	 * them, and an engine defect swallowed here is thrown again by the build at the end of the change once the change
+	 * reaches it, provided the entity type still has a schema then. A change that fails before its build discards the
+	 * frame unbuilt, so what it kept is published later without that verdict - a known limitation of the warm-up
+	 * barrier, explained in the `finally` of {@link #updateSchema}. An {@link Error} is not a verdict on the schema and
+	 * propagates.
+	 *
+	 * @return true when every pending entity type builds its triggers
+	 */
+	private boolean canBuildPendingExpressionTriggers() {
+		for (final Set<String> frame : PENDING_TRIGGER_REBUILDS.get()) {
+			for (final String entityType : frame) {
+				try {
+					buildExpressionTriggers(entityType);
+				} catch (RuntimeException ex) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	/**
 	 * Performs the warm-up flush that a collection-level DDL operation runs while its session is still open, unless
-	 * the catalog schema would be refused by validation as it currently stands.
+	 * the catalog schema would be refused by validation as it currently stands, or an entity type the running schema
+	 * change has touched does not build its expression triggers yet ({@link #canBuildPendingExpressionTriggers()}).
 	 *
 	 * Skipping is not a lost write. The changes stay in the data store buffer and are published by the session
 	 * close, which validates first - so a schema that is merely half-built at this moment still reaches the disk,
-	 * while one that is still invalid when the session closes reaches nothing.
+	 * while one that is still invalid when the session closes reaches nothing. A skip for the build condition is safe
+	 * for the same reason whenever the schema change reaches its build: the build decides, and when it refuses, the
+	 * unpublishable barrier it raises finds nothing of the refused definition published. A change that fails before
+	 * its build leaves the skipped definition without that verdict - the known limitation
+	 * {@link #canBuildPendingExpressionTriggers()} names.
 	 */
 	private void flushMidSessionIfSchemaValid() {
-		if (!isSchemaValid()) {
+		if (!isSchemaValid() || !canBuildPendingExpressionTriggers()) {
 			return;
 		}
 		// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
@@ -3040,8 +3119,8 @@ public final class Catalog
 	 * the flush loop and the header write, and then goes on to release every resource. Everything else uses
 	 * {@link #assertPublishable()}.
 	 *
-	 * @return true when nothing - neither a warm-up engine failure nor a schema change refused by validation - has
-	 *         made this catalog's state unpublishable
+	 * @return true when nothing - neither a warm-up engine failure nor a schema change refused by validation or by the
+	 *         build of its expression triggers - has made this catalog's state unpublishable
 	 */
 	public boolean isPublishable() {
 		return this.unpublishableCause.get() == null;
@@ -3055,7 +3134,8 @@ public final class Catalog
 	 * of pouring in more work. Termination deliberately does not call this - see {@link #isPublishable()}.
 	 *
 	 * @throws CatalogUnpublishableException when something - a warm-up engine failure, or a schema change refused
-	 *                                       by validation - has made this catalog's state unpublishable
+	 *                                       by validation or by the build of its expression triggers - has made this
+	 *                                       catalog's state unpublishable
 	 */
 	public void assertPublishable() {
 		final Throwable cause = this.unpublishableCause.get();
@@ -3442,27 +3522,39 @@ public final class Catalog
 		final CatalogExpressionTriggerRegistry currentRegistry = Objects.requireNonNull(
 			this.expressionTriggerRegistry.get()
 		);
-		final EntitySchemaContract entitySchema = this.entitySchemaIndex.get(entityType);
-		final List<ExpressionIndexTrigger> newTriggers;
-		if (entitySchema == null) {
-			newTriggers = Collections.emptyList();
-		} else {
-			final List<ExpressionIndexTrigger> collected = new ArrayList<>(4);
-			for (final ReferenceSchemaContract refSchema : entitySchema.getReferences().values()) {
-				collected.addAll(
-					FacetExpressionTriggerFactory.buildTriggersForReference(entityType, refSchema)
-				);
-				collected.addAll(
-					HistogramExpressionTriggerFactory.buildTriggersForReference(
-						entityType, refSchema, this.entitySchemaIndex::get
-					)
-				);
-			}
-			newTriggers = collected;
-		}
+		final List<ExpressionIndexTrigger> newTriggers = buildExpressionTriggers(entityType);
 		this.expressionTriggerRegistry.set(
 			currentRegistry.rebuildForEntityType(entityType, newTriggers)
 		);
+	}
+
+	/**
+	 * Builds the expression triggers of the specified entity type from all its reference schemas, without registering
+	 * them anywhere. Reads the entity schema index, the referenced entity types' schemas included; an entity type that
+	 * has no schema there (a removed one) has no triggers.
+	 *
+	 * @param entityType the owner entity type whose triggers are built
+	 * @return the triggers, empty when the entity type has no schema
+	 * @throws RuntimeException whatever the trigger factories throw for a definition they refuse
+	 */
+	@Nonnull
+	private List<ExpressionIndexTrigger> buildExpressionTriggers(@Nonnull String entityType) {
+		final EntitySchemaContract entitySchema = this.entitySchemaIndex.get(entityType);
+		if (entitySchema == null) {
+			return Collections.emptyList();
+		}
+		final List<ExpressionIndexTrigger> collected = new ArrayList<>(4);
+		for (final ReferenceSchemaContract refSchema : entitySchema.getReferences().values()) {
+			collected.addAll(
+				FacetExpressionTriggerFactory.buildTriggersForReference(entityType, refSchema)
+			);
+			collected.addAll(
+				HistogramExpressionTriggerFactory.buildTriggersForReference(
+					entityType, refSchema, this.entitySchemaIndex::get
+				)
+			);
+		}
+		return collected;
 	}
 
 	/**
@@ -3755,12 +3847,24 @@ public final class Catalog
 	 * or modify, so that it raises a refusal depending on another collection's state only when nothing earlier in
 	 * the batch changed that state.
 	 *
+	 * Before that dry run, every indexing expression the batch carries is checked against the reads its slot admits
+	 * ({@link IndexingExpressionInputValidator}). The check reads the mutation payloads only - it needs no schema and
+	 * no collection - so it covers the collections the dry run skips: one the batch creates, and one whose dry run
+	 * ends without a verdict. Refusing here, before any schema is exchanged, keeps a refused read an ordinary refusal.
+	 * The trigger factories refuse some expressions only in the deferred rebuild, after the collection has exchanged
+	 * and buffered the schema; in a warming-up catalog that refusal raises the unpublishable barrier.
+	 *
 	 * @param schemaMutations the batch about to be applied
 	 * @throws io.evitadb.api.exception.InvalidSchemaMutationException when any affected collection refuses its share
 	 */
 	private void verifyEntitySchemaMutationsApplicable(
 		@Nonnull LocalCatalogSchemaMutation[] schemaMutations
 	) {
+		for (final LocalCatalogSchemaMutation theMutation : schemaMutations) {
+			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
+				IndexingExpressionInputValidator.validateEntitySchemaMutation(modifyEntitySchemaMutation);
+			}
+		}
 		final CatalogSchema currentCatalogSchema = getInternalSchema();
 		final Set<String> entityTypesChangedEarlier = new HashSet<>(schemaMutations.length);
 		for (final LocalCatalogSchemaMutation theMutation : schemaMutations) {
@@ -3875,6 +3979,15 @@ public final class Catalog
 
 	/**
 	 * Internal shared implementation of catalog replacement used both from rename and replace existing catalog methods.
+	 *
+	 * In a warming-up catalog the collection being renamed - its name and primary key - must be on the published
+	 * catalog header, or the rename is refused before any part of it is applied. The storage step resolves the
+	 * collection's data file through that header by both, and it runs after the schema has been exchanged and the
+	 * collection taken out of the collection map - a failed lookup there leaves the collection under neither name. A
+	 * collection created or renamed earlier in the same session is not on the header while the inline flush of the
+	 * operation that created it was skipped ({@link #flushMidSessionIfSchemaValid()}), or found nothing to publish; a
+	 * collection re-created under a published name is not either, because the header entry under that name belongs to
+	 * the collection it replaced.
 	 */
 	private void doReplaceEntityCollectionInternal(
 		@Nullable UUID sessionId,
@@ -3884,6 +3997,24 @@ public final class Catalog
 		@Nonnull EntityCollection entityCollectionToBeReplacedWith,
 		boolean transactionOpen
 	) {
+		if (!transactionOpen) {
+			// the storage step below finds the data file of the renamed collection through the published catalog
+			// header, by its name and primary key; asking the same question before the schema is exchanged keeps a
+			// failed lookup from leaving the collection under neither name
+			final int sourcePrimaryKey = entityCollectionToBeReplacedWith.getEntityTypePrimaryKey();
+			Assert.isTrue(
+				this.persistenceService.getCatalogHeader(getVersion())
+					.getEntityTypeFileIndexIfExists(entityCollectionNameToBeReplacedWith)
+					.filter(it -> it.entityTypePrimaryKey() == sourcePrimaryKey)
+					.isPresent(),
+				() -> new InvalidSchemaMutationException(
+					"Entity collection `" + entityCollectionNameToBeReplacedWith + "` cannot be renamed to `" +
+						entityCollectionNameToBeReplaced + "` yet: it was created or renamed earlier in this warm-up " +
+						"session and has not been stored since, and a rename finds the data file of the collection " +
+						"it renames among the stored ones. It can be renamed once the catalog has stored it."
+				)
+			);
+		}
 		entityCollectionToBeReplacedWith.updateSchema(
 			sessionId,
 			getSchema(),

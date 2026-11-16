@@ -1011,6 +1011,46 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * A user configuration that leaves `parallelize` absent, empty or `null` must keep the documented default of
+	 * parallel GraphQL fetching, while an explicit `false` still turns it off. The YAML merge lets an empty or
+	 * `null` value in a later file replace the bundled `true`, so the default must also hold in the options
+	 * constructor that receives the merged value.
+	 */
+	@ParameterizedTest
+	@DisplayName("should default GraphQL parallel fetching to true unless YAML sets it to false")
+	@CsvSource({"null, true", "empty, true", "absent, true", "false, false"})
+	void shouldDefaultGraphQLParallelizeToTrueFromYaml(String value, boolean expected) throws IOException {
+		final Path configDirectory = getPathInTargetDirectory(DIR_EVITA_SERVER_TEST);
+		Files.createDirectories(configDirectory);
+		final String graphQLSettings = switch (value) {
+			case "absent" -> "enabled: true";
+			case "empty" -> "parallelize:";
+			default -> "parallelize: " + value;
+		};
+		Files.writeString(
+			configDirectory.resolve("evita-configuration.yaml"),
+			"""
+			api:
+			  endpoints:
+			    graphQL:
+			      %s
+			""".formatted(graphQLSettings)
+		);
+		final EvitaServer evitaServer = new EvitaServer(
+			configDirectory, constructTestArguments(GraphQLProvider.CODE)
+		);
+		try {
+			evitaServer.run();
+			final GraphQLProvider graphQLProvider = evitaServer.getExternalApiServer()
+				.getExternalApiProviderByCode(GraphQLProvider.CODE);
+			assertNotNull(graphQLProvider);
+			assertEquals(expected, graphQLProvider.getConfiguration().isParallelize(), "YAML parallelize=" + value);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
 	@Test
 	void shouldMergeMultipleYamlConfigurationTogether() {
 		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(

@@ -54,7 +54,12 @@ public class GraphQLOptions extends AbstractApiOptions implements ApiWithSpecifi
 	 */
 	@Getter private final String prefix;
 	/**
-	 * Controls whether the ReadDataFetcher will be executed in parallel.
+	 * Controls whether the data fetchers wrapped in
+	 * {@link io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher} run asynchronously: reads on
+	 * the request executor, writes on the transaction executor. These are the fetchers of all top-level query and
+	 * mutation fields of the data API and the schema API of every catalog and of the system API, plus a few nested
+	 * schema API fields; subscription fields are not wrapped and are not affected. When disabled, the wrapped
+	 * fetchers run on the calling thread. Default value is `true`.
 	 */
 	@Getter private final boolean parallelize;
 	/**
@@ -94,7 +99,7 @@ public class GraphQLOptions extends AbstractApiOptions implements ApiWithSpecifi
 	) {
 		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
 		this.prefix = ofNullable(prefix).orElse(BASE_GRAPHQL_PATH);
-		this.parallelize = ofNullable(parallelize).orElse(false);
+		this.parallelize = ofNullable(parallelize).orElse(true);
 		this.documentCacheSizeInBytes = ofNullable(documentCacheSizeInBytes)
 			.orElse(DEFAULT_DOCUMENT_CACHE_SIZE_IN_BYTES);
 		Assert.isTrue(

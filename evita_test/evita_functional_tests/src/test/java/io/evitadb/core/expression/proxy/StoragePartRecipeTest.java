@@ -104,7 +104,7 @@ class StoragePartRecipeTest {
 		@Test
 		@DisplayName("parent path sets needsEntityBody flag")
 		void shouldSetNeedsEntityBodyForParentPath() {
-			final StoragePartRecipe recipe = buildEntityRecipe("true || $entity.parent");
+			final StoragePartRecipe recipe = buildEntityRecipe("true || $entity.parentEntity");
 
 			assertTrue(
 				recipe.needsEntityBody(),

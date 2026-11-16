@@ -34,6 +34,7 @@ filename date that disagrees with `date:`.
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
 | 2026-11-16 | [Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure](2026-11-16-copy-on-write-path-routing.md) | refactor | accepted | #1956, #1959, #1967, #1968, PR #1957, PR #1974 |
+| 2026-11-16 | [A warm-up schema change refused when its expression triggers are built raises the unpublishable barrier, and the inline DDL flush waits until they build](2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier.md) | fix | accepted | #1922, PR #1970 |
 | 2026-11-14 | [Reuse formula results by declared value identity, inject complete tuples at execution, and disable the owning cache on a verified mismatch](2026-11-14-formula-cache-redesign.md) | refactor | accepted | #37, PR #1963 |
 | 2026-11-13 | [Cache parsed and validated GraphQL documents per GraphQL instance in a Caffeine cache bounded by bytes](2026-11-13-graphql-parsed-document-cache.md) | optimization | proposed | #1191 |
 | 2026-11-12 | [Null arguments in query constraints follow one rule set in Java, EvitaQL and REST](2026-11-12-null-arguments-in-query-constraints.md) | fix | accepted | #1943 |
@@ -79,7 +80,7 @@ filename date that disagrees with `date:`.
 | 2026-09-13 | [Define the per-entity I/O statistic as standalone cost and attribute it at the read, not by walking the returned object graph](2026-09-13-per-entity-io-statistics-attribution.md) | refactor | accepted | #1547, #1561, #1562, #1563, #1564, #1565, #1566, #1567, PR #1548 |
 | 2026-09-12 | [Restore a live catalog to an earlier version by composing backup, restore, activate and replace](2026-09-12-restore-catalog-to-earlier-version.md) | feature | accepted | #1553 |
 | 2026-09-12 | [Derive the enrichment shortcut from committed-snapshot provenance, not from a caller-supplied flag](2026-09-12-committed-snapshot-provenance-for-enrichment.md) | fix | accepted | #1547, #1559, PR #1548 |
-| 2026-09-11 | [Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes](2026-09-11-reference-name-narrowing.md) | optimization | accepted | #1547, #1554, #1972, PR #1548 |
+| 2026-09-11 | [Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes](2026-09-11-reference-name-narrowing.md) | optimization | accepted | #1547, #1554, #1972, #1976, PR #1548 |
 | 2026-09-10 | [Virtual threads and ScopedValue stay out of the JDK 21 server; the executor defects the analysis exposed are fixed on their own terms](2026-09-10-jdk21-virtual-threads-and-scoped-values/) | infrastructure | accepted | #1518, #1532, #1533, #1534, #1535, #1536, #1537, #1538, PR #1519 |
 | 2026-09-10 | [SIMD through the JDK Vector API is pursued in the roaring containers and two query kernels behind an optional provider, and nowhere in object-shaped code](2026-09-10-simd-vector-api-feasibility/) | optimization | proposed | #1518, #1539, #1540, #1541, #1542, #1543, #1544, #1545, #1546, PR #1519 |
 | 2026-09-09 | [Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one](2026-09-09-sibling-resolver-partition-cardinality.md) | optimization | accepted | #1529, PR #1557 |

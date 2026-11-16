@@ -1033,9 +1033,24 @@ assigns missing internal primary keys only after this drain, so an inserted refe
 still has key `0` when the add resolves it.
 
 `indexAllReferences` asserts that no reference awaits a final add. It adds synchronously from the full entity
-body during a scope change and records nothing, including values for a locale added by the same upsert. A later
+body during a scope change and records nothing, enumerating a localized value by the locale rule below. A later
 mutation starts another withdrawal and final add in the new scope. Whole-entity unindexing likewise asserts that
 no reference awaits a final add before removing histograms.
+
+**The locale set of a localized value.** `ReferenceIndexMutator#resolveHistogramLocales` enumerates a
+localized `REFERENCE_ATTRIBUTE` value on every path - final add, re-index, withdrawal, unindexing and entity
+removal - over the locales of the reference's own values of the source attribute and, when the value has a `??`
+default, every locale of the entity as its in-flight body has them at that moment (`EntityBodyStoragePart#getLocales`,
+associated data included). Entity removal reads the locales from before the removal instead, because it removes the
+references first. The rule holds because every mutation that may change the entity's locale set - a localized entity
+or reference attribute upserted or removed, localized associated data upserted or removed, a reference holding
+localized attributes removed - first withdraws, through `handler/EntityLocaleFanOut`, every stored reference whose
+histogram reads a localized defaulted reference attribute
+(`CatalogExpressionTriggerRegistry#getLocalHistogramReferencesWithLocalizedDefault`, one map probe for an entity type
+without one). A withdrawal then reads the set the reference's last add used, and the run's final add the set the run
+left. The hooks sit at the top of six handlers, before `ReferenceMutationFanOut#apply`, which returns early for a
+reference not indexed in the scope and, for a removal, cancels the removed reference's final add. Entity removal
+withdraws nothing. A new writer of the entity's locale set needs the same hook.
 
 ### Cross-Entity Triggers (ReevaluateExpressionMutation)
 
