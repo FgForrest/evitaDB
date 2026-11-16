@@ -53,6 +53,7 @@ need separate port or host or both (or end-user can define so). A service that r
 which can add, replace and remove prefixes at runtime without disturbing the other ones; APIs dispatch their own
 endpoints through an immutable
 <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/routing/EndpointRoutingService.java</SourceClass>.
+How both routers work is described in [HTTP request routing](routing.md).
 
 ### API model
 
