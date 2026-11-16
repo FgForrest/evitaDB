@@ -89,7 +89,10 @@ import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanEq
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanTranslator;
 import io.evitadb.core.query.filter.translator.entity.alternative.ScopeEntityToBitmapFilter;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
-import io.evitadb.core.query.filter.translator.fulltext.InAttributeTranslator;
+import io.evitadb.core.query.filter.translator.fulltext.AttributeInTranslator;
+import io.evitadb.core.query.filter.translator.fulltext.AssociatedDataInTranslator;
+import io.evitadb.core.query.filter.translator.fulltext.ReferenceInTranslator;
+import io.evitadb.core.query.filter.translator.fulltext.EntityInTranslator;
 import io.evitadb.core.query.filter.translator.fulltext.TextMatchesTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
@@ -235,7 +238,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		TRANSLATORS.put(FilterInScope.class, new FilterInScopeTranslator());
 		TRANSLATORS.put(EntityScope.class, FilteringConstraintTranslator.noOpTranslator());
 		TRANSLATORS.put(TextMatches.class, new TextMatchesTranslator());
-		TRANSLATORS.put(InAttribute.class, new InAttributeTranslator());
+		TRANSLATORS.put(AttributeIn.class, new AttributeInTranslator());
+		TRANSLATORS.put(AssociatedDataIn.class, new AssociatedDataInTranslator());
+		TRANSLATORS.put(ReferenceIn.class, new ReferenceInTranslator());
+		TRANSLATORS.put(EntityIn.class, new EntityInTranslator());
 
 		CONJUNCTIVE_FORMULAS = new HashSet<>(16);
 		CONJUNCTIVE_FORMULAS.add(AndFormula.class);

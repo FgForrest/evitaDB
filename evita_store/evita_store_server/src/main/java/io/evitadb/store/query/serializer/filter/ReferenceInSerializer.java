@@ -27,36 +27,38 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.filter.InAttribute;
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.ReferenceIn;
+import io.evitadb.api.query.filter.TextMatchesReferenceSpecificationFilterConstraint;
 
 import javax.annotation.Nonnull;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link InAttribute} from/to binary format.
+ * Serializes {@link ReferenceIn}, including its meaningful empty form and level-specific children.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class InAttributeSerializer extends Serializer<InAttribute> {
+public class ReferenceInSerializer extends Serializer<ReferenceIn> {
 
 	@Override
-	public void write(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull InAttribute inAttribute) {
-		final String[] names = inAttribute.getAttributeNames();
-		output.writeVarInt(names.length, true);
-		for (final String name : names) {
-			output.writeString(name);
+	public void write(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull ReferenceIn selector) {
+		output.writeString(selector.getReferenceName());
+		final FilterConstraint[] children = selector.getChildren();
+		output.writeVarInt(children.length, true);
+		for (final FilterConstraint child : children) {
+			kryo.writeClassAndObject(output, child);
 		}
 	}
 
 	@Nonnull
 	@Override
-	public InAttribute read(
-		@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends InAttribute> type
-	) {
-		final String[] names = new String[input.readVarInt(true)];
-		for (int i = 0; i < names.length; i++) {
-			names[i] = input.readString();
+	public ReferenceIn read(@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends ReferenceIn> type) {
+		final String referenceName = input.readString();
+		final TextMatchesReferenceSpecificationFilterConstraint[] in =
+			new TextMatchesReferenceSpecificationFilterConstraint[input.readVarInt(true)];
+		for (int i = 0; i < in.length; i++) {
+			in[i] = (TextMatchesReferenceSpecificationFilterConstraint) kryo.readClassAndObject(input);
 		}
-		return new InAttribute(names);
+		return new ReferenceIn(referenceName, in);
 	}
-
 }

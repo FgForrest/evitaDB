@@ -829,8 +829,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 				ctx.args.text.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.constraints
 					.stream()
-					.map(fc -> visitChildConstraint(fc, TextMatchesSpecificationFilterConstraint.class))
-					.toArray(TextMatchesSpecificationFilterConstraint[]::new)
+					.map(fc -> visitChildConstraint(fc, TextMatchesEntitySpecificationFilterConstraint.class))
+					.toArray(TextMatchesEntitySpecificationFilterConstraint[]::new)
 			)
 		);
 	}
@@ -845,4 +845,46 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			)
 		);
 	}
+	@Nonnull
+	@Override
+	public FilterConstraint visitInAttributeAllConstraint(@Nonnull EvitaQLParser.InAttributeAllConstraintContext ctx) {
+		return parse(ctx, QueryConstraints::inAttributeAll);
+	}
+
+	@Nonnull
+	@Override
+	public FilterConstraint visitInAssociatedDataConstraint(
+		@Nonnull EvitaQLParser.InAssociatedDataConstraintContext ctx
+	) {
+		return parse(ctx, () -> QueryConstraints.inAssociatedData(
+			ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArrayRetainingNulls()));
+	}
+
+	@Nonnull
+	@Override
+	public FilterConstraint visitInAssociatedDataAllConstraint(
+		@Nonnull EvitaQLParser.InAssociatedDataAllConstraintContext ctx
+	) {
+		return parse(ctx, QueryConstraints::inAssociatedDataAll);
+	}
+
+	@Nonnull
+	@Override
+	public FilterConstraint visitInReferenceConstraint(@Nonnull EvitaQLParser.InReferenceConstraintContext ctx) {
+		return parse(ctx, () -> QueryConstraints.inReference(
+			ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+			ctx.args.constraints.stream()
+				.map(fc -> visitChildConstraint(fc, TextMatchesReferenceSpecificationFilterConstraint.class))
+				.toArray(TextMatchesReferenceSpecificationFilterConstraint[]::new)));
+	}
+
+	@Nonnull
+	@Override
+	public FilterConstraint visitInEntityConstraint(@Nonnull EvitaQLParser.InEntityConstraintContext ctx) {
+		return parse(ctx, () -> QueryConstraints.inEntity(ctx.args == null ?
+			new TextMatchesTargetSpecificationFilterConstraint[0] : ctx.args.constraints.stream()
+				.map(fc -> visitChildConstraint(fc, TextMatchesTargetSpecificationFilterConstraint.class))
+				.toArray(TextMatchesTargetSpecificationFilterConstraint[]::new)));
+	}
+
 }

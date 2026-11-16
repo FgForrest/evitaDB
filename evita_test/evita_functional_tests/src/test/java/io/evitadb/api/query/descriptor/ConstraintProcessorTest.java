@@ -42,7 +42,7 @@ import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.AttributeStartsWith;
 import io.evitadb.api.query.filter.HierarchySpecificationFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
-import io.evitadb.api.query.filter.InAttribute;
+import io.evitadb.api.query.filter.AttributeIn;
 import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.RelevanceText;
@@ -133,14 +133,14 @@ class ConstraintProcessorTest {
 			// the fulltext constraints are kept out of `ConstraintRegistry` until their external API shape is
 			// designed, so their annotations are validated here instead of at registry processing
 			final List<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(
-					Set.of(TextMatches.class, InAttribute.class, RelevanceText.class)
+					Set.of(TextMatches.class, AttributeIn.class, RelevanceText.class)
 				)
 				.stream()
 				.sorted(Comparator.comparing(ConstraintDescriptor::fullName))
 				.toList();
 
 			assertEquals(
-				List.of("inAttribute", "relevanceText", "textMatches"),
+				List.of("inAttribute", "inAttributeAll", "relevanceText", "textMatches"),
 				descriptors.stream().map(ConstraintDescriptor::fullName).toList()
 			);
 
@@ -149,13 +149,13 @@ class ConstraintProcessorTest {
 			assertEquals(ConstraintPropertyType.GENERIC, inAttribute.propertyType());
 			assertEquals(ConstraintValueStructure.PRIMITIVE, inAttribute.creator().valueStructure());
 
-			final ConstraintDescriptor relevanceText = descriptors.get(1);
+			final ConstraintDescriptor relevanceText = descriptors.get(2);
 			assertEquals(ConstraintType.ORDER, relevanceText.type());
 			assertEquals(ConstraintPropertyType.GENERIC, relevanceText.propertyType());
 			assertEquals(Set.of(ConstraintDomain.ENTITY), relevanceText.supportedIn());
 			assertEquals(ConstraintValueStructure.NONE, relevanceText.creator().valueStructure());
 
-			final ConstraintDescriptor textMatches = descriptors.get(2);
+			final ConstraintDescriptor textMatches = descriptors.get(3);
 			assertEquals(ConstraintType.FILTER, textMatches.type());
 			assertEquals(ConstraintPropertyType.GENERIC, textMatches.propertyType());
 			assertEquals(Set.of(ConstraintDomain.ENTITY), textMatches.supportedIn());

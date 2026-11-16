@@ -79,15 +79,16 @@ class TextMatchesTest {
 		@Test
 		@DisplayName("should drop null attribute selectors")
 		void shouldDropNullAttributeSelectors() {
-			final TextMatches constraint = textMatches("jacket", (InAttribute) null, inAttribute("name"));
+			final TextMatches constraint = textMatches("jacket", (AttributeIn) null, inAttribute("name"));
 
-			assertArrayEquals(new InAttribute[]{inAttribute("name")}, constraint.getInAttributes());
+			assertArrayEquals(new AttributeIn[]{inAttribute("name")}, constraint.getIn());
 		}
 
 		@Test
 		@DisplayName("should create via constructor with null specification array")
 		void shouldCreateViaConstructorWithNullSpecificationArray() {
-			final TextMatches constraint = new TextMatches("jacket", (TextMatchesSpecificationFilterConstraint[]) null);
+			final TextMatches constraint =
+				new TextMatches("jacket", (TextMatchesEntitySpecificationFilterConstraint[]) null);
 
 			assertEquals(0, constraint.getChildrenCount());
 		}
@@ -129,11 +130,8 @@ class TextMatchesTest {
 			final TextMatches constraint = textMatches("jacket", inAttribute("name"), inAttribute("description"));
 
 			assertArrayEquals(
-				new InAttribute[]{inAttribute("name"), inAttribute("description")}, constraint.getInAttributes()
-			);
-			assertArrayEquals(
-				new TextMatchesSpecificationFilterConstraint[]{inAttribute("name"), inAttribute("description")},
-				constraint.getSpecifications()
+				new TextMatchesEntitySpecificationFilterConstraint[]{inAttribute("name"), inAttribute("description")},
+				constraint.getIn()
 			);
 		}
 
@@ -142,8 +140,7 @@ class TextMatchesTest {
 		void shouldReturnNoAttributeSelectorsWhenSearchingAllPlaces() {
 			final TextMatches constraint = textMatches("jacket");
 
-			assertEquals(0, constraint.getInAttributes().length);
-			assertEquals(0, constraint.getSpecifications().length);
+			assertEquals(0, constraint.getIn().length);
 		}
 	}
 

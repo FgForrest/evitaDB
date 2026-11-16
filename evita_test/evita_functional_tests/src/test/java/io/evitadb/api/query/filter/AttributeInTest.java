@@ -34,23 +34,25 @@ import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.inAttribute;
+import static io.evitadb.api.query.QueryConstraints.inAttributeAll;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.FILTER;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link InAttribute} verifying construction, the factory's null handling, applicability, cloning, visitor
+ * Tests for {@link AttributeIn} verifying construction, the factory's null handling, applicability, cloning, visitor
  * support, string representation and the equality contract.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("InAttribute constraint")
+@DisplayName("AttributeIn constraint")
 @Tag(CONTRACT)
 @Tag(FILTER)
-class InAttributeTest {
+class AttributeInTest {
 
 	@Nested
 	@DisplayName("Construction")
@@ -60,7 +62,7 @@ class InAttributeTest {
 		@Test
 		@DisplayName("should construct and create a selector with several searchable attributes")
 		void shouldCreateWithSeveralAttributeNames() {
-			final InAttribute constraint = new InAttribute("a", "b");
+			final AttributeIn constraint = new AttributeIn("a", "b");
 			assertArrayEquals(new String[]{"a", "b"}, constraint.getAttributeNames());
 			assertEquals(constraint, inAttribute("a", "b"));
 			assertTrue(constraint.isApplicable());
@@ -70,15 +72,15 @@ class InAttributeTest {
 		@Test
 		@DisplayName("should refuse zero names and any null or blank searchable attribute name")
 		void shouldThrowWhenAnyAttributeNameIsMissing() {
-			assertInvalidNames(() -> new InAttribute());
+			assertInvalidNames(() -> new AttributeIn());
 			assertInvalidNames(() -> inAttribute());
 			assertInvalidNames(() -> inAttribute(new String[0]));
 			assertInvalidNames(() -> inAttribute((String[]) null));
-			assertInvalidNames(() -> new InAttribute((String[]) null));
-			assertInvalidNames(() -> new InAttribute((String) null));
+			assertInvalidNames(() -> new AttributeIn((String[]) null));
+			assertInvalidNames(() -> new AttributeIn((String) null));
 			for (final String invalid : new String[]{null, "", " ", "\t"}) {
-				assertInvalidNames(() -> new InAttribute(invalid));
-				assertInvalidNames(() -> new InAttribute("a", invalid));
+				assertInvalidNames(() -> new AttributeIn(invalid));
+				assertInvalidNames(() -> new AttributeIn("a", invalid));
 				assertInvalidNames(() -> inAttribute("a", invalid));
 				assertInvalidNames(() -> inAttribute(invalid));
 			}
@@ -87,7 +89,7 @@ class InAttributeTest {
 		@Test
 		@DisplayName("should create via factory")
 		void shouldCreateViaFactory() {
-			final InAttribute constraint = inAttribute("name");
+			final AttributeIn constraint = inAttribute("name");
 
 			assertArrayEquals(new String[]{"name"}, constraint.getAttributeNames());
 		}
@@ -96,7 +98,7 @@ class InAttributeTest {
 		@Test
 		@DisplayName("should return searchable attribute names in supplied order, repeats included, as a copy")
 		void shouldReturnAttributeNamesInSuppliedOrderAsCopy() {
-			final InAttribute constraint = new InAttribute("a", "b", "a");
+			final AttributeIn constraint = new AttributeIn("a", "b", "a");
 
 			final String[] names = constraint.getAttributeNames();
 			names[0] = "changed";
@@ -108,6 +110,40 @@ class InAttributeTest {
 		@DisplayName("should be a text matches specification")
 		void shouldBeTextMatchesSpecification() {
 			assertInstanceOf(TextMatchesSpecificationFilterConstraint.class, inAttribute("name"));
+		}
+	}
+
+	@Nested
+	@DisplayName("Wildcard form")
+	class WildcardTest {
+
+		/** The wildcard carries no names and is told apart from named selectors by its flag and creator suffix. */
+		@Test
+		@DisplayName("should select every searchable attribute without names and expose the creator suffix")
+		void shouldExposeWildcardFlagAndSuffix() {
+			final AttributeIn wildcard = inAttributeAll();
+			final AttributeIn named = inAttribute("a");
+
+			assertTrue(wildcard.isAllRequested());
+			assertArrayEquals(new String[0], wildcard.getAttributeNames());
+			assertEquals(Optional.of("all"), wildcard.getSuffixIfApplied());
+			assertTrue(wildcard.isApplicable());
+			assertFalse(named.isAllRequested());
+			assertEquals(Optional.empty(), named.getSuffixIfApplied());
+			assertNotEquals(wildcard, named);
+		}
+
+		/** Cloning keeps the wildcard only without names; names turn it into a named selector. */
+		@Test
+		@DisplayName("should stay a wildcard only when cloned without names")
+		void shouldCloneWildcardIntoWildcardOrNamedSelector() {
+			final AttributeIn wildcard = inAttributeAll();
+
+			final FilterConstraint unnamed = wildcard.cloneWithArguments(new Serializable[0]);
+			final FilterConstraint named = wildcard.cloneWithArguments(new Serializable[]{"a", "b"});
+
+			assertEquals(inAttributeAll(), unnamed);
+			assertEquals(inAttribute("a", "b"), named);
 		}
 	}
 
@@ -130,8 +166,8 @@ class InAttributeTest {
 		@Test
 		@DisplayName("should clone with several searchable attribute names and validate every argument")
 		void shouldCloneWithSeveralAttributeNames() {
-			final InAttribute original = inAttribute("name");
-			final InAttribute clone = (InAttribute) original.cloneWithArguments(new Serializable[]{"a", "b"});
+			final AttributeIn original = inAttribute("name");
+			final AttributeIn clone = (AttributeIn) original.cloneWithArguments(new Serializable[]{"a", "b"});
 			assertArrayEquals(new String[]{"a", "b"}, clone.getAttributeNames());
 			assertTrue(clone.isApplicable());
 			for (final Serializable invalid : new Serializable[]{null, "", " ", 1}) {
@@ -150,7 +186,7 @@ class InAttributeTest {
 		@Test
 		@DisplayName("should throw when wrong arguments provided")
 		void shouldThrowWhenWrongArgumentsProvided() {
-			final InAttribute original = inAttribute("name");
+			final AttributeIn original = inAttribute("name");
 
 			assertThrows(EvitaInvalidUsageException.class, () -> original.cloneWithArguments(new Serializable[]{1}));
 			assertThrows(EvitaInvalidUsageException.class, () -> original.cloneWithArguments(new Serializable[0]));
@@ -170,7 +206,7 @@ class InAttributeTest {
 		@Test
 		@DisplayName("should accept visitor")
 		void shouldAcceptVisitor() {
-			final InAttribute constraint = inAttribute("name");
+			final AttributeIn constraint = inAttribute("name");
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
 
 			constraint.accept(c -> visited.set((Constraint<?>) c));

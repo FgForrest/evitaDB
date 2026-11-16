@@ -26,29 +26,15 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.FilterConstraint;
 
 /**
- * Marker interface for filter constraints that refine a {@link TextMatches} fulltext search. These constraints are
- * valid only as direct children of `textMatches` and carry no meaning on their own.
+ * Marks place selectors restricting a {@link TextMatches} fulltext search. Three level markers carry the allowed
+ * nesting: {@link TextMatchesEntitySpecificationFilterConstraint} for direct children of `textMatches`, the only one
+ * extending this interface, {@link TextMatchesReferenceSpecificationFilterConstraint} for children of `inReference`
+ * and {@link TextMatchesTargetSpecificationFilterConstraint} for children of `inEntity`. Selectors are consumed by
+ * the enclosing search and have no standalone meaning.
  *
- * **Implementations**
+ * Future refinements of matching get their own creator parameter on {@link TextMatches}; they are not place
+ * selectors and must not be added to its `in` parameter.
  *
- * - {@link InAttribute}: restricts the search to one or more searchable attributes
- *
- * **Why a marker and not a concrete child type**
- *
- * The `textMatches` creator is typed by this interface rather than by `InAttribute`, so that further refinements of the
- * search (such as an adaptive relaxation of the strict match) arrive as new
- * implementations of this interface instead of as a change of the `textMatches` signature.
- *
- * **Containment**
- *
- * - **Valid**: `textMatches("black leather jacket", inAttribute("name"), inAttribute("description"))`
- * - **Invalid**: `and(inAttribute("name"), attributeEquals("code", "A"))` — the Java API and the EvitaQL grammar
- *   accept such a query, but its execution is rejected
- *
- * Unlike {@link HierarchySpecificationFilterConstraint}, this interface does not extend a property-type marker: every
- * implementation declares exactly one property type of its own.
- *
- * @see TextMatches
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public interface TextMatchesSpecificationFilterConstraint extends FilterConstraint {

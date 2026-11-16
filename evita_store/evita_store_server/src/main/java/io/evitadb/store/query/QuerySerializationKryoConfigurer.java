@@ -221,8 +221,12 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 
 		// the fulltext constraints are appended at the very tail for the same reason as everything above them
 		kryo.register(TextMatches.class, new TextMatchesSerializer(), index++);
-		kryo.register(InAttribute.class, new InAttributeSerializer(), index++);
+		kryo.register(AttributeIn.class, new AttributeInSerializer(), index++);
 		kryo.register(RelevanceText.class, new RelevanceTextSerializer(), index++);
+
+		kryo.register(AssociatedDataIn.class, new AssociatedDataInSerializer(), index++);
+		kryo.register(ReferenceIn.class, new ReferenceInSerializer(), index++);
+		kryo.register(EntityIn.class, new EntityInSerializer(), index++);
 
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}

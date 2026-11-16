@@ -24,9 +24,14 @@
 package io.evitadb.core.query.filter.translator.fulltext;
 
 import io.evitadb.api.exception.AttributeNotFoundException;
+import io.evitadb.api.exception.AssociatedDataNotFoundException;
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.filter.InAttribute;
+import io.evitadb.api.query.filter.AttributeIn;
+import io.evitadb.api.query.filter.AssociatedDataIn;
+import io.evitadb.api.query.filter.ReferenceIn;
+import io.evitadb.api.query.filter.EntityIn;
 import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
@@ -86,7 +91,6 @@ import javax.annotation.Nullable;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
@@ -101,6 +105,15 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
 /**
  * Prepares {@link TextMatches} once for union membership or reference-row dictionary membership, with the same
  * retained terms and ranking policy. The `relevanceText()` sorter reads the corresponding owner-space score source.
+ *
+ * ## Place selector contract
+ *
+ * A `textMatches` with selectors searches exactly as if only the selected places were searchable. The selected
+ * places alone determine analyzer discovery, shared text splitting, mandatory-word retention, bounded term
+ * expansion and posting-budget decisions. Excluded places cannot keep a stop word mandatory, force heterogeneous
+ * splitting or occupy expansion slots. A selected query can therefore match entities absent from plain search;
+ * its entities, scores and order must agree with the same query on a schema exposing only those selected places,
+ * with their existing weights and composition declarations.
  *
  * ## From text to formula
  *
@@ -144,12 +157,13 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
  * is a separate owner place, weighted by its own weight times the reference weight. Referenced entities are items
  * of that place: their best impact per word is lifted to the owners before word intersection and place scoring.
  * Target analyzers join the shared split; targets in every processed scope map to owners in this formula's scope.
- * Explicit `inAttribute` selectors search own searchable attributes only. Composition writes no index and reads
- * current schemas.
+ * Selectors restrict own places and include composition only through `inReference(..., inEntity(...))`.
+ * Composition writes no index and reads current schemas.
  * Without an eligible composed place, preparation reuses the scope index and one shared own-field weight array;
  * source maps, place remapping and lifting are allocated only for composition.
  *
- * Inside `referenceHaving`, only the reference's searchable attributes participate. Every word must match the same
+ * Inside `referenceHaving`, only the reference's searchable attributes participate: all of them, or those selected
+ * by `inAttribute` / `inAttributeAll()`, the only selectors accepted there. Every word must match the same
  * reference target and owner partition; different attributes or array elements of that row may supply the words.
  * Discovery returns matching partition keys, materialized leaves retain their producing-index tags, and virtual
  * leaves read installed row identities. Duplicate owner/target pairs share membership: words and sibling predicates
@@ -159,12 +173,21 @@ import static io.evitadb.core.query.filter.translator.fulltext.FulltextTermExpan
  * ## What fails at planning time
  *
  * The engine neither filters nor sorts over data it keeps no index for, so a query that cannot be answered from a
- * fulltext index fails rather than returning an empty result: no locale, neither an own searchable place nor a
- * composition declaration in a processed scope, an `inAttribute` naming an unknown searchable attribute or one not
- * searchable in a processed scope, `textMatches` anywhere under `userFilter` (the query model rejects only a direct
- * child), or with more words than the scorer can count. Every check runs before any index is consulted, so the query
- * never fails or passes depending on the data. A searchable field the index retired or never saw simply contributes
- * nothing.
+ * fulltext index fails rather than returning an empty result: no locale, `textMatches` anywhere under `userFilter`
+ * (the query model rejects only a direct child), more words than the scorer can count, or - without selectors -
+ * neither an own searchable place nor a composition declaration in a processed scope.
+ *
+ * Selectors fail on an unknown attribute, associated data item or reference, and on a named place that is not
+ * searchable in every processed scope. A wildcard - `inAttributeAll()`, `inAssociatedDataAll()`, a childless
+ * `inReference` or an empty `inEntity()` - may select nothing in some processed scopes, as plain search on the
+ * restricted schema skips them, but fails when it selects nothing in all of them; the whole selection still fails
+ * in a scope where it selects no place at all. `inEntity` fails unless the reference declares
+ * `searchableThrough(COMPOSITION)` in every processed scope and has an eligible, existing target collection. Inside
+ * `referenceHaving`, any selector other than `inAttribute` / `inAttributeAll()` fails, and so does a processed scope
+ * in which no searchable reference attribute is selected.
+ *
+ * Every check runs before any index is consulted, so the query never fails or passes depending on the data. A
+ * searchable field the index retired or never saw simply contributes nothing.
  *
  * A text whose analysis yields no token at all - stop words or punctuation only - matches nothing: the strict match
  * set of zero tokens is empty by the same rule that makes a token without terms match nothing, and an empty search box
@@ -213,18 +236,24 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			resolveReferenceFields(textMatches, entitySchema, referenceSchema, scopes);
 		final FulltextScoringPolicy scoringPolicy = filterByVisitor.getQueryContext()
 			.getFulltextScoringPolicy(entitySchema);
-		// Field errors still precede this schema-only shortcut; undeclared locales cannot own query results.
-		if (!entitySchema.getLocales().contains(locale)) {
-			return EmptyFormula.INSTANCE;
-		}
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
 		final FulltextAnalyzerRegistry analyzerRegistry = queryContext.getFulltextAnalyzerRegistry();
 		final String entityType = entitySchema.getName();
 		final CatalogSchemaContract catalogSchema = queryContext.getCatalogSchema();
-		final Map<Scope, List<SearchableSource>> sources = resolveSources(
-			entitySchema, fieldsByScope, catalogSchema,
-			referenceSchema == null && textMatches.getInAttributes().length == 0
-		);
+		final Map<Scope, List<SearchableSource>> sources = referenceSchema == null ?
+			resolveSources(entitySchema, fieldsByScope, catalogSchema, textMatches) : null;
+		if (textMatches.getChildrenCount() > 0) {
+			for (final Map.Entry<Scope, FulltextFieldDefinition[]> entry : fieldsByScope.entrySet()) {
+				Assert.isTrue(entry.getValue().length > 0 || sources != null && !sources.get(entry.getKey()).isEmpty(),
+					() -> new EvitaInvalidUsageException("Selectors of `" + textMatches +
+						"` select no searchable place in scope `" + entry.getKey() + "`!"));
+			}
+		}
+		// All selector validation precedes shortcuts, including locales with no indexed data.
+		if (!entitySchema.getLocales().contains(locale)) {
+			return EmptyFormula.INSTANCE;
+		}
+
 		// All own and target analyzers compile before any index containing data is read, also for check-only plans.
 		final Set<CompiledFulltextAnalyzer> analyzers = CollectionUtils.createLinkedHashSet(4);
 		final Map<String, CompiledFulltextAnalyzer> resolved = CollectionUtils.createHashMap(4);
@@ -444,22 +473,39 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * @param schema owner schema
 	 * @param ownFields selected own places in every owner scope
 	 * @param catalog catalog schema supplying managed target schemas
-	 * @param compose whether this is a plain entity text constraint
+	 * @param textMatches selectors restricting composition, or a plain search including every declared reference
 	 * @return eligible composed sources per owner scope, or null when none has a searchable place
 	 */
 	@Nullable
 	private static Map<Scope, List<SearchableSource>> resolveSources(
 		@Nonnull EntitySchemaContract schema, @Nonnull Map<Scope, FulltextFieldDefinition[]> ownFields,
-		@Nonnull CatalogSchemaContract catalog, boolean compose
+		@Nonnull CatalogSchemaContract catalog, @Nonnull TextMatches textMatches
 	) {
-		if (!compose) {
-			return null;
-		}
+		final FilterConstraint[] in = textMatches.getIn();
 		Map<Scope, List<SearchableSource>> result = null;
 		Map<String, Map<FulltextFieldKey, Integer>> places = null;
 		int nextPlace = -1;
 		for (final Map.Entry<Scope, FulltextFieldDefinition[]> own : ownFields.entrySet()) {
 			for (final ReferenceSchemaContract reference : schema.getReferences().values()) {
+				final List<EntityIn> targetSelectors = new ArrayList<>(2);
+				for (final FilterConstraint selector : in) {
+					if (selector instanceof ReferenceIn referenceIn &&
+						referenceIn.getReferenceName().equals(reference.getName())) {
+						for (final FilterConstraint child : referenceIn.getChildren()) {
+							if (child instanceof EntityIn entityIn) {
+								targetSelectors.add(entityIn);
+							}
+						}
+					}
+				}
+				final boolean explicit = !targetSelectors.isEmpty();
+				if (in.length > 0 && !explicit) {
+					continue;
+				}
+				Assert.isTrue(!explicit ||
+					reference.getSearchableThrough(own.getKey()) == ReferenceSearchMode.COMPOSITION,
+					() -> new EvitaInvalidUsageException("Reference `" + reference.getName() +
+						"` requires `searchableThrough(COMPOSITION)` for `inEntity` in scope `" + own.getKey() + "`!"));
 				if (reference.getSearchableThrough(own.getKey()) != ReferenceSearchMode.COMPOSITION ||
 					!reference.isReferencedEntityTypeManaged() ||
 					reference instanceof ReflectedReferenceSchemaContract reflected &&
@@ -467,15 +513,49 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					!reference.isIndexedInScope(own.getKey()) ||
 					!reference.getIndexedComponents(own.getKey())
 						.contains(ReferenceIndexedComponents.REFERENCED_ENTITY)) {
+					Assert.isTrue(!explicit, () -> new EvitaInvalidUsageException(
+						"Reference `" + reference.getName() + "` has no eligible composed target places for " +
+							"`inEntity` in scope `" + own.getKey() + "`!"));
 					continue;
 				}
 				final EntitySchemaContract target = catalog.getEntitySchema(reference.getReferencedEntityType())
 					.orElse(null);
+				Assert.isTrue(!explicit || target != null,
+					() -> new EvitaInvalidUsageException("Reference `" + reference.getName() +
+						"` selects no target collection for `inEntity`!"));
 				if (target == null) {
 					continue;
 				}
+				for (final EntityIn selector : targetSelectors) {
+					if (selector.getChildrenCount() == 0) {
+						boolean searchable = false;
+						for (final Scope targetScope : ownFields.keySet()) {
+							searchable |= collectSearchableFields(target, targetScope).length > 0;
+						}
+						Assert.isTrue(searchable, () -> new EvitaInvalidUsageException(
+							"Reference `" + reference.getName() + "` selector `inEntity()` selects no searchable " +
+								"target place in processed scopes `" + ownFields.keySet() + "`!"));
+					}
+					for (final FilterConstraint child : selector.getChildren()) {
+						if (isWildcard(child)) {
+							assertSelectsAnyPlace(target, null, child, child, ownFields.keySet());
+						}
+					}
+				}
 				for (final Scope targetScope : ownFields.keySet()) {
-					final FulltextFieldDefinition[] fields = collectSearchableFields(target, targetScope);
+					final Map<FulltextFieldKey, FulltextFieldDefinition> selected =
+						CollectionUtils.createLinkedHashMap(8);
+					for (final EntityIn selector : targetSelectors) {
+						final FulltextFieldDefinition[] targetFields = selector.getChildren().length == 0 ?
+							collectSearchableFields(target, targetScope) :
+							selectFields(target, null, selector.getChildren(), targetScope);
+						for (final FulltextFieldDefinition field : targetFields) {
+							selected.putIfAbsent(field.key(), field);
+						}
+					}
+					final FulltextFieldDefinition[] fields = explicit ?
+						canonicalFields(target, targetScope, selected) : collectSearchableFields(target, targetScope);
+					// Like plain composition, a target scope where nothing is selected is skipped, not refused.
 					if (fields.length == 0) {
 						continue;
 					}
@@ -684,59 +764,39 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	}
 
 	/**
-	 * Unions the names of every attribute selector in the order supplied, so that a name repeated within or across
-	 * selectors is searched and scored once.
-	 * @param selectors the attribute selectors of one `textMatches`
-	 * @return the distinct selected attribute names, empty without a selector
-	 */
-	@Nonnull
-	private static Set<String> collectSelectedAttributeNames(@Nonnull InAttribute[] selectors) {
-		final Set<String> names = CollectionUtils.createLinkedHashSet(selectors.length);
-		for (final InAttribute selector : selectors) {
-			Collections.addAll(names, selector.getAttributeNames());
-		}
-		return names;
-	}
-
-	/**
-	 * Validates selectors against this reference, before inspecting any index data. The selectors name the union of
-	 * their attributes, a repeated name counting once; without a selector, every reference attribute searchable in the
-	 * scope is selected.
-	 * @param textMatches direct body text constraint
-	 * @param entitySchema owner schema used in diagnostics and field identities
-	 * @param reference schema supplying searchable attributes
-	 * @param scopes every requested owner scope
-	 * @return selected reference fields in every processed scope
+	 * Resolves direct reference-body selectors before any index is consulted. Without selectors every reference
+	 * attribute searchable in the scope is selected. Unlike the entity level, wildcards are not judged across scopes:
+	 * each processed scope must select a searchable reference attribute, as the body has no sibling place.
+	 *
+	 * @param textMatches the reference-body search
+	 * @param entitySchema owner schema supplying full place identities
+	 * @param reference reference whose attributes are searched
+	 * @param scopes processed scopes, in each of which every named attribute must be searchable
+	 * @return selected reference fields per scope, never empty
+	 * @throws AttributeNotFoundException when a selector names an attribute the reference does not declare
+	 * @throws AttributeNotSearchableException when a named attribute is not searchable in a processed scope
+	 * @throws EvitaInvalidUsageException when a selector other than `inAttribute` / `inAttributeAll()` is used, or
+	 *                                    when a processed scope selects no searchable reference attribute
 	 */
 	@Nonnull
 	private static Map<Scope, FulltextFieldDefinition[]> resolveReferenceFields(
 		@Nonnull TextMatches textMatches, @Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract reference, @Nonnull Set<Scope> scopes
 	) {
-		final Set<String> names = collectSelectedAttributeNames(textMatches.getInAttributes());
+		final FilterConstraint[] selectors = textMatches.getIn();
+		for (final FilterConstraint selector : selectors) {
+			Assert.isTrue(selector instanceof AttributeIn, () -> new EvitaInvalidUsageException(
+				"Selector `" + selector + "` is forbidden inside `referenceHaving` for reference `" +
+					reference.getName() + "`; only `inAttribute` / `inAttributeAll` are allowed!"));
+		}
 		final Map<Scope, FulltextFieldDefinition[]> result = new EnumMap<>(Scope.class);
 		for (final Scope scope : scopes) {
-			final List<FulltextFieldDefinition> selected = new ArrayList<>(reference.getAttributes().size());
-			if (names.isEmpty()) {
-				for (final AttributeSchemaContract attribute : reference.getAttributes().values()) {
-					if (attribute.isSearchableInScope(scope)) {
-						selected.add(FulltextFieldDefinition.resolve(entitySchema,
-							FulltextFieldKey.referenceAttribute(reference.getName(), attribute.getName())));
-					}
-				}
-			} else {
-				for (final String name : names) {
-					final AttributeSchemaContract attribute = reference.getAttribute(name)
-						.orElseThrow(() -> new AttributeNotFoundException(name, reference, entitySchema));
-					Assert.isTrue(attribute.isSearchableInScope(scope),
-						() -> new AttributeNotSearchableException(name, reference, entitySchema, scope));
-					selected.add(FulltextFieldDefinition.resolve(entitySchema,
-						FulltextFieldKey.referenceAttribute(reference.getName(), name)));
-				}
-			}
-			Assert.isTrue(!selected.isEmpty(), () -> new EvitaInvalidUsageException(
+			final FilterConstraint[] in = selectors.length == 0 ?
+				new FilterConstraint[]{AttributeIn.all()} : selectors;
+			final FulltextFieldDefinition[] fields = selectFields(entitySchema, reference, in, scope);
+			Assert.isTrue(fields.length > 0, () -> new EvitaInvalidUsageException(
 				"Reference `" + reference.getName() + "` declares no searchable attribute in scope `" + scope + "`!"));
-			result.put(scope, selected.toArray(FulltextFieldDefinition[]::new));
+			result.put(scope, fields);
 		}
 		return result;
 	}
@@ -784,75 +844,191 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	}
 
 	/**
-	 * Resolves the fields the constraint searches in every processed scope, and verifies they may be searched there.
+	 * Resolves own places using schema identities, without inspecting index data. Without selectors every place
+	 * searchable in the scope is selected. Whether each scope keeps a selected place once composition is added is
+	 * checked by {@link #translate(TextMatches, FilterByVisitor)}.
 	 *
-	 * Without `inAttribute` the constraint searches every searchable field of the collection in the scope: its entity
-	 * attributes (global attributes included), the attributes of its references and its associated data; places
-	 * reached through a `COMPOSITION` reference are not its fields and are resolved separately. With `inAttribute` it
-	 * searches the named entity or global attributes only - a name repeated within or across selectors counts once,
-	 * and each must be searchable in every processed scope, as an attribute filter must be filterable in every one.
-	 * Here reference attributes and associated data are reachable only through the default: `inAttribute` names
-	 * reference attributes only inside `referenceHaving` (see `resolveReferenceFields`), and associated data cannot
-	 * be named at all.
-	 *
-	 * @param textMatches  the constraint
+	 * @param textMatches the search with optional entity-level selectors
 	 * @param entitySchema schema of the queried collection
-	 * @param scopes       the processed scopes
-	 * @return own searched fields per scope, possibly empty when a composition is declared
-	 * @throws AttributeNotFoundException when an `inAttribute` names an attribute the collection does not declare
-	 * @throws AttributeNotSearchableException when an `inAttribute` names an attribute that is not searchable at all,
-	 *                                        or not in some processed scope
-	 * @throws EvitaInvalidUsageException     when a processed scope has neither a searchable field nor a reference
-	 *                                        declaring composition
+	 * @param scopes processed scopes: a named place must be searchable in each, a wildcard in at least one
+	 * @return selected own places per scope, possibly empty; composition is resolved separately
+	 * @throws AttributeNotFoundException when a selector names an attribute the collection or reference lacks
+	 * @throws AssociatedDataNotFoundException when a selector names associated data the collection lacks
+	 * @throws ReferenceNotFoundException when an `inReference` names a reference the collection lacks
+	 * @throws AttributeNotSearchableException when a named attribute is not searchable in a processed scope
+	 * @throws EvitaInvalidUsageException when named associated data is not searchable in a processed scope, when a
+	 *                                    wildcard selects nothing in all of them, or when, without selectors, a
+	 *                                    scope has neither a searchable place nor a composition declaration
 	 */
 	@Nonnull
 	private static Map<Scope, FulltextFieldDefinition[]> resolveFields(
-		@Nonnull TextMatches textMatches,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull Set<Scope> scopes
+		@Nonnull TextMatches textMatches, @Nonnull EntitySchemaContract entitySchema, @Nonnull Set<Scope> scopes
 	) {
+		final FilterConstraint[] in = textMatches.getIn();
 		final Map<Scope, FulltextFieldDefinition[]> result = new EnumMap<>(Scope.class);
-		final InAttribute[] inAttributes = textMatches.getInAttributes();
-		if (inAttributes.length == 0) {
-			for (final Scope scope : scopes) {
-				final FulltextFieldDefinition[] fields = collectSearchableFields(entitySchema, scope);
-				Assert.isTrue(
-					fields.length > 0 || declaresComposition(entitySchema, scope),
-					() -> new EvitaInvalidUsageException(
-						"Constraint `textMatches` cannot be used on the entity collection `" + entitySchema.getName() +
-							"` in scope `" + scope + "` - the collection declares no attribute or associated data " +
-							"searchable there and no reference composing the text of its referenced entities. Make " +
-							"at least one localized String attribute or associated data `searchable` in the schema, " +
-							"or declare a reference `searchableThrough(COMPOSITION)` in that scope!"
-					)
-				);
-				result.put(scope, fields);
-			}
-		} else {
-			final Set<String> names = collectSelectedAttributeNames(inAttributes);
-			final FulltextFieldDefinition[] fields = new FulltextFieldDefinition[names.size()];
-			int index = 0;
-			for (final String name : names) {
-				final AttributeSchemaContract attributeSchema = entitySchema
-					.getAttribute(name)
-					.orElseThrow(() -> new AttributeNotFoundException(name, entitySchema));
-				Assert.isTrue(
-					attributeSchema.isSearchableInAnyScope(),
-					() -> new AttributeNotSearchableException(name, entitySchema)
-				);
-				for (final Scope scope : scopes) {
-					Assert.isTrue(
-						attributeSchema.isSearchableInScope(scope),
-						() -> new AttributeNotSearchableException(name, entitySchema, scope)
-					);
+		for (final Scope scope : scopes) {
+			final FulltextFieldDefinition[] fields = in.length == 0 ?
+				collectSearchableFields(entitySchema, scope) :
+				selectFields(entitySchema, null, in, scope);
+			Assert.isTrue(in.length > 0 || fields.length > 0 || declaresComposition(entitySchema, scope),
+				() -> new EvitaInvalidUsageException(
+					"Constraint `textMatches` cannot be used on the entity collection `" + entitySchema.getName() +
+						"` in scope `" + scope + "` - the collection declares no attribute or associated data " +
+						"searchable there and no reference composing the text of its referenced entities. Make " +
+						"at least one localized String attribute or associated data `searchable` in the schema, " +
+						"or declare a reference `searchableThrough(COMPOSITION)` in that scope!"
+				));
+			result.put(scope, fields);
+		}
+		// Wildcards may be empty in some scopes; each must select a place in at least one of them.
+		for (final FilterConstraint selector : in) {
+			if (selector instanceof ReferenceIn referenceIn) {
+				final ReferenceSchemaContract reference = entitySchema.getReference(referenceIn.getReferenceName())
+					.orElseThrow(() -> new ReferenceNotFoundException(referenceIn.getReferenceName(), entitySchema));
+				if (referenceIn.getChildrenCount() == 0) {
+					assertSelectsAnyPlace(entitySchema, reference, AttributeIn.all(), referenceIn, scopes);
 				}
-				fields[index++] = FulltextFieldDefinition.resolve(entitySchema, FulltextFieldKey.attribute(name));
-			}
-			for (final Scope scope : scopes) {
-				result.put(scope, fields);
+				for (final FilterConstraint child : referenceIn.getChildren()) {
+					if (isWildcard(child)) {
+						assertSelectsAnyPlace(entitySchema, reference, child, child, scopes);
+					}
+				}
+			} else if (isWildcard(selector)) {
+				assertSelectsAnyPlace(entitySchema, null, selector, selector, scopes);
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Tells wildcard selectors apart from named ones. A wildcard expands to whatever its level has searchable in each
+	 * scope, so it is judged across all processed scopes, while a named place must be searchable in every one.
+	 *
+	 * @param selector selector of any level
+	 * @return true for `inAttributeAll()` and `inAssociatedDataAll()`
+	 */
+	private static boolean isWildcard(@Nonnull FilterConstraint selector) {
+		return selector instanceof AttributeIn attributeIn && attributeIn.isAllRequested() ||
+			selector instanceof AssociatedDataIn dataIn && dataIn.isAllRequested();
+	}
+
+	/**
+	 * Refuses a wildcard that selects no searchable place in any processed scope. A wildcard empty in only some scopes
+	 * is accepted, as plain search on a schema exposing only the selected places would skip the place there; a scope
+	 * whose whole selection is empty is refused by {@link #translate(TextMatches, FilterByVisitor)}.
+	 *
+	 * @param schema schema owning the places of the wildcard's level
+	 * @param reference reference whose attributes the wildcard selects, or null for places of the collection
+	 * @param wildcard wildcard resolved on its own in each processed scope
+	 * @param stated the selector as the query states it, named in the refusal
+	 * @param scopes processed scopes of the level
+	 * @throws EvitaInvalidUsageException when the wildcard selects nothing in every processed scope
+	 */
+	private static void assertSelectsAnyPlace(
+		@Nonnull EntitySchemaContract schema, @Nullable ReferenceSchemaContract reference,
+		@Nonnull FilterConstraint wildcard, @Nonnull FilterConstraint stated, @Nonnull Set<Scope> scopes
+	) {
+		final FilterConstraint[] in = {wildcard};
+		for (final Scope scope : scopes) {
+			if (selectFields(schema, reference, in, scope).length > 0) {
+				return;
+			}
+		}
+		throw new EvitaInvalidUsageException("Selector `" + stated + "` selects no searchable " +
+			(reference == null ? "place" : "attribute of reference `" + reference.getName() + "`") +
+			" in collection `" + schema.getName() + "` in processed scopes `" + scopes + "`!");
+	}
+
+	/**
+	 * Unions selected places by full key. A named place is validated in this scope even when a sibling already
+	 * selected it. A wildcard selects whatever its level has searchable here, possibly nothing: callers judge its
+	 * emptiness across all processed scopes. `inEntity` is consumed separately by source resolution and contributes
+	 * no reference attributes.
+	 *
+	 * @param schema schema owning the indexed places
+	 * @param reference reference attribute level, or null for collection places
+	 * @param in selectors of this level
+	 * @param scope processed scope
+	 * @return selected fields in the same order as plain search
+	 */
+	@Nonnull
+	private static FulltextFieldDefinition[] selectFields(
+		@Nonnull EntitySchemaContract schema, @Nullable ReferenceSchemaContract reference,
+		@Nonnull FilterConstraint[] in, @Nonnull Scope scope
+	) {
+		final Map<FulltextFieldKey, FulltextFieldDefinition> selected = CollectionUtils.createLinkedHashMap(8);
+		for (final FilterConstraint selector : in) {
+			if (selector instanceof AttributeIn attributeIn) {
+				final Map<String, ? extends AttributeSchemaContract> attributes = reference == null ?
+					schema.getAttributes() : FulltextFieldDefinition.availableReferenceAttributes(reference);
+				final String[] names = attributeIn.isAllRequested() ? attributes.keySet().toArray(String[]::new) :
+					attributeIn.getAttributeNames();
+				for (final String name : names) {
+					final AttributeSchemaContract attribute = attributes.get(name);
+					if (attributeIn.isAllRequested() && (attribute == null || !attribute.isSearchableInScope(scope))) {
+						continue;
+					}
+					Assert.isTrue(attribute != null, () -> reference == null ?
+						new AttributeNotFoundException(name, schema) :
+						new AttributeNotFoundException(name, reference, schema));
+					Assert.isTrue(attribute.isSearchableInScope(scope), () -> reference == null ?
+						new AttributeNotSearchableException(name, schema, scope) :
+						new AttributeNotSearchableException(name, reference, schema, scope));
+					final FulltextFieldKey key = reference == null ? FulltextFieldKey.attribute(name) :
+						FulltextFieldKey.referenceAttribute(reference.getName(), name);
+					selected.putIfAbsent(
+						key, new FulltextFieldDefinition(key, attribute.getAnalyzer(), attribute.getLengthPivot()));
+				}
+			} else if (selector instanceof AssociatedDataIn dataIn) {
+				final String[] names = dataIn.isAllRequested() ?
+					schema.getAssociatedData().keySet().toArray(String[]::new) : dataIn.getAssociatedDataNames();
+				for (final String name : names) {
+					final AssociatedDataSchemaContract data = schema.getAssociatedData(name)
+						.orElseThrow(() -> new AssociatedDataNotFoundException(name, schema));
+					if (dataIn.isAllRequested() && !data.isSearchableInScope(scope)) {
+						continue;
+					}
+					Assert.isTrue(data.isSearchableInScope(scope), () -> new EvitaInvalidUsageException(
+						"Associated data `" + name + "` in collection `" + schema.getName() +
+							"` is not searchable in scope `" + scope + "`!"));
+					final FulltextFieldKey key = FulltextFieldKey.associatedData(name);
+					selected.putIfAbsent(key, FulltextFieldDefinition.resolve(schema, key));
+				}
+			} else if (selector instanceof ReferenceIn referenceIn) {
+				final ReferenceSchemaContract selectedReference = schema.getReference(referenceIn.getReferenceName())
+					.orElseThrow(() -> new ReferenceNotFoundException(referenceIn.getReferenceName(), schema));
+				final FilterConstraint[] children = referenceIn.getChildren().length == 0 ?
+					new FilterConstraint[]{AttributeIn.all()} : referenceIn.getChildren();
+				for (final FulltextFieldDefinition field : selectFields(schema, selectedReference, children, scope)) {
+					selected.putIfAbsent(field.key(), field);
+				}
+			} else if (!(selector instanceof EntityIn)) {
+				throw new EvitaInvalidUsageException("Unsupported place selector `" + selector + "`!");
+			}
+		}
+		return canonicalFields(schema, scope, selected);
+	}
+
+	/**
+	 * Retains selected full keys in plain-search order, keeping analysis groups and score accumulation unchanged.
+	 *
+	 * @param schema schema declaring all eligible own places
+	 * @param scope processed scope
+	 * @param selected validated places keyed by kind, reference and name
+	 * @return the restriction of plain search to the selected places
+	 */
+	@Nonnull
+	private static FulltextFieldDefinition[] canonicalFields(
+		@Nonnull EntitySchemaContract schema, @Nonnull Scope scope,
+		@Nonnull Map<FulltextFieldKey, FulltextFieldDefinition> selected
+	) {
+		final List<FulltextFieldDefinition> fields = new ArrayList<>(selected.size());
+		for (final FulltextFieldDefinition field : collectSearchableFields(schema, scope)) {
+			if (selected.containsKey(field.key())) {
+				fields.add(field);
+			}
+		}
+		return fields.toArray(FulltextFieldDefinition[]::new);
 	}
 
 	/**

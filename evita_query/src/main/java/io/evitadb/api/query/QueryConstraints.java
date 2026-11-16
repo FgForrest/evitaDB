@@ -1562,66 +1562,144 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Fulltext search: matches entities whose searchable fields contain every word of the text, analyzed the same way
-	 * the fields were indexed. Without `inAttribute` children every searchable field is searched. Requires the query
-	 * locale and is forbidden inside `userFilter`. A `null` or blank text drops the constraint from the query.
+	 * The `textMatches` constraint is the fulltext search filter. It accepts the text the user typed into a search
+	 * box and matches entities whose searchable fields contain every word of that text — after the text has been
+	 * analyzed by the same analyzer that indexed the fields (tokenization, normalization, stemming).
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
 	 *
-	 * ```evitaql
-	 * filterBy(
-	 *     entityLocaleEquals("en"),
-	 *     textMatches("black leather jacket", inAttribute("name"))
-	 * )
-	 * ```
-	 *
-	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/fulltext#text-matches)
-	 *
-	 * @param text the text to search for; null or blank omits the constraint
-	 * @param specifications optional refinements restricting the fulltext search
-	 * @return the fulltext constraint, or null for null or blank text
+	 * @param text the text to search for, must not be blank
+	 * @param in place selectors
+	 * @return the fulltext search constraint, or null for null or blank text
 	 * @see io.evitadb.api.query.filter.TextMatches
 	 */
 	@Nullable
 	static TextMatches textMatches(
 		@Nullable String text,
-		@Nullable TextMatchesSpecificationFilterConstraint... specifications
+		@Nullable TextMatchesEntitySpecificationFilterConstraint... in
 	) {
-		return text == null || text.isBlank() ? null : new TextMatches(text, specifications);
+		return text == null || text.isBlank() ? null : new TextMatches(text, in);
 	}
 
 	/**
-	 * Restricts the enclosing `textMatches` search to the union of one or more searchable attributes. Repeated names
-	 * within this selector or across sibling selectors are ignored, including when scoring. Usable only as a child
-	 * of `textMatches`; any selector disables composition through referenced entities.
-	 *
-	 * Searchable attribute names are application settings, so the factory never omits the selector: a null or empty
-	 * array, and a null or blank name, are refused. Omitting it would widen the search to every searchable place.
-	 *
-	 * ```evitaql
-	 * textMatches('black leather jacket', inAttribute('name', 'description'))
-	 * ```
-	 *
-	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/fulltext#in-attribute)
+	 * The `inAttribute` constraint restricts the enclosing {@link TextMatches} fulltext search to one or more
+	 * searchable attributes of its level: of the queried collection directly under `textMatches`, of the reference
+	 * under `inReference` and inside `referenceHaving`, and of the target collection under `inEntity`. Several
+	 * selectors search the union of their named attributes, with the same matches and scores as a single selector
+	 * naming them all. Repeated names are ignored when searching and scoring. Without a selector, `textMatches`
+	 * searches every searchable place, including reference attributes, associated data and text reached through
+	 * composition. Outside `inEntity`, an attribute selector selects no composed places.
+	 * The wildcard `inAttributeAll()` selects every searchable attribute of the current level; `inAttribute()`
+	 * without names is refused.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
 	 *
 	 * @param attributeNames searchable attribute names, at least one and none null or blank
-	 * @return the selector
-	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the array is null or empty, or a name is null or
-	 *                                                         blank
-	 * @see io.evitadb.api.query.filter.InAttribute
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.AttributeIn
 	 */
 	@Nonnull
-	static InAttribute inAttribute(@Nonnull String... attributeNames) {
-		return new InAttribute(attributeNames);
+	static AttributeIn inAttribute(@Nonnull String... attributeNames) {
+		return new AttributeIn(attributeNames);
 	}
 
 	/**
-	 * Creates a selector for one mandatory searchable attribute name.
+	 * The `inAttribute` constraint restricts the enclosing {@link TextMatches} fulltext search to one or more
+	 * searchable attributes of its level: of the queried collection directly under `textMatches`, of the reference
+	 * under `inReference` and inside `referenceHaving`, and of the target collection under `inEntity`. Several
+	 * selectors search the union of their named attributes, with the same matches and scores as a single selector
+	 * naming them all. Repeated names are ignored when searching and scoring. Without a selector, `textMatches`
+	 * searches every searchable place, including reference attributes, associated data and text reached through
+	 * composition. Outside `inEntity`, an attribute selector selects no composed places.
+	 * The wildcard `inAttributeAll()` selects every searchable attribute of the current level; `inAttribute()`
+	 * without names is refused.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
 	 *
 	 * @param attributeName searchable attribute name, must not be null or blank
-	 * @return the attribute selector
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.AttributeIn
 	 */
 	@Nonnull
-	static InAttribute inAttribute(@Nonnull String attributeName) {
-		return new InAttribute(attributeName);
+	static AttributeIn inAttribute(@Nonnull String attributeName) {
+		return new AttributeIn(attributeName);
+	}
+
+	/**
+	 * Creates the wildcard form selecting every searchable attribute of the current level.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.AttributeIn
+	 */
+	@Nonnull
+	static AttributeIn inAttributeAll() {
+		return AttributeIn.all();
+	}
+
+	/**
+	 * The `inAssociatedData` constraint restricts the enclosing {@link TextMatches} search to one or more searchable
+	 * associated data items of its level: of the queried collection directly under `textMatches`, and of the target
+	 * collection under `inEntity`. Several selectors search their union; repeated names contribute only once to
+	 * matching and scoring. The wildcard `inAssociatedDataAll()` selects every searchable associated data item of
+	 * this level. The named `inAssociatedData()` form without names is refused.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * @param associatedDataNames searchable associated data names, at least one and none null or blank
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.AssociatedDataIn
+	 */
+	@Nonnull
+	static AssociatedDataIn inAssociatedData(@Nonnull String... associatedDataNames) {
+		return new AssociatedDataIn(associatedDataNames);
+	}
+
+	/**
+	 * Creates the wildcard form selecting every searchable associated data item of the current level.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.AssociatedDataIn
+	 */
+	@Nonnull
+	static AssociatedDataIn inAssociatedDataAll() {
+		return AssociatedDataIn.all();
+	}
+
+	/**
+	 * Selects searchable attributes of a named reference and, through `inEntity`, its composed target places.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * Without children, selects all searchable attributes of this reference. `inAttribute` children select reference
+	 * attributes; `inEntity` children select target places only and require the reference to declare
+	 * `searchableThrough(COMPOSITION)` in every processed scope. Repeated references merge their selected places.
+	 *
+	 * @param referenceName reference whose places should be searched, mandatory and non-blank
+	 * @param in optional selectors restricting the places of this level
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.ReferenceIn
+	 */
+	@Nonnull
+	static ReferenceIn inReference(
+		@Nonnull String referenceName, @Nullable TextMatchesReferenceSpecificationFilterConstraint... in
+	) {
+		return new ReferenceIn(referenceName, in);
+	}
+
+	/**
+	 * Selects searchable places of the target collection of the enclosing `inReference`.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * Without children, selects exactly the places plain composition searches: target attributes, associated data
+	 * and target reference attributes. Target composition declarations are never followed. Explicit children may
+	 * select target attributes and associated data. A target scope in which nothing is selected is skipped, as plain
+	 * composition skips it. The enclosing reference must declare `searchableThrough(COMPOSITION)` in every processed
+	 * scope. Target weights retain their ordinary composition multiplier.
+	 *
+	 * @param in optional selectors restricting the places of this level
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.EntityIn
+	 */
+	@Nonnull
+	static EntityIn inEntity(@Nullable TextMatchesTargetSpecificationFilterConstraint... in) {
+		return new EntityIn(in);
 	}
 
 	/*

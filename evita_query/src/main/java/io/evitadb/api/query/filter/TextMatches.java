@@ -42,21 +42,22 @@ import java.io.Serializable;
  * The `textMatches` constraint is the fulltext search filter. It accepts the text the user typed into a search box and
  * matches entities whose searchable fields contain every word of that text — after the text has been analyzed by the
  * same analyzer that indexed the fields (tokenization, normalization, stemming).
+ * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
  *
  * **Syntax**
  *
  * ```evitaql
  * textMatches(
  *     argument:string!,
- *     filterConstraint:inAttribute*
+ *     filterConstraint:placeSelector*
  * )
  * ```
  *
  * **Arguments**
  *
  * - `argument:string!`: the text to search for, mandatory and non-blank
- * - `filterConstraint:inAttribute*`: optional {@link InAttribute} children restricting the search to the named
- *   searchable attributes; without any child, every searchable place of the queried collection is searched
+ * - `filterConstraint:placeSelector*`: optional selectors restricting attributes, associated data or references;
+ *   without any child, every searchable place of the queried collection is searched
  *
  * **Examples**
  *
@@ -86,13 +87,13 @@ import java.io.Serializable;
  * - the fulltext index is maintained per locale, so the query must declare its locale by `entityLocaleEquals`
  * - the constraint is forbidden inside {@link UserFilter}: it has no relaxation semantics a facet or histogram
  *   computation could peel off, and facet counts are expected to describe the search result
- * - only {@link TextMatchesSpecificationFilterConstraint} children (such as `inAttribute`) are accepted
+ * - only entity-level place selectors are accepted
  *
  * The constraint has no `attribute` prefix, because a searchable field is not necessarily an entity attribute.
  * The order of the matched entities is controlled by the {@link io.evitadb.api.query.order.RelevanceText} ordering
  * constraint, which reads the relevance this filter computes.
  *
- * @see InAttribute
+ * @see AttributeIn
  * @see io.evitadb.api.query.order.RelevanceText
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -106,34 +107,34 @@ import java.io.Serializable;
 public class TextMatches extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -6412785527930563170L;
 	private static final String CONSTRAINT_NAME = "textMatches";
-	private static final TextMatchesSpecificationFilterConstraint[] NO_SPECIFICATIONS =
-		new TextMatchesSpecificationFilterConstraint[0];
+	private static final TextMatchesEntitySpecificationFilterConstraint[] NO_SELECTORS =
+		new TextMatchesEntitySpecificationFilterConstraint[0];
 
 	/**
 	 * Creates a copy with new arguments or children.
 	 *
 	 * @param arguments the searched text
-	 * @param children search refinements
+	 * @param in place selectors
 	 */
-	private TextMatches(@Nonnull Serializable[] arguments, @Nonnull FilterConstraint... children) {
-		super(CONSTRAINT_NAME, arguments, children);
+	private TextMatches(@Nonnull Serializable[] arguments, @Nonnull FilterConstraint... in) {
+		super(CONSTRAINT_NAME, arguments, in);
 	}
 
 	/**
 	 * Creates the fulltext search constraint.
 	 *
 	 * @param text           the text to search for, must not be blank
-	 * @param specifications optional refinements of the search, e.g. {@link InAttribute} restrictions
+	 * @param in optional selectors of the search, e.g. {@link AttributeIn} restrictions
 	 */
 	@Creator
 	public TextMatches(
 		@Nonnull String text,
-		@Nullable @Child TextMatchesSpecificationFilterConstraint... specifications
+		@Nullable @Child TextMatchesEntitySpecificationFilterConstraint... in
 	) {
 		super(
 			CONSTRAINT_NAME,
 			new Serializable[] { text },
-			specifications == null ? NO_SPECIFICATIONS : specifications
+			in == null ? NO_SELECTORS : in
 		);
 		Assert.isTrue(
 			text != null && !text.isBlank(),
@@ -152,42 +153,17 @@ public class TextMatches extends AbstractFilterConstraintContainer implements Ge
 	}
 
 	/**
-	 * Returns all refinements of the search in the order they were specified.
+	 * Returns all selectors of the search in the order they were specified.
 	 *
-	 * @return the search refinements
+	 * @return the place selectors
 	 */
 	@Nonnull
-	public TextMatchesSpecificationFilterConstraint[] getSpecifications() {
+	public TextMatchesEntitySpecificationFilterConstraint[] getIn() {
 		final FilterConstraint[] children = getChildren();
-		final TextMatchesSpecificationFilterConstraint[] result =
-			new TextMatchesSpecificationFilterConstraint[children.length];
+		final TextMatchesEntitySpecificationFilterConstraint[] result =
+			new TextMatchesEntitySpecificationFilterConstraint[children.length];
 		for (int i = 0; i < children.length; i++) {
-			result[i] = (TextMatchesSpecificationFilterConstraint) children[i];
-		}
-		return result;
-	}
-
-	/**
-	 * Returns the {@link InAttribute} restrictions of the search. An empty array searches every searchable place of
-	 * the queried collection, including composition.
-	 *
-	 * @return the searchable attribute selectors
-	 */
-	@Nonnull
-	public InAttribute[] getInAttributes() {
-		final FilterConstraint[] children = getChildren();
-		int count = 0;
-		for (final FilterConstraint child : children) {
-			if (child instanceof InAttribute) {
-				count++;
-			}
-		}
-		final InAttribute[] result = new InAttribute[count];
-		int index = 0;
-		for (final FilterConstraint child : children) {
-			if (child instanceof InAttribute inAttribute) {
-				result[index++] = inAttribute;
-			}
+			result[i] = (TextMatchesEntitySpecificationFilterConstraint) children[i];
 		}
 		return result;
 	}
@@ -235,7 +211,7 @@ public class TextMatches extends AbstractFilterConstraintContainer implements Ge
 		);
 		for (final FilterConstraint child : children) {
 			Assert.isTrue(
-				child instanceof TextMatchesSpecificationFilterConstraint,
+				child instanceof TextMatchesEntitySpecificationFilterConstraint,
 				() -> "Constraint `textMatches` doesn't accept `" + child.getName() + "` as its child!"
 			);
 		}

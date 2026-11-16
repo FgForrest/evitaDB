@@ -59,22 +59,6 @@ public class AttributeNotSearchableException extends EvitaInvalidUsageException 
 	}
 
 	/**
-	 * Creates the exception for an attribute of an entity, global attributes included.
-	 *
-	 * @param attributeName name of the attribute
-	 * @param entitySchema  schema of the entity declaring it
-	 */
-	public AttributeNotSearchableException(
-		@Nonnull String attributeName,
-		@Nonnull EntitySchemaContract entitySchema
-	) {
-		super(
-			"Attribute with name `" + attributeName + "` in entity `" + entitySchema.getName() + "` is not " +
-				"marked as \"searchable\" and cannot be searched in - there is no fulltext index of it."
-		);
-	}
-
-	/**
 	 * Creates the exception for an attribute of an entity that is searchable, but not in the passed scope.
 	 *
 	 * @param attributeName name of the attribute

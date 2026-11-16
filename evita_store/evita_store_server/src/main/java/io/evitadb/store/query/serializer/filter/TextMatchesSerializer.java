@@ -28,11 +28,11 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.filter.TextMatches;
-import io.evitadb.api.query.filter.TextMatchesSpecificationFilterConstraint;
+import io.evitadb.api.query.filter.TextMatchesEntitySpecificationFilterConstraint;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link TextMatches} from/to binary format. The children are
- * written with their class, because `textMatches` accepts any {@link TextMatchesSpecificationFilterConstraint}.
+ * written with their class, because `textMatches` accepts any {@link TextMatchesEntitySpecificationFilterConstraint}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -41,9 +41,9 @@ public class TextMatchesSerializer extends Serializer<TextMatches> {
 	@Override
 	public void write(Kryo kryo, Output output, TextMatches textMatches) {
 		output.writeString(textMatches.getText());
-		final TextMatchesSpecificationFilterConstraint[] specifications = textMatches.getSpecifications();
+		final TextMatchesEntitySpecificationFilterConstraint[] specifications = textMatches.getIn();
 		output.writeVarInt(specifications.length, true);
-		for (final TextMatchesSpecificationFilterConstraint specification : specifications) {
+		for (final TextMatchesEntitySpecificationFilterConstraint specification : specifications) {
 			kryo.writeClassAndObject(output, specification);
 		}
 	}
@@ -52,10 +52,10 @@ public class TextMatchesSerializer extends Serializer<TextMatches> {
 	public TextMatches read(Kryo kryo, Input input, Class<? extends TextMatches> type) {
 		final String text = input.readString();
 		final int specificationCount = input.readVarInt(true);
-		final TextMatchesSpecificationFilterConstraint[] specifications =
-			new TextMatchesSpecificationFilterConstraint[specificationCount];
+		final TextMatchesEntitySpecificationFilterConstraint[] specifications =
+			new TextMatchesEntitySpecificationFilterConstraint[specificationCount];
 		for (int i = 0; i < specificationCount; i++) {
-			specifications[i] = (TextMatchesSpecificationFilterConstraint) kryo.readClassAndObject(input);
+			specifications[i] = (TextMatchesEntitySpecificationFilterConstraint) kryo.readClassAndObject(input);
 		}
 		return new TextMatches(text, specifications);
 	}

@@ -98,6 +98,11 @@ filterConstraint
     | 'scope'                               args = valueListArgs                                            # entityScopeConstraint
     | 'textMatches'                         args = textMatchesArgs                                          # textMatchesConstraint
     | 'inAttribute'                         args = classifierListArgs                                       # inAttributeConstraint
+    | 'inAttributeAll'                      emptyArgs                                                       # inAttributeAllConstraint
+    | 'inAssociatedData'                    args = classifierListArgs                                       # inAssociatedDataConstraint
+    | 'inAssociatedDataAll'                 emptyArgs                                                       # inAssociatedDataAllConstraint
+    | 'inReference'                         args = textReferenceArgs                                        # inReferenceConstraint
+    | 'inEntity'                            (emptyArgs | args = filterConstraintListArgs)                   # inEntityConstraint
     ;
 
 orderConstraint
@@ -461,6 +466,8 @@ gapRequireConstraintArgs :                          argsOpening size = valueToke
 segmentArgs:                                        argsOpening (entityHaving = filterConstraint ARGS_DELIMITER)? orderBy = orderConstraint (ARGS_DELIMITER limit = orderConstraint)? argsClosing ;
 
 inScopeFilterArgs:                                  argsOpening scope = valueToken (ARGS_DELIMITER filterConstraints += filterConstraint)* argsClosing ;
+
+textReferenceArgs:                                  argsOpening classifier = valueToken (ARGS_DELIMITER constraints += filterConstraint)* argsClosing ;
 
 textMatchesArgs:                                    argsOpening text = valueToken (ARGS_DELIMITER constraints += filterConstraint)* argsClosing ;
 

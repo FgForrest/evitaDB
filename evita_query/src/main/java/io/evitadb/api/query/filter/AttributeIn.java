@@ -24,6 +24,7 @@
 package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -33,13 +34,19 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Optional;
 
 /**
- * The `inAttribute` constraint restricts the enclosing {@link TextMatches} fulltext search to one or more searchable
- * attributes of the queried collection. Several selectors search the union of their named attributes, with the same
- * matches and scores as a single selector naming them all. Repeated names are ignored when searching and scoring.
- * Without a selector, `textMatches` searches every searchable place, including reference attributes, associated data
- * and text reached through composition. An attribute selector disables composition.
+ * The `inAttribute` constraint restricts the enclosing {@link TextMatches} fulltext search to one or more
+ * searchable attributes of its level: of the queried collection directly under `textMatches`, of the reference
+ * under `inReference` and inside `referenceHaving`, and of the target collection under `inEntity`. Several
+ * selectors search the union of their named attributes, with the same matches and scores as a single selector
+ * naming them all. Repeated names are ignored when searching and scoring. Without a selector, `textMatches`
+ * searches every searchable place, including reference attributes, associated data and text reached through
+ * composition. Outside `inEntity`, an attribute selector selects no composed places.
+ * The wildcard `inAttributeAll()` selects every searchable attribute of the current level; `inAttribute()`
+ * without names is refused.
+ * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
  *
  * Searchable attribute names are application settings, so neither the constructors nor the factory ever omit the
  * selector: a null or empty array, and a null or blank name, are refused. Omitting the selector would widen the
@@ -61,8 +68,6 @@ import java.io.Serializable;
  * textMatches('black leather jacket', inAttribute('name', 'description'))
  * ```
  *
- * Inside `referenceHaving`, the selector names searchable attributes of that reference instead.
- *
  * @see TextMatches
  * @see TextMatchesSpecificationFilterConstraint
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -77,18 +82,20 @@ import java.io.Serializable;
 	//TODO JNO change it at the end of #258
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class InAttribute extends AbstractFilterConstraintLeaf
-	implements GenericConstraint<FilterConstraint>, TextMatchesSpecificationFilterConstraint {
+public class AttributeIn extends AbstractFilterConstraintLeaf
+	implements GenericConstraint<FilterConstraint>, ConstraintWithSuffix,
+	TextMatchesEntitySpecificationFilterConstraint, TextMatchesReferenceSpecificationFilterConstraint,
+	TextMatchesTargetSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 4215369447123180911L;
 	private static final String CONSTRAINT_NAME = "inAttribute";
 
 	/**
 	 * Creates a copy with validated serialized arguments.
 	 *
-	 * @param arguments searchable attribute names, at least one and all non-blank strings
+	 * @param arguments searchable attribute names, empty for the wildcard, otherwise non-blank strings
 	 */
-	private InAttribute(@Nonnull Serializable[] arguments) {
-		super(CONSTRAINT_NAME, validateNames(arguments));
+	private AttributeIn(@Nonnull Serializable[] arguments) {
+		super(CONSTRAINT_NAME, arguments != null && arguments.length == 0 ? arguments : validateNames(arguments));
 	}
 
 	/**
@@ -97,7 +104,7 @@ public class InAttribute extends AbstractFilterConstraintLeaf
 	 * @param attributeName searchable attribute name, must not be null or blank
 	 */
 	@Creator
-	public InAttribute(@Nonnull String attributeName) {
+	public AttributeIn(@Nonnull String attributeName) {
 		this(new String[]{attributeName});
 	}
 
@@ -106,14 +113,14 @@ public class InAttribute extends AbstractFilterConstraintLeaf
 	 *
 	 * @param attributeNames searchable attribute names, at least one and none null or blank
 	 */
-	public InAttribute(@Nonnull String... attributeNames) {
+	public AttributeIn(@Nonnull String... attributeNames) {
 		super(CONSTRAINT_NAME, validateNames(attributeNames));
 	}
 
 	/**
 	 * Returns the searchable attribute names in the order supplied, including any repeated names.
 	 *
-	 * @return the searchable attribute names
+	 * @return the searchable attribute names, empty for the wildcard `inAttributeAll()`
 	 */
 	@Nonnull
 	public String[] getAttributeNames() {
@@ -125,15 +132,44 @@ public class InAttribute extends AbstractFilterConstraintLeaf
 		return names;
 	}
 
+	/**
+	 * Creates the wildcard form selecting every searchable attribute of the current level.
+	 *
+	 * @return the wildcard attribute selector
+	 */
+	@Nonnull
+	@Creator(suffix = "all")
+	public static AttributeIn all() {
+		return new AttributeIn(new Serializable[0]);
+	}
+
+	/**
+	 * Returns whether every searchable attribute of this level is selected.
+	 *
+	 * @return true for `inAttributeAll()`
+	 */
+	public boolean isAllRequested() {
+		return getArguments().length == 0;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<String> getSuffixIfApplied() {
+		return isAllRequested() ? Optional.of("all") : Optional.empty();
+	}
+
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length > 0;
+		return true;
 	}
 
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new InAttribute(newArguments);
+		if (newArguments != null && newArguments.length == 0 && !isAllRequested()) {
+			validateNames(newArguments);
+		}
+		return new AttributeIn(newArguments);
 	}
 
 	/**

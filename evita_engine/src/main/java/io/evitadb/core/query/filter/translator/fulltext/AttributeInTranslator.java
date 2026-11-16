@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.filter.translator.fulltext;
 
-import io.evitadb.api.query.filter.InAttribute;
+import io.evitadb.api.query.filter.AttributeIn;
 import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -33,21 +33,19 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import javax.annotation.Nonnull;
 
 /**
- * Rejects an {@link InAttribute} placed anywhere but directly inside {@link TextMatches}. This translator is reached
- * only when `inAttribute` is not a direct child of `textMatches`, because {@link TextMatchesTranslator} consumes its
- * `inAttribute` children itself and never lets the visitor reach them. The Java API and the EvitaQL grammar both
- * allow such a misplaced selector; without a translator of its own it would fail as an internal "no translator
- * found" error instead of telling the client what is wrong.
+ * Rejects an {@link AttributeIn} outside a {@link TextMatches} search. {@link TextMatchesTranslator} consumes the
+ * complete selector subtree, including reference and target levels, so this guard is reached only for a stray
+ * selector. It reports invalid placement instead of an internal missing-translator error.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class InAttributeTranslator implements FilteringConstraintTranslator<InAttribute> {
+public class AttributeInTranslator implements FilteringConstraintTranslator<AttributeIn> {
 
 	@Nonnull
 	@Override
-	public Formula translate(@Nonnull InAttribute inAttribute, @Nonnull FilterByVisitor filterByVisitor) {
+	public Formula translate(@Nonnull AttributeIn selector, @Nonnull FilterByVisitor filterByVisitor) {
 		throw new EvitaInvalidUsageException(
-			"Constraint `" + inAttribute + "` can only be used directly inside the `textMatches` constraint!"
+			"Constraint `" + selector + "` can only be used as a place selector inside the `textMatches` constraint!"
 		);
 	}
 

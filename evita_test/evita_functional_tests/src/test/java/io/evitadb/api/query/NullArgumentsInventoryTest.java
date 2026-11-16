@@ -211,7 +211,8 @@ class NullArgumentsInventoryTest {
 							};
 							final boolean hasNullItem = shape.contains("null");
 							if ((hasNullItem || shape.equals("missing") || shape.equals("empty"))
-								&& method.getName().equals("inAttribute")) {
+								&& (method.getName().equals("inAttribute")
+								|| method.getName().equals("inAssociatedData"))) {
 								// A selector requires at least one name; omitting it would widen the fulltext search.
 								assertThrows(EvitaInvalidUsageException.class, () -> invoke(method, arguments));
 							} else if (hasNullItem && !VALUE_LISTS.contains(method.getName())) {

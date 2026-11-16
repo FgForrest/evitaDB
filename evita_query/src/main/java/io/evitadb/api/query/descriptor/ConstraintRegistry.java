@@ -74,8 +74,8 @@ class ConstraintRegistry {
 		UserFilter.class,
 		EntityScope.class,
 		FilterInScope.class,
-		// `TextMatches` and `InAttribute` are deliberately not registered yet: registration exposes a constraint in the
-		// GraphQL and REST schemas, and their external API shape is designed in a later step of the fulltext work
+		// `TextMatches` and its place selectors are deliberately not registered yet: registration exposes a constraint
+		// in the GraphQL and REST schemas, and their external API shape is designed in a later fulltext step
 		//TODO JNO change it at the end of #258
 		// entity
 		EntityPrimaryKeyInSet.class,
