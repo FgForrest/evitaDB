@@ -134,7 +134,7 @@
 		<java.release>${java.version}</java.release>
 		<java.driver.release>17</java.driver.release>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<slf4j.version>2.0.18</slf4j.version>
+		<slf4j.version>2.0.20</slf4j.version>
 		<logback.version>1.6.1</logback.version>
 		<kryo.version>5.6.2</kryo.version>
 		<jackson.version>2.22.4</jackson.version>
