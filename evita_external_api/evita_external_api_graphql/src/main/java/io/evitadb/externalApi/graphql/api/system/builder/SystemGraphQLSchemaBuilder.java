@@ -88,6 +88,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
@@ -210,6 +211,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerType(ScopedHistogramIndexDefinitionDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedBucketedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AnalysisStepDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		registerFulltextOutputTypes();
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
@@ -369,6 +371,15 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS,
 			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
+			RemoveFulltextAnalyzerSchemaMutationDescriptor.THIS,
+			ModifyFulltextAnalyzerSchemaMutationDescriptor.THIS,
+			CreateFulltextAnalyzerSchemaMutationDescriptor.THIS,
+			RemoveFulltextResourceSchemaMutationDescriptor.THIS,
+			ModifyFulltextResourceSchemaMutationDescriptor.THIS,
+			CreateFulltextResourceSchemaMutationDescriptor.THIS,
+			RemoveFulltextLanguageSchemaMutationDescriptor.THIS,
+			ModifyFulltextLanguageSchemaMutationDescriptor.THIS,
+			CreateFulltextLanguageSchemaMutationDescriptor.THIS,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 
 			// global attribute schema mutations

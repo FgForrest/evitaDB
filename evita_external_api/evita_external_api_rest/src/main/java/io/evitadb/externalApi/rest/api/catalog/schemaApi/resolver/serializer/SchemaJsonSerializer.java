@@ -67,6 +67,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
@@ -124,6 +125,12 @@ public abstract class SchemaJsonSerializer {
 			serializeAccelerators(attributeSchema)
 		);
 		attributeSchemaNode.set(AttributeSchemaDescriptor.NORMALIZED.name(), serializeNormalization(attributeSchema));
+		attributeSchemaNode.set(AttributeSchemaDescriptor.SEARCHABLE.name(),
+			serializeFlagInScopes(attributeSchema::isSearchableInScope));
+		attributeSchemaNode.put(AttributeSchemaDescriptor.ANALYZER.name(), attributeSchema.getAnalyzer());
+		attributeSchemaNode.put(AttributeSchemaDescriptor.LENGTH_PIVOT.name(), attributeSchema.getLengthPivot());
+		attributeSchemaNode.set(AttributeSchemaDescriptor.SEARCH_WEIGHT.name(),
+			serializeWeight(attributeSchema.getSearchWeight()));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(attributeSchema::isSortableInScope));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isLocalized()));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isNullable()));
@@ -231,6 +238,19 @@ public abstract class SchemaJsonSerializer {
 			acceleratorsArray.add(acceleratorNode);
 		}
 		return acceleratorsArray;
+	}
+
+	/**
+	 * Serializes a fulltext ranking weight as the decimal its descriptor declares. The decimal is built from the
+	 * shortest `Float` text, the conversion the GraphQL schema read uses, so both reads render a weight such as
+	 * `0.0001` as `0.00010` rather than as the `1.0E-4` of `Float#toString`.
+	 *
+	 * @param weight ranking weight of a schema, finite because schema validation refuses any other
+	 * @return the weight as a decimal JSON value
+	 */
+	@Nonnull
+	protected JsonNode serializeWeight(float weight) {
+		return this.objectJsonSerializer.serializeObject(new BigDecimal(Float.toString(weight)));
 	}
 
 	/**

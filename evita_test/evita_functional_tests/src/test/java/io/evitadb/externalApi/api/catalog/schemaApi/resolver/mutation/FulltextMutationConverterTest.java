@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.FulltextMutationTestSupport;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -58,14 +59,12 @@ class FulltextMutationConverterTest {
 	/** Checks every create and set family with absent, zero and positive weights. */
 	@DisplayName("Preserves every declared fulltext setting through conversion")
 	@ParameterizedTest
-	@MethodSource({
-		"io.evitadb.externalApi.FulltextMutationTestSupport#mutations",
-		"io.evitadb.externalApi.FulltextMutationTestSupport#sparseMutations"
-	})
+	@MethodSource("io.evitadb.externalApi.FulltextMutationTestSupport#roundTripMutations")
 	void shouldRoundTrip(@Nonnull SchemaMutation mutation) {
 		final Object output = output(mutation);
 		final String type = mutation.getClass().getSimpleName();
-		final Map<String, Object> input = Map.of(Character.toLowerCase(type.charAt(0)) + type.substring(1), output);
+		final Map<String, Object> input = Map.of(Character.toLowerCase(type.charAt(0)) + type.substring(1),
+			FulltextMutationTestSupport.typedInput(output));
 		if (mutation instanceof LocalEntitySchemaMutation) {
 			assertEquals(List.of(mutation), new LocalEntitySchemaMutationInputAggregateConverter(
 				PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE

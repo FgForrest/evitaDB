@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.analysis.*;
+import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
@@ -43,6 +45,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeS
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.*;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
@@ -55,6 +58,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingEntitySchemaMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingLocalCatalogSchemaMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationInputAggregateConverter;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -62,6 +66,7 @@ import lombok.SneakyThrows;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +75,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -78,7 +84,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class FulltextMutationFunctionalTestSupport {
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 	private static final Set<String> ENUM_FIELDS = Set.of(
-		"type", "scope", "mode", "cardinality", "uniquenessType", "conflictResolutionOverride",
+		"kind", "type", "scope", "mode", "cardinality", "uniquenessType", "conflictResolutionOverride",
 		"attributeInheritanceBehavior",
 		"indexType", "indexedComponents", "searchableInScopes", "filterableInScopes", "sortableInScopes",
 		"facetedInScopes"
@@ -114,8 +120,9 @@ public class FulltextMutationFunctionalTestSupport {
 	public static Stream<MutationCase> cases() {
 		final List<SchemaMutation> mutations = FulltextMutationTestSupport.mutations(0.0f).toList();
 		return Stream.concat(
-			mutations.stream().map(mutation -> new MutationCase(
+			Stream.concat(mutations.stream().map(mutation -> new MutationCase(
 				mutation, mutation instanceof CreateGlobalAttributeSchemaMutation)),
+				FulltextMutationTestSupport.catalogMutations().map(mutation -> new MutationCase(mutation, true))),
 			Stream.of(
 				new MutationCase(mutations.get(0), true),
 				new MutationCase(new ModifyReferenceAttributeSchemaMutation(
@@ -124,6 +131,12 @@ public class FulltextMutationFunctionalTestSupport {
 					"related", (CreateAttributeSchemaMutation) mutations.get(3)), false)
 			)
 		);
+	}
+
+	/** Supplies only the nine catalog fulltext mutations, each applied at catalog level. */
+	@Nonnull
+	public static Stream<MutationCase> catalogCases() {
+		return FulltextMutationTestSupport.catalogMutations().map(mutation -> new MutationCase(mutation, true));
 	}
 
 	/** Creates an isolated catalog with only the prerequisites of the mutation under test. */
@@ -138,7 +151,18 @@ public class FulltextMutationFunctionalTestSupport {
 					reference -> reference.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED))
 				.updateVia(session);
 			final SchemaMutation mutation = testCase.mutation();
-			if (testCase.global() && mutation instanceof SetAttributeSchemaSearchableMutation) {
+			if (mutation instanceof ModifyFulltextLanguageSchemaMutation ||
+				mutation instanceof RemoveFulltextLanguageSchemaMutation) {
+				session.updateCatalogSchema(new CreateFulltextLanguageSchemaMutation("en",
+					new AnalysisStep[]{standardTokenizer()}));
+			} else if (mutation instanceof ModifyFulltextResourceSchemaMutation ||
+				mutation instanceof RemoveFulltextResourceSchemaMutation) {
+				session.updateCatalogSchema(new CreateFulltextResourceSchemaMutation("terms", wordList()));
+			} else if (mutation instanceof ModifyFulltextAnalyzerSchemaMutation ||
+				mutation instanceof RemoveFulltextAnalyzerSchemaMutation) {
+				session.updateCatalogSchema(new CreateFulltextAnalyzerSchemaMutation(
+					"custom", "text", FulltextAnalysisPhases.UNDEFINED, Map.of()));
+			} else if (testCase.global() && mutation instanceof SetAttributeSchemaSearchableMutation) {
 				session.getCatalogSchema().openForWrite()
 					.withAttribute("text", String.class, attribute -> attribute.localized().nullable())
 					.updateVia(session);
@@ -203,11 +227,16 @@ public class FulltextMutationFunctionalTestSupport {
 	public static Map<String, Object> input(@Nonnull SchemaMutation mutation) {
 		final Map<String, Object> body = new LinkedHashMap<>(output(mutation));
 		body.remove("mutationType");
+		if (mutation instanceof ModifyEntitySchemaMutation entity) {
+			body.put("schemaMutations", Arrays.stream(entity.getSchemaMutations())
+				.map(FulltextMutationFunctionalTestSupport::input).toList());
+		}
 		if (mutation instanceof ModifyReferenceAttributeSchemaMutation wrapper) {
 			body.put("attributeSchemaMutation", input((SchemaMutation) wrapper.getAttributeSchemaMutation()));
 		}
 		final String type = mutation.getClass().getSimpleName();
-		return Map.of(Character.toLowerCase(type.charAt(0)) + type.substring(1), body);
+		return Map.of(Character.toLowerCase(type.charAt(0)) + type.substring(1),
+			FulltextMutationTestSupport.typedInput(body));
 	}
 
 	/** Serializes test input as JSON with the same scalar conventions used by mutation output. */
@@ -226,7 +255,7 @@ public class FulltextMutationFunctionalTestSupport {
 				.collect(Collectors.joining(",", "{", "}"));
 		}
 		if (value instanceof Object[] array) {
-			return graphql(java.util.Arrays.asList(array), field);
+			return graphql(Arrays.asList(array), field);
 		}
 		if (value instanceof List<?> list) {
 			return list.stream().map(item -> graphql(item, field)).collect(Collectors.joining(",", "[", "]"));
@@ -251,7 +280,25 @@ public class FulltextMutationFunctionalTestSupport {
 				if (body.path("mutationType").asText().equals(leaf.getClass().getSimpleName())) {
 					for (final Map.Entry<String, JsonNode> field : expected.entrySet()) {
 						assertTrue(body.hasNonNull(field.getKey()), field.getKey() + " missing in " + event);
-						assertEquals(field.getValue(), body.get(field.getKey()), field.getKey() + " in " + event);
+						final JsonNode actual = body.get(field.getKey());
+						if (field.getKey().equals("content") && actual.isObject()) {
+							final com.fasterxml.jackson.databind.node.ObjectNode content = actual.deepCopy();
+							for (final String property : List.of("words", "groups")) {
+								if (content.path(property).isNull()) {
+									content.remove(property);
+								}
+							}
+							assertEquals(field.getValue(), content, field.getKey() + " in " + event);
+						} else {
+							assertEquals(field.getValue(), actual, field.getKey() + " in " + event);
+						}
+					}
+					if (leaf.getClass().getSimpleName().contains("Fulltext")) {
+						final String name = leaf.getClass().getSimpleName();
+						assertEquals(List.of(leaf), new LocalCatalogSchemaMutationInputAggregateConverter(
+								PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE
+							).convertFromInput(Map.of(Character.toLowerCase(name.charAt(0)) + name.substring(1),
+								FulltextMutationTestSupport.typedInput(MAPPER.convertValue(body, Map.class)))));
 					}
 					found = true;
 				}
@@ -278,8 +325,51 @@ public class FulltextMutationFunctionalTestSupport {
 				Map.of("searchableThroughInScopes", COMPOSITION_MODES, "searchableThroughWeight", ZERO_WEIGHT);
 			case CreateReflectedReferenceSchemaMutation ignored ->
 				Map.of("searchableThroughInScopes", COMPOSITION_MODES, "searchableThroughWeight", ZERO_WEIGHT);
+			case CreateFulltextLanguageSchemaMutation ignored -> languageFields();
+			case ModifyFulltextLanguageSchemaMutation ignored -> languageFields();
+			case RemoveFulltextLanguageSchemaMutation ignored -> Map.of("language", TextNode.valueOf("en"));
+			case CreateFulltextResourceSchemaMutation ignored -> Map.of("name", TextNode.valueOf("terms"),
+				"content", readExpected("{\"kind\":\"WORD_LIST\",\"words\":[\"and\",\"the\"]}"));
+			case ModifyFulltextResourceSchemaMutation ignored -> Map.of("name", TextNode.valueOf("terms"),
+				"content", readExpected("{\"kind\":\"SYNONYM_LIST\",\"groups\":[{\"words\":[\"quick\",\"fast\"]}," +
+					"{\"words\":[\"bright\",\"light\"]}]}"));
+			case RemoveFulltextResourceSchemaMutation ignored -> Map.of("name", TextNode.valueOf("terms"));
+			case CreateFulltextAnalyzerSchemaMutation ignored -> analyzerFields();
+			case ModifyFulltextAnalyzerSchemaMutation ignored -> analyzerFields();
+			case RemoveFulltextAnalyzerSchemaMutation ignored -> Map.of("name", TextNode.valueOf("custom"));
 			default -> throw new IllegalArgumentException("No fixture values for " + leaf.getClass().getSimpleName());
 		};
+	}
+
+	/** Literal ISO code and declared splitting order expected from the Java fixture. */
+	@Nonnull
+	private static Map<String, JsonNode> languageFields() {
+		return Map.of("language", TextNode.valueOf("en"), "wordSplitting", readExpected("""
+			[{"step":"standard","parameters":{}},{"step":"word-number-split","parameters":{}}]
+			"""));
+	}
+
+	/** Literal analyzer values, including undefined and explicitly empty phase overrides. */
+	@Nonnull
+	private static Map<String, JsonNode> analyzerFields() {
+		return Map.of("name", TextNode.valueOf("custom"), "basedOn", TextNode.valueOf("text"),
+			"allLanguages", readExpected("""
+				{"text":[{"step":"html-strip","parameters":{}}],"words":[
+				{"step":"lowercase","parameters":{}},
+				{"step":"stop-words","parameters":{"words":["english-stop-words"]}},
+				{"step":"english-stemming","parameters":{"protected-words":["english-stop-words"]}}]}
+				"""),
+			"languages", readExpected("""
+				[{"language":"de","phases":{"text":[],"words":null}},
+				 {"language":"en","phases":{"text":null,"words":[]}}]
+				"""));
+	}
+
+	/** Parses an independent literal fixture, retaining JSON nulls and array ordering. */
+	@Nonnull
+	@SneakyThrows(JsonProcessingException.class)
+	private static JsonNode readExpected(@Nonnull String json) {
+		return MAPPER.readTree(json);
 	}
 
 	/**
@@ -289,12 +379,13 @@ public class FulltextMutationFunctionalTestSupport {
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	private static Map<String, Object> output(@Nonnull SchemaMutation mutation) {
-		return (Map<String, Object>) (mutation instanceof CreateGlobalAttributeSchemaMutation
+		return (Map<String, Object>) (mutation instanceof LocalCatalogSchemaMutation &&
+			!(mutation instanceof LocalEntitySchemaMutation)
 			? new DelegatingLocalCatalogSchemaMutationConverter(
 				PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE
 			).convertToOutput((LocalCatalogSchemaMutation) mutation)
 			: new DelegatingEntitySchemaMutationConverter(
 				PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE
-			).convertToOutput((io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation) mutation));
+			).convertToOutput((EntitySchemaMutation) mutation));
 	}
 }

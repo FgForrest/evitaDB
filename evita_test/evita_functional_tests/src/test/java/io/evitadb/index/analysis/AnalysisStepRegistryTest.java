@@ -95,6 +95,27 @@ class AnalysisStepRegistryTest {
 		);
 	}
 
+	/**
+	 * The view retains the validated provider instances, excludes normalization-only factories and lists the
+	 * providers in name order whatever order they were registered in.
+	 */
+	@Test
+	@DisplayName("enumerates immutable fulltext providers in name order")
+	void shouldEnumerateFulltextFactories() {
+		final List<FulltextAnalysisStepFactory> installed = new AnalysisStepRegistry().getFulltextFactories();
+		final FulltextAnalysisStepFactory first = installed.get(0);
+		final FulltextAnalysisStepFactory second = installed.get(1);
+		final AnalysisStepFactory normalization = factory("normalization-only", UnaryOperator.identity());
+
+		final AnalysisStepRegistry registry = new AnalysisStepRegistry(List.of(second, normalization, first));
+
+		assertEquals(List.of(first, second), registry.getFulltextFactories());
+		assertSame(first, registry.getFulltextFactories().getFirst());
+		assertThrows(UnsupportedOperationException.class, () -> registry.getFulltextFactories().clear());
+		final List<String> names = installed.stream().map(AnalysisStepFactory::getName).toList();
+		assertEquals(names.stream().sorted().toList(), names);
+	}
+
 	/** Provider conflicts, missing capabilities and invalid descriptions fail before compilation. */
 	@Nested
 	@DisplayName("Provider resolution and validation")

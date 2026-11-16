@@ -30,12 +30,14 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.analysis.*;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaSearchableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.*;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
@@ -45,12 +47,18 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceS
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaSearchableThroughMutation;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.StringUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
+
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 
 /** Java-origin mutations shared by transport round-trip and CDC regressions. */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -147,4 +155,72 @@ public class FulltextMutationTestSupport {
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT, new String[0], modes, weight)
 		);
 	}
+	/** Supplies all nine catalog mutation families with non-default declared content and analyzer phases. */
+	@Nonnull
+	public static Stream<SchemaMutation> catalogMutations() {
+		final AnalysisStep[] splitting = {standardTokenizer(), wordNumberSplit()};
+		final FulltextAnalysisPhases phases = new FulltextAnalysisPhases(List.of(htmlStrip()), List.of(
+			lowercase(), stopWords(englishStopWords()), englishStemming(protectedWords(englishStopWords()))));
+		final Map<String, FulltextAnalysisPhases> languages = Map.of(
+			"en", new FulltextAnalysisPhases(null, List.of()),
+			"de", new FulltextAnalysisPhases(List.of(), null));
+		return Stream.of(
+			new CreateFulltextLanguageSchemaMutation("en", splitting),
+			new ModifyFulltextLanguageSchemaMutation("en", splitting),
+			new RemoveFulltextLanguageSchemaMutation("en"),
+			new CreateFulltextResourceSchemaMutation("terms", wordList("and", "the")),
+			new ModifyFulltextResourceSchemaMutation("terms", synonymList(
+				synonymGroup("quick", "fast"), synonymGroup("bright", "light"))),
+			new RemoveFulltextResourceSchemaMutation("terms"),
+			new CreateFulltextAnalyzerSchemaMutation("custom", "text", phases, languages),
+			new ModifyFulltextAnalyzerSchemaMutation("custom", "text", phases, languages),
+			new RemoveFulltextAnalyzerSchemaMutation("custom")
+		);
+	}
+
+	/** Keeps empty content, undefined phases, an absent base analyzer and empty language overrides distinct. */
+	@Nonnull
+	public static Stream<SchemaMutation> sparseCatalogMutations() {
+		return Stream.of(
+			new CreateFulltextLanguageSchemaMutation("en", new AnalysisStep[0]),
+			new ModifyFulltextLanguageSchemaMutation("en", new AnalysisStep[0]),
+			new RemoveFulltextLanguageSchemaMutation("en"),
+			new CreateFulltextResourceSchemaMutation("terms", wordList()),
+			new ModifyFulltextResourceSchemaMutation("terms", synonymList()),
+			new RemoveFulltextResourceSchemaMutation("terms"),
+			new CreateFulltextAnalyzerSchemaMutation("custom", null, FulltextAnalysisPhases.UNDEFINED, Map.of()),
+			new ModifyFulltextAnalyzerSchemaMutation(
+				"custom", null, new FulltextAnalysisPhases(List.of(), List.of()), Map.of()),
+			new RemoveFulltextAnalyzerSchemaMutation("custom")
+		);
+	}
+
+	/** Supplies populated and sparse declarations of both the entity and the catalog mutation routes. */
+	@Nonnull
+	public static Stream<SchemaMutation> roundTripMutations() {
+		return Stream.concat(Stream.concat(mutations(), sparseMutations()),
+			Stream.concat(catalogMutations(), sparseCatalogMutations()));
+	}
+
+	/** Translates output step descriptions to the provider selector used by schema mutation inputs. */
+	@Nullable
+	public static Object typedInput(@Nullable Object value) {
+		if (value instanceof Map<?, ?> map) {
+			if (map.containsKey("step") && map.containsKey("parameters")) {
+				final Map<?, ?> parameters = (Map<?, ?>) map.get("parameters");
+				final Map<String, Object> converted = new LinkedHashMap<>();
+				parameters.forEach((name, parameter) -> converted.put(
+					StringUtils.toCamelCase(name.toString()), typedInput(parameter)));
+				return Map.of(StringUtils.toCamelCase(map.get("step").toString()),
+					converted.isEmpty() ? Boolean.TRUE : converted);
+			}
+			final Map<String, Object> converted = new LinkedHashMap<>();
+			map.forEach((name, property) -> converted.put(name.toString(), typedInput(property)));
+			return converted;
+		} else if (value instanceof List<?> list) {
+			return list.stream().map(FulltextMutationTestSupport::typedInput).toList();
+		}
+		return value;
+	}
+
 }

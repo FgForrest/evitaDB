@@ -141,6 +141,21 @@ public final class AnalysisStepRegistry {
 	}
 
 	/**
+	 * Returns the validated fulltext providers of this registry, sorted by name, so the external APIs generate their
+	 * fulltext input types in a stable order. Providers usable only for normalization are left out.
+	 *
+	 * @return immutable list of the fulltext-capable provider instances in name order
+	 */
+	@Nonnull
+	public List<FulltextAnalysisStepFactory> getFulltextFactories() {
+		return this.factories.values().stream()
+			.filter(FulltextAnalysisStepFactory.class::isInstance)
+			.map(FulltextAnalysisStepFactory.class::cast)
+			.sorted(Comparator.comparing(AnalysisStepFactory::getName))
+			.toList();
+	}
+
+	/**
 	 * Resolves a normalizer description and validates its declared parameters.
 	 *
 	 * @param step persisted description

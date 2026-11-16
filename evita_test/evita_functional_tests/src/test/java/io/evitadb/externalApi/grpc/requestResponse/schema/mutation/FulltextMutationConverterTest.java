@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionMode
 import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.FulltextMutationTestSupport;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation;
@@ -69,10 +70,7 @@ class FulltextMutationConverterTest {
 	/** Verifies actual wire serialization for all create and set mutation families. */
 	@DisplayName("Preserves every declared fulltext setting through conversion")
 	@ParameterizedTest
-	@MethodSource({
-		"io.evitadb.externalApi.FulltextMutationTestSupport#mutations",
-		"io.evitadb.externalApi.FulltextMutationTestSupport#sparseMutations"
-	})
+	@MethodSource("io.evitadb.externalApi.FulltextMutationTestSupport#roundTripMutations")
 	void shouldRoundTrip(@Nonnull SchemaMutation mutation) throws Exception {
 		if (mutation instanceof EntitySchemaMutation entity) {
 			assertEquals(mutation, DelegatingEntitySchemaMutationConverter.INSTANCE.convert(
@@ -89,10 +87,7 @@ class FulltextMutationConverterTest {
 	/** Verifies that Java-origin CDC bodies survive protobuf serialization with every fulltext setting. */
 	@DisplayName("Preserves Java-origin CDC bodies through protobuf bytes")
 	@ParameterizedTest
-	@MethodSource({
-		"io.evitadb.externalApi.FulltextMutationTestSupport#mutations",
-		"io.evitadb.externalApi.FulltextMutationTestSupport#sparseMutations"
-	})
+	@MethodSource("io.evitadb.externalApi.FulltextMutationTestSupport#roundTripMutations")
 	void shouldDeliverJavaOriginCapture(@Nonnull SchemaMutation mutation) throws Exception {
 		final ChangeCatalogCapture capture = new ChangeCatalogCapture(
 			UUID.randomUUID(), 5L, 2, OffsetDateTime.now(), CaptureArea.SCHEMA,

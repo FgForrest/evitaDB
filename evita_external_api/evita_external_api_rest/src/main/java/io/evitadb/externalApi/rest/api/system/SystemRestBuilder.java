@@ -70,6 +70,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
@@ -365,6 +366,15 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS,
 			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
+			RemoveFulltextAnalyzerSchemaMutationDescriptor.THIS,
+			ModifyFulltextAnalyzerSchemaMutationDescriptor.THIS,
+			CreateFulltextAnalyzerSchemaMutationDescriptor.THIS,
+			RemoveFulltextResourceSchemaMutationDescriptor.THIS,
+			ModifyFulltextResourceSchemaMutationDescriptor.THIS,
+			CreateFulltextResourceSchemaMutationDescriptor.THIS,
+			RemoveFulltextLanguageSchemaMutationDescriptor.THIS,
+			ModifyFulltextLanguageSchemaMutationDescriptor.THIS,
+			CreateFulltextLanguageSchemaMutationDescriptor.THIS,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 
 			// global attribute schema mutations
@@ -420,6 +430,15 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 					typeRefTo(ModifyEntitySchemaMutationDescriptor.THIS.name()),
 					typeRefTo(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.name()),
 					typeRefTo(AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(RemoveFulltextAnalyzerSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(ModifyFulltextAnalyzerSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(CreateFulltextAnalyzerSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(RemoveFulltextResourceSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(ModifyFulltextResourceSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(CreateFulltextResourceSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(RemoveFulltextLanguageSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(ModifyFulltextLanguageSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(CreateFulltextLanguageSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.name()),
 
 					// global attribute schema mutations

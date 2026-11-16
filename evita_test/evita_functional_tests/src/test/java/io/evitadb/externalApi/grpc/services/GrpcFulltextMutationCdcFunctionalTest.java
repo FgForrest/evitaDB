@@ -27,13 +27,24 @@ import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.*;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.FulltextAnalysisPhases;
+import io.evitadb.api.requestResponse.schema.analysis.SynonymGroup;
+import io.evitadb.api.requestResponse.schema.analysis.SynonymList;
+import io.evitadb.api.requestResponse.schema.analysis.WordList;
+import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
+import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.ExternalApiWebSocketFunctionTestsSupport;
 import io.evitadb.externalApi.FulltextMutationFunctionalTestSupport.MutationCase;
+import io.evitadb.externalApi.FulltextSchemaFunctionalTestSupport;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.TestGrpcClientBuilderCreator;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
@@ -51,6 +62,7 @@ import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.VersionUtils.SemVer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -59,8 +71,15 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Stream;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.FulltextMutationFunctionalTestSupport.*;
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -68,6 +87,7 @@ import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /** Streams retained Java-origin fulltext mutation captures through the real gRPC service. */
 @ExtendWith(EvitaParameterResolver.class)
@@ -80,6 +100,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class GrpcFulltextMutationCdcFunctionalTest
 	implements ExternalApiFunctionTestsSupport, ExternalApiWebSocketFunctionTestsSupport {
 	private static final String DATA_SET = "GrpcFulltextMutationCdc";
+
+	/** Supplies every entity and catalog mutation fixture through the shared declarations. */
+	@Nonnull
+	private static Stream<MutationCase> allCases() {
+		return cases();
+	}
+
+	/** Supplies catalog-only mutations for the real driver input path. */
+	@Nonnull
+	private static Stream<MutationCase> catalogInputCases() {
+		return catalogCases();
+	}
 
 	/** Shares one real server and client channel across isolated catalog fixtures. */
 	@DataSet(value = DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE},
@@ -94,7 +126,7 @@ class GrpcFulltextMutationCdcFunctionalTest
 	/** Checks every capture body against the Java event, including nested wrappers and global attributes. */
 	@DisplayName("Delivers all fulltext settings from a Java-origin CDC event")
 	@ParameterizedTest
-	@MethodSource("io.evitadb.externalApi.FulltextMutationFunctionalTestSupport#cases")
+	@MethodSource("allCases")
 	@UseDataSet(DATA_SET)
 	void shouldDeliverJavaOriginFulltextCapture(
 		@Nonnull MutationCase testCase, @Nonnull Evita evita, @Nonnull GrpcClientBuilder client
@@ -127,4 +159,118 @@ class GrpcFulltextMutationCdcFunctionalTest
 			}
 		}
 	}
+	/** Sends catalog mutations through the Java driver's real gRPC endpoint and inspects the Java-origin history. */
+	@DisplayName("Accepts every catalog fulltext mutation over gRPC")
+	@ParameterizedTest
+	@MethodSource("catalogInputCases")
+	@UseDataSet(DATA_SET)
+	void shouldApplyFulltextMutation(
+		@Nonnull MutationCase testCase, @Nonnull Evita evita, @Nonnull EvitaClient client
+	) {
+		final String catalog = prepare(evita, testCase);
+		final long startVersion = getStartVersionForCatalogCDC(evita, catalog);
+		client.updateCatalog(catalog, session -> { apply(session, testCase); });
+		history(evita, catalog, startVersion, testCase);
+	}
+
+	/** Reads equal Java schemas and queries owners through the searchable associated data of their shared target. */
+	@DisplayName("Declares and reads fulltext schema mirrors and queries composition over gRPC")
+	@Test
+	@UseDataSet(DATA_SET)
+	void shouldReadFulltextSchemaAndQueryComposition(@Nonnull Evita evita, @Nonnull EvitaClient client) {
+		final String catalog = FulltextSchemaFunctionalTestSupport.prepare(evita);
+		client.updateCatalog(catalog, session -> {
+			session.updateCatalogSchema(FulltextSchemaFunctionalTestSupport.declarations().toArray(
+				LocalCatalogSchemaMutation[]::new));
+		});
+		client.queryCatalog(catalog, remote -> {
+			evita.queryCatalog(catalog, local -> {
+				final CatalogSchemaContract expected = local.getCatalogSchema();
+				final CatalogSchemaContract actual = remote.getCatalogSchema();
+				assertEquals(Set.of("globalText"), actual.getAttributes().keySet());
+				assertEquals(Set.of("en"), actual.getFulltextLanguages().keySet());
+				assertEquals(Set.of("terms", "synonyms"), actual.getFulltextResources().keySet());
+				assertEquals(Set.of("custom", "standalone"), actual.getFulltextAnalyzers().keySet());
+				assertEquals(expected.getAttributes(), actual.getAttributes());
+				assertEquals(expected.getFulltextLanguages(), actual.getFulltextLanguages());
+				assertEquals(expected.getFulltextResources(), actual.getFulltextResources());
+				assertEquals(expected.getFulltextAnalyzers(), actual.getFulltextAnalyzers());
+				assertEquals(0.0f, actual.getAttributes().get("globalText").getSearchWeight());
+				assertEquals("html-text", actual.getAttributes().get("globalText").getAnalyzer());
+				assertEquals(List.of("standard", "word-number-split"), actual.getFulltextLanguages().get("en")
+					.getWordSplitting().stream()
+					.map(AnalysisStep::name).toList());
+				assertEquals(new WordList(List.of("and", "the")),
+					actual.getFulltextResources().get("terms").getContent());
+				assertEquals(Optional.of("text"), actual.getFulltextAnalyzers().get("custom").getBasedOn());
+				assertEquals(new SynonymList(List.of(new SynonymGroup(List.of("quick", "fast")),
+				new SynonymGroup(List.of("bright", "light")))),
+					actual.getFulltextResources().get("synonyms").getContent());
+				assertEquals(Optional.empty(), actual.getFulltextAnalyzers().get("standalone").getBasedOn());
+				assertEquals(new FulltextAnalysisPhases(List.of(), List.of()),
+					actual.getFulltextAnalyzers().get("standalone").getAllLanguages());
+				assertEquals(Map.of(), actual.getFulltextAnalyzers().get("standalone").getLanguages());
+				assertNull(
+					actual.getFulltextAnalyzers().get("custom").getLanguages().get("en").text());
+				assertEquals(List.of(), actual.getFulltextAnalyzers().get("custom").getLanguages().get("en").words());
+				for (final String type : List.of("owner", "target")) {
+					final EntitySchemaDecorator server = (EntitySchemaDecorator) local.getEntitySchemaOrThrow(type);
+					final EntitySchemaDecorator received = (EntitySchemaDecorator) remote.getEntitySchemaOrThrow(type);
+					assertEquals(server.getDelegate(), received.getDelegate());
+					assertEquals(server.getAttributes(), received.getAttributes());
+					assertEquals(server.getAssociatedData(), received.getAssociatedData());
+					assertEquals(server.getReferences(), received.getReferences());
+					assertEquals(type.equals("owner") ? Set.of("globalText", "text") : Set.of(),
+						received.getAttributes().keySet());
+					for (final AttributeSchemaContract field : received.getAttributes().values()) {
+						assertEquals(Set.of(Scope.LIVE, Scope.ARCHIVED),
+									field.getSearchableInScopes());
+						assertEquals("html-text", field.getAnalyzer());
+						assertEquals(73, field.getLengthPivot());
+						assertEquals(0.0f, field.getSearchWeight());
+					}
+					assertEquals(Set.of(type.equals("owner") ? "text" : "content"),
+						received.getAssociatedData().keySet());
+					for (final AssociatedDataSchemaContract field : received.getAssociatedData().values()) {
+						assertEquals(Set.of(Scope.LIVE, Scope.ARCHIVED),
+									field.getSearchableInScopes());
+						assertEquals(type.equals("owner") ? "$value.title" : null,
+							field.getTextExpression() == null ? null : field.getTextExpression().toExpressionString());
+						assertEquals("html-text", field.getAnalyzer());
+						assertEquals(73, field.getLengthPivot());
+						assertEquals(0.0f, field.getSearchWeight());
+					}
+					assertEquals(type.equals("owner") ? Set.of("related", "reflected") : Set.of("original"),
+						received.getReferences().keySet());
+					if (type.equals("owner")) {
+						for (final ReferenceSchemaContract ref : received.getReferences().values()) {
+							assertEquals(Map.of(Scope.LIVE, ReferenceSearchMode.COMPOSITION,
+								Scope.ARCHIVED, ReferenceSearchMode.COMPOSITION),
+								ref.getSearchableThroughInScopes());
+							assertEquals(0.0f, ref.getSearchableThroughWeight());
+							assertEquals(Set.of("text"), ref.getAttributes().keySet());
+							for (final AttributeSchemaContract field : ref.getAttributes().values()) {
+								assertEquals(Set.of(Scope.LIVE, Scope.ARCHIVED),
+									field.getSearchableInScopes());
+								assertEquals("html-text", field.getAnalyzer());
+								assertEquals(73, field.getLengthPivot());
+								assertEquals(0.0f, field.getSearchWeight());
+							}
+						}
+					}
+				}
+				return null;
+			});
+			return null;
+		});
+		FulltextSchemaFunctionalTestSupport.insertSharedTarget(evita, catalog);
+		client.queryCatalog(catalog, session -> {
+			assertEquals(List.of(1, 2), session.queryList(query(collection("owner"),
+				filterBy(entityLocaleEquals(Locale.ENGLISH), textMatches("quartz"))),
+				EntityReference.class).stream()
+				.map(EntityReference::getPrimaryKey).toList());
+			return null;
+		});
+	}
+
 }

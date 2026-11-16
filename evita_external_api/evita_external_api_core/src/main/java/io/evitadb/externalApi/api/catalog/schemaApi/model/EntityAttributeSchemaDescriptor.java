@@ -26,7 +26,6 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -81,6 +80,10 @@ public interface EntityAttributeSchemaDescriptor extends AttributeSchemaDescript
 			FILTERABLE,
 			ACCELERATED,
 			NORMALIZED,
+			SEARCHABLE,
+			ANALYZER,
+			LENGTH_PIVOT,
+			SEARCH_WEIGHT,
 			SORTABLE,
 			LOCALIZED,
 			NULLABLE,

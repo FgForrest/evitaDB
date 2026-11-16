@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation;
 
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
@@ -50,6 +51,15 @@ public interface LocalCatalogSchemaMutationUnionDescriptor {
 		.type(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS)
 		.type(ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS)
 		.type(AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS)
+		.type(RemoveFulltextAnalyzerSchemaMutationDescriptor.THIS)
+		.type(ModifyFulltextAnalyzerSchemaMutationDescriptor.THIS)
+		.type(CreateFulltextAnalyzerSchemaMutationDescriptor.THIS)
+		.type(RemoveFulltextResourceSchemaMutationDescriptor.THIS)
+		.type(ModifyFulltextResourceSchemaMutationDescriptor.THIS)
+		.type(CreateFulltextResourceSchemaMutationDescriptor.THIS)
+		.type(RemoveFulltextLanguageSchemaMutationDescriptor.THIS)
+		.type(ModifyFulltextLanguageSchemaMutationDescriptor.THIS)
+		.type(CreateFulltextLanguageSchemaMutationDescriptor.THIS)
 		.type(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS)
 		.type(CreateEntitySchemaMutationDescriptor.THIS)
 		.type(ModifyEntitySchemaMutationDescriptor.THIS)

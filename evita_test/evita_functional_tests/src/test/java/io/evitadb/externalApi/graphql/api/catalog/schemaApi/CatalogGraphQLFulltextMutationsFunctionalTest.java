@@ -24,6 +24,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.core.Evita;
@@ -31,6 +32,7 @@ import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.ExternalApiWebSocketFunctionTestsSupport;
 import io.evitadb.externalApi.FulltextMutationFunctionalTestSupport;
 import io.evitadb.externalApi.FulltextMutationFunctionalTestSupport.MutationCase;
+import io.evitadb.externalApi.FulltextSchemaFunctionalTestSupport;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 import io.evitadb.test.annotation.DataSet;
@@ -39,6 +41,7 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -53,6 +56,7 @@ import static io.evitadb.externalApi.FulltextMutationFunctionalTestSupport.*;
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Fulltext mutation input and Java-origin CDC output over a real GraphQL server. */
@@ -63,6 +67,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CatalogGraphQLFulltextMutationsFunctionalTest extends GraphQLEndpointFunctionalTest
 	implements ExternalApiFunctionTestsSupport, ExternalApiWebSocketFunctionTestsSupport {
 	private static final String DATA_SET = "GraphQLFulltextMutations";
+
+	/** Supplies every entity and catalog mutation fixture through the shared declarations. */
+	@Nonnull
+	private static Stream<MutationCase> allCases() {
+		return cases();
+	}
 
 	/** Uses one server while keeping mutation prerequisites isolated by catalog. */
 	@Override
@@ -75,7 +85,7 @@ class CatalogGraphQLFulltextMutationsFunctionalTest extends GraphQLEndpointFunct
 	/** Exercises optional fulltext fields through a real schema endpoint and verifies the Java mutation event. */
 	@DisplayName("Applies fulltext settings through the schema endpoint")
 	@ParameterizedTest
-	@MethodSource("io.evitadb.externalApi.FulltextMutationFunctionalTestSupport#cases")
+	@MethodSource("allCases")
 	@UseDataSet(DATA_SET)
 	void shouldApplyFulltextMutation(
 		@Nonnull MutationCase testCase, @Nonnull Evita evita, @Nonnull GraphQLTester tester
@@ -106,7 +116,7 @@ class CatalogGraphQLFulltextMutationsFunctionalTest extends GraphQLEndpointFunct
 		final long schemaEvents = captures.stream().filter(capture -> capture.area() == CaptureArea.SCHEMA).count();
 		final String subscription = (typed ? "onSchemaChange" : "onSchemaChangeUntyped") +
 			"(sinceVersion: " + json(Long.toString(startVersion)) + ") { body" +
-			(typed ? " { " + typedSelection() + " }" : "") + " }";
+			(typed ? " { " + (testCase.global() ? catalogTypedSelection() : typedSelection()) + " }" : "") + " }";
 		tester.testWebSocket(catalog, "/schema", context -> {
 			context.writer().write(createConnectionInitMessage());
 			context.awaitEvents(1);
@@ -114,7 +124,7 @@ class CatalogGraphQLFulltextMutationsFunctionalTest extends GraphQLEndpointFunct
 				"payload", Map.of("query", "subscription { " + subscription + " }"))));
 			assertTrue(context.tryAwaitEvents(frames -> {
 				for (final String frame : frames) {
-					assertTrue(!frame.contains("\"type\":\"error\""), frame);
+					assertFalse(frame.contains("\"type\":\"error\""), frame);
 				}
 				return frames.size() >= Math.toIntExact(schemaEvents + 1);
 			}, Duration.ofSeconds(30)), "Expected all fulltext mutation captures");
@@ -147,4 +157,129 @@ class CatalogGraphQLFulltextMutationsFunctionalTest extends GraphQLEndpointFunct
 			references + " } " +
 			"... on SetReferenceSchemaSearchableThroughMutation { searchableThroughInScopes { scope mode } weight }";
 	}
+	/** Selects catalog-only bodies through the catalog mutation union. */
+	@Nonnull
+	public static String catalogTypedSelection() {
+		final String phases = "text { step parameters } words { step parameters }";
+		final String analyzer = "name basedOn allLanguages { " + phases +
+			" } languages { language phases { " + phases + " } }";
+		final String resource = "name content { kind words groups { words } }";
+		final String attributes = "searchableInScopes analyzer lengthPivot searchWeight";
+		return "... on EvitaMutation { mutationType } " +
+			"... on CreateGlobalAttributeSchemaMutation { " + attributes + " } " +
+			"... on SetAttributeSchemaSearchableMutation { " + attributes + " } " +
+			"... on CreateFulltextLanguageSchemaMutation { language wordSplitting { step parameters } } " +
+			"... on ModifyFulltextLanguageSchemaMutation { language wordSplitting { step parameters } } " +
+			"... on RemoveFulltextLanguageSchemaMutation { language } " +
+			"... on CreateFulltextResourceSchemaMutation { " + resource + " } " +
+			"... on ModifyFulltextResourceSchemaMutation { " + resource + " } " +
+			"... on RemoveFulltextResourceSchemaMutation { name } " +
+			"... on CreateFulltextAnalyzerSchemaMutation { " + analyzer + " } " +
+			"... on ModifyFulltextAnalyzerSchemaMutation { " + analyzer + " } " +
+			"... on RemoveFulltextAnalyzerSchemaMutation { name }";
+	}
+
+	/** Declares all schema mirrors through GraphQL and reads literal values through generic and specific objects. */
+	@DisplayName("Reads every fulltext schema setting declared through GraphQL")
+	@Test
+	@UseDataSet(DATA_SET)
+	void shouldReadFulltextSchema(@Nonnull Evita evita, @Nonnull GraphQLTester tester) {
+		final String catalog = FulltextSchemaFunctionalTestSupport.prepare(evita);
+		final List<Map<String, Object>> mutations = FulltextSchemaFunctionalTestSupport.declarations().stream()
+			.map(FulltextMutationFunctionalTestSupport::input).toList();
+		tester.test(catalog).urlPathSuffix("/schema").document("mutation { updateCatalogSchema(mutations: " +
+			graphql(mutations, "") + ") { version } }").executeAndExpectOkAndThen();
+		final String fields = "name searchable analyzer lengthPivot searchWeight";
+		final String reference = "name searchableThrough { scope mode } searchableThroughWeight " +
+			"allAttributes { " + fields + " }";
+		final String phases = "text { step parameters } words { step parameters }";
+		final String response = tester.test(catalog).urlPathSuffix("/schema").document(
+			"{ getCatalogSchema { allAttributes { " + fields + " } " +
+			"fulltextLanguages { language wordSplitting { step parameters } } " +
+			"fulltextResources { name content { kind words groups { words } } } " +
+			"fulltextAnalyzers { name basedOn allLanguages { " + phases +
+			" } languages { language phases { " + phases + " } } } " +
+			"allEntitySchemas { name allAttributes { ... on EntityAttributeSchema { " + fields +
+			" } ... on GlobalAttributeSchema { " + fields + " } } " +
+			"allAssociatedData { " + fields + " textExpression } allReferences { " + reference + " } } " +
+			"entitySchemas { owner { references { related { " + reference + " } reflected { " + reference +
+			" } } } } } }").executeAndExpectOkAndThen().extract().asString();
+		final JsonNode schema = FulltextSchemaFunctionalTestSupport.read(response)
+			.path("data").path("getCatalogSchema");
+		FulltextSchemaFunctionalTestSupport.assertCatalog(schema);
+		FulltextSchemaFunctionalTestSupport.assertNames(schema.path("allAttributes"), "globalText");
+		FulltextSchemaFunctionalTestSupport.assertField(schema.path("allAttributes").path(0), false);
+		FulltextSchemaFunctionalTestSupport.assertNames(schema.path("allEntitySchemas"), "owner", "target");
+		for (final JsonNode entity : schema.path("allEntitySchemas")) {
+			final boolean owner = entity.path("name").asText().equals("owner");
+			FulltextSchemaFunctionalTestSupport.assertNames(entity.path("allAttributes"),
+				owner ? new String[]{"globalText", "text"} : new String[0]);
+			for (final JsonNode field : entity.path("allAttributes")) {
+				FulltextSchemaFunctionalTestSupport.assertField(field, false);
+			}
+			FulltextSchemaFunctionalTestSupport.assertNames(entity.path("allAssociatedData"),
+				owner ? "text" : "content");
+			for (final JsonNode field : entity.path("allAssociatedData")) {
+				FulltextSchemaFunctionalTestSupport.assertField(field, entity.path("name").asText().equals("owner"));
+			}
+			FulltextSchemaFunctionalTestSupport.assertNames(entity.path("allReferences"),
+				owner ? new String[]{"related", "reflected"} : new String[]{"original"});
+			if (owner) {
+				for (final JsonNode ref : entity.path("allReferences")) {
+					FulltextSchemaFunctionalTestSupport.assertReference(ref);
+					FulltextSchemaFunctionalTestSupport.assertNames(ref.path("allAttributes"), "text");
+					for (final JsonNode field : ref.path("allAttributes")) {
+						FulltextSchemaFunctionalTestSupport.assertField(field, false);
+					}
+				}
+			}
+		}
+		final JsonNode references = schema.path("entitySchemas").path("owner").path("references");
+		FulltextSchemaFunctionalTestSupport.assertKeys(references, "related", "reflected");
+		for (final JsonNode ref : references) {
+			FulltextSchemaFunctionalTestSupport.assertReference(ref);
+			FulltextSchemaFunctionalTestSupport.assertNames(ref.path("allAttributes"), "text");
+			for (final JsonNode field : ref.path("allAttributes")) {
+				FulltextSchemaFunctionalTestSupport.assertField(field, false);
+			}
+		}
+	}
+
+	/** Checks both system API body resolvers against Java-origin catalog-only mutations. */
+	@DisplayName("Delivers catalog fulltext bodies through the system GraphQL API")
+	@ParameterizedTest
+	@MethodSource("systemCaptureCases")
+	@UseDataSet(DATA_SET)
+	void shouldDeliverSystemFulltextCapture(
+		@Nonnull MutationCase testCase, boolean typed, @Nonnull Evita evita, @Nonnull GraphQLTester tester
+	) {
+		final String catalog = prepare(evita, testCase);
+		final long startVersion = getStartVersionForCatalogCDC(evita, catalog);
+		evita.updateCatalog(catalog, session -> { apply(session, testCase); });
+		final List<ChangeCatalogCapture> captures = history(evita, catalog, startVersion, testCase);
+		final String subscriptionId = createSubscriptionId();
+		final String subscription = (typed ? "onCatalogChange" : "onCatalogChangeUntyped") +
+			"(catalogName: " + json(catalog) + ", sinceVersion: " + json(Long.toString(startVersion)) + ") { body" +
+			(typed ? " { " + catalogTypedSelection() + " }" : "") + " }";
+		tester.testWebSocket("system", context -> {
+			context.writer().write(createConnectionInitMessage());
+			context.awaitEvents(1);
+			context.writer().write(json(Map.of("id", subscriptionId, "type", "subscribe",
+				"payload", Map.of("query", "subscription { " + subscription + " }"))));
+			assertTrue(context.tryAwaitEvents(frames -> {
+				for (final String frame : frames) {
+					assertFalse(frame.contains("\"type\":\"error\""), frame);
+				}
+				return frames.size() >= captures.size() + 1;
+			}, Duration.ofSeconds(30)), "Expected catalog bodies from the system API");
+		}, captures.size() + 1, events -> assertCapture(events, testCase));
+	}
+
+	/** Provides typed and untyped system captures for each catalog-only fulltext mutation. */
+	@Nonnull
+	static Stream<Arguments> systemCaptureCases() {
+		return catalogCases()
+			.flatMap(testCase -> Stream.of(Arguments.of(testCase, true), Arguments.of(testCase, false)));
+	}
+
 }

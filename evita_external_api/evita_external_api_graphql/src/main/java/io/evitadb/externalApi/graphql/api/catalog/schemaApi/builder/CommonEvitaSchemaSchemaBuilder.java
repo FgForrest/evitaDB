@@ -43,6 +43,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySc
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
@@ -157,6 +158,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			this.inputObjectBuilderTransformer).build()
 		);
 		this.buildingContext.registerType(AnalysisStepDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		registerFulltextOutputTypes();
 		registerAnalysisStepInputTypes();
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.inputObjectBuilderTransformer).build());
@@ -283,6 +285,15 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS_INPUT,
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS_INPUT,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS_INPUT,
+			RemoveFulltextAnalyzerSchemaMutationDescriptor.THIS_INPUT,
+			ModifyFulltextAnalyzerSchemaMutationDescriptor.THIS_INPUT,
+			CreateFulltextAnalyzerSchemaMutationDescriptor.THIS_INPUT,
+			RemoveFulltextResourceSchemaMutationDescriptor.THIS_INPUT,
+			ModifyFulltextResourceSchemaMutationDescriptor.THIS_INPUT,
+			CreateFulltextResourceSchemaMutationDescriptor.THIS_INPUT,
+			RemoveFulltextLanguageSchemaMutationDescriptor.THIS_INPUT,
+			ModifyFulltextLanguageSchemaMutationDescriptor.THIS_INPUT,
+			CreateFulltextLanguageSchemaMutationDescriptor.THIS_INPUT,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS_INPUT,
 
 			// global attribute schema mutations
@@ -305,6 +316,15 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS,
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
+			RemoveFulltextAnalyzerSchemaMutationDescriptor.THIS,
+			ModifyFulltextAnalyzerSchemaMutationDescriptor.THIS,
+			CreateFulltextAnalyzerSchemaMutationDescriptor.THIS,
+			RemoveFulltextResourceSchemaMutationDescriptor.THIS,
+			ModifyFulltextResourceSchemaMutationDescriptor.THIS,
+			CreateFulltextResourceSchemaMutationDescriptor.THIS,
+			RemoveFulltextLanguageSchemaMutationDescriptor.THIS,
+			ModifyFulltextLanguageSchemaMutationDescriptor.THIS,
+			CreateFulltextLanguageSchemaMutationDescriptor.THIS,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 
 			// global attribute schema mutations

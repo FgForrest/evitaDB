@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
+import com.google.protobuf.FloatValue;
+import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -54,7 +56,6 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
@@ -86,6 +87,13 @@ public class CatalogSchemaConverter {
 			.setName(catalogSchema.getName())
 			.setVersion(catalogSchema.version())
 			.putAllAttributes(toGrpcGlobalAttributeSchemas(catalogSchema.getAttributes(), includeNameVariants));
+
+		catalogSchema.getFulltextLanguages().forEach((language, schema) ->
+			builder.putFulltextLanguages(language, FulltextSchemaConverter.toGrpcLanguage(schema)));
+		catalogSchema.getFulltextResources().forEach((name, schema) ->
+			builder.putFulltextResources(name, FulltextSchemaConverter.toGrpcResource(schema)));
+		catalogSchema.getFulltextAnalyzers().forEach((name, schema) ->
+			builder.putFulltextAnalyzers(name, FulltextSchemaConverter.toGrpcAnalyzer(schema)));
 
 		if (catalogSchema.getDescription() != null) {
 			builder.setDescription(StringValue.of(catalogSchema.getDescription()));
@@ -129,11 +137,12 @@ public class CatalogSchemaConverter {
 					Entry::getKey,
 					it -> toGlobalAttributeSchema(it.getValue())
 				)),
-			// the gRPC catalog schema does not carry the fulltext languages, resources and analyzers yet - the client
-			// sees a catalog without them until the gRPC mirror of the fulltext schema lands
-			Collections.emptyMap(),
-			Collections.emptyMap(),
-			Collections.emptyMap(),
+			catalogSchema.getFulltextLanguagesMap().entrySet().stream().collect(Collectors.toMap(
+				Entry::getKey, entry -> FulltextSchemaConverter.toLanguage(entry.getValue()))),
+			catalogSchema.getFulltextResourcesMap().entrySet().stream().collect(Collectors.toMap(
+				Entry::getKey, entry -> FulltextSchemaConverter.toResource(entry.getValue()))),
+			catalogSchema.getFulltextAnalyzersMap().entrySet().stream().collect(Collectors.toMap(
+				Entry::getKey, entry -> FulltextSchemaConverter.toAnalyzer(entry.getValue()))),
 			entitySchemaProvider
 		);
 	}
@@ -201,6 +210,11 @@ public class CatalogSchemaConverter {
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
+			.addAllSearchableInScopes(Arrays.stream(Scope.values()).filter(attributeSchema::isSearchableInScope)
+				.map(EvitaEnumConverter::toGrpcScope).toList())
+			.setAnalyzer(StringValue.of(attributeSchema.getAnalyzer()))
+			.setLengthPivot(Int32Value.of(attributeSchema.getLengthPivot()))
+			.setSearchWeight(FloatValue.of(attributeSchema.getSearchWeight()))
 			.addAllNormalized(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
 			.addAllAccelerated(
 				toGrpcScopedAttributeFilterAccelerators(
@@ -249,9 +263,8 @@ public class CatalogSchemaConverter {
 		// absent on the wire for an older server - proto3 renders that as an empty list, which converts to `null`
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
 			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratedList());
-		// searchability and the fulltext field settings have no gRPC mirror, so a schema converted from the wire
-		// reports no attribute as searchable and the default analyzer and length pivot
-		final Scope[] searchableInScopes = null;
+		final Scope[] searchableInScopes = attributeSchema.getSearchableInScopesList().stream()
+			.map(EvitaEnumConverter::toScope).toArray(Scope[]::new);
 		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
 
 		return GlobalAttributeSchema._internalBuild(
@@ -272,8 +285,12 @@ public class CatalogSchemaConverter {
 			attributeSchema.getIndexedDecimalPlaces(),
 			EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
 			toAnalysisSteps(attributeSchema.getNormalizedList()),
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
-			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
+			attributeSchema.hasAnalyzer() ? attributeSchema.getAnalyzer().getValue() :
+				FulltextAnalyzerSchemaContract.TEXT,
+			attributeSchema.hasLengthPivot() ? attributeSchema.getLengthPivot().getValue() :
+				AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			attributeSchema.hasSearchWeight() ? attributeSchema.getSearchWeight().getValue() :
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

@@ -54,6 +54,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySc
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
@@ -200,6 +201,15 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 					typeRefTo(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.name()),
 					typeRefTo(ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS.name()),
 					typeRefTo(AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(RemoveFulltextAnalyzerSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(ModifyFulltextAnalyzerSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(CreateFulltextAnalyzerSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(RemoveFulltextResourceSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(ModifyFulltextResourceSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(CreateFulltextResourceSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(RemoveFulltextLanguageSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(ModifyFulltextLanguageSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(CreateFulltextLanguageSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.name()),
 
 					// global attribute schema mutations
@@ -411,6 +421,15 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS_INPUT,
 			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS_INPUT,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS_INPUT,
+			RemoveFulltextAnalyzerSchemaMutationDescriptor.THIS_INPUT,
+			ModifyFulltextAnalyzerSchemaMutationDescriptor.THIS_INPUT,
+			CreateFulltextAnalyzerSchemaMutationDescriptor.THIS_INPUT,
+			RemoveFulltextResourceSchemaMutationDescriptor.THIS_INPUT,
+			ModifyFulltextResourceSchemaMutationDescriptor.THIS_INPUT,
+			CreateFulltextResourceSchemaMutationDescriptor.THIS_INPUT,
+			RemoveFulltextLanguageSchemaMutationDescriptor.THIS_INPUT,
+			ModifyFulltextLanguageSchemaMutationDescriptor.THIS_INPUT,
+			CreateFulltextLanguageSchemaMutationDescriptor.THIS_INPUT,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS_INPUT,
 
 			// global attribute schema mutations
@@ -459,6 +478,15 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS,
 			ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
+			RemoveFulltextAnalyzerSchemaMutationDescriptor.THIS,
+			ModifyFulltextAnalyzerSchemaMutationDescriptor.THIS,
+			CreateFulltextAnalyzerSchemaMutationDescriptor.THIS,
+			RemoveFulltextResourceSchemaMutationDescriptor.THIS,
+			ModifyFulltextResourceSchemaMutationDescriptor.THIS,
+			CreateFulltextResourceSchemaMutationDescriptor.THIS,
+			RemoveFulltextLanguageSchemaMutationDescriptor.THIS,
+			ModifyFulltextLanguageSchemaMutationDescriptor.THIS,
+			CreateFulltextLanguageSchemaMutationDescriptor.THIS,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 
 			// global attribute schema mutations

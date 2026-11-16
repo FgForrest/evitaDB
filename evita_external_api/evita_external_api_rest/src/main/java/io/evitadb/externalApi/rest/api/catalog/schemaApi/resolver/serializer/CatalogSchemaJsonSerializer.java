@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.FulltextSchemaConverter;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;
@@ -83,6 +84,15 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 		rootNode.set(CatalogSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(catalogSchema));
 		rootNode.set(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name(), serializeEntitySchemas(entitySchemaFetcher, entityTypes));
 
+		rootNode.set(CatalogSchemaDescriptor.FULLTEXT_LANGUAGES.name(), this.objectJsonSerializer.getObjectMapper()
+			.valueToTree(catalogSchema.getFulltextLanguages().values().stream()
+				.map(FulltextSchemaConverter::language).toList()));
+		rootNode.set(CatalogSchemaDescriptor.FULLTEXT_RESOURCES.name(), this.objectJsonSerializer.getObjectMapper()
+			.valueToTree(catalogSchema.getFulltextResources().values().stream()
+				.map(FulltextSchemaConverter::resource).toList()));
+		rootNode.set(CatalogSchemaDescriptor.FULLTEXT_ANALYZERS.name(), this.objectJsonSerializer.getObjectMapper()
+			.valueToTree(catalogSchema.getFulltextAnalyzers().values().stream()
+				.map(FulltextSchemaConverter::analyzer).toList()));
 		return rootNode;
 	}
 

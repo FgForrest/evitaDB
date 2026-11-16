@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
+import com.google.protobuf.FloatValue;
+import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.*;
@@ -306,6 +308,11 @@ public class EntitySchemaConverter {
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
+			.addAllSearchableInScopes(Arrays.stream(Scope.values()).filter(attributeSchema::isSearchableInScope)
+				.map(EvitaEnumConverter::toGrpcScope).toList())
+			.setAnalyzer(StringValue.of(attributeSchema.getAnalyzer()))
+			.setLengthPivot(Int32Value.of(attributeSchema.getLengthPivot()))
+			.setSearchWeight(FloatValue.of(attributeSchema.getSearchWeight()))
 			.addAllNormalized(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
 			.addAllAccelerated(
 				toGrpcScopedAttributeFilterAccelerators(
@@ -461,8 +468,16 @@ public class EntitySchemaConverter {
 			.setType(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataDataType(associatedDataSchema.getType()))
 			.setLocalized(associatedDataSchema.isLocalized())
 			.setNullable(associatedDataSchema.isNullable())
+			.addAllSearchableInScopes(Arrays.stream(Scope.values()).filter(associatedDataSchema::isSearchableInScope)
+				.map(EvitaEnumConverter::toGrpcScope).toList())
+			.setAnalyzer(StringValue.of(associatedDataSchema.getAnalyzer()))
+			.setLengthPivot(Int32Value.of(associatedDataSchema.getLengthPivot()))
+			.setSearchWeight(FloatValue.of(associatedDataSchema.getSearchWeight()))
 			.setConflictResolutionOverride(EvitaEnumConverter.toGrpcConflictResolutionOverride(associatedDataSchema.getConflictResolutionOverride()));
 
+		if (associatedDataSchema.getTextExpression() != null) {
+			builder.setTextExpression(StringValue.of(associatedDataSchema.getTextExpression().toExpressionString()));
+		}
 		if (associatedDataSchema.getDescription() != null) {
 			builder.setDescription(StringValue.newBuilder().setValue(associatedDataSchema.getDescription()).build());
 		}
@@ -616,6 +631,10 @@ public class EntitySchemaConverter {
 			builder.setDeprecationNotice(StringValue.newBuilder().setValue(referenceSchema.getDeprecationNotice()).build());
 		}
 
+		builder.setSearchableThroughInScopes(EvitaEnumConverter.toGrpcReferenceSearchModes(
+			ReferenceSchema.toScopedSearchModes(referenceSchema.getSearchableThroughInScopes())));
+		builder.setSearchableThroughWeight(FloatValue.of(referenceSchema.getSearchableThroughWeight()));
+
 		final Predicate<String> inheritedAttributePredicate;
 		final Predicate<String> inheritedCompoundPredicate;
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedSchema) {
@@ -689,9 +708,8 @@ public class EntitySchemaConverter {
 		// absent on the wire for an older server - proto3 renders that as an empty list, which converts to `null`
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
 			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratedList());
-		// searchability and the fulltext field settings have no gRPC mirror, so a schema converted from the wire
-		// reports no attribute as searchable and the default analyzer and length pivot
-		final Scope[] searchableInScopes = null;
+		final Scope[] searchableInScopes = attributeSchema.getSearchableInScopesList().stream()
+			.map(EvitaEnumConverter::toScope).toArray(Scope[]::new);
 		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
 
 		if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.GLOBAL_SCHEMA) {
@@ -716,8 +734,12 @@ public class EntitySchemaConverter {
 					attributeSchema.getIndexedDecimalPlaces(),
 					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
 					toAnalysisSteps(attributeSchema.getNormalizedList()),
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
-					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
+					attributeSchema.hasAnalyzer() ? attributeSchema.getAnalyzer().getValue() :
+						FulltextAnalyzerSchemaContract.TEXT,
+					attributeSchema.hasLengthPivot() ? attributeSchema.getLengthPivot().getValue() :
+						AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					attributeSchema.hasSearchWeight() ? attributeSchema.getSearchWeight().getValue() :
+						AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -743,8 +765,12 @@ public class EntitySchemaConverter {
 					attributeSchema.getIndexedDecimalPlaces(),
 					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
 					toAnalysisSteps(attributeSchema.getNormalizedList()),
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
-					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
+					attributeSchema.hasAnalyzer() ? attributeSchema.getAnalyzer().getValue() :
+						FulltextAnalyzerSchemaContract.TEXT,
+					attributeSchema.hasLengthPivot() ? attributeSchema.getLengthPivot().getValue() :
+						AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					attributeSchema.hasSearchWeight() ? attributeSchema.getSearchWeight().getValue() :
+						AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -770,8 +796,12 @@ public class EntitySchemaConverter {
 					attributeSchema.getIndexedDecimalPlaces(),
 					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
 					toAnalysisSteps(attributeSchema.getNormalizedList()),
-					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
-					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
+					attributeSchema.hasAnalyzer() ? attributeSchema.getAnalyzer().getValue() :
+						FulltextAnalyzerSchemaContract.TEXT,
+					attributeSchema.hasLengthPivot() ? attributeSchema.getLengthPivot().getValue() :
+						AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					attributeSchema.hasSearchWeight() ? attributeSchema.getSearchWeight().getValue() :
+						AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -793,12 +823,17 @@ public class EntitySchemaConverter {
 			javaType,
 			associatedDataSchema.getLocalized(),
 			associatedDataSchema.getNullable(),
-			//TODO JNO change it at the end of #258
-			null,
-			null,
+			associatedDataSchema.getSearchableInScopesList().stream()
+				.map(EvitaEnumConverter::toScope).collect(Collectors.toSet()),
+			associatedDataSchema.hasTextExpression() ?
+				ExpressionFactory.parse(associatedDataSchema.getTextExpression().getValue()) : null,
 			EvitaEnumConverter.toConflictResolutionOverride(associatedDataSchema.getConflictResolutionOverride()),
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
-			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
+			associatedDataSchema.hasAnalyzer() ? associatedDataSchema.getAnalyzer().getValue() :
+				FulltextAnalyzerSchemaContract.TEXT,
+			associatedDataSchema.hasLengthPivot() ? associatedDataSchema.getLengthPivot().getValue() :
+				AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			associatedDataSchema.hasSearchWeight() ? associatedDataSchema.getSearchWeight().getValue() :
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
@@ -837,7 +872,7 @@ public class EntitySchemaConverter {
 				referenceSchema.getEntityType(),
 				NamingConvention.generate(referenceSchema.getEntityType()),
 				referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
-				referenceSchema.getReferencedGroupTypeManaged() ?
+				referenceSchema.getReferencedGroupTypeManaged() || !referenceSchema.hasGroupType() ?
 					Collections.emptyMap() : NamingConvention.generate(referenceSchema.getGroupType().getValue()),
 				referenceSchema.getReferencedGroupTypeManaged(),
 				referenceSchema.getReflectedReferenceName().getValue(),
@@ -913,7 +948,11 @@ public class EntitySchemaConverter {
 					ConflictResolutionOverride.INHERITED,
 					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				),
-				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
+				referenceSchema.hasSearchableThroughInScopes() ? ReferenceSchema.toSearchableThroughMap(
+					EvitaEnumConverter.toScopedReferenceSearchModes(
+						referenceSchema.getSearchableThroughInScopes())) : null,
+				referenceSchema.hasSearchableThroughWeight() ? referenceSchema.getSearchableThroughWeight().getValue() :
+					ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		} else {
 			return ReferenceSchema._internalBuild(
@@ -928,7 +967,7 @@ public class EntitySchemaConverter {
 				referenceSchema.getReferencedEntityTypeManaged(),
 				cardinality.orElse(Cardinality.ZERO_OR_MORE),
 				referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
-				referenceSchema.getReferencedGroupTypeManaged()
+				referenceSchema.getReferencedGroupTypeManaged() || !referenceSchema.hasGroupType()
 					? Collections.emptyMap()
 					: NamingConvention.generate(referenceSchema.getGroupType().getValue()),
 				referenceSchema.getReferencedGroupTypeManaged(),
@@ -956,7 +995,11 @@ public class EntitySchemaConverter {
 						)
 					),
 				EvitaEnumConverter.toConflictResolutionOverride(referenceSchema.getConflictResolutionOverride()),
-				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
+				referenceSchema.hasSearchableThroughInScopes() ? ReferenceSchema.toSearchableThroughMap(
+					EvitaEnumConverter.toScopedReferenceSearchModes(
+						referenceSchema.getSearchableThroughInScopes())) : null,
+				referenceSchema.hasSearchableThroughWeight() ? referenceSchema.getSearchableThroughWeight().getValue() :
+					ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		}
 	}

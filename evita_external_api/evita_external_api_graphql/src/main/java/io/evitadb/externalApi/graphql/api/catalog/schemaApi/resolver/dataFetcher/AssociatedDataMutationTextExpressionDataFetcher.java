@@ -25,9 +25,11 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetche
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaSearchableMutation;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,10 +37,11 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-/** Renders associated-data mutation expressions as raw source in typed CDC payloads. */
+/** Renders associated-data schema and mutation expressions as raw source. */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AssociatedDataMutationTextExpressionDataFetcher implements DataFetcher<String> {
-	/** Shared fetcher for create and set mutation output in catalog and system schemas. */
+	/** Shared fetcher for associated-data schema reads and for create and set mutation output. */
+	@Nonnull
 	@Getter private static final AssociatedDataMutationTextExpressionDataFetcher instance =
 		new AssociatedDataMutationTextExpressionDataFetcher();
 
@@ -46,17 +49,18 @@ public class AssociatedDataMutationTextExpressionDataFetcher implements DataFetc
 	 * Extracts the expression source without the display formatting `Expression.toString()` adds, so a client can
 	 * send the value back as mutation input.
 	 *
-	 * @param environment the environment whose source is a create or set associated-data mutation
-	 * @return the raw expression source, or `null` when the mutation declares no expression
+	 * @param environment selection carrying an associated-data schema or a create/set associated-data mutation
+	 * @return the raw expression source, or `null` when the declaration has no expression
 	 */
 	@Nullable
 	@Override
 	public String get(@Nonnull DataFetchingEnvironment environment) {
 		final Object source = environment.getSource();
 		final Expression expression = switch (source) {
+			case AssociatedDataSchemaContract schema -> schema.getTextExpression();
 			case CreateAssociatedDataSchemaMutation mutation -> mutation.getTextExpression();
 			case SetAssociatedDataSchemaSearchableMutation mutation -> mutation.getTextExpression();
-			default -> throw new IllegalArgumentException("Unsupported associated-data mutation: " + source);
+			default -> throw new GraphQLQueryResolvingInternalError("Unsupported associated-data mutation: " + source);
 		};
 		return expression == null ? null : expression.toExpressionString();
 	}

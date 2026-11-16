@@ -30,13 +30,20 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSche
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.GRAPHQL;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -66,6 +73,46 @@ class SchemaMutationSearchWeightDataFetcherTest {
 		);
 
 		assertTrue(error.getPublicMessage().contains(Float.toString(weight)), error.getPublicMessage());
+	}
+
+	/**
+	 * The decimal must carry the shortest text of the `Float`, not its binary expansion, and must keep an explicit
+	 * zero as a value.
+	 */
+	@ParameterizedTest
+	@CsvSource({"0.1, 0.1", "0.0, 0.0", "2.5, 2.5", "1.0E-4, 0.00010"})
+	@DisplayName("renders a finite weight as its shortest decimal")
+	void shouldRenderShortestDecimal(float weight, @Nonnull String expected) {
+		final DataFetchingEnvironment environment = DataFetchingEnvironmentImpl.newDataFetchingEnvironment()
+			.source(new SetAttributeSchemaSearchableMutation("text", null, null, null, weight))
+			.build();
+
+		assertEquals(new BigDecimal(expected), SchemaMutationSearchWeightDataFetcher.getInstance().get(environment));
+	}
+
+	/** A mutation that leaves the weight unset must read as null, which the client understands as "unchanged". */
+	@Test
+	@DisplayName("returns null for a mutation that sets no weight")
+	void shouldReturnNullWhenMutationSetsNoWeight() {
+		final DataFetchingEnvironment environment = DataFetchingEnvironmentImpl.newDataFetchingEnvironment()
+			.source(new SetAttributeSchemaSearchableMutation("text", null, null, null, null))
+			.build();
+
+		assertNull(SchemaMutationSearchWeightDataFetcher.getInstance().get(environment));
+	}
+
+	/** A source that carries no ranking weight is a wiring mistake and must not be answered silently. */
+	@Test
+	@DisplayName("refuses a source without a ranking weight")
+	void shouldRefuseUnsupportedSource() {
+		final DataFetchingEnvironment environment = DataFetchingEnvironmentImpl.newDataFetchingEnvironment()
+			.source("not a schema")
+			.build();
+
+		assertThrows(
+			GraphQLQueryResolvingInternalError.class,
+			() -> SchemaMutationSearchWeightDataFetcher.getInstance().get(environment)
+		);
 	}
 
 }
