@@ -38,9 +38,8 @@ import javax.annotation.Nonnull;
  * - **Host-local.** Reflects this host's current view of the catalog; not synchronized
  *   across cluster members.
  * - **Transient.** Not persisted to the WAL. Cannot be re-read from history.
- * - **Strictly ordered with mutations.** Emitted through the same engine-state lock
- *   as engine mutations, so a host event that follows a mutation lands strictly after
- *   that mutation in the stream.
+ * - **Serialized delivery.** Concurrent deliveries share a per-subscription lock, but host events and queued
+ *   engine mutations use separate tasks and may overtake each other; so may two host events.
  * - **Live-tail only.** Late subscribers that pass `sinceVersion` will receive
  *   historical engine mutations but **no** historical host events.
  * - **Does not advance the engine version counter.** {@link #currentEngineVersion()} is
@@ -82,8 +81,6 @@ public sealed interface HostSystemEvent extends SystemCaptureBody
 	 * **Properties** (in addition to the common {@link HostSystemEvent} contract):
 	 * - Host-local — the same catalog may be in a different state on a different host.
 	 * - Transient — not persisted; only delivered to live subscribers.
-	 * - Strictly ordered with mutations — lands after the mutation that triggered
-	 *   the settlement.
 	 * - Live-tail only — late subscribers do not get historical occurrences.
 	 *
 	 * The compact constructor defensively rejects transitional states ({@code BEING_*},
@@ -128,8 +125,6 @@ public sealed interface HostSystemEvent extends SystemCaptureBody
 	 * - Host-local — removal is a host-side fact about the live view, independent
 	 *   of whether the on-disk storage has been wiped.
 	 * - Transient — not persisted; only delivered to live subscribers.
-	 * - Strictly ordered with mutations — lands after the mutation that triggered
-	 *   the removal.
 	 * - Live-tail only — late subscribers do not get historical occurrences.
 	 *
 	 * @param catalogName          the name of the catalog that was removed
@@ -159,8 +154,6 @@ public sealed interface HostSystemEvent extends SystemCaptureBody
 	 * - Host-local — different hosts may observe different schema versions at the same
 	 *   wall-clock moment; this event is about THIS host's view.
 	 * - Transient — not persisted; only delivered to live subscribers.
-	 * - Strictly ordered with mutations — lands after the last engine mutation that drove
-	 *   the schema-version bump.
 	 * - Live-tail only — late subscribers do not get historical occurrences.
 	 *
 	 * The compact constructor defensively rejects empty `catalogName` and negative

@@ -48,8 +48,8 @@ import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.http.routing.EndpointRoutingService;
 import io.evitadb.externalApi.system.configuration.SystemOptions;
-import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.StringUtils;
 
@@ -69,6 +69,7 @@ import java.util.stream.Collectors;
  * Registers System API provider to provide system API to clients.
  *
  * @author Tomáš Pozler, 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<SystemOptions> {
 	public static final String ENDPOINT_SERVER_NAME = "server-name";
@@ -271,6 +272,27 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		return SystemOptions.class;
 	}
 
+	/**
+	 * Registers a certificate file at a fixed public download route, independently of its configured filename.
+	 *
+	 * @param router   builder receiving the download route
+	 * @param fileName fixed public download name
+	 * @param file     certificate file read on each request
+	 */
+	private static void registerCertificateDownload(
+		@Nonnull EndpointRoutingService.Builder router, @Nonnull String fileName, @Nonnull File file
+	) {
+		router.add(
+			HttpMethod.GET, "/" + fileName,
+			createCorsWrapper((ctx, req) -> {
+				ctx.addAdditionalResponseHeader(
+					HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\""
+				);
+				return HttpFile.of(file).asService().serve(ctx, req);
+			})
+		);
+	}
+
 	@Nonnull
 	@Override
 	public ExternalApiProvider<SystemOptions> register(
@@ -279,7 +301,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull SystemOptions systemConfig
 	) {
-		final RoutingHandlerService router = new RoutingHandlerService();
+		final EndpointRoutingService.Builder router = new EndpointRoutingService.Builder();
 		router.add(
 			HttpMethod.GET,
 			"/" + ENDPOINT_SERVER_NAME,
@@ -323,63 +345,34 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			)
 		);
 
-		final String fileName;
 		final CertificateOptions certificateSettings = apiOptions.certificate();
-
 		final boolean atLeastOnEndpointRequiresTls = apiOptions.atLeastOneEndpointRequiresTls();
 		if (atLeastOnEndpointRequiresTls) {
-			final File file;
+			final File serverCertificate;
 			if (certificateSettings.generateAndUseSelfSigned()) {
-				file = apiOptions.certificate()
-					.getFolderPath()
-					.toFile();
-				fileName = CertificateUtils.getGeneratedServerCertificateFileName();
+				serverCertificate = certificateSettings.getFolderPath()
+					.resolve(CertificateUtils.getGeneratedServerCertificateFileName()).toFile();
 			} else {
 				final CertificatePath certificatePath = certificateSettings.custom();
-				if (certificatePath == null || certificatePath.certificate() == null || certificatePath.privateKey() == null) {
+				if (certificatePath == null ||
+					certificatePath.certificate() == null || certificatePath.privateKey() == null) {
 					throw new GenericEvitaInternalError(
-						"Certificate path is not properly set in the configuration file and `generateAndUseSelfSigned` is set to false."
+						"Certificate path is not properly set in the configuration file and " +
+							"`generateAndUseSelfSigned` is set to false."
 					);
 				}
-				final String certificate = certificatePath.certificate();
-				final int lastSeparatorIndex = certificatePath.certificate().lastIndexOf(File.separator);
-				file = new File(certificate.substring(0, lastSeparatorIndex));
-				fileName = certificate.substring(lastSeparatorIndex);
+				serverCertificate = new File(certificatePath.certificate());
 			}
-			router.add(
-				HttpMethod.GET,
-				"/" + fileName,
-				createCorsWrapper(
-					(ctx, req) -> {
-						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
-						return HttpFile.of(new File(file, fileName)).asService().serve(ctx, req);
-					}
-				)
+			registerCertificateDownload(
+				router, CertificateUtils.getGeneratedServerCertificateFileName(), serverCertificate
 			);
-
-			router.add(
-				HttpMethod.GET,
-				"/" + CertificateUtils.getGeneratedClientCertificateFileName(),
-				createCorsWrapper(
-					(ctx, req) -> {
-						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificateFileName() + "\"");
-						return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificateFileName())).asService().serve(ctx, req);
-					}
-				)
-			);
-
-			router.add(
-				HttpMethod.GET,
-				"/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName(),
-				createCorsWrapper(
-					(ctx, req) -> {
-						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName() + "\"");
-						return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())).asService().serve(ctx, req);
-					}
-				)
-			);
-		} else {
-			fileName = null;
+			if (certificateSettings.generateAndUseSelfSigned()) {
+				final File folder = serverCertificate.getParentFile();
+				final String clientCertificate = CertificateUtils.getGeneratedClientCertificateFileName();
+				final String clientKey = CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName();
+				registerCertificateDownload(router, clientCertificate, new File(folder, clientCertificate));
+				registerCertificateDownload(router, clientKey, new File(folder, clientKey));
+			}
 		}
 
 		final boolean atLeastOnEndpointRequiresMtls = apiOptions.atLeastOnEndpointRequiresMtls();
@@ -390,7 +383,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				.map(it -> it + ENDPOINT_SERVER_NAME)
 				.toArray(String[]::new)
 		);
-		if (certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresTls) {
+		if (atLeastOnEndpointRequiresTls) {
 			endpoints.put(
 				SystemProvider.SERVER_CERTIFICATE_URL,
 				Arrays.stream(systemConfig.getBaseUrls())
@@ -412,7 +405,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 					.toArray(String[]::new)
 			);
 		}
-		return new SystemProvider(systemConfig, router, endpoints, apiOptions.requestTimeoutInMillis());
+		return new SystemProvider(systemConfig, router.build(), endpoints, apiOptions.requestTimeoutInMillis());
 	}
 
 	@Nonnull

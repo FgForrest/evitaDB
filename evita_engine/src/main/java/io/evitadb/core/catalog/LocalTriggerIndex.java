@@ -24,11 +24,14 @@
 package io.evitadb.core.catalog;
 
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -40,17 +43,30 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
- * Immutable, thread-safe index for local trigger lookup by `(ownerEntityType, referenceName, scope)`.
- * Merges both facet and histogram triggers into a single index — the shared three-level key
- * structure (`ownerEntityType -> referenceName -> scope`) is represented once, with the leaf
- * {@link LocalReferenceTriggers} record holding both trigger types.
+ * Immutable local trigger index with one {@link OwnerTriggers} object per owner entity type.
+ * Each owner holds its reference and scope lookup once, with {@link LocalReferenceTriggers} combining facet and
+ * histogram triggers. Reverse lookups start with separate kind maps for owner attributes, the parent and associated
+ * data, keyed by owner. A lookup that finds nothing stops at the first level that lacks the kind, the owner or the
+ * scope - a catalog without any reader of the kind answers from an empty map without hashing - so an entity type
+ * none of whose histogram conditions reads that kind of input (any attribute, the parent, any associated data) in any
+ * scope pays at most one map probe. Each kind map leads directly to the owner's populated scopes and inputs, without
+ * passing through the forward index.
  *
- * Follows a copy-on-write pattern: {@link #toBuilder()} produces a mutable {@link Builder} that
- * creates a new frozen instance via {@link Builder#build()}.
+ * Rebuilds replace complete owners. {@link #toBuilder()} shallowly copies the owner map and shares unchanged frozen
+ * owners; only owners the builder inserts triggers for, whether new to the index or removed and reinserted, are
+ * constructed anew. All reverse dependencies are derived together in one traversal per owner so they can be reused on
+ * rebuild. The index assembles its kind maps from all owners, including shared owners, to preserve their reverse
+ * lookups when another owner changes.
+ *
+ * Immutability of internal maps is guaranteed by encapsulation: they are built once, never exposed and never mutated
+ * after construction. Unmodifiable map wrappers are omitted on purpose because each costs a dependent load on the
+ * write path. The reference-name sets returned to callers and the histogram map in {@link LocalReferenceTriggers}
+ * retain their unmodifiable wrappers.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see CatalogExpressionTriggerRegistry
  */
+@ThreadSafe
 final class LocalTriggerIndex {
 
 	/**
@@ -59,30 +75,57 @@ final class LocalTriggerIndex {
 	static final LocalTriggerIndex EMPTY = new LocalTriggerIndex(Collections.emptyMap());
 
 	/**
-	 * Frozen nested map: owner entity type -> reference name -> scope -> leaf triggers.
-	 * All maps are unmodifiable after construction.
+	 * Owner entity type to encapsulated, immutable forward and reverse trigger lookups.
 	 */
 	@Nonnull
-	private final Map<String, Map<String, Map<Scope, LocalReferenceTriggers>>> index;
+	private final Map<String, OwnerTriggers> triggersByOwner;
 
 	/**
-	 * Owner entity type -> scope -> owner attribute -> affected reference names. Built from the deduplicated local
-	 * histogram triggers when the registry is rebuilt; mutations perform only map lookups and a gated reference walk.
+	 * Owner entity type to populated attribute dependencies, empty when no owner reads an attribute.
 	 */
 	@Nonnull
-	private final Map<String, Map<Scope, Map<String, Set<String>>>> histogramReferencesByEntityAttribute;
+	private final Map<String, ReferenceNamesByScopeAndInput> histogramReferencesByEntityAttribute;
 
 	/**
-	 * Creates a frozen index from an already-frozen map. Callers must ensure the map and all nested
-	 * structures are unmodifiable.
+	 * Owner entity type to populated parent dependencies, empty when no owner reads its parent.
+	 */
+	@Nonnull
+	private final Map<String, ReferenceNamesByScope> histogramReferencesReadingParent;
+
+	/**
+	 * Owner entity type to populated associated data dependencies, empty when no owner reads associated data.
+	 */
+	@Nonnull
+	private final Map<String, ReferenceNamesByScopeAndInput> histogramReferencesByAssociatedData;
+
+	/**
+	 * Takes ownership of a private frozen owner map and assembles the reverse kind maps from every owner, including
+	 * shared unchanged owners. Internal maps must never be exposed or mutated after construction.
 	 *
-	 * @param frozenIndex the frozen nested map
+	 * @param triggersByOwner the complete owner map exclusively owned by this index
 	 */
-	private LocalTriggerIndex(
-		@Nonnull Map<String, Map<String, Map<Scope, LocalReferenceTriggers>>> frozenIndex
-	) {
-		this.index = frozenIndex;
-		this.histogramReferencesByEntityAttribute = indexHistogramEntityAttributes(frozenIndex);
+	private LocalTriggerIndex(@Nonnull Map<String, OwnerTriggers> triggersByOwner) {
+		this.triggersByOwner = triggersByOwner;
+		final Map<String, ReferenceNamesByScopeAndInput> byEntityAttribute = createHashMap(triggersByOwner.size());
+		final Map<String, ReferenceNamesByScope> readingParent = createHashMap(triggersByOwner.size());
+		final Map<String, ReferenceNamesByScopeAndInput> byAssociatedData = createHashMap(triggersByOwner.size());
+		for (final Entry<String, OwnerTriggers> entry : triggersByOwner.entrySet()) {
+			final OwnerTriggers owner = entry.getValue();
+			if (owner.histogramReferencesByEntityAttribute != null) {
+				byEntityAttribute.put(entry.getKey(), owner.histogramReferencesByEntityAttribute);
+			}
+			if (owner.histogramReferencesReadingParent != null) {
+				readingParent.put(entry.getKey(), owner.histogramReferencesReadingParent);
+			}
+			if (owner.histogramReferencesByAssociatedData != null) {
+				byAssociatedData.put(entry.getKey(), owner.histogramReferencesByAssociatedData);
+			}
+		}
+		this.histogramReferencesByEntityAttribute = byEntityAttribute.isEmpty() ? Collections.emptyMap() :
+			byEntityAttribute;
+		this.histogramReferencesReadingParent = readingParent.isEmpty() ? Collections.emptyMap() : readingParent;
+		this.histogramReferencesByAssociatedData = byAssociatedData.isEmpty() ? Collections.emptyMap() :
+			byAssociatedData;
 	}
 
 	/**
@@ -100,7 +143,8 @@ final class LocalTriggerIndex {
 		@Nonnull String referenceName,
 		@Nonnull Scope scope
 	) {
-		final LocalReferenceTriggers leaf = resolve(ownerEntityType, referenceName, scope);
+		final OwnerTriggers owner = this.triggersByOwner.get(ownerEntityType);
+		final LocalReferenceTriggers leaf = owner == null ? null : owner.getTriggers(referenceName, scope);
 		return leaf != null ? leaf.facetTrigger() : null;
 	}
 
@@ -120,12 +164,18 @@ final class LocalTriggerIndex {
 		@Nonnull String referenceName,
 		@Nonnull Scope scope
 	) {
-		final LocalReferenceTriggers leaf = resolve(ownerEntityType, referenceName, scope);
+		final OwnerTriggers owner = this.triggersByOwner.get(ownerEntityType);
+		final LocalReferenceTriggers leaf = owner == null ? null : owner.getTriggers(referenceName, scope);
 		return leaf != null ? leaf.histogramTriggers().values() : Collections.emptyList();
 	}
 
 	/**
 	 * Returns the reference names whose histogram conditions read this owner attribute in the given scope.
+	 *
+	 * @param ownerEntityType the entity type owning the references
+	 * @param scope           the scope of the local mutation
+	 * @param attributeName   the owner attribute being changed
+	 * @return immutable affected reference names, or an empty set
 	 */
 	@Nonnull
 	Set<String> getHistogramReferencesForEntityAttribute(
@@ -133,47 +183,40 @@ final class LocalTriggerIndex {
 		@Nonnull Scope scope,
 		@Nonnull String attributeName
 	) {
-		final Map<Scope, Map<String, Set<String>>> byScope =
-			this.histogramReferencesByEntityAttribute.get(ownerEntityType);
-		final Map<String, Set<String>> byAttribute = byScope == null ? null : byScope.get(scope);
-		return byAttribute == null ? Collections.emptySet() :
-			byAttribute.getOrDefault(attributeName, Collections.emptySet());
+		final ReferenceNamesByScopeAndInput references = this.histogramReferencesByEntityAttribute.get(ownerEntityType);
+		return references == null ? Collections.emptySet() : references.get(scope, attributeName);
 	}
 
 	/**
-	 * Inverts the frozen local histogram triggers into an immutable attribute relevance lookup. Duplicate dependency
-	 * variants and histograms sharing an owner attribute contribute their reference name only once.
+	 * Returns the reference names whose histogram conditions read the parent of the owner in the given scope.
+	 *
+	 * @param ownerEntityType the entity type owning the references
+	 * @param scope           the scope of the local mutation
+	 * @return immutable affected reference names, or an empty set
 	 */
 	@Nonnull
-	private static Map<String, Map<Scope, Map<String, Set<String>>>> indexHistogramEntityAttributes(
-		@Nonnull Map<String, Map<String, Map<Scope, LocalReferenceTriggers>>> triggers
+	Set<String> getHistogramReferencesForParent(@Nonnull String ownerEntityType, @Nonnull Scope scope) {
+		final ReferenceNamesByScope references = this.histogramReferencesReadingParent.get(ownerEntityType);
+		return references == null ? Collections.emptySet() : references.get(scope);
+	}
+
+	/**
+	 * Returns the reference names whose histogram conditions read this associated data of the owner in the given
+	 * scope.
+	 *
+	 * @param ownerEntityType    the entity type owning the references
+	 * @param scope              the scope of the local mutation
+	 * @param associatedDataName the associated data being changed
+	 * @return immutable affected reference names, or an empty set
+	 */
+	@Nonnull
+	Set<String> getHistogramReferencesForAssociatedData(
+		@Nonnull String ownerEntityType,
+		@Nonnull Scope scope,
+		@Nonnull String associatedDataName
 	) {
-		if (triggers.isEmpty()) {
-			return Collections.emptyMap();
-		}
-		final Map<String, Map<Scope, Map<String, Set<String>>>> result = createHashMap(triggers.size());
-		for (final Entry<String, Map<String, Map<Scope, LocalReferenceTriggers>>> owner : triggers.entrySet()) {
-			for (final Entry<String, Map<Scope, LocalReferenceTriggers>> reference : owner.getValue().entrySet()) {
-				for (final Entry<Scope, LocalReferenceTriggers> scope : reference.getValue().entrySet()) {
-					for (final HistogramExpressionTrigger trigger : scope.getValue().histogramTriggers().values()) {
-						for (final String attribute : trigger.getLocalEntityAttributes()) {
-							result.computeIfAbsent(owner.getKey(), ignored -> new EnumMap<>(Scope.class))
-								.computeIfAbsent(scope.getKey(), ignored -> createHashMap(4))
-								.computeIfAbsent(attribute, ignored -> createHashSet(4))
-								.add(reference.getKey());
-						}
-					}
-				}
-			}
-		}
-		for (final Map<Scope, Map<String, Set<String>>> byScope : result.values()) {
-			for (final Map<String, Set<String>> byAttribute : byScope.values()) {
-				byAttribute.replaceAll((attribute, references) -> Collections.unmodifiableSet(references));
-			}
-			byScope.replaceAll((scope, attributes) -> Collections.unmodifiableMap(attributes));
-		}
-		result.replaceAll((owner, scopes) -> Collections.unmodifiableMap(scopes));
-		return Collections.unmodifiableMap(result);
+		final ReferenceNamesByScopeAndInput references = this.histogramReferencesByAssociatedData.get(ownerEntityType);
+		return references == null ? Collections.emptySet() : references.get(scope, associatedDataName);
 	}
 
 	/**
@@ -182,11 +225,13 @@ final class LocalTriggerIndex {
 	 * @return true if empty
 	 */
 	boolean isEmpty() {
-		return this.index.isEmpty();
+		return this.triggersByOwner.isEmpty();
 	}
 
 	/**
-	 * Creates a mutable {@link Builder} pre-populated with a deep copy of this index's data.
+	 * Creates a mutable {@link Builder} with a shallow copy of the owner map, sharing unchanged frozen owners.
+	 * Triggers for an owner this index already holds can be inserted only after that owner is removed; inserting them
+	 * earlier throws {@link GenericEvitaInternalError}.
 	 *
 	 * @return a new builder for copy-on-write rebuilds
 	 */
@@ -207,28 +252,142 @@ final class LocalTriggerIndex {
 	}
 
 	/**
-	 * Resolves the leaf triggers for the given three-level key. Returns null if any level is absent.
-	 *
-	 * @param ownerEntityType the owner entity type
-	 * @param referenceName   the reference name
-	 * @param scope           the scope
-	 * @return the leaf triggers, or null if not found
+	 * Immutable trigger lookups for one owner. Internal maps are exclusively owned and never exposed.
 	 */
-	@Nullable
-	private LocalReferenceTriggers resolve(
-		@Nonnull String ownerEntityType,
-		@Nonnull String referenceName,
-		@Nonnull Scope scope
-	) {
-		final Map<String, Map<Scope, LocalReferenceTriggers>> byRef = this.index.get(ownerEntityType);
-		if (byRef == null) {
-			return null;
+	private static final class OwnerTriggers {
+
+		/**
+		 * Reference name to scope to leaf triggers; the scope maps are enum maps.
+		 */
+		@Nonnull
+		private final Map<String, Map<Scope, LocalReferenceTriggers>> triggersByReference;
+
+		/**
+		 * Derived attribute dependencies, or null when this owner reads no attributes.
+		 */
+		@Nullable
+		private final ReferenceNamesByScopeAndInput histogramReferencesByEntityAttribute;
+
+		/**
+		 * Derived parent dependencies, or null when this owner never reads its parent.
+		 */
+		@Nullable
+		private final ReferenceNamesByScope histogramReferencesReadingParent;
+
+		/**
+		 * Derived associated data dependencies, or null when this owner reads no associated data.
+		 */
+		@Nullable
+		private final ReferenceNamesByScopeAndInput histogramReferencesByAssociatedData;
+
+		/**
+		 * Takes ownership of the frozen forward lookup and derives all local reverse dependencies in one traversal.
+		 * Only populated kinds, scopes and inputs are retained, so unchanged owners can reuse these structures.
+		 *
+		 * @param triggersByReference the private forward lookup, never mutated after this call
+		 */
+		private OwnerTriggers(@Nonnull Map<String, Map<Scope, LocalReferenceTriggers>> triggersByReference) {
+			this.triggersByReference = triggersByReference;
+			final Map<Scope, Map<String, Set<String>>> byEntityAttribute = new EnumMap<>(Scope.class);
+			final Map<Scope, Set<String>> readingParent = new EnumMap<>(Scope.class);
+			final Map<Scope, Map<String, Set<String>>> byAssociatedData = new EnumMap<>(Scope.class);
+			for (final Entry<String, Map<Scope, LocalReferenceTriggers>> referenceEntry :
+				triggersByReference.entrySet()) {
+				for (final Entry<Scope, LocalReferenceTriggers> scopeEntry : referenceEntry.getValue().entrySet()) {
+					for (final HistogramExpressionTrigger trigger :
+						scopeEntry.getValue().histogramTriggers().values()) {
+						for (final String attribute : trigger.getLocalEntityAttributes()) {
+							byEntityAttribute.computeIfAbsent(scopeEntry.getKey(), ignored -> createHashMap(4))
+								.computeIfAbsent(attribute, ignored -> createHashSet(4)).add(referenceEntry.getKey());
+						}
+						if (trigger.usesParent()) {
+							readingParent.computeIfAbsent(scopeEntry.getKey(), ignored -> createHashSet(4))
+								.add(referenceEntry.getKey());
+						}
+						for (final String associatedData : trigger.getLocalAssociatedData()) {
+							byAssociatedData.computeIfAbsent(scopeEntry.getKey(), ignored -> createHashMap(4))
+								.computeIfAbsent(associatedData, ignored -> createHashSet(4))
+								.add(referenceEntry.getKey());
+						}
+					}
+				}
+			}
+			this.histogramReferencesByEntityAttribute = byEntityAttribute.isEmpty() ? null :
+				new ReferenceNamesByScopeAndInput(byEntityAttribute);
+			this.histogramReferencesReadingParent = readingParent.isEmpty() ? null :
+				new ReferenceNamesByScope(readingParent);
+			this.histogramReferencesByAssociatedData = byAssociatedData.isEmpty() ? null :
+				new ReferenceNamesByScopeAndInput(byAssociatedData);
 		}
-		final Map<Scope, LocalReferenceTriggers> byScope = byRef.get(referenceName);
-		if (byScope == null) {
-			return null;
+
+		/**
+		 * Returns the leaf for the reference and scope, or null if either is absent.
+		 */
+		@Nullable
+		private LocalReferenceTriggers getTriggers(@Nonnull String referenceName, @Nonnull Scope scope) {
+			final Map<Scope, LocalReferenceTriggers> byScope = this.triggersByReference.get(referenceName);
+			return byScope == null ? null : byScope.get(scope);
 		}
-		return byScope.get(scope);
+	}
+
+	/**
+	 * Encapsulated reference names for one owner and input kind, retaining only populated scopes.
+	 */
+	private static final class ReferenceNamesByScope {
+
+		/**
+		 * Scope to unmodifiable reference-name set, stored in an enum map.
+		 */
+		@Nonnull
+		private final Map<Scope, Set<String>> byScope;
+
+		/**
+		 * Takes ownership of the populated scope map and wraps only the sets exposed to callers.
+		 */
+		private ReferenceNamesByScope(@Nonnull Map<Scope, Set<String>> byScope) {
+			byScope.replaceAll((scope, references) -> Collections.unmodifiableSet(references));
+			this.byScope = byScope;
+		}
+
+		/**
+		 * Returns the references in the scope, or an empty set, with a single enum-map probe.
+		 */
+		@Nonnull
+		private Set<String> get(@Nonnull Scope scope) {
+			final Set<String> references = this.byScope.get(scope);
+			return references == null ? Collections.emptySet() : references;
+		}
+	}
+
+	/**
+	 * Encapsulated reference names for one owner and input kind, retaining only populated scopes and input names.
+	 */
+	private static final class ReferenceNamesByScopeAndInput {
+
+		/**
+		 * Scope to input name to unmodifiable reference-name set; the scope map is an enum map.
+		 */
+		@Nonnull
+		private final Map<Scope, Map<String, Set<String>>> byScope;
+
+		/**
+		 * Takes ownership of the populated maps and wraps only the sets exposed to callers.
+		 */
+		private ReferenceNamesByScopeAndInput(@Nonnull Map<Scope, Map<String, Set<String>>> byScope) {
+			for (final Map<String, Set<String>> byInput : byScope.values()) {
+				byInput.replaceAll((input, references) -> Collections.unmodifiableSet(references));
+			}
+			this.byScope = byScope;
+		}
+
+		/**
+		 * Returns the references reading the input in the scope, or an empty set. An absent scope costs one probe.
+		 */
+		@Nonnull
+		private Set<String> get(@Nonnull Scope scope, @Nonnull String inputName) {
+			final Map<String, Set<String>> byInput = this.byScope.get(scope);
+			return byInput == null ? Collections.emptySet() : byInput.getOrDefault(inputName, Collections.emptySet());
+		}
 	}
 
 	/**
@@ -245,142 +404,158 @@ final class LocalTriggerIndex {
 	}
 
 	/**
-	 * Mutable builder for constructing a {@link LocalTriggerIndex}. Uses
-	 * {@link MutableReferenceTriggers} as the mutable leaf type during construction, then freezes
-	 * each leaf into a {@link LocalReferenceTriggers} record in {@link #build()}.
+	 * Mutable builder that shares unchanged frozen owners and accumulates complete replacements separately.
+	 * An unchanged owner must be removed before inserting its replacement triggers. Building freezes only changed
+	 * owners and copies the owner map, leaving previously built indexes untouched.
+	 *
+	 * A builder is used once: {@link #build()} hands the histogram trigger maps of the changed owners over to the
+	 * built index, so the builder must be discarded afterwards.
 	 */
+	@NotThreadSafe
 	static final class Builder {
 
 		/**
-		 * Mutable nested map: owner entity type -> reference name -> scope -> mutable leaf.
+		 * Shallow copy of the source owner map. Its frozen owner values are shared and never mutated.
 		 */
 		@Nonnull
-		private final Map<String, Map<String, Map<Scope, MutableReferenceTriggers>>> mutableIndex;
+		private final Map<String, OwnerTriggers> unchangedOwners;
 
 		/**
-		 * Creates an empty builder with the given expected capacity.
-		 *
-		 * @param expectedSize estimated number of distinct owner entity types
+		 * New or removed and reinserted owners, accumulated independently of every frozen index.
+		 */
+		@Nonnull
+		private final Map<String, MutableOwnerTriggers> changedOwners;
+
+		/**
+		 * Creates an empty builder with the expected number of owner entity types.
 		 */
 		private Builder(int expectedSize) {
-			this.mutableIndex = createHashMap(expectedSize);
+			this.unchangedOwners = createHashMap(0);
+			this.changedOwners = createHashMap(expectedSize);
 		}
 
 		/**
-		 * Creates a builder pre-populated with a deep mutable copy of the given frozen index.
-		 *
-		 * @param source the frozen index to copy from
+		 * Shallowly copies the source owner map, sharing its immutable owner objects.
 		 */
 		private Builder(@Nonnull LocalTriggerIndex source) {
-			this.mutableIndex = deepCopy(source.index);
+			this.unchangedOwners = createHashMap(source.triggersByOwner.size());
+			this.unchangedOwners.putAll(source.triggersByOwner);
+			this.changedOwners = createHashMap(4);
 		}
 
 		/**
-		 * Inserts a facet trigger. Uses `putIfAbsent` semantics — when multiple cross-entity
-		 * triggers exist for the same `(ownerEntityType, referenceName, scope)` triple, only the
-		 * first is stored since they are functionally equivalent for `evaluate()`.
+		 * Inserts a facet trigger with putIfAbsent semantics for each owner, reference and scope triple.
+		 * Dependency variants are equivalent for inline evaluation, so only the first is stored.
 		 *
 		 * @param trigger the facet trigger to insert
+		 * @throws GenericEvitaInternalError if the trigger's owner is an unchanged owner shared from the source index
 		 */
 		void insertFacetTrigger(@Nonnull FacetExpressionTrigger trigger) {
-			this.mutableIndex
-				.computeIfAbsent(trigger.getOwnerEntityType(), k -> createHashMap(4))
-				.computeIfAbsent(trigger.getReferenceName(), k -> new EnumMap<>(Scope.class))
-				.computeIfAbsent(trigger.getScope(), k -> new MutableReferenceTriggers())
+			getMutableLeaf(trigger.getOwnerEntityType(), trigger.getReferenceName(), trigger.getScope())
 				.setFacetTriggerIfAbsent(trigger);
 		}
 
 		/**
-		 * Inserts a histogram trigger. Uses `putIfAbsent` semantics per histogram name.
+		 * Inserts a histogram trigger with putIfAbsent semantics per histogram name.
 		 *
 		 * @param trigger the histogram trigger to insert
+		 * @throws GenericEvitaInternalError if the trigger's owner is an unchanged owner shared from the source index
 		 */
 		void insertHistogramTrigger(@Nonnull HistogramExpressionTrigger trigger) {
-			this.mutableIndex
-				.computeIfAbsent(trigger.getOwnerEntityType(), k -> createHashMap(4))
-				.computeIfAbsent(trigger.getReferenceName(), k -> new EnumMap<>(Scope.class))
-				.computeIfAbsent(trigger.getScope(), k -> new MutableReferenceTriggers())
+			getMutableLeaf(trigger.getOwnerEntityType(), trigger.getReferenceName(), trigger.getScope())
 				.addHistogramTriggerIfAbsent(trigger);
 		}
 
 		/**
-		 * Removes all triggers owned by the specified entity type. Since the top-level key is the
-		 * owner entity type, this is a single O(1) map removal.
-		 *
-		 * @param ownerEntityType the owner entity type to remove
+		 * Removes the owner's frozen and mutable entries with two constant-time map removals, permitting replacement.
 		 */
 		void removeByOwner(@Nonnull String ownerEntityType) {
-			this.mutableIndex.remove(ownerEntityType);
+			this.unchangedOwners.remove(ownerEntityType);
+			this.changedOwners.remove(ownerEntityType);
 		}
 
 		/**
-		 * Freezes the mutable state into an immutable {@link LocalTriggerIndex}. Returns
-		 * {@link LocalTriggerIndex#EMPTY} if the index is empty.
-		 *
-		 * @return the frozen index
+		 * Builds an immutable index sharing unchanged owners and freezing changed owners into new frozen owners.
+		 * Returns {@link LocalTriggerIndex#EMPTY} when neither map contains an owner.
 		 */
 		@Nonnull
 		LocalTriggerIndex build() {
-			if (this.mutableIndex.isEmpty()) {
+			if (this.unchangedOwners.isEmpty() && this.changedOwners.isEmpty()) {
 				return EMPTY;
 			}
-			final Map<String, Map<String, Map<Scope, LocalReferenceTriggers>>> frozen =
-				createHashMap(this.mutableIndex.size());
-			for (final Entry<String, Map<String, Map<Scope, MutableReferenceTriggers>>> ownerEntry :
-				this.mutableIndex.entrySet()) {
-				final Map<String, Map<Scope, MutableReferenceTriggers>> refMap = ownerEntry.getValue();
-				final Map<String, Map<Scope, LocalReferenceTriggers>> frozenRefMap =
-					createHashMap(refMap.size());
-				for (final Entry<String, Map<Scope, MutableReferenceTriggers>> refEntry :
-					refMap.entrySet()) {
-					final Map<Scope, MutableReferenceTriggers> scopeMap = refEntry.getValue();
-					final EnumMap<Scope, LocalReferenceTriggers> frozenScopeMap =
-						new EnumMap<>(Scope.class);
-					for (final Entry<Scope, MutableReferenceTriggers> scopeEntry :
-						scopeMap.entrySet()) {
-						frozenScopeMap.put(scopeEntry.getKey(), scopeEntry.getValue().freeze());
-					}
-					frozenRefMap.put(refEntry.getKey(), Collections.unmodifiableMap(frozenScopeMap));
-				}
-				frozen.put(ownerEntry.getKey(), Collections.unmodifiableMap(frozenRefMap));
+			final Map<String, OwnerTriggers> frozen =
+				createHashMap(this.unchangedOwners.size() + this.changedOwners.size());
+			frozen.putAll(this.unchangedOwners);
+			for (final Entry<String, MutableOwnerTriggers> owner : this.changedOwners.entrySet()) {
+				frozen.put(owner.getKey(), owner.getValue().freeze());
 			}
-			return new LocalTriggerIndex(Collections.unmodifiableMap(frozen));
+			return new LocalTriggerIndex(frozen);
 		}
 
 		/**
-		 * Creates a deep mutable copy of the given frozen index, converting each
-		 * {@link LocalReferenceTriggers} leaf into a {@link MutableReferenceTriggers}.
-		 *
-		 * @param source the frozen nested map
-		 * @return a fully mutable deep copy
+		 * Resolves a changed owner or creates a new one. Inserting into an unchanged frozen owner is a programming
+		 * error: rebuilds must remove that owner before supplying its complete replacement trigger list.
 		 */
 		@Nonnull
-		private static Map<String, Map<String, Map<Scope, MutableReferenceTriggers>>> deepCopy(
-			@Nonnull Map<String, Map<String, Map<Scope, LocalReferenceTriggers>>> source
-		) {
-			final Map<String, Map<String, Map<Scope, MutableReferenceTriggers>>> copy =
-				createHashMap(source.size());
-			for (final Entry<String, Map<String, Map<Scope, LocalReferenceTriggers>>> ownerEntry :
-				source.entrySet()) {
-				final Map<String, Map<Scope, LocalReferenceTriggers>> refMap = ownerEntry.getValue();
-				final Map<String, Map<Scope, MutableReferenceTriggers>> refCopy =
-					createHashMap(refMap.size());
-				for (final Entry<String, Map<Scope, LocalReferenceTriggers>> refEntry :
-					refMap.entrySet()) {
-					final EnumMap<Scope, MutableReferenceTriggers> scopeCopy =
-						new EnumMap<>(Scope.class);
-					for (final Entry<Scope, LocalReferenceTriggers> scopeEntry :
-						refEntry.getValue().entrySet()) {
-						scopeCopy.put(
-							scopeEntry.getKey(),
-							new MutableReferenceTriggers(scopeEntry.getValue())
-						);
-					}
-					refCopy.put(refEntry.getKey(), scopeCopy);
-				}
-				copy.put(ownerEntry.getKey(), refCopy);
+		private MutableOwnerTriggers getMutableOwner(@Nonnull String ownerEntityType) {
+			final MutableOwnerTriggers changed = this.changedOwners.get(ownerEntityType);
+			if (changed != null) {
+				return changed;
 			}
-			return copy;
+			if (this.unchangedOwners.containsKey(ownerEntityType)) {
+				throw new GenericEvitaInternalError(
+					"Cannot insert triggers for unchanged owner `" + ownerEntityType + "`; remove the owner first."
+				);
+			}
+			final MutableOwnerTriggers owner = new MutableOwnerTriggers();
+			this.changedOwners.put(ownerEntityType, owner);
+			return owner;
+		}
+
+		/**
+		 * Resolves the mutable leaf of a changed owner for the reference and scope, creating the missing levels.
+		 */
+		@Nonnull
+		private MutableReferenceTriggers getMutableLeaf(
+			@Nonnull String ownerEntityType,
+			@Nonnull String referenceName,
+			@Nonnull Scope scope
+		) {
+			return getMutableOwner(ownerEntityType).triggersByReference
+				.computeIfAbsent(referenceName, ignored -> new EnumMap<>(Scope.class))
+				.computeIfAbsent(scope, ignored -> new MutableReferenceTriggers());
+		}
+
+		/**
+		 * Mutable forward lookup for one new or replacement owner, frozen once by {@link Builder#build()}.
+		 */
+		private static final class MutableOwnerTriggers {
+
+			/**
+			 * Reference name to scope to mutable leaf; scope maps are enum maps.
+			 */
+			@Nonnull
+			private final Map<String, Map<Scope, MutableReferenceTriggers>> triggersByReference = createHashMap(4);
+
+			/**
+			 * Converts the mutable forward lookup into an exclusively owned frozen one and derives its reverse
+			 * dependencies.
+			 */
+			@Nonnull
+			private OwnerTriggers freeze() {
+				final Map<String, Map<Scope, LocalReferenceTriggers>> frozen =
+					createHashMap(this.triggersByReference.size());
+				for (final Entry<String, Map<Scope, MutableReferenceTriggers>> referenceEntry :
+					this.triggersByReference.entrySet()) {
+					final Map<Scope, LocalReferenceTriggers> byScope = new EnumMap<>(Scope.class);
+					for (final Entry<Scope, MutableReferenceTriggers> scopeEntry :
+						referenceEntry.getValue().entrySet()) {
+						byScope.put(scopeEntry.getKey(), scopeEntry.getValue().freeze());
+					}
+					frozen.put(referenceEntry.getKey(), byScope);
+				}
+				return new OwnerTriggers(frozen);
+			}
 		}
 
 		/**
@@ -410,17 +585,6 @@ final class LocalTriggerIndex {
 			}
 
 			/**
-			 * Creates a mutable leaf from a frozen {@link LocalReferenceTriggers}.
-			 *
-			 * @param source the frozen leaf to copy from
-			 */
-			MutableReferenceTriggers(@Nonnull LocalReferenceTriggers source) {
-				this.facetTrigger = source.facetTrigger();
-				this.histogramTriggers = createHashMap(source.histogramTriggers().size());
-				this.histogramTriggers.putAll(source.histogramTriggers());
-			}
-
-			/**
 			 * Sets the facet trigger if not already set (putIfAbsent semantics).
 			 *
 			 * @param trigger the facet trigger
@@ -441,7 +605,8 @@ final class LocalTriggerIndex {
 			}
 
 			/**
-			 * Freezes this mutable leaf into an immutable {@link LocalReferenceTriggers} record.
+			 * Freezes this mutable leaf into an immutable {@link LocalReferenceTriggers} record. The histogram map is
+			 * handed over, not copied: the builder is discarded after {@link Builder#build()}.
 			 *
 			 * @return the frozen leaf
 			 */

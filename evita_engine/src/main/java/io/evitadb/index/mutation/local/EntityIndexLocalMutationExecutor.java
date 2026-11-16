@@ -25,7 +25,6 @@ package io.evitadb.index.mutation.local;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntObjectHashMap;
-import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -264,7 +263,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	private final boolean usageStatisticsTracking;
 	/**
 	 * What the withdrawal of a reference-histogram value does when the index does not hold the value for the owner -
-	 * the server-wide `server.missingHistogramValueBehavior` switch, resolved once when the executor is built (see
+	 * fixed when the engine started and read from the catalog once, when the executor is built (see
 	 * {@link ReferenceIndexMutator#removeHistogramForTrigger}).
 	 */
 	@Nonnull private final MissingHistogramValueBehavior missingHistogramValueBehavior;
