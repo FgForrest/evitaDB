@@ -33,9 +33,11 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-11-16 | [Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure](2026-11-16-copy-on-write-path-routing.md) | refactor | accepted | #1956, #1959, #1967, #1968, PR #1957, PR #1974 |
 | 2026-11-14 | [Reuse formula results by declared value identity, inject complete tuples at execution, and disable the owning cache on a verified mismatch](2026-11-14-formula-cache-redesign.md) | refactor | accepted | #37, PR #1963 |
 | 2026-11-13 | [Cache parsed and validated GraphQL documents per GraphQL instance in a Caffeine cache bounded by bytes](2026-11-13-graphql-parsed-document-cache.md) | optimization | proposed | #1191 |
-| 2026-11-11 | [A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue](2026-11-11-reference-histogram-net-change-per-run.md) | fix | accepted | #1911, #1916, #1918 |
+| 2026-11-12 | [Null arguments in query constraints follow one rule set in Java, EvitaQL and REST](2026-11-12-null-arguments-in-query-constraints.md) | fix | accepted | #1943 |
+| 2026-11-11 | [A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue](2026-11-11-reference-histogram-net-change-per-run.md) | fix | accepted | #1911, #1916, #1918, #1923, #1948 |
 | 2026-11-06 | [A catalog rename or replace waits for the commit pipeline on the caller's thread, then acts on the instance that wait found](2026-11-06-catalog-handover-waits-for-commit-pipeline.md) | fix | accepted | #1889, PR #1890 |
 | 2026-11-05 | [An export that cannot fit the export storage stops at the limit and names the setting to raise](2026-11-05-backup-stops-at-the-export-limit.md) | fix | accepted | #1881, PR #1885 |
 | 2026-11-05 | [A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front](2026-11-05-nested-inscope-requested-scopes.md) | fix | accepted | #1880, #1883, #1897, #1915, #1917, PR #1884, PR #1913, PR #1914, PR #1919 |

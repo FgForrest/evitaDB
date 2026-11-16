@@ -39,6 +39,7 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.IntConsumer;
@@ -81,7 +82,8 @@ public class SequentialSorter implements Sorter {
 	 *
 	 * @param atomicBlocks    blocks of partitions sorted one after another; an owner sorted in an earlier block is
 	 *                        not sorted again
-	 * @param embeddedSorters sorters applied to each block in order; a {@link NoSorter} is dropped
+	 * @param embeddedSorters sorters applied to each block in order; the last {@link NoSorter} is dropped unless it
+	 *                        is the only sorter, which then orders each block by primary key
 	 */
 	public SequentialSorter(
 		@Nonnull ReferencePartition[][] atomicBlocks,
@@ -92,8 +94,8 @@ public class SequentialSorter implements Sorter {
 		for (int i = 0; i < atomicBlocks.length; i++) {
 			this.blockKeys[i] = new RepresentativeReferenceKey(atomicBlocks[i][0].getReferenceKey());
 		}
-		this.embeddedSorters = embeddedSorters;
-		// ensure NoSorter is not present in the list of embedded sorters
+		this.embeddedSorters = new ArrayList<>(embeddedSorters);
+		// drop the default NoSorter unless it is the only sorter (then it orders each block by primary key), because
 		// we need to avoid sorting records which may not have related sort information (such as attribute by which we sort)
 		int index = -1;
 		for (int i = 0; i < this.embeddedSorters.size(); i++) {
@@ -101,7 +103,7 @@ public class SequentialSorter implements Sorter {
 				index = i;
 			}
 		}
-		if (index != -1) {
+		if (index != -1 && this.embeddedSorters.size() > 1) {
 			this.embeddedSorters.remove(index);
 		}
 	}
