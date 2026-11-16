@@ -38,9 +38,11 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleContext;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
+import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.comparator.IntComparator;
 import io.evitadb.core.query.QueryExecutionContext;
@@ -207,11 +209,11 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		final boolean withinSegment = orderByVisitor.isWithinSegment();
 		if (priceDiscount.getOrder() == OrderDirection.ASC) {
 			entityComparator = new EntityPriceDiscountEntityComparator(
-				priceExtractor, Comparator.naturalOrder(), priceLists, withinSegment
+				queryPriceMode, priceExtractor, Comparator.naturalOrder(), priceLists, withinSegment
 			);
 		} else {
 			entityComparator = new EntityPriceDiscountEntityComparator(
-				priceExtractor, Comparator.reverseOrder(), priceLists, withinSegment
+				queryPriceMode, priceExtractor, Comparator.reverseOrder(), priceLists, withinSegment
 			);
 		}
 
@@ -243,6 +245,10 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		 * index. Otherwise, this value represent a factual NULL value.
 		 */
 		private static final BigDecimal NEGATIVE_DISCOUNT = BigDecimal.valueOf(-1);
+		/**
+		 * The price mode of the query, which decides the price for sale the discount is computed from.
+		 */
+		private final QueryPriceMode queryPriceMode;
 		/**
 		 * The function to extract the price from the price contract (sometimes the price with tax is used, sometimes
 		 * the price without tax is used).
@@ -343,13 +349,20 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			final Optional<PriceForSaleWithAccompanyingPrices> calculatedPrices;
 			if (entity instanceof ServerEntityDecorator sed && sed.getPriceForSaleContext().isPresent()) {
 				final PriceForSaleContext priceForSaleContext = sed.getPriceForSaleContext().get();
-				calculatedPrices = sed.getDelegate().getPriceForSaleWithAccompanyingPrices(
+				// the body of the entity holds also the prices of the discount price lists the decorator may hide, but
+				// it knows no query and so no price mode - the computation is handed the one of the query
+				final Entity delegate = sed.getDelegate();
+				calculatedPrices = PricesContract.computePriceForSale(
+					delegate.getPrices(),
+					delegate.getPriceInnerRecordHandling(),
 					priceForSaleContext.currency().orElseThrow(ContextMissingException::new),
 					priceForSaleContext.atTheMoment().orElse(null),
 					priceForSaleContext.priceListPriority().orElseThrow(ContextMissingException::new),
+					Objects::nonNull,
 					new AccompanyingPrice[]{
 						new AccompanyingPrice(DISCOUNTED_PRICE, this.discountPriceLists)
-					}
+					},
+					this.queryPriceMode
 				);
 			} else {
 				calculatedPrices = entity.getPriceForSaleWithAccompanyingPrices(
