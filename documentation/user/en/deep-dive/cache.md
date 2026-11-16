@@ -58,9 +58,10 @@ also stay outside the cross-query cache.
 
 ## Memory budget and admission
 
-`cacheSizeInBytes` sets a target for the estimated retained size of entries. The charge includes the result, key and
-entry overhead. Price payloads include both arrays and any component maps; histogram payloads include their buckets
-and values. Unsupported retained representations are refused rather than assigned a guessed small size.
+`cacheSizeInBytes` sets a target for the estimated retained size of entries. A budget of `0` turns the cache off.
+The charge includes the result, key and entry overhead. Price payloads include both arrays and any component maps;
+histogram payloads include their buckets and values. Unsupported retained representations are refused rather than
+assigned a guessed small size.
 
 An entry is refused if its charge exceeds one percent of the configured budget or the supported integer weight
 range. Keys above 4,096 weight units are ineligible. These limits are implementation limits, independent of

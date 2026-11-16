@@ -485,6 +485,24 @@ class FormulaCacheSupervisorTest implements EvitaTestSupport {
 				.createQueryContext(request(), FormulaCacheSupervisorTest.this.session).isFormulaCacheEnabled());
 		}
 
+		/** A zero budget installs no cache even when caching is explicitly enabled. */
+		@Test
+		@DisplayName("Installs no formula result cache with a zero budget")
+		void shouldInstallNoCacheWithZeroBudget() {
+			final TestPaths zeroBudgetPaths = createTestPaths("FormulaCacheSupervisorTestZeroBudget");
+			try (final Evita zeroBudgetEvita = new Evita(
+				newTestEvitaConfigurationBuilder(zeroBudgetPaths)
+					.cache(CacheOptions.builder().enabled(true).cacheSizeInBytes(0).build())
+					.build()
+			)) {
+				assertFalse(zeroBudgetEvita.management().getEngineSettings().queryCacheEnabled(),
+					"queryCacheEnabled must be false for a zero budget");
+				assertNull(zeroBudgetEvita.getFormulaCacheStatistics());
+			} finally {
+				cleanupTestPaths(zeroBudgetPaths);
+			}
+		}
+
 		/**
 		 * The gate reads the session, the catalog state, the entity type and the transaction, never the debug mode:
 		 * every mode passes it once per planning root, nested contexts inherit the decision and keep the analysed

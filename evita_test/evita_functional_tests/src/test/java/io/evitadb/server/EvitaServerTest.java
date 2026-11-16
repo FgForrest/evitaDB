@@ -1178,12 +1178,34 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"null, 0", "0, 0", "1048576, 1048576", "2M, 2000000"})
-	@DisplayName("should resolve YAML cache budgets like the builder")
+	@CsvSource({"0, 0", "1048576, 1048576", "2M, 2000000"})
+	@DisplayName("should resolve explicit YAML cache budgets in bytes")
 	void shouldResolveYamlCacheBudgets(@Nonnull String value, long budget) throws IOException {
 		final CacheOptions options = loadCacheOptions("cache:\n  cacheSizeInBytes: " + value + "\n", true);
-		final long expected = CacheOptions.builder().cacheSizeInBytes(budget).build().cacheSizeInBytes();
-		assertEquals(expected, options.cacheSizeInBytes());
+		assertEquals(budget, options.cacheSizeInBytes());
+	}
+
+	/** Enabling the cache without a budget keeps the shipped default budget and every other shipped default. */
+	@Test
+	@DisplayName("should enable the YAML cache with the default budget")
+	void shouldEnableYamlCacheWithDefaultBudget() throws IOException {
+		final CacheOptions options = loadCacheOptions("cache:\n  enabled: true\n", true);
+		assertEquals(CacheOptions.builder().enabled(true).build(), options);
+	}
+
+	/**
+	 * A budget override set to an empty value substitutes nothing into the shipped placeholder, which YAML reads as
+	 * null, so the budget falls back to the default instead of turning the cache off. The non-empty override proves
+	 * the value reaches the placeholder at all.
+	 */
+	@Test
+	@DisplayName("should resolve an empty cache budget override to the default")
+	void shouldResolveEmptyCacheBudgetOverrideToDefault() throws IOException {
+		final CacheOptions overridden = loadCacheOptions("", true, Map.of("cache.cacheSizeInBytes", "1048576"));
+		final CacheOptions empty = loadCacheOptions("", true, Map.of("cache.cacheSizeInBytes", ""));
+
+		assertEquals(1_048_576L, overridden.cacheSizeInBytes());
+		assertEquals(new CacheOptions(), empty);
 	}
 
 	@Test
@@ -1251,6 +1273,17 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	 */
 	@Nonnull
 	private CacheOptions loadCacheOptions(@Nonnull String yaml, boolean strict) throws IOException {
+		return loadCacheOptions(yaml, strict, Map.of());
+	}
+
+	/**
+	 * Loads cache options like {@link #loadCacheOptions(String, boolean)}, with `extraArguments` passed as program
+	 * arguments, the first source the server consults when it substitutes a placeholder in the shipped YAML.
+	 */
+	@Nonnull
+	private CacheOptions loadCacheOptions(
+		@Nonnull String yaml, boolean strict, @Nonnull Map<String, String> extraArguments
+	) throws IOException {
 		final Path directory = getPathInTargetDirectory(DIR_EVITA_SERVER_TEST);
 		Files.createDirectories(directory);
 		if (yaml.isEmpty()) {
@@ -1267,6 +1300,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		for (ExternalApiProviderRegistrar<?> provider : ExternalApiServer.gatherExternalApiProviders()) {
 			arguments.put("api.endpoints." + provider.getExternalApiCode() + ".enabled", "false");
 		}
+		arguments.putAll(extraArguments);
 		final EvitaServer server = new EvitaServer(directory, strict, null, arguments);
 		try {
 			server.run();

@@ -28,6 +28,7 @@ import io.evitadb.utils.Assert;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Configuration of the cross-query formula result cache, bounded by the estimated size of retained entries.
@@ -35,8 +36,9 @@ import javax.annotation.Nonnull;
  * @param reflection mode for caching Java reflection metadata; `CACHE` is recommended for normal operation
  * @param enabled whether cross-query caching of formula computation results is enabled
  * @param minimalComplexityThreshold minimal estimated cost of a computation whose result may be cached
- * @param cacheSizeInBytes target budget in bytes for the estimated size of retained entries; `0` selects the default
- *                         of 25% of free heap measured at class initialization
+ * @param cacheSizeInBytes target budget in bytes for the estimated size of retained entries; `null` selects the
+ *                         default of 25% of free heap measured at class initialization; `0` disables formula result
+ *                         caching
  * @param dropEntriesAfterSecondsOfInactivity idle time in seconds before an entry expires, also the maintenance
  *                                          period; `0` disables expiry and its maintenance timer
  * @param verifyOneHitIn sampling rate for verifying cache hits by recomputation; `1` verifies every hit,
@@ -48,7 +50,7 @@ public record CacheOptions(
 	@Nonnull ReflectionCachingBehaviour reflection,
 	boolean enabled,
 	long minimalComplexityThreshold,
-	long cacheSizeInBytes,
+	@Nullable Long cacheSizeInBytes,
 	int dropEntriesAfterSecondsOfInactivity,
 	int verifyOneHitIn
 ) {
@@ -94,18 +96,19 @@ public record CacheOptions(
 	}
 
 	/**
-	 * Validates cache limits and resolves a zero budget to the default measured at class initialization.
+	 * Validates cache limits and resolves a null budget to the default measured at class initialization;
+	 * `0` disables the cache.
 	 */
 	public CacheOptions {
+		if (cacheSizeInBytes == null) {
+			cacheSizeInBytes = DEFAULT_CACHE_SIZE;
+		}
 		Assert.isTrue(minimalComplexityThreshold >= 0, "Minimal complexity threshold must not be negative.");
 		Assert.isTrue(cacheSizeInBytes >= 0, "Cache size in bytes must not be negative.");
 		Assert.isTrue(
 			dropEntriesAfterSecondsOfInactivity >= 0, "Cache entry inactivity period must not be negative."
 		);
 		Assert.isTrue(verifyOneHitIn >= 0, "Cache hit verification rate must not be negative.");
-		if (cacheSizeInBytes == 0) {
-			cacheSizeInBytes = DEFAULT_CACHE_SIZE;
-		}
 	}
 
 	/**
@@ -120,6 +123,15 @@ public record CacheOptions(
 			DEFAULT_DROP_ENTRIES_AFTER_SECONDS_OF_INACTIVITY,
 			DEFAULT_VERIFY_ONE_HIT_IN
 		);
+	}
+
+	/**
+	 * Returns the budget the constructor resolved: a `null` argument has already become the default, so callers may
+	 * unbox it directly, and `0` means formula result caching is off.
+	 */
+	@Nonnull
+	public Long cacheSizeInBytes() {
+		return this.cacheSizeInBytes;
 	}
 
 	/**
@@ -141,7 +153,7 @@ public record CacheOptions(
 			this.reflection = cacheOptions.reflection;
 			this.enabled = cacheOptions.enabled;
 			this.minimalComplexityThreshold = cacheOptions.minimalComplexityThreshold;
-			this.cacheSizeInBytes = cacheOptions.cacheSizeInBytes;
+			this.cacheSizeInBytes = cacheOptions.cacheSizeInBytes();
 			this.dropEntriesAfterSecondsOfInactivity = cacheOptions.dropEntriesAfterSecondsOfInactivity;
 			this.verifyOneHitIn = cacheOptions.verifyOneHitIn;
 		}
@@ -174,7 +186,7 @@ public record CacheOptions(
 		}
 
 		/**
-		 * Sets the estimated retained size budget in bytes; `0` selects the default.
+		 * Sets the estimated retained size budget in bytes; `0` disables the cache.
 		 */
 		@Nonnull
 		public Builder cacheSizeInBytes(long cacheSizeInBytes) {

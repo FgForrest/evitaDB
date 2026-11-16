@@ -35,6 +35,7 @@ import io.evitadb.api.EvitaSessionTerminationCallback;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogGoingLiveException;
@@ -201,8 +202,8 @@ public final class Evita implements EvitaContract {
 	private final Map<String, SessionRegistry> catalogSessionRegistries = CollectionUtils.createConcurrentHashMap(64);
 	/**
 	 * Analysis seam for query formulas and extra-result computers: `NoCacheSupervisor` when the formula result cache is
-	 * disabled, otherwise the engine's single `FormulaCacheSupervisor`, from which every planning root resolves its own
-	 * gate. It is closed together with the engine.
+	 * disabled or its budget is zero, otherwise the engine's single `FormulaCacheSupervisor`, from which every planning
+	 * root resolves its own gate. It is closed together with the engine.
 	 */
 	private final CacheSupervisor cacheSupervisor;
 	/**
@@ -553,8 +554,9 @@ public final class Evita implements EvitaContract {
 			.filter(it -> it > 0)
 			.map(it -> new SessionKiller(it, this, this.serviceExecutor))
 			.orElse(null);
-		this.cacheSupervisor = configuration.cache().enabled() ?
-			new FormulaCacheSupervisor(configuration.cache(), this.serviceExecutor, Ticker.systemTicker()) :
+		final CacheOptions cacheOptions = configuration.cache();
+		this.cacheSupervisor = cacheOptions.enabled() && cacheOptions.cacheSizeInBytes() > 0 ?
+			new FormulaCacheSupervisor(cacheOptions, this.serviceExecutor, Ticker.systemTicker()) :
 			NoCacheSupervisor.INSTANCE;
 		this.formulaCacheStatisticsHook = this.cacheSupervisor instanceof FormulaCacheSupervisor cache ?
 			new FormulaCacheStatisticsHook(cache) : null;

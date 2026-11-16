@@ -180,12 +180,38 @@ class CacheOptionsTest {
 	@DisplayName("Zero values")
 	class ZeroValueTest {
 
+		/** A zero budget disables caching through both construction paths. */
 		@Test
-		@DisplayName("should resolve a zero budget to the shared default")
-		void shouldResolveZeroBudgetToDefault() {
-			assertEquals(new CacheOptions(), CacheOptions.builder().cacheSizeInBytes(0).build());
+		@DisplayName("should keep a zero budget as disabled")
+		void shouldKeepZeroBudgetAsDisabled() {
+			final CacheOptions built = CacheOptions.builder().cacheSizeInBytes(0).build();
+			final CacheOptions constructed = new CacheOptions(
+				ReflectionCachingBehaviour.CACHE, false, 10_000, 0L, 600, 1_000
+			);
+			assertEquals(0L, built.cacheSizeInBytes());
+			assertEquals(0L, constructed.cacheSizeInBytes());
+			assertNotEquals(new CacheOptions(), built);
+			assertNotEquals(new CacheOptions(), constructed);
+		}
+
+		/** Copying options through the builder keeps a zero budget off rather than resolving it to the default. */
+		@Test
+		@DisplayName("should preserve a zero budget when copying through the builder")
+		void shouldPreserveZeroBudgetWhenCopyingThroughBuilder() {
+			final CacheOptions source = CacheOptions.builder().cacheSizeInBytes(0).build();
+
+			final CacheOptions copy = CacheOptions.builder(source).build();
+
+			assertEquals(0L, copy.cacheSizeInBytes());
+			assertEquals(source, copy);
+		}
+
+		/** A null budget resolves to the same default as an omitted budget. */
+		@Test
+		@DisplayName("should resolve a null budget to the shared default")
+		void shouldResolveNullBudgetToDefault() {
 			assertEquals(
-				new CacheOptions(), new CacheOptions(ReflectionCachingBehaviour.CACHE, false, 10_000, 0, 600, 1_000)
+				new CacheOptions(), new CacheOptions(ReflectionCachingBehaviour.CACHE, false, 10_000, null, 600, 1_000)
 			);
 		}
 
@@ -211,13 +237,13 @@ class CacheOptionsTest {
 		@DisplayName("should reject negative limits in the canonical constructor")
 		void shouldRejectNegativeLimitsInCanonicalConstructor() {
 			assertThrows(EvitaInvalidUsageException.class,
-				() -> new CacheOptions(ReflectionCachingBehaviour.CACHE, false, -1, 1, 600, 1_000));
+				() -> new CacheOptions(ReflectionCachingBehaviour.CACHE, false, -1, 1L, 600, 1_000));
 			assertThrows(EvitaInvalidUsageException.class,
-				() -> new CacheOptions(ReflectionCachingBehaviour.CACHE, false, 10_000, -1, 600, 1_000));
+				() -> new CacheOptions(ReflectionCachingBehaviour.CACHE, false, 10_000, -1L, 600, 1_000));
 			assertThrows(EvitaInvalidUsageException.class,
-				() -> new CacheOptions(ReflectionCachingBehaviour.CACHE, false, 10_000, 1, -1, 1_000));
+				() -> new CacheOptions(ReflectionCachingBehaviour.CACHE, false, 10_000, 1L, -1, 1_000));
 			assertThrows(EvitaInvalidUsageException.class,
-				() -> new CacheOptions(ReflectionCachingBehaviour.CACHE, false, 10_000, 1, 600, -1));
+				() -> new CacheOptions(ReflectionCachingBehaviour.CACHE, false, 10_000, 1L, 600, -1));
 		}
 
 		@Test

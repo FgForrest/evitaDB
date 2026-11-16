@@ -1,7 +1,7 @@
 ---
 title: Cache parsed and validated GraphQL documents per GraphQL instance in a Caffeine cache bounded by bytes
 date: 2026-11-13
-updated: 2026-11-13 12:00
+updated: 2026-11-16 18:50
 status: proposed
 kind: optimization
 issues: [1191]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_external_api/evita_external_api_graphql]
 supersedes: []
 superseded-by: []
-relates: []
+relates: [2026-11-14-formula-cache-redesign]
 ---
 
 # Cache parsed and validated GraphQL documents per GraphQL instance in a Caffeine cache bounded by bytes

@@ -93,7 +93,7 @@ cache:                                            # [see Cache configuration](#c
   enabled: false
   reflection: CACHE
   minimalComplexityThreshold: 10K
-  cacheSizeInBytes: null                           # bytes; null selects the default budget
+  cacheSizeInBytes: null                           # bytes; null selects the default budget, 0 disables the cache
   dropEntriesAfterSecondsOfInactivity: 600          # seconds
   verifyOneHitIn: 1000                             # randomly verify one in 1000 hits
 
@@ -1095,7 +1095,8 @@ are shared by embedded instances and the server YAML configuration.
     <dt>enabled</dt>
     <dd>
         <p>**Default:** `false`</p>
-        <p>Enables or disables cross-query caching of formula computation results. Use `false` to disable this cache.</p>
+        <p>Enables or disables cross-query caching of formula computation results. Use `false` to disable this cache.
+        The cache is active only when `enabled` is `true` and `cacheSizeInBytes` is not `0`.</p>
     </dd>
     <dt>minimalComplexityThreshold</dt>
     <dd>
@@ -1109,8 +1110,9 @@ are shared by embedded instances and the server YAML configuration.
         <p>**Default:** `null` (25% of free heap measured when `CacheOptions` is initialized)</p>
         <p>The target budget in bytes for estimated retained payloads, keys and entry overhead. The default is
         calculated once from maximum heap minus currently used heap, before catalog loading is accounted for.
-        Omission, `null` and `0` select the same default budget. YAML size suffixes such as `MB` use powers of 1024;
-        numeric suffixes such as `M` use powers of 1000. Use `enabled: false` to disable formula result caching.</p>
+        Omission and `null` select the default budget. YAML size suffixes such as `MB` use powers of 1024;
+        numeric suffixes such as `M` use powers of 1000. `0` disables formula result caching regardless of `enabled`;
+        negative values are rejected.</p>
     </dd>
     <dt>dropEntriesAfterSecondsOfInactivity</dt>
     <dd>

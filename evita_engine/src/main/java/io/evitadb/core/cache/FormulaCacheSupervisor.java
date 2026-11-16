@@ -75,8 +75,9 @@ import java.util.concurrent.atomic.LongAdder;
  * The retained budget is an eventual target; concurrent misses and queries' own memos are outside that budget.
  * A confirmed sampled mismatch disables this engine's cache for the rest of its lifetime.
  *
- * An engine with the cache enabled owns exactly one instance, shared by the queries of all its threads; every planning
- * root obtains its effective supervisor through {@link #resolveForRoot(EvitaSessionContract, String)}.
+ * An engine with the cache enabled and a positive budget owns exactly one instance, shared by the queries of all its
+ * threads; every planning root obtains its effective supervisor through
+ * {@link #resolveForRoot(EvitaSessionContract, String)}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -91,6 +92,8 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 	private static final int MAX_REPORTED_DIFFERENCES = 16;
 	/** Immutable configuration shared by all planning roots. */
 	private final CacheOptions options;
+	/** Retained size budget unboxed once for admission checks and statistics. */
+	private final long budget;
 	/** Completed, immutable tuples published without a loading function. */
 	private final Cache<FormulaKey, CachedResult> cache;
 	/** Permanent switch for this engine instance. */
@@ -127,8 +130,9 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		@Nonnull CacheOptions options, @Nonnull Scheduler scheduler, @Nonnull Ticker ticker
 	) {
 		this.options = options;
+		this.budget = options.cacheSizeInBytes();
 		final Caffeine<Object, Object> builder = Caffeine.newBuilder()
-			.maximumWeight(options.cacheSizeInBytes()).executor(Runnable::run).ticker(ticker).recordStats();
+			.maximumWeight(this.budget).executor(Runnable::run).ticker(ticker).recordStats();
 		if (options.dropEntriesAfterSecondsOfInactivity() > 0) {
 			builder.expireAfterAccess(Duration.ofSeconds(options.dropEntriesAfterSecondsOfInactivity()));
 		}
@@ -250,7 +254,7 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 
 	/** Checks the complete long charge before allocating a retained tuple and records refusals. */
 	public int admittedWeight(long charge) {
-		final int weight = CachedResultWeigher.admittedWeight(charge, this.options.cacheSizeInBytes());
+		final int weight = CachedResultWeigher.admittedWeight(charge, this.budget);
 		if (weight == CachedResultWeigher.UNSIZED) {
 			this.refusedUnsized.increment();
 		} else if (weight == CachedResultWeigher.OVERSIZED) {
@@ -556,7 +560,7 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 			this.refusedOversized.sum(), this.refusedUnsized.sum(), this.prefetchBypasses.sum(),
 			this.transactionBypasses.sum(), stats.evictionCount(), stats.evictionWeight(), this.verifiedHits.sum(),
 			this.verificationNanos.sum() / 1_000_000L, this.mismatches.sum(), this.cache.estimatedSize(),
-			this.cache.policy().eviction().orElseThrow().weightedSize().orElse(0), this.options.cacheSizeInBytes(),
+			this.cache.policy().eviction().orElseThrow().weightedSize().orElse(0), this.budget,
 			isActive(), this.witness);
 	}
 

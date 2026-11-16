@@ -1,7 +1,7 @@
 ---
 title: Reuse formula results by declared value identity, inject complete tuples at execution, and disable the owning cache on a verified mismatch
 date: 2026-11-14
-updated: 2026-11-16 13:06
+updated: 2026-11-16 18:50
 status: accepted
 kind: refactor
 issues: [37]
@@ -9,7 +9,7 @@ prs: [1963]
 areas: [evita_engine/src/main/java/io/evitadb/core/cache, evita_engine/src/main/java/io/evitadb/core/query, evita_engine/src/main/java/io/evitadb/index/hierarchy, evita_engine/src/main/java/io/evitadb/core/metric/event/cache, evita_api/src/main/java/io/evitadb/api/configuration, evita_external_api/evita_external_api_observability/src/main/java/io/evitadb/externalApi/observability/metric]
 supersedes: []
 superseded-by: []
-relates: [2026-08-28-index-lifetime-formula-memoization, 2026-08-04-query-telemetry-actionable-profile, 2026-08-24-price-histogram-per-accessor-granularity, 2026-09-15-non-collapsible-formula-marker, 2026-09-18-range-index-counting-kernel, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-09-23-internal-member-annotation, 2026-05-06-reference-histogram-statistics]
+relates: [2026-08-28-index-lifetime-formula-memoization, 2026-08-04-query-telemetry-actionable-profile, 2026-08-24-price-histogram-per-accessor-granularity, 2026-09-15-non-collapsible-formula-marker, 2026-09-18-range-index-counting-kernel, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-09-23-internal-member-annotation, 2026-05-06-reference-histogram-statistics, 2026-11-13-graphql-parsed-document-cache]
 ---
 
 # Formula results are reused by declared identity and verified at execution
@@ -114,8 +114,9 @@ fails the detecting request; it does not undo already injected results in other 
   compares responses including fetched projections; cache tuple comparison is a different contract.
 - [CacheOptions](../../evita_api/src/main/java/io/evitadb/api/configuration/CacheOptions.java): defaults match server
   YAML, including disabled caching, 10,000 estimated cost units, a budget of 25% of free heap at class initialization,
-  600 seconds idle expiry and one-in-1,000 hit sampling. Zero budget selects the default; zero expiry or sampling
-  disables that mechanism. Reflection caching is independent.
+  600 seconds idle expiry and one-in-1,000 hit sampling. A `null` budget selects the default; a zero budget, zero
+  expiry or zero sampling disables that mechanism, and a zero budget installs no supervisor. Reflection caching is
+  independent.
 - [Cache events](../../evita_engine/src/main/java/io/evitadb/core/metric/event/cache) and the periodic hook in
   [Evita](../../evita_engine/src/main/java/io/evitadb/core/Evita.java): group `io.evitadb.cache`, category
   `Formula cache`, one-minute default statistics period. `FormulaCacheMismatchEvent` exports only catalog name,
