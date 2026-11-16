@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -51,7 +52,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.zip.Deflater;
 import org.junit.jupiter.api.Tag;
 
@@ -71,6 +74,251 @@ import static io.evitadb.test.TestTags.SERIALIZATION;
 class ObservableInputTest extends AbstractObservableInputOutputTest {
 	private static final int REPETITIONS = 50;
 	private static final int BIG_PAYLOAD_SIZE = PAYLOAD_SIZE * REPETITIONS;
+
+	/**
+	 * Pins the fast comparison to bytes emitted by Kryo, including both prefix directions and refill fallbacks.
+	 */
+	@Test
+	@DisplayName("compares complete Kryo string encodings without consuming a mismatch")
+	void shouldCompareRememberedStringEncodings() {
+		final String[] names = {null, "", "a", "ab", "abc", "žluťoučký", "漢字", "x".repeat(600), "😀"};
+		for (final String remembered : names) {
+			final byte[] encoded = encodeString(remembered);
+			for (final String actual : names) {
+				for (final int bufferSize : new int[]{8, 32, 4_096}) {
+					final String scenario =
+						"remembered=" + remembered + ", actual=" + actual + ", buffer=" + bufferSize;
+					try (final Output output = new Output(64, -1)) {
+						output.writeString(actual);
+						final int stringEnd = output.position();
+						output.writeInt(0x12345678);
+						try (final ObservableInput<?> input = createObservableInputFromBytes(output.toBytes(), bufferSize)) {
+							final long before = input.total();
+							final boolean matched = input.trySkipString(encoded);
+							if (matched) {
+								assertEquals(remembered, actual, scenario);
+							} else {
+								assertEquals(before, input.total(), scenario);
+								assertEquals(actual, input.readString(), scenario);
+							}
+							if (bufferSize == 4_096) {
+								assertEquals(Objects.equals(remembered, actual), matched, scenario);
+							}
+							assertEquals(stringEnd, input.total(), scenario);
+							assertEquals(0x12345678, input.readInt(), scenario);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Compares the fast and ordinary readers inside real record lifecycles, where both CRC and total accounting run.
+	 */
+	@Test
+	@DisplayName("preserves record and cumulative CRC and totals across refills and compression")
+	void shouldPreserveStringSkipAccounting() {
+		final String[] names = {"", "a", "ab", "abc", "ab", "žluťoučký", "漢字".repeat(80)};
+		for (final boolean compressed : new boolean[]{false, true}) {
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream(4_096);
+			try (final ObservableOutput<?> output = new ObservableOutput<>(
+				bytes, new byte[4_096], Crc32CChecksumFactory.INSTANCE.createChecksum(),
+				compressed ? ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow() : null
+			)) {
+				for (int record = 0; record < 2; record++) {
+					output.markStart();
+					output.markRecordLengthPosition();
+					output.writeInt(0);
+					output.writeByte(0);
+					output.markPayloadStart();
+					// The five-byte header plus padding places this short name across a 32-byte refill.
+					output.writeBytes(new byte[25]);
+					output.writeString("category");
+					for (int repeat = 0; repeat < 3; repeat++) {
+						for (final String name : names) {
+							output.writeString(name);
+						}
+					}
+					output.markEnd((byte) 0);
+				}
+			}
+			for (final int bufferSize : new int[]{32, 4_096}) {
+				try (
+					final ObservableInput<?> ordinary =
+						createObservableInputFromBytesWithCompression(bytes.toByteArray(), bufferSize);
+					final ObservableInput<?> fast =
+						createObservableInputFromBytesWithCompression(bytes.toByteArray(), bufferSize)
+				) {
+					ordinary.markCumulativeChecksumStart();
+					fast.markCumulativeChecksumStart();
+					for (int record = 0; record < 2; record++) {
+						final String scenario =
+							"compressed=" + compressed + ", buffer=" + bufferSize + ", record=" + record;
+						ordinary.markStart();
+						fast.markStart();
+						final int length = ordinary.readInt();
+						assertEquals(length, fast.readInt(), scenario);
+						final byte control = ordinary.readByte();
+						assertEquals(compressed, BitUtils.isBitSet(control, StorageRecord.COMPRESSION_BIT), scenario);
+						assertEquals(control, fast.readByte(), scenario);
+						ordinary.markPayloadStart(length, control);
+						fast.markPayloadStart(length, control);
+						assertArrayEquals(ordinary.readBytes(25), fast.readBytes(25), scenario);
+						assertEquals("category", ordinary.readString(), scenario);
+						final boolean prefixSkipped = fast.trySkipString(encodeString("category"));
+						if (record == 0) {
+							assertEquals(
+								bufferSize == 4_096, prefixSkipped, scenario + ": short name straddles the small buffer"
+							);
+						}
+						if (!prefixSkipped) {
+							assertEquals("category", fast.readString(), scenario);
+						}
+						assertEquals(ordinary.total(), fast.total(), scenario);
+						int fastSkips = 0;
+						for (int repeat = 0; repeat < 3; repeat++) {
+							for (final String name : names) {
+								final String nameScenario = scenario + ", name=" + name;
+								assertEquals(name, ordinary.readString(), nameScenario);
+								if (fast.trySkipString(encodeString(name))) {
+									fastSkips++;
+								} else {
+									assertEquals(name, fast.readString(), nameScenario);
+								}
+								assertEquals(ordinary.total(), fast.total(), nameScenario);
+							}
+						}
+						assertTrue(fastSkips > 0, scenario + ": accounting must exercise successful string skips");
+						ordinary.markEnd(control);
+						fast.markEnd(control);
+						assertEquals(ordinary.total(), fast.total(), scenario);
+					}
+					assertEquals(
+						ordinary.markCumulativeChecksumEnd(), fast.markCumulativeChecksumEnd(),
+						"compressed=" + compressed + ", buffer=" + bufferSize
+					);
+					assertEquals(bytes.size(), fast.total(), "compressed=" + compressed + ", buffer=" + bufferSize);
+				}
+			}
+		}
+	}
+
+	/**
+	 * The record tail is not payload: remembered bytes that match the stream but end past the payload must not be
+	 * consumed. The remembered bytes are cut from the written record itself, so only the record cap can refuse them.
+	 */
+	@Test
+	@DisplayName("refuses a remembered encoding that would reach past the record payload")
+	void shouldNotCrossRecordBoundaryWhenRememberedEncodingIsLongerThanRecordRemainder() {
+		final ByteArrayOutputStream bytes = new ByteArrayOutputStream(64);
+		try (final ObservableOutput<?> output = new ObservableOutput<>(
+			bytes, new byte[64], Crc32CChecksumFactory.INSTANCE.createChecksum(), null
+		)) {
+			output.markStart();
+			output.markRecordLengthPosition();
+			output.writeInt(0);
+			output.writeByte(0);
+			output.markPayloadStart();
+			output.writeString("ab");
+			output.markEnd((byte) 0);
+		}
+		final byte[] record = bytes.toByteArray();
+		final int payloadStart = Integer.BYTES + Byte.BYTES;
+		final byte[] encoded = encodeString("ab");
+		assertTrue(record.length > payloadStart + encoded.length, "the record tail must follow the payload");
+		assertArrayEquals(
+			encoded, Arrays.copyOfRange(record, payloadStart, payloadStart + encoded.length),
+			"the string must start right after the record header"
+		);
+
+		for (final boolean pastPayload : new boolean[]{true, false}) {
+			final byte[] remembered = Arrays.copyOfRange(
+				record, payloadStart, payloadStart + encoded.length + (pastPayload ? 1 : 0)
+			);
+			try (final ObservableInput<?> input = createObservableInputFromBytes(record, 4_096)) {
+				input.markStart();
+				final int length = input.readInt();
+				final byte control = input.readByte();
+				input.markPayloadStart(length, control);
+				final long payloadPosition = input.total();
+
+				final boolean skipped = input.trySkipString(remembered);
+
+				assertEquals(!pastPayload, skipped, "pastPayload=" + pastPayload);
+				if (skipped) {
+					assertEquals(payloadPosition + encoded.length, input.total());
+				} else {
+					assertEquals(payloadPosition, input.total());
+					assertEquals("ab", input.readString());
+				}
+				input.markEnd(control);
+				assertEquals(record.length, input.total(), "pastPayload=" + pastPayload);
+			}
+		}
+	}
+
+	/**
+	 * With no byte left in the record payload or in the stream, the fast path must fail the way the string reader
+	 * does instead of reporting a mismatch.
+	 */
+	@Test
+	@DisplayName("fails like the string reader when no byte remains in the record or the stream")
+	void shouldFailLikeReadStringWhenNoBytesRemainInRecord() {
+		final byte[] record = writeRecordsAndGetBytes(RECORD_SIZE, output -> writeRandomRecord(output, PAYLOAD_SIZE));
+		final byte[] string = encodeString("a");
+		final byte[] remembered = encodeString("a");
+		for (final boolean insideRecord : new boolean[]{true, false}) {
+			final byte[] bytes = insideRecord ? record : string;
+
+			final Class<? extends Throwable> readFailure =
+				failureAtEnd(bytes, insideRecord, ObservableInput::readString);
+			final Class<? extends Throwable> skipFailure =
+				failureAtEnd(bytes, insideRecord, input -> input.trySkipString(remembered));
+
+			assertSame(readFailure, skipFailure, "insideRecord=" + insideRecord);
+		}
+	}
+
+	/**
+	 * Positions a fresh input at the end of the record payload or of the whole stream and returns the class of the
+	 * exception the passed read throws there.
+	 *
+	 * @param bytes        a single record carrying `PAYLOAD_SIZE` bytes of payload, or a single Kryo string
+	 * @param insideRecord whether `bytes` hold a record (otherwise a bare string)
+	 * @param read         the read attempted with nothing left to read
+	 * @return the class of the exception the read failed with
+	 */
+	@Nonnull
+	private static Class<? extends Throwable> failureAtEnd(
+		@Nonnull byte[] bytes,
+		boolean insideRecord,
+		@Nonnull Consumer<ObservableInput<?>> read
+	) {
+		try (final ObservableInput<?> input = createObservableInputFromBytes(bytes, 24)) {
+			if (insideRecord) {
+				input.markStart();
+				final int length = input.readInt();
+				final byte control = input.readByte();
+				input.markPayloadStart(length, control);
+				input.readBytes(PAYLOAD_SIZE);
+			} else {
+				input.readString();
+			}
+			return assertThrows(Throwable.class, () -> read.accept(input)).getClass();
+		}
+	}
+
+	/**
+	 * Obtains a canonical string encoding from Kryo instead of duplicating its encoding algorithm in the test.
+	 */
+	@Nonnull
+	private static byte[] encodeString(@Nullable String name) {
+		try (final Output output = new Output(64, -1)) {
+			output.writeString(name);
+			return output.toBytes();
+		}
+	}
 
 	/**
 	 * Computes manual cumulative CRC32C checksum over all record bytes.
