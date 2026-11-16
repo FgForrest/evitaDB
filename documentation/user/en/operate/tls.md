@@ -311,7 +311,7 @@ Examples of attacks prevented:
 
 mTLS is not enabled by default. If you enable it, the necessary certificates will be generated automatically, but it's 
 still **not secure** and should only be used in development. When evitaDB is started and `generateAndUseSelfSigned` is
-set to `true` (default), it generates three public/private key pairs:
+set to `true` (default), it generates two public/private key pairs:
 
 1. server <Term>certificate</Term> in `server.crt` and its <Term>private key</Term> in `server.key` files
 2. client <Term>certificate</Term> in `client.crt` and its <Term>private key</Term> in `client.key` files
@@ -326,15 +326,16 @@ mTLS is enabled. You'll see those when the evitaDB server starts:
 
 ```plain
 API `system` listening on               http://your-domain:5555/system/
+   - server name served at:             http://your-domain:5555/system/server-name
    - server certificate served at:      http://your-domain:5555/system/server.crt
    - client certificate served at:      http://your-domain:5555/system/client.crt
    - client private key served at:      http://your-domain:5555/system/client.key
 ```
 
-When the gRPC client starts and has the following settings (all are defaults):
+When the gRPC client starts and has the following settings:
 
-- `useGeneratedCertificate`: `true`
-- `mtlsEnabled`: `true`
+- `useGeneratedCertificate`: `true` (default)
+- `mtlsEnabled`: `true` (the default is `false`)
 
 It automatically downloads the default client certificate along with private key and use it for communication. We are
 aware, that this is **not secure** and defies the logic of `mTLS`, but it allows us to test entire process and avoid
@@ -350,7 +351,7 @@ the mTLS functionality.
 
 If you need to verify that the client communicates with the server directly without any
 [man-in-the-middle](https://en.wikipedia.org/wiki/Man-in-the-middle_attack), you may check the fingerprints of
-the used <Term>certificate authority</Term> both on the server side and the client.
+the server <Term>certificate</Term> both on the server side and the client.
 If a client downloads the server certificate over plain HTTP, it must verify the downloaded certificate against
 the fingerprint printed by the server at start-up before trusting it.
 
@@ -367,7 +368,7 @@ Server certificate fingerprint: 84:F0:29:87:D8:F5:F6:92:B4:7B:AA:AE:F3:5A:29:A1:
 Client logs the fingerprint using [configured logging library](run.md#control-logging) on `INFO` level in this form:
 
 ```plain
-16:11:18.712 INFO  i.e.d.c.ClientCertificateManager - Server's certificate fingerprint: 04:B0:9C:00:FB:32:D8:8A:7A:C9:34:19:5D:90:48:8A:BF:BF:E8:22:32:53:4C:4F:14:E1:EC:FA:C2:99:C3:DD
+16:11:18.712 INFO  i.e.d.EvitaClient - Server's certificate fingerprint: 04:B0:9C:00:FB:32:D8:8A:7A:C9:34:19:5D:90:48:8A:BF:BF:E8:22:32:53:4C:4F:14:E1:EC:FA:C2:99:C3:DD
 ```
 </Note>
 

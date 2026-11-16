@@ -31,13 +31,16 @@ There should be only classes that are generic and used by several APIs.
 
 ### API server
 
-The HTTP server (`io.evitadb.externalApi.http.ExternalApiServer`) is implemented using the
-[Armeria server](https://armeria.dev/docs/server-basics) and is responsible
+The HTTP server
+(<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiServer.java</SourceClass>)
+is implemented using the [Armeria server](https://armeria.dev/docs/server-basics) and is responsible
 for initializing an HTTP communication base as well as starting up all registered APIs. The server is configured
-using the `io.evitadb.externalApi.configuration.ApiOptions` which contains common server options and specific options
-for each API.
+using the
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/configuration/ApiOptions.java</SourceClass>
+which contains common server options and specific options for each API.
 
-The server first loads all APIs (each represented by the `io.evitadb.externalApi.http.ExternalApiProviderRegistrar`)
+The server first loads all APIs (each represented by the
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiProviderRegistrar.java</SourceClass>)
 to be registered using `java.util.ServiceLoader`. Found registrars are executed and their resulted providers are
 stored in server's memory for further initialization and API lifecycle management.
 
@@ -46,9 +49,10 @@ managing multiple HTTP/HTTPS listeners for APIs, because each API may
 need separate port or host or both (or end-user can define so). A service that routes requests by itself
 (`PathHandlingMode.FIXED_PATH_HANDLING`, e.g. gRPC) is registered directly on the Armeria server. The other services
 (`PathHandlingMode.DYNAMIC_PATH_HANDLING`) are registered under their path prefix in a
-`io.evitadb.externalApi.http.routing.PrefixRoutingService`, which can add, replace and remove prefixes at runtime
-without disturbing the other ones; APIs dispatch their own endpoints through an immutable
-`io.evitadb.externalApi.http.routing.EndpointRoutingService`.
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/routing/PrefixRoutingService.java</SourceClass>,
+which can add, replace and remove prefixes at runtime without disturbing the other ones; APIs dispatch their own
+endpoints through an immutable
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/routing/EndpointRoutingService.java</SourceClass>.
 
 ### API model
 
@@ -58,12 +62,12 @@ has been developed to complexly and universally describe the evitaDB data model 
 A "descriptor" is an object that describes a part of a model entity. There are several types of such descriptors, each
 is responsible for describing different part:
 
-- `io.evitadb.externalApi.api.catalog.model.ObjectDescriptor`
+- <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/model/ObjectDescriptor.java</SourceClass>
   - describes whole model entity object
   - usually has linked several other descriptors (fields, ...)
-- `io.evitadb.externalApi.api.catalog.model.PropertyDescriptor`
+- <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/model/PropertyDescriptor.java</SourceClass>
   - describes fields (or arguments of fields) of a model entity
-- `io.evitadb.externalApi.api.catalog.model.EndpointDescriptor`
+- <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/model/EndpointDescriptor.java</SourceClass>
   - describes action endpoints of an API (in REST they are actual endpoints, in GraphQL they are represented by special fields)
 
 Each descriptor has its own transformer interface to be implemented by an API to transform described model to API-specific
@@ -115,14 +119,17 @@ Data and schema mutations are described by descriptor as well as any other model
 input objects (unlike most of the other models which are output object handled by data fetchers), they need to converted
 into evitaDB's structures.
 
-For that, there are individual `io.evitadb.externalApi.api.catalog.resolver.mutation.MutationConverter`s for each mutation
-and its aggregates. Each converter must convert mutation from raw key-value structure into a specific evitaDB's mutation
-implementation class. For more convention implementation there is an abstraction on top of the key-value structure
-`io.evitadb.externalApi.api.catalog.resolver.mutation.Input` which handles of the common conversions and provides
-ways customize the non-common stuff. For example, to convert nested objects, there are:
+For that, there are individual
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/resolver/mutation/MutationConverter.java</SourceClass>
+implementations for each mutation and its aggregates. Each converter must convert mutation from raw key-value structure
+into a specific evitaDB's mutation implementation class. For more convention implementation there is an abstraction on
+top of the key-value structure
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/resolver/mutation/Input.java</SourceClass>
+which handles of the common conversions and provides ways customize the non-common stuff. For example, to convert
+nested objects, there are:
 
-- `io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectMapper`
-- `io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectListMapper`
+- <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/resolver/mutation/PropertyObjectMapper.java</SourceClass>
+- <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/resolver/mutation/PropertyObjectListMapper.java</SourceClass>
 
 Of course, you can define your own mapper for each value.
 
@@ -137,21 +144,27 @@ nested objects (similar problem is in the query language as well).
 
 Aggregates usually copy base mutation interfaces from evitaDB's core API and lists all its implementations as their
 possible object fields. Each aggregate must have descriptor and corresponding
-`io.evitadb.externalApi.api.catalog.resolver.mutation.MutationInputAggregateConverter`.
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/resolver/mutation/MutationInputAggregateConverter.java</SourceClass>.
 
 ## Creating new API
 
-Creating base for a brand-new API and registering it is quite simple. There is even support for APIs that can't use
-the main HTTP server because they come with their own servers (like gRPC).
+Creating base for a brand-new API and registering it is quite simple. Every API runs on the main HTTP server; an API
+that routes requests by itself (like gRPC) registers its service with `PathHandlingMode.FIXED_PATH_HANDLING`.
 
 There are 3 main classes that each API have to implement in order to be registered, rest is up to the API implementer.
-The main interface is `io.evitadb.externalApi.http.ExternalApiProvider`, and it is basically descriptor of an API. It contains
-an identification info, can have its own router to be registered in the main HTTP server, and it can register callbacks
-on start and stop actions of the main HTTP server (which is useful e.g. to start and stop API's own server).
-The second interface is basically factory for the provider class `io.evitadb.externalApi.http.ExternalApiProviderRegistrar`
+The main interface is
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiProvider.java</SourceClass>,
+and it is basically descriptor of an API. It contains
+an identification info and the HTTP services to be registered in the main HTTP server, and it can react to lifecycle
+events of the main HTTP server (e.g. to emit observability events once all APIs are initialized, or to release API's
+resources before the server stops).
+The second interface is basically factory for the provider class
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiProviderRegistrar.java</SourceClass>
 which is being called when the main HTTP server is being started, and it is provided with client configurations to create
 and configure the provider from it.
-Finally, the `io.evitadb.externalApi.configuration.AbstractApiOptions` has to be implemented to provide
+Finally, the
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/configuration/AbstractApiOptions.java</SourceClass>
+has to be implemented to provide
 API-specific client configuration options for the factory. This class is automatically parsed from
 client's YAML configuration during the evitaDB initialization.
 

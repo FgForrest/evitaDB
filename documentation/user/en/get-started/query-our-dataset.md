@@ -105,12 +105,13 @@ Visit us at: https://evitadb.io
 	- Stock (1)
 19:45:37.091 INFO  i.e.s.c.DefaultCatalogPersistenceService - Catalog loaded in 0.054817170s
 19:45:41.363 INFO  i.e.c.Evita - Catalog evita fully loaded.
-Root CA Certificate fingerprint:        43:51:C6:A0:9C:21:9A:8A:BE:18:2B:53:93:CF:4E:1A:CE:7F:FF:B0:16:99:A5:4C:22:52:25:09:72:6F:5C:E3
+Server certificate fingerprint:         43:51:C6:A0:9C:21:9A:8A:BE:18:2B:53:93:CF:4E:1A:CE:7F:FF:B0:16:99:A5:4C:22:52:25:09:72:6F:5C:E3
 API `graphQL` listening on              https://localhost:5555/gql/
 API `rest` listening on                 https://localhost:5555/rest/
 API `gRPC` listening on                 https://localhost:5555/
 API `system` listening on               http://localhost:5555/system/
-   - server certificate served at:      http://localhost:5555/system/evitaDB-CA-selfSigned.crt
+   - server name served at:             http://localhost:5555/system/server-name
+   - server certificate served at:      http://localhost:5555/system/server.crt
    - client certificate served at:      http://localhost:5555/system/client.crt
    - client private key served at:      http://localhost:5555/system/client.key
 

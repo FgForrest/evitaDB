@@ -1534,8 +1534,8 @@ This allows you to set common settings for all endpoints in one place.
 
 ### System API configuration
 
-There is a special `api.endpoints.system` endpoint that allows access over the unsecured HTTP protocol. Since it's the
-only exposed endpoint on the unsecured http protocol, it must run on a separate port. The endpoint allows anyone to
+There is a special `api.endpoints.system` endpoint that allows access over the unsecured HTTP protocol (its `tlsMode`
+defaults to `FORCE_NO_TLS`). It shares the port with the other APIs by default. The endpoint allows anyone to
 download the public part of the server certificate at `/system/server.crt` whenever at least one endpoint requires
 TLS. This URL is printed at start-up in both generated and custom certificate modes. When
 `api.certificate.generateAndUseSelfSigned` is `false`, it serves `api.certificate.custom.certificate`.
