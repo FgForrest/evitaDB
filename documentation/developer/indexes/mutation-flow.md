@@ -1036,7 +1036,7 @@ body during a scope change and records nothing, enumerating a localized value by
 mutation starts another withdrawal and final add in the new scope. Whole-entity unindexing likewise asserts that
 no reference awaits a final add before removing histograms.
 
-**The locale set of a localized value (#1922).** `ReferenceIndexMutator#resolveHistogramLocales` enumerates a
+**The locale set of a localized value.** `ReferenceIndexMutator#resolveHistogramLocales` enumerates a
 localized `REFERENCE_ATTRIBUTE` value on every path - final add, re-index, withdrawal, unindexing and entity
 removal - over the locales of the reference's own values of the source attribute and, when the value has a `??`
 default, every locale of the entity as its in-flight body has them at that moment (`EntityBodyStoragePart#getLocales`,

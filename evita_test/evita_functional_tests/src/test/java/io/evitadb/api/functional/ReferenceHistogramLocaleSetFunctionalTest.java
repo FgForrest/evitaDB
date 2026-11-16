@@ -92,7 +92,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Verifies the locale set a histogram over a localized reference attribute enumerates its values over (#1922): the
+ * Verifies the locale set a histogram over a localized reference attribute enumerates its values over: the
  * locales the reference holds a value in, and - when the value has a `??` default - every locale of the owner entity,
  * associated data included, as the entity has them at the moment the value is added or withdrawn.
  *
@@ -163,7 +163,7 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 
 	/**
 	 * The scenarios of a locale given to the product by the upsert that writes the localized share, and their
-	 * controls - the eight cases #1922 was reported with.
+	 * controls - the eight base scenarios.
 	 *
 	 * @return arguments of {@link ValueWrittenByUpsertGivingItsLocale#shouldHoldLocalizedValueWhenUpsertAddsItsLocale}
 	 */
@@ -273,8 +273,9 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * The scenarios of a defaulted localized share whose product gains or loses a locale through its own title,
-	 * adopted from the owner-side scenarios of the sweep of #1778.
+	 * The scenarios of a defaulted localized share whose product gains or loses a locale through its own title: the
+	 * product gains it after its reference exists, loses it and gains it back with or without the reference, and a
+	 * control product has both locales before its reference is stored.
 	 *
 	 * @return arguments of {@link OwnerLocaleSetChange#shouldHoldTheValuesOfAFreshlyStoredProduct}
 	 */
@@ -800,7 +801,7 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * The cases #1922 was reported with: a localized value written by the very upsert that gives the product its
+	 * The scenarios of a localized value written by the very upsert that gives the product its
 	 * locale - a new product stored with its German title and its German share at once, and an existing product that
 	 * gains its German title, its German share and a new scope in one upsert and changes the German share once more
 	 * after the scope change.
@@ -812,7 +813,7 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 	 * missing or left behind in memory only would disappear on the restart.
 	 */
 	@Nested
-	@DisplayName("#1922: a localized value written by the upsert that gives the product its locale")
+	@DisplayName("a localized value written by the upsert that gives the product its locale")
 	class ValueWrittenByUpsertGivingItsLocale {
 
 		/**
@@ -998,7 +999,7 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * One expected state of the share histogram in the cases #1922 was reported with.
+	 * One expected state of the share histogram in the scenarios of a locale given by the upsert.
 	 *
 	 * @param scope    the scope whose histogram is checked
 	 * @param locale   the locale of the histogram
@@ -1012,7 +1013,7 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * One upsert under test of the cases #1922 was reported with, with the product it runs on and the states of the
+	 * One upsert under test of these scenarios, with the product it runs on and the states of the
 	 * histograms it must produce.
 	 *
 	 * @param name          the name of the scenario
@@ -1531,7 +1532,7 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Records one check per expectation of the cases #1922 was reported with: that the histogram is described as
+	 * Records one check per expectation of these scenarios: that the histogram is described as
 	 * expected at the moment `stage` names.
 	 *
 	 * @param evita        the engine
@@ -1582,7 +1583,7 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Defines the schemas of the cases #1922 was reported with and stores the brands and the anchor products.
+	 * Defines the schemas of these scenarios and stores the brands and the anchor products.
 	 *
 	 * The product has a localized `title` and the locales English and German. Its reference to a brand is indexed for
 	 * filtering and faceted in both scopes, and carries the localized `share` attribute and the share histogram over
