@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.http.routing;
 
+import io.evitadb.utils.NumberUtils;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
@@ -43,9 +45,10 @@ final class RoutingPath {
 
 	/**
 	 * Scans only through the first real query separator, recording escapes and trimming trailing slashes by bounds.
-	 * Returns the end shifted left one bit with the escape flag in bit zero, or -1 when an escape before the query is
-	 * malformed or not strict UTF-8. Packing avoids a request allocation; ASCII needs one pass, escaped input
-	 * additionally validates from its first `%`.
+	 * Returns the end and the escape flag (1 or 0) packed by {@link NumberUtils#pack(int, int)}, or -1 when an escape
+	 * before the query is malformed or not strict UTF-8; a packed result is never negative, because the end is not.
+	 * Packing avoids a request allocation; ASCII needs one pass, escaped input additionally validates from its
+	 * first `%`.
 	 */
 	static long scan(@Nonnull String target) {
 		int end = 0;
@@ -65,7 +68,7 @@ final class RoutingPath {
 		if (firstEscape >= 0 && !valid(target, firstEscape, end)) {
 			return -1;
 		}
-		return ((long) end << 1) | (firstEscape < 0 ? 0 : 1);
+		return NumberUtils.pack(end, firstEscape < 0 ? 0 : 1);
 	}
 
 	/**
@@ -79,7 +82,7 @@ final class RoutingPath {
 			escaped |= pathEscaped && path.charAt(end) == '%';
 			end++;
 		}
-		return ((long) end << 1) | (escaped ? 1 : 0);
+		return NumberUtils.pack(end, escaped ? 1 : 0);
 	}
 
 	/** Normalizes registration text only; decoded literal keys retain their spelling inside the path. */

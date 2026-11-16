@@ -33,6 +33,7 @@ import io.evitadb.externalApi.http.WebSocketHandler;
 import io.evitadb.externalApi.utils.NotFoundService;
 import io.evitadb.externalApi.utils.NotFoundWebSocketHandler;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -131,8 +132,8 @@ public final class EndpointRoutingService implements HttpService, WebSocketHandl
 		final String target = req.path();
 		final String path = target.isEmpty() ? "/" : target;
 		final long scanned = RoutingPath.scan(path);
-		final int pathEnd = (int) (scanned >>> 1);
-		final boolean escaped = (scanned & 1) != 0;
+		final int pathEnd = NumberUtils.unpackHigh(scanned);
+		final boolean escaped = NumberUtils.unpackLow(scanned) != 0;
 		if (path.charAt(0) != '/' || scanned < 0) {
 			return this.notFound.serve(ctx, req);
 		}
@@ -198,8 +199,8 @@ public final class EndpointRoutingService implements HttpService, WebSocketHandl
 		final String target = in.path();
 		final String path = target.isEmpty() ? "/" : target;
 		final long scanned = RoutingPath.scan(path);
-		final int pathEnd = (int) (scanned >>> 1);
-		final boolean escaped = (scanned & 1) != 0;
+		final int pathEnd = NumberUtils.unpackHigh(scanned);
+		final boolean escaped = NumberUtils.unpackLow(scanned) != 0;
 		if (path.charAt(0) != '/' || scanned < 0) {
 			return this.webSocketNotFound.handle(ctx, in);
 		}
@@ -241,8 +242,8 @@ public final class EndpointRoutingService implements HttpService, WebSocketHandl
 			return rootRoute != null ? rootRoute : eligible(node.wildcard, explicitOnly);
 		}
 		final long segment = RoutingPath.segment(path, start, limit, escaped);
-		final int end = (int) (segment >>> 1);
-		final EndpointTrieNode literal = node.literals.isEmpty() ? null : (segment & 1) != 0 ?
+		final int end = NumberUtils.unpackHigh(segment);
+		final EndpointTrieNode literal = node.literals.isEmpty() ? null : NumberUtils.unpackLow(segment) != 0 ?
 			node.literals.getEscaped(path, start, end) : node.literals.get(path, start, end - start);
 		final EndpointRouteTerminal literalMatch = find(literal, path, end + 1, limit, escaped, explicitOnly);
 		if (literalMatch != null) {
@@ -546,12 +547,12 @@ public final class EndpointRoutingService implements HttpService, WebSocketHandl
 			int segment = 0;
 			for (int i = 0; i < this.captureSegments.length; i++) {
 				while (segment < this.captureSegments[i]) {
-					start = (int) (RoutingPath.segment(path, start, pathEnd, false) >>> 1) + 1;
+					start = NumberUtils.unpackHigh(RoutingPath.segment(path, start, pathEnd, false)) + 1;
 					segment++;
 				}
 				final long bounds = RoutingPath.segment(path, start, pathEnd, escaped);
-				final int end = (int) (bounds >>> 1);
-				final String value = RoutingPath.decode(path, start, end, (bounds & 1) != 0);
+				final int end = NumberUtils.unpackHigh(bounds);
+				final String value = RoutingPath.decode(path, start, end, NumberUtils.unpackLow(bounds) != 0);
 				if (value == null) {
 					return null;
 				}

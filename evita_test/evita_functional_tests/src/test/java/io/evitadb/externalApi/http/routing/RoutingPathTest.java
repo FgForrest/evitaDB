@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.http.routing;
 
+import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -72,7 +73,7 @@ class RoutingPathTest {
 		})
 		@DisplayName("reports the bounded end and the escape flag")
 		void shouldReportEndAndEscapeFlag(@Nonnull String target, int end, boolean escaped) {
-			final long expected = end < 0 ? -1 : ((long) end << 1) | (escaped ? 1 : 0);
+			final long expected = end < 0 ? -1 : NumberUtils.pack(end, escaped ? 1 : 0);
 
 			assertEquals(expected, RoutingPath.scan(target));
 		}

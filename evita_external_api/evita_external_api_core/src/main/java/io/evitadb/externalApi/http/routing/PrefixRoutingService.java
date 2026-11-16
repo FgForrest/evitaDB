@@ -34,6 +34,7 @@ import io.evitadb.externalApi.utils.NotFoundService;
 import io.evitadb.externalApi.utils.NotFoundWebSocketHandler;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -193,8 +194,8 @@ public final class PrefixRoutingService implements HttpService, WebSocketHandler
 		final String target = req.path();
 		final String path = target.isEmpty() ? "/" : target;
 		final long scanned = RoutingPath.scan(path);
-		final int end = (int) (scanned >>> 1);
-		final boolean escaped = (scanned & 1) != 0;
+		final int end = NumberUtils.unpackHigh(scanned);
+		final boolean escaped = NumberUtils.unpackLow(scanned) != 0;
 		final PrefixRouteBinding binding = path.charAt(0) == '/' && scanned >= 0 ?
 			current.lookup(path, end, escaped) : null;
 		if (binding != null) {
@@ -214,8 +215,8 @@ public final class PrefixRoutingService implements HttpService, WebSocketHandler
 		final String target = in.path();
 		final String path = target.isEmpty() ? "/" : target;
 		final long scanned = RoutingPath.scan(path);
-		final int end = (int) (scanned >>> 1);
-		final boolean escaped = (scanned & 1) != 0;
+		final int end = NumberUtils.unpackHigh(scanned);
+		final boolean escaped = NumberUtils.unpackLow(scanned) != 0;
 		final PrefixRouteBinding binding = path.charAt(0) == '/' && scanned >= 0 ?
 			current.lookup(path, end, escaped) : null;
 		return binding != null && binding.handler instanceof WebSocketHandler socketHandler ?
@@ -398,8 +399,8 @@ public final class PrefixRoutingService implements HttpService, WebSocketHandler
 			int start = 1;
 			while (start < end) {
 				final long bounds = RoutingPath.segment(path, start, end, true);
-				final int segmentEnd = (int) (bounds >>> 1);
-				node = (bounds & 1) != 0 ? node.children.getEscaped(path, start, segmentEnd) :
+				final int segmentEnd = NumberUtils.unpackHigh(bounds);
+				node = NumberUtils.unpackLow(bounds) != 0 ? node.children.getEscaped(path, start, segmentEnd) :
 					node.children.get(path, start, segmentEnd - start);
 				if (node == null) {
 					return best;

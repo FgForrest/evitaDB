@@ -81,10 +81,12 @@ Every router starts with
 When the path contains one, a second pass starting at the first `%` checks that every escape is well formed and that
 the escaped bytes are valid UTF-8. Neither pass allocates.
 
-It returns all of that in one `long`: the end position shifted left by one bit, the "contains an escape" flag in
-bit zero, or `-1` when an escape is broken. Packing two results into a primitive instead of returning a small
-object avoids one allocation per request. `RoutingPath#segment` uses the same packing to report where one segment
-ends and whether that segment contains an escape.
+It returns all of that in one `long`, packed by the shared `NumberUtils#pack(int, int)`: the end position in the
+high 32 bits, the "contains an escape" flag (1 or 0) in the low 32 bits, or `-1` when an escape is broken. A
+packed result is never negative, because the end is not, so `-1` cannot be mistaken for a real result. The routers
+read the two halves back with `NumberUtils#unpackHigh` and `NumberUtils#unpackLow`. Packing two results into a
+primitive instead of returning a small object avoids one allocation per request. `RoutingPath#segment` uses the
+same packing to report where one segment ends and whether that segment contains an escape.
 
 ### Why routing happens on the encoded path
 
