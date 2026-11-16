@@ -1,10 +1,10 @@
 ---
 title: Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes
 date: 2026-09-11
-updated: 2026-11-16 09:08
+updated: 2026-11-16 15:07
 status: accepted
 kind: optimization
-issues: [1547, 1554, 1972]
+issues: [1547, 1554, 1972, 1976]
 prs: [1548]
 areas: [evita_store/evita_store_entity, evita_store/evita_store_server, evita_engine/src/main/java/io/evitadb/spi/store/catalog/persistence, evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/predicate]
 supersedes: []
@@ -190,7 +190,7 @@ Three follow-ups, ranked by measured cost:
   back-references are **not** attribute-free: a reflected reference inherits its source's attributes.
   **Partly done in #1972.** A skipped attribute value no longer resolves its key or builds an
   `AttributeValue`, in the current and in the previous release layout (`SkippableSerializer`). The
-  value itself is still decoded to find its end; the length-aware skip remains open under #1554.
+  value itself is still decoded to find its end; the length-aware skip is tracked in #1976.
   A replay of 132,848 recorded production read queries ran 8.3 % faster with both changes.
 - **Split the record itself** — #1554. Both items above become unnecessary if the record stops being
   all-or-nothing, and only that removes the `O(total references)` term.
