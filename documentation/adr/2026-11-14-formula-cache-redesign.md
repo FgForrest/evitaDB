@@ -1,7 +1,7 @@
 ---
 title: Reuse formula results by declared value identity, inject complete tuples at execution, and disable the owning cache on a verified mismatch
 date: 2026-11-14
-updated: 2026-11-14 12:20
+updated: 2026-11-16 11:06
 status: accepted
 kind: refactor
 issues: [37]
@@ -134,8 +134,48 @@ parallel load the oracle class takes about 650 seconds against about 35 seconds 
 Documentation regeneration ran `JfrDocumentation` and `JfrDocumentationStaticMetricsParityTest`: **1 test each,
 2 total, 0 failures, 0 errors, 0 skipped**. The generated pages contain both new events, all **19 statistics metrics
 and the mismatch invocation counter**, and none of the removed cache events or metrics. These are correctness runs,
-not benchmarks. No performance measurements were made for the redesign; no latency, throughput or default-enablement
-claim follows from these counts.
+not benchmarks; the measurements follow below.
+
+### Measured on recorded production read traffic
+
+**Conditions.** A production e-commerce catalog (4.2 GiB on disk, written by the previous release) restored from a
+backup, and 132,848 recorded read queries in 160 shapes replayed against it on one thread. Timing passes ran as JMH
+single shots, one JVM per pass, with arms alternated; the correctness census ran both of its arms in one JVM. 4,700
+recorded queries (3.4 %) are excluded because the recorder of the previous release did not keep reference aliases.
+The harness is a local one-off measurement branch, not part of the repository.
+
+**Correctness.** In the census, cost floor 10,000 and scalar bitmap kernels, the arm with the cache off and the arm
+with every hit recomputed (`verifyOneHitIn = 1`) answered all 132,848 queries without a failure and returned the
+same ordered primary keys and total counts; complete responses were not compared. 12,414 hits were verified against
+their recomputation with 0 mismatches; the cache held 11,451 entries and evicted none.
+
+**Cross-query cache.** Alternating series, two passes per arm, `verifyOneHitIn = 1000`:
+
+| Arm | Pass 1 | Pass 2 | Hits per pass |
+|---|---|---|---|
+| cache off | 121.8 s | 118.2 s | - |
+| cost floor 10,000 | 114.0 s | 113.6 s | 12,460 |
+| cost floor 0 | 114.2 s | 117.4 s | 106,696 |
+
+The two uncached passes differ by 3 %, so the cache is about 3 to 5 % faster on this traffic, at the edge of the
+noise. By its own size accounting it held 874 MB at floor 10,000 and 882 MB at floor 0, against a cap of about
+6 GB; one pass lasts two minutes, so neither the cap nor the inactivity drop engaged. An earlier series of seven
+passes was confounded by a disturbed first pass and drift with run order, and is not used. A JFR profile of an
+uncached pass puts formula computation at 12 to 18 % of query CPU and decoding of reference storage parts during
+entity fetch at 42 %, which bounds what any formula cache can gain on this traffic.
+
+**Declared keys against hash identity.** The branch with the cache off against its parent on `dev`
+(`97d877ca77`), one thread, order A B B A A B:
+
+- A bare `referenceHaving` on the three widest references of the catalog builds 172,870, 16,762 and 8,673 formula
+  nodes. Median per query over three runs per build: 271 / 258 / 246 ms against 214 / 218 / 232 ms, 20.0 / 20.5 /
+  21.1 ms against 16.1 / 17.9 / 19.2 ms, and 8.0 / 7.4 / 7.6 ms against 6.5 / 6.2 / 7.1 ms. Every median of the
+  branch is below every median of `dev`, about 14 % faster; allocation is 4 to 5 % lower; total record counts are
+  equal. The gain belongs to the branch as a whole and is not attributed to the keys.
+- The whole replay: 135.9 / 128.5 / 135.5 s on `dev` against 138.2 / 138.5 / 128.3 s on the branch, a 7 % spread
+  on a busy machine, so no difference is resolvable. All 132,848 queries return equal counts on both builds.
+- One JFR pass each: planning takes 19.2 % of query samples on `dev` and 17.2 % on the branch; building, comparing,
+  deduplicating, cloning and hashing keys together 1.85 % and 1.55 %. No planning slowdown was found.
 
 The proving tests and recorded counterfactuals are:
 
@@ -151,15 +191,16 @@ The proving tests and recorded counterfactuals are:
 
 ## Consequences & open follow-ups
 
-**Query-scoped result sharing is POSTPONED until measurements on real traffic.** It holds real potential for
-speeding up queries and must not disappear from the backlog. Per-instance memoization and plan deduplication exist;
-there is no additional table sharing results across separately built derived trees. From telemetry of production
-listing queries, count **per query** how often equal subtrees, especially the mandatory filter, are computed across
-the filter, filter without user filter, histogram relaxations, hierarchy-statistics bases and nested plans, and
-measure the time spent, with the cross-query cache **off and on**. Present these numbers to the maintainer, then
-design/build the table or decline it with the measured reason. If this line merges first, create a tracking issue
-on the maintainer's instruction so the obligation survives retirement of the working plan. Never intern hypothetical
-ancestors above a `MutableFormula`.
+**Query-scoped result sharing: measured, reopened, outside this pull request.** Per-instance memoization and plan
+deduplication exist; there is no additional table sharing results across separately built trees. A measurement-only
+counter on the replay above, cache off, recorded 6,027,494 formula computations, 2,541,919 of them repeating a key
+already computed in the same query. 2,069,798 of the repeats are constants whose recorded time is mostly the
+counter's own timer. The other 472,121 take 0.36 s, about 0.30 % of a 121.0 s pass; 14.2 % of the queries repeat
+anything, and the query shape with the most repeat time loses about 1.1 % of its time. The maintainer reopened the
+table on 2026-11-16, valuing it as always on, independent of the cache switch and holding nothing beyond the query;
+a prototype is planned outside this pull request. Its cost per lookup is not measured, and the gain is below the 3
+to 7 % spread between replay passes, so a prototype would be judged by repeats removed, equal results and no
+regression. Never intern hypothetical ancestors above a `MutableFormula`.
 
 The final execution rulings are decisions taken, not open design questions:
 
@@ -187,8 +228,7 @@ node accounting and may omit work subsequently requested below it; it is not a m
 Sampling can reuse existing query memos and cannot retract injected results in other queries already in progress.
 
 **Not done:** coarse index-id keys for wide lookup results; a planner cache peek before choosing prefetch;
-replay counters for prefetch choice, warm index paths and storage read/deserialization time; per-class probe events;
-quiet-machine measurements. A referenced-type index ID alone is unsound for a whole `referenceHaving`: changes in
+replay counters for prefetch choice, warm index paths and storage read/deserialization time; per-class probe events. A referenced-type index ID alone is unsound for a whole `referenceHaving`: changes in
 reduced indexes or referenced/group collections need not change that ID. Any composite coarse identity needs its
 own freshness proof. Existing direct and named derived producer tokens do not implement that postponed proposal.
 
@@ -198,9 +238,11 @@ is the revision immediately before the cross-query cache landed (989c251636); th
 comparison is the revision immediately before declared identity landed. One replay arm verifies every hit
 (`verifyOneHitIn = 1`) and mismatches must remain zero. The obligation further covers planning versus execution cost, latency distributions, throughput and allocation; key and
 payload sizes, refusal causes, duplicate work, eviction/dead retained weight, query-local identities and maintenance
-cost. Measure the disabled path and wide reference/filter-heavy planning before drawing performance conclusions.
-No such traffic replay, benchmark or quiet-machine comparison has been performed. Enabling by default remains a
-separate decision.
+cost. The replay above covers the read-only, single-thread part of this obligation: interleaved no-cache, default
+floor and zero floor arms, a verify-every-hit arm, the disabled path against `dev` and wide `referenceHaving`
+planning. Not covered: commit-stream runs, concurrency, throughput, latency distributions, a clean 100,000-floor
+arm, and eviction or dead retained weight over a long run. **Decided 2026-11-16: the cache ships disabled by
+default.**
 
 **Known test limit:** lifecycle hit assertions read the statistics surface. A cache that counts a hit but serves
 nothing is caught only by the plan-inspecting `shouldRestoreSharedSubtree`, `shouldAccountForConcurrentQueries` and
@@ -267,3 +309,8 @@ open cache findings.
 - **2026-11-14** — final metrics/lifecycle strengthening recorded at df0333bfe8, full functional gate passed at
   14575048fd; accepted decisions consolidated in
   this record. Pull request not yet open; performance and query-scoped sharing decisions remain deferred.
+- **2026-11-14** — pull request #1963 opened.
+- **2026-11-15** — recorded production read traffic replayed: correctness clean, the cross-query cache about 3 to 5 %
+  faster at the edge of noise, non-constant in-query repeats about 0.30 % of query time.
+- **2026-11-16** — declared keys measured against `dev` with no planning slowdown found; the maintainer decided that
+  the cache ships disabled by default and reopened the query-scoped sharing table for a separate prototype.
