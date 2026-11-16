@@ -49,6 +49,11 @@ import static java.util.Optional.ofNullable;
  * time. Client code will use {@link ComplexDataObjectConverter} to serialize and deserialize objects of this type to their
  * respective POJO instances.
  *
+ * Equality compares the whole tree down to its leaves, so a {@link Range} leaf brings in its own equality, which
+ * compares the encoded bounds only - two objects differing only in `[1.0,2.0]` versus `[10,20]` are equal. The write
+ * paths ask {@link EvitaDataTypes#rangeRepresentationDiffers(Serializable, Serializable)} on top of it to tell them
+ * apart.
+ *
  * @param root Contains the root data item of the object - may be {@link DataItemArray} or {@link DataItemMap}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

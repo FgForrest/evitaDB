@@ -117,6 +117,8 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	private final Predicate<PriceRecordContract> individualPricePredicate;
 	/**
 	 * Comparator used for selecting the lowest price for each entity id among all prices for different inner record ids.
+	 * Records it considers equal are told apart by
+	 * {@link #winsTieOnSellingPrice(PriceRecordContract, PriceRecordContract)}.
 	 */
 	private final Comparator<PriceRecordContract> priceRecordComparator;
 	/**
@@ -530,8 +532,16 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 							// test whether inner entity price matches the filter
 							anyPriceMatchesTheFilter = anyPriceMatchesTheFilter ||
 								this.sellingPricePredicate.test(innerRecordPrice);
-							if (lowestPrice == null || this.priceRecordComparator.compare(innerRecordPrice, lowestPrice) < 0) {
+							if (lowestPrice == null) {
 								lowestPrice = innerRecordPrice;
+							} else {
+								// the amount decides; only an exact tie pays for the price id / inner record id check,
+								// which makes the selection independent of the hash map iteration order
+								final int byAmount = this.priceRecordComparator.compare(innerRecordPrice, lowestPrice);
+								if (byAmount < 0 ||
+									(byAmount == 0 && winsTieOnSellingPrice(innerRecordPrice, lowestPrice))) {
+									lowestPrice = innerRecordPrice;
+								}
 							}
 						}
 						// PERFORMANCE-BUDGET CRITICAL: histogram drain — runs only on the histogram
@@ -590,6 +600,35 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 			this.recordsFilteredOutByPredicate = EmptyBitmap.INSTANCE;
 			return EmptyBitmap.INSTANCE;
 		}
+	}
+
+	/**
+	 * Decides whether `candidate` replaces `incumbent` as the selling price of the entity when both sell for the same
+	 * amount in the queried price mode: the lower {@link PriceRecordContract#priceId()} wins, then the lower
+	 * {@link PriceRecordContract#innerRecordId()}. Without it the selection among tied records would follow the
+	 * iteration order of the per-entity hash map, whose order is seeded per instance - and the discount sorting pairs
+	 * the reference price with the inner record of the selected record, so a different pick changes the order of the
+	 * result.
+	 *
+	 * The rule is the one `PricesContract#isBetterByPriceIdThenInner` applies on the entity side to candidates tied on
+	 * the amount it compares, and it is all this method promises: the entity side's rule for exact ties. It does not
+	 * make the selection agree with the price for sale the entity reports where the two compare different things - the
+	 * entity side compares the price with tax in every query price mode, and it represents an inner record by the
+	 * price with the lowest price id among those of its most prioritized price list, whereas this formula keeps one
+	 * price per inner record - the first one the individual price predicate accepts, taken from the most prioritized
+	 * price list that delivers one; where the lookup reads the lowest prices the index keeps, that is the cheapest
+	 * without tax, a tie going to the lower price id (see `EntityPrices`).
+	 *
+	 * @param candidate the record examined now
+	 * @param incumbent the record selected so far, selling for the same amount as `candidate`
+	 * @return `true` when `candidate` takes the place of `incumbent`
+	 */
+	private static boolean winsTieOnSellingPrice(
+		@Nonnull PriceRecordContract candidate,
+		@Nonnull PriceRecordContract incumbent
+	) {
+		final int byPriceId = Integer.compare(candidate.priceId(), incumbent.priceId());
+		return byPriceId < 0 || (byPriceId == 0 && candidate.innerRecordId() < incumbent.innerRecordId());
 	}
 
 	@Override

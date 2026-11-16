@@ -32,15 +32,18 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.createExistingGlobalAttributeSchema;
+import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.createGlobalAttributeSchemaWithDefaultValue;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -105,6 +108,70 @@ class CreateGlobalAttributeSchemaMutationTest {
 		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaFilterableMutation));
 		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaSortableMutation));
 		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetAttributeSchemaRepresentativeMutation));
+	}
+
+	@Test
+	@DisplayName("Should leave only the default value mutation when the new range merely encodes to the same numbers")
+	void shouldLeaveOnlyDefaultValueMutationWhenRangeDefaultValueDiffersOnlyInRepresentation() {
+		final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
+			ATTRIBUTE_NAME, null, null,
+			AttributeUniquenessType.NOT_UNIQUE, GlobalAttributeUniquenessType.NOT_UNIQUE,
+			false, false, false, false, false,
+			BigDecimalNumberRange.class, BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0")), 0
+		);
+		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
+		Mockito.when(catalogSchema.getAttribute(ATTRIBUTE_NAME))
+			.thenReturn(
+				of(
+					createGlobalAttributeSchemaWithDefaultValue(
+						BigDecimalNumberRange.class,
+						BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+					)
+				)
+			);
+
+		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(
+			catalogSchema, new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME)
+		);
+
+		// the removed attribute differs in its default value alone, so the only mutation left is the one replacing it
+		assertNotNull(result);
+		assertNull(result.origin());
+		assertNotNull(result.current());
+		assertEquals(1, result.current().length, () -> Arrays.toString(result.current()));
+		final ModifyAttributeSchemaDefaultValueMutation defaultValueMutation = assertInstanceOf(
+			ModifyAttributeSchemaDefaultValueMutation.class, result.current()[0]
+		);
+		assertEquals("[1.0,2.0]", String.valueOf(defaultValueMutation.getDefaultValue()));
+	}
+
+	@Test
+	@DisplayName("Should discard both mutations when the attribute comes again with the identical range default value")
+	void shouldDiscardBothMutationsWhenAttributeComesAgainWithIdenticalRangeDefaultValue() {
+		final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
+			ATTRIBUTE_NAME, null, null,
+			AttributeUniquenessType.NOT_UNIQUE, GlobalAttributeUniquenessType.NOT_UNIQUE,
+			false, false, false, false, false,
+			BigDecimalNumberRange.class, BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20")), 0
+		);
+		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
+		Mockito.when(catalogSchema.getAttribute(ATTRIBUTE_NAME))
+			.thenReturn(
+				of(
+					createGlobalAttributeSchemaWithDefaultValue(
+						BigDecimalNumberRange.class,
+						BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+					)
+				)
+			);
+
+		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(
+			catalogSchema, new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME)
+		);
+
+		assertNotNull(result);
+		assertNull(result.origin());
+		assertNull(result.current(), () -> Arrays.toString(result.current()));
 	}
 
 	@Test
