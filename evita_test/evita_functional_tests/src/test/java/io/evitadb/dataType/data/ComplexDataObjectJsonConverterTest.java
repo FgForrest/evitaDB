@@ -873,6 +873,52 @@ class ComplexDataObjectJsonConverterTest {
 		}
 
 		@Nested
+		@DisplayName("fromArray(List) conversion")
+		class FromArray {
+
+			@Test
+			@DisplayName("should convert a list of maps to an array root holding the maps")
+			void shouldConvertListOfMapsToArrayRoot() throws JsonProcessingException {
+				final List<Map<String, Object>> list = List.of(Map.of("name", "width"), Map.of("name", "height"));
+
+				final ComplexDataObject cdo = FromJsonConverterTest.this.converter.fromArray(list);
+
+				final DataItemArray root = assertInstanceOf(DataItemArray.class, cdo.root());
+				assertEquals(2, root.children().length);
+				final DataItemMap first = assertInstanceOf(DataItemMap.class, root.children()[0]);
+				final DataItemMap second = assertInstanceOf(DataItemMap.class, root.children()[1]);
+				assertEquals("width", ((DataItemValue) first.getProperty("name")).value());
+				assertEquals("height", ((DataItemValue) second.getProperty("name")).value());
+			}
+
+			@Test
+			@DisplayName("should convert an empty list to an empty array root")
+			void shouldConvertEmptyListToEmptyArrayRoot() throws JsonProcessingException {
+				final ComplexDataObject cdo = FromJsonConverterTest.this.converter.fromArray(List.of());
+
+				final DataItemArray root = assertInstanceOf(DataItemArray.class, cdo.root());
+				assertEquals(0, root.children().length);
+			}
+
+			@Test
+			@DisplayName("should convert a scalar element and a nested list element of a list")
+			void shouldConvertScalarAndNestedListElements() throws JsonProcessingException {
+				final ComplexDataObject cdo = FromJsonConverterTest.this.converter.fromArray(
+					List.of("text", List.of(1, 2))
+				);
+
+				final DataItemArray root = assertInstanceOf(DataItemArray.class, cdo.root());
+				assertEquals(2, root.children().length);
+				assertEquals("text", assertInstanceOf(DataItemValue.class, root.children()[0]).value());
+				final DataItemArray nested = assertInstanceOf(DataItemArray.class, root.children()[1]);
+				assertArrayEquals(
+					new DataItem[]{new DataItemValue(1), new DataItemValue(2)},
+					nested.children()
+				);
+			}
+		}
+
+		@Nested
 		@DisplayName("Error cases")
 		class ErrorCases {
 

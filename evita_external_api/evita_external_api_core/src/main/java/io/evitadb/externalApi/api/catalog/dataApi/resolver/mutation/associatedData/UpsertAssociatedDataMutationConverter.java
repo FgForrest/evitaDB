@@ -39,11 +39,12 @@ import io.evitadb.externalApi.api.resolver.mutation.Input;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.resolver.mutation.Output;
-import io.evitadb.externalApi.api.resolver.mutation.PropertyObjectMapper;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -101,18 +102,22 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 		if (targetDataType.equals(ComplexDataObject.class)) {
 			targetValue = input.getRequiredProperty(
 				UpsertAssociatedDataMutationDescriptor.VALUE.name(),
-				new PropertyObjectMapper<>(
-					getMutationName(),
-					getExceptionFactory(),
-					UpsertAssociatedDataMutationDescriptor.VALUE,
-					nestedInput -> {
-						try {
-							return this.jsonToComplexDataObjectConverter.fromMap(nestedInput.getRequiredValue());
-						} catch (JsonProcessingException e) {
-							throw getExceptionFactory().createInvalidArgumentException("Could not parse input JSON.");
-						}
+				rawValue -> {
+					Assert.isTrue(
+						rawValue instanceof Map<?, ?> || rawValue instanceof List<?>,
+						() -> getExceptionFactory().createInvalidArgumentException(
+							"Property `value` of mutation `" + getMutationName() + "` is expected to be an object or an array."
+						)
+					);
+					try {
+						//noinspection unchecked
+						return rawValue instanceof List<?> array ?
+							this.jsonToComplexDataObjectConverter.fromArray(array) :
+							this.jsonToComplexDataObjectConverter.fromMap((Map<String, Object>) rawValue);
+					} catch (JsonProcessingException e) {
+						throw getExceptionFactory().createInvalidArgumentException("Could not parse input JSON.");
 					}
-				)
+				}
 			);
 		} else {
 			targetValue = input.getRequiredProperty(UpsertAssociatedDataMutationDescriptor.VALUE.name(), targetDataType);
