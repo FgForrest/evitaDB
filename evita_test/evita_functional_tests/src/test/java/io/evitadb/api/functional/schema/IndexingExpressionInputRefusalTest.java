@@ -126,37 +126,45 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 	 * warming-up catalog would deactivate it for every later cell; `TriggerBuildRefusalInWarmUp` defines them.
 	 */
 	private static final Set<String> REFUSED_BY_TRIGGER_BUILD = Set.of(
-		"A-E15h", "A-N9", "A-N9k", "A-par-hop-prefix", "A-spread-hop-fallback", "A-spread-constant-fallback",
-		"A-coalesce-element-index"
+		"A-parent-pk-and-attribute", "A-hop-scope-and-attribute", "A-hop-null-pk-and-attribute", "A-par-hop-prefix",
+		"A-spread-hop-fallback", "A-spread-constant-fallback", "A-coalesce-element-index"
 	);
 	/**
 	 * The histogram value cell the validator admits and the trigger build refuses: a numeric default its attribute
 	 * type cannot hold. `TriggerBuildRefusalInWarmUp` defines it.
 	 */
-	private static final Set<String> VALUES_REFUSED_BY_TRIGGER_BUILD = Set.of("V-A7");
+	private static final Set<String> VALUES_REFUSED_BY_TRIGGER_BUILD = Set.of(
+		"V-A-reference-attribute-decimal-default"
+	);
 	/**
 	 * The facet condition cells the validator admits and the trigger build refuses: arithmetic on an attribute of the
 	 * referenced entity compared with a number, and a step or a predicate applied to the result of `*?` or `??`.
 	 * `TriggerBuildRefusalInWarmUp` defines them.
 	 */
 	private static final Set<String> FACETS_REFUSED_BY_TRIGGER_BUILD = Set.of(
-		"FA-11", "FA-coalesce-set-predicate", "FA-spread-translated", "FA-spread-predicate"
+		"FA-hop-attribute-arithmetic", "FA-coalesce-set-predicate", "FA-spread-translated", "FA-spread-predicate"
 	);
 	/**
 	 * The refused cells defined through the engine: one or more of each refusal reason, each with its own owner type.
 	 */
 	private static final Set<String> REFUSALS_DEFINED = Set.of(
-		"R-E4", "R-E7", "R-E10", "R-E13s", "R-E16", "R-E17", "R-E18", "R-E19", "R-E21", "R-R3", "R-R6", "R-R7",
-		"R-R8", "R-N5", "R-N6", "R-C1", "R-C3", "R-X1", "R-X2", "R-coalesce-index", "R-coalesce-property",
-		"R-spread-coalesce-index", "R-par-translated", "R-par-hop", "R-par-name", "R-coalesce-hop-pk", "FR-1",
-		"FR-2", "FR-6", "FR-8", "FR-10", "FR-par-translated", "FR-coalesce-entity-version", "FR-spread-coalesce-element"
+		"R-owner-map-size", "R-owner-references-null", "R-dynamic-attribute-name", "R-parent-pk-without-attribute",
+		"R-owner-locales-size", "R-owner-scope", "R-owner-price-for-sale", "R-owner-version", "R-owner-parent-missing",
+		"R-reference-localized-attribute", "R-hop-null-without-attribute", "R-group-null-without-attribute",
+		"R-reference-group-missing", "R-hop-references-attribute", "R-hop-references-predicate", "R-owner-in-predicate",
+		"R-reference-in-key", "R-random", "R-unknown-variable", "R-coalesce-index", "R-coalesce-property",
+		"R-spread-coalesce-index", "R-par-translated", "R-par-hop", "R-par-name", "R-coalesce-hop-pk",
+		"FR-owner-version", "FR-owner-locales-index", "FR-random", "FR-owner-parent-missing", "FR-owner-references-hop",
+		"FR-par-translated", "FR-coalesce-entity-version", "FR-spread-coalesce-element"
 	);
 	/**
 	 * The histogram value cells defined through the engine. The cell the trigger build refuses is defined by
 	 * `TriggerBuildRefusalInWarmUp` instead.
 	 */
 	private static final Set<String> VALUES_DEFINED = Set.of(
-		"V-A1", "V-A2", "V-A3", "V-A4", "V-A5", "V-A6", "V-A8", "V-R1", "V-R3", "V-R8"
+		"V-A-reference-attribute", "V-A-reference-attribute-default", "V-A-reference-localized-attribute-default",
+		"V-A-hop-attribute-default", "V-A-hop-localized-attribute", "V-A-reference-attribute-negative-default",
+		"V-A-reference-attribute-nullsafe", "V-R-arithmetic", "V-R-par-expression", "V-R-group-attribute"
 	);
 	/**
 	 * The accepted facet cells defined through the engine; the facet rules are exercised against entities by the
@@ -164,7 +172,7 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 	 * `TriggerBuildRefusalInWarmUp` instead.
 	 */
 	private static final Set<String> FACET_ACCEPTANCES_DEFINED = Set.of(
-		"FA-1", "FA-3", "FA-par-null-locales", "FA-spread-coalesce-own"
+		"FA-hop-references-predicate", "FA-owner-scope", "FA-par-null-locales", "FA-spread-coalesce-own"
 	);
 	/**
 	 * The cells defined through the engine: every accepted histogram condition, in both histogram slots, and the
@@ -244,12 +252,16 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 		void shouldRefuseEveryMutationCarryingAnExpression(@Nonnull CatalogState state) {
 			final TestPaths paths = createTestPaths("IndexingExpressionInputRefusalRoutes_" + state);
 			final EvitaConfiguration configuration = newTestEvitaConfigurationBuilder(paths).build();
-			final Cell facet = refused("M-facet", "$entity.version > 1", "$entity.version", ENGINE_MAINTAINED)
-				.withKind(IndexingExpressionKind.FACETED_PARTIALLY);
-			final Cell bucket = refused("M-bucket", "$entity.version >= 3", "$entity.version", ENGINE_MAINTAINED);
-			final Cell reflected = refused("M-reflected", "$entity.version > 1", "$entity.version", ENGINE_MAINTAINED)
-				.withKind(IndexingExpressionKind.FACETED_PARTIALLY);
-			final Cell plain = accepted("M-plain", "$entity.attributes['status'] == 'A'")
+			final Cell facet = refused(
+				"FR-owner-version-faceted-mutation", "$entity.version > 1", "$entity.version", ENGINE_MAINTAINED
+			).withKind(IndexingExpressionKind.FACETED_PARTIALLY);
+			final Cell bucket = refused(
+				"R-owner-version-bucketed-mutation", "$entity.version >= 3", "$entity.version", ENGINE_MAINTAINED
+			);
+			final Cell reflected = refused(
+				"FR-owner-version-reflected-reference", "$entity.version > 1", "$entity.version", ENGINE_MAINTAINED
+			).withKind(IndexingExpressionKind.FACETED_PARTIALLY);
+			final Cell plain = accepted("FA-owner-attribute", "$entity.attributes['status'] == 'A'")
 				.withKind(IndexingExpressionKind.FACETED_PARTIALLY);
 			final List<Executable> checks = new ArrayList<>(8);
 			try (Evita evita = new Evita(configuration)) {
@@ -359,7 +371,9 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 		void shouldRefuseReadOfCollectionCreatedInTheSameBatch(@Nonnull CatalogState state) {
 			final TestPaths paths = createTestPaths("IndexingExpressionInputRefusalBatch_" + state);
 			final EvitaConfiguration configuration = newTestEvitaConfigurationBuilder(paths).build();
-			final Cell cell = refused("B-1", "$entity.version >= 3", "$entity.version", ENGINE_MAINTAINED);
+			final Cell cell = refused(
+				"R-owner-version-creating-batch", "$entity.version >= 3", "$entity.version", ENGINE_MAINTAINED
+			);
 			try (Evita evita = new Evita(configuration)) {
 				defineCatalog(evita, state);
 				final RuntimeException failure = catching(() -> evita.updateCatalog(
@@ -401,7 +415,9 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 		void shouldPublishNothingOfRefusedDefinitionInWarmUp() {
 			final TestPaths paths = createTestPaths("IndexingExpressionInputRefusalWarmUp");
 			final EvitaConfiguration configuration = newTestEvitaConfigurationBuilder(paths).build();
-			final Cell cell = refused("F1-1", "$entity.version >= 3", "$entity.version", ENGINE_MAINTAINED);
+			final Cell cell = refused(
+				"R-owner-version-warm-up", "$entity.version >= 3", "$entity.version", ENGINE_MAINTAINED
+			);
 			try {
 				try (Evita evita = new Evita(configuration)) {
 					defineCatalog(evita, CatalogState.WARMING_UP);
@@ -537,7 +553,7 @@ class IndexingExpressionInputRefusalTest implements EvitaTestSupport {
 		 * @param cellId the identifier of the accepted histogram condition cell
 		 */
 		@ParameterizedTest(name = "{0}")
-		@ValueSource(strings = {"A-E2", "A-E15", "A-N2"})
+		@ValueSource(strings = {"A-owner-attribute", "A-parent-attribute-coalesce", "A-hop-attribute"})
 		@DisplayName("indexes the owner it holds for and leaves out the owner it does not hold for")
 		void shouldIndexOnlyTheOwnerTheConditionHoldsFor(@Nonnull String cellId) {
 			final Cell cell = HISTOGRAM_CONDITION_CELLS.stream()

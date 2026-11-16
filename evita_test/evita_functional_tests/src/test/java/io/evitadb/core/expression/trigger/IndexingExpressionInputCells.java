@@ -40,8 +40,12 @@ import java.util.List;
  * refused cell names the read the message must name and a fragment of the reason it must give.
  *
  * The prefix of a cell id names its table and verdict: `A-` and `R-` a histogram condition the validator accepts and
- * refuses, `V-A` and `V-R` a histogram value, `FA-` and `FR-` a facet condition. The functional tests select cells by
- * id, so an id stays as it is once a test names it.
+ * refuses, `V-A-` and `V-R-` a histogram value, `FA-` and `FR-` a facet condition. The rest of the id names the cell's
+ * read in words and, for a refused cell, why it is refused where the read alone does not tell: `owner` or `entity` is
+ * `$entity`, `reference` is `$reference`, `hop` an entity one hop away, `group` and `parent` the group and the parent
+ * entity, `this` the element `$`, `par` parentheses, `coalesce` `??`, `spread` a spread mapping or `*?`, which
+ * `spread-coalesce` names too (`ns` marks the null-safe `?*?`), `map` a localized attribute map and `container` a data
+ * container without a name. The functional tests select cells by id, so an id stays as it is once a test names it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -176,57 +180,71 @@ public final class IndexingExpressionInputCells {
 	 * @param cells the list the cells are added to
 	 */
 	private static void addHistogramTrackedReads(@Nonnull List<Cell> cells) {
-		cells.add(accepted("A-E1", "$entity.primaryKey > 0"));
-		cells.add(accepted("A-R1", "$reference.referencedPrimaryKey > 0"));
-		cells.add(accepted("A-E2", "$entity.attributes['status'] == 'A'"));
-		cells.add(accepted("A-E2a", "$entity.attributes['tags'].any($ == 'x')"));
-		cells.add(accepted("A-E2b", "$entity.attributes['tags'][0] == 'x'"));
-		cells.add(accepted("A-E2c", "$entity.attributes['tags'].size() > 1"));
-		cells.add(accepted("A-E2d", "($entity.attributes['tags'] *? 'none').any($ == 'x')"));
-		cells.add(accepted("A-E2e", "$entity.attributes['tags'].*[$ + '!'].any($ == 'x!')"));
-		cells.add(accepted("A-E3", "$entity.localizedAttributes['name']['en'] != null"));
-		cells.add(accepted("A-E3n", "$entity?.localizedAttributes?['name']?['en'] != null"));
-		cells.add(accepted("A-C4b", "$entity.localizedAttributes['name']['e' + 'n'] != null"));
-		cells.add(accepted("A-C4c", "$entity.attributes['tags'][1 - 1] == 'x'"));
-		cells.add(accepted("A-E5", "$entity.associatedData['flag'] != null"));
-		cells.add(accepted("A-E5l", "$entity.localizedAssociatedData['label']['en'] != null"));
-		cells.add(accepted("A-E13", "$entity.parentEntity != null"));
-		cells.add(accepted("A-E13b", "null == $entity.parentEntity"));
-		cells.add(accepted("A-E15", "($entity.parentEntity?.attributes['status'] ?? '') == 'ACTIVE'"));
-		cells.add(accepted("A-E15l", "$entity.parentEntity?.localizedAttributes['name']['en'] != null"));
+		cells.add(accepted("A-owner-pk", "$entity.primaryKey > 0"));
+		cells.add(accepted("A-reference-pk", "$reference.referencedPrimaryKey > 0"));
+		cells.add(accepted("A-owner-attribute", "$entity.attributes['status'] == 'A'"));
+		cells.add(accepted("A-owner-array-attribute-any", "$entity.attributes['tags'].any($ == 'x')"));
+		cells.add(accepted("A-owner-array-attribute-index", "$entity.attributes['tags'][0] == 'x'"));
+		cells.add(accepted("A-owner-array-attribute-size", "$entity.attributes['tags'].size() > 1"));
+		cells.add(accepted("A-owner-array-attribute-spread-coalesce",
+			"($entity.attributes['tags'] *? 'none').any($ == 'x')"));
+		cells.add(accepted("A-owner-array-attribute-spread", "$entity.attributes['tags'].*[$ + '!'].any($ == 'x!')"));
+		cells.add(accepted("A-owner-localized-attribute", "$entity.localizedAttributes['name']['en'] != null"));
+		cells.add(accepted("A-owner-localized-attribute-nullsafe",
+			"$entity?.localizedAttributes?['name']?['en'] != null"));
+		cells.add(accepted("A-owner-localized-attribute-computed-key",
+			"$entity.localizedAttributes['name']['e' + 'n'] != null"));
+		cells.add(accepted("A-owner-array-attribute-computed-index", "$entity.attributes['tags'][1 - 1] == 'x'"));
+		cells.add(accepted("A-owner-associated-data", "$entity.associatedData['flag'] != null"));
+		cells.add(accepted("A-owner-localized-associated-data",
+			"$entity.localizedAssociatedData['label']['en'] != null"));
+		cells.add(accepted("A-parent-null", "$entity.parentEntity != null"));
+		cells.add(accepted("A-parent-null-left", "null == $entity.parentEntity"));
+		cells.add(accepted("A-parent-attribute-coalesce",
+			"($entity.parentEntity?.attributes['status'] ?? '') == 'ACTIVE'"));
+		cells.add(accepted("A-parent-localized-attribute",
+			"$entity.parentEntity?.localizedAttributes['name']['en'] != null"));
 		cells.add(accepted(
-			"A-E15h", "$entity.parentEntity?.primaryKey > 0 && $entity.parentEntity?.attributes['status'] == 'A'"
+			"A-parent-pk-and-attribute",
+			"$entity.parentEntity?.primaryKey > 0 && $entity.parentEntity?.attributes['status'] == 'A'"
 		));
 		cells.add(accepted(
-			"A-E15b", "$entity.parentEntity != null && $entity.parentEntity.attributes['status'] == 'A'"
+			"A-parent-null-and-attribute",
+			"$entity.parentEntity != null && $entity.parentEntity.attributes['status'] == 'A'"
 		));
-		cells.add(accepted("A-R2", "$reference.attributes['share'] > 1"));
+		cells.add(accepted("A-reference-attribute", "$reference.attributes['share'] > 1"));
 		// the presence of the reference itself, tracked by its own insert and removal
-		cells.add(accepted("A-R5", "$reference != null"));
-		cells.add(accepted("A-N2", "$reference.referencedEntity.attributes['status'] == 'A'"));
-		cells.add(accepted("A-N2g", "$reference.groupEntity?.attributes['type'] == 'X'"));
-		cells.add(accepted("A-N2l", "$reference.referencedEntity.localizedAttributes['lweight']['en'] > 1"));
+		cells.add(accepted("A-reference-null", "$reference != null"));
+		cells.add(accepted("A-hop-attribute", "$reference.referencedEntity.attributes['status'] == 'A'"));
+		cells.add(accepted("A-group-attribute", "$reference.groupEntity?.attributes['type'] == 'X'"));
+		cells.add(accepted("A-hop-localized-attribute",
+			"$reference.referencedEntity.localizedAttributes['lweight']['en'] > 1"));
 		cells.add(accepted(
-			"A-N9",
+			"A-hop-scope-and-attribute",
 			"$reference.referencedEntity.scope == 'LIVE' && $reference.referencedEntity.attributes['status'] == 'A'"
 		));
 		cells.add(accepted(
-			"A-N9k",
+			"A-hop-null-pk-and-attribute",
 			"$reference.referencedEntity != null && $reference.referencedEntity.primaryKey > 0 && " +
 				"$reference.referencedEntity.attributes['status'] == 'A'"
 		));
 		cells.add(accepted(
-			"A-N9c",
+			"A-hop-attribute-coalesce-scope",
 			"($reference.referencedEntity.attributes['status'] ?? $reference.referencedEntity.scope) != 'X'"
 		));
 		cells.add(accepted(
-			"A-E15c", "($entity.parentEntity?.attributes['delta'] ?? $entity.parentEntity?.primaryKey) > 0"
+			"A-parent-attribute-coalesce-pk",
+			"($entity.parentEntity?.attributes['delta'] ?? $entity.parentEntity?.primaryKey) > 0"
 		));
-		cells.add(accepted("A-C7", "abs($entity.attributes['delta']) > 5 && !($reference.attributes['share'] == 1)"));
-		cells.add(accepted("A-C6", "($entity.attributes['delta'] ?? 0) + ($reference.attributes['share'] ?? 0) > 3"));
-		cells.add(accepted("A-C9", "($entity.attributes['tags'] ?*? 'none').size() > 0"));
-		cells.add(accepted("A-K", "true"));
-		cells.add(accepted("A-M", "max($entity.attributes['delta'], 3) ^ ($entity.attributes['delta'] % 2 == 0)"));
+		cells.add(accepted("A-abs-and-negation",
+			"abs($entity.attributes['delta']) > 5 && !($reference.attributes['share'] == 1)"));
+		cells.add(accepted("A-coalesce-sum",
+			"($entity.attributes['delta'] ?? 0) + ($reference.attributes['share'] ?? 0) > 3"));
+		cells.add(accepted("A-owner-array-attribute-spread-coalesce-ns",
+			"($entity.attributes['tags'] ?*? 'none').size() > 0"));
+		cells.add(accepted("A-constant", "true"));
+		cells.add(accepted("A-max-xor-modulo",
+			"max($entity.attributes['delta'], 3) ^ ($entity.attributes['delta'] % 2 == 0)"));
 	}
 
 	/**
@@ -377,22 +395,24 @@ public final class IndexingExpressionInputCells {
 	 * @param cells the list the cells are added to
 	 */
 	private static void addHistogramLocaleSetReads(@Nonnull List<Cell> cells) {
-		cells.add(refused("R-E4", "$entity.localizedAttributes['name'].size() > 0",
+		cells.add(refused("R-owner-map-size", "$entity.localizedAttributes['name'].size() > 0",
 			"$entity.localizedAttributes['name']", LOCALE_SET));
-		cells.add(refused("R-E4n", "$entity.localizedAttributes['name'] != null",
+		cells.add(refused("R-owner-map-null", "$entity.localizedAttributes['name'] != null",
 			"$entity.localizedAttributes['name']", LOCALE_SET));
-		cells.add(refused("R-E4c", "($entity.localizedAttributes['name'] *? '').entries.any($.value == 'x')",
+		cells.add(refused("R-owner-map-spread-coalesce-entries",
+			"($entity.localizedAttributes['name'] *? '').entries.any($.value == 'x')",
 			"$entity.localizedAttributes['name']", LOCALE_SET));
-		cells.add(refused("R-E4p", "$entity.localizedAttributes['name'].entries[0].value == 'x'",
+		cells.add(refused("R-owner-map-entries-index", "$entity.localizedAttributes['name'].entries[0].value == 'x'",
 			"$entity.localizedAttributes['name']", LOCALE_SET));
-		cells.add(refused("R-E6", "$entity.localizedAssociatedData['label'].size() > 0",
+		cells.add(refused("R-owner-associated-data-map-size", "$entity.localizedAssociatedData['label'].size() > 0",
 			"$entity.localizedAssociatedData['label']", LOCALE_SET));
-		cells.add(refused("R-E16", "$entity.locales.size() > 1", "$entity.locales", LOCALE_SET));
-		cells.add(refused("R-E16a", "$entity.allLocales.any($ == 'en')", "$entity.allLocales", LOCALE_SET));
-		cells.add(refused("R-E16p", "$entity.locales[0] == 'en'", "$entity.locales", LOCALE_SET));
-		cells.add(refused("R-N8", "$reference.referencedEntity.localizedAttributes['lweight'].size() > 0",
+		cells.add(refused("R-owner-locales-size", "$entity.locales.size() > 1", "$entity.locales", LOCALE_SET));
+		cells.add(refused("R-owner-all-locales-any", "$entity.allLocales.any($ == 'en')",
+			"$entity.allLocales", LOCALE_SET));
+		cells.add(refused("R-owner-locales-index", "$entity.locales[0] == 'en'", "$entity.locales", LOCALE_SET));
+		cells.add(refused("R-hop-map-size", "$reference.referencedEntity.localizedAttributes['lweight'].size() > 0",
 			"$reference.referencedEntity.localizedAttributes['lweight']", LOCALE_SET));
-		cells.add(refused("R-N3",
+		cells.add(refused("R-hop-locales-size",
 			"$reference.referencedEntity.locales.size() > 0 && $reference.referencedEntity.attributes['status'] == 'A'",
 			"$reference.referencedEntity.locales", LOCALE_SET));
 	}
@@ -405,30 +425,34 @@ public final class IndexingExpressionInputCells {
 	 * @param cells the list the cells are added to
 	 */
 	private static void addHistogramUntrackedReads(@Nonnull List<Cell> cells) {
-		cells.add(refused("R-E7", "$entity.references['tag'] != null", "$entity.references", UNTRACKED));
-		cells.add(refused("R-E8", "$entity.references['tag'].attributes['w'] > 0", "$entity.references", UNTRACKED));
-		cells.add(refused("R-N5", "$reference.referencedEntity.references['tag'].attributes['w'] > 0",
+		cells.add(refused("R-owner-references-null", "$entity.references['tag'] != null",
+			"$entity.references", UNTRACKED));
+		cells.add(refused("R-owner-references-attribute", "$entity.references['tag'].attributes['w'] > 0",
+			"$entity.references", UNTRACKED));
+		cells.add(refused("R-hop-references-attribute",
+			"$reference.referencedEntity.references['tag'].attributes['w'] > 0",
 			"$reference.referencedEntity.references", UNTRACKED));
-		cells.add(refused("R-N6",
+		cells.add(refused("R-hop-references-predicate",
 			"$reference.referencedEntity.references['pvTag'].any(($.attributes['tagWeight'] ?? 0) > 5)",
 			"$reference.referencedEntity.references", UNTRACKED));
-		cells.add(refused("R-N6g", "$reference.groupEntity?.references['tag']?.any(($.attributes['w'] ?? 0) > 5)",
+		cells.add(refused("R-group-references-predicate",
+			"$reference.groupEntity?.references['tag']?.any(($.attributes['w'] ?? 0) > 5)",
 			"$reference.groupEntity?.references", UNTRACKED));
-		cells.add(refused("R-N4",
+		cells.add(refused("R-hop-associated-data",
 			"$reference.referencedEntity.associatedData['x'] != null && " +
 				"$reference.referencedEntity.attributes['status'] == 'A'",
 			"$reference.referencedEntity.associatedData", UNTRACKED));
-		cells.add(refused("R-N7",
+		cells.add(refused("R-hop-parent-null",
 			"$reference.referencedEntity.parentEntity != null && " +
 				"$reference.referencedEntity.attributes['status'] == 'A'",
 			"$reference.referencedEntity.parentEntity", UNTRACKED));
-		cells.add(refused("R-N14", "$entity.parentEntity.parentEntity != null",
+		cells.add(refused("R-grandparent-null", "$entity.parentEntity.parentEntity != null",
 			"$entity.parentEntity.parentEntity", UNTRACKED));
-		cells.add(refused("R-E17", "$entity.scope == 'LIVE'", "$entity.scope", UNTRACKED));
-		cells.add(refused("R-R3", "$reference.localizedAttributes['lshare']['en'] > 1",
+		cells.add(refused("R-owner-scope", "$entity.scope == 'LIVE'", "$entity.scope", UNTRACKED));
+		cells.add(refused("R-reference-localized-attribute", "$reference.localizedAttributes['lshare']['en'] > 1",
 			"$reference.localizedAttributes", UNTRACKED));
 		cells.add(refused("R-bare", "$entity != null", "$entity", UNTRACKED));
-		cells.add(refused("R-bareR", "$reference == 'x'", "$reference", UNTRACKED));
+		cells.add(refused("R-bare-reference", "$reference == 'x'", "$reference", UNTRACKED));
 	}
 
 	/**
@@ -437,14 +461,21 @@ public final class IndexingExpressionInputCells {
 	 * @param cells the list the cells are added to
 	 */
 	private static void addHistogramHopsWithoutAttribute(@Nonnull List<Cell> cells) {
-		cells.add(refused("R-E13s", "$entity.parentEntity?.primaryKey > 0", "$entity.parentEntity?.primaryKey", HOP));
-		cells.add(refused("R-E13c", "$entity.parentEntity?.scope == 'LIVE'", "$entity.parentEntity?.scope", HOP));
-		cells.add(refused("R-E13t", "$entity.parentEntity == $entity.parentEntity", "$entity.parentEntity", HOP));
-		cells.add(refused("R-R6", "$reference.referencedEntity != null", "$reference.referencedEntity", HOP));
-		cells.add(refused("R-R6k", "$reference.referencedEntity.primaryKey > 0", "$reference.referencedEntity", HOP));
-		cells.add(refused("R-R6s", "$reference.referencedEntity?.scope == 'LIVE'", "$reference.referencedEntity", HOP));
-		cells.add(refused("R-R7", "$reference.groupEntity == null", "$reference.groupEntity", HOP));
-		cells.add(refused("R-R7m",
+		cells.add(refused("R-parent-pk-without-attribute", "$entity.parentEntity?.primaryKey > 0",
+			"$entity.parentEntity?.primaryKey", HOP));
+		cells.add(refused("R-parent-scope-without-attribute", "$entity.parentEntity?.scope == 'LIVE'",
+			"$entity.parentEntity?.scope", HOP));
+		cells.add(refused("R-parent-bare-without-attribute", "$entity.parentEntity == $entity.parentEntity",
+			"$entity.parentEntity", HOP));
+		cells.add(refused("R-hop-null-without-attribute", "$reference.referencedEntity != null",
+			"$reference.referencedEntity", HOP));
+		cells.add(refused("R-hop-pk-without-attribute", "$reference.referencedEntity.primaryKey > 0",
+			"$reference.referencedEntity", HOP));
+		cells.add(refused("R-hop-scope-without-attribute", "$reference.referencedEntity?.scope == 'LIVE'",
+			"$reference.referencedEntity", HOP));
+		cells.add(refused("R-group-null-without-attribute", "$reference.groupEntity == null",
+			"$reference.groupEntity", HOP));
+		cells.add(refused("R-group-null-with-hop-attribute",
 			"$reference.groupEntity == null && $reference.referencedEntity.attributes['status'] == 'A'",
 			"$reference.groupEntity", HOP));
 	}
@@ -455,22 +486,24 @@ public final class IndexingExpressionInputCells {
 	 * @param cells the list the cells are added to
 	 */
 	private static void addHistogramUnsupportedProperties(@Nonnull List<Cell> cells) {
-		cells.add(refused("R-E19", "$entity.version >= 3", "$entity.version", ENGINE_MAINTAINED));
-		cells.add(refused("R-E20", "$entity.dropped == false", "$entity.dropped", ENGINE_MAINTAINED));
-		cells.add(refused("R-N10", "$reference.referencedEntity.version > 1",
+		cells.add(refused("R-owner-version", "$entity.version >= 3", "$entity.version", ENGINE_MAINTAINED));
+		cells.add(refused("R-owner-dropped", "$entity.dropped == false", "$entity.dropped", ENGINE_MAINTAINED));
+		cells.add(refused("R-hop-version", "$reference.referencedEntity.version > 1",
 			"$reference.referencedEntity.version", ENGINE_MAINTAINED));
-		cells.add(refused("R-E18", "$entity.priceForSale != null", "$entity.priceForSale", PRICES));
-		cells.add(refused("R-E18p", "$entity.prices.size() > 0", "$entity.prices", PRICES));
-		cells.add(refused("R-E18a", "$entity.allPricesForSale != null", "$entity.allPricesForSale", PRICES));
-		cells.add(refused("R-E18c", "$entity.accompanyingPrice != null", "$entity.accompanyingPrice", PRICES));
-		cells.add(refused("R-E18h", "$entity.priceInnerRecordHandling == 'NONE'",
+		cells.add(refused("R-owner-price-for-sale", "$entity.priceForSale != null", "$entity.priceForSale", PRICES));
+		cells.add(refused("R-owner-prices", "$entity.prices.size() > 0", "$entity.prices", PRICES));
+		cells.add(refused("R-owner-all-prices-for-sale", "$entity.allPricesForSale != null",
+			"$entity.allPricesForSale", PRICES));
+		cells.add(refused("R-owner-accompanying-price", "$entity.accompanyingPrice != null",
+			"$entity.accompanyingPrice", PRICES));
+		cells.add(refused("R-owner-price-inner-record-handling", "$entity.priceInnerRecordHandling == 'NONE'",
 			"$entity.priceInnerRecordHandling", PRICES));
-		cells.add(refused("R-E21", "$entity.parent > 0", "$entity.parent", MISSING));
-		cells.add(refused("R-E21t", "$entity.type == 'product'", "$entity.type", MISSING));
-		cells.add(refused("R-E21u", "$entity.unknown == 1", "$entity.unknown", MISSING));
-		cells.add(refused("R-E22", "$entity['status'] == 'A'", "$entity['status']", MISSING));
-		cells.add(refused("R-R8", "$reference.group == 1", "$reference.group", MISSING));
-		cells.add(refused("R-R8b", "$reference.referencedEntityType == 'brand'",
+		cells.add(refused("R-owner-parent-missing", "$entity.parent > 0", "$entity.parent", MISSING));
+		cells.add(refused("R-owner-type-missing", "$entity.type == 'product'", "$entity.type", MISSING));
+		cells.add(refused("R-owner-unknown-property", "$entity.unknown == 1", "$entity.unknown", MISSING));
+		cells.add(refused("R-owner-element", "$entity['status'] == 'A'", "$entity['status']", MISSING));
+		cells.add(refused("R-reference-group-missing", "$reference.group == 1", "$reference.group", MISSING));
+		cells.add(refused("R-reference-entity-type-missing", "$reference.referencedEntityType == 'brand'",
 			"$reference.referencedEntityType", MISSING));
 	}
 
@@ -482,17 +515,19 @@ public final class IndexingExpressionInputCells {
 	 */
 	private static void addHistogramDynamicNamesAndNestedRoots(@Nonnull List<Cell> cells) {
 		// refused: dynamic names
-		cells.add(refused("R-E10", "$entity.attributes['st' + 'atus'] == 'A'",
+		cells.add(refused("R-dynamic-attribute-name", "$entity.attributes['st' + 'atus'] == 'A'",
 			"$entity.attributes['st' + 'atus']", DYNAMIC));
-		cells.add(refused("R-C4", "$entity.associatedData[$reference.attributes['k']] != null",
+		cells.add(refused("R-dynamic-associated-data-name",
+			"$entity.associatedData[$reference.attributes['k']] != null",
 			"$entity.associatedData[$reference.attributes['k']]", DYNAMIC));
-		cells.add(refused("R-E10c", "$entity.attributes.size() > 0", "$entity.attributes", DYNAMIC));
+		cells.add(refused("R-container-size", "$entity.attributes.size() > 0", "$entity.attributes", DYNAMIC));
 		// refused: roots nested in a predicate, a spread mapping or a key
-		cells.add(refused("R-C1", "$entity.attributes['tags'].any($ == $entity.attributes['code'])",
+		cells.add(refused("R-owner-in-predicate", "$entity.attributes['tags'].any($ == $entity.attributes['code'])",
 			"$entity.attributes['code']", NESTED_ROOT));
-		cells.add(refused("R-C2", "$entity.attributes['tags'].*[$entity.primaryKey].size() > 0",
+		cells.add(refused("R-owner-in-mapping", "$entity.attributes['tags'].*[$entity.primaryKey].size() > 0",
 			"$entity.primaryKey", NESTED_ROOT));
-		cells.add(refused("R-C3", "$entity.localizedAttributes['name'][$reference.attributes['k']] != null",
+		cells.add(refused("R-reference-in-key",
+			"$entity.localizedAttributes['name'][$reference.attributes['k']] != null",
 			"$reference.attributes['k']", NESTED_ROOT));
 	}
 
@@ -502,11 +537,12 @@ public final class IndexingExpressionInputCells {
 	 * @param cells the list the cells are added to
 	 */
 	private static void addHistogramRandomAndUnknownVariables(@Nonnull List<Cell> cells) {
-		cells.add(refused("R-X1", "random() > 5", "random()", RANDOM));
-		cells.add(refused("R-X1n", "$entity.attributes['tags'].any($ == random(3))", "random(3)", RANDOM));
-		cells.add(refused("R-X2", "$unknown == 1", "$unknown", VARIABLE));
-		cells.add(refused("R-X2p", "$other.attributes['x'] == 1", "$other", VARIABLE));
-		cells.add(refused("R-X2t", "$ == 1", "$", VARIABLE));
+		cells.add(refused("R-random", "random() > 5", "random()", RANDOM));
+		cells.add(refused("R-random-in-predicate", "$entity.attributes['tags'].any($ == random(3))",
+			"random(3)", RANDOM));
+		cells.add(refused("R-unknown-variable", "$unknown == 1", "$unknown", VARIABLE));
+		cells.add(refused("R-unknown-variable-attribute", "$other.attributes['x'] == 1", "$other", VARIABLE));
+		cells.add(refused("R-this-unbound", "$ == 1", "$", VARIABLE));
 	}
 
 	/**
@@ -517,34 +553,38 @@ public final class IndexingExpressionInputCells {
 	@Nonnull
 	private static List<Cell> histogramValueCells() {
 		final List<Cell> cells = new ArrayList<>(25);
-		cells.add(accepted("V-A1", "$reference.attributes['share']"));
-		cells.add(accepted("V-A2", "$reference.attributes['share'] ?? 5"));
-		cells.add(accepted("V-A3", "$reference.localizedAttributes['lshare'] ?? 5"));
-		cells.add(accepted("V-A4", "$reference.referencedEntity?.attributes['weight'] ?? 0"));
-		cells.add(accepted("V-A5", "$reference.referencedEntity.localizedAttributes['lweight']"));
-		cells.add(accepted("V-A6", "$reference.attributes['share'] ?? -1"));
-		cells.add(accepted("V-A7", "$reference.attributes['share'] ?? 0.5"));
-		cells.add(accepted("V-A8", "$reference?.attributes?['share']"));
-		cells.add(refused("V-R1", "$reference.attributes['share'] + 1", null, VALUE_FORM));
-		cells.add(refused("V-R2", "$reference.attributes['share'] ?? $reference.attributes['other']", null,
-			VALUE_FORM));
-		cells.add(refused("V-R3", "($reference.attributes['share'] ?? 5)", null, VALUE_FORM));
-		cells.add(refused("V-R4", "abs($reference.attributes['share'])", null, VALUE_FORM));
-		cells.add(refused("V-R5", "$reference.attributes['share'][0]", null, VALUE_FORM));
-		cells.add(refused("V-R6", "$reference.attributes['share'] ?? null", null, VALUE_FORM));
-		cells.add(refused("V-R7", "$reference.attributes['share'] ?? 'x'", null, VALUE_FORM));
-		cells.add(refused("V-R8", "$reference.groupEntity.attributes['weight']", null, VALUE_FORM));
-		cells.add(refused("V-R9", "$entity.attributes['delta']", null, VALUE_FORM));
-		cells.add(refused("V-R10", "$entity.parentEntity.attributes['status']", null, VALUE_FORM));
-		cells.add(refused("V-R11", "$reference.referencedEntity.references['t'].attributes['w']", null, VALUE_FORM));
-		cells.add(refused("V-R12", "$reference.attributes['sh' + 'are']", null, VALUE_FORM));
-		cells.add(refused("V-R13", "$reference.attributes['share'] ?? 5 ?? 6", null, VALUE_FORM));
+		cells.add(accepted("V-A-reference-attribute", "$reference.attributes['share']"));
+		cells.add(accepted("V-A-reference-attribute-default", "$reference.attributes['share'] ?? 5"));
+		cells.add(accepted("V-A-reference-localized-attribute-default",
+			"$reference.localizedAttributes['lshare'] ?? 5"));
+		cells.add(accepted("V-A-hop-attribute-default", "$reference.referencedEntity?.attributes['weight'] ?? 0"));
+		cells.add(accepted("V-A-hop-localized-attribute",
+			"$reference.referencedEntity.localizedAttributes['lweight']"));
+		cells.add(accepted("V-A-reference-attribute-negative-default", "$reference.attributes['share'] ?? -1"));
+		cells.add(accepted("V-A-reference-attribute-decimal-default", "$reference.attributes['share'] ?? 0.5"));
+		cells.add(accepted("V-A-reference-attribute-nullsafe", "$reference?.attributes?['share']"));
+		cells.add(refused("V-R-arithmetic", "$reference.attributes['share'] + 1", null, VALUE_FORM));
+		cells.add(refused("V-R-attribute-as-default",
+			"$reference.attributes['share'] ?? $reference.attributes['other']",
+			null, VALUE_FORM));
+		cells.add(refused("V-R-par-expression", "($reference.attributes['share'] ?? 5)", null, VALUE_FORM));
+		cells.add(refused("V-R-function", "abs($reference.attributes['share'])", null, VALUE_FORM));
+		cells.add(refused("V-R-attribute-index", "$reference.attributes['share'][0]", null, VALUE_FORM));
+		cells.add(refused("V-R-null-default", "$reference.attributes['share'] ?? null", null, VALUE_FORM));
+		cells.add(refused("V-R-string-default", "$reference.attributes['share'] ?? 'x'", null, VALUE_FORM));
+		cells.add(refused("V-R-group-attribute", "$reference.groupEntity.attributes['weight']", null, VALUE_FORM));
+		cells.add(refused("V-R-owner-attribute", "$entity.attributes['delta']", null, VALUE_FORM));
+		cells.add(refused("V-R-parent-attribute", "$entity.parentEntity.attributes['status']", null, VALUE_FORM));
+		cells.add(refused("V-R-hop-references-attribute", "$reference.referencedEntity.references['t'].attributes['w']",
+			null, VALUE_FORM));
+		cells.add(refused("V-R-dynamic-attribute-name", "$reference.attributes['sh' + 'are']", null, VALUE_FORM));
+		cells.add(refused("V-R-two-defaults", "$reference.attributes['share'] ?? 5 ?? 6", null, VALUE_FORM));
 		// an attribute source is read only as written: parentheses around the default, the source or the name and
 		// `?*?` instead of `??` are other forms
-		cells.add(refused("V-R14", "$reference.attributes['share'] ?? (5)", null, VALUE_FORM));
-		cells.add(refused("V-R15", "($reference.attributes['share']) ?? 5", null, VALUE_FORM));
-		cells.add(refused("V-R16", "$reference.attributes[('share')]", null, VALUE_FORM));
-		cells.add(refused("V-R17", "$reference.attributes['share'] ?*? 5", null, VALUE_FORM));
+		cells.add(refused("V-R-par-default", "$reference.attributes['share'] ?? (5)", null, VALUE_FORM));
+		cells.add(refused("V-R-par-source", "($reference.attributes['share']) ?? 5", null, VALUE_FORM));
+		cells.add(refused("V-R-par-name", "$reference.attributes[('share')]", null, VALUE_FORM));
+		cells.add(refused("V-R-spread-coalesce-ns", "$reference.attributes['share'] ?*? 5", null, VALUE_FORM));
 		return cells.stream().map(cell -> cell.withKind(IndexingExpressionKind.HISTOGRAM_VALUE)).toList();
 	}
 
@@ -579,33 +619,36 @@ public final class IndexingExpressionInputCells {
 	 * @param cells the list the cells are added to
 	 */
 	private static void addFacetAdmittedReads(@Nonnull List<Cell> cells) {
-		cells.add(accepted("FA-1",
+		cells.add(accepted("FA-hop-references-predicate",
 			"$reference.referencedEntity.references['tag'].any(($.attributes['weight'] ?? 0) > 5)"));
-		cells.add(accepted("FA-1g",
+		cells.add(accepted("FA-group-references-predicate",
 			"$reference.groupEntity?.references['tag']?.any(($.attributes['weight'] ?? 0) > 5)"));
-		cells.add(accepted("FA-1s",
+		cells.add(accepted("FA-hop-single-reference-attribute",
 			"($reference.referencedEntity.references['singleTag']?.attributes['weight'] ?? 0) > 5"));
-		cells.add(accepted("FA-2", "$entity.references['tag'] != null"));
-		cells.add(accepted("FA-2a",
+		cells.add(accepted("FA-owner-references-null", "$entity.references['tag'] != null"));
+		cells.add(accepted("FA-owner-references-predicate",
 			"$entity.references['tag'].any($.attributes['w'] > 1 && $.referencedPrimaryKey > 0)"));
-		cells.add(accepted("FA-3", "$entity.scope == 'LIVE'"));
-		cells.add(accepted("FA-4", "$entity.locales.size() > 1"));
-		cells.add(accepted("FA-4a", "$entity.locales.any($ == 'en')"));
-		cells.add(accepted("FA-4n", "$entity.locales != null"));
-		cells.add(accepted("FA-4s", "$entity.allLocales.*[$ + '!'].any($ == 'en!')"));
-		cells.add(accepted("FA-4c", "($entity.locales *? 'x').size() > 0"));
-		cells.add(accepted("FA-5", "$entity.localizedAttributes['name'].entries.any($.value == 'x')"));
-		cells.add(accepted("FA-5m", "$entity.localizedAttributes['name'] != null"));
-		cells.add(accepted("FA-5s", "$entity.localizedAttributes['name'].*[$ + '!'].size() > 0"));
-		cells.add(refused("FR-3s", "$entity.localizedAttributes['name'].*[$ + '!'].entries[0].value == 'x'",
+		cells.add(accepted("FA-owner-scope", "$entity.scope == 'LIVE'"));
+		cells.add(accepted("FA-owner-locales-size", "$entity.locales.size() > 1"));
+		cells.add(accepted("FA-owner-locales-any", "$entity.locales.any($ == 'en')"));
+		cells.add(accepted("FA-owner-locales-null", "$entity.locales != null"));
+		cells.add(accepted("FA-owner-all-locales-spread", "$entity.allLocales.*[$ + '!'].any($ == 'en!')"));
+		cells.add(accepted("FA-owner-locales-spread-coalesce", "($entity.locales *? 'x').size() > 0"));
+		cells.add(accepted("FA-owner-map-entries-any",
+			"$entity.localizedAttributes['name'].entries.any($.value == 'x')"));
+		cells.add(accepted("FA-owner-map-null", "$entity.localizedAttributes['name'] != null"));
+		cells.add(accepted("FA-owner-map-spread-size", "$entity.localizedAttributes['name'].*[$ + '!'].size() > 0"));
+		cells.add(refused("FR-owner-map-spread-entries-index",
+			"$entity.localizedAttributes['name'].*[$ + '!'].entries[0].value == 'x'",
 			"$entity.localizedAttributes['name'].*[$ + '!'].entries", POSITIONAL));
-		cells.add(accepted("FA-6", "$reference.groupEntity == null"));
-		cells.add(accepted("FA-6p", "$reference.referencedEntity.parentEntity != null"));
-		cells.add(accepted("FA-7", "$entity.attributes['tags'].any($ == $entity.attributes['code'])"));
-		cells.add(accepted("FA-8", "($entity.parentEntity?.references['singleTag']?.attributes['w'] ?? 0) > 5"));
-		cells.add(accepted("FA-9", "$reference.localizedAttributes['note']['en'] != null"));
-		cells.add(accepted("FA-10", "$entity.associatedData['metadata'] != null"));
-		cells.add(accepted("FA-11", "$reference.referencedEntity.attributes['price'] + 5 > 10"));
+		cells.add(accepted("FA-group-null", "$reference.groupEntity == null"));
+		cells.add(accepted("FA-hop-parent-null", "$reference.referencedEntity.parentEntity != null"));
+		cells.add(accepted("FA-owner-in-predicate", "$entity.attributes['tags'].any($ == $entity.attributes['code'])"));
+		cells.add(accepted("FA-parent-single-reference-attribute",
+			"($entity.parentEntity?.references['singleTag']?.attributes['w'] ?? 0) > 5"));
+		cells.add(accepted("FA-reference-localized-attribute", "$reference.localizedAttributes['note']['en'] != null"));
+		cells.add(accepted("FA-owner-associated-data", "$entity.associatedData['metadata'] != null"));
+		cells.add(accepted("FA-hop-attribute-arithmetic", "$reference.referencedEntity.attributes['price'] + 5 > 10"));
 		// the bare `$entity` and `$reference`, which the histogram rules refuse, are on no reject list
 		cells.add(accepted("FA-bare-owner", "$entity != null"));
 		cells.add(accepted("FA-bare-reference", "$reference == 'x'"));
@@ -618,18 +661,20 @@ public final class IndexingExpressionInputCells {
 	 */
 	private static void addFacetUnnamedContainers(@Nonnull List<Cell> cells) {
 		// a data container ending the chain evaluates to the container, which is never `null`
-		cells.add(accepted("FA-12", "$entity.attributes != null"));
-		cells.add(accepted("FA-12l", "$entity.localizedAttributes != null"));
-		cells.add(accepted("FA-12a", "$entity.associatedData != null"));
-		cells.add(accepted("FA-12al", "$entity.localizedAssociatedData != null"));
-		cells.add(accepted("FA-12e", "$entity.references != null"));
-		cells.add(accepted("FA-12r", "$reference.attributes != null"));
-		cells.add(accepted("FA-12rl", "$reference.localizedAttributes != null"));
-		cells.add(accepted("FA-12s", "$entity.references['singleTag']?.attributes != null"));
-		cells.add(accepted("FA-12h", "$reference.referencedEntity.attributes != null"));
-		cells.add(accepted("FA-12hr", "$reference.referencedEntity.references != null"));
-		cells.add(accepted("FA-12p", "$entity.parentEntity?.attributes != null"));
-		cells.add(accepted("FA-12m", "$entity.attributes != null && $entity.parentEntity != null"));
+		cells.add(accepted("FA-container-null", "$entity.attributes != null"));
+		cells.add(accepted("FA-localized-attributes-container-null", "$entity.localizedAttributes != null"));
+		cells.add(accepted("FA-associated-data-container-null", "$entity.associatedData != null"));
+		cells.add(accepted("FA-localized-associated-data-container-null", "$entity.localizedAssociatedData != null"));
+		cells.add(accepted("FA-references-container-null", "$entity.references != null"));
+		cells.add(accepted("FA-reference-attributes-container-null", "$reference.attributes != null"));
+		cells.add(accepted("FA-reference-localized-container-null", "$reference.localizedAttributes != null"));
+		cells.add(accepted("FA-single-reference-container-null",
+			"$entity.references['singleTag']?.attributes != null"));
+		cells.add(accepted("FA-hop-container-null", "$reference.referencedEntity.attributes != null"));
+		cells.add(accepted("FA-hop-references-container-null", "$reference.referencedEntity.references != null"));
+		cells.add(accepted("FA-parent-container-null", "$entity.parentEntity?.attributes != null"));
+		cells.add(accepted("FA-container-and-parent-null",
+			"$entity.attributes != null && $entity.parentEntity != null"));
 	}
 
 	/**
@@ -643,37 +688,41 @@ public final class IndexingExpressionInputCells {
 		// a condition reading an attribute through a hop is translated into a query, which cannot express a container
 		// without a name
 		cells.add(refused(
-			"FR-28", "$entity.attributes != null && $reference.referencedEntity.attributes['status'] == 'A'",
+			"FR-container-translated",
+			"$entity.attributes != null && $reference.referencedEntity.attributes['status'] == 'A'",
 			"$entity.attributes", DYNAMIC
 		));
 		cells.add(refused(
-			"FR-28g", "$entity.references != null && $reference.groupEntity?.attributes['type'] == 'X'",
+			"FR-references-container-translated",
+			"$entity.references != null && $reference.groupEntity?.attributes['type'] == 'X'",
 			"$entity.references", DYNAMIC
 		));
 		cells.add(refused(
-			"FR-28h",
+			"FR-hop-container-translated",
 			"$reference.referencedEntity.attributes != null && " +
 				"$reference.referencedEntity.attributes['status'] == 'A'",
 			"$reference.referencedEntity.attributes", DYNAMIC
 		));
 		cells.add(refused(
-			"FR-28p", "($entity.parentEntity?.attributes['status'] ?? '') == 'A' && $entity.associatedData != null",
+			"FR-associated-data-container-translated",
+			"($entity.parentEntity?.attributes['status'] ?? '') == 'A' && $entity.associatedData != null",
 			"$entity.associatedData", DYNAMIC
 		));
 		cells.add(refused(
-			"FR-28n",
+			"FR-container-and-hop-references-predicate",
 			"$entity.attributes != null && " +
 				"$reference.referencedEntity.references['tag'].any(($.attributes['weight'] ?? 0) > 5)",
 			"$entity.attributes", DYNAMIC
 		));
 		cells.add(refused(
-			"FR-28r",
+			"FR-references-container-and-group-reference",
 			"$entity.references != null && ($reference.groupEntity?.references['singleTag']?.attributes['w'] ?? 0) > 1",
 			"$entity.references", DYNAMIC
 		));
 		// a hop's references read without an attribute of theirs keep the condition local
 		cells.add(accepted(
-			"FA-12n", "$entity.attributes != null && $reference.referencedEntity.references['tag'] != null"
+			"FA-container-and-hop-references-null",
+			"$entity.attributes != null && $reference.referencedEntity.references['tag'] != null"
 		));
 		// a chain starting at the result of `??` maps no read from a variable, so an attribute read through a hop on
 		// it counts as none, and the container without a name beside it stays admitted
@@ -685,7 +734,7 @@ public final class IndexingExpressionInputCells {
 		// the shape of a typical production condition: a boolean reference attribute combined with attributes of the
 		// referenced and the group entity, every read defaulted
 		cells.add(accepted(
-			"FA-P",
+			"FA-production-shape",
 			"($reference.attributes['visible'] ?? false) == true && " +
 				"(($reference.referencedEntity.attributes['weight'] ?? 0) > 0 || " +
 				"($reference.groupEntity?.attributes['type'] ?? '') == 'X')"
@@ -701,51 +750,57 @@ public final class IndexingExpressionInputCells {
 	 */
 	private static void addFacetRejectList(@Nonnull List<Cell> cells) {
 		// reads that fail at evaluation on every non-null receiver
-		cells.add(refused("FR-14", "$entity.size() > 0", "$entity.size()", MISSING));
-		cells.add(refused("FR-15", "$entity.*[$ != null] != null", "$entity.*[$ != null]", MISSING));
-		cells.add(refused("FR-16", "$reference['share'] > 1", "$reference['share']", MISSING));
-		cells.add(refused("FR-17", "$reference.size() > 0", "$reference.size()", MISSING));
-		cells.add(refused("FR-18", "$entity.references['tag'][0]['w'] > 1", "$entity.references['tag'][0]['w']",
-			MISSING));
-		cells.add(refused("FR-19", "$entity['brand'] != null", "$entity['brand']", MISSING));
-		cells.add(refused("FR-20", "$reference.referencedEntity.size() > 0", "$reference.referencedEntity.size()",
-			MISSING));
-		cells.add(refused("FR-21", "$entity.type == 'product'", "$entity.type", MISSING));
-		cells.add(refused("FR-22", "$reference.referencedEntityType == 'brand'", "$reference.referencedEntityType",
-			MISSING));
-		cells.add(refused("FR-23", "$entity.attributes.size() > 0", "$entity.attributes", DYNAMIC));
-		cells.add(refused("FR-24", "$entity.localizedAttributes['name'].keys != null",
+		cells.add(refused("FR-owner-method", "$entity.size() > 0", "$entity.size()", MISSING));
+		cells.add(refused("FR-owner-spread", "$entity.*[$ != null] != null", "$entity.*[$ != null]", MISSING));
+		cells.add(refused("FR-reference-element", "$reference['share'] > 1", "$reference['share']", MISSING));
+		cells.add(refused("FR-reference-method", "$reference.size() > 0", "$reference.size()", MISSING));
+		cells.add(refused("FR-listed-element", "$entity.references['tag'][0]['w'] > 1",
+			"$entity.references['tag'][0]['w']", MISSING));
+		cells.add(refused("FR-owner-element", "$entity['brand'] != null", "$entity['brand']", MISSING));
+		cells.add(refused("FR-hop-method", "$reference.referencedEntity.size() > 0",
+			"$reference.referencedEntity.size()", MISSING));
+		cells.add(refused("FR-owner-type-missing", "$entity.type == 'product'", "$entity.type", MISSING));
+		cells.add(refused("FR-reference-entity-type-missing", "$reference.referencedEntityType == 'brand'",
+			"$reference.referencedEntityType", MISSING));
+		cells.add(refused("FR-container-size", "$entity.attributes.size() > 0", "$entity.attributes", DYNAMIC));
+		cells.add(refused("FR-owner-map-keys-missing", "$entity.localizedAttributes['name'].keys != null",
 			"$entity.localizedAttributes['name'].keys", MISSING));
-		cells.add(refused("FR-25", "$entity.locales.contains('en')", "$entity.locales.contains('en')", MISSING));
-		cells.add(refused("FR-26", "$reference.group.primaryKey > 0", "$reference.group", MISSING));
-		cells.add(refused("FR-27", "$reference.referencedEntity['status'] == 'A'",
+		cells.add(refused("FR-owner-locales-contains-missing", "$entity.locales.contains('en')",
+			"$entity.locales.contains('en')", MISSING));
+		cells.add(refused("FR-reference-group-missing-pk", "$reference.group.primaryKey > 0",
+			"$reference.group", MISSING));
+		cells.add(refused("FR-hop-element", "$reference.referencedEntity['status'] == 'A'",
 			"$reference.referencedEntity['status']", MISSING));
-		cells.add(refused("FR-1", "$entity.version > 1", "$entity.version", ENGINE_MAINTAINED));
-		cells.add(refused("FR-1n", "$entity.attributes['tags'].any($ == $entity.version)", "$entity.version",
-			ENGINE_MAINTAINED));
-		cells.add(refused("FR-2", "$entity.locales[0] == 'en'", "$entity.locales", POSITIONAL));
-		cells.add(refused("FR-3", "$entity.localizedAttributes['name'].entries[0].value == 'x'",
+		cells.add(refused("FR-owner-version", "$entity.version > 1", "$entity.version", ENGINE_MAINTAINED));
+		cells.add(refused("FR-owner-version-in-predicate", "$entity.attributes['tags'].any($ == $entity.version)",
+			"$entity.version", ENGINE_MAINTAINED));
+		cells.add(refused("FR-owner-locales-index", "$entity.locales[0] == 'en'", "$entity.locales", POSITIONAL));
+		cells.add(refused("FR-owner-map-entries-index", "$entity.localizedAttributes['name'].entries[0].value == 'x'",
 			"$entity.localizedAttributes['name'].entries", POSITIONAL));
-		cells.add(refused("FR-4", "$entity.locales.*[$ + '!'][0] == 'en!'", "$entity.locales.*[$ + '!']", POSITIONAL));
-		cells.add(refused("FR-5", "$entity.locales == 'en'", "$entity.locales", POSITIONAL));
-		cells.add(refused("FR-5f", "max($entity.locales) > 0", "$entity.locales", POSITIONAL));
-		cells.add(refused("FR-5e", "$entity.locales", "$entity.locales", POSITIONAL));
-		cells.add(refused("FR-5d", "('x' ?? $entity.locales) != null", "$entity.locales", POSITIONAL));
-		cells.add(refused("FR-5h", "$reference.referencedEntity.locales[0] == 'en'",
+		cells.add(refused("FR-owner-locales-spread-index", "$entity.locales.*[$ + '!'][0] == 'en!'",
+			"$entity.locales.*[$ + '!']", POSITIONAL));
+		cells.add(refused("FR-owner-locales-compared", "$entity.locales == 'en'", "$entity.locales", POSITIONAL));
+		cells.add(refused("FR-owner-locales-function", "max($entity.locales) > 0", "$entity.locales", POSITIONAL));
+		cells.add(refused("FR-owner-locales-result", "$entity.locales", "$entity.locales", POSITIONAL));
+		cells.add(refused("FR-owner-locales-coalesce-default", "('x' ?? $entity.locales) != null",
+			"$entity.locales", POSITIONAL));
+		cells.add(refused("FR-hop-locales-index", "$reference.referencedEntity.locales[0] == 'en'",
 			"$reference.referencedEntity.locales", POSITIONAL));
-		cells.add(refused("FR-6", "random() > 1", "random()", RANDOM));
-		cells.add(refused("FR-7", "$entity.priceForSale != null", "$entity.priceForSale", PRICES));
-		cells.add(refused("FR-8", "$entity.parent > 0", "$entity.parent", MISSING));
-		cells.add(refused("FR-8r", "$reference.group == 1", "$reference.group", MISSING));
-		cells.add(refused("FR-9", "$entity.attributes['st' + 'atus'] == 'A'", "$entity.attributes['st' + 'atus']",
-			DYNAMIC));
-		cells.add(refused("FR-10", "$entity.references['brand'].referencedEntity.attributes['status'] == 'A'",
+		cells.add(refused("FR-random", "random() > 1", "random()", RANDOM));
+		cells.add(refused("FR-owner-price-for-sale", "$entity.priceForSale != null", "$entity.priceForSale", PRICES));
+		cells.add(refused("FR-owner-parent-missing", "$entity.parent > 0", "$entity.parent", MISSING));
+		cells.add(refused("FR-reference-group-missing", "$reference.group == 1", "$reference.group", MISSING));
+		cells.add(refused("FR-dynamic-attribute-name", "$entity.attributes['st' + 'atus'] == 'A'",
+			"$entity.attributes['st' + 'atus']", DYNAMIC));
+		cells.add(refused("FR-owner-references-hop",
+			"$entity.references['brand'].referencedEntity.attributes['status'] == 'A'",
 			"$entity.references['brand'].referencedEntity", NULL_HOP));
-		cells.add(refused("FR-11", "$reference.referencedEntity.references['tag'].any($.groupEntity != null)",
+		cells.add(refused("FR-hop-references-hop",
+			"$reference.referencedEntity.references['tag'].any($.groupEntity != null)",
 			"$.groupEntity", NULL_HOP));
-		cells.add(refused("FR-12", "$foo == 1", "$foo", VARIABLE));
+		cells.add(refused("FR-unknown-variable", "$foo == 1", "$foo", VARIABLE));
 		cells.add(refused("FR-this-unbound", "$ == 1", "$", VARIABLE));
-		cells.add(refused("FR-13", "$entity.dropped == false", "$entity.dropped", ENGINE_MAINTAINED));
+		cells.add(refused("FR-owner-dropped", "$entity.dropped == false", "$entity.dropped", ENGINE_MAINTAINED));
 	}
 
 	/**
