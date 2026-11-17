@@ -79,6 +79,14 @@ class MetricHandlerDurationTest implements EvitaTestSupport {
 	 * A batch allows a scheduling pause in one event without requiring every event to finish below 1 ms.
 	 */
 	private static final int EVENT_COUNT = 16;
+	/**
+	 * Two JFR consumers' durations for the same events were seen on CI runners up to a fraction of a nanosecond
+	 * apart in the mean. The test also requires truncation to whole milliseconds to move the batch mean, as the
+	 * test's own stream records it, by more than ten times this tolerance. The handler's stream differs from it
+	 * only by that inter-stream error, so a whole-millisecond conversion fails the comparison unless the error
+	 * carries the remainder of the batch across a millisecond boundary.
+	 */
+	private static final double MEAN_TOLERANCE_MILLISECONDS = 0.000001;
 
 	private TestPaths paths;
 	private Evita evita;
@@ -162,6 +170,13 @@ class MetricHandlerDurationTest implements EvitaTestSupport {
 				durations.stream().anyMatch(duration -> duration.toNanos() > 0 && duration.toNanos() < 1_000_000),
 				"At least one recorded event must have a non-zero sub-millisecond duration"
 			);
+			final double meanSubMillisecondRemainder = durations.stream()
+				.mapToDouble(duration -> (duration.toNanos() % 1_000_000) / 1_000_000.0)
+				.sum() / EVENT_COUNT;
+			assertTrue(
+				meanSubMillisecondRemainder > 10 * MEAN_TOLERANCE_MILLISECONDS,
+				"Truncating the batch to whole milliseconds must move its mean by more than ten times the tolerance"
+			);
 			final HistogramDataPointSnapshot histogram = findHistogram(metricName, apiCode);
 			assertNotNull(histogram, "Duration histogram must contain the emitted events");
 			// every metric stream alive in the JVM observes each event into this series, so it holds whole copies of
@@ -171,7 +186,7 @@ class MetricHandlerDurationTest implements EvitaTestSupport {
 				.mapToDouble(duration -> duration.toNanos() / 1_000_000.0)
 				.sum() / EVENT_COUNT;
 			assertEquals(
-				expectedMean, histogram.getSum() / histogram.getCount(), 0.000000001,
+				expectedMean, histogram.getSum() / histogram.getCount(), MEAN_TOLERANCE_MILLISECONDS,
 				"Duration histogram must preserve fractional milliseconds"
 			);
 		}

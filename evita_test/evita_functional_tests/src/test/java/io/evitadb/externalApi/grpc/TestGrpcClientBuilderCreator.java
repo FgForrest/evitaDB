@@ -45,6 +45,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
+import java.time.Duration;
 
 /**
  * Class used in tests for creating and storing instance of {@link ManagedChannel} upon which will gRPC stubs be created.
@@ -74,7 +75,9 @@ public class TestGrpcClientBuilderCreator {
 
 		final GrpcOptions grpcConfig = apiOptions.getEndpointConfiguration(GrpcProvider.CODE);
 
+		// The connect timeout also covers TLS negotiation under concurrent functional-test load.
 		ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
+			.connectTimeout(Duration.ofSeconds(30))
 			.useHttp1Pipelining(true)
 			.idleTimeoutMillis(100000, true)
 			.maxNumRequestsPerConnection(1000)
