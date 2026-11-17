@@ -188,25 +188,14 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		// Provide isolated publisher wrapping the shared one to the outside world.
 		// This way we can reuse predicate and caching logic for all subscribers with the same criteria.
 		// Specifics related to the start version and index, and provided content are handled in the isolated publisher.
-		final ChangeCatalogCapturePublisher changeCatalogCapturePublisher = new ChangeCatalogCapturePublisher(
+		// A publication racing this registration needs no handling here: it reaches a shared publisher already in
+		// the map through `notifyCatalogPresentInLiveView`, and one created after its walk through the catch-up in
+		// `getOrCreateSharedPublisher`. Pushing a catalog read here into the shared publisher would move it back
+		// whenever a newer version was published in the meantime.
+		return new ChangeCatalogCapturePublisher(
 			criteriaBundle -> getOrCreateSharedPublisher(criteriaBundle, catalogName),
 			request
 		);
-
-		// when the shared publisher internal catalog version differs from the current one,
-		// this may happen due to a race condition between this method and set current catalog call
-		final Catalog theCurrentCatalog = this.currentCatalog.get();
-		if (theCurrentCatalog == null) {
-			throw new InstanceTerminatedException("catalog change observer");
-		}
-		if (theCurrentCatalog.getVersion() != theCatalog.getVersion()) {
-			// notify the shared publisher about the current catalog state
-			changeCatalogCapturePublisher
-				.getSharedPublisher()
-				.notifyCatalogPresentInLiveView(theCurrentCatalog);
-		}
-
-		return changeCatalogCapturePublisher;
 	}
 
 	/**
