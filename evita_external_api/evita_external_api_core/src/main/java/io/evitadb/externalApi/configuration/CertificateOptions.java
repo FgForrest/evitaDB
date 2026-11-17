@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.configuration;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 
 import javax.annotation.Nonnull;
@@ -33,7 +35,7 @@ import java.nio.file.Path;
 /**
  * This DTO record encapsulates certificate settings that will be used to secure connections to the web servers providing APIs.
  *
- * @param generateAndUseSelfSigned defines the path to the certificate which will be used to secure the connection
+ * @param generateAndUseSelfSigned whether a self-signed certificate is generated on startup and used for TLS
  * @param folderPath               defines the path to the folder where the certificate and private key will be stored
  * @param custom                   DTO containing paths to the certificate and private keys used to secure the connection
  * @author Tomáš Pozler, 2023
@@ -53,6 +55,24 @@ public record CertificateOptions(
 
 	public CertificateOptions() {
 		this(true, null, null);
+	}
+
+	/**
+	 * Creates the options from a configuration file. A missing or `null` `generateAndUseSelfSigned` resolves to
+	 * `true`, the same default as {@link #CertificateOptions()} and {@link Builder}; a primitive record component alone
+	 * would bind it to `false`.
+	 *
+	 * @param generateAndUseSelfSigned whether a self-signed certificate is generated, `null` for the default `true`
+	 * @param folderPath               the folder where the generated certificate and private key are stored
+	 * @param custom                   paths to an externally supplied certificate and its private key
+	 */
+	@JsonCreator
+	public CertificateOptions(
+		@Nullable @JsonProperty("generateAndUseSelfSigned") Boolean generateAndUseSelfSigned,
+		@Nullable @JsonProperty("folderPath") String folderPath,
+		@Nullable @JsonProperty("custom") CertificatePath custom
+	) {
+		this(generateAndUseSelfSigned == null || generateAndUseSelfSigned, folderPath, custom);
 	}
 
 	@Nonnull

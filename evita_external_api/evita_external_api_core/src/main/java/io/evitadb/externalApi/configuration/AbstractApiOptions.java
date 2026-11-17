@@ -72,9 +72,10 @@ public abstract class AbstractApiOptions {
 	 */
 	@Getter private final String exposeOn;
 	/**
-	 * By enabling this internal flag, the API will be forced to use unencrypted HTTP protocol. The only purpose of this
-	 * flag is to allow accessing the system API, from where the client obtains to access all of evita's APIs. All of
-	 * evita's APIs are always secured at least by TLS encryption, in gRPC is also an option to use mTLS.
+	 * Defines whether the API accepts encrypted connections, unencrypted connections, or both. A missing value
+	 * resolves to the default of the concrete endpoint options class; any other value must be the exact,
+	 * case-sensitive name of a {@link TlsMode} constant, or options construction fails - see
+	 * {@link TlsMode#getByName(String, TlsMode, String)}.
 	 */
 	@Getter private final TlsMode tlsMode;
 
@@ -106,31 +107,45 @@ public abstract class AbstractApiOptions {
 		}
 	}
 
-	protected AbstractApiOptions() {
-		this.enabled = true;
-		this.tlsMode = TlsMode.RELAXED;
-		this.exposeOn = null;
-		this.host = new HostDefinition[]{
-			new HostDefinition(NetworkUtils.getByName("0.0.0.0"), true, DEFAULT_PORT)
-		};
-		this.keepAlive = true;
-		this.mtlsConfiguration = new MtlsConfiguration(false, List.of());
-	}
-
 	/**
-	 * @param enabled enables the particular API
-	 * @param host    defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
-	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
+	 * Creates enabled endpoint options on the default port with the endpoint's documented TLS mode.
+	 *
+	 * @param defaultTlsMode documented TLS default of the endpoint
 	 */
-	protected AbstractApiOptions(@Nullable Boolean enabled, @Nonnull String host) {
-		this(enabled, host, null, null, null, null);
+	protected AbstractApiOptions(@Nonnull TlsMode defaultTlsMode) {
+		this(true, ":" + DEFAULT_PORT, null, null, null, null, defaultTlsMode);
 	}
 
 	/**
-	 * @param enabled    enables the particular API
-	 * @param host       defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
-	 *                   (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
-	 * @param tlsMode    allows the API to run with TLS encryption
+	 * Creates options for a host using the endpoint's documented TLS default.
+	 *
+	 * @param enabled enables the particular API
+	 * @param host comma-separated host definitions in the format `hostname:port`, read as described at
+	 *             {@link #AbstractApiOptions(Boolean, String, String, String, Boolean, MtlsConfiguration, TlsMode)}
+	 * @param defaultTlsMode documented TLS default of the endpoint
+	 */
+	protected AbstractApiOptions(
+		@Nullable Boolean enabled, @Nonnull String host, @Nonnull TlsMode defaultTlsMode
+	) {
+		this(enabled, host, null, null, null, null, defaultTlsMode);
+	}
+
+	/**
+	 * Creates endpoint options, resolving a missing TLS mode to the supplied endpoint default. Each endpoint passes its
+	 * own default, so a `tlsMode` left `null` - nothing set on the endpoint and nothing inherited from the shared
+	 * endpoint defaults - resolves per endpoint instead of to a single value for all of them.
+	 *
+	 * @param enabled enables the particular API
+	 * @param host comma-separated host definitions in the format `hostname:port`; an empty hostname (`:5555`) stands
+	 *             for all network interfaces, any other hostname or IP address for the address it resolves to, for
+	 *             example `localhost:5555,168.12.45.44:5555`
+	 * @param exposeOn external address advertised to clients
+	 * @param tlsMode exact TLS mode name, or null to use the endpoint default
+	 * @param keepAlive whether connections should be kept alive
+	 * @param mtlsConfiguration mutual TLS settings
+	 * @param defaultTlsMode documented TLS default of the endpoint
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when `tlsMode` is neither null nor the exact name
+	 *         of a {@link TlsMode} constant, or a host definition does not match `hostname:port`
 	 */
 	protected AbstractApiOptions(
 		@Nullable Boolean enabled,
@@ -138,10 +153,11 @@ public abstract class AbstractApiOptions {
 		@Nullable String exposeOn,
 		@Nullable String tlsMode,
 		@Nullable Boolean keepAlive,
-		@Nullable MtlsConfiguration mtlsConfiguration
+		@Nullable MtlsConfiguration mtlsConfiguration,
+		@Nonnull TlsMode defaultTlsMode
 	) {
 		this.enabled = ofNullable(enabled).orElse(true);
-		this.tlsMode = TlsMode.getByName(tlsMode);
+		this.tlsMode = TlsMode.getByName(tlsMode, defaultTlsMode, getClass().getSimpleName());
 		this.host = Arrays.stream(host.split(","))
 			.map(AbstractApiOptions::parseHost)
 			.flatMap(Arrays::stream)
