@@ -1,7 +1,7 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-11-15 13:25
+updated: 2026-11-17 15:26
 status: accepted
 kind: fix
 issues: [1466]
@@ -226,17 +226,34 @@ forbids partial replay.
   moment later; an activation issued in between is refused with `ConflictingEngineMutationException`. That is the
   engine's "another lifecycle operation is still in flight" signal, and a client reacting instantly to the
   deactivation has to retry. `WarmUpRefusedSchemaPersistenceTest#activateOnceTheDeactivationSettles` documents it.
-- **The conflict key can refuse the deactivation itself, so `scheduleDeactivation` now retries it.** The catalog
-  raises the barrier from inside `Catalog#flush`'s failure handler, which the go-live operator calls while its own
-  lifecycle mutation is still finalizing — so the deactivation the barrier schedules races the very mutation that
-  triggered it and is refused. It was previously logged and dropped, which left a catalog that refused everything
-  and could only be cleared by a restart: safe, but flatly contradicting the recovery this record promises. Five
-  attempts, 200 ms apart, wait out a key whose holder is already finalizing. Exhausting them keeps the old
-  behaviour and the old message, because the safety property never depended on the deactivation landing. The
-  returned `Progress` is now observed too — a deactivation accepted and then failing while being applied used to
-  leave the catalog refusing with nothing in the log to say why.
+- **Admission conflicts are retried every 200 ms without an attempt limit.** The mutation that raises the
+  barrier can itself hold the catalog conflict key: both the go-live flush failure and a refused warm-up
+  `ModifyCatalogSchemaMutation` schedule deactivation before their own finalization releases it. Five attempts
+  separated by four delays abandoned recovery after approximately 800 ms, but the holder's finalization time is
+  unbounded under load, including its progress observers and logging. A fixed budget cannot guarantee recovery.
+  Pending admission retries stop when the engine becomes inactive or the originating instance's persistence
+  service closes (`Catalog#isTerminated`): drop, replacement, rename and deactivation close that service. A go-live
+  successor shares the service, so superseding the warm-up instance alone does not cancel the pending deactivation.
+  Each conflict logs its catalog and attempt at DEBUG; stopping for an ended instance logs a stable DEBUG record.
+  Lifetime checks precede name-based admission and are separate from it. An inactive engine suppresses failures,
+  including shutdown scheduler rejections. While the engine is active, every non-conflict failure is an ERROR
+  without retry, including scheduler rejections and application failures reported after the instance terminates.
+  The returned progress is observed for application failures too.
 
 ## Verification
+
+`CatalogUnpublishableDeactivationRetryTest` holds the refusing mutation's 100% progress observer until six
+admission-conflict DEBUG records arrive, with the give-up ERROR as the alternative signal. Its four cases cover
+recovery after releasing the holder, stopping for a dropped originating instance inside the conflict handler,
+stopping a queued retry after the originating instance is dropped, and closing the engine while waiting without a
+deactivation ERROR. The queued-retry case holds the single service worker after the conflict handler returns,
+drops the catalog, and releases the worker so the pending attempt observes termination. Both drop cases keep
+their appenders attached through the stop DEBUG record and the handler's return, checking that no retry or ERROR
+follows it. Removing the attempt's termination check makes the queued-retry case fail because the stop record
+never arrives. The original three cases were also run against the capped `Catalog`, restored by `cp` and `touch`:
+**3 tests failed**, each observing zero retry records and the give-up ERROR; with the fix, **3 tests passed**.
+Latches and log events establish ordering; timeouts only bound hangs. Engine close cancels delayed work, so its
+case proves only the absence of a deactivation ERROR during close.
 
 The full functional suite runs green: **23,717 tests, 0 failures**, the only error being `ExportS3ServiceTest`,
 which needs a Docker environment this workstation does not provide.

@@ -150,9 +150,8 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 					// with `CatalogUnpublishableException` - which is what happens after any other warm-up flush
 					// failure - and the deactivation settles the name. That mutation loses the conflict-key race
 					// against this operation's own finalization, which is exactly the case `Catalog#scheduleDeactivation`
-					// retries: the key is released as this operation finalizes and a later attempt takes it. Should
-					// every attempt lose it, the failure is logged and the catalog stays published and refusing, which
-					// is the property that method guarantees whether or not the deactivation ever lands.
+					// retries: the key is released as this operation finalizes and a later attempt takes it. While
+					// waiting, the catalog stays published and refuses every write and flush.
 					// (b) The ALIVE bootstrap is published but the new instance never reached `aliveCatalog`, and two
 					// failures land in it. `goLive()` itself threw past `persistenceService.goLive(1L)`: its own catch
 					// has already recorded the unpublishable cause and scheduled the deactivation, so the restored

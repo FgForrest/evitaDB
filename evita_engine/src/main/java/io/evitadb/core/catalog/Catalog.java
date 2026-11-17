@@ -195,6 +195,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -259,13 +260,7 @@ public final class Catalog
 	 * therefore does not exist yet. Three zeroes is the truthful reading of that state, not a missing measurement.
 	 */
 	private static final SessionStatistics NO_ACTIVE_SESSIONS = new SessionStatistics(0, 0, 0);
-	/**
-	 * How many times {@link #attemptDeactivation(int)} issues the deactivation mutation before giving up, and how
-	 * long it waits between attempts. Sized for the one thing that refuses it - a lifecycle mutation for this same
-	 * catalog still holding the conflict key - which releases the key as it finalizes, so the window to wait out is
-	 * the tail of another mutation rather than anything open-ended.
-	 */
-	private static final int DEACTIVATION_ATTEMPTS = 5;
+	/** Delay in milliseconds between deactivation attempts refused by a lifecycle conflict. */
 	private static final long DEACTIVATION_RETRY_DELAY_MILLIS = 200L;
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
@@ -3145,7 +3140,7 @@ public final class Catalog
 	}
 
 	/**
-	 * Hands the catalog over for deactivation, so the engine stops serving a catalog it can no longer trust.
+	 * Hands the catalog over for deactivation, so the engine stops serving its unpublishable state.
 	 *
 	 * Routed through the engine mutation pipeline rather than done here, because deactivation has to quiesce the
 	 * catalog's sessions, swap the engine's reference for an unusable placeholder and terminate this instance - work
@@ -3155,42 +3150,47 @@ public final class Catalog
 	 *
 	 * The barrier set by {@link #recordUnpublishableCause(Throwable)} is what protects the window until this lands:
 	 * every publication route and every further mutation already refuses. A refusal by the conflict key is waited
-	 * out ({@link #attemptDeactivation(int)}); any other failure, and an exhausted retry, are logged rather than
-	 * propagated - the catalog stays refusing, which is the property that matters.
+	 * out ({@link #attemptDeactivation(int)}) without an attempt limit. While the engine is active, other failures
+	 * are logged even if this instance has terminated. Pending retries stop when the engine closes or this
+	 * instance's persistence service closes. Go-live successors share that service, so superseding the warm-up
+	 * instance alone does not cancel deactivation.
 	 */
 	private void scheduleDeactivation() {
-		this.scheduler.execute(() -> attemptDeactivation(1));
+		if (!this.evita.isActive() || isTerminated()) {
+			return;
+		}
+		try {
+			this.scheduler.execute(() -> attemptDeactivation(1));
+		} catch (RejectedExecutionException ex) {
+			handleFailedDeactivation(getName(), ex, 1);
+		}
 	}
 
 	/**
-	 * Issues one attempt at the deactivation mutation, re-scheduling itself while another lifecycle mutation for
-	 * this catalog still holds the conflict key.
+	 * Issues one deactivation attempt while the engine and this catalog's persistence service remain active.
+	 * Admission conflicts are retried after a delay because the mutation that raised the barrier can hold the
+	 * conflict key until its finalization completes, with no upper bound under load. The lifetime checks precede
+	 * submission; admission uses the catalog name.
 	 *
-	 * The conflict is transient by construction - the key is released when the mutation holding it finalizes - and
-	 * the case is not hypothetical: {@link #markUnpublishable(Throwable)} is called from the go-live operator's own
-	 * flush failure handler, which runs while that operator's mutation is still finalizing. Waiting the key out is
-	 * the difference between a catalog an operator can reactivate and one that needs the engine restarted, and it
-	 * costs nothing to wait: the barrier is already raised, so the catalog refuses every write and every flush for
-	 * the whole retry window.
-	 *
-	 * When the attempts run out, the catalog stays published and refusing. That is safe rather than merely
-	 * tolerable - nothing untrustworthy can be published from it - but it is a state only a restart clears.
-	 *
-	 * @param attempt 1-based number of this attempt
+	 * @param attempt 1-based number of this attempt, for diagnostics
 	 */
 	private void attemptDeactivation(int attempt) {
 		final String catalogName = getName();
 		try {
-			// an engine that is already shutting down terminates this catalog anyway, and issuing a lifecycle
-			// mutation into a closing engine would only trade a clean shutdown for a logged failure
 			if (!this.evita.isActive()) {
+				return;
+			}
+			if (isTerminated()) {
+				// Keep this diagnostic stable: a regression test synchronizes on deactivation stopping.
+				log.debug(
+					"Stopping deactivation of catalog `{}`: the catalog instance that raised the barrier has ended.",
+					catalogName
+				);
 				return;
 			}
 			this.evita.deactivateCatalogWithProgress(catalogName)
 				.onCompletion()
-				// the mutation is accepted on this thread but applied elsewhere, so a failure past acceptance
-				// surfaces only on this stage - without it a deactivation that failed while being applied would
-				// leave the catalog refusing everything with nothing in the log to say why
+				// Acceptance and application happen on different threads; observe failures from both phases.
 				.whenComplete((__, failure) -> {
 					if (failure != null) {
 						handleFailedDeactivation(catalogName, failure, attempt);
@@ -3202,29 +3202,43 @@ public final class Catalog
 	}
 
 	/**
-	 * Decides what a failed deactivation attempt earns: another attempt when a lifecycle conflict refused it and
-	 * attempts remain, a log record otherwise.
-	 *
-	 * The conflict is looked for down the cause chain rather than on the exception itself, because the refusal is
-	 * raised at submission but may reach here through the returned progress instead - and a wrapped conflict that
-	 * went unrecognised would silently cost the retry rather than fail loudly.
+	 * Retries admission conflicts while this instance and the engine remain active. Conflicts are recognized
+	 * throughout the cause chain because the progress stage can wrap the refusal. An inactive engine suppresses
+	 * all failures; while it is active, every non-conflict failure is logged as an error, even after this instance
+	 * terminates. This includes scheduler rejections and failures while an accepted deactivation is applied.
 	 *
 	 * @param catalogName name of the catalog that could not be deactivated
-	 * @param failure     what stopped it
-	 * @param attempt     1-based number of the attempt that failed
+	 * @param failure what stopped it
+	 * @param attempt 1-based number of the attempt that failed
 	 */
 	private void handleFailedDeactivation(@Nonnull String catalogName, @Nonnull Throwable failure, int attempt) {
-		if (attempt < DEACTIVATION_ATTEMPTS && isLifecycleConflict(failure)) {
-			this.scheduler.schedule(
-				() -> attemptDeactivation(attempt + 1),
-				DEACTIVATION_RETRY_DELAY_MILLIS, TimeUnit.MILLISECONDS
-			);
+		if (!this.evita.isActive()) {
 			return;
 		}
-		// Silent during shutdown: the engine going down under the deactivation fails it by construction, the
-		// catalog is being terminated anyway, and the advice the message carries - restart to reload - is
-		// precisely what is already happening.
-		if (!this.evita.isActive()) {
+		if (isLifecycleConflict(failure)) {
+			// Keep this diagnostic stable: a regression test synchronizes on each admission-conflict retry.
+			log.debug(
+				"Retrying deactivation of catalog `{}` after admission conflict on attempt {}.", catalogName, attempt
+			);
+			if (!this.evita.isActive()) {
+				return;
+			}
+			if (isTerminated()) {
+				// Keep this diagnostic stable: a regression test synchronizes on deactivation stopping.
+				log.debug(
+					"Stopping deactivation of catalog `{}`: the catalog instance that raised the barrier has ended.",
+					catalogName
+				);
+				return;
+			}
+			try {
+				this.scheduler.schedule(
+					() -> attemptDeactivation(attempt + 1),
+					DEACTIVATION_RETRY_DELAY_MILLIS, TimeUnit.MILLISECONDS
+				);
+			} catch (RejectedExecutionException ex) {
+				handleFailedDeactivation(catalogName, ex, attempt);
+			}
 			return;
 		}
 		log.error(

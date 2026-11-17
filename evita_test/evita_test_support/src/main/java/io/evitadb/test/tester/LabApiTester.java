@@ -23,7 +23,10 @@
 
 package io.evitadb.test.tester;
 
+import com.linecorp.armeria.client.ClientFactory;
+
 import javax.annotation.Nonnull;
+import java.time.Duration;
 
 /**
  * Simple tester utility for easier testing of lab API. It uses REST Assured library as backend but test doesn't have
@@ -33,7 +36,24 @@ import javax.annotation.Nonnull;
  */
 public class LabApiTester extends RestTester {
 
+	/**
+	 * Creates a tester for the lab endpoint.
+	 *
+	 * @param baseUrl lab endpoint URL including its HTTP or HTTPS scheme
+	 */
 	public LabApiTester(@Nonnull String baseUrl) {
 		super(baseUrl);
+	}
+
+	/**
+	 * Creates a factory for direct Armeria requests to the lab, accepting the fixture's self-signed certificate.
+	 * The caller must close the returned factory.
+	 *
+	 * @return a dedicated client factory with a 30 second connection and TLS session creation timeout
+	 */
+	@Nonnull
+	public ClientFactory createClientFactory() {
+		// The connect timeout also covers TLS negotiation under concurrent functional-test load.
+		return ClientFactory.builder().connectTimeout(Duration.ofSeconds(30)).tlsNoVerify().build();
 	}
 }
