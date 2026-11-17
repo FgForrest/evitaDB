@@ -646,8 +646,8 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 					"onCatalogChange(sinceVersion: \\\"" + startVersion + "\\\", catalogName: \\\"" + newCatalogName + "\\\") { version index operation }"
 				));
 
-				// wait for connection_ack before triggering the data change — gives the server
-				// time to finish registering the CDC subscription so the upsert is not raced
+				// connection_ack confirms connection_init, before subscribe is processed; it does not confirm
+				// CDC registration. A commit made now is delivered through WAL replay even if registration is late.
 				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
@@ -694,8 +694,8 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 					"onCatalogChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\", catalogName: \\\"" + newCatalogName + "\\\") { version index operation }"
 				));
 
-				// wait for connection_ack before triggering the data change — gives the server
-				// time to finish registering the CDC subscription so the upsert is not raced
+				// connection_ack confirms connection_init, before subscribe is processed; it does not confirm
+				// CDC registration. A commit made now is delivered through WAL replay even if registration is late.
 				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
@@ -947,8 +947,8 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 					"onCatalogChange(catalogName: \\\"" + newCatalogName + "\\\", catalogId: \\\"" + catalogId + "\\\", sinceVersion: \\\"" + startVersion + "\\\") { catalogId version index operation }"
 				));
 
-				// wait for connection_ack before triggering the data change — gives the server
-				// time to finish registering the CDC subscription so the upsert is not raced
+				// connection_ack confirms connection_init, before subscribe is processed; it does not confirm
+				// CDC registration. A commit made now is delivered through WAL replay even if registration is late.
 				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event

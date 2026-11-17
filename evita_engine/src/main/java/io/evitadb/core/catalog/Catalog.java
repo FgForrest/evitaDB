@@ -1226,7 +1226,7 @@ public final class Catalog
 			// exception was thrown, the pending rebuilds are discarded: in a transaction the rollback discards the
 			// exchanged schemas with them; in warm-up a refused build has raised the barrier, while a batch that failed
 			// before its drain keeps its exchanged schemas with their previous triggers (a known limitation, see ADR
-			// `2026-11-15-warm-up-trigger-build-refusal-raises-the-barrier`)
+			// `2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier`)
 			rebuildStack.pop();
 			if (rebuildStack.isEmpty()) {
 				PENDING_TRIGGER_REBUILDS.remove();

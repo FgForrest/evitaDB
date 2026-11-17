@@ -9,7 +9,7 @@ prs: [1520]
 areas: [evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/core/transaction/engine, evita_api/src/main/java/io/evitadb/api]
 supersedes: []
 superseded-by: []
-relates: [2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-09-06-go-live-session-drain, 2026-11-15-warm-up-trigger-build-refusal-raises-the-barrier]
+relates: [2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-09-06-go-live-session-drain, 2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier]
 ---
 
 # A warm-up schema change refused by validation raises the unpublishable barrier
@@ -154,7 +154,7 @@ forbids partial replay.
   (`verifyEntitySchemaMutationsApplicable`, `verifyNoAcceleratorAddedToNonEmptyCollection`, the mutations' own
   asserts) are untouched and keep refusing cleanly, so an ordinary schema typo those checks catch never costs a
   reload; one that only the trigger build at the end of a schema change catches does, in warm-up
-  (`2026-11-15-warm-up-trigger-build-refusal-raises-the-barrier`). This change
+  (`2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier`). This change
   adds two more call sites, and **neither of them may be turned into a refusal**:
   - `Catalog#isSchemaValid()`, behind `Catalog#flushMidSessionIfSchemaValid()`. The three warm-up DDL flushes
     (`createEntitySchema`, `removeEntitySchema`, `doReplaceEntityCollectionInternal`) publish inline while the

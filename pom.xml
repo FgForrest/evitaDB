@@ -134,11 +134,11 @@
 		<java.release>${java.version}</java.release>
 		<java.driver.release>17</java.driver.release>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<slf4j.version>2.0.18</slf4j.version>
+		<slf4j.version>2.0.20</slf4j.version>
 		<logback.version>1.6.1</logback.version>
 		<kryo.version>5.6.2</kryo.version>
-		<jackson.version>2.22.4</jackson.version>
-		<jackson.annotations.version>2.22</jackson.annotations.version>
+		<jackson.version>2.23.0</jackson.version>
+		<jackson.annotations.version>2.23</jackson.annotations.version>
 		<snakeyaml.version>2.7</snakeyaml.version>
 		<roaringbitmap.version>1.6.29</roaringbitmap.version>
 		<junit.jupiter.version>6.1.3</junit.jupiter.version>

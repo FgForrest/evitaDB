@@ -72,10 +72,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -982,6 +985,46 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			assertEquals(1024L, graphQLProvider.getConfiguration().getDocumentCacheSizeInBytes());
 		} catch (Exception ex) {
 			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	/**
+	 * A user configuration that leaves `parallelize` absent, empty or `null` must keep the documented default of
+	 * parallel GraphQL fetching, while an explicit `false` still turns it off. The YAML merge lets an empty or
+	 * `null` value in a later file replace the bundled `true`, so the default must also hold in the options
+	 * constructor that receives the merged value.
+	 */
+	@ParameterizedTest
+	@DisplayName("should default GraphQL parallel fetching to true unless YAML sets it to false")
+	@CsvSource({"null, true", "empty, true", "absent, true", "false, false"})
+	void shouldDefaultGraphQLParallelizeToTrueFromYaml(String value, boolean expected) throws IOException {
+		final Path configDirectory = getPathInTargetDirectory(DIR_EVITA_SERVER_TEST);
+		Files.createDirectories(configDirectory);
+		final String graphQLSettings = switch (value) {
+			case "absent" -> "enabled: true";
+			case "empty" -> "parallelize:";
+			default -> "parallelize: " + value;
+		};
+		Files.writeString(
+			configDirectory.resolve("evita-configuration.yaml"),
+			"""
+			api:
+			  endpoints:
+			    graphQL:
+			      %s
+			""".formatted(graphQLSettings)
+		);
+		final EvitaServer evitaServer = new EvitaServer(
+			configDirectory, constructTestArguments(GraphQLProvider.CODE)
+		);
+		try {
+			evitaServer.run();
+			final GraphQLProvider graphQLProvider = evitaServer.getExternalApiServer()
+				.getExternalApiProviderByCode(GraphQLProvider.CODE);
+			assertNotNull(graphQLProvider);
+			assertEquals(expected, graphQLProvider.getConfiguration().isParallelize(), "YAML parallelize=" + value);
 		} finally {
 			closeServerAndEvita(evitaServer);
 		}

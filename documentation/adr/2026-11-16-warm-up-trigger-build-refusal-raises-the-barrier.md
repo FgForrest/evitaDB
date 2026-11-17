@@ -1,11 +1,11 @@
 ---
 title: A warm-up schema change refused when its expression triggers are built raises the unpublishable barrier, and the inline DDL flush waits until they build
-date: 2026-11-15
-updated: 2026-11-15 21:01
-status: proposed
+date: 2026-11-16
+updated: 2026-11-16 18:45
+status: accepted
 kind: fix
 issues: [1922]
-prs: []
+prs: [1970]
 areas: [evita_engine/src/main/java/io/evitadb/core/catalog, evita_api/src/main/java/io/evitadb/api, evita_engine/src/main/java/io/evitadb/core/expression/trigger/IndexingExpressionInputValidator.java]
 supersedes: []
 superseded-by: []
@@ -395,7 +395,8 @@ depth of an indexing expression would cover both.
 - **2026-11-15** - a warm-up refusal from the trigger build traced to the deferral of 2026-04-24; the barrier with a
   build gate on the inline DDL flushes chosen over restoring the pre-change schemas, holding the refusal pending,
   building in the preflight, publishing DDL at the end of the change, building in the failure handler and another
-  validator rule; limited to warm-up deliberately; implemented under #1922, not merged yet
+  validator rule; limited to warm-up deliberately; implemented under #1922
 - **2026-11-15** - the validator's refusals of a step on the result of `??` or `*?` and of a name in parentheses kept
   as decisions over relying on the barrier; the validator's exponential time on nested coalescing predicates and its
   stack overflow on very long `??` chains accepted as edge cases
+- **2026-11-16** - merged with PR #1970; the record accepted
