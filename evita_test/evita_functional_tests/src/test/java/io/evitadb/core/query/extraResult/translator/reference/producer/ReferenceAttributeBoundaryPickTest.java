@@ -31,6 +31,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceAttributeBoundaryTestSupport.Fixture;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReducedGroupEntityIndex;
@@ -93,6 +94,30 @@ class ReferenceAttributeBoundaryPickTest {
 		void shouldMergeUnequalOverlappingCandidates() {
 			assertPick(fixture(new int[][]{{1, 4, 9}, {2, 4}, {4, 7}}, new int[][]{{9}, {}, {4}},
 				1, 2, 4, 7, 9), 4, 1);
+		}
+
+		/**
+		 * Many producing heads keep global PK order across pops: the heads arrive in descending index order, so
+		 * building the heap reorders them, and the whole first round lies outside the scope, so the alternative and
+		 * the owned pick are both decided after many pops, the pick among several owned candidates of different
+		 * indexes.
+		 */
+		@Test
+		@DisplayName("should pick the lowest owned candidate after many pops across interleaved indexes")
+		void shouldPickTheLowestOwnedCandidateAfterManyPopsAcrossInterleavedIndexes() {
+			// index i holds 9 - i, 18 - i and 27 - i, so each round of the merge takes one candidate of every index
+			final int[][] candidates = new int[9][];
+			for (int i = 0; i < candidates.length; i++) {
+				candidates[i] = new int[]{9 - i, 18 - i, 27 - i};
+			}
+			final int[] scope = new int[18];
+			for (int i = 0; i < scope.length; i++) {
+				scope[i] = 10 + i;
+			}
+			// owned: 3 out of scope in index 6, then 15 in index 3, 17 and 26 in index 1 and 22 in index 5
+			final int[][] passing = new int[][]{{}, {17, 26}, {}, {15}, {}, {22}, {3}, {}, {}};
+
+			assertPick(fixture(candidates, passing, scope), 15, 10);
 		}
 
 		/** All failures retain the first unrestricted PK and normalize its redundant alternative away. */
@@ -271,6 +296,30 @@ class ReferenceAttributeBoundaryPickTest {
 			candidates.addRecord(102, 10);
 			assertPick(new Fixture(new FilterIndex[]{candidates}, new EntityIndex[]{index},
 				null, null, new BaseBitmap(1, 9)), 1, null);
+		}
+
+		/**
+		 * A type index cannot tell the owners of a referenced entity, so a context confined to counted owners refuses
+		 * it once its candidate reaches the owner check, rather than admitting or dropping the candidate.
+		 */
+		@Test
+		@DisplayName("should refuse a type index in a context confined to counted owners")
+		void shouldRefuseTypeIndexInOwnerConfinedContext() {
+			final ReferencedTypeEntityIndex index = new ReferencedTypeEntityIndex(
+				1, "owner", new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, "brand")
+			);
+			index.insertPrimaryKeyIfMissing(101, 9);
+			final OwnerFilterIndex candidates = filter(Integer.class);
+			candidates.addRecord(101, 10);
+			final OwnerFilterIndex owners = filter(Integer.class);
+			owners.addRecord(100, 10);
+			final Fixture fixture = new Fixture(new FilterIndex[]{candidates}, new EntityIndex[]{index},
+				owners, null, new BaseBitmap(9));
+
+			final GenericEvitaInternalError error =
+				assertThrows(GenericEvitaInternalError.class, () -> fixture.actual(10, null));
+
+			assertTrue(error.getMessage().contains(ReferencedTypeEntityIndex.class.getName()), error.getMessage());
 		}
 	}
 }

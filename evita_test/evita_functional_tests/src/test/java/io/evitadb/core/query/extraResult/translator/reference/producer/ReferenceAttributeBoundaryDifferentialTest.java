@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(REFERENCE)
 class ReferenceAttributeBoundaryDifferentialTest {
 	/**
-	 * Varies partitions, duplicates, conditions, baselines, scope and every filter value.
+	 * Varies partitions (two to ten indexes), duplicates, conditions, baselines, scope and every filter value.
 	 *
 	 * Three counters guard against a sweep that agrees with the oracle only because it never reaches the hard cases:
 	 * `lateWitnesses` counts candidates whose owner check fails in one producing index and passes in a later one,
@@ -70,7 +70,8 @@ class ReferenceAttributeBoundaryDifferentialTest {
 		int alternatives = 0;
 		int comparisons = 0;
 		for (int run = 0; run < 180; run++) {
-			final int indexCount = 2 + random.nextInt(3);
+			// up to ten producing heads, so the merge sifts through right children and pops below the root's children
+			final int indexCount = 2 + random.nextInt(9);
 			final ReducedGroupEntityIndex[] indexes = new ReducedGroupEntityIndex[indexCount];
 			final FilterIndex[] filters = new FilterIndex[indexCount];
 			final OwnerFilterIndex owners = filter(Integer.class);

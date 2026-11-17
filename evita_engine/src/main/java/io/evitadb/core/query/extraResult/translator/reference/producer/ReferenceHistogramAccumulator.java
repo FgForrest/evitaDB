@@ -910,9 +910,9 @@ final class ReferenceHistogramAccumulator {
 	 * The steps run as written with a sorter, or without {@code ownerFilterIndex}. Without a sorter and with
 	 * {@code ownerFilterIndex}, {@link #pickLowestOwnedBoundaryPk} makes the identical pick, alternative included,
 	 * by merging producing-index iterators in unsigned PK order, without owned subsets or candidate unions. Equal PKs
-	 * are checked in index-position order. A sorter keeps the steps as written, because the order
-	 * it gives the set-apart PKs need not be their order among every candidate sorted - a limited segment or a seeded
-	 * shuffle depends on what else it sorts. The method is package-private so that tests can compare its pick with an
+	 * are checked in index-position order. A sorter keeps the steps as written, because the order it gives the
+	 * set-apart PKs need not be their order among every candidate sorted - a limited segment or a seeded shuffle
+	 * depends on what else it sorts. The method is package-private so that tests can compare its pick with an
 	 * independent exhaustive implementation.
 	 *
 	 * The mapping of the second step differs by the kind of index: the type index keys its filter index on its own
@@ -1070,6 +1070,7 @@ final class ReferenceHistogramAccumulator {
 					unrestrictedPk = referencedPk;
 					hasCandidateInScope = true;
 				}
+				// ownersRoaring is never null here: every head was pushed in the branch that read the owners
 				if (isReferencedByCountedOwner(boundaryContext[producingIndex], referencedPk, ownersRoaring)) {
 					return referencedPk == unrestrictedPk ?
 						BoundaryPick.of(referencedPk) : BoundaryPick.of(referencedPk, unrestrictedPk);
@@ -1126,7 +1127,7 @@ final class ReferenceHistogramAccumulator {
 	/** Returns whether the first producing pair precedes the second in unsigned PK and index-position order. */
 	private static boolean boundaryCandidatePrecedes(int pk, int index, int otherPk, int otherIndex) {
 		final int comparison = Integer.compareUnsigned(pk, otherPk);
-		return comparison < 0 || (comparison == 0 && Integer.compareUnsigned(index, otherIndex) < 0);
+		return comparison < 0 || (comparison == 0 && index < otherIndex);
 	}
 
 	/**

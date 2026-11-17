@@ -53,7 +53,8 @@ import static org.mockito.Mockito.*;
  * Counts real index owner lookups through package-local spies, without production counters or clock assertions.
  *
  * The owner spies observe owner-map lookups, not the total work of selection. The many-index fixture also observes
- * producing-set membership probes through real mapped-bitmap spies. No spy stubs index or bitmap behavior.
+ * producing-set membership probes through real mapped-bitmap spies, and a spy over the owner filter counts how often
+ * the counted owners are read. No spy stubs index or bitmap behavior.
  */
 @DisplayName("Owner lookups of the reference attribute boundary pick without a sorter")
 @Tag(ENGINE)
@@ -125,26 +126,50 @@ class ReferenceAttributeBoundaryCallCountTest {
 		}
 	}
 
+	/** The owners are read from the group store once per bound, however many indexes produce a candidate. */
+	@Test
+	@DisplayName("should read the counted owners once across several producing indexes")
+	void shouldReadTheOwnersOnceAcrossProducingIndexes() {
+		final Fixture fixture = withSpiedOwners(
+			fixture(new int[][]{{1}, {2}, {3}}, new int[][]{{}, {}, {3}}, 1, 2, 3)
+		);
+
+		final ReferenceAttributeBoundaryOracle.Pair pick = fixture.actual(10, null);
+
+		assertEquals(new ReferenceAttributeBoundaryOracle.Pair(3, 1), pick);
+		verify(fixture.owners(), times(1)).getRecordsEqualTo(any());
+	}
+
+	/**
+	 * The owners are read at the first nonempty raw lookup, as the exhaustive steps read them, even when the mapping or
+	 * the scope then leaves no candidate.
+	 */
+	@Test
+	@DisplayName("should read the counted owners once even when mapping or scope leaves no candidate")
+	void shouldReadTheOwnersOnceWhenMappingOrScopeLeavesNoCandidate() {
+		final Fixture unmapped = withSpiedOwners(fixture(new int[][]{{1}}, new int[][]{{}}, 1, 5));
+		// the filter holds 5 at the value 20, but the reduced index does not track 5, so nothing maps
+		unmapped.filters()[0].addRecord(5, 20);
+		final Fixture outOfScope = withSpiedOwners(fixture(new int[][]{{1, 9}}, new int[][]{{9}}));
+
+		final ReferenceAttributeBoundaryOracle.Pair unmappedPick = unmapped.actual(20, null);
+		final ReferenceAttributeBoundaryOracle.Pair outOfScopePick = outOfScope.actual(10, null);
+
+		assertEquals(new ReferenceAttributeBoundaryOracle.Pair(null, null), unmappedPick);
+		verify(unmapped.owners(), times(1)).getRecordsEqualTo(any());
+		assertEquals(new ReferenceAttributeBoundaryOracle.Pair(null, null), outOfScopePick);
+		verify(outOfScope.owners(), times(1)).getRecordsEqualTo(any());
+		// the oracle reads the spied owners too, so it is consulted only after the reads were counted
+		unmapped.compare(20, null, null);
+		outOfScope.compare(10, null, null);
+	}
+
 	/** Disjoint all-miss candidates must not cause a candidate-by-index membership cross product. */
 	@Test
 	@DisplayName("should merge many disjoint producing indexes without probing their candidate membership")
 	void shouldMergeManyDisjointIndexesWithoutMembershipProbes() {
 		final MappingObservedIndex[] indexes = new MappingObservedIndex[200];
-		final FilterIndex[] filters = new FilterIndex[indexes.length];
-		final int[] scope = new int[indexes.length * 5];
-		for (int i = 0; i < indexes.length; i++) {
-			indexes[i] = spy(new MappingObservedIndex(i));
-			filters[i] = filter(Integer.class);
-			for (int j = 0; j < 5; j++) {
-				final int pk = i * 5 + j + 1;
-				scope[pk - 1] = pk;
-				indexes[i].insertPrimaryKeyIfMissing(200, pk);
-				filters[i].addRecord(pk, 10);
-			}
-		}
-		final OwnerFilterIndex owners = filter(Integer.class);
-		owners.addRecord(100, 10);
-		final Fixture fixture = new Fixture(filters, indexes, owners, null, new BaseBitmap(scope));
+		final Fixture fixture = disjointIndexes(indexes);
 
 		assertEquals(new ReferenceAttributeBoundaryOracle.Pair(1, null), fixture.actual(10, null));
 		long membershipProbes = 0;
@@ -157,6 +182,32 @@ class ReferenceAttributeBoundaryCallCountTest {
 			}
 		}
 		assertEquals(0L, membershipProbes);
+	}
+
+	/**
+	 * Many producing heads are merged in global PK order: a late owned candidate is reached only after every lower
+	 * candidate of the earlier indexes was checked, and no index holding only higher candidates is asked about its
+	 * owners.
+	 */
+	@Test
+	@DisplayName("should reach a late owned candidate of many producing indexes only after every lower candidate")
+	void shouldReachALateOwnedCandidateOnlyAfterEveryLowerCandidate() {
+		final MappingObservedIndex[] indexes = new MappingObservedIndex[200];
+		final Fixture fixture = disjointIndexes(indexes);
+		// index 150 holds 751 to 755 and tracks 751 for the counted owner
+		indexes[150].insertPrimaryKeyIfMissing(100, 751);
+
+		final ReferenceAttributeBoundaryOracle.Pair pick = fixture.actual(10, null);
+
+		assertEquals(new ReferenceAttributeBoundaryOracle.Pair(751, 1), pick);
+		for (int i = 0; i < 150; i++) {
+			verify(indexes[i], times(5)).getOwnerPKsForReferencedEntity(anyInt());
+		}
+		verify(indexes[150], times(1)).getOwnerPKsForReferencedEntity(751);
+		verify(indexes[150], times(1)).getOwnerPKsForReferencedEntity(anyInt());
+		for (int i = 151; i < indexes.length; i++) {
+			verify(indexes[i], never()).getOwnerPKsForReferencedEntity(anyInt());
+		}
 	}
 
 	/** A real reduced index that exposes its real mapped bitmap through an unstubbed spy. */
@@ -179,6 +230,41 @@ class ReferenceAttributeBoundaryCallCountTest {
 			this.mappedCandidates = spy(super.getReferencedPrimaryKeysForIndexPks(indexPrimaryKeys));
 			return this.mappedCandidates;
 		}
+	}
+
+	/**
+	 * Fills `indexes` with spied disjoint producing indexes: index `i` holds the candidates `5i + 1` to `5i + 5` at the
+	 * value 10, tracks each for the uncounted owner 200, and every candidate is in scope; only owner 100 counts at the
+	 * value.
+	 *
+	 * @param indexes the array to fill; its length is the number of producing indexes
+	 * @return the fixture over the indexes, without a baseline
+	 */
+	@Nonnull
+	private static Fixture disjointIndexes(@Nonnull MappingObservedIndex[] indexes) {
+		final FilterIndex[] filters = new FilterIndex[indexes.length];
+		final int[] scope = new int[indexes.length * 5];
+		for (int i = 0; i < indexes.length; i++) {
+			indexes[i] = spy(new MappingObservedIndex(i));
+			filters[i] = filter(Integer.class);
+			for (int j = 0; j < 5; j++) {
+				final int pk = i * 5 + j + 1;
+				scope[pk - 1] = pk;
+				indexes[i].insertPrimaryKeyIfMissing(200, pk);
+				filters[i].addRecord(pk, 10);
+			}
+		}
+		final OwnerFilterIndex owners = filter(Integer.class);
+		owners.addRecord(100, 10);
+		return new Fixture(filters, indexes, owners, null, new BaseBitmap(scope));
+	}
+
+	/** Replaces the owner filter of `fixture` with an unstubbed spy over it, so its lookups can be counted. */
+	@Nonnull
+	private static Fixture withSpiedOwners(@Nonnull Fixture fixture) {
+		return new Fixture(
+			fixture.filters(), fixture.indexes(), spy(fixture.owners()), fixture.baseline(), fixture.scope()
+		);
 	}
 
 	/** Wraps the existing real indexes without sharing an oracle invocation with the measured picker call. */

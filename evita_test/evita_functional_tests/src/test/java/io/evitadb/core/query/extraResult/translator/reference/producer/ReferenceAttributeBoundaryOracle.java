@@ -145,7 +145,7 @@ final class ReferenceAttributeBoundaryOracle {
 
 	/** Normalizes the alternative independently of the production result factory. */
 	@Nonnull
-	static Pair pair(@Nullable Integer pk, @Nullable Integer alternative) {
+	private static Pair pair(@Nullable Integer pk, @Nullable Integer alternative) {
 		return new Pair(pk, pk == null || pk.equals(alternative) ? null : alternative);
 	}
 
