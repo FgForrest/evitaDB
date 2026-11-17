@@ -286,15 +286,35 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	}
 
 	/**
-	 * Notifies the subscriber about new catalog change events if there are any requested items.
-	 * This method is called when new events become available in the system.
+	 * Hands a delivery attempt to the capture executor when this subscription is activated, unfinished, has
+	 * outstanding demand and an empty queue; in every other state the call does nothing.
+	 *
+	 * A wake-up the capture executor refuses never escapes this method. It is called while a catalog or engine
+	 * version is published, while a new shared publisher catches up, when a subscription registers during a
+	 * publication, and on every tick of the observer's cleaner. The first two walk every subscription of a shared
+	 * publisher, and a throw would skip the rest of that walk and fail the publication of a version that is already
+	 * durable and visible; the third would fail a registration that has already activated its subscriber. The capture
+	 * executor refuses the wake-up at shutdown and whenever its bounded queue is full. The subscription then keeps
+	 * its outstanding demand and its empty queue, so the next notification or cleaner tick wakes it again.
+	 * Delivering inline instead would run a write-ahead-log scan and subscriber code on the publishing thread, and
+	 * failing the subscription would end a healthy subscriber because the executor was busy.
 	 */
 	public void notifySubscriber() {
 		if (this.activated.get() && !this.finished.get()) {
 			if (this.requested.get() > 0 && this.queue.isEmpty()) {
 				// If the subscriber requests new CDC events and the queue is empty,
 				// trigger asynchronous processing to fetch and deliver new events
-				this.executorService.submit(this::consumeQueue);
+				try {
+					this.executorService.submit(this::consumeQueue);
+				} catch (RejectedExecutionException ex) {
+					// the executor's EvitaRejectingExecutorHandler has already logged a full queue as an error;
+					// a refusal after shutdown is expected and reaches only the debug line below
+					log.debug(
+						"Capture subscription `{}` could not hand its wake-up to the capture executor; the next " +
+							"notification wakes it again.",
+						this.subscriptionId
+					);
+				}
 			}
 		}
 	}

@@ -131,7 +131,7 @@ cmd_diffs() {
 # Verify a set of "OWNER/REPO SHA TAG" triples on stdin.
 # Prints a per-pin verdict and exits non-zero if any pin fails.
 _verify_stream() {
-	local fail=0 total=0 owner_repo sha tag actual
+	local fail=0 total=0 owner_repo sha tag tag_repo actual
 	while read -r owner_repo sha tag; do
 		[ -z "${owner_repo:-}" ] && continue
 		total=$((total + 1))
@@ -145,7 +145,9 @@ _verify_stream() {
 			fail=1
 			continue
 		fi
-		actual="$(resolve_tag_sha "$owner_repo" "$tag")"
+		# an action in a subdirectory (`github/codeql-action/init`) is tagged in its owning repository
+		tag_repo="$(printf '%s' "$owner_repo" | cut -d/ -f1-2)"
+		actual="$(resolve_tag_sha "$tag_repo" "$tag")"
 		if [ -z "$actual" ]; then
 			printf '  ❓ %-42s %-10s could not resolve tag (renamed? deleted? network?)\n' "$owner_repo" "$tag"
 			fail=1

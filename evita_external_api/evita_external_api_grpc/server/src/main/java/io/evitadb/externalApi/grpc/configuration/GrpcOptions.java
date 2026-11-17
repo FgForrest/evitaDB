@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
+import io.evitadb.externalApi.configuration.TlsMode;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -87,20 +88,32 @@ public class GrpcOptions extends AbstractApiOptions {
 	 */
 	@Getter private final String prefix;
 
+	/**
+	 * Creates enabled options listening on all network interfaces at {@link #DEFAULT_GRPC_PORT}, with `tlsMode`
+	 * {@link TlsMode#FORCE_TLS}.
+	 */
 	public GrpcOptions() {
-		super(true, ":" + DEFAULT_GRPC_PORT);
+		super(true, ":" + DEFAULT_GRPC_PORT, TlsMode.FORCE_TLS);
 		this.exposeDocsService = false;
 		this.prefix = BASE_GRPC_PATH;
 		this.streamingRequestTimeoutInMillis = DEFAULT_STREAMING_REQUEST_TIMEOUT_IN_MILLIS;
 	}
 
+	/**
+	 * Creates enabled options listening on `host` (comma-separated `hostname:port` definitions), with `tlsMode`
+	 * {@link TlsMode#FORCE_TLS}.
+	 */
 	public GrpcOptions(@Nonnull String host) {
-		super(true, host);
+		super(true, host, TlsMode.FORCE_TLS);
 		this.exposeDocsService = false;
 		this.prefix = BASE_GRPC_PATH;
 		this.streamingRequestTimeoutInMillis = DEFAULT_STREAMING_REQUEST_TIMEOUT_IN_MILLIS;
 	}
 
+	/**
+	 * Creates options from configuration; a missing `tlsMode` resolves to {@link TlsMode#FORCE_TLS} and an unknown name
+	 * fails.
+	 */
 	@JsonCreator
 	public GrpcOptions(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                   @Nonnull @JsonProperty("host") String host,
@@ -112,7 +125,7 @@ public class GrpcOptions extends AbstractApiOptions {
 	                   @Nullable @JsonProperty("streamingRequestTimeoutInMillis") Long streamingRequestTimeoutInMillis,
 	                   @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
-		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
+		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration, TlsMode.FORCE_TLS);
 		this.exposeDocsService = ofNullable(exposeDocsService).orElse(false);
 		this.prefix = ofNullable(prefix).orElse(BASE_GRPC_PATH);
 		// a non-positive value is meaningless for a stall budget and would disable the re-arm entirely,
