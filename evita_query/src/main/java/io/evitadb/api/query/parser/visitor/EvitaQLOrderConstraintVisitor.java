@@ -35,8 +35,10 @@ import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Optional;
@@ -74,6 +76,13 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		Iterable.class
 	);
 	protected final EvitaQLValueTokenVisitor scopeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(Scope.class);
+	protected final EvitaQLValueTokenVisitor weightValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		Byte.class,
+		Short.class,
+		Integer.class,
+		Long.class,
+		BigDecimal.class
+	);
 
 	@Override
 	public OrderConstraint visitOrderByConstraint(EvitaQLParser.OrderByConstraintContext ctx) {
@@ -212,7 +221,47 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 
 	@Override
 	public OrderConstraint visitRelevanceTextConstraint(RelevanceTextConstraintContext ctx) {
-		return parse(ctx, QueryConstraints::relevanceText);
+		return parse(ctx, () -> QueryConstraints.relevanceText(ctx.args == null ? null : ctx.args.constraints.stream()
+			.map(c -> visitChildConstraint(c, RelevanceTextEntitySpecificationOrderConstraint.class))
+			.toArray(RelevanceTextEntitySpecificationOrderConstraint[]::new)));
+	}
+
+	/** Parses a single named place weight using the shared numeric argument types. */
+	@Nonnull
+	@Override
+	public OrderConstraint visitAttributeWeightConstraint(@Nonnull AttributeWeightConstraintContext ctx) {
+		return parse(ctx, () -> QueryConstraints.attributeWeight(
+			ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+			ctx.args.value.accept(this.weightValueTokenVisitor).asNumber().floatValue()));
+	}
+
+	/** Parses a single named place weight using the shared numeric argument types. */
+	@Nonnull
+	@Override
+	public OrderConstraint visitAssociatedDataWeightConstraint(@Nonnull AssociatedDataWeightConstraintContext ctx) {
+		return parse(ctx, () -> QueryConstraints.associatedDataWeight(
+			ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+			ctx.args.value.accept(this.weightValueTokenVisitor).asNumber().floatValue()));
+	}
+
+	/** Parses reference weights with reference-level children. */
+	@Nonnull
+	@Override
+	public OrderConstraint visitReferenceWeightConstraint(@Nonnull ReferenceWeightConstraintContext ctx) {
+		return parse(ctx, () -> QueryConstraints.referenceWeight(
+			ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+			ctx.args.constraints.stream()
+				.map(c -> visitChildConstraint(c, RelevanceTextReferenceSpecificationOrderConstraint.class))
+				.toArray(RelevanceTextReferenceSpecificationOrderConstraint[]::new)));
+	}
+
+	/** Parses target weights with target-level children. */
+	@Nonnull
+	@Override
+	public OrderConstraint visitEntityWeightConstraint(@Nonnull EntityWeightConstraintContext ctx) {
+		return parse(ctx, () -> QueryConstraints.entityWeight(ctx.args == null ? null : ctx.args.constraints.stream()
+			.map(c -> visitChildConstraint(c, RelevanceTextTargetSpecificationOrderConstraint.class))
+			.toArray(RelevanceTextTargetSpecificationOrderConstraint[]::new)));
 	}
 
 	@Override

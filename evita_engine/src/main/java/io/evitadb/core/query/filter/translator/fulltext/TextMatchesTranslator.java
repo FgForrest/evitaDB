@@ -76,6 +76,7 @@ import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.FulltextScoringPolicy;
+import io.evitadb.index.fulltext.FulltextScoringPolicy.Place;
 import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.index.fulltext.analysis.AnalyzedTermConsumer;
 import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
@@ -92,6 +93,7 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -271,7 +273,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			for (final List<SearchableSource> scopedSources : sources.values()) {
 				for (final SearchableSource source : scopedSources) {
 					// resolving the target's policy validates its weights now, before any data index is read
-				queryContext.getFulltextScoringPolicy(source.schema());
+					queryContext.getFulltextSchemaScoringPolicy(source.schema());
 					composedFields.put(source, groupFields(
 						source.fields(), analyzers, resolved, analyzerRegistry, catalogSchema, locale));
 				}
@@ -368,7 +370,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 									referenceSchema, scope) : prepared;
 						}, scoringPolicy.computeHash(LongHashFunction.xx3()),
 						sources == null ? fulltextIndex.getId() :
-							sourceIdentity(groupsByScope.get(scope), queryContext, locale, fulltextIndex),
+							sourceIdentity(
+								groupsByScope.get(scope), queryContext, locale, fulltextIndex, scoringPolicy),
 						// the reference and a kind marker keep a body's membership formula apart from the union
 						// memoized for an equal top-level constraint, and from an equal body of another reference
 						referenceSchema == null ? 0L : LongHashFunction.xx3().hashChars(referenceSchema.getName()),
@@ -387,6 +390,47 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		return filterByVisitor.applyOnIndexes(
 			entityIndex -> resolveFromIndex(entityIndex, formulasByScope)
 		);
+	}
+
+	/**
+	 * Resolves the exact place identities a `textMatches` searches, using only schemas and the same field resolution
+	 * as the translation, before any data index is consulted.
+	 *
+	 * @param textMatches the constraint with its place selectors
+	 * @param schema schema of the queried collection
+	 * @param reference reference whose `referenceHaving` body holds the constraint, NULL for the queried entity
+	 * @param scopes processed scopes in which the selectors are resolved
+	 * @param catalog catalog schema resolving the target collections of composition
+	 * @return own places with a NULL composing reference and, for the queried entity only, the target places composed
+	 *         through each reference, keyed by that reference; a reference body yields only that reference's
+	 *         attributes
+	 */
+	@Nonnull
+	public static Set<Place> searchedPlaces(
+		@Nonnull TextMatches textMatches, @Nonnull EntitySchemaContract schema,
+		@Nullable ReferenceSchemaContract reference, @Nonnull Set<Scope> scopes,
+		@Nonnull CatalogSchemaContract catalog
+	) {
+		final Set<Place> places = new HashSet<>();
+		final Map<Scope, FulltextFieldDefinition[]> own = reference == null ?
+			resolveFields(textMatches, schema, scopes) : resolveReferenceFields(textMatches, schema, reference, scopes);
+		for (final FulltextFieldDefinition[] fields : own.values()) {
+			for (final FulltextFieldDefinition field : fields) {
+				places.add(new Place(null, field.key()));
+			}
+		}
+		final Map<Scope, List<SearchableSource>> sources = reference == null ?
+			resolveSources(schema, own, catalog, textMatches) : null;
+		if (sources != null) {
+			for (final List<SearchableSource> scoped : sources.values()) {
+				for (final SearchableSource source : scoped) {
+					for (final FulltextFieldDefinition field : source.fields()) {
+						places.add(new Place(source.reference().getName(), field.key()));
+					}
+				}
+			}
+		}
+		return places;
 	}
 
 	/**
@@ -417,20 +461,24 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	}
 
 	/**
-	 * Distinguishes the target inputs of composed places in the root context's shared memo: target indexes, target
-	 * scopes, target scoring policies and the composing references with their weights. The processed scopes and the
-	 * selectors are separate parts of the memo key.
+	 * Distinguishes the target inputs of composed places in the root context's shared memo: the owner's effective
+	 * policy, whose composed-place overrides change composed weights, target indexes, target scopes, target scoring
+	 * policies and the composing references with their weights. The processed scopes and the selectors are separate
+	 * parts of the memo key.
 	 * @param groups searched own and composed groups
 	 * @param context snapshot index and policy resolver
 	 * @param locale query locale
 	 * @param ownIndex already resolved owner index, null when the owner has only composed places
+	 * @param scoringPolicy owner policy carrying final composed-place overrides
 	 * @return query-local source identity
 	 */
 	private static long sourceIdentity(
 		@Nonnull List<AnalyzedFieldGroup> groups, @Nonnull QueryPlanningContext context, @Nonnull Locale locale,
-		@Nullable FulltextIndex ownIndex
+		@Nullable FulltextIndex ownIndex, @Nonnull FulltextScoringPolicy scoringPolicy
 	) {
-		long identity = ownIndex == null ? 0 : ownIndex.getId();
+		final LongHashFunction hashFunction = LongHashFunction.xx3();
+		long identity = hashFunction.hashLongs(new long[]{
+			ownIndex == null ? 0 : ownIndex.getId(), scoringPolicy.computeHash(hashFunction)});
 		for (final AnalyzedFieldGroup group : groups) {
 			final SearchableSource source = group.source();
 			if (source == null) {
@@ -441,8 +489,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			final FulltextIndex index = global == null ? null : global.getFulltextIndex(locale);
 			identity = 31 * identity + (index == null ? 0 : index.getId());
 			identity = 31 * identity + source.scope().ordinal();
-			identity = 31 * identity + context.getFulltextScoringPolicy(source.schema())
-				.computeHash(LongHashFunction.xx3());
+			identity = 31 * identity + context.getFulltextSchemaScoringPolicy(source.schema())
+				.computeHash(hashFunction);
 			if (source.reference() != null) {
 				identity = 31 * identity + LongHashFunction.xx3().hashChars(source.reference().getName());
 				identity = 31 * identity + Float.floatToIntBits(source.reference().getSearchableThroughWeight());
@@ -1267,7 +1315,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				index = global == null ? null : global.getFulltextIndex(locale);
 				fieldWeights = new float[index == null ? 0 : index.getFieldCount()];
 				places = new int[fieldWeights.length];
-				policy = context.getFulltextScoringPolicy(source.schema());
+				policy = context.getFulltextSchemaScoringPolicy(source.schema());
 			}
 			final int[] ids = new int[group.fields().length];
 			int count = 0;
@@ -1278,7 +1326,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					ids[count++] = id;
 					final double weight = (double) policy.weight(field.key()) *
 						(source == null ? 1f : source.reference().getSearchableThroughWeight());
-					fieldWeights[id] = (float) Math.min(Float.MAX_VALUE, weight);
+					fieldWeights[id] = source == null ? (float) weight : scoringPolicy.composedWeight(
+						source.reference().getName(), field.key(), (float) Math.min(Float.MAX_VALUE, weight));
 					if (source != null) {
 						places[id] = source.places().get(field.key());
 					}

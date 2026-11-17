@@ -127,7 +127,11 @@ orderConstraint
     | 'segment'                             args = segmentArgs                                              # segmentConstraint
     | 'limit'                               args = valueArgs                                                # segmentLimitConstraint
     | 'inScope'                             args = inScopeOrderArgs                                         # orderInScopeConstraint
-    | 'relevanceText'                       emptyArgs                                                       # relevanceTextConstraint
+    | 'relevanceText'                       (emptyArgs | args = orderConstraintListArgs)                    # relevanceTextConstraint
+    | 'attributeWeight'                     args = classifierWithValueArgs                                  # attributeWeightConstraint
+    | 'associatedDataWeight'                args = classifierWithValueArgs                                  # associatedDataWeightConstraint
+    | 'referenceWeight'                     args = referenceWeightArgs                                      # referenceWeightConstraint
+    | 'entityWeight'                        (emptyArgs | args = orderConstraintListArgs)                    # entityWeightConstraint
     ;
 
 requireConstraint
@@ -304,6 +308,7 @@ facetGroupRelationArgs :                            argsOpening classifier = val
 
 facetCalculationRulesArgs :                         argsOpening facetsWithSameGroup = valueToken ARGS_DELIMITER facetsWithDifferentGroups = valueToken argsClosing ;
 
+referenceWeightArgs : argsOpening classifier = valueToken (ARGS_DELIMITER constraints += orderConstraint)* argsClosing ;
 classifierWithOrderConstraintListArgs :             argsOpening classifier = valueToken (ARGS_DELIMITER constrains += orderConstraint)+ argsClosing ;
 
 hierarchyWithinConstraintArgs :                     argsOpening classifier = valueToken ARGS_DELIMITER ofParent = filterConstraint (ARGS_DELIMITER constrains += filterConstraint)* argsClosing ;

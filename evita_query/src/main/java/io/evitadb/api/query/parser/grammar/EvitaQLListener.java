@@ -1122,6 +1122,54 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitRelevanceTextConstraint(EvitaQLParser.RelevanceTextConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code attributeWeightConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterAttributeWeightConstraint(EvitaQLParser.AttributeWeightConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code attributeWeightConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitAttributeWeightConstraint(EvitaQLParser.AttributeWeightConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code associatedDataWeightConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterAssociatedDataWeightConstraint(EvitaQLParser.AssociatedDataWeightConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code associatedDataWeightConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitAssociatedDataWeightConstraint(EvitaQLParser.AssociatedDataWeightConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceWeightConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceWeightConstraint(EvitaQLParser.ReferenceWeightConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceWeightConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceWeightConstraint(EvitaQLParser.ReferenceWeightConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code entityWeightConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterEntityWeightConstraint(EvitaQLParser.EntityWeightConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code entityWeightConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitEntityWeightConstraint(EvitaQLParser.EntityWeightConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code requireContainerConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
@@ -2657,6 +2705,16 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFacetCalculationRulesArgs(EvitaQLParser.FacetCalculationRulesArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#referenceWeightArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceWeightArgs(EvitaQLParser.ReferenceWeightArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#referenceWeightArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceWeightArgs(EvitaQLParser.ReferenceWeightArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#classifierWithOrderConstraintListArgs}.
 	 * @param ctx the parse tree

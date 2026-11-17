@@ -228,6 +228,11 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(ReferenceIn.class, new ReferenceInSerializer(), index++);
 		kryo.register(EntityIn.class, new EntityInSerializer(), index++);
 
+		kryo.register(AttributeWeight.class, new AttributeWeightSerializer(), index++);
+		kryo.register(AssociatedDataWeight.class, new AssociatedDataWeightSerializer(), index++);
+		kryo.register(ReferenceWeight.class, new ReferenceWeightSerializer(), index++);
+		kryo.register(EntityWeight.class, new EntityWeightSerializer(), index++);
+
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}
 

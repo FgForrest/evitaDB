@@ -407,6 +407,7 @@ class NullArgumentsInventoryTest {
 		}
 		if (type == int.class || type == Integer.class) return 1;
 		if (type == long.class || type == Long.class) return 1L;
+		if (type == float.class || type == Float.class) return 1f;
 		if (type == boolean.class || type == Boolean.class) return Boolean.TRUE;
 		if (type == BigDecimal.class || type == Number.class) return BigDecimal.ONE;
 		if (type == Locale.class) return Locale.ENGLISH;

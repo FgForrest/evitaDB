@@ -61,4 +61,18 @@ public class AssociatedDataNotFoundException extends EvitaInvalidUsageException 
 		super("Associated data with name `" + associatedDataName + "` is not present in schema of `" + entitySchema.getName() + "` entity.");
 	}
 
+	/**
+	 * Creates a missing-place diagnostic naming the complete query constraint that requested it.
+	 *
+	 * @param associatedDataName the associated data item the constraint names
+	 * @param entitySchema schema of the entity that should hold the associated data
+	 * @param constraint the complete constraint as the query states it
+	 */
+	public AssociatedDataNotFoundException(
+		@Nonnull String associatedDataName, @Nonnull EntitySchemaContract entitySchema, @Nonnull String constraint
+	) {
+		super("Constraint `" + constraint + "`: associatedData `" + associatedDataName +
+			"` is not present in schema of `" + entitySchema.getName() + "` entity.");
+	}
+
 }

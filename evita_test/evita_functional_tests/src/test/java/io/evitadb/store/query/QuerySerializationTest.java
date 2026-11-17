@@ -95,6 +95,17 @@ import static io.evitadb.test.TestTags.QUERY;
 @Tag(STORAGE)
 @Tag(QUERY)
 public class QuerySerializationTest {
+	/** Pins the unreleased appended weight ids while retaining the existing relevance container id. */
+	@Test
+	@DisplayName("Retains existing fulltext ids and appends the four weight constraints")
+	void shouldKeepFulltextRegistrationIds() {
+		assertEquals(1460, this.kryo.getRegistration(io.evitadb.api.query.order.RelevanceText.class).getId());
+		assertEquals(1464, this.kryo.getRegistration(io.evitadb.api.query.order.AttributeWeight.class).getId());
+		assertEquals(1465, this.kryo.getRegistration(io.evitadb.api.query.order.AssociatedDataWeight.class).getId());
+		assertEquals(1466, this.kryo.getRegistration(io.evitadb.api.query.order.ReferenceWeight.class).getId());
+		assertEquals(1467, this.kryo.getRegistration(io.evitadb.api.query.order.EntityWeight.class).getId());
+	}
+
 	/**
 	 * Fully-qualified name of the {@code HistogramHavingSerializer} class. The serializer lives
 	 * in a non-exported sub-package of the {@code evita_store_server} module
@@ -641,6 +652,21 @@ public class QuerySerializationTest {
 					random()),
 				arguments("randomWithSeed",
 					randomWithSeed(42)),
+				arguments("attributeWeight",
+					attributeWeight("a", 3)),
+				arguments("associatedDataWeight",
+					associatedDataWeight("a", 0.5f)),
+				arguments("referenceWeight",
+					referenceWeight("r", attributeWeight("a", 2))),
+				arguments("entityWeight",
+					entityWeight(attributeWeight("a", 4), associatedDataWeight("a", 0))),
+				arguments("empty referenceWeight",
+					referenceWeight("r")),
+				arguments("empty entityWeight",
+					entityWeight()),
+				arguments("relevanceText weights",
+					relevanceText(attributeWeight("a", 3), associatedDataWeight("a", 0.5f),
+						referenceWeight("r", attributeWeight("a", 2), entityWeight(attributeWeight("a", 4))))),
 				arguments("relevanceText",
 					relevanceText()),
 				arguments("orderBy with relevanceText",

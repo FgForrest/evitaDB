@@ -446,7 +446,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 		});
 	}
 
-	/** The same filter and indexes must not share memoized formulas across different effective policies. */
+	/** A real owner override and a nested default policy must stay distinct in their shared root formula memo. */
 	@Test
 	@DisplayName("should distinguish effective policies in translator computeOnlyOnce keys")
 	void shouldSeparateMemoizedPolicies() {
@@ -456,24 +456,36 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				.setAttribute("name", Locale.ENGLISH, "green"));
 		});
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			final Query query = ranked(textMatches("green ", inAttribute("name")));
+			final Query query = query(collection(OWNER), filterBy(entityLocaleEquals(Locale.ENGLISH),
+				textMatches("green ", inAttribute("name"))), orderBy(relevanceText(attributeWeight("name", 1))));
 			final QueryPlanningContext context = context(session, query);
-			context.getFulltextScoringPolicy();
-			final Map<String, FulltextScoringPolicy> policies = field(context, "fulltextScoringPolicies");
-			final FulltextScoringPolicy first = new FulltextScoringPolicy(
-				Map.of(FulltextFieldKey.attribute("name"), 1f));
-			final FulltextScoringPolicy second = new FulltextScoringPolicy(
-				Map.of(FulltextFieldKey.attribute("name"), 2f));
-			assertNotEquals(first.computeHash(LongHashFunction.xx3()), second.computeHash(LongHashFunction.xx3()));
-			// Stand in for query overrides while keeping constraint, context and postings identical.
-			policies.put(OWNER, first);
+			QueryPlanner.planQuery(context);
+			final Query nestedQuery = query(collection(OWNER), query.getFilterBy());
+			final Catalog catalog = (Catalog) this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
+			final EntityCollection collection =
+				(EntityCollection) catalog.getCollectionForEntityOrThrowException(OWNER);
+			final Map<EntityIndexKey, EntityIndex> indexes = field(collection, "indexes");
+			final Map<Integer, EntityIndex> byPk = field(collection, "indexesByPrimaryKey");
+			final QueryPlanningContext nested = new QueryPlanningContext(context, catalog, collection, session,
+				new EvitaRequest(nestedQuery, OffsetDateTime.now(), EntityReference.class, null), null,
+				indexes, byPk, NoCacheSupervisor.INSTANCE);
+			QueryPlanner.planNestedQuery(nested, () -> "nested schema defaults");
+			assertNotEquals(context.getFulltextScoringPolicy().computeHash(LongHashFunction.xx3()),
+				nested.getFulltextScoringPolicy().computeHash(LongHashFunction.xx3()));
 			final FulltextFormula one = translated(context, query);
-			policies.put(OWNER, second);
-			final FulltextFormula two = translated(context, query);
+			final FulltextFormula two = translated(nested, nestedQuery);
 			assertNotSame(one, two);
 			assertEquals(1f, one.getTokens()[0][0].weight());
-			assertEquals(2f, two.getTokens()[0][0].weight());
-			assertSame(two, translated(context, query));
+			assertEquals(100f, two.getTokens()[0][0].weight());
+			assertSame(two, translated(nested, nestedQuery));
+			assertSame(one, translated(context, query));
+			// No explicit leaf-policy keys: this exercises the discriminator for an enclosing preparation itself.
+			final Formula enclosingOwner = context.computeOnlyOnce(java.util.List.of(), query.getFilterBy(), () -> one);
+			final Formula enclosingNested = nested.computeOnlyOnce(java.util.List.of(), query.getFilterBy(), () -> two);
+			assertSame(one, enclosingOwner);
+			assertSame(two, enclosingNested);
+			assertSame(enclosingOwner, context.computeOnlyOnce(java.util.List.of(), query.getFilterBy(), () -> two));
+			assertSame(enclosingNested, nested.computeOnlyOnce(java.util.List.of(), query.getFilterBy(), () -> one));
 		});
 	}
 

@@ -65,6 +65,7 @@ import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.primaryKey.sorter.TranslatedPrimaryKeySorter;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
@@ -295,16 +296,24 @@ public class QueryPlanner {
 
 	/**
 	 * Resolves the fulltext scoring policy of the queried entity type before the index selection, when the query
-	 * searches text. The policy is built, validated and cached in the context here, ahead of any empty-index
-	 * short-cut, so a `textMatches` query is checked the same way whether or not its indexes hold any entity; the
-	 * translators and the relevance sorter then reuse the cached instance.
+	 * searches text or states place weights; childless relevance ordering without text resolves no policy. The policy
+	 * is built, validated and cached in the context here, ahead of any empty-index short-cut, so such a query is
+	 * checked the same way whether or not its indexes hold any entity; the translators and the relevance sorter then
+	 * reuse the cached instance.
 	 *
 	 * @param context planning context of the query or of a nested query
+	 * @throws EvitaInvalidUsageException when the query states place weights without naming its entity collection, or
+	 *                                    when its place weights are invalid
 	 */
 	private static void resolveFulltextScoringPolicy(@Nonnull QueryPlanningContext context) {
-		if (context.isEntityTypeKnown() && !QueryUtils.findFilters(
-			context.getEvitaRequest().getQuery(), TextMatches.class).isEmpty()) {
-			context.getFulltextScoringPolicy();
+		final boolean weights = FulltextWeightResolver.hasWeights(context.getEvitaRequest().getQuery());
+		if (weights && !context.isEntityTypeKnown()) {
+			throw new EvitaInvalidUsageException(
+				"Fulltext place weights require the queried entity collection to be specified!");
+		}
+		if (context.isEntityTypeKnown() && (weights || !QueryUtils.findFilters(
+			context.getEvitaRequest().getQuery(), TextMatches.class).isEmpty())) {
+			context.resolveFulltextScoringPolicy();
 		}
 	}
 

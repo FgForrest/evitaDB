@@ -153,7 +153,9 @@ class ConstraintProcessorTest {
 			assertEquals(ConstraintType.ORDER, relevanceText.type());
 			assertEquals(ConstraintPropertyType.GENERIC, relevanceText.propertyType());
 			assertEquals(Set.of(ConstraintDomain.ENTITY), relevanceText.supportedIn());
-			assertEquals(ConstraintValueStructure.NONE, relevanceText.creator().valueStructure());
+			assertEquals(ConstraintValueStructure.CONTAINER, relevanceText.creator().valueStructure());
+			assertEquals("weights", relevanceText.creator().childParameters().getFirst().name());
+			assertFalse(relevanceText.creator().childParameters().getFirst().uniqueChildren());
 
 			final ConstraintDescriptor textMatches = descriptors.get(3);
 			assertEquals(ConstraintType.FILTER, textMatches.type());

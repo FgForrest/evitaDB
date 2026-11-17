@@ -29,35 +29,50 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.RelevanceText;
-import io.evitadb.utils.Assert;
+import io.evitadb.api.query.order.RelevanceTextEntitySpecificationOrderConstraint;
+
+import javax.annotation.Nonnull;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link RelevanceText} from/to binary format.
- *
- * The constraint accepts no children yet, but the child count is written anyway, so that the binary format stays the
- * same once the ranking-policy children are added.
+ * This {@link Serializer} implementation reads/writes {@link RelevanceText} from/to binary format: the child count
+ * first, then each place weight as class and object, in the order the query states them.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class RelevanceTextSerializer extends Serializer<RelevanceText> {
-
+	/**
+	 * Writes all child weights, including duplicates for planning-time validation.
+	 *
+	 * @param kryo the serialization context used for nested weights
+	 * @param output the target the constraint is written to
+	 * @param constraint the constraint to write
+	 */
 	@Override
-	public void write(Kryo kryo, Output output, RelevanceText relevanceText) {
-		final OrderConstraint[] children = relevanceText.getChildren();
-		output.writeVarInt(children.length, true);
-		for (final OrderConstraint child : children) {
-			kryo.writeClassAndObject(output, child);
+	public void write(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull RelevanceText constraint) {
+		final OrderConstraint[] weights = constraint.getChildren();
+		output.writeVarInt(weights.length, true);
+		for (final OrderConstraint weight : weights) {
+			kryo.writeClassAndObject(output, weight);
 		}
 	}
 
+	/**
+	 * Restores the level boundary and ordered child weights.
+	 *
+	 * @param kryo the serialization context used for nested weights
+	 * @param input the source the constraint is read from
+	 * @param type the requested constraint class, unused
+	 * @return the restored constraint
+	 * @throws ClassCastException when a stored child is not a weight allowed at this level
+	 */
+	@Nonnull
 	@Override
-	public RelevanceText read(Kryo kryo, Input input, Class<? extends RelevanceText> type) {
-		final int childCount = input.readVarInt(true);
-		Assert.isPremiseValid(
-			childCount == 0,
-			() -> "Constraint `relevanceText` accepts no children, but " + childCount + " were serialized!"
-		);
-		return new RelevanceText();
+	public RelevanceText read(@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends RelevanceText> type) {
+		final RelevanceTextEntitySpecificationOrderConstraint[] weights =
+			new RelevanceTextEntitySpecificationOrderConstraint[input.readVarInt(true)];
+		for (int i = 0; i < weights.length; i++) {
+			weights[i] = (RelevanceTextEntitySpecificationOrderConstraint) kryo.readClassAndObject(input);
+		}
+		return new RelevanceText(weights);
 	}
-
 }

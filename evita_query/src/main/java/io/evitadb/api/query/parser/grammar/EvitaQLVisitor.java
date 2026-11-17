@@ -663,6 +663,34 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitRelevanceTextConstraint(EvitaQLParser.RelevanceTextConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code attributeWeightConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAttributeWeightConstraint(EvitaQLParser.AttributeWeightConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code associatedDataWeightConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAssociatedDataWeightConstraint(EvitaQLParser.AssociatedDataWeightConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code referenceWeightConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitReferenceWeightConstraint(EvitaQLParser.ReferenceWeightConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code entityWeightConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitEntityWeightConstraint(EvitaQLParser.EntityWeightConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code requireContainerConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
@@ -1563,6 +1591,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitFacetCalculationRulesArgs(EvitaQLParser.FacetCalculationRulesArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#referenceWeightArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitReferenceWeightArgs(EvitaQLParser.ReferenceWeightArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithOrderConstraintListArgs}.
 	 * @param ctx the parse tree

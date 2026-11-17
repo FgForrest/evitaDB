@@ -27,6 +27,7 @@ import io.evitadb.api.query.order.RelevanceText;
 import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
@@ -70,8 +71,14 @@ import java.util.stream.Stream;
  *
  * `relevanceText()` without a `textMatches` in the filter is not an error: no sorter is emitted, so every entity
  * passes on to the next sorter, exactly as if `relevanceText()` were absent. An empty search box drops `textMatches`
- * (its factory returns null for a blank text), and the client must not have to branch its ordering on that. This
- * reverses the planning-time error query-design §5.2 recommended.
+ * (its factory returns null for a blank text), and the client must not have to branch its ordering on that. Place
+ * weights inside it are still validated by the planner, and a query with invalid ones is refused.
+ *
+ * ## Place weights
+ *
+ * The translator consumes its weight children itself and never visits them: the planner has already resolved them
+ * into the query's effective policy before index selection, and the sorter reads that policy from the planning
+ * context.
  *
  * ## Where it may stand
  *
@@ -85,7 +92,8 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class RelevanceTextTranslator
-	implements OrderingConstraintTranslator<RelevanceText>, ReferenceOrderingConstraintTranslator<RelevanceText> {
+	implements OrderingConstraintTranslator<RelevanceText>, ReferenceOrderingConstraintTranslator<RelevanceText>,
+	SelfTraversingTranslator {
 
 	/**
 	 * Creates the exception for `relevanceText()` used outside the main query's ordering.

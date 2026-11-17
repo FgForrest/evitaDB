@@ -27,11 +27,14 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -68,11 +71,41 @@ import java.io.Serializable;
  *   containers that sort by properties of referenced entities (`referenceProperty`, `entityProperty`,
  *   `entityGroupProperty`, `traverseByEntityProperty`, `pickFirstByEntityProperty`)
  *
- * **Why a container without children**
+ * **Place weights**
  *
- * The constraint is a container even though it accepts no children yet. The ranking policy (field weights, boost
- * tables and similar) will be expressed by its children, and turning a leaf constraint into a container later would
- * change its shape in every API that mirrors the query language.
+ * Children replace the schema search weights of individual searchable places for this query:
+ *
+ * - `attributeWeight` and `associatedDataWeight` weigh attributes and associated data of the queried entity
+ * - `referenceWeight` weighs the attributes of one reference and, through `entityWeight`, the places of its target
+ *   collection that the query searches through composition
+ *
+ * The weights are checked during planning, before any index is read, and a violation refuses the query:
+ *
+ * - every weighted place must exist and be searchable in at least one scope the query processes, no weight may be
+ *   negative, and one `relevanceText` may weight each place only once
+ * - a query has a single weight policy: every `relevanceText` in it, including those inside segments and those
+ *   without children, must state the same weights
+ * - when the query contains a `textMatches`, each weighted place must be searched by a `textMatches` of the main
+ *   filter or of a segment's `entityHaving`; without any `textMatches` the weights are checked but order nothing
+ *
+ * When no `relevanceText` of the query states a weight, the schema search weights apply.
+ *
+ * ```evitaql
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         entityLocaleEquals("en"),
+ *         textMatches("black leather jacket")
+ *     ),
+ *     orderBy(
+ *         relevanceText(
+ *             attributeWeight("name", 3),
+ *             associatedDataWeight("description", 0.5),
+ *             referenceWeight("brand", entityWeight(attributeWeight("name", 2)))
+ *         )
+ *     )
+ * )
+ * ```
  *
  * @see io.evitadb.api.query.filter.TextMatches
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -88,10 +121,27 @@ public class RelevanceText extends AbstractOrderConstraintContainer implements G
 
 	/**
 	 * Creates the `relevanceText` ordering constraint.
+	 *
+	 * @param weights place weights replacing schema search weights for this query, NULL or empty for none
+	 * @throws GenericEvitaInternalError when a child is not a place weight allowed directly in `relevanceText`
 	 */
 	@Creator
-	public RelevanceText() {
-		super();
+	public RelevanceText(@Nullable @Child RelevanceTextEntitySpecificationOrderConstraint... weights) {
+		this(weights == null ? new OrderConstraint[0] : weights);
+	}
+
+	/**
+	 * Copies child weights while enforcing the entity level.
+	 *
+	 * @param weights the child constraints, each of them a place weight allowed directly in `relevanceText`
+	 * @throws GenericEvitaInternalError when a child is not such a weight
+	 */
+	private RelevanceText(@Nonnull OrderConstraint[] weights) {
+		super(weights);
+		for (final OrderConstraint weight : getChildren()) {
+			Assert.isPremiseValid(weight instanceof RelevanceTextEntitySpecificationOrderConstraint,
+				() -> "Constraint `relevanceText` does not accept `" + weight + "` as its child!");
+		}
 	}
 
 	/**
@@ -117,10 +167,10 @@ public class RelevanceText extends AbstractOrderConstraintContainer implements G
 		@Nonnull Constraint<?>[] additionalChildren
 	) {
 		Assert.isPremiseValid(
-			children.length == 0 && additionalChildren.length == 0,
-			"Constraint `relevanceText` doesn't accept any children!"
+			additionalChildren.length == 0,
+			"Constraint `relevanceText` accepts only place weights!"
 		);
-		return new RelevanceText();
+		return new RelevanceText(children);
 	}
 
 	@Nonnull

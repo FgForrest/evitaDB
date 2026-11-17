@@ -47,6 +47,7 @@ import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeM
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetInFilterTranslator;
+import io.evitadb.core.query.sort.fulltext.translator.PlaceWeightTranslator;
 import io.evitadb.core.query.sort.fulltext.translator.RelevanceTextTranslator;
 import io.evitadb.core.query.sort.price.translator.PriceDiscountTranslator;
 import io.evitadb.core.query.sort.price.translator.PriceNaturalTranslator;
@@ -120,6 +121,11 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		TRANSLATORS.put(Segments.class, new SegmentsTranslator());
 		TRANSLATORS.put(OrderInScope.class, new OrderInScopeTranslator());
 		TRANSLATORS.put(RelevanceText.class, new RelevanceTextTranslator());
+		final PlaceWeightTranslator placeWeightTranslator = new PlaceWeightTranslator();
+		TRANSLATORS.put(AttributeWeight.class, placeWeightTranslator);
+		TRANSLATORS.put(AssociatedDataWeight.class, placeWeightTranslator);
+		TRANSLATORS.put(ReferenceWeight.class, placeWeightTranslator);
+		TRANSLATORS.put(EntityWeight.class, placeWeightTranslator);
 	}
 
 	/**

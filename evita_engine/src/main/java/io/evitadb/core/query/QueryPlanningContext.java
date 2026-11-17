@@ -115,6 +115,7 @@ import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
+import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -427,8 +428,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * resolution and never shared with another context, so it never outlives the index snapshots this context reads.
 	 */
 	@Nullable private PartitionKeyMemo partitionKeyMemo;
-	/** Resolved rank-time policies per processing entity type, shared by its textMatches sources and segments. */
+	/** Immutable schema defaults per processing entity type, including targets reached through composition. */
 	@Nullable private Map<String, FulltextScoringPolicy> fulltextScoringPolicies;
+	/** Effective owner policy, including query overrides; never reused as a target's schema defaults. */
+	@Nullable private FulltextScoringPolicy effectiveFulltextScoringPolicy;
+	/** Precomputed memo discriminator only when the resolved query policy differs from schema defaults. */
+	@Nullable private Long fulltextScoringPolicyOverrideHash;
 
 
 	/**
@@ -1794,26 +1799,66 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Resolves schema defaults for the queried entity type before empty-index shortcuts.
-	 * @return effective policy of this context's entity type; its weights and coefficient are immutable, its caches
-	 *         belong to this query
+	 * Resolves the effective policy of this context's collection, including the query's place weights, and keeps it
+	 * for every later read. Only the planner calls it, before the index selection; reading a policy or building a memo
+	 * key never resolves query weights. The first call wins and later calls do nothing. When the effective policy
+	 * hashes differently from the schema defaults, its hash also becomes the discriminator that `computeOnlyOnce`
+	 * appends to the memo keys of this context.
+	 *
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the query's place weights are invalid
 	 */
-	@Nonnull
-	public FulltextScoringPolicy getFulltextScoringPolicy() {
-		return getFulltextScoringPolicy(getSchema());
+	void resolveFulltextScoringPolicy() {
+		if (this.effectiveFulltextScoringPolicy == null) {
+			final FulltextScoringPolicy defaults = getFulltextSchemaScoringPolicy(getSchema());
+			final FulltextScoringPolicy effective = FulltextWeightResolver.resolve(this, defaults);
+			this.effectiveFulltextScoringPolicy = effective;
+			if (effective != defaults) {
+				final LongHashFunction hashFunction = LongHashFunction.xx3();
+				final long hash = effective.computeHash(hashFunction);
+				if (hash != defaults.computeHash(hashFunction)) {
+					this.fulltextScoringPolicyOverrideHash = hash;
+				}
+			}
+		}
 	}
 
 	/**
-	 * Resolves defaults once per processing entity type. Hierarchy filters can translate another collection with
-	 * the owner's planning context; their fields and weights belong to that processing schema. Reference attributes
-	 * come from {@link FulltextFieldDefinition#availableReferenceAttributes(ReferenceSchemaContract)}, the set field
-	 * discovery searches, so an unbound reflected reference weighs only its locally declared attributes.
+	 * Returns the already-resolved effective policy or this collection's schema defaults. Reading a policy never
+	 * interprets a request's ordering: fetched-entity contexts may carry an inherited outer query's ordering.
+	 * @return immutable weights and coefficient with query-local caches
+	 */
+	@Nonnull
+	public FulltextScoringPolicy getFulltextScoringPolicy() {
+		return this.effectiveFulltextScoringPolicy == null ?
+			getFulltextSchemaScoringPolicy(getSchema()) : this.effectiveFulltextScoringPolicy;
+	}
+
+	/**
+	 * Returns the policy for translating the given schema: the effective policy of this context when the schema is
+	 * this context's own collection, otherwise the unmodified schema defaults of that collection. Hierarchy filters
+	 * can translate another collection with the owner's planning context; its fields and weights belong to that
+	 * processing schema, and the query's place weights never apply to it.
 	 * @param schema schema currently being translated
-	 * @return effective policy in the processing entity type's place namespace; its weights and coefficient are
-	 *         immutable, its caches belong to this query
+	 * @return policy in the processing entity type's place namespace; its weights and coefficient are immutable, its
+	 *         caches belong to this query
 	 */
 	@Nonnull
 	public FulltextScoringPolicy getFulltextScoringPolicy(@Nonnull EntitySchemaContract schema) {
+		return schema.getName().equals(getSchema().getName()) ?
+			getFulltextScoringPolicy() : getFulltextSchemaScoringPolicy(schema);
+	}
+
+	/**
+	 * Returns the schema defaults of the given collection, built once per entity type and cached in this context.
+	 * Query place weights never apply here, so composition reads target weights from here, also when a collection
+	 * composes itself. Reference attributes come from
+	 * {@link FulltextFieldDefinition#availableReferenceAttributes(ReferenceSchemaContract)}, the set field discovery
+	 * searches, so an unbound reflected reference weighs only its locally declared attributes.
+	 * @param schema schema whose search weights are read
+	 * @return the schema defaults; their weights and coefficient are immutable, their caches belong to this query
+	 */
+	@Nonnull
+	public FulltextScoringPolicy getFulltextSchemaScoringPolicy(@Nonnull EntitySchemaContract schema) {
 		if (this.fulltextScoringPolicies == null) {
 			this.fulltextScoringPolicies = CollectionUtils.createHashMap(2);
 		}
@@ -2050,6 +2095,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * context already plans in it, otherwise a nested context whose request carries `locale` as an explicit
 	 * override. The locale becomes context only - no predicate is added to the filter. A nested context collects
 	 * the schema capabilities its planning requests on its own; the caller drains them into this context.
+	 * A same-collection locale context retains the resolved query weight policy. Referenced-entity query contexts
+	 * are created separately and keep their existing target defaults and fixed source factor.
 	 *
 	 * @param entityType the entity type the nested context plans
 	 * @param filterBy   the filter of the nested request, NULL when it has none
@@ -2069,11 +2116,17 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		if (locale == null || locale.equals(getLocale())) {
 			return this;
 		}
-		return getEntityCollectionOrThrowException(entityType, reason).createQueryContext(
-			this,
-			this.evitaRequest.deriveCopyWith(entityType, filterBy, null, locale, scopes),
-			this.evitaSession
-		);
+		final QueryPlanningContext localized = getEntityCollectionOrThrowException(entityType, reason)
+			.createQueryContext(
+				this,
+				this.evitaRequest.deriveCopyWith(entityType, filterBy, null, locale, scopes),
+				this.evitaSession
+			);
+		if (this.effectiveFulltextScoringPolicy != null && entityType.equals(getEntityType())) {
+			localized.effectiveFulltextScoringPolicy = this.effectiveFulltextScoringPolicy;
+			localized.fulltextScoringPolicyOverrideHash = this.fulltextScoringPolicyOverrideHash;
+		}
+		return localized;
 	}
 
 	/**
@@ -2119,6 +2172,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Supplier<Formula> formulaSupplier,
 		long... additionalCacheKeys
 	) {
+		if (this.fulltextScoringPolicyOverrideHash != null) {
+			// A nested context with defaults can share the root memo and an equal enclosing constraint/index set.
+			// Read only the discriminator resolved at planning; neither inspect the subtree nor resolve a policy.
+			final long[] keys = Arrays.copyOf(additionalCacheKeys, additionalCacheKeys.length + 1);
+			keys[keys.length - 1] = this.fulltextScoringPolicyOverrideHash;
+			return computeOnlyOnce(entityIndexes, constraint, formulaSupplier, getLocale(), keys);
+		}
 		return computeOnlyOnce(entityIndexes, constraint, formulaSupplier, getLocale(), additionalCacheKeys);
 	}
 

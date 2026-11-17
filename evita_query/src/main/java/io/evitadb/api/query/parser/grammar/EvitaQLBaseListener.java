@@ -1147,6 +1147,54 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterAttributeWeightConstraint(EvitaQLParser.AttributeWeightConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAttributeWeightConstraint(EvitaQLParser.AttributeWeightConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterAssociatedDataWeightConstraint(EvitaQLParser.AssociatedDataWeightConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAssociatedDataWeightConstraint(EvitaQLParser.AssociatedDataWeightConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceWeightConstraint(EvitaQLParser.ReferenceWeightConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceWeightConstraint(EvitaQLParser.ReferenceWeightConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterEntityWeightConstraint(EvitaQLParser.EntityWeightConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitEntityWeightConstraint(EvitaQLParser.EntityWeightConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterRequireContainerConstraint(EvitaQLParser.RequireContainerConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -2738,6 +2786,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitFacetCalculationRulesArgs(EvitaQLParser.FacetCalculationRulesArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceWeightArgs(EvitaQLParser.ReferenceWeightArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceWeightArgs(EvitaQLParser.ReferenceWeightArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
