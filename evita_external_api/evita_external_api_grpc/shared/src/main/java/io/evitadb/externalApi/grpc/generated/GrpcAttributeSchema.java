@@ -1294,7 +1294,7 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int SEARCHWEIGHT_FIELD_NUMBER = 27;
-  private com.google.protobuf.FloatValue searchWeight_;
+  private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight_;
   /**
    * <pre>
    * Fulltext ranking weight of the attribute, shared by every scope; zero preserves matches while contributing no
@@ -1302,7 +1302,7 @@ private static final long serialVersionUID = 0L;
    * differs from an unset wrapper.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchWeight = 27;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 27;</code>
    * @return Whether the searchWeight field is set.
    */
   @java.lang.Override
@@ -1316,12 +1316,12 @@ private static final long serialVersionUID = 0L;
    * differs from an unset wrapper.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchWeight = 27;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 27;</code>
    * @return The searchWeight.
    */
   @java.lang.Override
-  public com.google.protobuf.FloatValue getSearchWeight() {
-    return searchWeight_ == null ? com.google.protobuf.FloatValue.getDefaultInstance() : searchWeight_;
+  public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchWeight() {
+    return searchWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchWeight_;
   }
   /**
    * <pre>
@@ -1330,11 +1330,11 @@ private static final long serialVersionUID = 0L;
    * differs from an unset wrapper.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchWeight = 27;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 27;</code>
    */
   @java.lang.Override
-  public com.google.protobuf.FloatValueOrBuilder getSearchWeightOrBuilder() {
-    return searchWeight_ == null ? com.google.protobuf.FloatValue.getDefaultInstance() : searchWeight_;
+  public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchWeightOrBuilder() {
+    return searchWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchWeight_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -6947,9 +6947,9 @@ private static final long serialVersionUID = 0L;
       return lengthPivotBuilder_;
     }
 
-    private com.google.protobuf.FloatValue searchWeight_;
+    private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight_;
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.FloatValue, com.google.protobuf.FloatValue.Builder, com.google.protobuf.FloatValueOrBuilder> searchWeightBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> searchWeightBuilder_;
     /**
      * <pre>
      * Fulltext ranking weight of the attribute, shared by every scope; zero preserves matches while contributing no
@@ -6957,7 +6957,7 @@ private static final long serialVersionUID = 0L;
      * differs from an unset wrapper.
      * </pre>
      *
-     * <code>.google.protobuf.FloatValue searchWeight = 27;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 27;</code>
      * @return Whether the searchWeight field is set.
      */
     public boolean hasSearchWeight() {
@@ -6970,12 +6970,12 @@ private static final long serialVersionUID = 0L;
      * differs from an unset wrapper.
      * </pre>
      *
-     * <code>.google.protobuf.FloatValue searchWeight = 27;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 27;</code>
      * @return The searchWeight.
      */
-    public com.google.protobuf.FloatValue getSearchWeight() {
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchWeight() {
       if (searchWeightBuilder_ == null) {
-        return searchWeight_ == null ? com.google.protobuf.FloatValue.getDefaultInstance() : searchWeight_;
+        return searchWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchWeight_;
       } else {
         return searchWeightBuilder_.getMessage();
       }
@@ -6987,9 +6987,9 @@ private static final long serialVersionUID = 0L;
      * differs from an unset wrapper.
      * </pre>
      *
-     * <code>.google.protobuf.FloatValue searchWeight = 27;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 27;</code>
      */
-    public Builder setSearchWeight(com.google.protobuf.FloatValue value) {
+    public Builder setSearchWeight(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
       if (searchWeightBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -7009,10 +7009,10 @@ private static final long serialVersionUID = 0L;
      * differs from an unset wrapper.
      * </pre>
      *
-     * <code>.google.protobuf.FloatValue searchWeight = 27;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 27;</code>
      */
     public Builder setSearchWeight(
-        com.google.protobuf.FloatValue.Builder builderForValue) {
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
       if (searchWeightBuilder_ == null) {
         searchWeight_ = builderForValue.build();
       } else {
@@ -7029,13 +7029,13 @@ private static final long serialVersionUID = 0L;
      * differs from an unset wrapper.
      * </pre>
      *
-     * <code>.google.protobuf.FloatValue searchWeight = 27;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 27;</code>
      */
-    public Builder mergeSearchWeight(com.google.protobuf.FloatValue value) {
+    public Builder mergeSearchWeight(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
       if (searchWeightBuilder_ == null) {
         if (((bitField0_ & 0x04000000) != 0) &&
           searchWeight_ != null &&
-          searchWeight_ != com.google.protobuf.FloatValue.getDefaultInstance()) {
+          searchWeight_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance()) {
           getSearchWeightBuilder().mergeFrom(value);
         } else {
           searchWeight_ = value;
@@ -7056,7 +7056,7 @@ private static final long serialVersionUID = 0L;
      * differs from an unset wrapper.
      * </pre>
      *
-     * <code>.google.protobuf.FloatValue searchWeight = 27;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 27;</code>
      */
     public Builder clearSearchWeight() {
       bitField0_ = (bitField0_ & ~0x04000000);
@@ -7075,9 +7075,9 @@ private static final long serialVersionUID = 0L;
      * differs from an unset wrapper.
      * </pre>
      *
-     * <code>.google.protobuf.FloatValue searchWeight = 27;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 27;</code>
      */
-    public com.google.protobuf.FloatValue.Builder getSearchWeightBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getSearchWeightBuilder() {
       bitField0_ |= 0x04000000;
       onChanged();
       return getSearchWeightFieldBuilder().getBuilder();
@@ -7089,14 +7089,14 @@ private static final long serialVersionUID = 0L;
      * differs from an unset wrapper.
      * </pre>
      *
-     * <code>.google.protobuf.FloatValue searchWeight = 27;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 27;</code>
      */
-    public com.google.protobuf.FloatValueOrBuilder getSearchWeightOrBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchWeightOrBuilder() {
       if (searchWeightBuilder_ != null) {
         return searchWeightBuilder_.getMessageOrBuilder();
       } else {
         return searchWeight_ == null ?
-            com.google.protobuf.FloatValue.getDefaultInstance() : searchWeight_;
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchWeight_;
       }
     }
     /**
@@ -7106,14 +7106,14 @@ private static final long serialVersionUID = 0L;
      * differs from an unset wrapper.
      * </pre>
      *
-     * <code>.google.protobuf.FloatValue searchWeight = 27;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 27;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.FloatValue, com.google.protobuf.FloatValue.Builder, com.google.protobuf.FloatValueOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
         getSearchWeightFieldBuilder() {
       if (searchWeightBuilder_ == null) {
         searchWeightBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            com.google.protobuf.FloatValue, com.google.protobuf.FloatValue.Builder, com.google.protobuf.FloatValueOrBuilder>(
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
                 getSearchWeight(),
                 getParentForChildren(),
                 isClean());

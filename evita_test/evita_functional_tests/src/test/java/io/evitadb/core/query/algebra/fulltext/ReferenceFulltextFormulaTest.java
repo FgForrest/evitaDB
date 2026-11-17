@@ -359,7 +359,7 @@ class ReferenceFulltextFormulaTest {
 
 	/** Builds the shared union preparation the reference formula reads its words from. */
 	private static FulltextFormula union(ExpandedTerm[][] words) {
-		return new FulltextFormula(words, null, new FulltextScoringPolicy(Map.of()), Map.of(), null);
+		return new FulltextFormula(words, null, new FulltextScoringPolicy(Map.of(), Map.of()), Map.of(), null);
 	}
 
 	/** Builds the memoized preparation without allowing an unexpected discovery split. */

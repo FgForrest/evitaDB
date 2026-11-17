@@ -45,6 +45,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Objects;
@@ -103,7 +104,7 @@ public class SetAssociatedDataSchemaSearchableMutation
 	@Getter @Nullable private final Integer lengthPivot;
 
 	/** Ranking weight, or `null` to keep the current value. */
-	@Getter @Nullable private final Float searchWeight;
+	@Getter @Nullable private final BigDecimal searchWeight;
 
 	/**
 	 * Creates a mutation making the associated data searchable in the {@link Scope#DEFAULT_SCOPE default scope} only,
@@ -143,7 +144,9 @@ public class SetAssociatedDataSchemaSearchableMutation
 	 * @param textExpression     the expression selecting the text of a complex data object value, or `null`
 	 * @param analyzer           the name of the fulltext analyzer, or `null` to keep the current one
 	 * @param lengthPivot        the length pivot, or `null` to keep the current one
-	 * @param searchWeight       finite, non-negative ranking weight, or `null` to keep the current value
+	 * @param searchWeight       non-negative decimal ranking weight within the shared decimal bounds and engine float
+	 *                           range, or `null` to keep the current value
+	 * @throws InvalidSchemaMutationException when the search weight lies outside those bounds
 	 */
 	@SerializableCreator
 	public SetAssociatedDataSchemaSearchableMutation(
@@ -152,14 +155,16 @@ public class SetAssociatedDataSchemaSearchableMutation
 		@Nullable Expression textExpression,
 		@Nullable String analyzer,
 		@Nullable Integer lengthPivot,
-		@Nullable Float searchWeight
+		@Nullable BigDecimal searchWeight
 	) {
 		super(name);
 		this.searchableInScopes = searchableInScopes == null ? NO_SCOPE : searchableInScopes;
 		this.textExpression = textExpression;
 		this.analyzer = analyzer;
 		this.lengthPivot = lengthPivot;
-		this.searchWeight = searchWeight == null ? null : AttributeSchemaContract.normalizeSearchWeight(searchWeight);
+		this.searchWeight = searchWeight == null ? null : AttributeSchemaContract.normalizeSearchWeight(
+			searchWeight, "Associated data `" + name + "`"
+		);
 	}
 
 	/**
@@ -209,14 +214,14 @@ public class SetAssociatedDataSchemaSearchableMutation
 		final EnumSet<Scope> searchable = ArrayUtils.toEnumSet(Scope.class, this.searchableInScopes);
 		final String theAnalyzer = this.analyzer == null ? associatedDataSchema.getAnalyzer() : this.analyzer;
 		final int theLengthPivot = this.lengthPivot == null ? associatedDataSchema.getLengthPivot() : this.lengthPivot;
-		final float theSearchWeight =
+		final BigDecimal theSearchWeight =
 			this.searchWeight == null ? associatedDataSchema.getSearchWeight() : this.searchWeight;
 		if (
 			associatedDataSchema.getSearchableInScopes().equals(searchable) &&
 				Objects.equals(associatedDataSchema.getTextExpression(), this.textExpression) &&
 				associatedDataSchema.getAnalyzer().equals(theAnalyzer) &&
 				associatedDataSchema.getLengthPivot() == theLengthPivot &&
-				Float.compare(associatedDataSchema.getSearchWeight(), theSearchWeight) == 0
+				associatedDataSchema.getSearchWeight().compareTo(theSearchWeight) == 0
 		) {
 			return associatedDataSchema;
 		}

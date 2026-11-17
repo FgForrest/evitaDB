@@ -97,11 +97,17 @@ class CreateSortableAttributeCompoundSchemaMutationTest {
 		);
 	}
 
+	/**
+	 * Provides the reference fixture whose individual contract getters callers customize.
+	 * @return a named reference with the default decimal composition weight
+	 */
 	@Nonnull
 	static ReferenceSchemaContract createMockedReferenceSchema() {
 		final ReferenceSchemaContract referenceSchema = Mockito.mock(ReferenceSchema.class);
 		Mockito.when(referenceSchema.getName()).thenReturn("referenceName");
 		Mockito.when(referenceSchema.getReferencedEntityType()).thenReturn("abd");
+		Mockito.when(referenceSchema.getSearchableThroughWeight())
+			.thenReturn(ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT);
 		return referenceSchema;
 	}
 

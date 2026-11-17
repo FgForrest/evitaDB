@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 
+import java.math.BigDecimal;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.expression.ExpressionFactory;
@@ -59,6 +60,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -309,17 +311,17 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 			EmptyEntitySchemaAccessor.INSTANCE
 		);
 		final AssociatedDataSchemaContract original = existing(Scope.DEFAULT_SCOPES, TITLE);
-		assertEquals(1.0f, original.getSearchWeight());
+		assertEquals(valueOf(1), original.getSearchWeight());
 		final SetAssociatedDataSchemaSearchableMutation earlier = new SetAssociatedDataSchemaSearchableMutation(
 			ASSOCIATED_DATA_NAME,
-			Scope.DEFAULT_SCOPES, TITLE, null, null, 3.5f);
+			Scope.DEFAULT_SCOPES, TITLE, null, null, valueOf(3.5));
 		final AssociatedDataSchemaContract weighted = earlier.mutate(original);
-		assertEquals(3.5f, weighted.getSearchWeight());
-		for (final Float weight : new Float[]{null, 0.0f, 2.5f}) {
+		assertEquals(valueOf(3.5), weighted.getSearchWeight());
+		for (final BigDecimal weight : new BigDecimal[]{null, valueOf(0), valueOf(2.5)}) {
 			final SetAssociatedDataSchemaSearchableMutation later = new SetAssociatedDataSchemaSearchableMutation(
 				ASSOCIATED_DATA_NAME,
 				Scope.DEFAULT_SCOPES, TITLE, null, null, weight);
-			final float expected = weight == null ? 3.5f : weight;
+			final BigDecimal expected = weight == null ? valueOf(3.5) : weight;
 			assertEquals(expected, later.mutate(weighted).getSearchWeight());
 			final MutationCombinationResult<LocalEntitySchemaMutation> combined = later.combineWith(
 				catalog, EntitySchema._internalBuild("product"), earlier
@@ -343,11 +345,11 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 			EntitySchema._internalBuild("product"))
 			.withAssociatedData(ASSOCIATED_DATA_NAME, ComplexDataObject.class,
 				a -> a.localized().searchable(TITLE).searchableInScope(Scope.values())
-					.lengthPivot(70).searchWeight(4.5f))
+					.lengthPivot(70).searchWeight(valueOf(4.5)))
 			.toInstance();
 
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(catalog, weighted)
-			.withAssociatedData(ASSOCIATED_DATA_NAME, ComplexDataObject.class, a -> a.searchWeight(0.0f))
+			.withAssociatedData(ASSOCIATED_DATA_NAME, ComplexDataObject.class, a -> a.searchWeight(valueOf(0)))
 			.toInstance();
 
 		final AssociatedDataSchemaContract data = schema.getAssociatedData(ASSOCIATED_DATA_NAME).orElseThrow();
@@ -355,7 +357,7 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 		assertEquals(TITLE, data.getTextExpression());
 		assertEquals(70, data.getLengthPivot());
 		assertEquals(FulltextAnalyzerSchemaContract.TEXT, data.getAnalyzer());
-		assertEquals(0.0f, data.getSearchWeight());
+		assertEquals(valueOf(0), data.getSearchWeight());
 	}
 
 	/** Both signs of zero produce identical statements and preserve an unchanged schema instance. */
@@ -364,19 +366,19 @@ class SetAssociatedDataSchemaSearchableMutationTest {
 	void shouldCanonicalizeZeroAndKeepUnchangedSchema() {
 		final AssociatedDataSchemaContract original = existing(Scope.DEFAULT_SCOPES, TITLE);
 		final SetAssociatedDataSchemaSearchableMutation positiveZero = new SetAssociatedDataSchemaSearchableMutation(
-			ASSOCIATED_DATA_NAME, Scope.DEFAULT_SCOPES, TITLE, null, null, 0.0f
+			ASSOCIATED_DATA_NAME, Scope.DEFAULT_SCOPES, TITLE, null, null, valueOf(0)
 		);
 		final SetAssociatedDataSchemaSearchableMutation negativeZero = new SetAssociatedDataSchemaSearchableMutation(
-			ASSOCIATED_DATA_NAME, Scope.DEFAULT_SCOPES, TITLE, null, null, -0.0f
+			ASSOCIATED_DATA_NAME, Scope.DEFAULT_SCOPES, TITLE, null, null, valueOf(0)
 		);
 		final AssociatedDataSchemaContract zero = positiveZero.mutate(original);
 		assertSame(zero, negativeZero.mutate(zero));
-		assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(zero.getSearchWeight()));
-		assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(negativeZero.getSearchWeight()));
+		assertEquals(valueOf(0), zero.getSearchWeight());
+		assertEquals(valueOf(0), negativeZero.getSearchWeight());
 		assertEquals(positiveZero, negativeZero);
 		assertEquals(positiveZero.hashCode(), negativeZero.hashCode());
 		final SetAssociatedDataSchemaSearchableMutation weighted = new SetAssociatedDataSchemaSearchableMutation(
-			ASSOCIATED_DATA_NAME, Scope.DEFAULT_SCOPES, TITLE, null, null, 2.5f
+			ASSOCIATED_DATA_NAME, Scope.DEFAULT_SCOPES, TITLE, null, null, valueOf(2.5)
 		);
 		final AssociatedDataSchemaContract changed = weighted.mutate(original);
 		assertSame(changed, weighted.mutate(changed));

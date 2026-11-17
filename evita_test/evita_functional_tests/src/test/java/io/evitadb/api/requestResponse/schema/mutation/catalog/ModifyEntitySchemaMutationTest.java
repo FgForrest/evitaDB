@@ -198,6 +198,7 @@ class ModifyEntitySchemaMutationTest {
 	@DisplayName("Mutate catalog schema")
 	class MutateCatalogSchema {
 
+		/** Rebuilds an entity through the accessor with valid decimal ranking defaults. */
 		@Test
 		@DisplayName("should mutate entity via schema accessor")
 		void shouldMutateCatalogSchema() {
@@ -215,6 +216,7 @@ class ModifyEntitySchemaMutationTest {
 			Mockito.doReturn(Integer.class).when(attribute).getType();
 			Mockito.doReturn(FulltextAnalyzerSchemaContract.TEXT).when(attribute).getAnalyzer();
 			Mockito.doReturn(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT).when(attribute).getLengthPivot();
+			Mockito.doReturn(AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT).when(attribute).getSearchWeight();
 			Mockito.doReturn(
 				AttributeSchema.toUniquenessEnumMap(
 					new ScopedAttributeUniquenessType[]{
@@ -267,6 +269,7 @@ class ModifyEntitySchemaMutationTest {
 	@DisplayName("Mutate entity schema")
 	class MutateEntitySchema {
 
+		/** Applies uniqueness changes to an entity whose attribute retains its decimal ranking default. */
 		@Test
 		@DisplayName("should apply schema mutations to entity schema")
 		void shouldMutateEntitySchema() {
@@ -282,6 +285,7 @@ class ModifyEntitySchemaMutationTest {
 			Mockito.doReturn(Integer.class).when(attribute).getType();
 			Mockito.doReturn(FulltextAnalyzerSchemaContract.TEXT).when(attribute).getAnalyzer();
 			Mockito.doReturn(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT).when(attribute).getLengthPivot();
+			Mockito.doReturn(AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT).when(attribute).getSearchWeight();
 			Mockito.doReturn(
 				AttributeSchema.toUniquenessEnumMap(
 					new ScopedAttributeUniquenessType[]{

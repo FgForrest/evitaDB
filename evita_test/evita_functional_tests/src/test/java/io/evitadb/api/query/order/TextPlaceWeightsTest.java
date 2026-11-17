@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.order;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
@@ -32,6 +33,7 @@ import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.api.query.visitor.QueryPurifierVisitor;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -44,6 +46,7 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -144,7 +147,10 @@ class TextPlaceWeightsTest {
 				assertSame(scaledData.getWeight(), scaledData.getArguments()[1]);
 			}
 		}
-		assertEquals(valueOf(-1), attributeWeight("name", valueOf(-1)).getWeight());
+		for (final BigDecimal negative : new BigDecimal[]{valueOf(-1), new BigDecimal("-1E-100")}) {
+			assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight("name", negative));
+			assertThrows(EvitaInvalidUsageException.class, () -> associatedDataWeight("body", negative));
+		}
 	}
 
 	/**
@@ -232,6 +238,27 @@ class TextPlaceWeightsTest {
 		final BigDecimal value = new BigDecimal("1E+1000000");
 		assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight("a", value));
 		assertThrows(EvitaInvalidUsageException.class, () -> associatedDataWeight("a", value));
+	}
+
+	/**
+	 * Zero padding must be bounded before trailing zeros are stripped, because the strip removes one zero per division:
+	 * stripping these million-digit inputs unbounded runs for minutes, the bounded path finishes well under a second.
+	 * The generous timeout only catches a return of the digit-by-digit strip; it is no performance assertion.
+	 */
+	@Test
+	@DisplayName("Refuses or accepts zero-padded weights without stripping them digit by digit")
+	void shouldBoundZeroPaddedWeightsWithoutDigitByDigitStripping() {
+		final BigInteger padded = BigInteger.TEN.pow(1_000_000);
+		final BigDecimal oversized = new BigDecimal(padded, 0);
+		final BigDecimal one = new BigDecimal(padded, 1_000_000);
+
+		assertTimeoutPreemptively(Duration.ofSeconds(30), () -> {
+			assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight("a", oversized));
+			assertThrows(InvalidSchemaMutationException.class,
+				() -> AttributeSchemaContract.normalizeSearchWeight(oversized, "Attribute `a`"));
+			assertEquals(BigDecimal.ONE, attributeWeight("a", one).getWeight());
+			assertEquals(BigDecimal.ONE, AttributeSchemaContract.normalizeSearchWeight(one, "Attribute `a`"));
+		});
 	}
 
 	/** Extreme scale representations must produce ordinary usage errors without arithmetic or string allocation. */

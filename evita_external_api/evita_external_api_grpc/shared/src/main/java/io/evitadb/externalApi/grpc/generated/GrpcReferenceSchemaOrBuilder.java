@@ -1200,7 +1200,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchableThroughWeight = 36;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
    * @return Whether the searchableThroughWeight field is set.
    */
   boolean hasSearchableThroughWeight();
@@ -1210,17 +1210,17 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchableThroughWeight = 36;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
    * @return The searchableThroughWeight.
    */
-  com.google.protobuf.FloatValue getSearchableThroughWeight();
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchableThroughWeight();
   /**
    * <pre>
    * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
    * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchableThroughWeight = 36;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
    */
-  com.google.protobuf.FloatValueOrBuilder getSearchableThroughWeightOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchableThroughWeightOrBuilder();
 }

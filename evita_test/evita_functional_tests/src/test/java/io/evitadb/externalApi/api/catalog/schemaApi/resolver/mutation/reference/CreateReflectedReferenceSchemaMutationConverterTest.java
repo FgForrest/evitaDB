@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
+import java.math.BigDecimal;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
@@ -55,6 +56,7 @@ import org.junit.jupiter.api.Tag;
 import java.util.List;
 import java.util.Map;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
@@ -270,7 +272,7 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 			"name", "related", "referencedEntityType", "target", "reflectedReferenceName", "original"
 		));
 		final ReflectedReferenceSchema javaDefault = ReflectedReferenceSchema._internalBuild(
-			"related", "target", "original", null, 1.0f
+			"related", "target", "original", null, valueOf(1)
 		);
 		assertEquals(
 			javaDefault.getAttributesInheritanceBehavior(), mutation.getAttributeInheritanceBehavior()
@@ -643,7 +645,7 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 			new ScopedReferenceSearchMode[]{
 				new ScopedReferenceSearchMode(Scope.LIVE, ReferenceSearchMode.COMPOSITION),
 				new ScopedReferenceSearchMode(Scope.ARCHIVED, ReferenceSearchMode.COMPOSITION)
-			}, 0.75f
+			}, valueOf(0.75)
 		);
 		assertThat(this.converter.convertToOutput(mutation))
 			.isInstanceOfSatisfying(Map.class, output -> {

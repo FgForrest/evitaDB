@@ -52,7 +52,9 @@ import java.io.Serializable;
  * is refused. The reference name must be non-null and non-blank.
  *
  * Child weights are non-null `BigDecimal` values with scale-independent equality and plain decimal printing.
- * Planning refuses negative weights and values that overflow or underflow the internal float.
+ * Each leaf weight refuses a negative value or one beyond the decimal representation bounds when it is
+ * constructed, before this container exists. Planning refuses float overflow and underflow, together with the
+ * schema and searched-place requirements.
  *
  * ```evitaql
  * relevanceText(

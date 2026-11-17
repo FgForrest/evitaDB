@@ -27,6 +27,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -195,10 +196,10 @@ public interface AssociatedDataSchemaEditor extends
 	 * Sets the fulltext ranking weight in every scope, preserving scopes and the text expression.
 	 * Zero preserves matches while contributing no ranking strength. Changing the weight does not rebuild the field.
 	 *
-	 * @param searchWeight finite, non-negative ranking weight
+	 * @param searchWeight non-negative decimal ranking weight within the shared decimal bounds and engine float range
 	 * @return this editor
 	 */
 	@Nonnull
-	AssociatedDataSchemaEditor searchWeight(float searchWeight);
+	AssociatedDataSchemaEditor searchWeight(@Nonnull BigDecimal searchWeight);
 
 }

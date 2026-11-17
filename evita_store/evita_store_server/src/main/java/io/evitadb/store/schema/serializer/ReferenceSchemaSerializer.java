@@ -43,6 +43,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import java.util.EnumMap;
 
 import java.util.Collections;
@@ -127,7 +128,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 
 		kryo.writeObject(output, referenceSchema.getConflictResolutionOverride());
 		writeSearchModes(kryo, output, referenceSchema.getSearchableThroughInScopes());
-		output.writeFloat(referenceSchema.getSearchableThroughWeight());
+		kryo.writeObject(output, referenceSchema.getSearchableThroughWeight());
 	}
 
 	@Override
@@ -160,7 +161,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
 
 		final Map<Scope, ReferenceSearchMode> searchModes = readSearchModes(kryo, input);
-		final float searchWeight = input.readFloat();
+		final BigDecimal searchWeight = kryo.readObject(input, BigDecimal.class);
 
 		return ReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,

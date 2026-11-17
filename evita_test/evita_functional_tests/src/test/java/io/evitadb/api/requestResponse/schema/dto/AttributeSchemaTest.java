@@ -62,6 +62,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -830,7 +831,7 @@ class AttributeSchemaTest {
 				traitChange("normalization", it -> it.normalization = List.of(lowercase())),
 				traitChange("analyzer", it -> it.analyzer = "other-analyzer"),
 				traitChange("length pivot", it -> it.lengthPivot = AttributeSchemaContract.DEFAULT_LENGTH_PIVOT + 1),
-				traitChange("search weight", it -> it.searchWeight = 2.0f),
+				traitChange("search weight", it -> it.searchWeight = valueOf(2)),
 				traitChange("localized", it -> it.localized = true),
 				traitChange("nullable", it -> it.nullable = true),
 				traitChange("representative", it -> it.representative = true),
@@ -947,7 +948,7 @@ class AttributeSchemaTest {
 			@Nullable List<AnalysisStep> normalization = null;
 			@Nonnull String analyzer = FulltextAnalyzerSchemaContract.TEXT;
 			int lengthPivot = AttributeSchemaContract.DEFAULT_LENGTH_PIVOT;
-			float searchWeight = AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT;
+			BigDecimal searchWeight = AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT;
 			boolean localized;
 			boolean nullable;
 			boolean representative;
@@ -1045,20 +1046,24 @@ class AttributeSchemaTest {
 	/** Ranking weight participates in the value contract, with a canonical representation for zero. */
 	@Test
 	void shouldIncludeSearchWeightInValueSemantics() {
-		final AttributeSchema zero = schemaWithSearchWeight(0.0f);
-		final AttributeSchema weighted = schemaWithSearchWeight(2.5f);
+		final AttributeSchema zero = schemaWithSearchWeight(valueOf(0));
+		final AttributeSchema weighted = schemaWithSearchWeight(valueOf(2.5));
 		assertNotEquals(zero, weighted);
 		assertNotEquals(zero.hashCode(), weighted.hashCode());
 		assertTrue(weighted.toString().contains("searchWeight=2.5"));
-		final AttributeSchema negativeZero = schemaWithSearchWeight(-0.0f);
-		assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(negativeZero.getSearchWeight()));
+		final AttributeSchema negativeZero = schemaWithSearchWeight(valueOf(0));
+		assertEquals(valueOf(0), negativeZero.getSearchWeight());
 		assertEquals(zero, negativeZero);
 		assertEquals(zero.hashCode(), negativeZero.hashCode());
 	}
 
-	/** Builds a DTO whose only variable setting is the ranking weight. */
+	/**
+	 * Builds a DTO whose only variable setting is the ranking weight.
+	 * @param weight decimal ranking contribution
+	 * @return the schema carrying the normalized weight
+	 */
 	@Nonnull
-	private static AttributeSchema schemaWithSearchWeight(float weight) {
+	private static AttributeSchema schemaWithSearchWeight(@Nonnull BigDecimal weight) {
 		return AttributeSchema._internalBuild(
 			"code", null, null,
 			(ScopedAttributeUniquenessType[]) null, null, null, null, null,

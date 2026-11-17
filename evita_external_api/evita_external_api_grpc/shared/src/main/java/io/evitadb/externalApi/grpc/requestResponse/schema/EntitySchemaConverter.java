@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
-import com.google.protobuf.FloatValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.query.expression.ExpressionFactory;
@@ -312,7 +311,7 @@ public class EntitySchemaConverter {
 				.map(EvitaEnumConverter::toGrpcScope).toList())
 			.setAnalyzer(StringValue.of(attributeSchema.getAnalyzer()))
 			.setLengthPivot(Int32Value.of(attributeSchema.getLengthPivot()))
-			.setSearchWeight(FloatValue.of(attributeSchema.getSearchWeight()))
+			.setSearchWeight(EvitaDataTypesConverter.toGrpcBigDecimal(attributeSchema.getSearchWeight()))
 			.addAllNormalized(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
 			.addAllAccelerated(
 				toGrpcScopedAttributeFilterAccelerators(
@@ -472,7 +471,7 @@ public class EntitySchemaConverter {
 				.map(EvitaEnumConverter::toGrpcScope).toList())
 			.setAnalyzer(StringValue.of(associatedDataSchema.getAnalyzer()))
 			.setLengthPivot(Int32Value.of(associatedDataSchema.getLengthPivot()))
-			.setSearchWeight(FloatValue.of(associatedDataSchema.getSearchWeight()))
+			.setSearchWeight(EvitaDataTypesConverter.toGrpcBigDecimal(associatedDataSchema.getSearchWeight()))
 			.setConflictResolutionOverride(EvitaEnumConverter.toGrpcConflictResolutionOverride(associatedDataSchema.getConflictResolutionOverride()));
 
 		if (associatedDataSchema.getTextExpression() != null) {
@@ -633,7 +632,9 @@ public class EntitySchemaConverter {
 
 		builder.setSearchableThroughInScopes(EvitaEnumConverter.toGrpcReferenceSearchModes(
 			ReferenceSchema.toScopedSearchModes(referenceSchema.getSearchableThroughInScopes())));
-		builder.setSearchableThroughWeight(FloatValue.of(referenceSchema.getSearchableThroughWeight()));
+		builder.setSearchableThroughWeight(
+			EvitaDataTypesConverter.toGrpcBigDecimal(referenceSchema.getSearchableThroughWeight())
+		);
 
 		final Predicate<String> inheritedAttributePredicate;
 		final Predicate<String> inheritedCompoundPredicate;
@@ -738,7 +739,8 @@ public class EntitySchemaConverter {
 						FulltextAnalyzerSchemaContract.TEXT,
 					attributeSchema.hasLengthPivot() ? attributeSchema.getLengthPivot().getValue() :
 						AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
-					attributeSchema.hasSearchWeight() ? attributeSchema.getSearchWeight().getValue() :
+					attributeSchema.hasSearchWeight()
+						? EvitaDataTypesConverter.toBigDecimal(attributeSchema.getSearchWeight()) :
 						AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				);
 			} else {
@@ -769,7 +771,8 @@ public class EntitySchemaConverter {
 						FulltextAnalyzerSchemaContract.TEXT,
 					attributeSchema.hasLengthPivot() ? attributeSchema.getLengthPivot().getValue() :
 						AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
-					attributeSchema.hasSearchWeight() ? attributeSchema.getSearchWeight().getValue() :
+					attributeSchema.hasSearchWeight()
+						? EvitaDataTypesConverter.toBigDecimal(attributeSchema.getSearchWeight()) :
 						AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				);
 			} else {
@@ -800,7 +803,8 @@ public class EntitySchemaConverter {
 						FulltextAnalyzerSchemaContract.TEXT,
 					attributeSchema.hasLengthPivot() ? attributeSchema.getLengthPivot().getValue() :
 						AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
-					attributeSchema.hasSearchWeight() ? attributeSchema.getSearchWeight().getValue() :
+					attributeSchema.hasSearchWeight()
+						? EvitaDataTypesConverter.toBigDecimal(attributeSchema.getSearchWeight()) :
 						AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				);
 			} else {
@@ -832,7 +836,8 @@ public class EntitySchemaConverter {
 				FulltextAnalyzerSchemaContract.TEXT,
 			associatedDataSchema.hasLengthPivot() ? associatedDataSchema.getLengthPivot().getValue() :
 				AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
-			associatedDataSchema.hasSearchWeight() ? associatedDataSchema.getSearchWeight().getValue() :
+			associatedDataSchema.hasSearchWeight()
+				? EvitaDataTypesConverter.toBigDecimal(associatedDataSchema.getSearchWeight()) :
 				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
@@ -951,7 +956,8 @@ public class EntitySchemaConverter {
 				referenceSchema.hasSearchableThroughInScopes() ? ReferenceSchema.toSearchableThroughMap(
 					EvitaEnumConverter.toScopedReferenceSearchModes(
 						referenceSchema.getSearchableThroughInScopes())) : null,
-				referenceSchema.hasSearchableThroughWeight() ? referenceSchema.getSearchableThroughWeight().getValue() :
+				referenceSchema.hasSearchableThroughWeight()
+					? EvitaDataTypesConverter.toBigDecimal(referenceSchema.getSearchableThroughWeight()) :
 					ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		} else {
@@ -998,7 +1004,8 @@ public class EntitySchemaConverter {
 				referenceSchema.hasSearchableThroughInScopes() ? ReferenceSchema.toSearchableThroughMap(
 					EvitaEnumConverter.toScopedReferenceSearchModes(
 						referenceSchema.getSearchableThroughInScopes())) : null,
-				referenceSchema.hasSearchableThroughWeight() ? referenceSchema.getSearchableThroughWeight().getValue() :
+				referenceSchema.hasSearchableThroughWeight()
+					? EvitaDataTypesConverter.toBigDecimal(referenceSchema.getSearchableThroughWeight()) :
 					ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		}

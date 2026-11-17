@@ -24,6 +24,7 @@
 
 package io.evitadb.store.schema;
 
+import java.math.BigDecimal;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
@@ -325,7 +326,8 @@ class FulltextCatalogSchemaSerializationTest {
 		@DisplayName("round-trips the analyzer, the length pivot and the search weight of every kind of field")
 		void shouldRoundTripTheFieldSettings() {
 			final Kryo kryo = createCatalogKryo();
-			for (final float weight : new float[]{0.0f, 2.5f}) {
+			for (final BigDecimal weight : new BigDecimal[]{BigDecimal.ZERO, new BigDecimal("0.0000001"),
+				new BigDecimal("12345678.5"), new BigDecimal("0.123456789012345678901234567891")}) {
 				final List<Object> fields = List.of(
 					AttributeSchema._internalBuild(
 						"brandName", null, null, null, null, null, Set.of(Scope.LIVE), null,

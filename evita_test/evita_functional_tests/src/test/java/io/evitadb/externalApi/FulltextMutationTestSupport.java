@@ -24,6 +24,7 @@
 
 package io.evitadb.externalApi;
 
+import java.math.BigDecimal;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -58,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 
 /** Java-origin mutations shared by transport round-trip and CDC regressions. */
@@ -66,7 +68,9 @@ public class FulltextMutationTestSupport {
 	/** Supplies every in-scope mutation with absent, zero and positive numeric settings. */
 	@Nonnull
 	public static Stream<SchemaMutation> mutations() {
-		return Stream.<Float>of(null, 0.0f, 2.5f).flatMap(FulltextMutationTestSupport::mutations);
+		return Stream.<BigDecimal>of(null, BigDecimal.ZERO, valueOf(0.0000001),
+			valueOf(12345678.5), new BigDecimal("0.123456789012345678901234567891"))
+			.flatMap(FulltextMutationTestSupport::mutations);
 	}
 
 	/**
@@ -85,7 +89,8 @@ public class FulltextMutationTestSupport {
 			Stream.concat(
 				sparseMutations(null, null), sparseMutations(Scope.NO_SCOPE, ScopedReferenceSearchMode.EMPTY)
 			),
-			Stream.of(new SetReferenceSchemaSearchableThroughMutation("related", ScopedReferenceSearchMode.EMPTY, 0.0f))
+			Stream.of(new SetReferenceSchemaSearchableThroughMutation(
+				"related", ScopedReferenceSearchMode.EMPTY, valueOf(0)))
 		);
 	}
 
@@ -120,9 +125,13 @@ public class FulltextMutationTestSupport {
 		);
 	}
 
-	/** Creates all mutation families with non-default fulltext declarations. */
+	/**
+	 * Creates all mutation families with non-default fulltext declarations.
+	 * @param weight decimal ranking contribution, or null to leave the weight unspecified
+	 * @return all create and set mutation families carrying the supplied decimal
+	 */
 	@Nonnull
-	public static Stream<SchemaMutation> mutations(@Nullable Float weight) {
+	public static Stream<SchemaMutation> mutations(@Nullable BigDecimal weight) {
 		final Scope[] scopes = {Scope.LIVE, Scope.ARCHIVED};
 		final ScopedReferenceSearchMode[] modes = {
 			new ScopedReferenceSearchMode(Scope.LIVE, ReferenceSearchMode.COMPOSITION),

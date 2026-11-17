@@ -48,7 +48,7 @@ public interface SearchableThroughAnnotationFixtures {
 		int getId();
 
 		@Reference(entity = TARGET, indexed = ReferenceIndexType.FOR_FILTERING,
-			searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.75f)
+			searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.75)
 		BlockRef[] getBlocks();
 	}
 
@@ -78,7 +78,7 @@ public interface SearchableThroughAnnotationFixtures {
 		@PrimaryKey
 		int getId();
 
-		@Reference(entity = TARGET, searchableThroughWeight = 0.0f)
+		@Reference(entity = TARGET, searchableThroughWeight = 0.0)
 		BlockRef[] getBlocks();
 	}
 
@@ -88,9 +88,9 @@ public interface SearchableThroughAnnotationFixtures {
 		@PrimaryKey
 		int getId();
 
-		@Reference(entity = TARGET, searchableThroughWeight = 9.0f,
+		@Reference(entity = TARGET, searchableThroughWeight = 9.0,
 			scope = @ScopeReferenceSettings(scope = Scope.ARCHIVED, indexed = ReferenceIndexType.FOR_FILTERING,
-				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.3f))
+				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.3))
 		BlockRef[] getBlocks();
 	}
 
@@ -102,9 +102,9 @@ public interface SearchableThroughAnnotationFixtures {
 
 		@Reference(entity = TARGET, scope = {
 			@ScopeReferenceSettings(indexed = ReferenceIndexType.FOR_FILTERING,
-				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.2f),
+				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.2),
 			@ScopeReferenceSettings(scope = Scope.ARCHIVED, indexed = ReferenceIndexType.FOR_FILTERING,
-				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.8f)
+				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.8)
 		})
 		BlockRef[] getBlocks();
 	}
@@ -117,9 +117,9 @@ public interface SearchableThroughAnnotationFixtures {
 
 		@Reference(entity = TARGET, scope = {
 			@ScopeReferenceSettings(indexed = ReferenceIndexType.FOR_FILTERING,
-				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.8f),
+				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.8),
 			@ScopeReferenceSettings(scope = Scope.ARCHIVED, indexed = ReferenceIndexType.FOR_FILTERING,
-				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.8f)
+				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.8)
 		})
 		BlockRef[] getBlocks();
 	}
@@ -132,7 +132,7 @@ public interface SearchableThroughAnnotationFixtures {
 
 		@Reference(entity = TARGET, scope = {
 			@ScopeReferenceSettings(indexed = ReferenceIndexType.FOR_FILTERING,
-				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.8f),
+				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.8),
 			@ScopeReferenceSettings(scope = Scope.ARCHIVED, indexed = ReferenceIndexType.FOR_FILTERING)
 		})
 		BlockRef[] getBlocks();
@@ -145,7 +145,7 @@ public interface SearchableThroughAnnotationFixtures {
 		int getId();
 
 		@ReflectedReference(ofEntity = TARGET, ofName = "products",
-			searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.4f)
+			searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.4)
 		BlockRef[] getBlocks();
 	}
 
@@ -157,7 +157,7 @@ public interface SearchableThroughAnnotationFixtures {
 
 		@ReflectedReference(ofEntity = TARGET, ofName = "products",
 			scope = @ScopeReferenceSettings(scope = Scope.ARCHIVED, indexed = ReferenceIndexType.FOR_FILTERING,
-				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.6f))
+				searchableThrough = ReferenceSearchMode.COMPOSITION, searchableThroughWeight = 0.6))
 		BlockRef[] getBlocks();
 	}
 
@@ -223,7 +223,7 @@ public interface SearchableThroughAnnotationFixtures {
 		@PrimaryKey
 		int getId();
 
-		@Reference(entity = TARGET, searchableThroughWeight = -1.0f)
+		@Reference(entity = TARGET, searchableThroughWeight = -1.0)
 		BlockRef[] getBlocks();
 	}
 
@@ -233,7 +233,7 @@ public interface SearchableThroughAnnotationFixtures {
 		@PrimaryKey
 		int getId();
 
-		@Reference(entity = TARGET, searchableThroughWeight = -0.0f)
+		@Reference(entity = TARGET, searchableThroughWeight = -0.0)
 		BlockRef[] getBlocks();
 	}
 }

@@ -241,16 +241,14 @@ public abstract class SchemaJsonSerializer {
 	}
 
 	/**
-	 * Serializes a fulltext ranking weight as the decimal its descriptor declares. The decimal is built from the
-	 * shortest `Float` text, the conversion the GraphQL schema read uses, so both reads render a weight such as
-	 * `0.0001` as `0.00010` rather than as the `1.0E-4` of `Float#toString`.
+	 * Serializes a decimal fulltext ranking weight using the REST decimal string representation.
 	 *
-	 * @param weight ranking weight of a schema, finite because schema validation refuses any other
-	 * @return the weight as a decimal JSON value
+	 * @param weight canonical decimal ranking weight
+	 * @return decimal string JSON value
 	 */
 	@Nonnull
-	protected JsonNode serializeWeight(float weight) {
-		return this.objectJsonSerializer.serializeObject(new BigDecimal(Float.toString(weight)));
+	protected JsonNode serializeWeight(@Nonnull BigDecimal weight) {
+		return this.objectJsonSerializer.serializeObject(weight);
 	}
 
 	/**

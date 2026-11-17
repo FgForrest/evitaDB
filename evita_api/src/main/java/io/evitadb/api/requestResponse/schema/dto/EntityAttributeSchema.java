@@ -42,6 +42,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -112,7 +113,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	 * @param normalization ordered normalization steps
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 * @param <T> stored value type
 	 * @return immutable schema carrying all supplied settings
 	 */
@@ -136,7 +137,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -180,7 +181,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	 * @param normalization ordered normalization steps
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 * @param <T> stored value type
 	 * @return immutable schema carrying all supplied settings
 	 */
@@ -204,7 +205,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
@@ -245,7 +246,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	 * @param normalization ordered normalization steps
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 * @param <T> stored value type
 	 * @return immutable schema carrying all supplied settings
 	 */
@@ -270,7 +271,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		return new EntityAttributeSchema(
 			name, nameVariants,
@@ -311,7 +312,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	 * @param normalization ordered normalization steps
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 * @param <T> stored value type
 	 * @return immutable schema carrying all supplied settings
 	 */
@@ -336,7 +337,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -381,7 +382,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	 * @param normalization ordered normalization steps
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 * @param <T> stored value type
 	 */
 	<T extends Serializable> EntityAttributeSchema(
@@ -404,7 +405,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		super(
 			name, nameVariants, description, deprecationNotice,

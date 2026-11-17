@@ -56,7 +56,7 @@ public class SetAssociatedDataSchemaSearchableMutationSerializer
 			output.writeBoolean(false);
 		}
 		writeFulltextFieldSettings(
-			output, mutation.getAnalyzer(), mutation.getLengthPivot(), mutation.getSearchWeight()
+			kryo, output, mutation.getAnalyzer(), mutation.getLengthPivot(), mutation.getSearchWeight()
 		);
 	}
 
@@ -69,7 +69,7 @@ public class SetAssociatedDataSchemaSearchableMutationSerializer
 			readScopeArray(kryo, input),
 			input.readBoolean() ? kryo.readObject(input, Expression.class) : null,
 			input.readString(),
-			readNullableLengthPivot(input), readNullableSearchWeight(input)
+			readNullableLengthPivot(input), readNullableSearchWeight(kryo, input)
 		);
 	}
 

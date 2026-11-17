@@ -159,7 +159,7 @@ public interface GrpcSetAttributeSchemaSearchableMutationOrBuilder extends
    * Optional ranking weight; explicit zero is preserved.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchWeight = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 5;</code>
    * @return Whether the searchWeight field is set.
    */
   boolean hasSearchWeight();
@@ -168,16 +168,16 @@ public interface GrpcSetAttributeSchemaSearchableMutationOrBuilder extends
    * Optional ranking weight; explicit zero is preserved.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchWeight = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 5;</code>
    * @return The searchWeight.
    */
-  com.google.protobuf.FloatValue getSearchWeight();
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchWeight();
   /**
    * <pre>
    * Optional ranking weight; explicit zero is preserved.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchWeight = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 5;</code>
    */
-  com.google.protobuf.FloatValueOrBuilder getSearchWeightOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchWeightOrBuilder();
 }

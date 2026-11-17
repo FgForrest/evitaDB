@@ -64,6 +64,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Currency;
@@ -255,8 +256,13 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		return assembleInstance().getLengthPivot();
 	}
 
+	/**
+	 * Returns the canonical ranking weight assembled from this builder's mutations.
+	 * @return the effective decimal search weight
+	 */
+	@Nonnull
 	@Override
-	public float getSearchWeight() {
+	public BigDecimal getSearchWeight() {
 		return assembleInstance().getSearchWeight();
 	}
 
@@ -273,9 +279,15 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		return setFulltextField(null, lengthPivot, null);
 	}
 
+	/**
+	 * Records a validated decimal ranking weight in the searchable-settings mutation.
+	 * @param searchWeight non-negative decimal that fits the engine float range
+	 * @return this builder with the weight mutation recorded
+	 */
 	@Nonnull
 	@Override
-	public T searchWeight(float searchWeight) {
+	public T searchWeight(@Nonnull BigDecimal searchWeight) {
+		Assert.notNull(searchWeight, "Search weight must not be null.");
 		return setFulltextField(null, null, searchWeight);
 	}
 
@@ -290,7 +302,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	 */
 	@Nonnull
 	private T setFulltextField(
-		@Nullable String analyzerName, @Nullable Integer lengthPivot, @Nullable Float searchWeight
+		@Nullable String analyzerName, @Nullable Integer lengthPivot, @Nullable BigDecimal searchWeight
 	) {
 		final Scope[] searchableInScopes = assembleInstance().getSearchableInScopes().toArray(Scope[]::new);
 		this.updatedSchemaDirty = updateMutationImpact(

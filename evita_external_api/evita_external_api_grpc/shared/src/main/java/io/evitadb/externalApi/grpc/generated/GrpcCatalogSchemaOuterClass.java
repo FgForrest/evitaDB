@@ -162,7 +162,7 @@ public final class GrpcCatalogSchemaOuterClass {
       "eSchema:\0028\001\032{\n\026FulltextAnalyzersEntry\022\013\n" +
       "\003key\030\001 \001(\t\022P\n\005value\030\002 \001(\0132A.io.evitadb.e" +
       "xternalApi.grpc.generated.GrpcFulltextAn" +
-      "alyzerSchema:\0028\001\"\272\014\n\031GrpcGlobalAttribute" +
+      "alyzerSchema:\0028\001\"\324\014\n\031GrpcGlobalAttribute" +
       "Schema\022\014\n\004name\030\001 \001(\t\0221\n\013description\030\002 \001(" +
       "\0132\034.google.protobuf.StringValue\0227\n\021depre" +
       "cationNotice\030\003 \001(\0132\034.google.protobuf.Str" +
@@ -201,40 +201,41 @@ public final class GrpcCatalogSchemaOuterClass {
       "enerated.GrpcEntityScope\022.\n\010analyzer\030\027 \001" +
       "(\0132\034.google.protobuf.StringValue\0220\n\013leng" +
       "thPivot\030\030 \001(\0132\033.google.protobuf.Int32Val" +
-      "ue\0221\n\014searchWeight\030\031 \001(\0132\033.google.protob" +
-      "uf.FloatValue\"[\n\021GrpcAnalysisSteps\022F\n\005st" +
-      "eps\030\001 \003(\01327.io.evitadb.externalApi.grpc." +
-      "generated.GrpcAnalysisStep\"\255\001\n\032GrpcFullt" +
-      "extAnalysisPhases\022F\n\004text\030\001 \001(\01328.io.evi" +
-      "tadb.externalApi.grpc.generated.GrpcAnal" +
-      "ysisSteps\022G\n\005words\030\002 \001(\01328.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GrpcAnalysisSte" +
-      "ps\"\035\n\014GrpcWordList\022\r\n\005words\030\001 \003(\t\"!\n\020Grp" +
-      "cSynonymGroup\022\r\n\005words\030\001 \003(\t\"Z\n\017GrpcSyno" +
-      "nymList\022G\n\006groups\030\001 \003(\01327.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcSynonymGroup" +
-      "\"\300\001\n\033GrpcFulltextResourceContent\022G\n\010word" +
-      "List\030\001 \001(\01323.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcWordListH\000\022M\n\013synonymList" +
-      "\030\002 \001(\01326.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcSynonymListH\000B\t\n\007content\"~\n\032G" +
-      "rpcFulltextLanguageSchema\022\020\n\010language\030\001 " +
-      "\001(\t\022N\n\rwordSplitting\030\002 \003(\01327.io.evitadb." +
-      "externalApi.grpc.generated.GrpcAnalysisS" +
-      "tep\"\177\n\032GrpcFulltextResourceSchema\022\014\n\004nam" +
-      "e\030\001 \001(\t\022S\n\007content\030\002 \001(\0132B.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GrpcFulltextRes" +
-      "ourceContent\"\214\003\n\032GrpcFulltextAnalyzerSch" +
-      "ema\022\014\n\004name\030\001 \001(\t\022-\n\007basedOn\030\002 \001(\0132\034.goo" +
-      "gle.protobuf.StringValue\022W\n\014allLanguages" +
-      "\030\003 \001(\0132A.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcFulltextAnalysisPhases\022c\n\tlan" +
-      "guages\030\004 \003(\0132P.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcFulltextAnalyzerSchema." +
-      "LanguagesEntry\032s\n\016LanguagesEntry\022\013\n\003key\030" +
-      "\001 \001(\t\022P\n\005value\030\002 \001(\0132A.io.evitadb.extern" +
-      "alApi.grpc.generated.GrpcFulltextAnalysi" +
-      "sPhases:\0028\001B\014P\001\252\002\007EvitaDBb\006proto3"
+      "ue\022K\n\014searchWeight\030\031 \001(\01325.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcBigDecimal\"" +
+      "[\n\021GrpcAnalysisSteps\022F\n\005steps\030\001 \003(\01327.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "AnalysisStep\"\255\001\n\032GrpcFulltextAnalysisPha" +
+      "ses\022F\n\004text\030\001 \001(\01328.io.evitadb.externalA" +
+      "pi.grpc.generated.GrpcAnalysisSteps\022G\n\005w" +
+      "ords\030\002 \001(\01328.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcAnalysisSteps\"\035\n\014GrpcWord" +
+      "List\022\r\n\005words\030\001 \003(\t\"!\n\020GrpcSynonymGroup\022" +
+      "\r\n\005words\030\001 \003(\t\"Z\n\017GrpcSynonymList\022G\n\006gro" +
+      "ups\030\001 \003(\01327.io.evitadb.externalApi.grpc." +
+      "generated.GrpcSynonymGroup\"\300\001\n\033GrpcFullt" +
+      "extResourceContent\022G\n\010wordList\030\001 \001(\01323.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cWordListH\000\022M\n\013synonymList\030\002 \001(\01326.io.ev" +
+      "itadb.externalApi.grpc.generated.GrpcSyn" +
+      "onymListH\000B\t\n\007content\"~\n\032GrpcFulltextLan" +
+      "guageSchema\022\020\n\010language\030\001 \001(\t\022N\n\rwordSpl" +
+      "itting\030\002 \003(\01327.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcAnalysisStep\"\177\n\032GrpcFul" +
+      "ltextResourceSchema\022\014\n\004name\030\001 \001(\t\022S\n\007con" +
+      "tent\030\002 \001(\0132B.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcFulltextResourceContent\"\214" +
+      "\003\n\032GrpcFulltextAnalyzerSchema\022\014\n\004name\030\001 " +
+      "\001(\t\022-\n\007basedOn\030\002 \001(\0132\034.google.protobuf.S" +
+      "tringValue\022W\n\014allLanguages\030\003 \001(\0132A.io.ev" +
+      "itadb.externalApi.grpc.generated.GrpcFul" +
+      "ltextAnalysisPhases\022c\n\tlanguages\030\004 \003(\0132P" +
+      ".io.evitadb.externalApi.grpc.generated.G" +
+      "rpcFulltextAnalyzerSchema.LanguagesEntry" +
+      "\032s\n\016LanguagesEntry\022\013\n\003key\030\001 \001(\t\022P\n\005value" +
+      "\030\002 \001(\0132A.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcFulltextAnalysisPhases:\0028\001B\014P" +
+      "\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

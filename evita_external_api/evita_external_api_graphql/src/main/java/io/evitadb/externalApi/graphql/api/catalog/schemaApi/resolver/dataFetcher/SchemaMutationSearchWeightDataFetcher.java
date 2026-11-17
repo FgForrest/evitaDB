@@ -46,9 +46,7 @@ import javax.annotation.Nullable;
 import java.math.BigDecimal;
 
 /**
- * Converts the `Float` ranking weights of fulltext schemas and mutations to the decimal their output descriptors
- * declare, because the evitaDB data types the API exposes have no `Float`. The decimal is built from the shortest
- * `Float` text, so a weight such as `0.1` is not rendered as its binary expansion.
+ * Resolves the decimal ranking weight shared by schema reads and fulltext mutation output.
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class SchemaMutationSearchWeightDataFetcher implements DataFetcher<BigDecimal> {
@@ -58,20 +56,16 @@ public class SchemaMutationSearchWeightDataFetcher implements DataFetcher<BigDec
 		new SchemaMutationSearchWeightDataFetcher();
 
 	/**
-	 * Converts the weight of the source schema or mutation to a decimal carrying the `Float` decimal precision, zero
-	 * included.
+	 * Reads the canonical decimal weight, preserving zero and an omitted mutation setting.
 	 *
-	 * @param environment selection carrying an attribute, associated-data or reference schema, or a weight mutation
-	 * @return the weight as a decimal; `null` only for a mutation that does not set a weight, never for a schema
-	 * @throws GraphQLQueryResolvingInternalError when the weight is NaN or infinite, which a mutation may carry until
-	 *                                            schema validation refuses it: a decimal cannot hold such a value,
-	 *                                            and `null` would misreport it as a weight the mutation does not set
+	 * @param environment selection carrying a schema or fulltext weight mutation
+	 * @return the decimal weight, or `null` when the mutation does not set one
 	 */
 	@Nullable
 	@Override
 	public BigDecimal get(@Nonnull DataFetchingEnvironment environment) {
 		final Object source = environment.getSource();
-		final Float weight = switch (source) {
+		return switch (source) {
 			case AttributeSchemaContract schema -> schema.getSearchWeight();
 			case AssociatedDataSchemaContract schema -> schema.getSearchWeight();
 			case ReferenceSchemaContract schema -> schema.getSearchableThroughWeight();
@@ -85,15 +79,5 @@ public class SchemaMutationSearchWeightDataFetcher implements DataFetcher<BigDec
 			case SetReferenceSchemaSearchableThroughMutation mutation -> mutation.getWeight();
 			default -> throw new GraphQLQueryResolvingInternalError("Unsupported fulltext mutation: " + source);
 		};
-		if (weight == null) {
-			return null;
-		}
-		if (!Float.isFinite(weight)) {
-			throw new GraphQLQueryResolvingInternalError(
-				"Mutation `" + source.getClass().getSimpleName() + "` carries the non-finite ranking weight `" +
-					weight + "`, which the decimal weight field cannot represent."
-			);
-		}
-		return new BigDecimal(Float.toString(weight));
 	}
 }

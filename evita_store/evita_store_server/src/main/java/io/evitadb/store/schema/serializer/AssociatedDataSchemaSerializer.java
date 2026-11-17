@@ -36,6 +36,7 @@ import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -84,7 +85,7 @@ public class AssociatedDataSchemaSerializer extends Serializer<AssociatedDataSch
 		}
 		output.writeString(associatedDataSchema.getAnalyzer());
 		output.writeVarInt(associatedDataSchema.getLengthPivot(), true);
-		output.writeFloat(associatedDataSchema.getSearchWeight());
+		kryo.writeObject(output, associatedDataSchema.getSearchWeight());
 	}
 
 	@Override
@@ -109,7 +110,7 @@ public class AssociatedDataSchemaSerializer extends Serializer<AssociatedDataSch
 		final Expression textExpression = input.readBoolean() ? kryo.readObject(input, Expression.class) : null;
 		final String analyzer = input.readString();
 		final int lengthPivot = input.readVarInt(true);
-		final float searchWeight = input.readFloat();
+		final BigDecimal searchWeight = kryo.readObject(input, BigDecimal.class);
 		return AssociatedDataSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice, type, localized, nullable, searchableInScopes,
 			textExpression, conflictResolutionOverride, analyzer, lengthPivot, searchWeight

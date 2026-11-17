@@ -44,6 +44,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -52,8 +53,9 @@ import java.util.Map;
  * Replaces reference text composition scopes and/or the shared ranking weight. Null components preserve their
  * current values, including on reflected references. This mutation changes metadata only and never rebuilds an index.
  *
- * Applied with {@link ConsistencyChecks#APPLY}, it refuses a declaration the reference cannot support: an unmanaged
- * target, a declared scope not indexed with the referenced entity, or a weight that is not finite and non-negative.
+ * The constructor refuses a weight that is negative, outside the decimal representation bounds or outside the engine
+ * float range. Applied with {@link ConsistencyChecks#APPLY}, the mutation refuses a declaration the reference cannot
+ * support: an unmanaged target or a declared scope not indexed with the referenced entity.
  * The index settings a reflected reference inherits from an original that is not bound yet are checked when the
  * session defining it closes.
  *
@@ -71,7 +73,7 @@ public class SetReferenceSchemaSearchableThroughMutation
 	/** Complete scope map; null keeps the existing modes, an empty array removes them all. */
 	@Getter @Nullable private final ScopedReferenceSearchMode[] searchableThroughInScopes;
 	/** Shared weight; null keeps the existing weight. */
-	@Getter @Nullable private final Float weight;
+	@Getter @Nullable private final BigDecimal weight;
 
 	/**
 	 * Creates an independent update of the scope map and shared weight.
@@ -84,12 +86,14 @@ public class SetReferenceSchemaSearchableThroughMutation
 	public SetReferenceSchemaSearchableThroughMutation(
 		@Nonnull String name,
 		@Nullable ScopedReferenceSearchMode[] searchableThroughInScopes,
-		@Nullable Float weight
+		@Nullable BigDecimal weight
 	) {
 		super(name);
 		this.searchableThroughInScopes = searchableThroughInScopes == null
 			? null : searchableThroughInScopes.clone();
-		this.weight = weight == null ? null : AttributeSchemaContract.normalizeSearchWeight(weight);
+		this.weight = weight == null ? null : AttributeSchemaContract.normalizeSearchWeight(
+			weight, "Reference `" + name + "`"
+		);
 	}
 
 	/**
@@ -117,7 +121,7 @@ public class SetReferenceSchemaSearchableThroughMutation
 		final Map<Scope, ReferenceSearchMode> modes = this.searchableThroughInScopes == null
 			? referenceSchema.getSearchableThroughInScopes()
 			: ReferenceSchema.toSearchableThroughMap(this.searchableThroughInScopes);
-		final float newWeight = this.weight == null ? referenceSchema.getSearchableThroughWeight() : this.weight;
+		final BigDecimal newWeight = this.weight == null ? referenceSchema.getSearchableThroughWeight() : this.weight;
 		final ReferenceSchema result = ((ReferenceSchema) referenceSchema).withSearchableThrough(modes, newWeight);
 		if (consistencyChecks == ConsistencyChecks.APPLY) {
 			verifyRequirements(entitySchema, result);

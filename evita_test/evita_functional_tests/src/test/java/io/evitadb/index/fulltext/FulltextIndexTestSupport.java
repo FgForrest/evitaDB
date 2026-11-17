@@ -71,7 +71,7 @@ public final class FulltextIndexTestSupport {
 	 */
 	@Nonnull
 	public static FulltextScoringPolicy defaultScoringPolicy() {
-		return new FulltextScoringPolicy(Map.of());
+		return new FulltextScoringPolicy(Map.of(), Map.of());
 	}
 
 	/** Scores through the production aligned-vector path, then selects a test page. */

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData;
 
+import java.math.BigDecimal;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.dataType.Scope;
@@ -194,13 +195,13 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 	}
 
 	/**
-	 * Emits a present finite ranking weight as a decimal value, a non-finite one verbatim, and omits an unspecified
-	 * weight.
+	 * Emits a present decimal weight without rounding and omits an unspecified weight.
+	 * @param weight decimal ranking contribution, or null to leave the weight unspecified
 	 */
 	@ParameterizedTest
 	@NullSource
-	@ValueSource(floats = { 0.0f, 2.5f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY })
-	void shouldSerializeSearchWeightToOutput(@Nullable Float weight) {
+	@ValueSource(strings = {"0", "0.0000001", "12345678.5", "0.123456789012345678901234567891"})
+	void shouldSerializeSearchWeightToOutput(@Nullable BigDecimal weight) {
 		final CreateAssociatedDataSchemaMutation mutation = new CreateAssociatedDataSchemaMutation(
 			"labels", null, null, String.class, false, true, new Scope[] { Scope.LIVE }, null,
 			ConflictResolutionOverride.INHERITED, null, null, weight
@@ -210,8 +211,8 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 		if (weight == null) {
 			assertThat(output).doesNotContainKey("searchWeight");
 		} else {
-			// a finite weight goes out as a BigDecimal rendered as its plain-decimal string, a non-finite one as is
-			assertThat(output).containsEntry("searchWeight", Float.toString(weight));
+			// The decimal output preserves every significant digit.
+			assertThat(output).containsEntry("searchWeight", weight.toPlainString());
 		}
 	}
 }

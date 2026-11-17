@@ -127,7 +127,7 @@ class FulltextPhaseOneScorerTest {
 		void shouldMatchExactWeightTables() {
 			final float[] weights = {0, Float.MIN_VALUE, 0.0625f, 0.1f, 0.3f, 1, 3, 15, 31.99f, 32,
 				1e6f, Float.MAX_VALUE};
-			final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of());
+			final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of(), Map.of());
 			for (final float weight : weights) {
 				final char[] actual = policy.getWeightedImpacts(weight);
 				assertSame(actual, policy.getWeightedImpacts(weight), "Tables must be shared by weight bits");
@@ -499,10 +499,10 @@ class FulltextPhaseOneScorerTest {
 			assertNotEquals(hash, formula(defaultScoringPolicy(), grouping).getHash());
 			assertNotEquals(hash, formula(new FulltextScoringPolicy(Map.of(), 0), base).getHash());
 			final FulltextScoringPolicy schema = new FulltextScoringPolicy(Map.of(FulltextFieldKey.attribute("name"),
-				3f));
+				3f), Map.of());
 			assertNotEquals(hash, formula(schema, base).getHash());
 			final FulltextScoringPolicy changed = new FulltextScoringPolicy(
-				Map.of(FulltextFieldKey.attribute("name"), 4f));
+				Map.of(FulltextFieldKey.attribute("name"), 4f), Map.of());
 			assertNotEquals(formula(schema, base).getHash(), formula(changed, base).getHash(),
 				"Identical keys, terms and postings must still distinguish changed policy weight bits");
 			for (final LongHashFunction function : new LongHashFunction[]{
@@ -534,9 +534,9 @@ class FulltextPhaseOneScorerTest {
 
 			for (final LongHashFunction function : new LongHashFunction[]{
 				LongHashFunction.xx3(), LongHashFunction.xx(), LongHashFunction.city_1_1()}) {
-				final long hash = new FulltextScoringPolicy(forward).computeHash(function);
-				assertEquals(hash, new FulltextScoringPolicy(backward).computeHash(function));
-				assertNotEquals(hash, new FulltextScoringPolicy(renamed).computeHash(function));
+				final long hash = new FulltextScoringPolicy(forward, Map.of()).computeHash(function);
+				assertEquals(hash, new FulltextScoringPolicy(backward, Map.of()).computeHash(function));
+				assertNotEquals(hash, new FulltextScoringPolicy(renamed, Map.of()).computeHash(function));
 			}
 		}
 	}
@@ -1206,8 +1206,8 @@ class FulltextPhaseOneScorerTest {
 		void shouldRejectInvalidPolicyInputs() {
 			final FulltextFieldKey name = FulltextFieldKey.attribute("name");
 			for (final float weight : new float[]{Float.NaN, -1f, Float.POSITIVE_INFINITY}) {
-				assertThrows(GenericEvitaInternalError.class, () -> new FulltextScoringPolicy(Map.of(name, weight)),
-					"weight=" + weight);
+				assertThrows(GenericEvitaInternalError.class,
+					() -> new FulltextScoringPolicy(Map.of(name, weight), Map.of()), "weight=" + weight);
 				assertThrows(GenericEvitaInternalError.class, () -> FulltextScoringPolicy.weightedImpacts(weight),
 					"weight=" + weight);
 			}
@@ -1215,9 +1215,29 @@ class FulltextPhaseOneScorerTest {
 				assertThrows(GenericEvitaInternalError.class, () -> new FulltextScoringPolicy(Map.of(), tieBreaker),
 					"tieBreaker=" + tieBreaker);
 			}
-			final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of(name, 2.5f));
+			final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of(name, 2.5f), Map.of());
 			assertEquals(2.5f, policy.weight(name));
 			assertThrows(GenericEvitaInternalError.class, () -> policy.weight(FulltextFieldKey.attribute("missing")));
+		}
+
+		/** Composition weights follow the place-weight rules and are fixed when the planner builds the policy. */
+		@Test
+		@DisplayName("Reference weights are validated, kept as supplied and unresolved references are refused")
+		void shouldValidateAndRetainReferenceWeights() {
+			for (final float weight : new float[]{Float.NaN, -1f, Float.POSITIVE_INFINITY}) {
+				assertThrows(GenericEvitaInternalError.class,
+					() -> new FulltextScoringPolicy(Map.of(), Map.of("links", weight)), "weight=" + weight);
+			}
+			final Map<String, Float> referenceWeights = new LinkedHashMap<>();
+			referenceWeights.put("links", 0f);
+			referenceWeights.put("brand", 1.5f);
+
+			final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of(), referenceWeights);
+			referenceWeights.put("links", 3f);
+
+			assertEquals(0f, policy.referenceWeight("links"));
+			assertEquals(1.5f, policy.referenceWeight("brand"));
+			assertThrows(GenericEvitaInternalError.class, () -> policy.referenceWeight("missing"));
 		}
 
 		/** A source answering for fewer candidates than asked must never be combined position by position. */

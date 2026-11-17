@@ -24,6 +24,9 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi;
 
+import io.evitadb.utils.CollectionUtils;
+import org.junit.jupiter.params.provider.ValueSource;
+import java.math.BigDecimal;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -59,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.externalApi.FulltextMutationFunctionalTestSupport.*;
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.FULLTEXT;
@@ -177,31 +181,40 @@ class CatalogRestFulltextMutationsFunctionalTest extends RestEndpointFunctionalT
 	}
 
 	/**
-	 * A ranking weight of `0.0001`, which `Float#toString` renders as `1.0E-4`, reads as the decimal `0.00010` that
-	 * the GraphQL schema read renders for the same weight.
+	 * A ranking weight keeps its canonical decimal text in the schema response.
+	 * @param weight decimal ranking contribution supplied by this case
+	 * @param evita engine supplying the shared schema fixture
+	 * @param tester client sending mutations and reading the resulting schema
 	 */
-	@DisplayName("Reads small ranking weights as plain decimals")
-	@Test
+	@DisplayName("Round trips decimal schema weights without precision loss")
+	@ParameterizedTest
+	@ValueSource(strings = {"0", "0.0000001", "12345678.5", "0.123456789012345678901234567891"})
 	@UseDataSet(DATA_SET)
-	void shouldReadSmallRankingWeightsAsPlainDecimals(@Nonnull Evita evita, @Nonnull RestTester tester) {
+	void shouldRoundTripDecimalWeights(
+		@Nonnull BigDecimal weight, @Nonnull Evita evita, @Nonnull RestTester tester
+	) {
 		final String catalog = FulltextSchemaFunctionalTestSupport.prepare(evita);
-		final LocalEntitySchemaMutation[] fields = FulltextMutationTestSupport.mutations(0.0001f)
+		final LocalEntitySchemaMutation[] fields = FulltextMutationTestSupport.mutations(weight)
 			.filter(mutation -> mutation.getClass() == CreateAttributeSchemaMutation.class ||
 				mutation.getClass() == CreateAssociatedDataSchemaMutation.class ||
 				mutation.getClass() == CreateReferenceSchemaMutation.class)
 			.map(LocalEntitySchemaMutation.class::cast)
 			.toArray(LocalEntitySchemaMutation[]::new);
-		evita.updateCatalog(catalog, session -> {
-			session.updateCatalogSchema(new ModifyEntitySchemaMutation("owner", fields));
-		});
+		final Map<String, Object> request = CollectionUtils.createHashMap(1);
+		request.put("mutations", List.of(input(new ModifyEntitySchemaMutation("owner", fields))));
+		tester.test(catalog).urlPathSuffix("/schema").httpMethod(Request.METHOD_PUT)
+			.requestBody(json(request)).executeAndExpectOkAndThen();
 
 		final JsonNode entity = FulltextSchemaFunctionalTestSupport.read(tester.test(catalog)
 			.urlPathSuffix("/owner/schema").httpMethod(Request.METHOD_GET)
 			.executeAndExpectOkAndThen().extract().asString());
 
-		assertEquals("0.00010", entity.path("attributes").path("text").path("searchWeight").asText());
-		assertEquals("0.00010", entity.path("associatedData").path("text").path("searchWeight").asText());
-		assertEquals("0.00010", entity.path("references").path("related").path("searchableThroughWeight").asText());
+		for (final JsonNode decimal : List.of(entity.path("attributes").path("text").path("searchWeight"),
+			entity.path("associatedData").path("text").path("searchWeight"),
+			entity.path("references").path("related").path("searchableThroughWeight"))) {
+			assertTrue(decimal.isTextual(), decimal.toString());
+			assertEquals(0, weight.compareTo(new BigDecimal(decimal.asText())));
+		}
 	}
 
 	/** Verifies catalog and system OpenAPI registries and their mutation discriminators contain all nine types. */

@@ -62,13 +62,12 @@ public class SetAttributeSchemaSearchableMutationConverter
 			input.getProperty(SetAttributeSchemaSearchableMutationDescriptor.SEARCHABLE_IN_SCOPES),
 			input.getProperty(SetAttributeSchemaSearchableMutationDescriptor.ANALYZER),
 			input.getProperty(SetAttributeSchemaSearchableMutationDescriptor.LENGTH_PIVOT),
-			readSearchWeight(input, SetAttributeSchemaSearchableMutationDescriptor.SEARCH_WEIGHT)
+			input.getProperty(SetAttributeSchemaSearchableMutationDescriptor.SEARCH_WEIGHT)
 		);
 	}
 
 	/**
-	 * Writes the ranking weight as a decimal before reflection reaches it, because {@link Output} cannot serialize a
-	 * `Float`; reflection then fills in the remaining properties.
+	 * Writes the decimal ranking weight; reflection then fills in the remaining properties.
 	 *
 	 * @param mutation the mutation to serialize
 	 * @param output the output receiving the properties

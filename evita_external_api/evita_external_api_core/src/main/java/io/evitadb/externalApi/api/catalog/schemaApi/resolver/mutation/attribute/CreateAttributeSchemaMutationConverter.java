@@ -120,7 +120,7 @@ public class CreateAttributeSchemaMutationConverter
 			readNormalization(input),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.ANALYZER),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.LENGTH_PIVOT),
-			readSearchWeight(input, CreateAttributeSchemaMutationDescriptor.SEARCH_WEIGHT)
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.SEARCH_WEIGHT)
 		);
 	}
 

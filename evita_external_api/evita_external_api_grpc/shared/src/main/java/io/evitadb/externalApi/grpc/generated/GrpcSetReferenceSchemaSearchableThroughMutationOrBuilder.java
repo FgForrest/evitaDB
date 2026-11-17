@@ -59,17 +59,17 @@ public interface GrpcSetReferenceSchemaSearchableThroughMutationOrBuilder extend
   io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder getSearchableThroughInScopesOrBuilder();
 
   /**
-   * <code>.google.protobuf.FloatValue weight = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
    * @return Whether the weight field is set.
    */
   boolean hasWeight();
   /**
-   * <code>.google.protobuf.FloatValue weight = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
    * @return The weight.
    */
-  com.google.protobuf.FloatValue getWeight();
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getWeight();
   /**
-   * <code>.google.protobuf.FloatValue weight = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
    */
-  com.google.protobuf.FloatValueOrBuilder getWeightOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getWeightOrBuilder();
 }

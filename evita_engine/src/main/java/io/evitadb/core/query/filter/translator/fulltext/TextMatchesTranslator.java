@@ -495,7 +495,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				.computeHash(hashFunction);
 			if (source.reference() != null) {
 				identity = 31 * identity + LongHashFunction.xx3().hashChars(source.reference().getName());
-				identity = 31 * identity + Float.floatToIntBits(source.reference().getSearchableThroughWeight());
+				identity = 31 * identity + Float.floatToIntBits(
+					scoringPolicy.referenceWeight(source.reference().getName()));
 			}
 		}
 		return identity;
@@ -1329,7 +1330,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					id, group.analyzer().fingerprint().index(), field.lengthPivot())) {
 					ids[count++] = id;
 					final double weight = (double) policy.weight(field.key()) *
-						(source == null ? 1f : source.reference().getSearchableThroughWeight());
+						(source == null ? 1f : scoringPolicy.referenceWeight(source.reference().getName()));
 					fieldWeights[id] = (float) Math.min(Float.MAX_VALUE, weight);
 					// own terms keep their field id, lifted composed terms carry the source's place id; both map to
 					// the owner-namespace place whose ordering weight the formula looks up at scoring time

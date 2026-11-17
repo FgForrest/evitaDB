@@ -48,7 +48,7 @@ public class SetAttributeSchemaSearchableMutationSerializer
 		output.writeString(mutation.getName());
 		writeScopeArray(kryo, output, mutation.getSearchableInScopes());
 		writeFulltextFieldSettings(
-			output, mutation.getAnalyzer(), mutation.getLengthPivot(), mutation.getSearchWeight()
+			kryo, output, mutation.getAnalyzer(), mutation.getLengthPivot(), mutation.getSearchWeight()
 		);
 	}
 
@@ -60,7 +60,7 @@ public class SetAttributeSchemaSearchableMutationSerializer
 			input.readString(),
 			readScopeArray(kryo, input),
 			input.readString(),
-			readNullableLengthPivot(input), readNullableSearchWeight(input)
+			readNullableLengthPivot(input), readNullableSearchWeight(kryo, input)
 		);
 	}
 

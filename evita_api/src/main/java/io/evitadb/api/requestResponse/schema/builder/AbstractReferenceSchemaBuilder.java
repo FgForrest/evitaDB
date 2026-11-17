@@ -50,6 +50,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
@@ -279,12 +280,20 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 		return applySearchableThrough(mode, null, inScope);
 	}
 
+	/**
+	 * Records composition scopes and their shared canonical ranking weight.
+	 * @param mode composition mode for the supplied scopes
+	 * @param weight non-negative decimal that fits the engine float range
+	 * @param inScope scopes to update, or none to update only the weight
+	 * @return this builder with the composition mutation recorded
+	 */
 	@Nonnull
 	@Override
 	public T searchableThroughInScope(
-		@Nonnull ReferenceSearchMode mode, float weight, @Nonnull Scope... inScope
+		@Nonnull ReferenceSearchMode mode, @Nonnull BigDecimal weight, @Nonnull Scope... inScope
 	) {
 		Assert.notNull(mode, "Search mode must not be null");
+		Assert.notNull(weight, "Search weight must not be null.");
 		return applySearchableThrough(mode, weight, inScope);
 	}
 
@@ -304,7 +313,7 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 	 */
 	@Nonnull
 	private T applySearchableThrough(
-		@Nullable ReferenceSearchMode mode, @Nullable Float weight, @Nonnull Scope... inScope
+		@Nullable ReferenceSearchMode mode, @Nullable BigDecimal weight, @Nonnull Scope... inScope
 	) {
 		final Map<Scope, ReferenceSearchMode> modes = new EnumMap<>(Scope.class);
 		modes.putAll(toInstance().getSearchableThroughInScopes());

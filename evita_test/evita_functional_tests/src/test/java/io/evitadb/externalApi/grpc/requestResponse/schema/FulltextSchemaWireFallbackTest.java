@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
+import java.math.BigDecimal;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -34,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.FulltextSchemaFunctionalTestSupport;
 import io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema;
+import io.evitadb.externalApi.grpc.generated.GrpcBigDecimal;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchema;
 import io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema;
@@ -43,11 +46,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Set;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.GRPC;
@@ -101,7 +107,8 @@ class FulltextSchemaWireFallbackTest implements EvitaTestSupport {
 	void shouldFallBackToFulltextDefaultsForEntityPayloadWithoutFulltextFields() {
 		assertEquals("html-text", this.owner.getAttributesMap().get("text").getAnalyzer().getValue());
 		assertEquals("html-text", this.owner.getAssociatedDataMap().get("text").getAnalyzer().getValue());
-		assertEquals(0.0f, this.owner.getReferencesMap().get("related").getSearchableThroughWeight().getValue());
+		assertEquals(valueOf(0), EvitaDataTypesConverter.toBigDecimal(
+			this.owner.getReferencesMap().get("related").getSearchableThroughWeight()));
 		final GrpcEntitySchema.Builder builder = this.owner.toBuilder();
 		this.owner.getAttributesMap().forEach((name, attribute) -> builder.putAttributes(name, stripped(attribute)));
 		this.owner.getAssociatedDataMap().forEach((name, data) -> builder.putAssociatedData(name, data.toBuilder()
@@ -146,6 +153,70 @@ class FulltextSchemaWireFallbackTest implements EvitaTestSupport {
 
 		assertEquals(Set.of("globalText"), schema.getAttributes().keySet());
 		assertDefaults(schema.getAttributes().get("globalText"));
+	}
+
+	/**
+	 * Preserves decimal digits through both schema converters, including globals, inherited reference attributes
+	 * and explicit zero, without depending on mutation converter behavior.
+	 *
+	 * @param decimal exact decimal text every weight in the fixture must retain
+	 */
+	@ParameterizedTest
+	@ValueSource(strings = {"0", "0.0000001", "12345678.5", "0.123456789012345678901234567891"})
+	@DisplayName("round-trips exact decimal weights in every schema place")
+	void shouldRoundTripDecimalWeightsInSchemas(@Nonnull String decimal) {
+		final BigDecimal expected = new BigDecimal(decimal);
+		final GrpcBigDecimal wireWeight = EvitaDataTypesConverter.toGrpcBigDecimal(expected);
+		final GrpcCatalogSchema.Builder catalogBuilder = this.catalog.toBuilder();
+		this.catalog.getAttributesMap().forEach((name, attribute) -> catalogBuilder.putAttributes(
+			name, attribute.toBuilder().setSearchWeight(wireWeight).build()));
+		final GrpcEntitySchema.Builder entityBuilder = this.owner.toBuilder();
+		this.owner.getAttributesMap().forEach((name, attribute) -> entityBuilder.putAttributes(
+			name, attribute.toBuilder().setSearchWeight(wireWeight).build()));
+		this.owner.getAssociatedDataMap().forEach((name, data) -> entityBuilder.putAssociatedData(
+			name, data.toBuilder().setSearchWeight(wireWeight).build()));
+		this.owner.getReferencesMap().forEach((name, reference) -> {
+			final GrpcReferenceSchema.Builder referenceBuilder = reference.toBuilder()
+				.setSearchableThroughWeight(wireWeight);
+			reference.getAttributesMap().forEach((attributeName, attribute) -> referenceBuilder.putAttributes(
+				attributeName, attribute.toBuilder().setSearchWeight(wireWeight).build()));
+			entityBuilder.putReferences(name, referenceBuilder.build());
+		});
+		final CatalogSchema catalogSchema = CatalogSchemaConverter.convert(
+			catalogBuilder.build(), EmptyEntitySchemaAccessor.INSTANCE);
+		final EntitySchema entitySchema = EntitySchemaConverter.convert(entityBuilder.build());
+		assertDecimalWeights(catalogSchema, entitySchema, expected);
+
+		final GrpcCatalogSchema catalogRoundTrip = CatalogSchemaConverter.convert(catalogSchema, true);
+		final GrpcEntitySchema entityRoundTrip = EntitySchemaConverter.convert(catalogSchema, entitySchema, true);
+		assertDecimalWeights(
+			CatalogSchemaConverter.convert(catalogRoundTrip, EmptyEntitySchemaAccessor.INSTANCE),
+			EntitySchemaConverter.convert(entityRoundTrip), expected
+		);
+	}
+
+	/**
+	 * Checks all schema kinds and refuses empty fixture maps that would make decimal assertions vacuous.
+	 *
+	 * @param catalogSchema catalog-level global attribute schema
+	 * @param entitySchema entity with global and local attributes, associated data and both reference kinds
+	 * @param expected exact decimal weight supplied before conversion
+	 */
+	private static void assertDecimalWeights(
+		@Nonnull CatalogSchema catalogSchema, @Nonnull EntitySchema entitySchema, @Nonnull BigDecimal expected
+	) {
+		assertEquals(expected, catalogSchema.getAttributes().get("globalText").getSearchWeight());
+		assertEquals(expected, entitySchema.getAttributes().get("globalText").getSearchWeight());
+		assertEquals(expected, entitySchema.getAttributes().get("text").getSearchWeight());
+		assertEquals(expected, entitySchema.getAssociatedData().get("text").getSearchWeight());
+		assertFalse(entitySchema.getReferences().isEmpty());
+		for (final ReferenceSchemaContract reference : entitySchema.getReferences().values()) {
+			assertEquals(expected, reference.getSearchableThroughWeight(), reference.getName());
+			assertFalse(reference.getAttributes().isEmpty(), reference.getName());
+			for (final AttributeSchemaContract attribute : reference.getAttributes().values()) {
+				assertEquals(expected, attribute.getSearchWeight(), reference.getName() + "." + attribute.getName());
+			}
+		}
 	}
 
 	/**

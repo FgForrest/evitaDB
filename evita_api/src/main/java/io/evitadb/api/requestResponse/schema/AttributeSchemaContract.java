@@ -23,6 +23,9 @@
 
 package io.evitadb.api.requestResponse.schema;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.TextPlaceWeightSupport;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.AttributeContains;
 import io.evitadb.api.query.filter.AttributeEquals;
@@ -44,6 +47,7 @@ import io.evitadb.dataType.Scope;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -78,19 +82,29 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	int DEFAULT_LENGTH_PIVOT = 25;
 
 	/** Default fulltext ranking weight; every matching place contributes equally. */
-	float DEFAULT_SEARCH_WEIGHT = 1.0f;
+	BigDecimal DEFAULT_SEARCH_WEIGHT = BigDecimal.ONE;
 
 	/**
-	 * Canonicalizes a ranking weight so both signs of zero have the same stored representation.
-	 * Validation of finite, non-negative values remains part of assembled-schema validation.
+	 * Canonicalizes a schema weight and checks that the engine can represent a nonzero ranking contribution.
 	 *
-	 * @param weight the supplied ranking weight
-	 * @return positive zero for either zero, otherwise the supplied weight
+	 * @param weight supplied decimal weight
+	 * @param place attribute, associated data or reference named in a refusal
+	 * @return the canonical decimal, with zero preserved explicitly
+	 * @throws InvalidSchemaMutationException when the decimal bounds or the engine float range are exceeded
 	 */
-	static float normalizeSearchWeight(float weight) {
-		// IEEE 754 addition: -0.0f + 0.0f is +0.0f, while every other value - NaN and the infinities included - is
-		// returned unchanged, so this is not a no-op that can be simplified away
-		return weight + 0.0f;
+	@Nonnull
+	static BigDecimal normalizeSearchWeight(@Nonnull BigDecimal weight, @Nonnull String place) {
+		final BigDecimal normalized;
+		try {
+			normalized = TextPlaceWeightSupport.normalize(weight);
+		} catch (EvitaInvalidUsageException ex) {
+			throw new InvalidSchemaMutationException(place + " search weight: " + ex.getMessage());
+		}
+		final float engineWeight = normalized.floatValue();
+		if (!Float.isFinite(engineWeight) || (normalized.signum() != 0 && engineWeight == 0f)) {
+			throw new InvalidSchemaMutationException(place + " search weight exceeds the engine float range!");
+		}
+		return normalized;
 	}
 
 	/**
@@ -436,13 +450,17 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	int getLengthPivot();
 
 	/**
-	 * Returns the fulltext ranking weight of this attribute. The value must be finite and
-	 * non-negative. Zero preserves matches while contributing no ranking strength. This setting applies in every
+	 * Returns the fulltext ranking weight of this attribute.
+	 * Zero preserves matches while contributing no ranking strength. This setting applies in every
 	 * scope and changing it does not rebuild the fulltext field.
+	 *
+	 * Equal decimal values share one representation. Weights must be non-negative, use at most 100 significant
+	 * digits and have a stripped scale within [-100, 100]. Nonzero values must convert to a finite, nonzero float.
 	 *
 	 * @return the ranking weight, {@link AttributeSchemaContract#DEFAULT_SEARCH_WEIGHT} unless declared otherwise
 	 */
-	float getSearchWeight();
+	@Nonnull
+	BigDecimal getSearchWeight();
 
 	/**
 	 * Collects the schema-consistency errors of this attribute, one message per problem, **without throwing**.
@@ -509,14 +527,10 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				errors, Stream.of("Attribute `" + getName() + "` names a blank fulltext analyzer.")
 			);
 		}
-		if (!Float.isFinite(getSearchWeight()) || getSearchWeight() < 0) {
-			errors = Stream.concat(
-				errors,
-				Stream.of(
-					"Attribute `" + getName() + "` declares the search weight " + getSearchWeight() +
-						"! The search weight must be finite and non-negative."
-				)
-			);
+		try {
+			AttributeSchemaContract.normalizeSearchWeight(getSearchWeight(), "Attribute `" + getName() + "`");
+		} catch (InvalidSchemaMutationException ex) {
+			errors = Stream.concat(errors, Stream.of(ex.getMessage()));
 		}
 
 		if (getLengthPivot() <= 0) {

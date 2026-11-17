@@ -23,6 +23,7 @@
 
 package io.evitadb.api.functional.schema;
 
+import java.math.BigDecimal;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
@@ -60,6 +61,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.schema.ReferenceSearchMode.COMPOSITION;
@@ -140,11 +142,14 @@ class ReferenceSearchableThroughSchemaTest implements EvitaTestSupport {
 		});
 	}
 
-	/** Invalid weights are rejected before a schema mutation reaches storage. */
+	/**
+	 * Invalid weights are rejected before a schema mutation reaches storage.
+	 * @param weight decimal ranking contribution supplied by this case
+	 */
 	@ParameterizedTest
-	@ValueSource(floats = {Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, -0.1f})
+	@ValueSource(strings = {"1E+39", "1E-100", "1E-101", "-0.1"})
 	@DisplayName("should refuse a non-finite or negative weight immediately")
-	void shouldRefuseInvalidWeightsImmediately(float weight) {
+	void shouldRefuseInvalidWeightsImmediately(BigDecimal weight) {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(BLOCK).updateVia(session);
 			final InvalidSchemaMutationException error = assertThrows(InvalidSchemaMutationException.class,
@@ -152,7 +157,7 @@ class ReferenceSearchableThroughSchemaTest implements EvitaTestSupport {
 					.withReferenceToEntity(BLOCKS, BLOCK, Cardinality.ZERO_OR_MORE,
 						reference -> reference.indexedForFiltering().searchableThrough(COMPOSITION, weight))
 					.updateVia(session));
-			assertTrue(error.getMessage().contains("finite and non-negative"), error.getMessage());
+			assertTrue(error.getMessage().contains("weight"), error.getMessage());
 			assertTrue(error.getMessage().contains(BLOCKS), error.getMessage());
 		});
 	}
@@ -198,20 +203,20 @@ class ReferenceSearchableThroughSchemaTest implements EvitaTestSupport {
 				session.getEntitySchemaOrThrow(BLOCK).getReference(PRODUCTS).orElseThrow());
 			assertEquals(COMPOSITION, original.getSearchableThrough());
 			assertTrue(reflected.getSearchableThroughInScopes().isEmpty());
-			assertEquals(0.5f, reflected.getSearchableThroughWeight());
+			assertEquals(valueOf(0.5), reflected.getSearchableThroughWeight());
 			return null;
 		});
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getEntitySchemaOrThrow(BLOCK).openForWrite()
 				.withReflectedReferenceToEntity(PRODUCTS, PRODUCT, BLOCKS,
-					reference -> reference.searchableThroughInScope(COMPOSITION, 0f, Scope.ARCHIVED)
+					reference -> reference.searchableThroughInScope(COMPOSITION, valueOf(0), Scope.ARCHIVED)
 					.withDescription("Referenced products").deprecated("Explicit composition"))
 				.updateVia(session);
 		});
 		this.evita.close();
 		this.evita = new Evita(configuration(this.paths));
 		this.evita.waitUntilFullyInitialized();
-		assertComposedSettings(this.evita, 0.75f, 0f);
+		assertComposedSettings(this.evita, valueOf(0.75), valueOf(0));
 	}
 
 	/** A reflected editor rejects its own invalid weight before updateVia returns. */
@@ -223,8 +228,9 @@ class ReferenceSearchableThroughSchemaTest implements EvitaTestSupport {
 			final InvalidSchemaMutationException error = assertThrows(InvalidSchemaMutationException.class,
 				() -> session.getEntitySchemaOrThrow(BLOCK).openForWrite()
 					.withReflectedReferenceToEntity(PRODUCTS, PRODUCT, BLOCKS,
-						reference -> reference.searchableThrough(COMPOSITION, Float.NaN)).updateVia(session));
-			assertTrue(error.getMessage().contains("finite and non-negative"), error.getMessage());
+						reference -> reference.searchableThrough(COMPOSITION, new BigDecimal("1E+39")))
+					.updateVia(session));
+			assertTrue(error.getMessage().contains("weight"), error.getMessage());
 		});
 	}
 
@@ -316,7 +322,7 @@ class ReferenceSearchableThroughSchemaTest implements EvitaTestSupport {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(BLOCK)
 				.withReflectedReferenceToEntity(PRODUCTS, PRODUCT, BLOCKS,
-					reference -> reference.searchableThrough(COMPOSITION, 0.7f)).updateVia(session);
+					reference -> reference.searchableThrough(COMPOSITION, valueOf(0.7))).updateVia(session);
 			session.defineEntitySchema(PRODUCT)
 				.withReferenceToEntity(BLOCKS, BLOCK, Cardinality.ZERO_OR_MORE,
 					reference -> reference.indexedForFiltering()).updateVia(session);
@@ -325,7 +331,7 @@ class ReferenceSearchableThroughSchemaTest implements EvitaTestSupport {
 			final ReferenceSchemaContract reflected = session.getEntitySchemaOrThrow(BLOCK)
 				.getReferenceOrThrowException(PRODUCTS);
 			assertEquals(COMPOSITION, reflected.getSearchableThrough());
-			assertEquals(0.7f, reflected.getSearchableThroughWeight());
+			assertEquals(valueOf(0.7), reflected.getSearchableThroughWeight());
 			assertTrue(reflected.isIndexed());
 		});
 	}
@@ -386,21 +392,22 @@ class ReferenceSearchableThroughSchemaTest implements EvitaTestSupport {
 			session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
 				.withReferenceToEntity(BLOCKS, BLOCK, Cardinality.ZERO_OR_MORE,
 					reference -> reference.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
-						.searchableThroughInScope(COMPOSITION, 0.75f, Scope.LIVE, Scope.ARCHIVED))
+						.searchableThroughInScope(COMPOSITION, valueOf(0.75), Scope.LIVE, Scope.ARCHIVED))
 				.updateVia(session);
 			session.getEntitySchemaOrThrow(BLOCK).openForWrite()
 				.withReflectedReferenceToEntity(PRODUCTS, PRODUCT, BLOCKS,
-					reference -> reference.searchableThroughInScope(COMPOSITION, 0.125f, Scope.ARCHIVED))
+					reference -> reference.searchableThroughInScope(COMPOSITION, valueOf(0.125), Scope.ARCHIVED))
 				.updateVia(session);
 		});
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
 				.withReferenceToEntity(BLOCKS, BLOCK, Cardinality.ZERO_OR_MORE,
-					reference -> reference.searchableThroughInScope(COMPOSITION, 1.25f, Scope.LIVE, Scope.ARCHIVED))
+					reference -> reference.searchableThroughInScope(
+						COMPOSITION, valueOf(1.25), Scope.LIVE, Scope.ARCHIVED))
 				.updateVia(session);
 			session.getEntitySchemaOrThrow(BLOCK).openForWrite()
 				.withReflectedReferenceToEntity(PRODUCTS, PRODUCT, BLOCKS,
-					reference -> reference.searchableThroughInScope(COMPOSITION, 0.25f, Scope.ARCHIVED))
+					reference -> reference.searchableThroughInScope(COMPOSITION, valueOf(0.25), Scope.ARCHIVED))
 				.updateVia(session);
 		});
 		final Catalog catalog = catalog(this.evita);
@@ -420,7 +427,7 @@ class ReferenceSearchableThroughSchemaTest implements EvitaTestSupport {
 			}
 			try (final Evita recovered = new Evita(configuration(recoveryPaths))) {
 				recovered.waitUntilFullyInitialized();
-				assertComposedSettings(recovered, 1.25f, 0.25f);
+				assertComposedSettings(recovered, valueOf(1.25), valueOf(0.25));
 			}
 		} finally {
 			cleanupTestPaths(recoveryPaths);
@@ -478,7 +485,7 @@ class ReferenceSearchableThroughSchemaTest implements EvitaTestSupport {
 		final long contentFingerprint = blockText.getIndexFingerprint(contentId);
 		final byte[] titleImpacts = impactsOf(productText, titleId, "green");
 		final byte[] contentImpacts = impactsOf(blockText, contentId, "amber");
-		for (final float weight : new float[]{0.5f, 2f, 0f}) {
+		for (final BigDecimal weight : new BigDecimal[]{valueOf(0.5), valueOf(2), valueOf(0)}) {
 			this.evita.updateCatalog(TEST_CATALOG, session -> {
 				session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
 					.withReferenceToEntity(BLOCKS, BLOCK, Cardinality.ZERO_OR_MORE,
@@ -521,7 +528,7 @@ class ReferenceSearchableThroughSchemaTest implements EvitaTestSupport {
 			session.defineEntitySchema(PRODUCT).withoutGeneratedPrimaryKey()
 				.withReferenceToEntity(BLOCKS, BLOCK, Cardinality.ZERO_OR_MORE,
 					reference -> reference.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
-						.searchableThroughInScope(COMPOSITION, 0.75f, Scope.LIVE, Scope.ARCHIVED))
+						.searchableThroughInScope(COMPOSITION, valueOf(0.75), Scope.LIVE, Scope.ARCHIVED))
 				.updateVia(session);
 			session.getEntitySchemaOrThrow(BLOCK).openForWrite()
 				.withReflectedReferenceToEntity(PRODUCTS, PRODUCT, BLOCKS).updateVia(session);
@@ -549,8 +556,13 @@ class ReferenceSearchableThroughSchemaTest implements EvitaTestSupport {
 		assertTrue(error.getMessage().contains(scope), error.getMessage());
 	}
 
-	/** Verifies normal and reflected settings after loading actual storage. */
-	private static void assertComposedSettings(Evita engine, float originalWeight, float reflectedWeight) {
+	/**
+	 * Verifies normal and reflected settings after loading actual storage.
+	 * @param engine engine reopened from the persisted schema and WAL
+	 * @param originalWeight expected ranking contribution of the normal reference
+	 * @param reflectedWeight expected independent ranking contribution of the reflected reference
+	 */
+	private static void assertComposedSettings(Evita engine, BigDecimal originalWeight, BigDecimal reflectedWeight) {
 		engine.queryCatalog(TEST_CATALOG, session -> {
 			final ReferenceSchemaContract original = session.getEntitySchemaOrThrow(PRODUCT)
 				.getReference(BLOCKS).orElseThrow();

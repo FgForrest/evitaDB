@@ -135,7 +135,7 @@ public class CreateReflectedReferenceSchemaMutationConverter
 			),
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER),
 			readSearchableThrough(input),
-			readSearchWeight(input, CreateReflectedReferenceSchemaMutationDescriptor.SEARCHABLE_THROUGH_WEIGHT)
+			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.SEARCHABLE_THROUGH_WEIGHT)
 		);
 	}
 

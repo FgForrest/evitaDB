@@ -55,9 +55,9 @@ public interface SetReferenceSchemaSearchableThroughMutationDescriptor extends R
 	PropertyDescriptor WEIGHT = PropertyDescriptor.builder()
 		.name("weight")
 		.description("""
-			Ranking strength of text composed through the reference, shared by all scopes; it must be finite and
-			non-negative. Zero is valid: matches are kept but add no ranking strength. Omission keeps the current
-			weight.
+			Ranking strength of text composed through the reference, shared by all scopes; it must be non-negative,
+			have at most 100 significant digits and a stripped scale between -100 and 100, and fit the engine float
+			range. Zero keeps matches but adds no ranking strength. Omission keeps the current weight.
 			""")
 		.type(nullable(BigDecimal.class))
 		.build();

@@ -60,13 +60,12 @@ public class SetReferenceSchemaSearchableThroughMutationConverter
 		return new SetReferenceSchemaSearchableThroughMutation(
 			input.getProperty(SetReferenceSchemaSearchableThroughMutationDescriptor.NAME),
 			readSearchableThrough(input),
-			readSearchWeight(input, SetReferenceSchemaSearchableThroughMutationDescriptor.WEIGHT)
+			input.getProperty(SetReferenceSchemaSearchableThroughMutationDescriptor.WEIGHT)
 		);
 	}
 
 	/**
-	 * Writes the shared weight as a decimal before reflection reaches it, because {@link Output} cannot serialize a
-	 * `Float`; reflection then fills in the composition modes.
+	 * Writes the shared decimal weight; reflection then fills in the composition modes.
 	 *
 	 * @param mutation the mutation to serialize
 	 * @param output the output receiving the properties

@@ -81,11 +81,13 @@ import java.io.Serializable;
  * - `referenceWeight` weighs the attributes of one reference and, through `entityWeight`, the places of its target
  *   collection that the query searches through composition
  *
- * The weights are checked during planning, before any index is read, and a violation refuses the query:
+ * Each `attributeWeight` and `associatedDataWeight` refuses a negative weight or one beyond the decimal
+ * representation bounds when it is constructed. The other checks run during planning, before any index is read,
+ * and a violation refuses the query:
  *
  * - every weighted place must exist and be searchable in every scope this ordering covers; enclosing ordering
  *   `inScope` containers narrow the query scopes, just as for filterable and sortable attributes
- * - weights must be nonnegative and fit the internal float; one `relevanceText` may weight each place only once
+ * - weights must fit the internal float; one `relevanceText` may weight each place only once
  * - each `relevanceText` has its own weights, so segments and ordering `inScope` containers can rank differently
  * - when scoring text is in reach, each weighted place must be searched by a scoring `textMatches` of the main
  *   filter or this segment's predicate; text used only by hierarchy predicates or other segments does not count

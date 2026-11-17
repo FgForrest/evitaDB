@@ -2368,11 +2368,13 @@ public interface QueryConstraints {
 	 * - `referenceWeight` weighs the attributes of one reference and, through `entityWeight`, the places of its target
 	 *   collection that the query searches through composition
 	 *
-	 * The weights are checked during planning, before any index is read, and a violation refuses the query:
+	 * Each `attributeWeight` and `associatedDataWeight` refuses a negative weight or one beyond the decimal
+	 * representation bounds when it is constructed. The other checks run during planning, before any index is read,
+	 * and a violation refuses the query:
 	 *
 	 * - every weighted place must exist and be searchable in every scope this ordering covers; enclosing ordering
 	 *   `inScope` containers narrow the query scopes, just as for filterable and sortable attributes
-	 * - weights must be nonnegative and fit the internal float; one `relevanceText` may weight each place only once
+	 * - weights must fit the internal float; one `relevanceText` may weight each place only once
 	 * - each `relevanceText` has its own weights, so segments and ordering `inScope` containers can rank differently
 	 * - when scoring text is in reach, each weighted place must be searched by a scoring `textMatches` of the main
 	 *   filter or this segment's predicate; text used only by hierarchy predicates or other segments does not count
@@ -2418,11 +2420,12 @@ public interface QueryConstraints {
 	 *
 	 * The attribute must exist at its level and be searchable in every scope the enclosing `relevanceText` covers;
 	 * narrow the ordering with `inScope` to cover fewer scopes. Zero keeps matches and quality but gives no strength.
-	 * Negative weights and values that overflow or underflow the internal float are refused during planning.
 	 * The weight is a non-null `BigDecimal`, normalized so scale does not affect equality or plain decimal printing.
 	 * The name must be non-null and non-blank.
-	 * Construction requires at most 100 significant digits and a stripped scale between -100 and 100. Bounds are
-	 * checked before rescaling; diagnostics never expand an unsupported value.
+	 * Construction refuses a negative weight, more than 100 significant digits and a stripped scale outside -100 to
+	 * 100. Bounds are checked before rescaling; diagnostics never expand an unsupported value. Planning refuses float
+	 * overflow and underflow, places the schema does not make searchable in a covered scope and, when scoring text is
+	 * in reach, places no scoring `textMatches` searches.
 	 *
 	 * ```evitaql
 	 * relevanceText(
@@ -2433,10 +2436,11 @@ public interface QueryConstraints {
 	 *
 	 * @param attributeName searchable attribute at the level of the enclosing constraint, non-null and
 	 *                       non-blank
-	 * @param weight non-null replacement decimal, validated for the internal float during planning
+	 * @param weight non-null, non-negative replacement decimal within the construction bounds; its float range is
+	 *               checked during planning
 	 * @return the place weight
-	 * @throws EvitaInvalidUsageException when the name is null or blank, the weight is null, or its representation
-	 * exceeds the construction bounds
+	 * @throws EvitaInvalidUsageException when the name is null or blank, the weight is null or negative, or its
+	 * representation exceeds the construction bounds
 	 * @see io.evitadb.api.query.order.AttributeWeight
 	 */
 	@Nonnull
@@ -2453,11 +2457,12 @@ public interface QueryConstraints {
 	 * The associated data must exist at its level and be searchable in every scope the enclosing `relevanceText`
 	 * covers; narrow the ordering with `inScope` to cover fewer scopes. Zero keeps matches and quality but gives no
 	 * strength.
-	 * Negative weights and values that overflow or underflow the internal float are refused during planning. The weight
-	 * is a non-null `BigDecimal`, normalized so scale does not affect equality or plain decimal printing. The name must
-	 * be non-null and non-blank.
-	 * Construction requires at most 100 significant digits and a stripped scale between -100 and 100. Bounds are
-	 * checked before rescaling; diagnostics never expand an unsupported value.
+	 * The weight is a non-null `BigDecimal`, normalized so scale does not affect equality or plain decimal printing.
+	 * The name must be non-null and non-blank.
+	 * Construction refuses a negative weight, more than 100 significant digits and a stripped scale outside -100 to
+	 * 100. Bounds are checked before rescaling; diagnostics never expand an unsupported value. Planning refuses float
+	 * overflow and underflow, places the schema does not make searchable in a covered scope and, when scoring text is
+	 * in reach, places no scoring `textMatches` searches.
 	 *
 	 * ```evitaql
 	 * relevanceText(
@@ -2467,10 +2472,11 @@ public interface QueryConstraints {
 	 *
 	 * @param associatedDataName searchable associated data at the level of the enclosing constraint,
 	 *                            non-null and non-blank
-	 * @param weight non-null replacement decimal, validated for the internal float during planning
+	 * @param weight non-null, non-negative replacement decimal within the construction bounds; its float range is
+	 *               checked during planning
 	 * @return the place weight
-	 * @throws EvitaInvalidUsageException when the name is null or blank, the weight is null, or its representation
-	 * exceeds the construction bounds
+	 * @throws EvitaInvalidUsageException when the name is null or blank, the weight is null or negative, or its
+	 * representation exceeds the construction bounds
 	 * @see io.evitadb.api.query.order.AssociatedDataWeight
 	 */
 	@Nonnull
@@ -2491,7 +2497,9 @@ public interface QueryConstraints {
 	 * is refused. The reference name must be non-null and non-blank.
 	 *
 	 * Child weights are non-null `BigDecimal` values with scale-independent equality and plain decimal printing.
-	 * Planning refuses negative weights and values that overflow or underflow the internal float.
+	 * Each leaf weight refuses a negative value or one beyond the decimal representation bounds when it is
+	 * constructed, before this container exists. Planning refuses float overflow and underflow, together with the
+	 * schema and searched-place requirements.
 	 *
 	 * ```evitaql
 	 * relevanceText(
@@ -2527,7 +2535,9 @@ public interface QueryConstraints {
 	 * the ordering with `inScope` to cover fewer scopes. A container without child weights is refused during planning.
 	 *
 	 * Child weights are non-null `BigDecimal` values with scale-independent equality and plain decimal printing.
-	 * Planning refuses negative weights and values that overflow or underflow the internal float.
+	 * Each leaf weight refuses a negative value or one beyond the decimal representation bounds when it is
+	 * constructed, before this container exists. Planning refuses float overflow and underflow, together with the
+	 * schema and searched-place requirements.
 	 *
 	 * ```evitaql
 	 * referenceWeight(

@@ -24,6 +24,7 @@
 
 package io.evitadb.api.functional.schema;
 
+import java.math.BigDecimal;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.RollbackException;
@@ -34,9 +35,11 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -50,13 +53,16 @@ import org.junit.jupiter.params.provider.ValueSource;
 import javax.annotation.Nonnull;
 import java.util.Locale;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.htmlStrip;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -114,7 +120,8 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 					.withAttribute(
 						ATTRIBUTE_TITLE, String.class,
 						whichIs ->
-							whichIs.localized().searchable().analyzer(ANALYZER_TITLES).lengthPivot(8).searchWeight(2.5f)
+							whichIs.localized().searchable().analyzer(ANALYZER_TITLES)
+						.lengthPivot(8).searchWeight(valueOf(2.5))
 					)
 					.updateVia(session);
 				session.defineEntitySchema(Entities.PRODUCT)
@@ -126,7 +133,7 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 						ATTRIBUTE_NAME, String.class,
 						whichIs ->
 							whichIs.localized().analyzer(ANALYZER_TITLES)
-								.lengthPivot(12).searchWeight(3.0f).searchable()
+								.lengthPivot(12).searchWeight(valueOf(3)).searchable()
 					)
 					.withAttribute(
 						ATTRIBUTE_DESCRIPTION, String.class, whichIs -> whichIs.localized().nullable().searchable()
@@ -134,14 +141,15 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 					.withAssociatedData(
 						ASSOCIATED_DATA_BODY, String.class,
 						whichIs -> whichIs.localized().nullable().searchable()
-							.analyzer(FulltextAnalyzerSchemaContract.HTML_TEXT).lengthPivot(400).searchWeight(0.0f)
+							.analyzer(FulltextAnalyzerSchemaContract.HTML_TEXT).lengthPivot(400)
+						.searchWeight(valueOf(0))
 					)
 					.withReferenceTo(
 						REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedForFiltering().withAttribute(
 							ATTRIBUTE_BRAND_NAME, String.class,
 							thatIs -> thatIs.localized().nullable().searchable()
-								.analyzer(FulltextAnalyzerSchemaContract.HTML_TEXT).searchWeight(4.0f)
+								.analyzer(FulltextAnalyzerSchemaContract.HTML_TEXT).searchWeight(valueOf(4))
 						)
 					)
 					.updateVia(session);
@@ -153,26 +161,26 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 		final AttributeSchemaContract title = catalogSchema().getAttribute(ATTRIBUTE_TITLE).orElseThrow();
 		assertEquals(ANALYZER_TITLES, title.getAnalyzer());
 		assertEquals(8, title.getLengthPivot());
-		assertEquals(2.5f, title.getSearchWeight());
+		assertEquals(valueOf(2.5), title.getSearchWeight());
 		final EntitySchemaContract schema = productSchema();
 		final AttributeSchemaContract name = schema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
 		assertTrue(name.isSearchable());
 		assertEquals(ANALYZER_TITLES, name.getAnalyzer());
 		assertEquals(12, name.getLengthPivot());
-		assertEquals(3.0f, name.getSearchWeight());
+		assertEquals(valueOf(3), name.getSearchWeight());
 		final AttributeSchemaContract description = schema.getAttribute(ATTRIBUTE_DESCRIPTION).orElseThrow();
 		assertEquals(FulltextAnalyzerSchemaContract.TEXT, description.getAnalyzer());
 		assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, description.getLengthPivot());
-		assertEquals(1.0f, description.getSearchWeight());
+		assertEquals(valueOf(1), description.getSearchWeight());
 		final AssociatedDataSchemaContract body = schema.getAssociatedData(ASSOCIATED_DATA_BODY).orElseThrow();
 		assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, body.getAnalyzer());
 		assertEquals(400, body.getLengthPivot());
-		assertEquals(0.0f, body.getSearchWeight());
+		assertEquals(valueOf(0), body.getSearchWeight());
 		final AttributeSchemaContract brandName = schema.getReference(REFERENCE_BRAND).orElseThrow()
 			.getAttribute(ATTRIBUTE_BRAND_NAME).orElseThrow();
 		assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, brandName.getAnalyzer());
 		assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, brandName.getLengthPivot());
-		assertEquals(4.0f, brandName.getSearchWeight());
+		assertEquals(valueOf(4), brandName.getSearchWeight());
 	}
 
 	@Test
@@ -337,11 +345,16 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 		}
 	}
 
-	/** Weight validation follows the pivot's assembled-schema validation for searchable and ordinary places. */
+	/**
+	 * Weight validation follows the pivot's assembled-schema validation for searchable and ordinary places.
+	 * @param weight decimal ranking contribution supplied by this case
+	 */
 	@ParameterizedTest
-	@ValueSource(floats = {-1.0f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY})
+	@ValueSource(strings = {"-1", "1E+39", "1E-100", "1E-101", "1E+101",
+		"1.234567890123456789012345678901234567890123456789012345678901234567890" +
+		"12345678901234567890123456789012345678"})
 	@DisplayName("should refuse invalid ranking weights with the place name and value")
-	void shouldRefuseInvalidSearchWeights(float weight) {
+	void shouldRefuseInvalidSearchWeights(BigDecimal weight) {
 		defineProductWithoutAttributes();
 		for (final boolean searchable : new boolean[]{false, true}) {
 			for (final String place : new String[]{
@@ -375,7 +388,6 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 					})
 				);
 				assertTrue(refusal.getMessage().contains("`" + place + "`"), refusal.getMessage());
-				assertTrue(refusal.getMessage().contains(Float.toString(weight)), refusal.getMessage());
 			}
 		}
 	}
@@ -386,12 +398,12 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 	void shouldRetainSearchWeightsThroughReconstruction() {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getCatalogSchema().openForWrite()
-				.withAttribute(ATTRIBUTE_TITLE, String.class, a -> a.searchWeight(2.5f)).updateVia(session);
+				.withAttribute(ATTRIBUTE_TITLE, String.class, a -> a.searchWeight(valueOf(2.5))).updateVia(session);
 			session.defineEntitySchema(Entities.PRODUCT)
-				.withAttribute(ATTRIBUTE_NAME, String.class, a -> a.searchWeight(3.5f))
-				.withAssociatedData(ASSOCIATED_DATA_BODY, String.class, a -> a.searchWeight(4.5f))
+				.withAttribute(ATTRIBUTE_NAME, String.class, a -> a.searchWeight(valueOf(3.5)))
+				.withAssociatedData(ASSOCIATED_DATA_BODY, String.class, a -> a.searchWeight(valueOf(4.5)))
 				.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-					r -> r.withAttribute(ATTRIBUTE_BRAND_NAME, String.class, a -> a.searchWeight(5.5f)))
+					r -> r.withAttribute(ATTRIBUTE_BRAND_NAME, String.class, a -> a.searchWeight(valueOf(5.5))))
 				.updateVia(session);
 		});
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
@@ -406,21 +418,22 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 					a -> a.withDescription("body description").deprecated("old body").nullable())
 				.updateVia(session);
 		});
-		assertEquals(2.5f, catalogSchema().getAttribute(ATTRIBUTE_TITLE).orElseThrow().getSearchWeight());
-		assertEquals(3.5f, productSchema().getAttribute(ATTRIBUTE_NAME).orElseThrow().getSearchWeight());
-		assertEquals(4.5f, productSchema().getAssociatedData(ASSOCIATED_DATA_BODY).orElseThrow().getSearchWeight());
-		assertEquals(2.5f, new ModifyAttributeSchemaNameMutation(
+		assertEquals(valueOf(2.5), catalogSchema().getAttribute(ATTRIBUTE_TITLE).orElseThrow().getSearchWeight());
+		assertEquals(valueOf(3.5), productSchema().getAttribute(ATTRIBUTE_NAME).orElseThrow().getSearchWeight());
+		assertEquals(valueOf(4.5),
+			productSchema().getAssociatedData(ASSOCIATED_DATA_BODY).orElseThrow().getSearchWeight());
+		assertEquals(valueOf(2.5), new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_TITLE, "renamedTitle").mutate(null, catalogSchema().getAttribute(ATTRIBUTE_TITLE).orElseThrow(),
 				AttributeSchemaContract.class).getSearchWeight());
-		assertEquals(3.5f, new ModifyAttributeSchemaNameMutation(
+		assertEquals(valueOf(3.5), new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_NAME, "renamedName").mutate(null, productSchema().getAttribute(ATTRIBUTE_NAME).orElseThrow(),
 				AttributeSchemaContract.class).getSearchWeight());
-		assertEquals(5.5f, new ModifyAttributeSchemaNameMutation(
+		assertEquals(valueOf(5.5), new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_BRAND_NAME, "renamedBrandName").mutate(null,
 				productSchema().getReference(REFERENCE_BRAND).orElseThrow()
 					.getAttribute(ATTRIBUTE_BRAND_NAME).orElseThrow(),
 				AttributeSchemaContract.class).getSearchWeight());
-		assertEquals(4.5f,
+		assertEquals(valueOf(4.5),
 			new ModifyAssociatedDataSchemaNameMutation(
 				ASSOCIATED_DATA_BODY, "renamedBody").mutate(
 					productSchema().getAssociatedData(ASSOCIATED_DATA_BODY).orElseThrow()).getSearchWeight());
@@ -432,23 +445,47 @@ class FulltextFieldSettingsSchemaTest implements EvitaTestSupport {
 	void shouldCanonicalizeZeroThroughEditors() {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getCatalogSchema().openForWrite()
-				.withAttribute(ATTRIBUTE_TITLE, String.class, a -> a.searchWeight(-0.0f)).updateVia(session);
+				.withAttribute(ATTRIBUTE_TITLE, String.class, a -> a.searchWeight(valueOf(0))).updateVia(session);
 			session.defineEntitySchema(Entities.PRODUCT)
-				.withAttribute(ATTRIBUTE_NAME, String.class, a -> a.searchWeight(-0.0f))
-				.withAssociatedData(ASSOCIATED_DATA_BODY, String.class, a -> a.searchWeight(-0.0f))
+				.withAttribute(ATTRIBUTE_NAME, String.class, a -> a.searchWeight(valueOf(0)))
+				.withAssociatedData(ASSOCIATED_DATA_BODY, String.class, a -> a.searchWeight(valueOf(0)))
 				.withReferenceTo(REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-					r -> r.withAttribute(ATTRIBUTE_BRAND_NAME, String.class, a -> a.searchWeight(-0.0f)))
+					r -> r.withAttribute(ATTRIBUTE_BRAND_NAME, String.class, a -> a.searchWeight(valueOf(0))))
 				.updateVia(session);
 		});
 		final EntitySchemaContract product = productSchema();
-		for (final float weight : new float[] {
+		for (final BigDecimal weight : new BigDecimal[] {
 			catalogSchema().getAttribute(ATTRIBUTE_TITLE).orElseThrow().getSearchWeight(),
 			product.getAttribute(ATTRIBUTE_NAME).orElseThrow().getSearchWeight(),
 			product.getAssociatedData(ASSOCIATED_DATA_BODY).orElseThrow().getSearchWeight(),
 			product.getReference(REFERENCE_BRAND).orElseThrow()
 				.getAttribute(ATTRIBUTE_BRAND_NAME).orElseThrow().getSearchWeight()
 		}) {
-			assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(weight));
+			assertEquals(valueOf(0), weight);
 		}
+	}
+
+	/** A null weight is refused like a null analyzer, never read as an instruction to keep the current weight. */
+	@Test
+	@DisplayName("should refuse a null search weight in every builder method that takes one")
+	void shouldRefuseNullSearchWeightWhenSetThroughBuilder() {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			final EntitySchemaBuilder builder = session.defineEntitySchema(Entities.PRODUCT);
+			assertAll(
+				() -> assertThrowsExactly(EvitaInvalidUsageException.class, () -> session.getCatalogSchema()
+					.openForWrite().withAttribute(ATTRIBUTE_TITLE, String.class, a -> a.searchWeight(null))),
+				() -> assertThrowsExactly(EvitaInvalidUsageException.class,
+					() -> builder.withAttribute(ATTRIBUTE_NAME, String.class, a -> a.searchWeight(null))),
+				() -> assertThrowsExactly(EvitaInvalidUsageException.class,
+					() -> builder.withAssociatedData(ASSOCIATED_DATA_BODY, String.class, a -> a.searchWeight(null))),
+				() -> assertThrowsExactly(EvitaInvalidUsageException.class, () -> builder.withReferenceTo(
+					REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+					r -> r.withAttribute(ATTRIBUTE_BRAND_NAME, String.class, a -> a.searchWeight(null)))),
+				// no scope supplied, so the call changes only the weight and no requirement check can intervene
+				() -> assertThrowsExactly(EvitaInvalidUsageException.class, () -> builder.withReferenceTo(
+					REFERENCE_BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+					r -> r.searchableThroughInScope(ReferenceSearchMode.COMPOSITION, (BigDecimal) null)))
+			);
+		});
 	}
 }

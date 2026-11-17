@@ -60,6 +60,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
@@ -83,7 +84,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	/** Search modes declared on this reference, independently of reflected originals. */
 	@Getter @Nonnull protected final Map<Scope, ReferenceSearchMode> searchableThroughInScopes;
 	/** Ranking weight shared by all scopes, even when no mode is declared. */
-	@Getter protected final float searchableThroughWeight;
+	@Getter @Nonnull protected final BigDecimal searchableThroughWeight;
 	/**
 	 * Reference name distinguishing relations of the same target type.
 	 */
@@ -658,7 +659,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable Scope[] facetedInScopes,
 		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
-		float searchableThroughWeight
+		@Nonnull BigDecimal searchableThroughWeight
 	) {
 		return _internalBuild(
 			name, NamingConvention.generate(name),
@@ -738,7 +739,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
-		float searchableThroughWeight
+		@Nonnull BigDecimal searchableThroughWeight
 	) {
 		return new ReferenceSchema(
 			name, nameVariants,
@@ -815,7 +816,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
-		float searchableThroughWeight
+		@Nonnull BigDecimal searchableThroughWeight
 	) {
 		validateEntityTypeClassifiers(entityType, groupType);
 
@@ -1135,7 +1136,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
-		float searchableThroughWeight
+		@Nonnull BigDecimal searchableThroughWeight
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
 		this.name = name;
@@ -1146,7 +1147,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		this.searchableThroughInScopes = searchableThroughInScopes == null
 			? Collections.emptyMap()
 			: CollectionUtils.toUnmodifiableMap(searchableThroughInScopes);
-		this.searchableThroughWeight = AttributeSchemaContract.normalizeSearchWeight(searchableThroughWeight);
+		this.searchableThroughWeight = AttributeSchemaContract.normalizeSearchWeight(
+			searchableThroughWeight, "Reference `" + name + "`"
+		);
 		this.cardinality = cardinality == null ? Cardinality.ZERO_OR_MORE : cardinality;
 		this.referencedEntityType = referencedEntityType;
 		this.entityTypeNameVariants = Collections.unmodifiableMap(entityTypeNameVariants);
@@ -1276,12 +1279,12 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 				"! Searchable-through references must target a managed entity type and be indexed with " +
 				"`REFERENCED_ENTITY` in every declared scope."
 		);
-		if (!Float.isFinite(this.searchableThroughWeight) || this.searchableThroughWeight < 0) {
-			errors = Stream.concat(errors, Stream.of(
-				"Reference `" + this.name + "` of entity `" + entityType +
-					"` declares the search weight " + this.searchableThroughWeight +
-					"! The search weight must be finite and non-negative."
-			));
+		try {
+			AttributeSchemaContract.normalizeSearchWeight(
+				this.searchableThroughWeight, "Reference `" + this.name + "`"
+			);
+		} catch (InvalidSchemaMutationException ex) {
+			errors = Stream.concat(errors, Stream.of(ex.getMessage()));
 		}
 		return errors;
 	}
@@ -1294,7 +1297,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 * @return updated immutable reference schema
 	 */
 	@Nonnull
-	public ReferenceSchema withSearchableThrough(@Nonnull Map<Scope, ReferenceSearchMode> modes, float weight) {
+	public ReferenceSchema withSearchableThrough(
+		@Nonnull Map<Scope, ReferenceSearchMode> modes, @Nonnull BigDecimal weight
+	) {
 		return _internalBuild(
 			this.name, this.nameVariants, this.description, this.deprecationNotice, this.cardinality,
 			this.referencedEntityType, this.entityTypeNameVariants, this.referencedEntityTypeManaged,
@@ -1683,11 +1688,15 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		);
 	}
 
+	/**
+	 * Hashes the schema definition, including its canonical decimal composition weight.
+	 * @return a hash consistent with definition equality
+	 */
 	@Override
 	public int hashCode() {
 		int result = this.name.hashCode();
 		result = 31 * result + this.searchableThroughInScopes.hashCode();
-		result = 31 * result + Float.hashCode(this.searchableThroughWeight);
+		result = 31 * result + this.searchableThroughWeight.hashCode();
 		result = 31 * result + this.nameVariants.hashCode();
 		result = 31 * result + Objects.hashCode(this.description);
 		result = 31 * result + Objects.hashCode(this.deprecationNotice);
@@ -1710,14 +1719,19 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		return result;
 	}
 
+	/**
+	 * Compares reference definitions, including scale-independent ranking weights.
+	 * @param o candidate schema definition
+	 * @return true when both objects declare the same reference schema
+	 */
 	@Override
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 
-		ReferenceSchema that = (ReferenceSchema) o;
+		final ReferenceSchema that = (ReferenceSchema) o;
 		return this.searchableThroughInScopes.equals(that.searchableThroughInScopes) &&
-			Float.compare(this.searchableThroughWeight, that.searchableThroughWeight) == 0 &&
+			this.searchableThroughWeight.compareTo(that.searchableThroughWeight) == 0 &&
 			this.referencedEntityTypeManaged == that.referencedEntityTypeManaged &&
 			this.referencedGroupTypeManaged == that.referencedGroupTypeManaged &&
 			this.indexedInScopes.equals(that.indexedInScopes) &&
@@ -1738,6 +1752,17 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			this.sortableAttributeCompounds.equals(that.sortableAttributeCompounds) &&
 			this.attributes.equals(that.attributes) &&
 			this.conflictResolutionOverride == that.conflictResolutionOverride;
+	}
+
+	/**
+	 * Describes the reference's text composition declaration using the canonical decimal weight.
+	 * @return reference type, name, composition scopes and their shared weight
+	 */
+	@Nonnull
+	@Override
+	public String toString() {
+		return getClass().getSimpleName() + "{name='" + this.name + "', searchableThroughInScopes=" +
+			this.searchableThroughInScopes + ", searchableThroughWeight=" + this.searchableThroughWeight + '}';
 	}
 
 	/**

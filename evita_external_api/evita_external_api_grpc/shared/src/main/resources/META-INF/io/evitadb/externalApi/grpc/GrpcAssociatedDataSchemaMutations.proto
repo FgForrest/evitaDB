@@ -5,6 +5,7 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "GrpcEnums.proto";
+import "GrpcEvitaDataTypes.proto";
 import "google/protobuf/wrappers.proto";
 
 // Mutation is responsible for setting up a new `AssociatedDataSchema` in the `EntitySchema`.
@@ -38,7 +39,7 @@ message GrpcCreateAssociatedDataSchemaMutation {
   // Optional fulltext length pivot.
   google.protobuf.Int32Value lengthPivot = 10;
   // Optional ranking weight; explicit zero is preserved.
-  google.protobuf.FloatValue searchWeight = 11;
+  GrpcBigDecimal searchWeight = 11;
   // Raw expression selecting the searchable text.
   google.protobuf.StringValue textExpression = 12;
 
@@ -141,7 +142,7 @@ message GrpcSetAssociatedDataSchemaSearchableMutation {
   // Optional fulltext length pivot.
   google.protobuf.Int32Value lengthPivot = 4;
   // Optional ranking weight; explicit zero is preserved.
-  google.protobuf.FloatValue searchWeight = 5;
+  GrpcBigDecimal searchWeight = 5;
   // Raw expression selecting the searchable text.
   google.protobuf.StringValue textExpression = 6;
 }

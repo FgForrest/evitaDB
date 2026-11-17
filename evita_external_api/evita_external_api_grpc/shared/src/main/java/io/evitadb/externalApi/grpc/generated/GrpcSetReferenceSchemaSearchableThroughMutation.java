@@ -134,9 +134,9 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int WEIGHT_FIELD_NUMBER = 3;
-  private com.google.protobuf.FloatValue weight_;
+  private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight_;
   /**
-   * <code>.google.protobuf.FloatValue weight = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
    * @return Whether the weight field is set.
    */
   @java.lang.Override
@@ -144,19 +144,19 @@ private static final long serialVersionUID = 0L;
     return ((bitField0_ & 0x00000002) != 0);
   }
   /**
-   * <code>.google.protobuf.FloatValue weight = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
    * @return The weight.
    */
   @java.lang.Override
-  public com.google.protobuf.FloatValue getWeight() {
-    return weight_ == null ? com.google.protobuf.FloatValue.getDefaultInstance() : weight_;
+  public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getWeight() {
+    return weight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : weight_;
   }
   /**
-   * <code>.google.protobuf.FloatValue weight = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
    */
   @java.lang.Override
-  public com.google.protobuf.FloatValueOrBuilder getWeightOrBuilder() {
-    return weight_ == null ? com.google.protobuf.FloatValue.getDefaultInstance() : weight_;
+  public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getWeightOrBuilder() {
+    return weight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : weight_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -765,31 +765,31 @@ private static final long serialVersionUID = 0L;
       return searchableThroughInScopesBuilder_;
     }
 
-    private com.google.protobuf.FloatValue weight_;
+    private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight_;
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.FloatValue, com.google.protobuf.FloatValue.Builder, com.google.protobuf.FloatValueOrBuilder> weightBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> weightBuilder_;
     /**
-     * <code>.google.protobuf.FloatValue weight = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
      * @return Whether the weight field is set.
      */
     public boolean hasWeight() {
       return ((bitField0_ & 0x00000004) != 0);
     }
     /**
-     * <code>.google.protobuf.FloatValue weight = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
      * @return The weight.
      */
-    public com.google.protobuf.FloatValue getWeight() {
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getWeight() {
       if (weightBuilder_ == null) {
-        return weight_ == null ? com.google.protobuf.FloatValue.getDefaultInstance() : weight_;
+        return weight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : weight_;
       } else {
         return weightBuilder_.getMessage();
       }
     }
     /**
-     * <code>.google.protobuf.FloatValue weight = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
      */
-    public Builder setWeight(com.google.protobuf.FloatValue value) {
+    public Builder setWeight(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
       if (weightBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -803,10 +803,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.google.protobuf.FloatValue weight = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
      */
     public Builder setWeight(
-        com.google.protobuf.FloatValue.Builder builderForValue) {
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
       if (weightBuilder_ == null) {
         weight_ = builderForValue.build();
       } else {
@@ -817,13 +817,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.google.protobuf.FloatValue weight = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
      */
-    public Builder mergeWeight(com.google.protobuf.FloatValue value) {
+    public Builder mergeWeight(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
       if (weightBuilder_ == null) {
         if (((bitField0_ & 0x00000004) != 0) &&
           weight_ != null &&
-          weight_ != com.google.protobuf.FloatValue.getDefaultInstance()) {
+          weight_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance()) {
           getWeightBuilder().mergeFrom(value);
         } else {
           weight_ = value;
@@ -838,7 +838,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.google.protobuf.FloatValue weight = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
      */
     public Builder clearWeight() {
       bitField0_ = (bitField0_ & ~0x00000004);
@@ -851,33 +851,33 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.google.protobuf.FloatValue weight = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
      */
-    public com.google.protobuf.FloatValue.Builder getWeightBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getWeightBuilder() {
       bitField0_ |= 0x00000004;
       onChanged();
       return getWeightFieldBuilder().getBuilder();
     }
     /**
-     * <code>.google.protobuf.FloatValue weight = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
      */
-    public com.google.protobuf.FloatValueOrBuilder getWeightOrBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getWeightOrBuilder() {
       if (weightBuilder_ != null) {
         return weightBuilder_.getMessageOrBuilder();
       } else {
         return weight_ == null ?
-            com.google.protobuf.FloatValue.getDefaultInstance() : weight_;
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : weight_;
       }
     }
     /**
-     * <code>.google.protobuf.FloatValue weight = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal weight = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.FloatValue, com.google.protobuf.FloatValue.Builder, com.google.protobuf.FloatValueOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
         getWeightFieldBuilder() {
       if (weightBuilder_ == null) {
         weightBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            com.google.protobuf.FloatValue, com.google.protobuf.FloatValue.Builder, com.google.protobuf.FloatValueOrBuilder>(
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
                 getWeight(),
                 getParentForChildren(),
                 isClean());

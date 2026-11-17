@@ -153,9 +153,9 @@ public @interface Attribute {
 	/**
 	 * Fulltext ranking weight, shared by all scopes. Zero preserves matches without contributing ranking strength.
 	 *
-	 * @return finite, non-negative ranking weight, defaulting to 1.0
+	 * @return finite, non-negative ranking weight within the engine float range, defaulting to 1.0
 	 */
-	float searchWeight() default AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT;
+	double searchWeight() default 1.0;
 
 	/**
 	 * Sets attribute of this type to be locale sensitive. I.e. to separate values for different locales.

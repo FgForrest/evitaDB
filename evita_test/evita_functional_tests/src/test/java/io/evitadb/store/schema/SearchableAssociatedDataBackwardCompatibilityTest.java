@@ -23,6 +23,7 @@
 
 package io.evitadb.store.schema;
 
+import java.math.BigDecimal;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
@@ -50,6 +51,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.EnumSet;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -104,7 +106,7 @@ class SearchableAssociatedDataBackwardCompatibilityTest {
 		assertEquals(ConflictResolutionOverride.GRANULAR, deserialized.getConflictResolutionOverride());
 		assertFalse(deserialized.isSearchableInAnyScope());
 		assertNull(deserialized.getTextExpression());
-		assertEquals(1.0f, deserialized.getSearchWeight());
+		assertEquals(valueOf(1), deserialized.getSearchWeight());
 	}
 
 	@Test
@@ -121,7 +123,7 @@ class SearchableAssociatedDataBackwardCompatibilityTest {
 			assertEquals(EnumSet.of(Scope.LIVE, Scope.ARCHIVED), deserialized.getSearchableInScopes());
 			assertEquals(TEXT, deserialized.getTextExpression());
 			assertEquals(schema, deserialized);
-			assertEquals(2.5f, deserialized.getSearchWeight());
+			assertEquals(valueOf(2.5), deserialized.getSearchWeight());
 		}
 	}
 
@@ -154,7 +156,7 @@ class SearchableAssociatedDataBackwardCompatibilityTest {
 		return AssociatedDataSchema._internalBuild(
 			"article", "description", null, ComplexDataObject.class, true, false, BOTH_SCOPES, TEXT,
 			ConflictResolutionOverride.GRANULAR,
-			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, 2.5f
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, valueOf(2.5)
 		);
 	}
 

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import java.math.BigDecimal;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
@@ -36,6 +37,7 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
+import static java.math.BigDecimal.valueOf;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
@@ -260,20 +262,24 @@ class AssociatedDataSchemaTest {
 	/** Ranking weight participates in the value contract, with a canonical representation for zero. */
 	@Test
 	void shouldIncludeSearchWeightInValueSemantics() {
-		final AssociatedDataSchema zero = schemaWithSearchWeight(0.0f);
-		final AssociatedDataSchema weighted = schemaWithSearchWeight(2.5f);
+		final AssociatedDataSchema zero = schemaWithSearchWeight(valueOf(0));
+		final AssociatedDataSchema weighted = schemaWithSearchWeight(valueOf(2.5));
 		assertNotEquals(zero, weighted);
 		assertNotEquals(zero.hashCode(), weighted.hashCode());
 		assertTrue(weighted.toString().contains("searchWeight=2.5"));
-		final AssociatedDataSchema negativeZero = schemaWithSearchWeight(-0.0f);
-		assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(negativeZero.getSearchWeight()));
+		final AssociatedDataSchema negativeZero = schemaWithSearchWeight(valueOf(0));
+		assertEquals(valueOf(0), negativeZero.getSearchWeight());
 		assertEquals(zero, negativeZero);
 		assertEquals(zero.hashCode(), negativeZero.hashCode());
 	}
 
-	/** Builds a DTO whose only variable setting is the ranking weight. */
+	/**
+	 * Builds a DTO whose only variable setting is the ranking weight.
+	 * @param weight decimal ranking contribution
+	 * @return the schema carrying the normalized weight
+	 */
 	@Nonnull
-	private static AssociatedDataSchema schemaWithSearchWeight(float weight) {
+	private static AssociatedDataSchema schemaWithSearchWeight(@Nonnull BigDecimal weight) {
 		return AssociatedDataSchema._internalBuild(
 			"labels", null, null, String.class, false, false, null, null,
 			ConflictResolutionOverride.INHERITED, FulltextAnalyzerSchemaContract.TEXT,

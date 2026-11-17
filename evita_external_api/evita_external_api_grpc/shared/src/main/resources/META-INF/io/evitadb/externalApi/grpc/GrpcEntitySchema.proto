@@ -278,7 +278,7 @@ message GrpcAttributeSchema {
   // Fulltext ranking weight of the attribute, shared by every scope; zero preserves matches while contributing no
   // ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
   // differs from an unset wrapper.
-  google.protobuf.FloatValue searchWeight = 27;
+  GrpcBigDecimal searchWeight = 27;
 }
 
 // This is the definition object for associated data that is stored along with
@@ -328,7 +328,7 @@ message GrpcAssociatedDataSchema {
   // Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
   // ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
   // differs from an unset wrapper.
-  google.protobuf.FloatValue searchWeight = 12;
+  GrpcBigDecimal searchWeight = 12;
   // Raw source of the expression selecting the searchable text from the associated data value, such as
   // `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
   google.protobuf.StringValue textExpression = 13;
@@ -486,7 +486,7 @@ message GrpcReferenceSchema {
   GrpcReferenceSearchModes searchableThroughInScopes = 35;
   // Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
   // contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
-  google.protobuf.FloatValue searchableThroughWeight = 36;
+  GrpcBigDecimal searchableThroughWeight = 36;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB

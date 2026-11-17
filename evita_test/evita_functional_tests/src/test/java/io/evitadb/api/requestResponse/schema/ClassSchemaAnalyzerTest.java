@@ -107,6 +107,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -5404,29 +5405,29 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					final AttributeSchemaContract name = schema.getAttribute("name").orElseThrow();
 					assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, name.getAnalyzer());
 					assertEquals(8, name.getLengthPivot());
-					assertEquals(2.5f, name.getSearchWeight());
+					assertEquals(valueOf(2.5), name.getSearchWeight());
 					final AttributeSchemaContract plainName = schema.getAttribute("plainName").orElseThrow();
 					assertEquals(FulltextAnalyzerSchemaContract.TEXT, plainName.getAnalyzer());
 					assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, plainName.getLengthPivot());
-					assertEquals(1.0f, plainName.getSearchWeight());
+					assertEquals(valueOf(1), plainName.getSearchWeight());
 
 					final AttributeSchemaContract globalTitle = session.getCatalogSchema()
 						.getAttribute("fieldSettingsGlobalTitle").orElseThrow();
 					assertEquals(FulltextAnalyzerSchemaContract.TEXT, globalTitle.getAnalyzer());
 					assertEquals(12, globalTitle.getLengthPivot());
-					assertEquals(3.5f, globalTitle.getSearchWeight());
+					assertEquals(valueOf(3.5), globalTitle.getSearchWeight());
 					final AttributeSchemaContract label = schema.getReference("marketingBrand").orElseThrow()
 						.getAttribute("label").orElseThrow();
 					assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, label.getAnalyzer());
 					assertEquals(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, label.getLengthPivot());
-					assertEquals(4.5f, label.getSearchWeight());
+					assertEquals(valueOf(4.5), label.getSearchWeight());
 
 					final AssociatedDataSchemaContract body = schema.getAssociatedData("body").orElseThrow();
 					assertEquals(FulltextAnalyzerSchemaContract.HTML_TEXT, body.getAnalyzer());
 					assertEquals(400, body.getLengthPivot());
-					assertEquals(0.0f, body.getSearchWeight());
-					assertEquals(5.5f, schema.getAssociatedData("paragraphs").orElseThrow().getSearchWeight());
-					assertEquals(6.5f, schema.getAssociatedData("article").orElseThrow().getSearchWeight());
+					assertEquals(valueOf(0), body.getSearchWeight());
+					assertEquals(valueOf(5.5), schema.getAssociatedData("paragraphs").orElseThrow().getSearchWeight());
+					assertEquals(valueOf(6.5), schema.getAssociatedData("article").orElseThrow().getSearchWeight());
 				}
 			);
 		}
@@ -5554,7 +5555,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		void shouldApplyGeneralSearchableThroughToLive() {
 			final CreateReferenceSchemaMutation mutation =
 				analyzeReference(SearchableThroughAnnotationFixtures.General.class);
-			assertSearchableThrough(mutation, 0.75f, Scope.LIVE);
+			assertSearchableThrough(mutation, valueOf(0.75), Scope.LIVE);
 		}
 
 		/** An annotation silent on composition creates an empty declaration with the default weight. */
@@ -5572,7 +5573,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		void shouldReplaceGeneralSearchableThroughWithScopedSettings() {
 			final CreateReferenceSchemaMutation mutation =
 				analyzeReference(SearchableThroughAnnotationFixtures.Scoped.class);
-			assertSearchableThrough(mutation, 0.3f, Scope.ARCHIVED);
+			assertSearchableThrough(mutation, valueOf(0.3), Scope.ARCHIVED);
 		}
 
 		/** Differing weights in scope entries ask for per-scope weights, which the single shared weight cannot hold. */
@@ -5593,7 +5594,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		void shouldShareRepeatedScopedWeightAcrossScopes() {
 			final CreateReferenceSchemaMutation mutation =
 				analyzeReference(SearchableThroughAnnotationFixtures.RepeatedScopedWeight.class);
-			assertSearchableThrough(mutation, 0.8f, Scope.LIVE, Scope.ARCHIVED);
+			assertSearchableThrough(mutation, valueOf(0.8), Scope.LIVE, Scope.ARCHIVED);
 		}
 
 		/** A scope entry leaving the weight at its default does not reset a weight an earlier entry declares. */
@@ -5602,7 +5603,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		void shouldKeepEarlierScopedWeightWhenLaterEntryLeavesDefault() {
 			final CreateReferenceSchemaMutation mutation =
 				analyzeReference(SearchableThroughAnnotationFixtures.EarlierScopedWeight.class);
-			assertSearchableThrough(mutation, 0.8f, Scope.LIVE);
+			assertSearchableThrough(mutation, valueOf(0.8), Scope.LIVE);
 		}
 
 		/** A weight is declared even without a mode, so it is in place once a mode is added. */
@@ -5611,7 +5612,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		void shouldApplyWeightWithoutSearchableThroughMode() {
 			final CreateReferenceSchemaMutation mutation =
 				analyzeReference(SearchableThroughAnnotationFixtures.WeightOnly.class);
-			assertSearchableThrough(mutation, 0.0f);
+			assertSearchableThrough(mutation, valueOf(0));
 		}
 
 		/** A reflected annotation declares its own composition instead of inheriting the original one. */
@@ -5621,7 +5622,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			final ReferenceSchemaContract reference =
 				analyzeReflectedReferenceSchema(SearchableThroughAnnotationFixtures.ReflectedGeneral.class);
 			assertEquals(Map.of(Scope.LIVE, ReferenceSearchMode.COMPOSITION), reference.getSearchableThroughInScopes());
-			assertEquals(0.4f, reference.getSearchableThroughWeight());
+			assertEquals(valueOf(0.4), reference.getSearchableThroughWeight());
 		}
 
 		/** Scope entries of a reflected annotation declare composition only in the scopes they list. */
@@ -5633,7 +5634,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			assertEquals(
 				Map.of(Scope.ARCHIVED, ReferenceSearchMode.COMPOSITION), reference.getSearchableThroughInScopes()
 			);
-			assertEquals(0.6f, reference.getSearchableThroughWeight());
+			assertEquals(valueOf(0.6), reference.getSearchableThroughWeight());
 		}
 
 		/** A reflected annotation without composition creates an explicit empty declaration, not an inherited one. */
@@ -5691,7 +5692,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		void shouldNormalizeNegativeZeroAnnotationWeight() {
 			final CreateReferenceSchemaMutation mutation =
 				analyzeReference(SearchableThroughAnnotationFixtures.NegativeZero.class);
-			assertEquals(Float.floatToIntBits(0.0f), Float.floatToIntBits(mutation.getSearchableThroughWeight()));
+			assertEquals(valueOf(0), mutation.getSearchableThroughWeight());
 		}
 
 		/** Annotation evolution preserves the clear before index withdrawal, including a shared weight change. */
@@ -5714,7 +5715,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					.orElseThrow().getReference("blocks").orElseThrow();
 				assertTrue(reference.getSearchableThroughInScopes().isEmpty());
 				assertFalse(reference.isIndexed());
-				assertEquals(changeWeight ? 0.0f : 0.5f, reference.getSearchableThroughWeight());
+				assertEquals(changeWeight ? valueOf(0) : valueOf(0.5), reference.getSearchableThroughWeight());
 			});
 		}
 
@@ -5739,8 +5740,15 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			});
 		}
 
-		/** Checks the exact declared scope map and the one shared weight. */
-		private void assertSearchableThrough(CreateReferenceSchemaMutation mutation, float weight, Scope... scopes) {
+		/**
+		 * Checks the exact declared scope map and the one shared weight.
+		 * @param mutation annotation-derived creation mutation whose declaration is verified
+		 * @param weight decimal ranking contribution supplied by this case
+		 * @param scopes scopes expected to declare composition
+		 */
+		private void assertSearchableThrough(
+			CreateReferenceSchemaMutation mutation, @Nonnull BigDecimal weight, Scope... scopes
+		) {
 			assertArrayEquals(scopes, Arrays.stream(mutation.getSearchableThroughInScopes())
 				.map(entry -> entry.scope()).toArray(Scope[]::new));
 			assertTrue(Arrays.stream(mutation.getSearchableThroughInScopes())

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import java.math.BigDecimal;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -67,6 +68,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import org.junit.jupiter.api.Tag;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.requestResponse.schema.ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -1280,7 +1282,7 @@ class ReflectedReferenceSchemaTest {
 			DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		));
 		assertNotEquals(baseline, ReflectedReferenceSchema._internalBuild(
-			"reflected", "Product", "productRef", null, 0.75f
+			"reflected", "Product", "productRef", null, valueOf(0.75)
 		));
 	}
 

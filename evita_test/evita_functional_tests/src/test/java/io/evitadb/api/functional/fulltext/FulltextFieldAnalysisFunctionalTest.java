@@ -23,6 +23,7 @@
 
 package io.evitadb.api.functional.fulltext;
 
+import java.math.BigDecimal;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.expression.ExpressionFactory;
@@ -69,6 +70,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
@@ -603,8 +605,8 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 	void shouldReorderWithoutRebuildingFields() {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(PRODUCT).withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
-				.withAttribute("title", String.class, a -> a.localized().searchable().searchWeight(3))
-				.withAssociatedData("article", String.class, a -> a.localized().searchable().searchWeight(1))
+				.withAttribute("title", String.class, a -> a.localized().searchable().searchWeight(valueOf(3)))
+				.withAssociatedData("article", String.class, a -> a.localized().searchable().searchWeight(valueOf(1)))
 				.updateVia(session);
 			session.upsertEntity(session.createNewEntity(PRODUCT, 1)
 				.setAttribute("title", Locale.ENGLISH, "green")
@@ -617,8 +619,8 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 		final FulltextIndex before = index(this.evita, Locale.ENGLISH);
 		assertRanked(1, 2);
 		this.evita.updateCatalog(TEST_CATALOG, session -> { session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
-			.withAttribute("title", String.class, a -> a.searchWeight(0))
-			.withAssociatedData("article", String.class, a -> a.searchWeight(4)).updateVia(session); });
+			.withAttribute("title", String.class, a -> a.searchWeight(valueOf(0)))
+			.withAssociatedData("article", String.class, a -> a.searchWeight(valueOf(4))).updateVia(session); });
 		assertRanked(2, 1);
 		final FulltextIndex after = index(this.evita, Locale.ENGLISH);
 		assertSame(before, after, "No index mutation, field retirement, posting or impact rebuild is needed");
@@ -731,7 +733,7 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 		final int fieldCount = before.getFieldCount();
 		final long titleFingerprint = before.getIndexFingerprint(titleId);
 		final long articleFingerprint = before.getIndexFingerprint(articleId);
-		for (final float weight : new float[]{2.5f, 0.0f}) {
+		for (final BigDecimal weight : new BigDecimal[]{valueOf(2.5), BigDecimal.ZERO}) {
 			this.evita.updateCatalog(TEST_CATALOG, session -> {
 				session.getEntitySchemaOrThrow(PRODUCT).openForWrite()
 					.withAttribute("title", String.class, a -> a.searchWeight(weight))

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
 
+import java.math.BigDecimal;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -165,7 +167,7 @@ public class ModifyCatalogSchemaMutationConverterTest {
 			null,
 			new ModifyEntitySchemaMutation(
 				"product",
-				new SetAttributeSchemaSearchableMutation("text", Scope.DEFAULT_SCOPES, "text", 73, 0.0f)
+				new SetAttributeSchemaSearchableMutation("text", Scope.DEFAULT_SCOPES, "text", 73, valueOf(0))
 			)
 		);
 
@@ -179,6 +181,6 @@ public class ModifyCatalogSchemaMutationConverterTest {
 		assertEquals(
 			SetAttributeSchemaSearchableMutation.class.getSimpleName(), attributeMutation.at("/mutationType").asText()
 		);
-		assertEquals("0.0", attributeMutation.at("/searchWeight").asText());
+		assertEquals("0", attributeMutation.at("/searchWeight").asText());
 	}
 }

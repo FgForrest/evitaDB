@@ -50,7 +50,9 @@ import java.io.Serializable;
  * the ordering with `inScope` to cover fewer scopes. A container without child weights is refused during planning.
  *
  * Child weights are non-null `BigDecimal` values with scale-independent equality and plain decimal printing.
- * Planning refuses negative weights and values that overflow or underflow the internal float.
+ * Each leaf weight refuses a negative value or one beyond the decimal representation bounds when it is
+ * constructed, before this container exists. Planning refuses float overflow and underflow, together with the
+ * schema and searched-place requirements.
  *
  * ```evitaql
  * referenceWeight(

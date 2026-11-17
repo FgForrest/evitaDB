@@ -24,6 +24,14 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
+import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.externalApi.FulltextMutationTestSupport;
+import org.junit.jupiter.params.provider.ValueSource;
+import java.math.BigDecimal;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
@@ -56,6 +64,7 @@ import static io.evitadb.externalApi.FulltextMutationFunctionalTestSupport.*;
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -177,6 +186,43 @@ class CatalogGraphQLFulltextMutationsFunctionalTest extends GraphQLEndpointFunct
 			"... on CreateFulltextAnalyzerSchemaMutation { " + analyzer + " } " +
 			"... on ModifyFulltextAnalyzerSchemaMutation { " + analyzer + " } " +
 			"... on RemoveFulltextAnalyzerSchemaMutation { name }";
+	}
+
+	/**
+	 * Decimal input and schema output retain the same significant digits in every weight field.
+	 * @param weight decimal ranking contribution supplied by this case
+	 * @param evita engine supplying the shared schema fixture
+	 * @param tester client sending mutations and reading the resulting schema
+	 */
+	@ParameterizedTest
+	@ValueSource(strings = {"0", "0.0000001", "12345678.5", "0.123456789012345678901234567891"})
+	@UseDataSet(DATA_SET)
+	@DisplayName("Round trips decimal schema weights without precision loss")
+	void shouldRoundTripDecimalWeights(
+		@Nonnull BigDecimal weight, @Nonnull Evita evita, @Nonnull GraphQLTester tester
+	) {
+		final String catalog = FulltextSchemaFunctionalTestSupport.prepare(evita);
+		final LocalEntitySchemaMutation[] fields = FulltextMutationTestSupport.mutations(weight)
+			.filter(mutation -> mutation instanceof CreateAttributeSchemaMutation ||
+				mutation instanceof CreateAssociatedDataSchemaMutation ||
+				mutation instanceof CreateReferenceSchemaMutation)
+			.map(LocalEntitySchemaMutation.class::cast).toArray(LocalEntitySchemaMutation[]::new);
+		tester.test(catalog).urlPathSuffix("/schema").document("mutation { updateCatalogSchema(mutations: [" +
+			graphql(input(new ModifyEntitySchemaMutation("owner", fields)), "") + "]) { version } }")
+			.executeAndExpectOkAndThen();
+		final String response = tester.test(catalog).urlPathSuffix("/schema").document(
+			"{ getCatalogSchema { entitySchemas { owner { " +
+			"allAttributes { ... on EntityAttributeSchema { searchWeight } } " +
+			"allAssociatedData { searchWeight } allReferences { searchableThroughWeight } } } } }")
+			.executeAndExpectOkAndThen().extract().asString();
+		final JsonNode schema = FulltextSchemaFunctionalTestSupport.read(response).path("data")
+			.path("getCatalogSchema").path("entitySchemas").path("owner");
+		for (final JsonNode decimal : List.of(schema.path("allAttributes").path(0).path("searchWeight"),
+			schema.path("allAssociatedData").path(0).path("searchWeight"),
+			schema.path("allReferences").path(0).path("searchableThroughWeight"))) {
+			assertTrue(decimal.isTextual(), decimal.toString());
+			assertEquals(0, weight.compareTo(new BigDecimal(decimal.asText())));
+		}
 	}
 
 	/** Declares all schema mirrors through GraphQL and reads literal values through generic and specific objects. */

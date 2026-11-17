@@ -23,6 +23,10 @@
 
 package io.evitadb.api.requestResponse.schema;
 
+import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaSearchableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
+import java.math.BigDecimal;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -67,6 +71,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
@@ -76,6 +81,7 @@ import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.requestResponse.schema.ReferenceSearchMode.COMPOSITION;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -126,8 +132,16 @@ class ReferenceSearchableThroughTest {
 			.toInstance().getReference(BLOCKS).orElseThrow();
 	}
 
-	/** Creates a canonical create mutation with both scopes indexed. */
-	private static CreateReferenceSchemaMutation create(ScopedReferenceSearchMode[] modes, Float weight) {
+	/**
+	 * Creates a canonical create mutation with both scopes indexed.
+	 * @param modes composition modes to declare, or null to use the creation default
+	 * @param weight decimal ranking contribution, or null to use the schema default
+	 * @return normal reference creation mutation
+	 */
+	@Nonnull
+	private static CreateReferenceSchemaMutation create(
+		@Nullable ScopedReferenceSearchMode[] modes, @Nullable BigDecimal weight
+	) {
 		return new CreateReferenceSchemaMutation(
 			BLOCKS, null, null, Cardinality.ZERO_OR_MORE, BLOCK, true, null, false,
 			new ScopedReferenceIndexType[]{
@@ -137,9 +151,15 @@ class ReferenceSearchableThroughTest {
 		);
 	}
 
-	/** Creates an explicitly indexed reflected reference mutation. */
+	/**
+	 * Creates an explicitly indexed reflected reference mutation.
+	 * @param modes composition modes to declare, or null to use the creation default
+	 * @param weight decimal ranking contribution, or null to use the schema default
+	 * @return reflected reference creation mutation
+	 */
+	@Nonnull
 	private static CreateReflectedReferenceSchemaMutation createReflected(
-		ScopedReferenceSearchMode[] modes, Float weight
+		@Nullable ScopedReferenceSearchMode[] modes, @Nullable BigDecimal weight
 	) {
 		return new CreateReflectedReferenceSchemaMutation(
 			"products", null, null, Cardinality.ZERO_OR_MORE, PRODUCT, BLOCKS,
@@ -149,9 +169,17 @@ class ReferenceSearchableThroughTest {
 		);
 	}
 
-	/** Creates either reference kind with one explicit index scope and an optional mode. */
+	/**
+	 * Creates either reference kind with one explicit index scope and an optional mode.
+	 * @param reflected whether to construct a reflected reference
+	 * @param scope scope in which the reference is configured
+	 * @param searchable whether to declare reference composition in that scope
+	 * @param weight decimal ranking contribution supplied by this case
+	 * @return creation mutation carrying the requested scope and weight
+	 */
+	@Nonnull
 	private static CombinableLocalEntitySchemaMutation scopedCreate(
-		boolean reflected, Scope scope, boolean searchable, float weight
+		boolean reflected, @Nonnull Scope scope, boolean searchable, @Nonnull BigDecimal weight
 	) {
 		final ScopedReferenceIndexType[] indexed = {
 			new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING)
@@ -214,6 +242,41 @@ class ReferenceSearchableThroughTest {
 		);
 	}
 
+	/** Equal decimal scales must not create a schema revision or alter schema identity. */
+	@Test
+	@DisplayName("treats 1, 1.0 and 1.00 as the same weight in every schema place")
+	void shouldIgnoreInsignificantWeightScale() {
+		final EntitySchemaContract owner = new InternalEntitySchemaBuilder(CATALOG, OWNER)
+			.withAttribute("text", String.class, a -> a.searchWeight(BigDecimal.ONE))
+			.withAssociatedData("text", String.class, a -> a.searchWeight(BigDecimal.ONE))
+			.toInstance();
+		final AttributeSchemaContract attribute = owner.getAttribute("text").orElseThrow();
+		final AssociatedDataSchemaContract data = owner.getAssociatedData("text").orElseThrow();
+		final ReferenceSchemaContract reference = build(r -> r.searchableThrough(COMPOSITION, BigDecimal.ONE));
+		final GlobalAttributeSchemaContract global = new InternalCatalogSchemaBuilder(CATALOG)
+			.withAttribute("globalText", String.class, a -> a.searchWeight(BigDecimal.ONE))
+			.toInstance().getAttribute("globalText").orElseThrow();
+		final ReflectedReferenceSchema reflected = ReflectedReferenceSchema._internalBuild(
+			"mirror", "Target", "original", null, BigDecimal.ONE);
+		for (final String stated : new String[]{"1", "1.0", "1.00"}) {
+			final BigDecimal weight = new BigDecimal(stated);
+			assertSame(attribute, new SetAttributeSchemaSearchableMutation("text", null, null, null, weight)
+				.mutate(CATALOG, attribute, AttributeSchemaContract.class));
+			assertSame(global, new SetAttributeSchemaSearchableMutation("globalText", null, null, null, weight)
+				.mutate(CATALOG, global, GlobalAttributeSchemaContract.class));
+			assertSame(reflected, new SetReferenceSchemaSearchableThroughMutation("mirror", null, weight)
+				.mutate(OWNER, reflected, ConsistencyChecks.APPLY));
+			assertSame(data, new SetAssociatedDataSchemaSearchableMutation("text", null, null, null, null, weight)
+				.mutate(data));
+			assertSame(reference, new SetReferenceSchemaSearchableThroughMutation(BLOCKS, null, weight)
+				.mutate(OWNER, reference, ConsistencyChecks.APPLY));
+			final ReferenceSchemaContract scaled = build(r -> r.searchableThrough(COMPOSITION, weight));
+			assertEquals(reference, scaled);
+			assertEquals(reference.hashCode(), scaled.hashCode());
+			assertEquals(reference.toString(), scaled.toString());
+		}
+	}
+
 	/** Mutation ordering and validation at builder completion and explicit APPLY boundaries. */
 	@Nested
 	@DisplayName("Searchable-through validation regressions")
@@ -222,7 +285,7 @@ class ReferenceSearchableThroughTest {
 		@Test
 		@DisplayName("should move composition after clearing its old index through the real builder")
 		void shouldMoveCompositionAfterClearingItsOldIndex() {
-			final EntitySchemaContract initial = create(LIVE, 0.8f).mutate(CATALOG, OWNER);
+			final EntitySchemaContract initial = create(LIVE, valueOf(0.8)).mutate(CATALOG, OWNER);
 			final ReferenceSchemaContract result = new InternalEntitySchemaBuilder(CATALOG, initial)
 				.withReferenceToEntity(BLOCKS, BLOCK, Cardinality.ZERO_OR_MORE, reference -> {
 					reference.nonSearchableThroughInScope(Scope.LIVE).nonIndexed(Scope.LIVE)
@@ -241,7 +304,7 @@ class ReferenceSearchableThroughTest {
 			assertThrows(InvalidSchemaMutationException.class,
 				() -> new InternalEntitySchemaBuilder(CATALOG, EntitySchema._internalBuild(BLOCK))
 					.withReflectedReferenceToEntity("products", PRODUCT, BLOCKS,
-						reference -> reference.searchableThrough(COMPOSITION, Float.NaN)).toInstance());
+						reference -> reference.searchableThrough(COMPOSITION, new BigDecimal("1E+39"))).toInstance());
 		}
 
 		/** An explicit index scope is known even before the original reference exists. */
@@ -261,9 +324,9 @@ class ReferenceSearchableThroughTest {
 		void shouldRejectInvalidSettingsInEntityLevelReflectedCreate() {
 			final EntitySchema owner = EntitySchema._internalBuild(BLOCK);
 			assertThrows(InvalidSchemaMutationException.class,
-				() -> createReflected(LIVE, Float.NaN).mutate(CATALOG, owner));
+				() -> createReflected(LIVE, new BigDecimal("1E+39")).mutate(CATALOG, owner));
 			assertThrows(InvalidSchemaMutationException.class,
-				() -> createReflected(ARCHIVED, 0.8f).mutate(CATALOG, owner));
+				() -> createReflected(ARCHIVED, valueOf(0.8)).mutate(CATALOG, owner));
 		}
 
 		/** Bound reflected references must retain both their index and referenced-entity component at APPLY. */
@@ -271,9 +334,10 @@ class ReferenceSearchableThroughTest {
 		@ValueSource(booleans = {false, true})
 		@DisplayName("should reject withdrawing a bound reflected index or its referenced entity component at APPLY")
 		void shouldRejectBoundReflectedIndexWithdrawalAtApply(boolean withdrawComponent) {
-			final ReferenceSchemaContract original = create(LIVE, 0.8f).mutate(OWNER, null, ConsistencyChecks.APPLY);
+			final ReferenceSchemaContract original = create(LIVE, valueOf(0.8))
+				.mutate(OWNER, null, ConsistencyChecks.APPLY);
 			final ReflectedReferenceSchema reflected = ReflectedReferenceSchema._internalBuild(
-				"products", PRODUCT, BLOCKS, Map.of(Scope.LIVE, COMPOSITION), 0.8f
+				"products", PRODUCT, BLOCKS, Map.of(Scope.LIVE, COMPOSITION), valueOf(0.8)
 			).withReferencedSchema(original);
 			final SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
 				"products", new ScopedReferenceIndexType[]{
@@ -295,7 +359,8 @@ class ReferenceSearchableThroughTest {
 		@Test
 		@DisplayName("should refuse retargeting a composed reference to an unmanaged type at APPLY")
 		void shouldRejectUnmanagedRetargetAtApply() {
-			final ReferenceSchemaContract original = create(LIVE, 0.8f).mutate(OWNER, null, ConsistencyChecks.APPLY);
+			final ReferenceSchemaContract original = create(LIVE, valueOf(0.8))
+				.mutate(OWNER, null, ConsistencyChecks.APPLY);
 			final ModifyReferenceSchemaRelatedEntityMutation mutation =
 				new ModifyReferenceSchemaRelatedEntityMutation(BLOCKS, "External", false);
 			assertThrows(InvalidSchemaMutationException.class,
@@ -307,7 +372,7 @@ class ReferenceSearchableThroughTest {
 		@Test
 		@DisplayName("should allow retargeting after the builder withdraws composition")
 		void shouldRetargetAfterWithdrawingComposition() {
-			final EntitySchemaContract initial = create(LIVE, 0.8f).mutate(CATALOG, OWNER);
+			final EntitySchemaContract initial = create(LIVE, valueOf(0.8)).mutate(CATALOG, OWNER);
 			final ReferenceSchemaContract result = new InternalEntitySchemaBuilder(CATALOG, initial)
 				.withReferenceToEntity(BLOCKS, BLOCK, Cardinality.ZERO_OR_MORE,
 					ReferenceSchemaEditor::nonSearchableThrough)
@@ -422,7 +487,7 @@ class ReferenceSearchableThroughTest {
 			assertNull(reference.getSearchableThrough());
 			assertNull(reference.getSearchableThrough(Scope.ARCHIVED));
 			assertTrue(reference.getSearchableThroughInScopes().isEmpty());
-			assertEquals(0.5f, reference.getSearchableThroughWeight());
+			assertEquals(valueOf(0.5), reference.getSearchableThroughWeight());
 		}
 
 		/** Every declaration overload edits the complete scope map and one shared weight. */
@@ -432,15 +497,15 @@ class ReferenceSearchableThroughTest {
 			final ReferenceSchemaContract reference = build(editor -> {
 				editor.searchableThrough(COMPOSITION);
 				assertEquals(COMPOSITION, editor.getSearchableThrough());
-				assertEquals(0.5f, editor.getSearchableThroughWeight());
-				editor.searchableThroughInScope(COMPOSITION, 0.25f, Scope.ARCHIVED);
-				assertEquals(0.25f, editor.getSearchableThroughWeight());
-				editor.searchableThrough(COMPOSITION, 2f);
+				assertEquals(valueOf(0.5), editor.getSearchableThroughWeight());
+				editor.searchableThroughInScope(COMPOSITION, valueOf(0.25), Scope.ARCHIVED);
+				assertEquals(valueOf(0.25), editor.getSearchableThroughWeight());
+				editor.searchableThrough(COMPOSITION, valueOf(2));
 				editor.searchableThroughInScope(COMPOSITION, Scope.ARCHIVED);
 			});
 			assertEquals(Map.of(Scope.LIVE, COMPOSITION, Scope.ARCHIVED, COMPOSITION),
 				reference.getSearchableThroughInScopes());
-			assertEquals(2f, reference.getSearchableThroughWeight());
+			assertEquals(valueOf(2), reference.getSearchableThroughWeight());
 			assertThrows(UnsupportedOperationException.class,
 				() -> reference.getSearchableThroughInScopes().put(Scope.LIVE, COMPOSITION));
 		}
@@ -450,26 +515,27 @@ class ReferenceSearchableThroughTest {
 		@DisplayName("should retain the weight when removing one or every mode")
 		void shouldRetainWeightWhenRemovingModes() {
 			final ReferenceSchemaContract reference = build(editor -> {
-				editor.searchableThroughInScope(COMPOSITION, 3f, Scope.LIVE, Scope.ARCHIVED);
+				editor.searchableThroughInScope(COMPOSITION, valueOf(3), Scope.LIVE, Scope.ARCHIVED);
 				editor.nonSearchableThroughInScope(Scope.LIVE);
 				assertNull(editor.getSearchableThrough());
 				assertEquals(COMPOSITION, editor.getSearchableThrough(Scope.ARCHIVED));
 				editor.nonSearchableThrough();
 			});
 			assertTrue(reference.getSearchableThroughInScopes().isEmpty());
-			assertEquals(3f, reference.getSearchableThroughWeight());
+			assertEquals(valueOf(3), reference.getSearchableThroughWeight());
 		}
 
 		/** Attribute/schema edits must preserve reference metadata while reconstructing DTOs. */
 		@Test
 		@DisplayName("should preserve modes and weight through unrelated reference edits")
 		void shouldPreserveMetadataThroughOtherEdits() {
-			final ReferenceSchemaContract reference = build(editor -> editor.searchableThrough(COMPOSITION, 0.75f)
+			final ReferenceSchemaContract reference = build(
+				editor -> editor.searchableThrough(COMPOSITION, valueOf(0.75))
 				.withDescription("Page blocks").deprecated("Use content")
 				.withAttribute("priority", Integer.class, attribute -> attribute.sortable())
 				.faceted().withConflictResolutionOverride(ConflictResolutionOverride.GRANULAR));
 			assertEquals(COMPOSITION, reference.getSearchableThrough());
-			assertEquals(0.75f, reference.getSearchableThroughWeight());
+			assertEquals(valueOf(0.75), reference.getSearchableThroughWeight());
 			assertTrue(reference.getAttribute("priority").isPresent());
 			assertTrue(reference.isFaceted());
 			assertEquals(ConflictResolutionOverride.GRANULAR, reference.getConflictResolutionOverride());
@@ -479,8 +545,9 @@ class ReferenceSearchableThroughTest {
 		@Test
 		@DisplayName("should fold negative zero to positive zero")
 		void shouldFoldNegativeZero() {
-			final ReferenceSchemaContract reference = build(editor -> editor.searchableThrough(COMPOSITION, -0.0f));
-			assertEquals(Float.floatToIntBits(0.0f), Float.floatToIntBits(reference.getSearchableThroughWeight()));
+			final ReferenceSchemaContract reference = build(
+				editor -> editor.searchableThrough(COMPOSITION, valueOf(0)));
+			assertEquals(valueOf(0), reference.getSearchableThroughWeight());
 		}
 	}
 
@@ -493,10 +560,11 @@ class ReferenceSearchableThroughTest {
 		void shouldApplyCreateDefaultsAndValues() {
 			final ReferenceSchemaContract defaults = create(null, null).mutate(OWNER, null, ConsistencyChecks.APPLY);
 			assertTrue(defaults.getSearchableThroughInScopes().isEmpty());
-			assertEquals(0.5f, defaults.getSearchableThroughWeight());
-			final ReferenceSchemaContract explicit = create(ARCHIVED, 0f).mutate(OWNER, null, ConsistencyChecks.APPLY);
+			assertEquals(valueOf(0.5), defaults.getSearchableThroughWeight());
+			final ReferenceSchemaContract explicit = create(ARCHIVED, valueOf(0))
+				.mutate(OWNER, null, ConsistencyChecks.APPLY);
 			assertEquals(Map.of(Scope.ARCHIVED, COMPOSITION), explicit.getSearchableThroughInScopes());
-			assertEquals(0f, explicit.getSearchableThroughWeight());
+			assertEquals(valueOf(0), explicit.getSearchableThroughWeight());
 		}
 
 		/** Convenience constructors carry the same independent modes and weight as the canonical constructor. */
@@ -505,23 +573,23 @@ class ReferenceSearchableThroughTest {
 		void shouldCarrySettingsThroughConvenienceConstructors() {
 			final CreateReferenceSchemaMutation simple = new CreateReferenceSchemaMutation(
 				BLOCKS, null, null, Cardinality.ZERO_OR_MORE, BLOCK, true, null, false,
-				true, false, LIVE, 0.125f
+				true, false, LIVE, valueOf(0.125)
 			);
 			final CreateReferenceSchemaMutation scoped = new CreateReferenceSchemaMutation(
 				BLOCKS, null, null, Cardinality.ZERO_OR_MORE, BLOCK, true, null, false,
-				ScopedReferenceIndexType.DEFAULT, null, null, null, null, null, LIVE, 0.125f
+				ScopedReferenceIndexType.DEFAULT, null, null, null, null, null, LIVE, valueOf(0.125)
 			);
 			assertEquals(simple, scoped);
 			assertEquals(Map.of(Scope.LIVE, COMPOSITION),
 				simple.mutate(OWNER, null, ConsistencyChecks.APPLY).getSearchableThroughInScopes());
-			assertEquals(0.125f, simple.getSearchableThroughWeight());
+			assertEquals(valueOf(0.125), simple.getSearchableThroughWeight());
 			final CreateReflectedReferenceSchemaMutation reflectedSimple =
 				new CreateReflectedReferenceSchemaMutation(
 					"products", null, null, Cardinality.ZERO_OR_MORE, PRODUCT, BLOCKS, false,
 					ReflectedReferenceSchemaContract.AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-					null, LIVE, 0.25f
+					null, LIVE, valueOf(0.25)
 				);
-			assertEquals(0.25f, reflectedSimple.getSearchableThroughWeight());
+			assertEquals(valueOf(0.25), reflectedSimple.getSearchableThroughWeight());
 			assertArrayEquals(LIVE, reflectedSimple.getSearchableThroughInScopes());
 		}
 
@@ -529,21 +597,22 @@ class ReferenceSearchableThroughTest {
 		@Test
 		@DisplayName("should keep null set components and preserve weight when clearing modes")
 		void shouldKeepNullSetComponents() {
-			final ReferenceSchemaContract initial = create(LIVE, 0.75f).mutate(OWNER, null, ConsistencyChecks.APPLY);
+			final ReferenceSchemaContract initial = create(LIVE, valueOf(0.75))
+				.mutate(OWNER, null, ConsistencyChecks.APPLY);
 			final ReferenceSchemaContract scopesOnly = new SetReferenceSchemaSearchableThroughMutation(
 				BLOCKS, ARCHIVED, null).mutate(OWNER, initial, ConsistencyChecks.APPLY);
 			assertEquals(Map.of(Scope.ARCHIVED, COMPOSITION), scopesOnly.getSearchableThroughInScopes());
-			assertEquals(0.75f, scopesOnly.getSearchableThroughWeight());
+			assertEquals(valueOf(0.75), scopesOnly.getSearchableThroughWeight());
 			final ReferenceSchemaContract weightOnly = new SetReferenceSchemaSearchableThroughMutation(
-				BLOCKS, null, 4f).mutate(OWNER, scopesOnly, ConsistencyChecks.APPLY);
+				BLOCKS, null, valueOf(4)).mutate(OWNER, scopesOnly, ConsistencyChecks.APPLY);
 			assertEquals(scopesOnly.getSearchableThroughInScopes(), weightOnly.getSearchableThroughInScopes());
-			assertEquals(4f, weightOnly.getSearchableThroughWeight());
+			assertEquals(valueOf(4), weightOnly.getSearchableThroughWeight());
 			assertSame(weightOnly, new SetReferenceSchemaSearchableThroughMutation(BLOCKS, null, null)
 				.mutate(OWNER, weightOnly, ConsistencyChecks.APPLY));
 			final ReferenceSchemaContract cleared = new SetReferenceSchemaSearchableThroughMutation(
 				BLOCKS, ScopedReferenceSearchMode.EMPTY, null).mutate(OWNER, weightOnly, ConsistencyChecks.APPLY);
 			assertTrue(cleared.getSearchableThroughInScopes().isEmpty());
-			assertEquals(4f, cleared.getSearchableThroughWeight());
+			assertEquals(valueOf(4), cleared.getSearchableThroughWeight());
 		}
 
 		/** Separate sets must keep their position around changes to composition prerequisites. */
@@ -551,12 +620,12 @@ class ReferenceSearchableThroughTest {
 		@DisplayName("should keep separate set mutations in their original order")
 		void shouldNotCombineSets() {
 			final SetReferenceSchemaSearchableThroughMutation previous =
-				new SetReferenceSchemaSearchableThroughMutation(BLOCKS, LIVE, 2f);
+				new SetReferenceSchemaSearchableThroughMutation(BLOCKS, LIVE, valueOf(2));
 			assertNull(new SetReferenceSchemaSearchableThroughMutation(BLOCKS, ARCHIVED, null)
 				.combineWith(CATALOG, OWNER, previous));
-			assertNull(new SetReferenceSchemaSearchableThroughMutation(BLOCKS, null, 0f)
+			assertNull(new SetReferenceSchemaSearchableThroughMutation(BLOCKS, null, valueOf(0))
 				.combineWith(CATALOG, OWNER, previous));
-			assertNull(new SetReferenceSchemaSearchableThroughMutation("other", null, 2f)
+			assertNull(new SetReferenceSchemaSearchableThroughMutation("other", null, valueOf(2))
 				.combineWith(CATALOG, OWNER, previous));
 		}
 
@@ -565,16 +634,16 @@ class ReferenceSearchableThroughTest {
 		@DisplayName("should not combine a set with another reference's creation or with an index change")
 		void shouldNotCombineSetWithOtherMutations() {
 			final SetReferenceSchemaSearchableThroughMutation otherReference =
-				new SetReferenceSchemaSearchableThroughMutation("other", LIVE, 2f);
+				new SetReferenceSchemaSearchableThroughMutation("other", LIVE, valueOf(2));
 			final SetReferenceSchemaIndexedMutation indexChange = new SetReferenceSchemaIndexedMutation(
 				BLOCKS, new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				}
 			);
 
-			assertNull(otherReference.combineWith(CATALOG, OWNER, create(LIVE, 1f)));
-			assertNull(otherReference.combineWith(CATALOG, OWNER, createReflected(LIVE, 1f)));
-			assertNull(new SetReferenceSchemaSearchableThroughMutation(BLOCKS, LIVE, 2f)
+			assertNull(otherReference.combineWith(CATALOG, OWNER, create(LIVE, valueOf(1))));
+			assertNull(otherReference.combineWith(CATALOG, OWNER, createReflected(LIVE, valueOf(1))));
+			assertNull(new SetReferenceSchemaSearchableThroughMutation(BLOCKS, LIVE, valueOf(2))
 				.combineWith(CATALOG, OWNER, indexChange));
 		}
 
@@ -583,7 +652,7 @@ class ReferenceSearchableThroughTest {
 		@DisplayName("should check the requirements of a set only when the mutation applies")
 		void shouldSkipRequirementChecksForSetMutationWhenNotApplying() {
 			final ReferenceSchemaContract liveOnly = ((CreateReferenceSchemaMutation) scopedCreate(
-				false, Scope.LIVE, false, 0.5f
+				false, Scope.LIVE, false, valueOf(0.5)
 			)).mutate(OWNER, null, ConsistencyChecks.APPLY);
 			final SetReferenceSchemaSearchableThroughMutation archived =
 				new SetReferenceSchemaSearchableThroughMutation(BLOCKS, ARCHIVED, null);
@@ -599,7 +668,8 @@ class ReferenceSearchableThroughTest {
 		@MethodSource("io.evitadb.api.requestResponse.schema.ReferenceSearchableThroughTest#rebuildingMutations")
 		@DisplayName("should keep modes and weight when a mutation rebuilds the reference")
 		void shouldKeepSettingsWhenMutationRebuildsReference(UnaryOperator<ReferenceSchemaContract> mutation) {
-			final ReferenceSchemaContract composed = build(editor -> editor.searchableThrough(COMPOSITION, 0.75f)
+			final ReferenceSchemaContract composed = build(
+				editor -> editor.searchableThrough(COMPOSITION, valueOf(0.75))
 				.withAttribute("code", String.class, attribute -> attribute.sortable())
 				.withAttribute("priority", Integer.class, attribute -> attribute.sortable())
 				.withAttribute("note", String.class)
@@ -610,7 +680,7 @@ class ReferenceSearchableThroughTest {
 
 			assertNotSame(composed, rebuilt);
 			assertEquals(Map.of(Scope.LIVE, COMPOSITION), rebuilt.getSearchableThroughInScopes());
-			assertEquals(0.75f, rebuilt.getSearchableThroughWeight());
+			assertEquals(valueOf(0.75), rebuilt.getSearchableThroughWeight());
 		}
 
 		/** Set changes are absorbed into both normal and reflected create mutations. */
@@ -620,18 +690,18 @@ class ReferenceSearchableThroughTest {
 			final SetReferenceSchemaSearchableThroughMutation set =
 				new SetReferenceSchemaSearchableThroughMutation(BLOCKS, ARCHIVED, null);
 			final MutationCombinationResult<LocalEntitySchemaMutation> result =
-				set.combineWith(CATALOG, OWNER, create(LIVE, 2f));
+				set.combineWith(CATALOG, OWNER, create(LIVE, valueOf(2)));
 			final CreateReferenceSchemaMutation combined = assertInstanceOf(CreateReferenceSchemaMutation.class,
 				result.origin());
-			assertEquals(create(ARCHIVED, 2f), combined);
+			assertEquals(create(ARCHIVED, valueOf(2)), combined);
 			assertNull(result.current());
 			final SetReferenceSchemaSearchableThroughMutation reflectedSet =
-				new SetReferenceSchemaSearchableThroughMutation("products", null, 3f);
+				new SetReferenceSchemaSearchableThroughMutation("products", null, valueOf(3));
 			final CreateReflectedReferenceSchemaMutation reflectedCombined =
 				assertInstanceOf(CreateReflectedReferenceSchemaMutation.class,
-					reflectedSet.combineWith(CATALOG, OWNER, createReflected(LIVE, 0.25f)).origin());
-			assertEquals(createReflected(LIVE, 3f), reflectedCombined);
-			assertEquals(3f, reflectedCombined.mutate(OWNER, null, ConsistencyChecks.APPLY)
+					reflectedSet.combineWith(CATALOG, OWNER, createReflected(LIVE, valueOf(0.25))).origin());
+			assertEquals(createReflected(LIVE, valueOf(3)), reflectedCombined);
+			assertEquals(valueOf(3), reflectedCombined.mutate(OWNER, null, ConsistencyChecks.APPLY)
 				.getSearchableThroughWeight());
 		}
 
@@ -644,11 +714,11 @@ class ReferenceSearchableThroughTest {
 			for (final boolean initiallySearchable : new boolean[]{false, true}) {
 				for (final boolean finallySearchable : new boolean[]{false, true}) {
 					final LocalEntitySchemaMutation previous = scopedCreate(
-						reflected, Scope.LIVE, initiallySearchable, 2f
+						reflected, Scope.LIVE, initiallySearchable, valueOf(2)
 					);
 					final EntitySchemaContract initial = previous.mutate(CATALOG, OWNER);
 					final CombinableLocalEntitySchemaMutation replacement = scopedCreate(
-						reflected, Scope.ARCHIVED, finallySearchable, 0.25f
+						reflected, Scope.ARCHIVED, finallySearchable, valueOf(0.25)
 					);
 					final MutationCombinationResult<LocalEntitySchemaMutation> combined = replacement.combineWith(
 						CATALOG, initial, new RemoveReferenceSchemaMutation(name)
@@ -663,7 +733,7 @@ class ReferenceSearchableThroughTest {
 					assertTrue(reference.isIndexedInScope(Scope.ARCHIVED));
 					assertEquals(finallySearchable ? Map.of(Scope.ARCHIVED, COMPOSITION) : Map.of(),
 						reference.getSearchableThroughInScopes());
-					assertEquals(0.25f, reference.getSearchableThroughWeight());
+					assertEquals(valueOf(0.25), reference.getSearchableThroughWeight());
 				}
 			}
 		}
@@ -674,7 +744,8 @@ class ReferenceSearchableThroughTest {
 		@DisplayName("should restore default composition when a replacement create omits it")
 		void shouldRestoreDefaultsWhenRecreatingReference(boolean reflected) {
 			final String name = reflected ? "products" : BLOCKS;
-			final EntitySchemaContract initial = scopedCreate(reflected, Scope.LIVE, true, 2f).mutate(CATALOG, OWNER);
+			final EntitySchemaContract initial = scopedCreate(reflected, Scope.LIVE, true, valueOf(2))
+				.mutate(CATALOG, OWNER);
 			final CombinableLocalEntitySchemaMutation replacement = reflected
 				? new CreateReflectedReferenceSchemaMutation(
 					"products", "Product links", "Explicit metadata", Cardinality.ZERO_OR_MORE, PRODUCT, BLOCKS,
@@ -692,7 +763,7 @@ class ReferenceSearchableThroughTest {
 			}
 			final ReferenceSchemaContract reference = updated.getReference(name).orElseThrow();
 			assertTrue(reference.getSearchableThroughInScopes().isEmpty());
-			assertEquals(0.5f, reference.getSearchableThroughWeight());
+			assertEquals(valueOf(0.5), reference.getSearchableThroughWeight());
 		}
 
 		/** Array contents and normalized weights are part of mutation and DTO equality. */
@@ -700,19 +771,19 @@ class ReferenceSearchableThroughTest {
 		@DisplayName("should compare modes and normalized weights by value")
 		void shouldCompareByValue() {
 			final SetReferenceSchemaSearchableThroughMutation negativeZero =
-				new SetReferenceSchemaSearchableThroughMutation(BLOCKS, LIVE.clone(), -0.0f);
+				new SetReferenceSchemaSearchableThroughMutation(BLOCKS, LIVE.clone(), valueOf(0));
 			final SetReferenceSchemaSearchableThroughMutation zero =
-				new SetReferenceSchemaSearchableThroughMutation(BLOCKS, LIVE.clone(), 0f);
+				new SetReferenceSchemaSearchableThroughMutation(BLOCKS, LIVE.clone(), valueOf(0));
 			assertEquals(zero, negativeZero);
 			assertEquals(zero.hashCode(), negativeZero.hashCode());
-			assertNotEquals(zero, new SetReferenceSchemaSearchableThroughMutation(BLOCKS, ARCHIVED, 0f));
-			assertEquals(create(LIVE, -0.0f), create(LIVE.clone(), 0f));
-			assertNotEquals(create(LIVE, 1f), create(ARCHIVED, 1f));
-			assertNotEquals(create(LIVE, 1f), create(LIVE, 2f));
-			assertNotEquals(create(LIVE, 1f).mutate(OWNER, null, ConsistencyChecks.APPLY),
-				create(ARCHIVED, 1f).mutate(OWNER, null, ConsistencyChecks.APPLY));
+			assertNotEquals(zero, new SetReferenceSchemaSearchableThroughMutation(BLOCKS, ARCHIVED, valueOf(0)));
+			assertEquals(create(LIVE, valueOf(0)), create(LIVE.clone(), valueOf(0)));
+			assertNotEquals(create(LIVE, valueOf(1)), create(ARCHIVED, valueOf(1)));
+			assertNotEquals(create(LIVE, valueOf(1)), create(LIVE, valueOf(2)));
+			assertNotEquals(create(LIVE, valueOf(1)).mutate(OWNER, null, ConsistencyChecks.APPLY),
+				create(ARCHIVED, valueOf(1)).mutate(OWNER, null, ConsistencyChecks.APPLY));
 			assertTrue(zero.toString().contains("COMPOSITION"));
-			assertTrue(create(LIVE, 1f).toString().contains("searchableThrough"));
+			assertTrue(create(LIVE, valueOf(1)).toString().contains("searchableThrough"));
 		}
 
 		/** The scoped record validates both components at construction time. */

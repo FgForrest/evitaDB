@@ -23,6 +23,7 @@
 
 package io.evitadb.api.functional.fulltext;
 
+import java.math.BigDecimal;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
@@ -91,6 +92,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.ENGINE;
@@ -157,9 +159,9 @@ class FulltextReferenceHavingFunctionalTest {
 						r -> r.indexedForFilteringInScope(Scope.values())
 							.indexedWithComponents(ReferenceIndexedComponents.REFERENCED_ENTITY)
 							.withAttribute("label", String[].class, a -> a.localized().nullable()
-								.searchableInScope(Scope.values()).searchWeight(weight))
+								.searchableInScope(Scope.values()).searchWeight(valueOf(weight)))
 							.withAttribute("other", String[].class, a -> a.localized().nullable()
-								.searchableInScope(Scope.values()).searchWeight(weight))
+								.searchableInScope(Scope.values()).searchWeight(valueOf(weight)))
 							.withAttribute("primary", Boolean.class, a -> a.filterableInScope(Scope.values()))
 							.withAttribute("variant", Integer.class,
 								a -> a.filterableInScope(Scope.values()).representative())
@@ -183,7 +185,7 @@ class FulltextReferenceHavingFunctionalTest {
 							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
 						.withGroupTypeRelatedToEntity(type)
 						.withAttribute("note", String.class,
-							a -> a.localized().nullable().searchable().searchWeight(3)))
+							a -> a.localized().nullable().searchable().searchWeight(valueOf(3))))
 					.updateVia(session);
 				for (int root = 1; root <= 2; root++) {
 					final int referencedOwner = root == 1 ? 3 : 1;

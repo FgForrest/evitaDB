@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
+import java.math.BigDecimal;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
@@ -66,6 +67,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.lowercase;
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
@@ -679,15 +681,15 @@ class SetAttributeSchemaSearchableMutationTest {
 			EmptyEntitySchemaAccessor.INSTANCE
 		);
 		final AttributeSchemaContract original = filterableAcceleratedLocalizedString();
-		assertEquals(1.0f, original.getSearchWeight());
+		assertEquals(valueOf(1), original.getSearchWeight());
 		final SetAttributeSchemaSearchableMutation earlier = new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME,
-			Scope.DEFAULT_SCOPES, null, null, 3.5f);
+			Scope.DEFAULT_SCOPES, null, null, valueOf(3.5));
 		final AttributeSchemaContract weighted = earlier.mutate(catalog, original, AttributeSchemaContract.class);
-		assertEquals(3.5f, weighted.getSearchWeight());
-		for (final Float weight : new Float[]{null, 0.0f, 2.5f}) {
+		assertEquals(valueOf(3.5), weighted.getSearchWeight());
+		for (final BigDecimal weight : new BigDecimal[]{null, valueOf(0), valueOf(2.5)}) {
 			final SetAttributeSchemaSearchableMutation later = new SetAttributeSchemaSearchableMutation(ATTRIBUTE_NAME,
 				Scope.DEFAULT_SCOPES, null, null, weight);
-			final float expected = weight == null ? 3.5f : weight;
+			final BigDecimal expected = weight == null ? valueOf(3.5) : weight;
 			assertEquals(expected, later.mutate(catalog, weighted, AttributeSchemaContract.class).getSearchWeight());
 			final MutationCombinationResult<LocalEntitySchemaMutation> combined = later.combineWith(
 				catalog, EntitySchema._internalBuild("product"), earlier
@@ -709,19 +711,19 @@ class SetAttributeSchemaSearchableMutationTest {
 		);
 		final AttributeSchemaContract original = filterableAcceleratedLocalizedString();
 		final SetAttributeSchemaSearchableMutation positiveZero = new SetAttributeSchemaSearchableMutation(
-			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES, null, null, 0.0f
+			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES, null, null, valueOf(0)
 		);
 		final SetAttributeSchemaSearchableMutation negativeZero = new SetAttributeSchemaSearchableMutation(
-			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES, null, null, -0.0f
+			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES, null, null, valueOf(0)
 		);
 		final AttributeSchemaContract zero = positiveZero.mutate(catalog, original, AttributeSchemaContract.class);
 		assertSame(zero, negativeZero.mutate(catalog, zero, AttributeSchemaContract.class));
-		assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(zero.getSearchWeight()));
-		assertEquals(Float.floatToRawIntBits(0.0f), Float.floatToRawIntBits(negativeZero.getSearchWeight()));
+		assertEquals(valueOf(0), zero.getSearchWeight());
+		assertEquals(valueOf(0), negativeZero.getSearchWeight());
 		assertEquals(positiveZero, negativeZero);
 		assertEquals(positiveZero.hashCode(), negativeZero.hashCode());
 		final SetAttributeSchemaSearchableMutation weighted = new SetAttributeSchemaSearchableMutation(
-			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES, null, null, 2.5f
+			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES, null, null, valueOf(2.5)
 		);
 		final AttributeSchemaContract changed = weighted.mutate(catalog, original, AttributeSchemaContract.class);
 		assertSame(changed, weighted.mutate(catalog, changed, AttributeSchemaContract.class));

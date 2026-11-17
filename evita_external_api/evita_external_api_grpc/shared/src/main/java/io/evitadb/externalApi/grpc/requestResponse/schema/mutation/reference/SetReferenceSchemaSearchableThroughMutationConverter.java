@@ -24,7 +24,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
-import com.google.protobuf.FloatValue;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaSearchableThroughMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaSearchableThroughMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -63,7 +63,7 @@ public class SetReferenceSchemaSearchableThroughMutationConverter
 			mutation.getName(),
 			mutation.hasSearchableThroughInScopes()
 				? EvitaEnumConverter.toScopedReferenceSearchModes(mutation.getSearchableThroughInScopes()) : null,
-			mutation.hasWeight() ? mutation.getWeight().getValue() : null
+			mutation.hasWeight() ? EvitaDataTypesConverter.toBigDecimal(mutation.getWeight()) : null
 		);
 	}
 
@@ -86,7 +86,7 @@ public class SetReferenceSchemaSearchableThroughMutationConverter
 				EvitaEnumConverter.toGrpcReferenceSearchModes(mutation.getSearchableThroughInScopes()));
 		}
 		if (mutation.getWeight() != null) {
-			builder.setWeight(FloatValue.of(mutation.getWeight()));
+			builder.setWeight(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getWeight()));
 		}
 		return builder.build();
 	}

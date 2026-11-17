@@ -173,7 +173,7 @@ message GrpcGlobalAttributeSchema {
   // Fulltext ranking weight of the attribute, shared by every scope; zero preserves matches while contributing no
   // ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
   // differs from an unset wrapper.
-  google.protobuf.FloatValue searchWeight = 25;
+  GrpcBigDecimal searchWeight = 25;
 }
 
 // Ordered steps of one analyzer phase. Wrapping the list in a message lets an unset phase (undefined, inherited)

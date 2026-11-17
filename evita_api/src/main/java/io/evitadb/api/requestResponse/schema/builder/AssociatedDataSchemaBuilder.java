@@ -53,6 +53,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -305,9 +306,15 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 		return this;
 	}
 
+	/**
+	 * Records a validated decimal ranking weight in the searchable-settings mutation.
+	 * @param searchWeight non-negative decimal that fits the engine float range
+	 * @return this builder with the weight mutation recorded
+	 */
 	@Nonnull
 	@Override
-	public AssociatedDataSchemaBuilder searchWeight(float searchWeight) {
+	public AssociatedDataSchemaBuilder searchWeight(@Nonnull BigDecimal searchWeight) {
+		Assert.notNull(searchWeight, "Search weight must not be null.");
 		return setFulltextField(null, null, searchWeight);
 	}
 
@@ -323,7 +330,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	 */
 	@Nonnull
 	private AssociatedDataSchemaBuilder setFulltextField(
-		@Nullable String analyzerName, @Nullable Integer lengthPivot, @Nullable Float searchWeight
+		@Nullable String analyzerName, @Nullable Integer lengthPivot, @Nullable BigDecimal searchWeight
 	) {
 		final AssociatedDataSchemaContract currentSchema = assembleInstance();
 		this.updatedSchemaDirty = updateMutationImpact(

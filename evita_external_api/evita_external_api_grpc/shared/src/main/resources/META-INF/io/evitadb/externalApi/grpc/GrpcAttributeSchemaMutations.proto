@@ -84,7 +84,7 @@ message GrpcCreateAttributeSchemaMutation {
   // Optional fulltext length pivot.
   google.protobuf.Int32Value lengthPivot = 21;
   // Optional ranking weight; explicit zero is preserved.
-  google.protobuf.FloatValue searchWeight = 22;
+  GrpcBigDecimal searchWeight = 22;
 
 }
 
@@ -171,7 +171,7 @@ message GrpcCreateGlobalAttributeSchemaMutation {
   // Optional fulltext length pivot.
   google.protobuf.Int32Value lengthPivot = 23;
   // Optional ranking weight; explicit zero is preserved.
-  google.protobuf.FloatValue searchWeight = 24;
+  GrpcBigDecimal searchWeight = 24;
 
 }
 
@@ -416,5 +416,5 @@ message GrpcSetAttributeSchemaSearchableMutation {
   // Optional fulltext length pivot.
   google.protobuf.Int32Value lengthPivot = 4;
   // Optional ranking weight; explicit zero is preserved.
-  google.protobuf.FloatValue searchWeight = 5;
+  GrpcBigDecimal searchWeight = 5;
 }

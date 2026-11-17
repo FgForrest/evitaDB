@@ -715,7 +715,7 @@ public interface GrpcCreateReferenceSchemaMutationOrBuilder extends
    * Optional shared ranking weight; zero is distinct from omission.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchableThroughWeight = 20;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
    * @return Whether the searchableThroughWeight field is set.
    */
   boolean hasSearchableThroughWeight();
@@ -724,16 +724,16 @@ public interface GrpcCreateReferenceSchemaMutationOrBuilder extends
    * Optional shared ranking weight; zero is distinct from omission.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchableThroughWeight = 20;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
    * @return The searchableThroughWeight.
    */
-  com.google.protobuf.FloatValue getSearchableThroughWeight();
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchableThroughWeight();
   /**
    * <pre>
    * Optional shared ranking weight; zero is distinct from omission.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchableThroughWeight = 20;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
    */
-  com.google.protobuf.FloatValueOrBuilder getSearchableThroughWeightOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchableThroughWeightOrBuilder();
 }

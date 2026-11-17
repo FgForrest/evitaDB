@@ -23,6 +23,8 @@
 
 package io.evitadb.api.functional.fulltext;
 
+import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.index.EntityIndexType;
@@ -80,6 +82,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.schema.ReferenceSearchMode.COMPOSITION;
@@ -132,7 +135,7 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 					a -> a.localized().nullable().searchableInScope(BOTH).lengthPivot(100))
 				.withReferenceTo("tags", "Tag", Cardinality.ZERO_OR_MORE,
 					r -> r.indexedForFilteringInScope(BOTH).withAttribute("note", String.class,
-						a -> a.localized().nullable().searchableInScope(BOTH).searchWeight(2f)))
+						a -> a.localized().nullable().searchableInScope(BOTH).searchWeight(valueOf(2))))
 				.updateVia(session);
 			for (final String type : new String[]{PRODUCT, "Plain", "EmptyOwner"}) {
 				final EntitySchemaBuilder schema = session.defineEntitySchema(type).withoutGeneratedPrimaryKey()
@@ -150,7 +153,7 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 								a -> a.localized().nullable().searchableInScope(BOTH));
 						}
 						if (!type.equals("Plain")) {
-							r.searchableThroughInScope(COMPOSITION, 1f, BOTH);
+							r.searchableThroughInScope(COMPOSITION, valueOf(1), BOTH);
 						}
 					});
 				if (!type.equals("EmptyOwner")) {
@@ -426,14 +429,31 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 	@Order(2)
 	@DisplayName("Ranking and weights")
 	class Ranking {
+		/** Decimal forms of the established zero, half and double weights retain their literal ranked IDs. */
+		@Test
+		@DisplayName("Preserves existing ranking for decimal schema weights at every insignificant scale")
+		void shouldPreserveRankingForDecimalSchemaWeights() {
+			rollback(session -> {
+				for (final String number : new String[]{"0", "0.0", "0.00", "0.5", "0.50", "2", "2.0", "2.00"}) {
+					final BigDecimal decimal = new BigDecimal(number);
+					weight(session, decimal);
+					if (decimal.compareTo(BigDecimal.ONE) > 0) {
+						assertOrder(session, "quartz ", new int[]{11, 12}, 12, 11);
+					} else {
+						assertOrder(session, "quartz ", new int[]{11, 12}, 11, 12);
+					}
+				}
+			});
+		}
+
 		/** An exact word always beats a typo through either route, regardless of the effective place weight. */
 		@Test
 		@DisplayName("Ranks quality ahead of weight for own and composed hits")
 		void shouldRankQualityBeforeWeight() {
 			rollback(session -> {
-				weight(session, 0f);
+				weight(session, valueOf(0));
 				assertOrder(session, "jacket ", new int[]{7, 8}, 8, 7);
-				weight(session, 100f);
+				weight(session, valueOf(100));
 				assertOrder(session, "jacket ", new int[]{9, 10}, 9, 10);
 			});
 		}
@@ -454,11 +474,11 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 				assertEquals(equal[0], equal[1], "A target weight of one acts like an own place of weight one");
 				final long[] flat = scores(session, "silver violet ", 13, 14);
 				assertEquals(flat[0], flat[1], "Targets are items of one flat content place");
-				weight(session, 0.5f);
+				weight(session, valueOf(0.5));
 				assertOrder(session, "quartz ", new int[]{11, 12}, 11, 12);
-				weight(session, 2f);
+				weight(session, valueOf(2));
 				assertOrder(session, "quartz ", new int[]{11, 12}, 12, 11);
-				weight(session, 0f);
+				weight(session, valueOf(0));
 				final long[] zero = scores(session, "quartz ", 11, 12);
 				assertEquals(0, FulltextScoringPolicy.strength(zero[1]));
 				assertArrayEquals(new int[]{11, 12}, ids(session, PRODUCT, textMatches("quartz "), Scope.LIVE));
@@ -479,12 +499,12 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 				assertEquals(2f, before.getTokens()[0][0].weight());
 				session.getEntitySchemaOrThrow(BLOCK).openForWrite().withReferenceTo("tags", "Tag",
 					Cardinality.ZERO_OR_MORE, r -> r.withAttribute("note", String.class,
-						a -> a.searchWeight(0.25f))).updateVia(session);
+						a -> a.searchWeight(valueOf(0.25)))).updateVia(session);
 				assertEquals(0.25f, plannedFormula(session, PRODUCT, "craftsmanship ").getTokens()[0][0].weight());
-				weight(session, Float.MAX_VALUE);
+				weight(session, new BigDecimal(Float.toString(Float.MAX_VALUE)));
 				session.getEntitySchemaOrThrow(BLOCK).openForWrite().withReferenceTo("tags", "Tag",
 					Cardinality.ZERO_OR_MORE, r -> r.withAttribute("note", String.class,
-						a -> a.searchWeight(Float.MAX_VALUE))).updateVia(session);
+						a -> a.searchWeight(new BigDecimal(Float.toString(Float.MAX_VALUE))))).updateVia(session);
 				assertEquals(Float.MAX_VALUE,
 					plannedFormula(session, PRODUCT, "craftsmanship ").getTokens()[0][0].weight());
 			});
@@ -685,7 +705,7 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 			rollback(session -> {
 				assertArrayEquals(new int[0], ids(session, BLOCK, textMatches("leather "), Scope.LIVE));
 				session.getEntitySchemaOrThrow(BLOCK).openForWrite().withReflectedReferenceToEntity("products", PRODUCT,
-					"blocks", r -> r.searchableThroughInScope(COMPOSITION, 1f, BOTH)).updateVia(session);
+					"blocks", r -> r.searchableThroughInScope(COMPOSITION, valueOf(1), BOTH)).updateVia(session);
 				assertArrayEquals(new int[]{101, 102, 103}, ids(session, BLOCK, textMatches("leather "), Scope.LIVE));
 				final QueryPlanningContext context = context(session, BLOCK, "leather ");
 				final EntitySchemaContract schema = session.getEntitySchemaOrThrow(BLOCK);
@@ -789,7 +809,7 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 				}
 				builder.withReflectedReferenceToEntity("owners", "FutureOwner", "blocks", r -> {
 					r.withAttribute("localText", String.class,
-						a -> a.localized().nullable().searchable().searchWeight(2f));
+						a -> a.localized().nullable().searchable().searchWeight(valueOf(2)));
 					if (specifiesInheritance) {
 						if (declaresOwnField) {
 							r.withAttributesInherited("inheritedText");
@@ -935,7 +955,8 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 			evita().queryCatalog(TEST_CATALOG, session -> {
 				assertEquals(COMPOSITION, session.getEntitySchemaOrThrow(PRODUCT).getReferenceOrThrowException("blocks")
 					.getSearchableThrough(Scope.LIVE));
-				assertEquals(1f, session.getEntitySchemaOrThrow(PRODUCT).getReferenceOrThrowException("blocks")
+				assertEquals(BigDecimal.ONE, session.getEntitySchemaOrThrow(PRODUCT)
+					.getReferenceOrThrowException("blocks")
 					.getSearchableThroughWeight());
 				assertArrayEquals(sorted(oracle("leather winter", BOTH)),
 					ids(session, PRODUCT, textMatches("leather winter "), BOTH));
@@ -953,7 +974,7 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 		session.defineEntitySchema("PlaceOwner").withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
 			.withAttribute("text", String[].class, a -> a.localized().searchableInScope(BOTH).lengthPivot(100))
 			.withReferenceToEntity("blocks", "PlaceTarget", Cardinality.ZERO_OR_MORE,
-				r -> r.indexedForFilteringInScope(BOTH).searchableThroughInScope(COMPOSITION, 1f, BOTH))
+				r -> r.indexedForFilteringInScope(BOTH).searchableThroughInScope(COMPOSITION, valueOf(1), BOTH))
 			.updateVia(session);
 		session.upsertEntity(session.createNewEntity("PlaceTarget", 4).setScope(Scope.ARCHIVED)
 			.setAttribute("filler", Locale.ENGLISH, "unrelated"));
@@ -1100,8 +1121,12 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 		assertTrue(completed[0], "Every assertion must finish before the expected rollback");
 	}
 
-	/** Updates only query-time metadata of the existing managed reference. */
-	private static void weight(EvitaSessionContract session, float weight) {
+	/**
+	 * Updates only query-time metadata of the existing managed reference.
+	 * @param session session editing the existing composition reference
+	 * @param weight decimal ranking contribution supplied by this case
+	 */
+	private static void weight(EvitaSessionContract session, @Nonnull BigDecimal weight) {
 		session.getEntitySchemaOrThrow(PRODUCT).openForWrite().withReferenceToEntity("blocks", BLOCK,
 			Cardinality.ZERO_OR_MORE, r -> r.searchableThroughInScope(COMPOSITION, weight, BOTH)).updateVia(session);
 	}

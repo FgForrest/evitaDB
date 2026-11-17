@@ -23,8 +23,8 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
-import com.google.protobuf.FloatValue;
 import com.google.protobuf.StringValue;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
@@ -124,7 +124,8 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			toConflictResolutionOverride(mutation.getConflictResolutionOverride()),
 			mutation.hasSearchableThroughInScopes()
 				? EvitaEnumConverter.toScopedReferenceSearchModes(mutation.getSearchableThroughInScopes()) : null,
-			mutation.hasSearchableThroughWeight() ? mutation.getSearchableThroughWeight().getValue() : null
+			mutation.hasSearchableThroughWeight()
+				? EvitaDataTypesConverter.toBigDecimal(mutation.getSearchableThroughWeight()) : null
 		);
 	}
 
@@ -199,7 +200,9 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 				EvitaEnumConverter.toGrpcReferenceSearchModes(mutation.getSearchableThroughInScopes()));
 		}
 		if (mutation.getSearchableThroughWeight() != null) {
-			builder.setSearchableThroughWeight(FloatValue.of(mutation.getSearchableThroughWeight()));
+			builder.setSearchableThroughWeight(
+				EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getSearchableThroughWeight())
+			);
 		}
 		return builder.build();
 	}

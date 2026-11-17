@@ -24,6 +24,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
+import java.math.BigDecimal;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -82,7 +83,7 @@ class FulltextMutationConverterTest {
 	@Test
 	void shouldRoundTripReferenceAttribute() {
 		final SetAttributeSchemaSearchableMutation attribute = new SetAttributeSchemaSearchableMutation(
-			"text", Scope.DEFAULT_SCOPES, "text", 73, 0.0f);
+			"text", Scope.DEFAULT_SCOPES, "text", 73, BigDecimal.ZERO);
 		final ModifyReferenceAttributeSchemaMutation mutation =
 			new ModifyReferenceAttributeSchemaMutation("related", attribute);
 		final Map<String, Object> input = Map.of("modifyReferenceAttributeSchemaMutation", Map.of(

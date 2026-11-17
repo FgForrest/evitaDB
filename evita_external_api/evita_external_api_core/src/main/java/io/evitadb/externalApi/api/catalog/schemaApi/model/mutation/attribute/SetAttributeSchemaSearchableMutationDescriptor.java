@@ -65,14 +65,14 @@ public interface SetAttributeSchemaSearchableMutationDescriptor extends Attribut
 		.type(nullable(Integer.class))
 		.build();
 	/**
-	 * Ranking weight of the field, exposed as a decimal because the evitaDB data types the APIs expose have no
-	 * `Float`; the converters translate it to and from the mutation's `Float`.
+	 * Decimal ranking weight of the field, shared by all scopes.
 	 */
 	PropertyDescriptor SEARCH_WEIGHT = PropertyDescriptor.builder()
 		.name("searchWeight")
 		.description("""
-			Ranking weight of the field in every scope; it must be finite and non-negative. Zero is valid: matches are
-			kept but add no ranking strength. Omission keeps the current weight.
+			Ranking weight of the field in every scope; it must be non-negative, have at most 100 significant digits
+			and a stripped scale between -100 and 100, and fit the engine float range. Zero keeps matches but adds no
+			ranking strength. Omission keeps the current weight.
 			""")
 		.type(nullable(BigDecimal.class))
 		.build();

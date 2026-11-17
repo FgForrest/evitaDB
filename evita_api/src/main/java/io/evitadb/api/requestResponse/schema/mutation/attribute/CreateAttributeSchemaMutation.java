@@ -63,6 +63,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -126,7 +127,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	@Getter @Nullable private final Integer lengthPivot;
 
 	/** Ranking weight, or `null` to use the default. */
-	@Getter @Nullable private final Float searchWeight;
+	@Getter @Nullable private final BigDecimal searchWeight;
 
 	/** Creates an attribute using the default scope and Unicode NFD-only normalization. */
 	public CreateAttributeSchemaMutation(
@@ -337,7 +338,9 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	 * @param normalization              ordered normalization descriptions
 	 * @param analyzer                   the name of the fulltext analyzer, or `null` for the default one
 	 * @param lengthPivot                the length pivot, or `null` for the default one
-	 * @param searchWeight               finite, non-negative ranking weight, or `null` to use the default
+	 * @param searchWeight               non-negative decimal ranking weight within the shared decimal bounds and
+	 *                                   engine float range, or `null` to use the default
+	 * @throws InvalidSchemaMutationException when the search weight lies outside those bounds
 	 */
 	@SerializableCreator
 	public CreateAttributeSchemaMutation(
@@ -359,13 +362,15 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		@Nullable AnalysisStep[] normalization,
 		@Nullable String analyzer,
 		@Nullable Integer lengthPivot,
-		@Nullable Float searchWeight
+		@Nullable BigDecimal searchWeight
 	) {
 		super(name);
 		this.normalization = normalization == null ? null : normalization.clone();
 		this.analyzer = analyzer;
 		this.lengthPivot = lengthPivot;
-		this.searchWeight = searchWeight == null ? null : AttributeSchemaContract.normalizeSearchWeight(searchWeight);
+		this.searchWeight = searchWeight == null ? null : AttributeSchemaContract.normalizeSearchWeight(
+			searchWeight, "Attribute `" + name + "`"
+		);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
 		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");

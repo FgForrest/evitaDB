@@ -114,7 +114,7 @@ class FulltextFormulaTest {
 	@Test
 	@DisplayName("should leave ranking tables absent until scores are requested")
 	void shouldKeepRankingTablesLazy() throws ReflectiveOperationException {
-		final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of());
+		final FulltextScoringPolicy policy = new FulltextScoringPolicy(Map.of(), Map.of());
 		final FulltextFormula formula = new FulltextFormula(new ExpandedTerm[][]{{term("green", 0, 1, 100)}},
 			null, policy, Map.of(), null);
 		final Field field = FulltextScoringPolicy.class.getDeclaredField("impactTables");

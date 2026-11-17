@@ -36,6 +36,7 @@ import io.evitadb.dataType.expression.Expression;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.util.Collection;
 
 /**
@@ -66,11 +67,11 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * Composes referenced text in the default scope and sets the weight for all scopes.
 	 *
 	 * @param mode how the referenced text participates
-	 * @param weight finite, non-negative shared ranking weight; zero preserves matching
+	 * @param weight non-negative decimal ranking weight within the engine float range; zero preserves matching
 	 * @return this editor
 	 */
 	@Nonnull
-	default T searchableThrough(@Nonnull ReferenceSearchMode mode, float weight) {
+	default T searchableThrough(@Nonnull ReferenceSearchMode mode, @Nonnull BigDecimal weight) {
 		return searchableThroughInScope(mode, weight, Scope.DEFAULT_SCOPE);
 	}
 
@@ -95,12 +96,14 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * {@link #searchableThroughInScope(ReferenceSearchMode, Scope...)}.
 	 *
 	 * @param mode how the referenced text participates
-	 * @param weight finite, non-negative shared ranking weight; zero preserves matching
+	 * @param weight non-negative decimal ranking weight within the engine float range; zero preserves matching
 	 * @param inScope scopes to declare
 	 * @return this editor
 	 */
 	@Nonnull
-	T searchableThroughInScope(@Nonnull ReferenceSearchMode mode, float weight, @Nonnull Scope... inScope);
+	T searchableThroughInScope(
+		@Nonnull ReferenceSearchMode mode, @Nonnull BigDecimal weight, @Nonnull Scope... inScope
+	);
 
 	/**
 	 * Removes the mode in every scope, keeping the shared weight.

@@ -50,6 +50,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -135,7 +136,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * persisted fulltext field definition, so changing it never rebuilds the field. See
 	 * {@link AttributeSchemaContract#getSearchWeight()}.
 	 */
-	@Getter protected final float searchWeight;
+	@Getter @Nonnull protected final BigDecimal searchWeight;
 
 	/**
 	 * Number of fractional places important for indexing numeric values (especially {@link java.math.BigDecimal}).
@@ -352,7 +353,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * @param normalization ordered normalization steps
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 * @param <T> stored value type
 	 * @return immutable schema carrying all supplied settings
 	 */
@@ -376,7 +377,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -420,7 +421,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * @param normalization ordered normalization steps
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 * @param <T> stored value type
 	 * @return immutable schema carrying all supplied settings
 	 */
@@ -444,7 +445,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
@@ -485,7 +486,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * @param normalization ordered normalization steps
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 * @param <T> stored value type
 	 * @return immutable schema carrying all supplied settings
 	 */
@@ -510,7 +511,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		return new AttributeSchema(
 			name, nameVariants,
@@ -551,7 +552,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * @param normalization ordered normalization steps
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 * @param <T> stored value type
 	 * @return immutable schema carrying all supplied settings
 	 */
@@ -576,7 +577,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
@@ -621,7 +622,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * @param normalization ordered normalization steps
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 * @param <T> stored value type
 	 */
 	<T extends Serializable> AttributeSchema(
@@ -644,14 +645,14 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable List<AnalysisStep> normalization,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		this.normalization = normalization == null ? List.of() :
 			Collections.unmodifiableList(new ArrayList<>(normalization));
 		Assert.notNull(analyzer, "The fulltext analyzer of attribute `" + name + "` must not be null!");
 		this.analyzer = analyzer;
 		this.lengthPivot = lengthPivot;
-		this.searchWeight = AttributeSchemaContract.normalizeSearchWeight(searchWeight);
+		this.searchWeight = AttributeSchemaContract.normalizeSearchWeight(searchWeight, "Attribute `" + name + "`");
 		this.name = name;
 		this.nameVariants = CollectionUtils.toUnmodifiableMap(nameVariants);
 		this.description = description;
@@ -960,7 +961,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			Objects.equals(this.normalization, that.normalization) &&
 			Objects.equals(this.analyzer, that.analyzer) &&
 			this.lengthPivot == that.lengthPivot &&
-			Float.compare(this.searchWeight, that.searchWeight) == 0 &&
+			this.searchWeight.compareTo(that.searchWeight) == 0 &&
 			!EvitaDataTypes.storedValueDiffers(this.defaultValue, that.defaultValue);
 	}
 
@@ -1009,7 +1010,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		result = 31 * result + Objects.hashCode(this.normalization);
 		result = 31 * result + Objects.hashCode(this.analyzer);
 		result = 31 * result + Integer.hashCode(this.lengthPivot);
-		result = 31 * result + Float.hashCode(this.searchWeight);
+		result = 31 * result + this.searchWeight.hashCode();
 		return result;
 	}
 

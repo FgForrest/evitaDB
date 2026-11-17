@@ -23,6 +23,7 @@
 
 package io.evitadb.api.functional.fulltext;
 
+import java.math.BigDecimal;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.AssociatedDataNotFoundException;
 import io.evitadb.api.exception.AttributeNotFoundException;
@@ -69,6 +70,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.schema.ReferenceSearchMode.COMPOSITION;
@@ -105,7 +107,7 @@ class FulltextPlaceSelectorsFunctionalTest implements EvitaTestSupport {
 				final String target = type + "Block";
 				session.defineEntitySchema(target).withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
 					.withAttribute("shared", String.class, a -> {
-						a.localized().nullable().lengthPivot(50).searchWeight(2f);
+						a.localized().nullable().lengthPivot(50).searchWeight(valueOf(2));
 						if (all || type.equals("TargetAttribute")) a.searchableInScope(BOTH);
 					})
 					.withAttribute("hidden", String.class, a -> a.localized().nullable())
@@ -118,19 +120,19 @@ class FulltextPlaceSelectorsFunctionalTest implements EvitaTestSupport {
 						if (all) a.searchable();
 					})
 					.withAssociatedData("shared", String.class, a -> {
-						a.localized().nullable().lengthPivot(50).searchWeight(3f);
+						a.localized().nullable().lengthPivot(50).searchWeight(valueOf(3));
 						if (all || type.equals("TargetData")) a.searchableInScope(BOTH);
 					})
 					.withAssociatedData("hidden", String.class, a -> a.localized().nullable())
 					.withReferenceTo("tags", "Tag", Cardinality.ZERO_OR_MORE, r ->
 						r.indexedForFilteringInScope(BOTH).withAttribute("shared", String.class, a -> {
-							a.localized().nullable().lengthPivot(50).searchWeight(4f);
+							a.localized().nullable().lengthPivot(50).searchWeight(valueOf(4));
 							if (all || type.equals("TargetReference")) a.searchableInScope(BOTH);
 						}))
 					.updateVia(session);
 				session.defineEntitySchema(type).withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
 					.withAttribute("shared", String.class, a -> {
-						a.localized().nullable().lengthPivot(50).searchWeight(2f);
+						a.localized().nullable().lengthPivot(50).searchWeight(valueOf(2));
 						if (all || type.equals("AttributeOnly")) a.searchableInScope(BOTH);
 					})
 					.withAttribute("hidden", String.class, a -> a.localized().nullable())
@@ -139,7 +141,7 @@ class FulltextPlaceSelectorsFunctionalTest implements EvitaTestSupport {
 						if (all) a.searchable();
 					})
 					.withAssociatedData("shared", String.class, a -> {
-						a.localized().nullable().lengthPivot(50).searchWeight(3f);
+						a.localized().nullable().lengthPivot(50).searchWeight(valueOf(3));
 						if (all || type.equals("DataOnly")) a.searchableInScope(BOTH);
 					})
 					.withAssociatedData("other", String.class, a -> {
@@ -154,7 +156,7 @@ class FulltextPlaceSelectorsFunctionalTest implements EvitaTestSupport {
 					.withReferenceToEntity("blocks", target, Cardinality.ZERO_OR_MORE, r -> {
 						r.indexedForFilteringInScope(BOTH)
 							.withAttribute("shared", String.class, a -> {
-								a.localized().nullable().lengthPivot(50).searchWeight(4f);
+								a.localized().nullable().lengthPivot(50).searchWeight(valueOf(4));
 								if (all || type.equals("ReferenceOnly")) a.searchableInScope(BOTH);
 							})
 							.withAttribute("other", String.class, a -> {
@@ -166,7 +168,9 @@ class FulltextPlaceSelectorsFunctionalTest implements EvitaTestSupport {
 								a.localized().nullable();
 								if (all) a.searchable();
 							});
-						if (all || type.startsWith("Target")) r.searchableThroughInScope(COMPOSITION, 0.4f, BOTH);
+						if (all || type.startsWith("Target")) {
+							r.searchableThroughInScope(COMPOSITION, valueOf(0.4), BOTH);
+						}
 					})
 					.withReferenceToEntity("raw", target, Cardinality.ZERO_OR_MORE,
 						r -> r.indexedForFilteringInScope(BOTH))
@@ -203,7 +207,7 @@ class FulltextPlaceSelectorsFunctionalTest implements EvitaTestSupport {
 			session.defineEntitySchema("ScopedOwner").withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
 				.withAttribute("caption", String.class, a -> a.localized())
 				.withReferenceToEntity("blocks", "ScopedBlock", Cardinality.ZERO_OR_MORE, r ->
-					r.indexedForFilteringInScope(BOTH).searchableThroughInScope(COMPOSITION, 0.4f, BOTH))
+					r.indexedForFilteringInScope(BOTH).searchableThroughInScope(COMPOSITION, valueOf(0.4), BOTH))
 				.updateVia(session);
 			session.upsertEntity(session.createNewEntity("ScopedBlock", 1)
 				.setAttribute("text", Locale.ENGLISH, "quartz"));
@@ -291,7 +295,7 @@ class FulltextPlaceSelectorsFunctionalTest implements EvitaTestSupport {
 					if (!restricted) a.searchable();
 				})
 				.withReferenceToEntity("blocks", target, Cardinality.ZERO_OR_MORE,
-					r -> r.indexedForFiltering().searchableThrough(COMPOSITION, 0.4f)).updateVia(session);
+					r -> r.indexedForFiltering().searchableThrough(COMPOSITION, valueOf(0.4))).updateVia(session);
 			for (int id = 1; id <= 2; id++) {
 				session.upsertEntity(session.createNewEntity(target, id)
 					.setAttribute("literal", Locale.ENGLISH, "plain")

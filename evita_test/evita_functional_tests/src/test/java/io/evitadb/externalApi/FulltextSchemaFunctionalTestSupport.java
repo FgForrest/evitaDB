@@ -24,6 +24,7 @@
 
 package io.evitadb.externalApi;
 
+import java.math.BigDecimal;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.query.expression.ExpressionFactory;
@@ -52,6 +53,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.math.BigDecimal.valueOf;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Independent declaration fixtures and literal assertions shared by the three schema-read transports. */
@@ -75,17 +77,17 @@ public class FulltextSchemaFunctionalTestSupport {
 	/** Declares every fulltext schema kind, including inherited reference metadata and reference attributes. */
 	@Nonnull
 	public static List<LocalCatalogSchemaMutation> declarations() {
-		final List<SchemaMutation> fields = FulltextMutationTestSupport.mutations(0.0f).toList();
+		final List<SchemaMutation> fields = FulltextMutationTestSupport.mutations(valueOf(0)).toList();
 		final CreateGlobalAttributeSchemaMutation global = new CreateGlobalAttributeSchemaMutation(
 			"globalText", null, null, null, null, null, null, Scope.values(), null, true, true, false,
-			String.class, null, 0, ConflictResolutionOverride.INHERITED, null, "html-text", 73, 0.0f);
+			String.class, null, 0, ConflictResolutionOverride.INHERITED, null, "html-text", 73, valueOf(0));
 		final CreateAttributeSchemaMutation attribute = new CreateAttributeSchemaMutation(
 			"text", null, null, null, null, null, Scope.values(), null, true, true, false,
-			String.class, null, 0, ConflictResolutionOverride.INHERITED, null, "html-text", 73, 0.0f);
+			String.class, null, 0, ConflictResolutionOverride.INHERITED, null, "html-text", 73, valueOf(0));
 		final CreateAssociatedDataSchemaMutation data = new CreateAssociatedDataSchemaMutation(
 			"text", null, null, ComplexDataObject.class, true, true, Scope.values(),
 			ExpressionFactory.parse("$value.title"),
-			ConflictResolutionOverride.INHERITED, "html-text", 73, 0.0f);
+			ConflictResolutionOverride.INHERITED, "html-text", 73, valueOf(0));
 		final LocalCatalogSchemaMutation owner = new ModifyEntitySchemaMutation("owner",
 			attribute, data,
 			(CreateReferenceSchemaMutation) fields.get(6),
@@ -97,11 +99,11 @@ public class FulltextSchemaFunctionalTestSupport {
 				ReflectedReferenceSchemaContract.AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT, new String[0],
 				new ScopedReferenceSearchMode[]{
 					new ScopedReferenceSearchMode(Scope.LIVE, ReferenceSearchMode.COMPOSITION),
-					new ScopedReferenceSearchMode(Scope.ARCHIVED, ReferenceSearchMode.COMPOSITION)}, 0.0f));
+					new ScopedReferenceSearchMode(Scope.ARCHIVED, ReferenceSearchMode.COMPOSITION)}, valueOf(0)));
 		final LocalCatalogSchemaMutation target = new ModifyEntitySchemaMutation("target",
 			new ModifyReferenceAttributeSchemaMutation("original", attribute),
 			new CreateAssociatedDataSchemaMutation("content", null, null, String.class, true, true,
-				Scope.values(), null, ConflictResolutionOverride.INHERITED, "html-text", 73, 0.0f));
+				Scope.values(), null, ConflictResolutionOverride.INHERITED, "html-text", 73, valueOf(0)));
 		return Stream.concat(Stream.of(global, owner, target,
 			new CreateFulltextResourceSchemaMutation("synonyms",
 				new SynonymList(List.of(new SynonymGroup(List.of("quick", "fast")),
@@ -137,7 +139,7 @@ public class FulltextSchemaFunctionalTestSupport {
 		assertEquals(read("[\"LIVE\",\"ARCHIVED\"]"), field.path("searchable"));
 		assertEquals("html-text", field.path("analyzer").asText());
 		assertEquals(73, field.path("lengthPivot").asInt());
-		assertEquals("0.0", field.path("searchWeight").asText());
+		assertEquals("0", field.path("searchWeight").asText());
 		if (expression) {
 			assertEquals("$value.title", field.path("textExpression").asText());
 		} else {
@@ -150,7 +152,7 @@ public class FulltextSchemaFunctionalTestSupport {
 		assertEquals(read("""
 			[{"scope":"LIVE","mode":"COMPOSITION"},{"scope":"ARCHIVED","mode":"COMPOSITION"}]
 			"""), reference.path("searchableThrough"));
-		assertEquals("0.0", reference.path("searchableThroughWeight").asText());
+		assertEquals("0", reference.path("searchableThroughWeight").asText());
 	}
 
 	/** Literal catalog declarations expected independently of the production serializers. */

@@ -32,7 +32,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
@@ -45,7 +44,6 @@ import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Verifies the typed GraphQL rendering of mutation ranking weights without creating a server. */
 @Tag(EXTERNAL_API)
@@ -56,38 +54,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SchemaMutationSearchWeightDataFetcherTest {
 
 	/**
-	 * A mutation may carry a non-finite weight until schema validation refuses it, and a decimal cannot hold one;
-	 * null is not an answer either, because a null weight reads as "keep the current weight".
+	 * A schema mutation rejects invalid decimal weights before GraphQL can expose them.
+	 * @param weight decimal ranking contribution supplied by this case
 	 */
 	@ParameterizedTest
-	@ValueSource(floats = {Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY})
-	@DisplayName("refuses a non-finite weight with a descriptive error")
-	void shouldRefuseNonFiniteWeight(float weight) {
-		final DataFetchingEnvironment environment = DataFetchingEnvironmentImpl.newDataFetchingEnvironment()
-			.source(new SetAttributeSchemaSearchableMutation("text", null, null, null, weight))
-			.build();
-
-		final GraphQLQueryResolvingInternalError error = assertThrows(
-			GraphQLQueryResolvingInternalError.class,
-			() -> SchemaMutationSearchWeightDataFetcher.getInstance().get(environment)
+	@ValueSource(strings = {"-1", "1E+39", "1E-100", "1E-101", "1E+101"})
+	@DisplayName("refuses invalid weights at schema mutation construction")
+	void shouldRefuseInvalidWeight(@Nonnull BigDecimal weight) {
+		assertThrows(
+			io.evitadb.api.exception.InvalidSchemaMutationException.class,
+			() -> new SetAttributeSchemaSearchableMutation("text", null, null, null, weight)
 		);
-
-		assertTrue(error.getPublicMessage().contains(Float.toString(weight)), error.getPublicMessage());
 	}
 
 	/**
-	 * The decimal must carry the shortest text of the `Float`, not its binary expansion, and must keep an explicit
-	 * zero as a value.
+	 * Canonical decimals retain all significant digits and explicit zero in GraphQL output.
+	 * @param weight decimal ranking contribution supplied by this case
 	 */
 	@ParameterizedTest
-	@CsvSource({"0.1, 0.1", "0.0, 0.0", "2.5, 2.5", "1.0E-4, 0.00010"})
-	@DisplayName("renders a finite weight as its shortest decimal")
-	void shouldRenderShortestDecimal(float weight, @Nonnull String expected) {
+	@ValueSource(strings = {"0", "0.0000001", "12345678.5", "0.123456789012345678901234567891"})
+	@DisplayName("renders a schema weight without losing precision")
+	void shouldRenderDecimal(@Nonnull BigDecimal weight) {
 		final DataFetchingEnvironment environment = DataFetchingEnvironmentImpl.newDataFetchingEnvironment()
 			.source(new SetAttributeSchemaSearchableMutation("text", null, null, null, weight))
 			.build();
 
-		assertEquals(new BigDecimal(expected), SchemaMutationSearchWeightDataFetcher.getInstance().get(environment));
+		assertEquals(weight, SchemaMutationSearchWeightDataFetcher.getInstance().get(environment));
 	}
 
 	/** A mutation that leaves the weight unset must read as null, which the client understands as "unchanged". */

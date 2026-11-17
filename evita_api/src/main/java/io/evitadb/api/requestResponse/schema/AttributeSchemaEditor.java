@@ -34,6 +34,7 @@ import io.evitadb.dataType.Scope;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.function.BooleanSupplier;
 
@@ -359,11 +360,11 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * Sets the fulltext ranking weight in every scope, preserving the current searchability settings.
 	 * Zero preserves matches while contributing no ranking strength. A weight change does not rebuild the field.
 	 *
-	 * @param searchWeight finite, non-negative ranking weight
+	 * @param searchWeight non-negative decimal ranking weight within the shared decimal bounds and engine float range
 	 * @return this editor
 	 */
 	@Nonnull
-	T searchWeight(float searchWeight);
+	T searchWeight(@Nonnull BigDecimal searchWeight);
 
 	/**
 	 * When attribute value is unique it is automatically filterable, and it is ensured there is exactly one single entity

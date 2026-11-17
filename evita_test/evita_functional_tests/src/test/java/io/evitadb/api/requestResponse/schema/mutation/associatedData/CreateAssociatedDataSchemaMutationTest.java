@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 
+import java.math.BigDecimal;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -67,6 +68,7 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Tag;
 
+import static java.math.BigDecimal.valueOf;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -410,12 +412,15 @@ class CreateAssociatedDataSchemaMutationTest {
 		}
 	}
 
-	/** Create null means default; remove/create emits searchability only for an actual weight difference. */
+	/**
+	 * Create null means default; remove/create emits searchability only for an actual weight difference.
+	 * @param weight decimal ranking contribution, or null to leave the weight unspecified
+	 */
 	@ParameterizedTest
 	@NullSource
-	@ValueSource(floats = {0.0f, -0.0f, 2.5f, 3.5f})
+	@ValueSource(strings = {"0", "-0", "2.5", "3.5"})
 	@DisplayName("should default create weights and include only real weight differences")
-	void shouldDefaultSearchWeightAndDetectWeightDifferences(@Nullable Float weight) {
+	void shouldDefaultSearchWeightAndDetectWeightDifferences(@Nullable BigDecimal weight) {
 		final CatalogSchema catalog = CatalogSchema._internalBuild(
 			"test", Map.of(), null, Set.of(),
 			EmptyEntitySchemaAccessor.INSTANCE
@@ -423,21 +428,21 @@ class CreateAssociatedDataSchemaMutationTest {
 		final EntitySchemaContract owner = new InternalEntitySchemaBuilder(catalog,
 			EntitySchema._internalBuild("product"))
 			.withAssociatedData(ASSOCIATED_DATA_NAME, String.class,
-				a -> a.localized().searchable().searchWeight(3.5f)).toInstance();
+				a -> a.localized().searchable().searchWeight(valueOf(3.5))).toInstance();
 		final CreateAssociatedDataSchemaMutation create = new CreateAssociatedDataSchemaMutation(
 			ASSOCIATED_DATA_NAME, null, null, String.class, true, false, Scope.DEFAULT_SCOPES, null,
 			ConflictResolutionOverride.INHERITED, null, null, weight
 		);
-		final float expected = weight == null ? 1.0f : weight + 0.0f;
-		final float created = create.mutate(null).getSearchWeight();
-		assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(created));
+		final BigDecimal expected = weight == null ? valueOf(1) : weight.stripTrailingZeros();
+		final BigDecimal created = create.mutate(null).getSearchWeight();
+		assertEquals(expected, created);
 		if (weight != null) {
-			assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(create.getSearchWeight()));
+			assertEquals(expected, create.getSearchWeight());
 		}
 		final MutationCombinationResult<LocalEntitySchemaMutation> combined = create.combineWith(catalog, owner,
 			new RemoveAssociatedDataSchemaMutation(ASSOCIATED_DATA_NAME));
 		assertNotNull(combined);
-		if (expected == 3.5f) {
+		if (expected.compareTo(valueOf(3.5)) == 0) {
 			assertNull(combined.current());
 		} else {
 			assertEquals(1, combined.current().length);
@@ -453,11 +458,11 @@ class CreateAssociatedDataSchemaMutationTest {
 	void shouldIncludeSearchWeightInValueSemantics() {
 		final CreateAssociatedDataSchemaMutation zero = new CreateAssociatedDataSchemaMutation(
 			ASSOCIATED_DATA_NAME, null, null, String.class, false, false, null, null,
-			ConflictResolutionOverride.INHERITED, null, null, 0.0f
+			ConflictResolutionOverride.INHERITED, null, null, valueOf(0)
 		);
 		final CreateAssociatedDataSchemaMutation weighted = new CreateAssociatedDataSchemaMutation(
 			ASSOCIATED_DATA_NAME, null, null, String.class, false, false, null, null,
-			ConflictResolutionOverride.INHERITED, null, null, 2.5f
+			ConflictResolutionOverride.INHERITED, null, null, valueOf(2.5)
 		);
 		assertNotEquals(zero, weighted);
 		assertNotEquals(zero.hashCode(), weighted.hashCode());

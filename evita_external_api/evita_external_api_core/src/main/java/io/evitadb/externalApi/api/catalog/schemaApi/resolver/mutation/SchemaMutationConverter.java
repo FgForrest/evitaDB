@@ -27,7 +27,6 @@ import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaSearchableMutationDescriptor;
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.resolver.mutation.Input;
 import io.evitadb.externalApi.api.resolver.mutation.MutationConverter;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
@@ -48,20 +47,6 @@ public abstract class SchemaMutationConverter<M extends SchemaMutation> extends 
 	protected SchemaMutationConverter(@Nonnull MutationObjectMapper objectParser,
 	                               @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
-	}
-
-	/**
-	 * Reads a ranking weight the API supplies as a decimal and narrows it to the `Float` the mutations store. An
-	 * absent property stays `null`, so omission remains distinct from an explicit zero.
-	 *
-	 * @param input the mutation input to read from
-	 * @param property the weight property, whose name differs between the mutation families
-	 * @return the weight narrowed to `float` precision, or `null` when the input omits it
-	 */
-	@Nullable
-	protected static Float readSearchWeight(@Nonnull Input input, @Nonnull PropertyDescriptor property) {
-		final BigDecimal weight = input.getProperty(property);
-		return weight == null ? null : weight.floatValue();
 	}
 
 	/**
@@ -92,22 +77,17 @@ public abstract class SchemaMutationConverter<M extends SchemaMutation> extends 
 	}
 
 	/**
-	 * Writes a present ranking weight before reflection reaches it, because {@link Output} cannot serialize a `Float`.
-	 * A finite weight is written as a decimal; a non-finite one, which a mutation may carry until schema
-	 * validation refuses it, has no decimal form and is written verbatim (`NaN`, `Infinity`, `-Infinity`).
+	 * Writes a present decimal ranking weight, preserving omission separately from explicit zero.
 	 *
-	 * @param propertyName the output property receiving the weight
-	 * @param weight the supplied ranking weight, or `null` to omit the property
-	 * @param output the mutation output receiving the value
+	 * @param propertyName output property receiving the weight
+	 * @param weight decimal ranking weight, or `null` to omit the property
+	 * @param output mutation output receiving the value
 	 */
 	protected static void writeSearchWeight(
-		@Nonnull String propertyName, @Nullable Float weight, @Nonnull Output output
+		@Nonnull String propertyName, @Nullable BigDecimal weight, @Nonnull Output output
 	) {
 		if (weight != null) {
-			output.setProperty(
-				propertyName,
-				Float.isFinite(weight) ? new BigDecimal(Float.toString(weight)) : Float.toString(weight)
-			);
+			output.setProperty(propertyName, weight);
 		}
 	}
 }

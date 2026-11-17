@@ -195,11 +195,12 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			texts that merely mention the word.
 			""")
 		.type(nonNull(Integer.class)).build();
-	/** Ranking weight of the field; zero preserves matches while contributing no ranking strength. */
+	/** Decimal ranking weight of the field; zero preserves matches without ranking strength. */
 	PropertyDescriptor SEARCH_WEIGHT = PropertyDescriptor.builder()
 		.name("searchWeight").description("""
 			Fulltext ranking weight of the field, shared by every scope; 1.0 unless declared otherwise. Zero preserves
-			matches while contributing no ranking strength.
+			matches while contributing no ranking strength. The weight must be non-negative, have at most
+			100 significant digits and a stripped scale between -100 and 100, and fit the engine float range.
 			""")
 		.type(nonNull(BigDecimal.class)).build();
 

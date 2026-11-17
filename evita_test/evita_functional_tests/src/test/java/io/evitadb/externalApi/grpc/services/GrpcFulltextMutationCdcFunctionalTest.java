@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.services;
 
+import java.math.BigDecimal;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
@@ -78,6 +79,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.FulltextMutationFunctionalTestSupport.*;
@@ -195,7 +197,7 @@ class GrpcFulltextMutationCdcFunctionalTest
 				assertEquals(expected.getFulltextLanguages(), actual.getFulltextLanguages());
 				assertEquals(expected.getFulltextResources(), actual.getFulltextResources());
 				assertEquals(expected.getFulltextAnalyzers(), actual.getFulltextAnalyzers());
-				assertEquals(0.0f, actual.getAttributes().get("globalText").getSearchWeight());
+				assertEquals(valueOf(0), actual.getAttributes().get("globalText").getSearchWeight());
 				assertEquals("html-text", actual.getAttributes().get("globalText").getAnalyzer());
 				assertEquals(List.of("standard", "word-number-split"), actual.getFulltextLanguages().get("en")
 					.getWordSplitting().stream()
@@ -227,7 +229,7 @@ class GrpcFulltextMutationCdcFunctionalTest
 									field.getSearchableInScopes());
 						assertEquals("html-text", field.getAnalyzer());
 						assertEquals(73, field.getLengthPivot());
-						assertEquals(0.0f, field.getSearchWeight());
+						assertEquals(valueOf(0), field.getSearchWeight());
 					}
 					assertEquals(Set.of(type.equals("owner") ? "text" : "content"),
 						received.getAssociatedData().keySet());
@@ -238,7 +240,7 @@ class GrpcFulltextMutationCdcFunctionalTest
 							field.getTextExpression() == null ? null : field.getTextExpression().toExpressionString());
 						assertEquals("html-text", field.getAnalyzer());
 						assertEquals(73, field.getLengthPivot());
-						assertEquals(0.0f, field.getSearchWeight());
+						assertEquals(valueOf(0), field.getSearchWeight());
 					}
 					assertEquals(type.equals("owner") ? Set.of("related", "reflected") : Set.of("original"),
 						received.getReferences().keySet());
@@ -247,14 +249,14 @@ class GrpcFulltextMutationCdcFunctionalTest
 							assertEquals(Map.of(Scope.LIVE, ReferenceSearchMode.COMPOSITION,
 								Scope.ARCHIVED, ReferenceSearchMode.COMPOSITION),
 								ref.getSearchableThroughInScopes());
-							assertEquals(0.0f, ref.getSearchableThroughWeight());
+							assertEquals(valueOf(0), ref.getSearchableThroughWeight());
 							assertEquals(Set.of("text"), ref.getAttributes().keySet());
 							for (final AttributeSchemaContract field : ref.getAttributes().values()) {
 								assertEquals(Set.of(Scope.LIVE, Scope.ARCHIVED),
 									field.getSearchableInScopes());
 								assertEquals("html-text", field.getAnalyzer());
 								assertEquals(73, field.getLengthPivot());
-								assertEquals(0.0f, field.getSearchWeight());
+								assertEquals(valueOf(0), field.getSearchWeight());
 							}
 						}
 					}

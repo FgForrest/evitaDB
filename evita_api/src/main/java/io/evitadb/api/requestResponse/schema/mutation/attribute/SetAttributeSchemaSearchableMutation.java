@@ -53,6 +53,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -111,7 +112,7 @@ public class SetAttributeSchemaSearchableMutation
 	@Getter @Nullable private final Integer lengthPivot;
 
 	/** Ranking weight, or `null` to keep the current value. */
-	@Getter @Nullable private final Float searchWeight;
+	@Getter @Nullable private final BigDecimal searchWeight;
 
 	/**
 	 * Creates a mutation making the attribute searchable in the {@link Scope#DEFAULT_SCOPE default scope} only, or
@@ -150,7 +151,9 @@ public class SetAttributeSchemaSearchableMutation
 	 *                           searchable. May be `null`, which means "searchable nowhere"
 	 * @param analyzer           the name of the fulltext analyzer, or `null` to keep the current one
 	 * @param lengthPivot        the length pivot, or `null` to keep the current one
-	 * @param searchWeight       finite, non-negative ranking weight, or `null` to keep the current value
+	 * @param searchWeight       non-negative decimal ranking weight within the shared decimal bounds and engine float
+	 *                           range, or `null` to keep the current value
+	 * @throws InvalidSchemaMutationException when the search weight lies outside those bounds
 	 */
 	@SerializableCreator
 	public SetAttributeSchemaSearchableMutation(
@@ -158,13 +161,15 @@ public class SetAttributeSchemaSearchableMutation
 		@Nullable Scope[] searchableInScopes,
 		@Nullable String analyzer,
 		@Nullable Integer lengthPivot,
-		@Nullable Float searchWeight
+		@Nullable BigDecimal searchWeight
 	) {
 		super(name);
 		this.searchableInScopes = searchableInScopes == null ? NO_SCOPE : searchableInScopes;
 		this.analyzer = analyzer;
 		this.lengthPivot = lengthPivot;
-		this.searchWeight = searchWeight == null ? null : AttributeSchemaContract.normalizeSearchWeight(searchWeight);
+		this.searchWeight = searchWeight == null ? null : AttributeSchemaContract.normalizeSearchWeight(
+			searchWeight, "Attribute `" + name + "`"
+		);
 	}
 
 	/**
@@ -241,12 +246,13 @@ public class SetAttributeSchemaSearchableMutation
 		final EnumSet<Scope> searchable = ArrayUtils.toEnumSet(Scope.class, this.searchableInScopes);
 		final String theAnalyzer = this.analyzer == null ? attributeSchema.getAnalyzer() : this.analyzer;
 		final int theLengthPivot = this.lengthPivot == null ? attributeSchema.getLengthPivot() : this.lengthPivot;
-		final float theSearchWeight = this.searchWeight == null ? attributeSchema.getSearchWeight() : this.searchWeight;
+		final BigDecimal theSearchWeight =
+			this.searchWeight == null ? attributeSchema.getSearchWeight() : this.searchWeight;
 		if (
 			attributeSchema.getSearchableInScopes().equals(searchable) &&
 				attributeSchema.getAnalyzer().equals(theAnalyzer) &&
 				attributeSchema.getLengthPivot() == theLengthPivot &&
-				Float.compare(attributeSchema.getSearchWeight(), theSearchWeight) == 0
+				attributeSchema.getSearchWeight().compareTo(theSearchWeight) == 0
 		) {
 			return attributeSchema;
 		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {

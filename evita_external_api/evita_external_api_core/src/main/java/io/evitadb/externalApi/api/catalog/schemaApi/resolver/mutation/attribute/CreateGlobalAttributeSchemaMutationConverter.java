@@ -136,7 +136,7 @@ public class CreateGlobalAttributeSchemaMutationConverter
 			readNormalization(input),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.ANALYZER),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.LENGTH_PIVOT),
-			readSearchWeight(input, CreateGlobalAttributeSchemaMutationDescriptor.SEARCH_WEIGHT)
+			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.SEARCH_WEIGHT)
 		);
 	}
 

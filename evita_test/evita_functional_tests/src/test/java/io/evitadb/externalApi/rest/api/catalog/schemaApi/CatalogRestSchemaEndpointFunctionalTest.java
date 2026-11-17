@@ -270,7 +270,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(AttributeSchemaDescriptor.SEARCHABLE.name(), createFlagInScopesDto(attributeSchema::isSearchableInScope))
 			.e(AttributeSchemaDescriptor.ANALYZER.name(), attributeSchema.getAnalyzer())
 			.e(AttributeSchemaDescriptor.LENGTH_PIVOT.name(), attributeSchema.getLengthPivot())
-			.e(AttributeSchemaDescriptor.SEARCH_WEIGHT.name(), Float.toString(attributeSchema.getSearchWeight()))
+			.e(AttributeSchemaDescriptor.SEARCH_WEIGHT.name(), attributeSchema.getSearchWeight().toPlainString())
 			.e(AttributeSchemaDescriptor.SORTABLE.name(), createFlagInScopesDto(attributeSchema::isSortableInScope))
 			.e(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized())
 			.e(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
@@ -334,7 +334,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(AssociatedDataSchemaDescriptor.ANALYZER.name(), associatedDataSchema.getAnalyzer())
 			.e(AssociatedDataSchemaDescriptor.LENGTH_PIVOT.name(), associatedDataSchema.getLengthPivot())
 			.e(AssociatedDataSchemaDescriptor.SEARCH_WEIGHT.name(),
-				Float.toString(associatedDataSchema.getSearchWeight()))
+				associatedDataSchema.getSearchWeight().toPlainString())
 			.e(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(),
 				associatedDataSchema.getConflictResolutionOverride().name());
 		if (associatedDataSchema.getTextExpression() != null) {
@@ -386,7 +386,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.entrySet().stream().sorted(Map.Entry.comparingByKey())
 				.map(entry -> Map.of("scope", entry.getKey().name(), "mode", entry.getValue().name())).toList())
 			.e(ReferenceSchemaDescriptor.SEARCHABLE_THROUGH_WEIGHT.name(),
-				Float.toString(referenceSchema.getSearchableThroughWeight()))
+				referenceSchema.getSearchableThroughWeight().toPlainString())
 			.e(ReferenceSchemaDescriptor.FACETED.name(), createFlagInScopesDto(referenceSchema::isFacetedInScope))
 			.e(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), createFacetedPartiallyDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.BUCKETED.name(), createBucketedHistogramDto(referenceSchema))

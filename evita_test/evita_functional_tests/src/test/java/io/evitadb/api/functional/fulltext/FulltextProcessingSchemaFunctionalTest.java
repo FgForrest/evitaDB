@@ -79,6 +79,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.ENGINE;
@@ -109,13 +110,13 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 		this.evita.defineCatalog(TEST_CATALOG);
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(TARGET).withoutGeneratedPrimaryKey().withHierarchy().withLocale(Locale.ENGLISH)
-				.withAttribute("name", String.class, a -> a.localized().searchable().searchWeight(0))
-				.withAttribute("label", String.class, a -> a.localized().searchable().searchWeight(4))
+				.withAttribute("name", String.class, a -> a.localized().searchable().searchWeight(valueOf(0)))
+				.withAttribute("label", String.class, a -> a.localized().searchable().searchWeight(valueOf(4)))
 				.withAttribute("enabled", Boolean.class, a -> a.filterable())
 				.updateVia(session);
 			session.defineEntitySchema(OWNER).withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
-				.withAttribute("name", String.class, a -> a.localized().searchable().searchWeight(100))
-				.withAttribute("ownerLabel", String.class, a -> a.localized().searchable().searchWeight(80))
+				.withAttribute("name", String.class, a -> a.localized().searchable().searchWeight(valueOf(100)))
+				.withAttribute("ownerLabel", String.class, a -> a.localized().searchable().searchWeight(valueOf(80)))
 				.withReferenceToEntity(REFERENCE, TARGET, Cardinality.ZERO_OR_MORE,
 					r -> r.indexedForFilteringAndPartitioningInScope(Scope.LIVE, Scope.ARCHIVED).indexedWithComponents(
 						ReferenceIndexedComponents.REFERENCED_ENTITY,
@@ -246,7 +247,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				((ReferenceOwnerFulltextScoreAccessor) sources[1]).getTargetFilter(),
 				"The regression must exercise the same cached target filter with two mapping kinds");
 			final long[] scores = FulltextScoreCombiner.combine(new int[]{1, 2}, sources,
-				new FulltextScoringPolicy(Map.of()), Map.of()).composites();
+				new FulltextScoringPolicy(Map.of(), Map.of()), Map.of()).composites();
 			assertNotEquals(0, scores[0]);
 			assertEquals(scores[0], scores[1]);
 		});
@@ -354,7 +355,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 	void shouldIgnoreEqualChildObjectSharing() {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getEntitySchemaOrThrowException(OWNER).openForWrite()
-				.withAttribute("name", String.class, a -> a.searchWeight(2.2f)).updateVia(session);
+				.withAttribute("name", String.class, a -> a.searchWeight(valueOf(2.2))).updateVia(session);
 			session.upsertEntity(session.getEntity(OWNER, 1, entityFetchAllContent()).orElseThrow().openForWrite()
 				.setAttribute("name", Locale.ENGLISH, "green"));
 		});
@@ -415,7 +416,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 		final FulltextScoreAccessor[] sources = field(sorter, "accessors");
 		assertEquals(sourceCount, sources.length, preference.name());
 		assertArrayEquals(expectedScores, FulltextScoreCombiner.combine(new int[]{1, 2}, sources,
-			new FulltextScoringPolicy(Map.of()), Map.of()).composites(), preference.name());
+			new FulltextScoringPolicy(Map.of(), Map.of()), Map.of()).composites(), preference.name());
 	}
 
 	/** Uses public queries and telemetry to prove both execution plans and checks complete score vectors. */
@@ -435,7 +436,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				final FulltextScoreAccessor[] sources = field(sorter, "accessors");
 				assertEquals(allScopes ? 1 : 2, sources.length);
 				final long[] scores = FulltextScoreCombiner.combine(new int[]{1, 2}, sources,
-					new FulltextScoringPolicy(Map.of()), Map.of()).composites();
+					new FulltextScoringPolicy(Map.of(), Map.of()), Map.of()).composites();
 				assertEquals(scores[0] & FulltextScoringPolicy.QUALITY_MASK,
 					scores[1] & FulltextScoringPolicy.QUALITY_MASK);
 				if (allScopes) {

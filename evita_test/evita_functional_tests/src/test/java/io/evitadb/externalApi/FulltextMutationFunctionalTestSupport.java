@@ -24,6 +24,7 @@
 
 package io.evitadb.externalApi;
 
+import java.math.BigDecimal;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -75,6 +76,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -90,7 +92,7 @@ public class FulltextMutationFunctionalTestSupport {
 		"facetedInScopes"
 	);
 	/** The zero weight of the fixture, rendered as the decimal string the mutation output uses. */
-	private static final JsonNode ZERO_WEIGHT = TextNode.valueOf("0.0");
+	private static final JsonNode ZERO_WEIGHT = TextNode.valueOf("0");
 	/** Fields of the attribute families, as built by the fixture with a zero weight. */
 	private static final Map<String, JsonNode> ATTRIBUTE_FIELDS = Map.of(
 		"searchableInScopes", MAPPER.valueToTree(List.of("LIVE", "ARCHIVED")),
@@ -118,7 +120,7 @@ public class FulltextMutationFunctionalTestSupport {
 	/** Supplies all eight families plus the global setter and both reference attribute wrappers. */
 	@Nonnull
 	public static Stream<MutationCase> cases() {
-		final List<SchemaMutation> mutations = FulltextMutationTestSupport.mutations(0.0f).toList();
+		final List<SchemaMutation> mutations = FulltextMutationTestSupport.mutations(valueOf(0)).toList();
 		return Stream.concat(
 			Stream.concat(mutations.stream().map(mutation -> new MutationCase(
 				mutation, mutation instanceof CreateGlobalAttributeSchemaMutation)),
@@ -309,7 +311,7 @@ public class FulltextMutationFunctionalTestSupport {
 
 	/**
 	 * Returns the fulltext fields a capture of the leaf mutation must carry, as
-	 * {@link FulltextMutationTestSupport#mutations(Float)} builds them with a zero weight.
+	 * {@link FulltextMutationTestSupport#mutations(BigDecimal)} builds them with a zero weight.
 	 */
 	@Nonnull
 	private static Map<String, JsonNode> expectedFields(@Nonnull SchemaMutation leaf) {

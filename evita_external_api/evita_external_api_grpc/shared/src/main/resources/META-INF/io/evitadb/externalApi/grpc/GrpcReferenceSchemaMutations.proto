@@ -94,7 +94,7 @@ message GrpcCreateReferenceSchemaMutation {
   // Optional replacement composition modes; an empty message explicitly clears the declaration.
   GrpcReferenceSearchModes searchableThroughInScopes = 19;
   // Optional shared ranking weight; zero is distinct from omission.
-  google.protobuf.FloatValue searchableThroughWeight = 20;
+  GrpcBigDecimal searchableThroughWeight = 20;
 
 }
 
@@ -178,7 +178,7 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // Optional replacement composition modes; an empty message explicitly clears the declaration.
   GrpcReferenceSearchModes searchableThroughInScopes = 19;
   // Optional shared ranking weight; zero is distinct from omission.
-  google.protobuf.FloatValue searchableThroughWeight = 20;
+  GrpcBigDecimal searchableThroughWeight = 20;
 
 }
 
@@ -366,5 +366,5 @@ message GrpcSetReferenceSchemaConflictResolutionOverrideMutation {
 message GrpcSetReferenceSchemaSearchableThroughMutation {
   string name = 1;
   GrpcReferenceSearchModes searchableThroughInScopes = 2;
-  google.protobuf.FloatValue weight = 3;
+  GrpcBigDecimal weight = 3;
 }

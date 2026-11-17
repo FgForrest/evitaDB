@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
+import java.math.BigDecimal;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -59,6 +60,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
@@ -618,7 +620,7 @@ class CreateReferenceSchemaMutationConverterTest {
 			new ScopedReferenceSearchMode[]{
 				new ScopedReferenceSearchMode(Scope.LIVE, ReferenceSearchMode.COMPOSITION),
 				new ScopedReferenceSearchMode(Scope.ARCHIVED, ReferenceSearchMode.COMPOSITION)
-			}, 0.75f
+			}, valueOf(0.75)
 		);
 		assertThat(this.converter.convertToOutput(mutation))
 			.isInstanceOfSatisfying(Map.class, output -> {

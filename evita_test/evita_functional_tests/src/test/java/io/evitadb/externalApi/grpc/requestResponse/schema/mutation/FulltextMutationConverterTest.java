@@ -24,6 +24,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation;
 
+import java.math.BigDecimal;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
@@ -120,6 +121,6 @@ class FulltextMutationConverterTest {
 	@Test
 	void shouldRoundTripReferenceAttribute() throws Exception {
 		shouldRoundTrip(new ModifyReferenceAttributeSchemaMutation("related",
-			new SetAttributeSchemaSearchableMutation("text", Scope.DEFAULT_SCOPES, "text", 73, 0.0f)));
+			new SetAttributeSchemaSearchableMutation("text", Scope.DEFAULT_SCOPES, "text", 73, BigDecimal.ZERO)));
 	}
 }

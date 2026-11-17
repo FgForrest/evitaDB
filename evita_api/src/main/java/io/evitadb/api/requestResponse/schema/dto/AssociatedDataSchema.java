@@ -44,6 +44,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
@@ -92,7 +93,7 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	 * the persisted fulltext field definition, so changing it never rebuilds the field. See
 	 * {@link AssociatedDataSchemaContract#getSearchWeight()}.
 	 */
-	@Getter private final float searchWeight;
+	@Getter @Nonnull private final BigDecimal searchWeight;
 
 	/**
 	 * Reconstructs a schema, including its fulltext ranking settings, for internal use only. Not for client code.
@@ -108,7 +109,7 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	 * @param conflictResolutionOverride per-item conflict resolution override
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 * @return immutable schema carrying all supplied settings
 	 */
 	public static AssociatedDataSchema _internalBuild(
@@ -123,7 +124,7 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		return new AssociatedDataSchema(
 			name, NamingConvention.generate(name), description, deprecationNotice, type, localized, nullable,
@@ -147,7 +148,7 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	 * @param conflictResolutionOverride per-item conflict resolution override
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 * @return immutable schema carrying all supplied settings
 	 */
 	public static AssociatedDataSchema _internalBuild(
@@ -163,7 +164,7 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		return new AssociatedDataSchema(
 			name, nameVariants,
@@ -211,7 +212,7 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	 * @param conflictResolutionOverride per-item conflict resolution override
 	 * @param analyzer fulltext analyzer name
 	 * @param lengthPivot positive fulltext length pivot
-	 * @param searchWeight finite, non-negative ranking weight; zero contributes no ranking strength
+	 * @param searchWeight non-negative decimal ranking weight; zero contributes no ranking strength
 	 */
 	private AssociatedDataSchema(
 		@Nonnull String name,
@@ -226,7 +227,7 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nonnull String analyzer,
 		int lengthPivot,
-		float searchWeight
+		@Nonnull BigDecimal searchWeight
 	) {
 		Assert.notNull(analyzer, "The fulltext analyzer of associated data `" + name + "` must not be null!");
 		this.name = name;
@@ -248,7 +249,9 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		this.conflictResolutionOverride = conflictResolutionOverride;
 		this.analyzer = analyzer;
 		this.lengthPivot = lengthPivot;
-		this.searchWeight = AttributeSchemaContract.normalizeSearchWeight(searchWeight);
+		this.searchWeight = AttributeSchemaContract.normalizeSearchWeight(
+			searchWeight, "Associated data `" + name + "`"
+		);
 	}
 
 	@Override

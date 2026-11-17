@@ -38,6 +38,7 @@ import io.evitadb.dataType.Scope;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -109,7 +110,7 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 		writeAnalysisSteps(kryo, output, attributeSchema.getNormalization());
 		output.writeString(attributeSchema.getAnalyzer());
 		output.writeVarInt(attributeSchema.getLengthPivot(), true);
-		output.writeFloat(attributeSchema.getSearchWeight());
+		kryo.writeObject(output, attributeSchema.getSearchWeight());
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
@@ -151,7 +152,7 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 		final List<AnalysisStep> normalization = readAnalysisSteps(kryo, input);
 		final String analyzer = input.readString();
 		final int lengthPivot = input.readVarInt(true);
-		final float searchWeight = input.readFloat();
+		final BigDecimal searchWeight = kryo.readObject(input, BigDecimal.class);
 		return GlobalAttributeSchema._internalBuild(
 			name, description, deprecationNotice,
 			unique,

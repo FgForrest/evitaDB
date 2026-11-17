@@ -50,6 +50,7 @@ import static io.evitadb.test.TestTags.SCHEMA;
 @Tag(SCHEMA)
 public class ModifyCatalogSchemaMutationTest {
 
+	/** Applies global uniqueness with a valid decimal ranking default on the existing attribute. */
 	@Test
 	void shouldMutateCatalogSchema() {
 		ModifyCatalogSchemaMutation mutation = new ModifyCatalogSchemaMutation(
@@ -65,6 +66,7 @@ public class ModifyCatalogSchemaMutationTest {
 		Mockito.doReturn(Integer.class).when(globalAttribute).getType();
 		Mockito.doReturn(FulltextAnalyzerSchemaContract.TEXT).when(globalAttribute).getAnalyzer();
 		Mockito.doReturn(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT).when(globalAttribute).getLengthPivot();
+		Mockito.doReturn(AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT).when(globalAttribute).getSearchWeight();
 		Mockito.when(catalogSchema.getAttribute("someAttribute")).thenReturn(of(globalAttribute));
 		Mockito.when(catalogSchema.getEntitySchema("product")).thenReturn(of(Mockito.mock(EntitySchema.class)));
 		final CatalogSchemaWithImpactOnEntitySchemas result = mutation.mutate(catalogSchema);

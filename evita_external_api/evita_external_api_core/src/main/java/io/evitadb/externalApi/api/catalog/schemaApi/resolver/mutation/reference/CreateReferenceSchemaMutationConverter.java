@@ -129,7 +129,7 @@ public class CreateReferenceSchemaMutationConverter
 			input.getProperty(CreateReferenceSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE,
 				ConflictResolutionOverride.INHERITED),
 			readSearchableThrough(input),
-			readSearchWeight(input, CreateReferenceSchemaMutationDescriptor.SEARCHABLE_THROUGH_WEIGHT)
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.SEARCHABLE_THROUGH_WEIGHT)
 		);
 	}
 

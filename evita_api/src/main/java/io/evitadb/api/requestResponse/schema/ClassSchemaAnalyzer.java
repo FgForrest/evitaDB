@@ -401,8 +401,11 @@ public class ClassSchemaAnalyzer {
 			if (attributeAnnotation.lengthPivot() != editor.getLengthPivot()) {
 				editor.lengthPivot(attributeAnnotation.lengthPivot());
 			}
-			if (Float.compare(attributeAnnotation.searchWeight(), editor.getSearchWeight()) != 0) {
-				editor.searchWeight(attributeAnnotation.searchWeight());
+			final BigDecimal searchWeight = readAnnotationWeight(
+				attributeAnnotation.searchWeight(), "Attribute `" + editor.getName() + "`"
+			);
+			if (searchWeight.compareTo(editor.getSearchWeight()) != 0) {
+				editor.searchWeight(searchWeight);
 			}
 
 			// representative - reconcile with annotation
@@ -819,23 +822,26 @@ public class ClassSchemaAnalyzer {
 	 * @return shared ranking weight the annotation declares
 	 * @throws InvalidSchemaMutationException when two scope entries declare different non-default weights
 	 */
-	private static float resolveSearchableThroughWeight(
+	@Nonnull
+	private static BigDecimal resolveSearchableThroughWeight(
 		@Nonnull String name,
-		float general,
+		double general,
 		@Nonnull ScopeReferenceSettings[] scopedDefinition
 	) {
 		if (scopedDefinition.length == 0) {
-			return general;
+			return readAnnotationWeight(general, "Reference `" + name + "`");
 		}
-		final float defaultWeight = ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT;
-		float weight = defaultWeight;
+		final BigDecimal defaultWeight = ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT;
+		BigDecimal weight = defaultWeight;
 		for (final ScopeReferenceSettings settings : scopedDefinition) {
 			// compare normalized values, so that both signed zeros count as one weight
-			final float declared = AttributeSchemaContract.normalizeSearchWeight(settings.searchableThroughWeight());
-			if (Float.compare(declared, defaultWeight) != 0) {
-				final float alreadyDeclared = weight;
+			final BigDecimal declared = readAnnotationWeight(
+				settings.searchableThroughWeight(), "Reference `" + name + "`"
+			);
+			if (declared.compareTo(defaultWeight) != 0) {
+				final BigDecimal alreadyDeclared = weight;
 				Assert.isTrue(
-					Float.compare(alreadyDeclared, defaultWeight) == 0 || Float.compare(alreadyDeclared, declared) == 0,
+					alreadyDeclared.compareTo(defaultWeight) == 0 || alreadyDeclared.compareTo(declared) == 0,
 					() -> new InvalidSchemaMutationException(
 						"Reference `" + name + "` declares different searchableThrough weights `" + alreadyDeclared +
 							"` and `" + declared + "` in its scope entries! The weight is shared by all scopes, " +
@@ -846,6 +852,23 @@ public class ClassSchemaAnalyzer {
 			}
 		}
 		return weight;
+	}
+
+	/**
+	 * Converts an annotation's numeric member to the canonical schema decimal.
+	 *
+	 * @param weight annotation value represented as a double because annotation members cannot hold BigDecimal
+	 * @param place schema place named in validation errors
+	 * @return validated decimal produced by BigDecimal.valueOf
+	 * @throws InvalidSchemaMutationException when the annotation declares an invalid ranking weight
+	 */
+	@Nonnull
+	private static BigDecimal readAnnotationWeight(double weight, @Nonnull String place) {
+		Assert.isTrue(
+			Double.isFinite(weight),
+			() -> new InvalidSchemaMutationException(place + " search weight must be finite!")
+		);
+		return AttributeSchemaContract.normalizeSearchWeight(BigDecimal.valueOf(weight), place);
 	}
 
 	/**
@@ -898,16 +921,14 @@ public class ClassSchemaAnalyzer {
 	private static void applySearchableThroughModes(
 		@Nonnull ReferenceSchemaEditor<?> editor,
 		@Nonnull Map<Scope, ReferenceSearchMode> desired,
-		float weight
+		@Nonnull BigDecimal weight
 	) {
 		for (final Map.Entry<Scope, ReferenceSearchMode> entry : desired.entrySet()) {
 			if (editor.getSearchableThrough(entry.getKey()) != entry.getValue()) {
 				editor.searchableThroughInScope(entry.getValue(), entry.getKey());
 			}
 		}
-		if (Float.compare(
-			editor.getSearchableThroughWeight(), AttributeSchemaContract.normalizeSearchWeight(weight)
-		) != 0) {
+		if (editor.getSearchableThroughWeight().compareTo(weight) != 0) {
 			// with no scope supplied the mode is not declared anywhere - the call only sets the shared weight
 			editor.searchableThroughInScope(ReferenceSearchMode.COMPOSITION, weight, Scope.NO_SCOPE);
 		}
@@ -1915,8 +1936,11 @@ public class ClassSchemaAnalyzer {
 				if (associatedDataAnnotation.lengthPivot() != whichIs.getLengthPivot()) {
 					whichIs.lengthPivot(associatedDataAnnotation.lengthPivot());
 				}
-				if (Float.compare(associatedDataAnnotation.searchWeight(), whichIs.getSearchWeight()) != 0) {
-					whichIs.searchWeight(associatedDataAnnotation.searchWeight());
+				final BigDecimal searchWeight = readAnnotationWeight(
+					associatedDataAnnotation.searchWeight(), "Associated data `" + whichIs.getName() + "`"
+				);
+				if (searchWeight.compareTo(whichIs.getSearchWeight()) != 0) {
+					whichIs.searchWeight(searchWeight);
 				}
 				// conflict resolution granularity override - reconcile with annotation. A defaulted (INHERITED)
 				// annotation carries no opinion and must never overwrite an explicit override set through the

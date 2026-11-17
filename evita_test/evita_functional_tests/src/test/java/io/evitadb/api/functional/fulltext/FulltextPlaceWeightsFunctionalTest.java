@@ -65,6 +65,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -128,19 +129,19 @@ class FulltextPlaceWeightsFunctionalTest implements EvitaTestSupport {
 				session.defineEntitySchema(target).withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
 					.withAttribute("text", String.class, a -> a.localized().nullable()
 						.searchableInScope(Scope.values()).lengthPivot(25)
-						.searchWeight(placeKind == 4 ? 6f : 2f))
+						.searchWeight(placeKind == 4 ? valueOf(6) : valueOf(2)))
 					.withAttribute("hidden", String.class, a -> a.localized().nullable())
 					.withAttribute("liveOnly", String.class, a -> a.localized().nullable().searchable())
 					.withAssociatedData("text", String.class, a -> a.localized().nullable()
 						.searchableInScope(Scope.values()).lengthPivot(25)
-						.searchWeight(placeKind == 5 ? 6f : 2f))
+						.searchWeight(placeKind == 5 ? valueOf(6) : valueOf(2)))
 					.withAssociatedData("hidden", String.class, a -> a.localized().nullable())
 					.withAssociatedData("liveOnly", String.class, a -> a.localized().nullable().searchable())
 					.withReferenceToEntity("child", target, Cardinality.ZERO_OR_MORE, r -> r.indexedForFiltering())
 					.withReferenceTo("tags", "Tag", Cardinality.ZERO_OR_MORE,
 						r -> r.indexedForFilteringInScope(Scope.values())
 						.withAttribute("text", String.class, a -> a.localized().nullable()
-							.searchableInScope(Scope.values()).lengthPivot(25).searchWeight(4)))
+							.searchableInScope(Scope.values()).lengthPivot(25).searchWeight(valueOf(4))))
 					.updateVia(session);
 				for (int id = 104; id <= 107; id++) {
 					final EntityBuilder block = session.createNewEntity(target, id)
@@ -160,7 +161,7 @@ class FulltextPlaceWeightsFunctionalTest implements EvitaTestSupport {
 				session.defineEntitySchema(type).withoutGeneratedPrimaryKey().withHierarchy().withLocale(Locale.ENGLISH)
 					.withAttribute("text", String.class, a -> a.localized().nullable()
 						.searchableInScope(Scope.values()).lengthPivot(25)
-						.searchWeight(placeKind == 1 ? 3f : 1f))
+						.searchWeight(placeKind == 1 ? valueOf(3) : valueOf(1)))
 					.withAttribute("other", String.class, a -> a.localized().nullable().searchable())
 					.withAttribute("scopeCounter", String[].class,
 						a -> a.localized().nullable().searchableInScope(Scope.values()))
@@ -168,20 +169,20 @@ class FulltextPlaceWeightsFunctionalTest implements EvitaTestSupport {
 					.withAttribute("liveOnly", String.class, a -> a.localized().nullable().searchable())
 					.withAssociatedData("text", String.class, a -> a.localized().nullable()
 						.searchableInScope(Scope.values()).lengthPivot(25)
-						.searchWeight(placeKind == 2 ? 3f : 1f))
+						.searchWeight(placeKind == 2 ? valueOf(3) : valueOf(1)))
 					.withAssociatedData("hidden", String.class, a -> a.localized().nullable())
 					.withAssociatedData("liveOnly", String.class, a -> a.localized().nullable().searchable())
 					.withReferenceToEntity("r", target, Cardinality.ZERO_OR_MORE,
 						r -> r.indexedForFilteringInScope(Scope.values())
-						.searchableThroughInScope(COMPOSITION, 0.5f, Scope.values())
+						.searchableThroughInScope(COMPOSITION, valueOf(0.5), Scope.values())
 						.withAttribute("text", String.class, a -> a.localized().nullable()
 						.searchableInScope(Scope.values()).lengthPivot(25)
-							.searchWeight(placeKind == 3 ? 3f : 1f))
+							.searchWeight(placeKind == 3 ? valueOf(3) : valueOf(1)))
 						.withAttribute("hidden", String.class, a -> a.localized().nullable())
 						.withAttribute("liveOnly", String.class, a -> a.localized().nullable().searchable()))
 					.withReferenceToEntity("s", "BaseBlock", Cardinality.ZERO_OR_MORE,
 						r -> r.indexedForFilteringInScope(Scope.values())
-							.searchableThroughInScope(COMPOSITION, 0.5f, Scope.values()))
+							.searchableThroughInScope(COMPOSITION, valueOf(0.5), Scope.values()))
 					.withReferenceToEntity("raw", target, Cardinality.ZERO_OR_MORE, r -> r.indexedForFiltering())
 					.withReferenceToEntity("live", target, Cardinality.ZERO_OR_MORE,
 						r -> r.indexedForFiltering().searchableThrough(COMPOSITION))
@@ -254,7 +255,7 @@ class FulltextPlaceWeightsFunctionalTest implements EvitaTestSupport {
 				.withAttribute("text", String.class, a -> a.localized().nullable().searchable())
 				.withReferenceToEntity("r", "Self", Cardinality.ZERO_OR_MORE,
 					r -> r.indexedForFilteringInScope(Scope.values())
-							.searchableThroughInScope(COMPOSITION, 0.5f, Scope.values())).updateVia(session);
+							.searchableThroughInScope(COMPOSITION, valueOf(0.5), Scope.values())).updateVia(session);
 			session.upsertEntity(session.createNewEntity("Self", 1).setAttribute("text", Locale.ENGLISH, "quartz"));
 			session.upsertEntity(session.createNewEntity("Self", 2)
 				.setAttribute("text", Locale.ENGLISH, "plain").setReference("r", 1));
@@ -270,7 +271,11 @@ class FulltextPlaceWeightsFunctionalTest implements EvitaTestSupport {
 		cleanupTestPaths(this.paths);
 	}
 
-	/** Maps each schema-copy change to its query override, including both composed place kinds. */
+	/**
+	 * Maps each schema-copy change to its query override, including both composed place kinds.
+	 * @param kind expected kind
+	 * @param weight decimal ranking contribution supplied by this case
+	 */
 	@Nonnull
 	private static RelevanceText override(int kind, @Nonnull BigDecimal weight) {
 		return switch (kind) {
@@ -542,14 +547,12 @@ class FulltextPlaceWeightsFunctionalTest implements EvitaTestSupport {
 		});
 	}
 
-	/** Float overflow, underflow and tiny negatives fail at planning for every place, before empty-index shortcuts. */
+	/** Float overflow and underflow fail at planning for every place, before empty-index shortcuts. */
 	@ParameterizedTest
-	@ValueSource(strings = {"1E+39", "1E-100", "-1E-100"})
+	@CsvSource({"1E+39, overflows", "1E-100, underflows"})
 	@DisplayName("Refuses weights outside the internal float range on populated and empty collections")
-	void shouldRejectWeightsOutsideFloatRange(@Nonnull String number) {
+	void shouldRejectWeightsOutsideFloatRange(@Nonnull String number, @Nonnull String reason) {
 		final BigDecimal value = new BigDecimal(number);
-		final String reason = value.signum() < 0 ? "nonnegative" :
-			(value.compareTo(BigDecimal.ONE) > 0 ? "overflows" : "underflows");
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
 			for (final String type : new String[]{"Base", "Empty"}) {
 				for (final FilterConstraint filter : new FilterConstraint[]{textMatches("quartz "), null}) {
@@ -593,10 +596,6 @@ class FulltextPlaceWeightsFunctionalTest implements EvitaTestSupport {
 		final Stream.Builder<InvalidCase> cases = Stream.builder();
 		for (final RelevanceTextEntitySpecificationOrderConstraint weight :
 			new RelevanceTextEntitySpecificationOrderConstraint[]{
-			attributeWeight("text", valueOf(-1)), associatedDataWeight("text", valueOf(-1)),
-			referenceWeight("r", attributeWeight("text", valueOf(-1))),
-			referenceWeight("r", entityWeight(attributeWeight("text", valueOf(-1)))),
-			referenceWeight("r", entityWeight(associatedDataWeight("text", valueOf(-1)))),
 			attributeWeight("hidden", valueOf(2)), associatedDataWeight("hidden", valueOf(2)),
 			referenceWeight("r", attributeWeight("hidden", valueOf(2))),
 			referenceWeight("r", entityWeight(attributeWeight("hidden", valueOf(2)))),

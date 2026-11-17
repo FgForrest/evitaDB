@@ -263,7 +263,8 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 	PropertyDescriptor SEARCHABLE_THROUGH_WEIGHT = PropertyDescriptor.builder()
 		.name("searchableThroughWeight").description("""
 			Ranking weight of text found through the reference, shared by every scope; 0.5 unless declared otherwise.
-			Zero preserves matches while contributing no ranking strength.
+			Zero preserves matches while contributing no ranking strength. The weight must be non-negative, have at most
+			100 significant digits and a stripped scale between -100 and 100, and fit the engine float range.
 			""")
 		.type(nonNull(BigDecimal.class)).build();
 

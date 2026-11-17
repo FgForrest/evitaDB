@@ -24,9 +24,9 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.associatedData;
 
-import com.google.protobuf.FloatValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaSearchableMutation;
 import io.evitadb.dataType.Scope;
@@ -72,7 +72,7 @@ public class SetAssociatedDataSchemaSearchableMutationConverter
 			mutation.hasTextExpression() ? ExpressionFactory.parse(mutation.getTextExpression().getValue()) : null,
 			mutation.hasAnalyzer() ? mutation.getAnalyzer().getValue() : null,
 			mutation.hasLengthPivot() ? mutation.getLengthPivot().getValue() : null,
-			mutation.hasSearchWeight() ? mutation.getSearchWeight().getValue() : null
+			mutation.hasSearchWeight() ? EvitaDataTypesConverter.toBigDecimal(mutation.getSearchWeight()) : null
 		);
 	}
 
@@ -99,7 +99,7 @@ public class SetAssociatedDataSchemaSearchableMutationConverter
 			builder.setLengthPivot(Int32Value.of(mutation.getLengthPivot()));
 		}
 		if (mutation.getSearchWeight() != null) {
-			builder.setSearchWeight(FloatValue.of(mutation.getSearchWeight()));
+			builder.setSearchWeight(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getSearchWeight()));
 		}
 		if (mutation.getTextExpression() != null) {
 			builder.setTextExpression(StringValue.of(mutation.getTextExpression().toExpressionString()));

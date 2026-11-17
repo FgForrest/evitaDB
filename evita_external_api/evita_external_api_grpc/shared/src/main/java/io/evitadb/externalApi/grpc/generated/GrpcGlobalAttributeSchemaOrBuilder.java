@@ -860,7 +860,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * differs from an unset wrapper.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchWeight = 25;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 25;</code>
    * @return Whether the searchWeight field is set.
    */
   boolean hasSearchWeight();
@@ -871,10 +871,10 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * differs from an unset wrapper.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchWeight = 25;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 25;</code>
    * @return The searchWeight.
    */
-  com.google.protobuf.FloatValue getSearchWeight();
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchWeight();
   /**
    * <pre>
    * Fulltext ranking weight of the attribute, shared by every scope; zero preserves matches while contributing no
@@ -882,7 +882,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * differs from an unset wrapper.
    * </pre>
    *
-   * <code>.google.protobuf.FloatValue searchWeight = 25;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 25;</code>
    */
-  com.google.protobuf.FloatValueOrBuilder getSearchWeightOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchWeightOrBuilder();
 }

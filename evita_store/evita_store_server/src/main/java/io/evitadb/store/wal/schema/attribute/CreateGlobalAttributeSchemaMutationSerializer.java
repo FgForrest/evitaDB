@@ -39,6 +39,7 @@ import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readAnalysisSteps;
@@ -120,7 +121,7 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 			writeAnalysisSteps(kryo, output, Arrays.asList(normalization));
 		}
 		writeFulltextFieldSettings(
-			output, mutation.getAnalyzer(), mutation.getLengthPivot(), mutation.getSearchWeight()
+			kryo, output, mutation.getAnalyzer(), mutation.getLengthPivot(), mutation.getSearchWeight()
 		);
 	}
 
@@ -152,7 +153,7 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 			input.readBoolean() ? readAnalysisSteps(kryo, input).toArray(AnalysisStep[]::new) : null;
 		final String analyzer = input.readString();
 		final Integer lengthPivot = readNullableLengthPivot(input);
-		final Float searchWeight = readNullableSearchWeight(input);
+		final BigDecimal searchWeight = readNullableSearchWeight(kryo, input);
 		return new CreateGlobalAttributeSchemaMutation(
 			name,
 			description,

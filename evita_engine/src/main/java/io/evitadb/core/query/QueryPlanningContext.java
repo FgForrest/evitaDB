@@ -1842,26 +1842,28 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			return existing;
 		}
 		final Map<FulltextFieldKey, Float> weights = CollectionUtils.createHashMap(16);
+		final Map<String, Float> referenceWeights = CollectionUtils.createHashMap(schema.getReferences().size());
 		for (final AttributeSchemaContract attribute : schema.getAttributes().values()) {
 			if (attribute.isSearchableInAnyScope()) {
-				weights.put(FulltextFieldKey.attribute(attribute.getName()), attribute.getSearchWeight());
+				weights.put(FulltextFieldKey.attribute(attribute.getName()), attribute.getSearchWeight().floatValue());
 			}
 		}
 		for (final AssociatedDataSchemaContract data : schema.getAssociatedData().values()) {
 			if (data.isSearchableInAnyScope()) {
-				weights.put(FulltextFieldKey.associatedData(data.getName()), data.getSearchWeight());
+				weights.put(FulltextFieldKey.associatedData(data.getName()), data.getSearchWeight().floatValue());
 			}
 		}
 		for (final ReferenceSchemaContract reference : schema.getReferences().values()) {
+			referenceWeights.put(reference.getName(), reference.getSearchableThroughWeight().floatValue());
 			for (final AttributeSchemaContract attribute :
 				FulltextFieldDefinition.availableReferenceAttributes(reference).values()) {
 				if (attribute.isSearchableInAnyScope()) {
 					weights.put(FulltextFieldKey.referenceAttribute(reference.getName(), attribute.getName()),
-						attribute.getSearchWeight());
+						attribute.getSearchWeight().floatValue());
 				}
 			}
 		}
-		final FulltextScoringPolicy policy = new FulltextScoringPolicy(weights);
+		final FulltextScoringPolicy policy = new FulltextScoringPolicy(weights, referenceWeights);
 		this.fulltextScoringPolicies.put(schema.getName(), policy);
 		return policy;
 	}

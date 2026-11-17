@@ -52,28 +52,28 @@ public interface GetterBasedEntityFulltextFieldSettings {
 
 	@Attribute(
 		localized = true, searchable = true, analyzer = FulltextAnalyzerSchemaContract.HTML_TEXT, lengthPivot = 8,
-		searchWeight = 2.5f
+		searchWeight = 2.5
 	)
 	String getName();
 
 	@Attribute(localized = true, searchable = true)
 	String getPlainName();
 
-	@Attribute(global = true, localized = true, searchable = true, lengthPivot = 12, searchWeight = 3.5f)
+	@Attribute(global = true, localized = true, searchable = true, lengthPivot = 12, searchWeight = 3.5)
 	String getFieldSettingsGlobalTitle();
 
 	@AssociatedData(
 		localized = true, searchable = true, analyzer = FulltextAnalyzerSchemaContract.HTML_TEXT, lengthPivot = 400,
-		searchWeight = 0.0f
+		searchWeight = 0.0
 	)
 	String getBody();
 
 	/** Searchable arrays use the same annotation transfer path as strings. */
-	@AssociatedData(localized = true, searchable = true, searchWeight = 5.5f)
+	@AssociatedData(localized = true, searchable = true, searchWeight = 5.5)
 	String[] getParagraphs();
 
 	/** Complex associated data retains both its text expression and ranking weight. */
-	@AssociatedData(localized = true, searchable = true, textExpression = "$value.title", searchWeight = 6.5f)
+	@AssociatedData(localized = true, searchable = true, textExpression = "$value.title", searchWeight = 6.5)
 	Article getArticle();
 
 	/** Serializable article projected into a complex data object. */
@@ -88,7 +88,7 @@ public interface GetterBasedEntityFulltextFieldSettings {
 		int getBrand();
 
 		@Attribute(localized = true, searchable = true, analyzer = FulltextAnalyzerSchemaContract.HTML_TEXT,
-		searchWeight = 4.5f)
+		searchWeight = 4.5)
 		String getLabel();
 
 	}

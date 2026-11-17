@@ -121,6 +121,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
@@ -701,7 +702,8 @@ public class WalMutationSerializationTest {
 	@Test
 	@DisplayName("should round trip search weights in all searchable and create mutations")
 	void shouldRoundTripSearchWeights() {
-		for (final Float weight : new Float[]{null, 0.0f, 2.5f}) {
+		for (final BigDecimal weight : new BigDecimal[]{null, BigDecimal.ZERO, valueOf(0.0000001),
+			valueOf(12345678.5), new BigDecimal("0.123456789012345678901234567891")}) {
 			assertSerializationRound(new SetAttributeSchemaSearchableMutation(
 				"name", Scope.DEFAULT_SCOPES, null, null, weight));
 			assertSerializationRound(new SetAssociatedDataSchemaSearchableMutation(

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.require.AssociatedDataContent;
 import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -36,6 +37,7 @@ import io.evitadb.dataType.expression.Expression;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Set;
@@ -171,13 +173,17 @@ public interface AssociatedDataSchemaContract extends NamedSchemaWithDeprecation
 	int getLengthPivot();
 
 	/**
-	 * Returns the fulltext ranking weight of this associated data. The value must be finite and
-	 * non-negative. Zero preserves matches while contributing no ranking strength. This setting applies in every
+	 * Returns the fulltext ranking weight of this associated data.
+	 * Zero preserves matches while contributing no ranking strength. This setting applies in every
 	 * scope and changing it does not rebuild the fulltext field.
+	 *
+	 * Equal decimal values share one representation. Weights must be non-negative, use at most 100 significant
+	 * digits and have a stripped scale within [-100, 100]. Nonzero values must convert to a finite, nonzero float.
 	 *
 	 * @return the ranking weight, {@link AttributeSchemaContract#DEFAULT_SEARCH_WEIGHT} unless declared otherwise
 	 */
-	float getSearchWeight();
+	@Nonnull
+	BigDecimal getSearchWeight();
 
 	/**
 	 * Returns the EvitaEL expression selecting the text of a {@link ComplexDataObject} value, with the stored value
@@ -213,14 +219,10 @@ public interface AssociatedDataSchemaContract extends NamedSchemaWithDeprecation
 				errors, Stream.of("Associated data `" + getName() + "` names a blank fulltext analyzer.")
 			);
 		}
-		if (!Float.isFinite(getSearchWeight()) || getSearchWeight() < 0) {
-			errors = Stream.concat(
-				errors,
-				Stream.of(
-					"Associated data `" + getName() + "` declares the search weight " + getSearchWeight() +
-						"! The search weight must be finite and non-negative."
-				)
-			);
+		try {
+			AttributeSchemaContract.normalizeSearchWeight(getSearchWeight(), "Associated data `" + getName() + "`");
+		} catch (InvalidSchemaMutationException ex) {
+			errors = Stream.concat(errors, Stream.of(ex.getMessage()));
 		}
 
 		if (getLengthPivot() <= 0) {

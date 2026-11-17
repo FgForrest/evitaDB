@@ -60,6 +60,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -113,7 +114,7 @@ public class CreateAssociatedDataSchemaMutation
 	@Getter @Nullable private final Integer lengthPivot;
 
 	/** Ranking weight, or `null` to use the default. */
-	@Getter @Nullable private final Float searchWeight;
+	@Getter @Nullable private final BigDecimal searchWeight;
 
 	/**
 	 * Creates a mutation that will set up a new associated data schema with the given properties. The conflict
@@ -196,8 +197,10 @@ public class CreateAssociatedDataSchemaMutation
 	 *                                   resolution)
 	 * @param analyzer                   the name of the fulltext analyzer, or `null` for the default one
 	 * @param lengthPivot                the length pivot, or `null` for the default one
-	 * @param searchWeight               finite, non-negative ranking weight, or `null` to use the default
-	 * @throws InvalidSchemaMutationException if the type is not allowed in associated data
+	 * @param searchWeight               non-negative decimal ranking weight within the shared decimal bounds and
+	 *                                   engine float range, or `null` to use the default
+	 * @throws InvalidSchemaMutationException if the type is not allowed in associated data or the search weight lies
+	 *                                        outside those bounds
 	 */
 	@SerializableCreator
 	public CreateAssociatedDataSchemaMutation(
@@ -212,7 +215,7 @@ public class CreateAssociatedDataSchemaMutation
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
 		@Nullable String analyzer,
 		@Nullable Integer lengthPivot,
-		@Nullable Float searchWeight
+		@Nullable BigDecimal searchWeight
 	) {
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ASSOCIATED_DATA, name);
@@ -231,7 +234,9 @@ public class CreateAssociatedDataSchemaMutation
 		this.conflictResolutionOverride = conflictResolutionOverride;
 		this.analyzer = analyzer;
 		this.lengthPivot = lengthPivot;
-		this.searchWeight = searchWeight == null ? null : AttributeSchemaContract.normalizeSearchWeight(searchWeight);
+		this.searchWeight = searchWeight == null ? null : AttributeSchemaContract.normalizeSearchWeight(
+			searchWeight, "Associated data `" + name + "`"
+		);
 	}
 
 	/**

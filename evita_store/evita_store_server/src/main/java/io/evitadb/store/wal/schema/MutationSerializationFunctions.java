@@ -47,6 +47,7 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -85,12 +86,13 @@ public interface MutationSerializationFunctions {
 	/**
 	 * Reads the optional ranking weight immediately after the nullable length pivot.
 	 *
+	 * @param kryo the Kryo instance that reads the decimal value
 	 * @param input the source
 	 * @return ranking weight, or `null` when absent
 	 */
 	@Nullable
-	static Float readNullableSearchWeight(@Nonnull Input input) {
-		return input.readBoolean() ? input.readFloat() : null;
+	static BigDecimal readNullableSearchWeight(@Nonnull Kryo kryo, @Nonnull Input input) {
+		return kryo.readObjectOrNull(input, BigDecimal.class);
 	}
 
 	/**
@@ -140,34 +142,33 @@ public interface MutationSerializationFunctions {
 	 * Writes the fulltext field settings a searchable or create mutation carries: the analyzer name, length pivot
 	 * and ranking weight, each `null` when the mutation leaves it to the current or the default value.
 	 *
+	 * @param kryo         the Kryo instance that writes the decimal value
 	 * @param output       the destination
 	 * @param analyzer     the name of the analyzer, or `null`
 	 * @param lengthPivot  the length pivot, or `null`
 	 * @param searchWeight the ranking weight, or `null`
 	 */
 	static void writeFulltextFieldSettings(
+		@Nonnull Kryo kryo,
 		@Nonnull Output output,
 		@Nullable String analyzer,
 		@Nullable Integer lengthPivot,
-		@Nullable Float searchWeight
+		@Nullable BigDecimal searchWeight
 	) {
 		output.writeString(analyzer);
 		output.writeBoolean(lengthPivot != null);
 		if (lengthPivot != null) {
 			output.writeVarInt(lengthPivot, false);
 		}
-		output.writeBoolean(searchWeight != null);
-		if (searchWeight != null) {
-			output.writeFloat(searchWeight);
-		}
+		kryo.writeObjectOrNull(output, searchWeight, BigDecimal.class);
 	}
 
 	/**
-	 * Reads the length pivot written by {@link #writeFulltextFieldSettings(Output, String, Integer, Float)}, after the
-	 * analyzer name, which {@link Input#readString()} reads.
+	 * Reads the length pivot after the analyzer name, which {@link Input#readString()} reads.
 	 *
 	 * @param input the source
 	 * @return the length pivot, or `null` when the mutation carries none
+	 * @see #writeFulltextFieldSettings(Kryo, Output, String, Integer, BigDecimal)
 	 */
 	@Nullable
 	static Integer readNullableLengthPivot(@Nonnull Input input) {

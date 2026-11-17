@@ -73,13 +73,13 @@ public class CreateAssociatedDataSchemaMutationConverter extends AssociatedDataS
 				ConflictResolutionOverride.INHERITED),
 			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.ANALYZER),
 			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.LENGTH_PIVOT),
-			readSearchWeight(input, CreateAssociatedDataSchemaMutationDescriptor.SEARCH_WEIGHT)
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.SEARCH_WEIGHT)
 		);
 	}
 
 	/**
 	 * Writes the text expression as raw source and the ranking weight as a decimal before reflection reaches them,
-	 * because {@link Output} can serialize neither an `Expression` nor a `Float`; reflection then fills in the
+	 * because {@link Output} cannot serialize an `Expression`; reflection then fills in the
 	 * remaining properties.
 	 *
 	 * @param mutation the mutation to serialize

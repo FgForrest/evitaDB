@@ -34,6 +34,7 @@ import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 
 /**
  * Serializer of the metadata-only reference text composition update.
@@ -51,7 +52,7 @@ public class SetReferenceSchemaSearchableThroughMutationSerializer
 	) {
 		output.writeString(mutation.getName());
 		writeSearchModes(kryo, output, mutation.getSearchableThroughInScopes());
-		kryo.writeObjectOrNull(output, mutation.getWeight(), Float.class);
+		kryo.writeObjectOrNull(output, mutation.getWeight(), BigDecimal.class);
 	}
 
 	@Nonnull
@@ -61,7 +62,7 @@ public class SetReferenceSchemaSearchableThroughMutationSerializer
 		@Nonnull Class<? extends SetReferenceSchemaSearchableThroughMutation> type
 	) {
 		return new SetReferenceSchemaSearchableThroughMutation(
-			input.readString(), readSearchModes(kryo, input), kryo.readObjectOrNull(input, Float.class)
+			input.readString(), readSearchModes(kryo, input), kryo.readObjectOrNull(input, BigDecimal.class)
 		);
 	}
 

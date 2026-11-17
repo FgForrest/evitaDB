@@ -63,6 +63,8 @@ public final class FulltextScoringPolicy {
 	public static final long QUALITY_MASK = 0xFFFFFF0000000000L;
 	/** Resolved place weights keyed by full place identity, including kind and reference context. */
 	@Nonnull private final Map<FulltextFieldKey, Float> weights;
+	/** Resolved composition weights, converted when the query policy is built. */
+	@Nonnull private final Map<String, Float> referenceWeights;
 	/** Effective coefficient, retained for structural hashing. */
 	private final float tieBreaker;
 	/** Numerator of the coefficient's exact binary rational. */
@@ -84,26 +86,45 @@ public final class FulltextScoringPolicy {
 	public record Place(@Nullable String composingReference, @Nonnull FulltextFieldKey key) { }
 
 	/**
-	 * Creates a policy from effective place weights with the engine tie breaker.
-	 * @param weights effective weights, resolved before looking up index data
+	 * Creates a query policy with the owner's resolved reference composition weights.
+	 * @param weights effective weights of the owner's searchable places
+	 * @param referenceWeights effective weights of composition references
 	 */
-	public FulltextScoringPolicy(@Nonnull Map<FulltextFieldKey, Float> weights) {
-		this(weights, DEFAULT_TIE_BREAKER);
+	public FulltextScoringPolicy(
+		@Nonnull Map<FulltextFieldKey, Float> weights, @Nonnull Map<String, Float> referenceWeights
+	) {
+		this(weights, referenceWeights, DEFAULT_TIE_BREAKER);
 	}
 
 	/**
-	 * Creates a policy with an explicit coefficient. The public constructor delegates here with the engine tie
-	 * breaker; the package-private visibility lets the decision-table tests vary it.
+	 * Creates a policy with an explicit coefficient and no reference weights. The public constructor uses the engine
+	 * tie breaker; the package-private visibility lets the decision-table tests vary it.
 	 * @param weights effective weights by full place identity
 	 * @param tieBreaker fraction of the other places to add, finite and within 0–1
 	 */
 	FulltextScoringPolicy(@Nonnull Map<FulltextFieldKey, Float> weights, float tieBreaker) {
+		this(weights, Map.of(), tieBreaker);
+	}
+
+	/**
+	 * Stores the resolved engine weights and the coefficient used by impact tables.
+	 * @param weights place weights
+	 * @param referenceWeights reference composition weights
+	 * @param tieBreaker fraction of the other places to add
+	 */
+	private FulltextScoringPolicy(
+		@Nonnull Map<FulltextFieldKey, Float> weights, @Nonnull Map<String, Float> referenceWeights, float tieBreaker
+	) {
 		Assert.isPremiseValid(Float.isFinite(tieBreaker) && tieBreaker >= 0 && tieBreaker <= 1,
 			"The fulltext tie breaker must be finite and within 0–1!");
 		for (final float weight : weights.values()) {
 			validateWeight(weight);
 		}
 		this.weights = Map.copyOf(weights);
+		for (final float weight : referenceWeights.values()) {
+			validateWeight(weight);
+		}
+		this.referenceWeights = Map.copyOf(referenceWeights);
 		this.tieBreaker = tieBreaker == 0 ? 0 : tieBreaker;
 		final int bits = Float.floatToIntBits(this.tieBreaker);
 		this.numerator = mantissaOf(bits);
@@ -122,7 +143,21 @@ public final class FulltextScoringPolicy {
 	}
 
 	/**
-	 * Hashes schema weights, place identities and the coefficient independently of map iteration order.
+	 * Reads a reference weight already converted while resolving the owner policy. Missing entries are programming
+	 * errors, not engine defaults.
+	 * @param referenceName composing reference of the owner
+	 * @return the reference's engine weight
+	 */
+	public float referenceWeight(@Nonnull String referenceName) {
+		final Float weight = this.referenceWeights.get(referenceName);
+		Assert.isPremiseValid(weight != null, () -> "No fulltext reference weight for " + referenceName + "!");
+		return weight;
+	}
+
+	/**
+	 * Hashes schema weights, place identities and the coefficient independently of map iteration order. Reference
+	 * weights stay out of this hash: a source that composes through a reference adds that reference's weight bits
+	 * to its own source identity in `TextMatchesTranslator`.
 	 * @param hashFunction structural hash implementation
 	 * @return policy identity for formula hashing and query-local memoization
 	 */

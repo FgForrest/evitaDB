@@ -59,6 +59,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
@@ -152,7 +153,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull String entityType,
 		@Nonnull String reflectedReferenceName,
 		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
-		float searchableThroughWeight
+		@Nonnull BigDecimal searchableThroughWeight
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 
@@ -217,7 +218,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull AttributeInheritanceBehavior attributesInherited,
 		@Nullable String[] attributesExcludedFromInheritance,
 		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
-		float searchableThroughWeight
+		@Nonnull BigDecimal searchableThroughWeight
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 		// we cannot validate here that all faceted scopes are
@@ -313,7 +314,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull AttributeInheritanceBehavior attributesInherited,
 		@Nullable String[] attributesExcludedFromInheritance,
 		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
-		float searchableThroughWeight
+		@Nonnull BigDecimal searchableThroughWeight
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 		// we cannot validate here that all faceted scopes are also indexed, in case indexed scopes are inherited
@@ -413,7 +414,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable String[] attributesExcludedFromInheritance,
 		@Nullable ReferenceSchemaContract reflectedReference,
 		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
-		float searchableThroughWeight
+		@Nonnull BigDecimal searchableThroughWeight
 	) {
 		return _internalBuild(
 			name, nameVariants,
@@ -502,7 +503,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable String[] attributesExcludedFromInheritance,
 		@Nullable ReferenceSchemaContract reflectedReference,
 		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
-		float searchableThroughWeight
+		@Nonnull BigDecimal searchableThroughWeight
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 
@@ -807,7 +808,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable String[] attributeInheritanceFilter,
 		@Nullable ReferenceSchemaContract reflectedReference,
 		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
-		float searchableThroughWeight
+		@Nonnull BigDecimal searchableThroughWeight
 	) {
 		super(
 			name, nameVariants,
@@ -991,7 +992,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable String[] attributeInheritanceFilter,
 		@Nullable ReferenceSchemaContract reflectedReference,
 		@Nullable Map<Scope, ReferenceSearchMode> searchableThroughInScopes,
-		float searchableThroughWeight
+		@Nonnull BigDecimal searchableThroughWeight
 	) {
 		super(
 			name, nameVariants,
@@ -1543,7 +1544,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	public int hashCode() {
 		int result = this.name.hashCode();
 		result = 31 * result + this.searchableThroughInScopes.hashCode();
-		result = 31 * result + Float.hashCode(this.searchableThroughWeight);
+		result = 31 * result + this.searchableThroughWeight.hashCode();
 		result = 31 * result + this.referencedEntityType.hashCode();
 		result = 31 * result + this.reflectedReferenceName.hashCode();
 		result = 31 * result + (this.descriptionInherited ? 1 : 31 + Objects.hashCode(this.description));
@@ -1585,7 +1586,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		final ReflectedReferenceSchema that = (ReflectedReferenceSchema) o;
 		return this.name.equals(that.name) &&
 			this.searchableThroughInScopes.equals(that.searchableThroughInScopes) &&
-			Float.compare(this.searchableThroughWeight, that.searchableThroughWeight) == 0 &&
+			this.searchableThroughWeight.compareTo(that.searchableThroughWeight) == 0 &&
 			Objects.equals(this.nameVariants, that.nameVariants) &&
 			this.referencedEntityType.equals(that.referencedEntityType) &&
 			this.reflectedReferenceName.equals(that.reflectedReferenceName) &&
@@ -1690,7 +1691,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	@Override
 	@Nonnull
 	public ReflectedReferenceSchema withSearchableThrough(
-		@Nonnull Map<Scope, ReferenceSearchMode> modes, float weight
+		@Nonnull Map<Scope, ReferenceSearchMode> modes, @Nonnull BigDecimal weight
 	) {
 		return new ReflectedReferenceSchema(
 			this.name,

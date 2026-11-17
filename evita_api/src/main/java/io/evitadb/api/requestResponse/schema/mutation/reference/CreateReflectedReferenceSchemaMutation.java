@@ -55,6 +55,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -83,7 +84,7 @@ public class CreateReflectedReferenceSchemaMutation
 	/** Complete composition declaration; null means none is declared. */
 	@Getter @Nullable private final ScopedReferenceSearchMode[] searchableThroughInScopes;
 	/** Single ranking weight shared by all scopes; null means the default weight. */
-	@Getter @Nullable private final Float searchableThroughWeight;
+	@Getter @Nullable private final BigDecimal searchableThroughWeight;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nullable private final Cardinality cardinality;
@@ -380,7 +381,7 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter,
 		@Nullable ScopedReferenceSearchMode[] searchableThroughInScopes,
-		@Nullable Float searchableThroughWeight
+		@Nullable BigDecimal searchableThroughWeight
 	) {
 		this(
 			name, description, deprecationNotice, cardinality, referencedEntityType, reflectedReferenceName,
@@ -484,13 +485,13 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter,
 		@Nullable ScopedReferenceSearchMode[] searchableThroughInScopes,
-		@Nullable Float searchableThroughWeight
+		@Nullable BigDecimal searchableThroughWeight
 	) {
 		super(name);
 		this.searchableThroughInScopes = searchableThroughInScopes == null
 			? null : searchableThroughInScopes.clone();
 		this.searchableThroughWeight = searchableThroughWeight == null
-			? null : AttributeSchemaContract.normalizeSearchWeight(searchableThroughWeight);
+			? null : AttributeSchemaContract.normalizeSearchWeight(searchableThroughWeight, "Reference `" + name + "`");
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
 		this.description = description;
@@ -587,8 +588,8 @@ public class CreateReflectedReferenceSchemaMutation
 								createCombinedBucketedMutation(createdVersion, existingVersion),
 								(createdVersion.getSearchableThroughInScopes()
 									.equals(existingVersion.getSearchableThroughInScopes()) &&
-									Float.compare(createdVersion.getSearchableThroughWeight(),
-										existingVersion.getSearchableThroughWeight()) == 0) ? null :
+									createdVersion.getSearchableThroughWeight().equals(
+										existingVersion.getSearchableThroughWeight())) ? null :
 									new SetReferenceSchemaSearchableThroughMutation(
 										this.name,
 										ReferenceSchema.toScopedSearchModes(

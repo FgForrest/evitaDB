@@ -43,6 +43,7 @@ import io.evitadb.utils.NamingConvention;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -80,7 +81,7 @@ public interface ReferenceSchemaContract extends
 	ConflictResolutionOverrideAwareSchemaContract
 {
 	/** Default ranking strength of text composed through a reference, shared by all scopes. */
-	float DEFAULT_SEARCHABLE_THROUGH_WEIGHT = 0.5f;
+	BigDecimal DEFAULT_SEARCHABLE_THROUGH_WEIGHT = new BigDecimal("0.5");
 
 	/**
 	 * Returns the search mode in the default scope. Reflected references declare their own mode.
@@ -113,9 +114,13 @@ public interface ReferenceSchemaContract extends
 	/**
 	 * Returns the ranking weight shared by all scopes. Zero preserves matches without adding rank strength.
 	 *
-	 * @return shared weight, defaulting to 0.5; finite and non-negative in validated schemas
+	 * Equal decimal values share one representation. Weights must be non-negative, use at most 100 significant
+	 * digits and have a stripped scale within [-100, 100]. Nonzero values must convert to a finite, nonzero float.
+	 *
+	 * @return shared weight, defaulting to 0.5
 	 */
-	float getSearchableThroughWeight();
+	@Nonnull
+	BigDecimal getSearchableThroughWeight();
 
 
 	/**

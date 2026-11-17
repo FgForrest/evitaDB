@@ -23,6 +23,14 @@
 
 package io.evitadb.store.schema.serializer;
 
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import java.math.BigDecimal;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
@@ -70,6 +78,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.*;
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaFacetedMutationSerializer.*;
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.*;
@@ -173,16 +182,59 @@ class ReferenceSearchableThroughSerializationTest {
 			() -> readReleased(kryo, uid, type, legacyWriter));
 	}
 
+	/**
+	 * Every schema DTO stores the exact decimal through the actual storage registrations.
+	 * @param weight decimal ranking contribution supplied by this case
+	 */
+	@ParameterizedTest
+	@ValueSource(strings = {"0", "0.0000001", "12345678.5", "0.123456789012345678901234567891"})
+	@DisplayName("all schema weights round trip losslessly through Kryo")
+	void shouldRoundTripEverySchemaWeight(@Nonnull BigDecimal weight) {
+		final AttributeSchema attribute = AttributeSchema._internalBuild(
+			"text", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
+			false, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, weight);
+		final EntityAttributeSchema entityAttribute = EntityAttributeSchema._internalBuild(
+			"text", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
+			false, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, weight);
+		final GlobalAttributeSchema globalAttribute = GlobalAttributeSchema._internalBuild(
+			"text", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null, null,
+			false, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, weight);
+		final AssociatedDataSchema data = AssociatedDataSchema._internalBuild(
+			"text", null, null, String.class, false, false, null, null, ConflictResolutionOverride.INHERITED,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, weight);
+		for (final boolean catalog : new boolean[]{true, false}) {
+			final Kryo kryo = schemaKryo(catalog);
+			for (final Object schema : new Object[]{attribute, entityAttribute, globalAttribute, data,
+				reference().withSearchableThrough(MODES, weight), reflected().withSearchableThrough(MODES, weight)}) {
+				try (final Output output = new Output(1024, -1)) {
+					kryo.writeClassAndObject(output, schema);
+					output.writeInt(TRAILING_MARKER);
+					try (final Input input = new Input(output.toBytes())) {
+						assertEquals(schema, kryo.readClassAndObject(input));
+						assertEquals(TRAILING_MARKER, input.readInt());
+						assertEquals(input.limit(), input.position());
+					}
+				}
+			}
+		}
+	}
+
 	/** Both storage Kryo compositions carry the trailing modes and weight of a plain reference. */
 	@ParameterizedTest
 	@ValueSource(booleans = {true, false})
 	@DisplayName("normal reference preserves both scopes and its shared weight in composed storage Kryo")
 	void shouldRoundTripNormalReference(boolean catalog) {
-		final ReferenceSchema source = reference().withSearchableThrough(MODES, 0.25f);
-		final ReferenceSchema restored = roundTrip(schemaKryo(catalog), source, ReferenceSchema.class);
-		assertEquals(source, restored);
-		assertEquals(MODES, restored.getSearchableThroughInScopes());
-		assertEquals(0.25f, restored.getSearchableThroughWeight());
+		for (final BigDecimal weight : new BigDecimal[]{BigDecimal.ZERO, new BigDecimal("0.0000001"),
+			valueOf(12345678.5), new BigDecimal("0.123456789012345678901234567891")}) {
+			final ReferenceSchema source = reference().withSearchableThrough(MODES, weight);
+			final ReferenceSchema restored = roundTrip(schemaKryo(catalog), source, ReferenceSchema.class);
+			assertEquals(source, restored);
+			assertEquals(MODES, restored.getSearchableThroughInScopes());
+			assertEquals(weight, restored.getSearchableThroughWeight());
+		}
 	}
 
 	/** A stored reflected declaration survives binding to an original that declares a different one. */
@@ -190,16 +242,16 @@ class ReferenceSearchableThroughSerializationTest {
 	@ValueSource(booleans = {true, false})
 	@DisplayName("reflected reference preserves its independent setting even after the original is bound")
 	void shouldRoundTripReflectedReference(boolean catalog) {
-		final ReflectedReferenceSchema source = reflected().withSearchableThrough(MODES, 0.75f);
+		final ReflectedReferenceSchema source = reflected().withSearchableThrough(MODES, valueOf(0.75));
 		final ReflectedReferenceSchema restored = roundTrip(
 			schemaKryo(catalog), source, ReflectedReferenceSchema.class
 		);
 		assertEquals(source, restored);
 		final ReflectedReferenceSchema bound = restored.withReferencedSchema(
-			reference().withSearchableThrough(Collections.emptyMap(), 0.125f)
+			reference().withSearchableThrough(Collections.emptyMap(), valueOf(0.125))
 		);
 		assertEquals(MODES, bound.getSearchableThroughInScopes());
-		assertEquals(0.75f, bound.getSearchableThroughWeight());
+		assertEquals(valueOf(0.75), bound.getSearchableThroughWeight());
 	}
 
 	/** Released bytes under the old serial version need the registered reader, which defaults composition. */
@@ -218,7 +270,7 @@ class ReferenceSearchableThroughSerializationTest {
 		assertEquals("ContentBlock", restored.getReferencedEntityType());
 		assertNull(restored.getSearchableThrough());
 		assertTrue(restored.getSearchableThroughInScopes().isEmpty());
-		assertEquals(0.5f, restored.getSearchableThroughWeight());
+		assertEquals(valueOf(0.5), restored.getSearchableThroughWeight());
 	}
 
 	/** Released reflected bytes need the registered reader, which defaults composition and keeps inheritance. */
@@ -237,7 +289,7 @@ class ReferenceSearchableThroughSerializationTest {
 		assertTrue(restored.isIndexedInherited());
 		assertEquals("blocks", restored.getReflectedReferenceName());
 		assertTrue(restored.getSearchableThroughInScopes().isEmpty());
-		assertEquals(0.5f, restored.getSearchableThroughWeight());
+		assertEquals(valueOf(0.5), restored.getSearchableThroughWeight());
 	}
 
 	/** Null, empty and explicit modes each survive the WAL with a null, zero and explicit weight. */
@@ -249,7 +301,8 @@ class ReferenceSearchableThroughSerializationTest {
 		for (final ScopedReferenceSearchMode[] modes : new ScopedReferenceSearchMode[][]{
 			null, ScopedReferenceSearchMode.EMPTY, SCOPED_MODES
 		}) {
-			for (final Float weight : new Float[]{null, 0.0f, 0.8f}) {
+			for (final BigDecimal weight : new BigDecimal[]{null, BigDecimal.ZERO, new BigDecimal("0.0000001"),
+				valueOf(12345678.5), new BigDecimal("0.123456789012345678901234567891")}) {
 				final SetReferenceSchemaSearchableThroughMutation source =
 					new SetReferenceSchemaSearchableThroughMutation("blocks", modes, weight);
 				assertEquals(source, roundTrip(kryo, source, SetReferenceSchemaSearchableThroughMutation.class));
@@ -265,7 +318,7 @@ class ReferenceSearchableThroughSerializationTest {
 		final CreateReferenceSchemaMutation source = new CreateReferenceSchemaMutation(
 			"blocks", "Shared text", "Use blocks", Cardinality.ZERO_OR_MORE, "ContentBlock", true, null, false,
 			ScopedReferenceIndexType.DEFAULT, ScopedReferenceIndexedComponents.DEFAULT, Scope.NO_SCOPE,
-			null, null, null, ConflictResolutionOverride.ENTITY, SCOPED_MODES, 0.2f
+			null, null, null, ConflictResolutionOverride.ENTITY, SCOPED_MODES, valueOf(0.2)
 		);
 		assertEquals(source, roundTrip(KryoFactory.createKryo(WalKryoConfigurer.INSTANCE), source,
 			CreateReferenceSchemaMutation.class));
@@ -279,7 +332,7 @@ class ReferenceSearchableThroughSerializationTest {
 		final CreateReflectedReferenceSchemaMutation source = new CreateReflectedReferenceSchemaMutation(
 			"products", "Owners", "Use products", Cardinality.ZERO_OR_MORE, "Product", "blocks",
 			null, null, null, null, null, null, AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-			new String[]{"code"}, SCOPED_MODES, 0.7f
+			new String[]{"code"}, SCOPED_MODES, valueOf(0.7)
 		);
 		assertEquals(source, roundTrip(KryoFactory.createKryo(WalKryoConfigurer.INSTANCE), source,
 			CreateReflectedReferenceSchemaMutation.class));
@@ -307,7 +360,7 @@ class ReferenceSearchableThroughSerializationTest {
 		assertNull(restored.getSearchableThroughWeight());
 		final ReferenceSchemaContract resolved = restored.mutate(EntitySchema._internalBuild("Owner"), null);
 		assertTrue(resolved.getSearchableThroughInScopes().isEmpty());
-		assertEquals(0.5f, resolved.getSearchableThroughWeight());
+		assertEquals(valueOf(0.5), resolved.getSearchableThroughWeight());
 	}
 
 	/** A released reflected create record reads with null composition and keeps its inheritance filter. */
@@ -332,7 +385,7 @@ class ReferenceSearchableThroughSerializationTest {
 		assertNull(restored.getSearchableThroughWeight());
 		final ReferenceSchemaContract resolved = restored.mutate(EntitySchema._internalBuild("Owner"), null);
 		assertTrue(resolved.getSearchableThroughInScopes().isEmpty());
-		assertEquals(0.5f, resolved.getSearchableThroughWeight());
+		assertEquals(valueOf(0.5), resolved.getSearchableThroughWeight());
 	}
 
 	/** Released-format readers never write, so no new record can be stored in an old layout. */

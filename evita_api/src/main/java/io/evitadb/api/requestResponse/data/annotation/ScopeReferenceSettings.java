@@ -76,14 +76,15 @@ public @interface ScopeReferenceSettings {
 
 	/**
 	 * Sets the single ranking weight shared by all scopes. Zero preserves matches without adding rank strength.
-	 * The weight must be finite and non-negative; either signed zero is stored as positive zero.
+	 * The weight must be finite, non-negative and within the engine float range; either signed zero is stored as
+	 * positive zero.
 	 * An entry whose weight differs from the default declares this shared value, and an entry leaving the default
 	 * declares nothing, so it never resets a weight another entry declares. Entries declaring a non-default weight
 	 * must agree on it; different values are refused, as one weight serves all scopes.
 	 *
 	 * @return shared ranking weight, defaulting to 0.5
 	 */
-	float searchableThroughWeight() default ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT;
+	double searchableThroughWeight() default 0.5;
 
 	/**
 	 * Enables facet computation for reference of this name.

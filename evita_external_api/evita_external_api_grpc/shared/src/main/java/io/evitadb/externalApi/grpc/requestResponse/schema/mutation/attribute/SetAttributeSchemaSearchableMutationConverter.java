@@ -24,9 +24,9 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
-import com.google.protobuf.FloatValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation;
@@ -65,7 +65,7 @@ public class SetAttributeSchemaSearchableMutationConverter
 			mutation.getSearchableInScopesList().stream().map(EvitaEnumConverter::toScope).toArray(Scope[]::new),
 			mutation.hasAnalyzer() ? mutation.getAnalyzer().getValue() : null,
 			mutation.hasLengthPivot() ? mutation.getLengthPivot().getValue() : null,
-			mutation.hasSearchWeight() ? mutation.getSearchWeight().getValue() : null
+			mutation.hasSearchWeight() ? EvitaDataTypesConverter.toBigDecimal(mutation.getSearchWeight()) : null
 		);
 	}
 
@@ -90,7 +90,7 @@ public class SetAttributeSchemaSearchableMutationConverter
 			builder.setLengthPivot(Int32Value.of(mutation.getLengthPivot()));
 		}
 		if (mutation.getSearchWeight() != null) {
-			builder.setSearchWeight(FloatValue.of(mutation.getSearchWeight()));
+			builder.setSearchWeight(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getSearchWeight()));
 		}
 		return builder.build();
 	}

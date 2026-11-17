@@ -32,6 +32,7 @@ import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.TextPlaceWeightSupport;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -48,11 +49,12 @@ import java.math.BigDecimal;
  *
  * The attribute must exist at its level and be searchable in every scope the enclosing `relevanceText` covers;
  * narrow the ordering with `inScope` to cover fewer scopes. Zero keeps matches and quality but gives no strength.
- * Negative weights and values that overflow or underflow the internal float are refused during planning.
  * The weight is a non-null `BigDecimal`, normalized so scale does not affect equality or plain decimal printing.
  * The name must be non-null and non-blank.
- * Construction requires at most 100 significant digits and a stripped scale between -100 and 100. Bounds are
- * checked before rescaling; diagnostics never expand an unsupported value.
+ * Construction refuses a negative weight, more than 100 significant digits and a stripped scale outside -100 to
+ * 100. Bounds are checked before rescaling; diagnostics never expand an unsupported value. Planning refuses float
+ * overflow and underflow, places the schema does not make searchable in a covered scope and, when scoring text is
+ * in reach, places no scoring `textMatches` searches.
  *
  * ```evitaql
  * relevanceText(
@@ -77,10 +79,9 @@ public class AttributeWeight extends AbstractOrderConstraintLeaf implements Gene
 	 * Creates a weight for exactly one named searchable place.
 	 *
 	 * @param attributeName name of the weighted attribute at the level of the enclosing constraint, non-blank
-	 * @param weight number replacing the schema search weight; negative values are accepted here and refused during
-	 *               planning; scale is normalized without losing decimal precision
-	 * @throws EvitaInvalidUsageException when the name is null or blank, the weight is null, or its representation
-	 *                                    exceeds the construction bounds
+	 * @param weight non-negative decimal replacing the schema search weight, normalized without losing precision
+	 * @throws EvitaInvalidUsageException when the name is null or blank, the weight is null or negative, or its
+	 *                                    representation exceeds the construction bounds
 	 */
 	@Creator
 	public AttributeWeight(@Nonnull @Classifier String attributeName, @Nonnull @Value BigDecimal weight) {
@@ -110,7 +111,7 @@ public class AttributeWeight extends AbstractOrderConstraintLeaf implements Gene
 	/**
 	 * Returns the weight replacing the schema search weight of the place.
 	 *
-	 * @return the normalized decimal; negative values and float overflow or underflow are refused during planning
+	 * @return the normalized non-negative decimal; float overflow or underflow is refused during planning
 	 */
 	@Nonnull
 	public BigDecimal getWeight() {

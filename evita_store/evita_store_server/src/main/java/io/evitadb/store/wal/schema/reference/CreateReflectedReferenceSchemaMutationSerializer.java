@@ -39,6 +39,8 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceS
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
+import java.math.BigDecimal;
+
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaSearchableThroughMutationSerializer.*;
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.readScopedHistogramIndexDefinitionArray;
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.readScopedBucketedPartiallyArray;
@@ -102,7 +104,7 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			output.writeString(attribute);
 		}
 		writeSearchModes(kryo, output, mutation.getSearchableThroughInScopes());
-		kryo.writeObjectOrNull(output, mutation.getSearchableThroughWeight(), Float.class);
+		kryo.writeObjectOrNull(output, mutation.getSearchableThroughWeight(), BigDecimal.class);
 	}
 
 	@Override
@@ -135,7 +137,7 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 		}
 
 		final ScopedReferenceSearchMode[] searchModes = readSearchModes(kryo, input);
-		final Float searchWeight = kryo.readObjectOrNull(input, Float.class);
+		final BigDecimal searchWeight = kryo.readObjectOrNull(input, BigDecimal.class);
 
 		return new CreateReflectedReferenceSchemaMutation(
 			name,

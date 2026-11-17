@@ -362,7 +362,7 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 				);
 			}
 
-			// ranking weights are `Float` in the mutations but decimals in the descriptors; they are matched by name,
+			// ranking weight properties share a decimal fetcher and are matched by name,
 			// so a new weight property must use one of these names or register its own fetcher
 			for (final PropertyDescriptor property : mutationDescriptor.staticProperties()) {
 				if ("searchWeight".equals(property.name()) || "searchableThroughWeight".equals(property.name()) ||

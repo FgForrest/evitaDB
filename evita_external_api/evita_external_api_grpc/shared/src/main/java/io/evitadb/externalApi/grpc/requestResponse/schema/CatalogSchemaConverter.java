@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
-import com.google.protobuf.FloatValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -214,7 +213,7 @@ public class CatalogSchemaConverter {
 				.map(EvitaEnumConverter::toGrpcScope).toList())
 			.setAnalyzer(StringValue.of(attributeSchema.getAnalyzer()))
 			.setLengthPivot(Int32Value.of(attributeSchema.getLengthPivot()))
-			.setSearchWeight(FloatValue.of(attributeSchema.getSearchWeight()))
+			.setSearchWeight(EvitaDataTypesConverter.toGrpcBigDecimal(attributeSchema.getSearchWeight()))
 			.addAllNormalized(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
 			.addAllAccelerated(
 				toGrpcScopedAttributeFilterAccelerators(
@@ -289,7 +288,8 @@ public class CatalogSchemaConverter {
 				FulltextAnalyzerSchemaContract.TEXT,
 			attributeSchema.hasLengthPivot() ? attributeSchema.getLengthPivot().getValue() :
 				AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
-			attributeSchema.hasSearchWeight() ? attributeSchema.getSearchWeight().getValue() :
+			attributeSchema.hasSearchWeight()
+				? EvitaDataTypesConverter.toBigDecimal(attributeSchema.getSearchWeight()) :
 				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
