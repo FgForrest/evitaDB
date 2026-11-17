@@ -36,7 +36,8 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 
 /**
- * This is formula that is an extension of {@link NotFormula} that captures the relation between two price lists.
+ * This is formula that is an extension of {@link NotFormula} that captures the relation between a price list and
+ * the price lists of higher priority, which may themselves be a nested combination.
  * Price evaluation is based on price list priority that is derived from the order they are places inside
  * {@link io.evitadb.api.query.filter.PriceInPriceLists} query. Then the lookup for query PRICE_LIST_A,
  * PRICE_LIST_B, PRICE_LIST_C looks like this:
@@ -55,7 +56,8 @@ public class PriceListCombinationFormula extends NotFormula {
 	 */
 	private static final long CLASS_ID = -379304706891548493L;
 	/**
-	 * Name of the price list whose entity ids are subtracted from the superset formula result.
+	 * Label of the higher-priority price list, or of a nested combination of several, whose entity ids are
+	 * subtracted from the superset formula result.
 	 *
 	 * @return the label of the higher-priority price list, or the comma-separated labels of a nested combination,
 	 *     whose matching entities are removed from the superset
@@ -125,7 +127,8 @@ public class PriceListCombinationFormula extends NotFormula {
 	 *
 	 * @param subtractedBitmap raw subtracted operand, absent with formula children
 	 * @param supersetBitmap raw universe operand, absent with formula children
-	 * @param subtractedPriceListName name of the subtracted price list
+	 * @param subtractedPriceListName label of the subtracted price list, or comma-separated labels of a nested
+	 *     combination
 	 * @param priceListName name of the superset price list
 	 * @param priceEvaluationContext validity and ordered target price indexes
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
