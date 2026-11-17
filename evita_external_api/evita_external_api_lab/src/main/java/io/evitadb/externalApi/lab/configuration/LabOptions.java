@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
+import io.evitadb.externalApi.configuration.TlsMode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -50,18 +51,30 @@ public class LabOptions extends AbstractApiOptions implements ApiWithSpecificPre
 	@Getter private final String prefix;
 	@Getter private final GuiConfig gui;
 
+	/**
+	 * Creates enabled options listening on all network interfaces at {@link AbstractApiOptions#DEFAULT_PORT}, with
+	 * `tlsMode` {@link TlsMode#FORCE_TLS}.
+	 */
 	public LabOptions() {
-		super();
+		super(TlsMode.FORCE_TLS);
 		this.prefix = BASE_LAB_PATH;
 		this.gui = new GuiConfig();
 	}
 
+	/**
+	 * Creates enabled options listening on `host` (comma-separated `hostname:port` definitions), with `tlsMode`
+	 * {@link TlsMode#FORCE_TLS}.
+	 */
 	public LabOptions(@Nonnull String host) {
-		super(true, host);
+		super(true, host, TlsMode.FORCE_TLS);
 		this.prefix = BASE_LAB_PATH;
 		this.gui = new GuiConfig();
 	}
 
+	/**
+	 * Creates options from configuration; a missing `tlsMode` resolves to {@link TlsMode#FORCE_TLS} and an unknown name
+	 * fails.
+	 */
 	@JsonCreator
 	public LabOptions(
 		@Nullable @JsonProperty("enabled") Boolean enabled,
@@ -73,7 +86,7 @@ public class LabOptions extends AbstractApiOptions implements ApiWithSpecificPre
 		@Nullable @JsonProperty("gui") GuiConfig gui,
 		@Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
-		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
+		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration, TlsMode.FORCE_TLS);
 		this.prefix = ofNullable(prefix).orElse(BASE_LAB_PATH);
 		this.gui = ofNullable(gui).orElse(new GuiConfig());
 	}
