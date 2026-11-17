@@ -1,7 +1,7 @@
 ---
 title: One histogram store per group
 date: 2026-11-17
-updated: 2026-11-17 01:27
+updated: 2026-11-17 12:25
 status: accepted
 kind: fix
 issues: [1924]
@@ -182,8 +182,8 @@ Migration entry points live in `evita_store/evita_store_server/.../store/catalog
 
 ## Verification
 
-These are completed implementation runs on 2026-11-16, checked against the shipped tests and archived results;
-no Maven or new performance run belongs to this documentation change. Counts are tests / failures / errors / skips.
+These are completed implementation runs on 2026-11-16 and 2026-11-17, checked against the shipped tests and
+archived results; no performance run was made. Counts are tests / failures / errors / skips.
 
 - Storage/migration sweep: **1,161 / 0 / 0 / 1** across 59 XML suites (1,160 passed), including released-fixture
   upgrade suites: `Release2026_2IndexUpgradeTest` 9 and `Release2026_2UpgradeDefectsTest` 128.
@@ -198,9 +198,18 @@ no Maven or new performance run belongs to this documentation change. Counts are
 - Independent cleanup counterfactuals kept protocol 9: disabling cleanup gave **6 / 1 / 2 / 0**, including the
   expected manifest assertion; disabling either reload guard gave **6 / 1 / 0 / 0**, at its own load-refusal cell.
   Skipping only leaf-page removal gave **6 / 1 / 0 / 0**, at the exact footprint check. Restored follow-up suite:
-  **408 / 0 / 0 / 0** over 14 classes, including `MissingHistogramValueBehaviorTest` 31 and
+  **408 / 0 / 0 / 0** over 14 classes, including `MissingHistogramValueBehaviorTest` 31 (32 with the later
+  startup-replay cell under refusal) and
   `ReferenceHistogramLocaleSetFunctionalTest` 72. Compatibility audit: 9 configurers, 190 registrations,
   111 backward-compatible readers, zero unparsed registrations and zero findings; no manifest UID change.
+- The hand-built image above uses today's serializers. `Release2026_2GroupedHistogramUpgradeTest` **4 / 0 / 0 / 0**
+  upgrades the release fixture `groupedHistogram`, which the released 2026.2.18 engine writes during the build. Its
+  image lists grouped keys, roots and cardinalities in both the reduced group and the group-type manifest; the
+  release writes the group-type copy only from its cross-entity reevaluation, which a hand-built image cannot show.
+  After the upgrade both manifest kinds are free of grouped histograms in one publication, the ungrouped histogram
+  answers exactly as the release did, the catalog reloads without a refusal and no group store exists. A write
+  withdrawing the missing grouped value is refused with the exact diagnostic; the same write succeeds on a catalog
+  replaced from source. Disabling the cleanup failed two of the four cells (surviving keys; the reload refusal).
 - `GroupHistogramAcrossReducedIndexesFunctionalTest` **54 / 0 / 0 / 0** covers split groups and mutation parity.
   Boundary/merge gate on this branch after merging dev: **287 / 0 / 0 / 1**, including
   `GroupHistogramStoreLifecycleFunctionalTest` 29,
@@ -209,12 +218,15 @@ no Maven or new performance run belongs to this documentation change. Counts are
   26. These pin cross-path writes, empty-store sweeps, rollback/recreation, scope movement, whole-group boundaries,
   sorter ties, unloadable picks and shared fetches. Staged-removal cancellation is separately exercised by
   `WarmUpSavepointDataStoreChangesTest`; deterministic dispatch isolation by `DispatchMaintainerIsolationTest`.
-- The merge gate includes `ReferenceAttributeBoundaryPickTest` 17, `ReferenceAttributeBoundaryDifferentialTest` 4,
+- The merge gate includes `ReferenceAttributeBoundaryPickTest` 19, `ReferenceAttributeBoundaryDifferentialTest` 4,
   `ReferenceAttributeBoundarySorterTest` 11, `ReferenceAttributeBoundaryQueryTest` 5 and
-  `ReferenceAttributeBoundaryCallCountTest` 4. The differential oracle checks **3,600** pick/alternative pairs:
-  four seeds × 180 real-index contexts × five bound values, with zero differences. The provenance, unsigned-heap
-  order and scope-before-alternative mutants each fail their designated witness. Immediate/late/miss spy counts
-  stay **1 / 3 / 9**; the 200-index fixture checks **1,000** owner lookups and **zero** producing-set probes.
+  `ReferenceAttributeBoundaryCallCountTest` 7. The differential oracle checks **3,600** pick/alternative pairs:
+  four seeds × 180 real-index contexts of two to ten producing indexes × five bound values, with zero differences.
+  The provenance, unsigned-heap order and scope-before-alternative mutants each fail their designated witness, and
+  a sift that always takes the left child fails the differential sweep (all four seeds) and both heap-order cells
+  (nine interleaved indexes; a late owned candidate among 200 indexes). Immediate/late/miss spy counts stay
+  **1 / 3 / 9**; the all-miss 200-index fixture checks **1,000** owner lookups and **zero** producing-set probes,
+  and the owners are read once per pick, also when mapping or scope leaves no candidate.
 - The single skip in the sweeps is the existing tie-dependent assumption in
   `ReferenceSummaryHistogramBoundaryResolutionTest.shouldPickMinMarketShareCandidateAndHonorSorterOnTies`;
   the generated fixture has no required minimum tie. It is not a new disabled test.
@@ -232,10 +244,12 @@ The sorter column is the retained exhaustive path on the same fixture; it is not
 **No timing or heap-allocation measurement was made.** Operation counts do not establish latency or production
 impact.
 
-Full functional suite on this branch after merging dev (2026-11-17): **39,459 / 0 / 1 / 70**. The one error, a gRPC
-session handshake timeout in `EvitaSessionServiceWarmupCatalogTest` under load, passed **2 / 0 / 0 / 0** when rerun
-alone. A whole-reactor `test-compile` with the `full` profile, including the long-running, documentation and
-performance test modules, succeeded.
+Full functional suite on this branch after merging dev and the boundary-pick test round (2026-11-17):
+**39,464 / 0 / 0 / 70**. The run before that round had one error, a gRPC session handshake timeout in
+`EvitaSessionServiceWarmupCatalogTest` under load, which passed **2 / 0 / 0 / 0** when rerun alone. A whole-reactor
+`test-compile` with the `full` profile, including the long-running, documentation and performance test modules,
+succeeded after the dev merge. After adding the release-written fixture, the storage, upgrade and group-histogram
+classes ran again with every release fixture regenerated by the release engines: **2,876 / 0 / 0 / 45**.
 
 ## Consequences & open follow-ups
 
