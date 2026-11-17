@@ -1508,6 +1508,227 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 	}
 
 	/**
+	 * Verifies the lookup of the references whose local histogram reads a localized reference attribute with a `??`
+	 * default - the references a mutation that may change the owner's locale set withdraws first.
+	 */
+	@Nested
+	@DisplayName("Local histogram references with a localized default")
+	class LocalHistogramLocalizedDefaultTest {
+
+		/**
+		 * Only a localized reference-attribute source with a default qualifies, and a reference with several such
+		 * histograms is listed once.
+		 */
+		@Test
+		@DisplayName("Should list only references whose localized reference attribute value has a default")
+		void shouldListOnlyReferencesWhoseLocalizedReferenceAttributeHasDefault() {
+			final CatalogExpressionTriggerRegistry registry = productRegistryWithMixedHistograms();
+
+			final Set<String> live = registry.getLocalHistogramReferencesWithLocalizedDefault(PRODUCT, Scope.LIVE);
+
+			assertEquals(Set.of(PARAMETER_REF), live);
+		}
+
+		/**
+		 * The lookup answers per scope and per owner type: a reference qualifying in another scope, or for another
+		 * owner type, is not listed.
+		 */
+		@Test
+		@DisplayName("Should isolate the listed references by scope and owner type")
+		void shouldIsolateListedReferencesByScopeAndOwner() {
+			final CatalogExpressionTriggerRegistry registry = productRegistryWithMixedHistograms();
+
+			final Set<String> archived =
+				registry.getLocalHistogramReferencesWithLocalizedDefault(PRODUCT, Scope.ARCHIVED);
+			final Set<String> otherOwner = registry.getLocalHistogramReferencesWithLocalizedDefault(BRAND, Scope.LIVE);
+
+			assertEquals(Set.of(BRAND_REF), archived);
+			assertTrue(otherOwner.isEmpty());
+		}
+
+		/**
+		 * A registry without any trigger answers an empty set rather than failing.
+		 */
+		@Test
+		@DisplayName("Should return an empty set from the empty registry")
+		void shouldReturnEmptySetWhenRegistryIsEmpty() {
+			final Set<String> references = CatalogExpressionTriggerRegistry.EMPTY
+				.getLocalHistogramReferencesWithLocalizedDefault(PRODUCT, Scope.LIVE);
+
+			assertTrue(references.isEmpty());
+		}
+
+		/**
+		 * The set is shared by every reader of the registry, so it refuses modification.
+		 */
+		@Test
+		@DisplayName("Should return an unmodifiable set")
+		void shouldRejectModificationOfReturnedSet() {
+			final Set<String> references = productRegistryWithMixedHistograms()
+				.getLocalHistogramReferencesWithLocalizedDefault(PRODUCT, Scope.LIVE);
+
+			assertThrows(UnsupportedOperationException.class, references::clear);
+		}
+
+		/**
+		 * Rebuilding the triggers of one owner type keeps the references listed for another owner type, both when the
+		 * rebuilt owner type gains such a histogram and when it loses it again.
+		 */
+		@Test
+		@DisplayName("Should keep the lookup of another owner type when one owner type is rebuilt")
+		void shouldKeepLookupOfOtherOwnerWhenOneOwnerIsRebuilt() {
+			final HistogramValueSource own = HistogramValueSource.REFERENCE_ATTRIBUTE;
+			final CatalogExpressionTriggerRegistry productOnly =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(
+					PRODUCT, List.of(histogram(PARAMETER_REF, Scope.LIVE, "first", own, true, 5))
+				);
+
+			final CatalogExpressionTriggerRegistry withBrand = productOnly.rebuildForEntityType(
+				BRAND, List.of(histogram(BRAND, BRAND_REF, Scope.LIVE, "brandShare", own, true, 5))
+			);
+			final CatalogExpressionTriggerRegistry brandCleared = withBrand.rebuildForEntityType(BRAND, List.of());
+
+			assertEquals(
+				Set.of(PARAMETER_REF), withBrand.getLocalHistogramReferencesWithLocalizedDefault(PRODUCT, Scope.LIVE)
+			);
+			assertEquals(
+				Set.of(BRAND_REF), withBrand.getLocalHistogramReferencesWithLocalizedDefault(BRAND, Scope.LIVE)
+			);
+			assertEquals(
+				Set.of(PARAMETER_REF), brandCleared.getLocalHistogramReferencesWithLocalizedDefault(PRODUCT, Scope.LIVE)
+			);
+			assertTrue(brandCleared.getLocalHistogramReferencesWithLocalizedDefault(BRAND, Scope.LIVE).isEmpty());
+		}
+
+		/**
+		 * Rebuilding the owner's definitions replaces the lookup in the new registry and leaves the original one as it
+		 * was.
+		 */
+		@Test
+		@DisplayName("Should rebuild the lookup without changing existing registry readers")
+		void shouldRebuildLookupWithoutChangingExistingRegistryReaders() {
+			final HistogramValueSource own = HistogramValueSource.REFERENCE_ATTRIBUTE;
+			final CatalogExpressionTriggerRegistry original =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(
+					PRODUCT, List.of(histogram(PARAMETER_REF, Scope.LIVE, "first", own, true, 5))
+				);
+			final CatalogExpressionTriggerRegistry rebuilt = original.rebuildForEntityType(
+				PRODUCT, List.of(histogram(PARAMETER_REF, Scope.LIVE, "first", own, true, null))
+			);
+			assertEquals(
+				Set.of(PARAMETER_REF), original.getLocalHistogramReferencesWithLocalizedDefault(PRODUCT, Scope.LIVE)
+			);
+			assertTrue(rebuilt.getLocalHistogramReferencesWithLocalizedDefault(PRODUCT, Scope.LIVE).isEmpty());
+		}
+
+		/**
+		 * An owner type the rebuild does not touch keeps its frozen lookup: the rebuilt registry answers the very same
+		 * set instance in every scope, because the lookup is derived once per owner and shared with the unchanged
+		 * owner.
+		 */
+		@Test
+		@DisplayName("Should share the lookup of an unchanged owner type across a rebuild of another owner type")
+		void shouldShareLookupOfUnchangedOwnerAcrossRebuild() {
+			final HistogramValueSource own = HistogramValueSource.REFERENCE_ATTRIBUTE;
+			final CatalogExpressionTriggerRegistry original = productRegistryWithMixedHistograms();
+
+			final CatalogExpressionTriggerRegistry rebuilt = original.rebuildForEntityType(
+				BRAND, List.of(histogram(BRAND, BRAND_REF, Scope.LIVE, "brandShare", own, true, 5))
+			);
+
+			assertSame(
+				original.getLocalHistogramReferencesWithLocalizedDefault(PRODUCT, Scope.LIVE),
+				rebuilt.getLocalHistogramReferencesWithLocalizedDefault(PRODUCT, Scope.LIVE)
+			);
+			assertSame(
+				original.getLocalHistogramReferencesWithLocalizedDefault(PRODUCT, Scope.ARCHIVED),
+				rebuilt.getLocalHistogramReferencesWithLocalizedDefault(PRODUCT, Scope.ARCHIVED)
+			);
+			assertEquals(
+				Set.of(BRAND_REF), rebuilt.getLocalHistogramReferencesWithLocalizedDefault(BRAND, Scope.LIVE)
+			);
+		}
+
+		/**
+		 * Creates a registry of the product with six histograms, of which only the two of `parameter` in the live
+		 * scope and the one of `brandRef` in the archived scope read a localized reference attribute with a default;
+		 * the others lack the default, read the referenced entity, or read a non-localized attribute.
+		 *
+		 * @return the registry
+		 */
+		@Nonnull
+		private static CatalogExpressionTriggerRegistry productRegistryWithMixedHistograms() {
+			final HistogramValueSource own = HistogramValueSource.REFERENCE_ATTRIBUTE;
+			final HistogramValueSource target = HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE;
+			return CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(
+				PRODUCT,
+				List.of(
+					histogram(PARAMETER_REF, Scope.LIVE, "first", own, true, 5),
+					histogram(PARAMETER_REF, Scope.LIVE, "second", own, true, 7),
+					histogram(BRAND_REF, Scope.LIVE, "noDefault", own, true, null),
+					histogram(ALT_PARAMETER_REF, Scope.LIVE, "referencedEntity", target, true, 5),
+					histogram("plain", Scope.LIVE, "notLocalized", own, false, 5),
+					histogram(BRAND_REF, Scope.ARCHIVED, "archived", own, true, 5)
+				)
+			);
+		}
+
+		/**
+		 * Creates an unconditional local histogram trigger of the product reading the integer `weight`.
+		 *
+		 * @param reference    the reference name
+		 * @param scope        the scope
+		 * @param histogram    the histogram name
+		 * @param source       where the value is read from
+		 * @param localized    whether the source attribute is localized
+		 * @param defaultValue the `??` default, or `null` for none
+		 * @return the trigger
+		 */
+		@Nonnull
+		private static HistogramExpressionTrigger histogram(
+			@Nonnull String reference,
+			@Nonnull Scope scope,
+			@Nonnull String histogram,
+			@Nonnull HistogramValueSource source,
+			boolean localized,
+			@Nullable Integer defaultValue
+		) {
+			return histogram(PRODUCT, reference, scope, histogram, source, localized, defaultValue);
+		}
+
+		/**
+		 * Creates an unconditional local histogram trigger of `owner` reading the integer `weight`.
+		 *
+		 * @param owner        the owner entity type
+		 * @param reference    the reference name
+		 * @param scope        the scope
+		 * @param histogram    the histogram name
+		 * @param source       where the value is read from
+		 * @param localized    whether the source attribute is localized
+		 * @param defaultValue the `??` default, or `null` for none
+		 * @return the trigger
+		 */
+		@Nonnull
+		private static HistogramExpressionTrigger histogram(
+			@Nonnull String owner,
+			@Nonnull String reference,
+			@Nonnull Scope scope,
+			@Nonnull String histogram,
+			@Nonnull HistogramValueSource source,
+			boolean localized,
+			@Nullable Integer defaultValue
+		) {
+			return new DefaultHistogramExpressionTrigger(
+				owner, reference, scope, histogram,
+				new HistogramValueDescriptor(
+					source, source == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE ? PARAMETER_TYPE : null,
+					"weight", Integer.class, false, localized, defaultValue, null, 0
+				)
+			);
+		}
+	}
+
+	/**
 	 * Verifies that the relevance of the owner's parent and associated data is local and scoped, includes cross-entity
 	 * triggers and is rebuilt without mutating readers.
 	 */

@@ -373,14 +373,11 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 			if (filter == null || !filter.test(event)) {
 				continue;
 			}
-			// Issue #1151 — submit the host-event delivery to the same `cdcExecutor` that drains
-			// engine mutations via `consumeQueue`. Engine mutations are processed via a queued
-			// `consumeQueue` task that the engine thread submitted earlier in this call sequence
-			// (see `notifyVersionPresentInLiveView`). Submitting `deliverImmediate` on the same
-			// executor preserves submission order, so a host event emitted after a mutation lands
-			// strictly after that mutation in the subscriber's stream — without exposing the
-			// engine thread to the per-subscription lock contention that synchronous
-			// `deliverImmediate` would cause.
+			// Deliver on `cdcExecutor` so the engine thread does not contend for the per-subscription
+			// lock that a synchronous `deliverImmediate` would take. This does not order the event
+			// with engine mutations: a `consumeQueue` drain can deliver mutations applied after this
+			// event before this task runs, and the executor may run tasks on several threads, so host
+			// events may also overtake each other.
 			try {
 				this.cdcExecutor.submit(() -> {
 					try {

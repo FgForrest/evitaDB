@@ -1171,6 +1171,8 @@ Both treatments coexist on a single reference definition. The [conditional expre
 
 When defining a histogram, you provide a **value expression** — an [EvitaEL expression](../query/expression-language.md) that identifies which attribute value to store as the histogram bucket value for each reference instance. For example, `$reference.referencedEntity.attributes['basicUnitValue']` extracts the `basicUnitValue` attribute from the referenced entity. Each reference can define multiple **named histogram indexes** in each scope — the histogram name identifies the index slot, and different scopes may use different value expressions for the same name.
 
+The value expression is a single attribute read in one of four forms — `$reference.attributes['x']`, `$reference.localizedAttributes['x']`, `$reference.referencedEntity.attributes['x']` or `$reference.referencedEntity.localizedAttributes['x']` (`?.` may be used for null-safe navigation) — optionally followed by a numeric default, as in `$reference.attributes['x'] ?? 0`. Anything else — an operator, a function, parentheses around the expression, an index after the attribute, a second attribute or a default that is not a number — is rejected at schema definition time.
+
 The value expression may resolve either to a **scalar numeric** attribute (`Byte`, `Short`, `Integer`, `Long`, `BigDecimal`) or to a **numeric range** attribute (`ByteNumberRange`, `ShortNumberRange`, `IntegerNumberRange`, `LongNumberRange`, `BigDecimalNumberRange`). Any other type — including `DateTimeRange` and non-numeric scalars — is rejected at schema definition time. Like facets, all histogram data is built at **indexing time** — the value expression is evaluated when entities are created or updated, and the query engine reads the pre-built index directly without any expression evaluation.
 
 ###### Range-typed histogram sources
@@ -1197,22 +1199,53 @@ Both expressions use the same [EvitaEL expression](../query/expression-language.
 
 **Available data paths in the expression:**
 
-The expression receives two context variables — `$entity` (the owner entity) and `$reference` (the specific reference being evaluated). Through these, you can access data on the owner entity, the reference itself, and — up to one entity hop — on the referenced entity, group entity, or parent entity. The paths are listed below from most commonly used to least:
+The expression receives two context variables — `$entity` (the owner entity) and `$reference` (the specific reference being evaluated). Through these, you can access data on the owner entity, the reference itself, and — up to one entity hop — on the referenced entity, group entity, or parent entity.
+
+Histogram conditions and facet conditions differ in what they may read. evitaDB keeps a histogram current by withdrawing a reference's contribution before anything its expressions read changes and adding it again afterwards, so a histogram condition may read only data whose changes evitaDB tracks. A facet condition is not limited this way.
+
+A **histogram condition** (`bucketedPartially` and `assignedWhen`) may read:
 
 - `$reference.referencedEntity.attributes['x']` — attributes of the referenced entity (e.g., check the referenced category's `status`)
 - `$reference.groupEntity?.attributes['x']` — attributes of the group entity (use `?.` for null-safe navigation since group may be absent)
 - `$reference.attributes['x']` — reference-level attributes (attributes on the link itself)
+- `$reference.referencedPrimaryKey` — the referenced entity's primary key (integer)
 - `$entity.attributes['x']` — owner entity attributes
+- `$entity.associatedData['x']` — owner entity associated data
+- `$entity.primaryKey` — owner entity primary key (integer)
 - `$entity.parentEntity.attributes['x']` — attributes of the owner entity's hierarchical parent (the parent is the same entity type — this is a cross-entity path)
 - `$entity.parentEntity != null` — check whether the owner entity has a parent at all
-- `$entity.parent` — owner entity parent primary key (integer)
-- `$reference.referencedPrimaryKey` — the referenced entity's primary key (integer)
 
-You can also navigate into a referenced, group, or parent entity's own references and their attributes. For example, `$reference.referencedEntity.references['tag'].any(($.attributes['weight'] ?? 0) > 5)` checks whether any `tag` reference on the referenced entity has a `weight` attribute greater than 5.
+A localized attribute or associated data is read for one locale: `$entity.localizedAttributes['x']['en']`, `$entity.localizedAssociatedData['x']['en']`, or `$reference.referencedEntity.localizedAttributes['x']['en']`. The expression may compute with these values — comparisons, boolean and arithmetic operators, `??`, `?.`, the math functions, and on a list value `size()`, `any(...)`, `all(...)`, `none(...)` or a spread, whose predicate or mapping reads the element as `$`. The name of an attribute or associated data must be a string literal. A locale or an array index may be computed, but may not read `$entity` or `$reference`; inside a predicate or a spread mapping it may read the element `$`, as in `$entity.associatedData['rows'].any($[$.size() - 1] > 0)`.
+
+A histogram condition **cannot** read:
+
+- the owner's other references (`$entity.references['x']`), nor the references, associated data, locales or parent of the referenced, group or parent entity
+- anything that depends on which locales the entity has: `$entity.locales`, `$entity.allLocales`, or a localized value as a whole (without a locale, such as `$entity.localizedAttributes['x'].size()`)
+- `$entity.scope`
+- `$reference.localizedAttributes` — a histogram *value* may read it, a condition may not
+- the referenced, group or parent entity itself, its primary key or its scope — only its attributes can be read; `$entity.parentEntity != null` is the exception
+- `$entity` or `$reference` data inside a predicate, a spread mapping or a key — for example `$entity.attributes['tags'].any($ == $entity.attributes['code'])`
+- a property, or an element at a fixed index or key, of the result of `??` or `*?` outside a predicate, a spread mapping or a key — for example `($entity.attributes['tags'] ?? $entity.attributes['fallbackTags'])[0]`; apply the step to each operand of `??` instead
+
+A **facet condition** (`facetedPartially`) may read all of the above and more, including the owner's other references and a referenced, group, or parent entity's own references and their attributes. For example, `$reference.referencedEntity.references['tag'].any(($.attributes['weight'] ?? 0) > 5)` checks whether any `tag` reference on the referenced entity has a `weight` attribute greater than 5.
+
+No indexing expression may read:
+
+- `version` or `dropped` — evitaDB maintains these values itself, not through your mutations
+- prices, or properties that do not exist (such as `$entity.parent` or `$reference.group`)
+- data named by anything other than a string literal written directly in the brackets, such as `$entity.attributes['a' + 'b']` or `$entity.attributes[('status')]`
+- an attribute, associated data or reference named on the result of `??` or `*?`, even by a string literal, such as `($entity.attributes ?? null)['status']` — name it on the container itself, as in `$entity.attributes['status']`
+- the result of `random()`, or a variable other than `$entity`, `$reference` and the `$` of a predicate or a spread mapping
+- the referenced or group entity of a reference reached through `$entity.references[...]` or through another entity's references — it is always `null` at indexing time
+- the locales of an entity by their position: their order is not stable, so `$entity.locales[0]`, `.entries[0]` of a localized value, or comparing a list of locales with anything but `null` are rejected — use `size()`, `any(...)`, `all(...)` or `none(...)` instead
+
+evitaDB checks these rules when the schema is defined and rejects a change that breaks them with a message naming the expression, the data it may not read and the reason. It checks them again when a catalog is loaded: a catalog whose stored schema holds an expression these rules reject cannot be loaded.
+
+A few of these checks need the schema of another entity type, or the compiled form of the expression, and run when the expression is compiled at the end of the schema change: whether the referenced entity type has the attribute a histogram value reads, whether a numeric default fits the attribute's type, and whether a condition that reads the referenced, group or parent entity can be translated. Because the compilation happens at the end of each schema change, the attribute a histogram value reads must be defined in the same schema change as the histogram or in an earlier one. In the [bulk indexing phase](../deep-dive/bulk-vs-incremental-indexing.md#failures-that-cannot-be-reverted) such a rejection cannot be undone: the catalog is deactivated, and activating it again loads the last state it published.
 
 <Note type="info">
 
-Expressions can reach at most **one entity deep** from the owner entity. You can navigate to the referenced entity, group entity, or parent entity and read its properties — including its own references and their attributes — but you cannot follow those references further to reach a third entity. This limitation keeps the dependency graph between entities predictable and ensures that changes can be tracked and re-evaluated efficiently.
+Expressions can reach at most **one entity deep** from the owner entity. You can navigate to the referenced entity, group entity, or parent entity and read its attributes — and, in a facet condition, its own references and their attributes — but you cannot follow those references further to reach a third entity. This limitation keeps the dependency graph between entities predictable and ensures that changes can be tracked and re-evaluated efficiently.
 
 </Note>
 
@@ -1234,7 +1267,7 @@ evitaDB analyzes each expression at schema definition time to determine which da
 ###### Non-translatable expressions
 </NoteTitle>
 
-Not all expressions are supported. Each expression must be translatable into an evitaDB `FilterBy` constraint at schema definition time. Expressions with dynamic attribute paths (where the attribute name is not a string literal) or unsupported operators are rejected immediately with a clear error message.
+A condition that reads the referenced, group, or parent entity must, in addition to the rules above, be translatable into an evitaDB `FilterBy` constraint at schema definition time, because evitaDB uses that constraint to find the owners to re-evaluate when that entity changes. Such a condition compares data paths with literals and combines the comparisons with boolean operators; function calls, arithmetic, and reads of that entity other than its attributes (except `$entity.parentEntity != null`) cannot be translated and are rejected. A condition reading only the owner entity and the reference itself is not translated, so it may also use arithmetic and the math functions.
 
 </Note>
 

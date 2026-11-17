@@ -57,6 +57,11 @@ import static java.util.Optional.ofNullable;
  * alignment the comparison was made on whole **seconds**, so ranges less than a second apart used to be equal and no
  * longer are.
  *
+ * That equality compares the encoded bounds only and is the identity the indexes rely on: two ranges naming the same
+ * instants at different zone offsets are equal. Whether two ranges are the very same value - bounds equal including
+ * their zone offset - is answered by
+ * {@link EvitaDataTypes#rangeRepresentationDiffers(Serializable, Serializable)}.
+ *
  * ## The open-bound sentinels
  *
  * An absent bound is represented by the constants {@link #OPEN_FROM_THRESHOLD} / {@link #OPEN_TO_THRESHOLD} —

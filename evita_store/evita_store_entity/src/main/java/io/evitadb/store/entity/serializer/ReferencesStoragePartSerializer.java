@@ -34,8 +34,9 @@ import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.Set;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferencesStoragePart} from/to binary format.
@@ -81,6 +82,37 @@ public class ReferencesStoragePartSerializer extends Serializer<ReferencesStorag
 		final int lastAssignedPrimaryKey = input.readVarInt(true);
 		final int referenceCount = input.readVarInt(true);
 		final ReferenceDecodeCoverage coverage = ReferenceDecodeCoverageContext.getDecodeCoverage();
+		final Serializer<?> serializer = kryo.getSerializer(Reference.class);
+		final Reference[] references;
+		if (serializer instanceof SerialVersionBasedSerializer<?> versioned &&
+			versioned.getCurrentVersionSerializer() instanceof ReferenceSerializer referenceSerializer) {
+			references = referenceSerializer.withDecodeCoverage(
+				coverage, () -> readReferences(kryo, input, referenceCount, entityPrimaryKey, coverage)
+			);
+		} else {
+			references = readReferences(kryo, input, referenceCount, entityPrimaryKey, coverage);
+		}
+
+		return new ReferencesStoragePart(
+			entityPrimaryKey, lastAssignedPrimaryKey,
+			references,
+			Math.toIntExact(input.total() - totalBefore),
+			coverage
+		);
+	}
+
+	/**
+	 * Reads every reference using Kryo's ordinary version dispatch and retains exactly the live admitted references.
+	 * The caller binds the already resolved coverage on the current reader for this loop when available.
+	 */
+	@Nonnull
+	private static Reference[] readReferences(
+		@Nonnull Kryo kryo,
+		@Nonnull Input input,
+		int referenceCount,
+		int entityPrimaryKey,
+		@Nullable ReferenceDecodeCoverage coverage
+	) {
 		// when reading references from the disk we remove all dropped references
 		// when duplicate references were introduced, it leads to situation where many relations are dropped and new
 		// relations are added - in such case the storage part would bloat with dropped relations that are not needed
@@ -121,12 +153,7 @@ public class ReferencesStoragePartSerializer extends Serializer<ReferencesStorag
 			references[kept++] = reference;
 		}
 
-		return new ReferencesStoragePart(
-			entityPrimaryKey, lastAssignedPrimaryKey,
-			kept == references.length ? references : Arrays.copyOfRange(references, 0, kept),
-			Math.toIntExact(input.total() - totalBefore),
-			coverage
-		);
+		return kept == references.length ? references : Arrays.copyOfRange(references, 0, kept);
 	}
 
 }

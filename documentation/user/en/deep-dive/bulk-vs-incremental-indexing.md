@@ -43,9 +43,10 @@ One thing is deliberately not rewound: the primary key drawn for a failed entity
 
 A [single failed write](#atomicity-of-individual-writes) is reverted on its own and costs you nothing beyond that one entity. Some failures reach further than one entity, and the bulk indexing phase answers all of them the same way — by returning the catalog to the last state it published.
 
-Three failures behave like this:
+Four failures behave like this:
 
 - **A schema change refused by validation.** The catalog schema is validated as a whole when a session closes, because a schema is routinely built across several steps whose intermediate states are allowed not to validate — a reflected reference may be declared before the reference it reflects, for instance. By the time the refusal is known, the change has already been applied to every entity collection it touches.
+- **An indexing expression that cannot be compiled.** At the end of each schema change, evitaDB compiles the `facetedPartially`, `bucketedPartially`, `assignedWhen` and histogram value expressions of every entity type the change touched into the triggers that keep the indexes current. Some definitions are refused only there — a histogram value reading an attribute the referenced entity type does not have, a numeric default its attribute type cannot hold, or a condition that cannot be translated into a filter. By then the change has been applied to every entity collection it touches.
 - **A failure while writing the collected changes** at session close.
 - **A failed revert of a single entity write**, where the revert itself throws.
 

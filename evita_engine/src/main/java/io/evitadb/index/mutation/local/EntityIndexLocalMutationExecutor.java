@@ -25,7 +25,6 @@ package io.evitadb.index.mutation.local;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntObjectHashMap;
-import io.evitadb.api.configuration.MissingHistogramValueBehavior;
 import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -274,7 +273,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	private final boolean usageStatisticsTracking;
 	/**
 	 * What the withdrawal of a reference-histogram value does when the index does not hold the value for the owner -
-	 * the server-wide `server.missingHistogramValueBehavior` switch, resolved once when the executor is built (see
+	 * fixed when the engine started and read from the catalog once, when the executor is built (see
 	 * {@link ReferenceIndexMutator#removeHistogramForTrigger}).
 	 */
 	@Nonnull private final MissingHistogramValueBehavior missingHistogramValueBehavior;
@@ -4400,8 +4399,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							groupId, scope, existingDataSupplierFactory
 						);
 					}
-					// histogram: added at once from the full entity body, which carries every locale the entity has
-					// now - the pre-mutation storage view the deferred run reads would miss a locale this upsert added.
+					// histogram: added at once, over the locales of the reference's own values in the full entity body
+					// and - for a value with a default - every locale the entity has now, read from its in-flight body,
+					// by the rule the deferred final add follows (`ReferenceIndexMutator#resolveHistogramLocales`).
 					// The empty awaiting set is asserted at the start of this method. No final add is scheduled here;
 					// a later mutation withdraws these values and schedules its own final add in the new scope.
 					ReferenceIndexMutator.addHistogramToIndex(

@@ -26,6 +26,7 @@ package io.evitadb.index.mutation.local.handler;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.handler.EntityLocaleFanOut.LocalizedValueChange;
 
 import javax.annotation.Nonnull;
 
@@ -35,6 +36,10 @@ import javax.annotation.Nonnull;
  * with `Remove`/`ApplyDelta` and lives in `AttributeMutationFanOut`. Differentiation between the
  * three concrete attribute mutations happens inside `EntityIndexLocalMutationExecutor#updateAttribute`,
  * which switches on the mutation type to call the matching `AttributeIndexMutator` operation.
+ *
+ * Before the fan-out, a localized upsert in a locale the entity lacks withdraws the references whose local histogram
+ * reads a localized reference attribute with a `??` default, a value contributed in every locale of the entity
+ * (`EntityLocaleFanOut#withdrawBeforeLocalizedValueChange`).
  */
 public final class UpsertAttributeMutationHandler implements LocalMutationHandler<UpsertAttributeMutation> {
 
@@ -59,6 +64,9 @@ public final class UpsertAttributeMutationHandler implements LocalMutationHandle
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
+		EntityLocaleFanOut.withdrawBeforeLocalizedValueChange(
+			executor, mutation.getAttributeKey().locale(), LocalizedValueChange.UPSERT
+		);
 		AttributeMutationFanOut.apply(mutation, executor, globalIndex);
 	}
 

@@ -1436,8 +1436,11 @@ public class EvitaParameterResolver
 						() -> ofNullable(evitaServerInstance())
 							.map(evitaServer -> {
 								final GraphQLTester newTester = factory.apply(evitaServer);
-								it.set(newTester);
-								return newTester;
+								if (it.compareAndSet(null, newTester)) {
+									return newTester;
+								}
+								newTester.close();
+								return it.get();
 							})
 							.orElseThrow(() -> new ParameterResolutionException(
 								"GraphQL web API was not opened for the dataset `" + this.name + "`!"))
@@ -1708,6 +1711,10 @@ public class EvitaParameterResolver
 			// close the client
 			ofNullable(this.client.get())
 				.ifPresent(EvitaClient::close);
+
+			// close the tester's shared WebSocket factory before stopping its server
+			ofNullable(this.graphQLTester.getAndSet(null))
+				.ifPresent(GraphQLTester::close);
 
 			// close the server instance and free ports
 			ofNullable(theEvitaServerInstance)

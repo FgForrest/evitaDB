@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
@@ -35,7 +36,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
  * Upsert associatedData mutation will either update existing associatedData or create new one.
@@ -86,7 +86,7 @@ public final class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvol
 		if (existingValue == null) {
 			// create new associatedData value
 			return new AssociatedDataValue(this.associatedDataKey, this.value);
-		} else if (!Objects.equals(existingValue.value(), this.value) || existingValue.dropped()) {
+		} else if (EvitaDataTypes.storedValueDiffers(existingValue.value(), this.value) || existingValue.dropped()) {
 			// update associatedData version (we changed it) and return mutated value
 			return new AssociatedDataValue(existingValue.version() + 1, this.associatedDataKey, this.value);
 		} else {

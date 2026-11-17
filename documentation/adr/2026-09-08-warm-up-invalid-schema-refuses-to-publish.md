@@ -1,7 +1,7 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-09-10 11:20
+updated: 2026-11-15 13:25
 status: accepted
 kind: fix
 issues: [1466]
@@ -9,7 +9,7 @@ prs: [1520]
 areas: [evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/core/transaction/engine, evita_api/src/main/java/io/evitadb/api]
 supersedes: []
 superseded-by: []
-relates: [2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-09-06-go-live-session-drain, 2026-10-05-schema-changes-never-refused-dormant-accelerator]
+relates: [2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-09-06-go-live-session-drain, 2026-10-05-schema-changes-never-refused-dormant-accelerator, 2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier]
 ---
 
 # A warm-up schema change refused by validation raises the unpublishable barrier
@@ -148,11 +148,13 @@ forbids partial replay.
 
 ## Key technical details
 
-- **Only the close-time refusal raises the barrier.** Before this change `CatalogSchema#validate()` had exactly
-  one engine call site — `EvitaSession#validateCatalogSchema`, reached from `closeInternal` — which is why the
-  hard stop is limited to post-exchange failures: the pre-flight refusals
+- **Among validation refusals, only the close-time and the go-live ones raise the barrier.** Before this change
+  `CatalogSchema#validate()` had exactly one engine call site — `EvitaSession#validateCatalogSchema`, reached from
+  `closeInternal` — which is why the hard stop is limited to post-exchange failures: the pre-flight refusals
   (`verifyEntitySchemaMutationsApplicable`, `verifyNoAcceleratorAddedToNonEmptyCollection`, the mutations' own
-  asserts) are untouched and keep refusing cleanly, so an ordinary schema typo never costs a reload. (The first
+  asserts) are untouched and keep refusing cleanly, so an ordinary schema typo those checks catch never costs a
+  reload; one that only the trigger build at the end of a schema change catches does, in warm-up
+  (`2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier`). (The first
   two were removed on 2026-10-05, when a schema change stopped being refused for stored data - see
   [2026-10-05-schema-changes-never-refused-dormant-accelerator](2026-10-05-schema-changes-never-refused-dormant-accelerator.md);
   the mutations' own asserts still refuse before the exchange.) This change

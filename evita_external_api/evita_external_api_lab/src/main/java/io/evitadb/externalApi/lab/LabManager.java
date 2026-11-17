@@ -31,12 +31,11 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsService;
+import io.evitadb.externalApi.http.routing.EndpointRoutingService;
 import io.evitadb.externalApi.lab.configuration.LabOptions;
 import io.evitadb.externalApi.lab.gui.resolver.GuiHandler;
 import io.evitadb.externalApi.lab.io.LabExceptionHandler;
 import io.evitadb.externalApi.utils.UriPath;
-import io.evitadb.externalApi.utils.path.RoutingHandlerService;
-import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -49,7 +48,6 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@Slf4j
 public class LabManager {
 
 	/**
@@ -62,9 +60,9 @@ public class LabManager {
 	@Nonnull private final LabOptions labConfig;
 
 	/**
-	 * evitaLab specific endpoint router.
+	 * evitaLab specific endpoint router, built once in the constructor and immutable afterwards.
 	 */
-	@Nonnull private final RoutingHandlerService labRouter = new RoutingHandlerService();
+	@Nonnull private final EndpointRoutingService labRouter;
 	@Nonnull private final Map<UriPath, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
 	public LabManager(@Nonnull Evita evita, @Nonnull HeaderOptions headerOptions, @Nonnull LabOptions labConfig) {
@@ -72,8 +70,12 @@ public class LabManager {
 		this.headerOptions = headerOptions;
 		this.labConfig = labConfig;
 
-		registerLabGui();
-		this.corsEndpoints.forEach((path, endpoint) -> this.labRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler()));
+		final EndpointRoutingService.Builder apiRouter = new EndpointRoutingService.Builder();
+		registerLabGui(apiRouter);
+		this.corsEndpoints.forEach((path, endpoint) ->
+			apiRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler())
+		);
+		this.labRouter = apiRouter.build();
 	}
 
 	@Nonnull
@@ -83,15 +85,17 @@ public class LabManager {
 
 	/**
 	 * Creates new endpoint for serving lab GUI static files from fs.
+	 *
+	 * @param apiRouter builder of the lab router, which is built only after every route is registered
 	 */
-	private void registerLabGui() {
+	private void registerLabGui(@Nonnull EndpointRoutingService.Builder apiRouter) {
 		final UriPath endpointPath = UriPath.of("/", "*");
 
 		final CorsEndpoint corsEndpoint = this.corsEndpoints.computeIfAbsent(endpointPath, p -> new CorsEndpoint(this.headerOptions));
 		corsEndpoint.addMetadata(Set.of(HttpMethod.GET), true, true);
 
 		final EvitaConfiguration configuration = this.evita.getConfiguration();
-		this.labRouter.add(
+		apiRouter.add(
 			HttpMethod.GET,
 			endpointPath.toString(),
 			CorsService.standaloneFilter(
