@@ -39,10 +39,13 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Map;
 import java.util.function.IntConsumer;
 
 /**
- * Orders the entities by the fulltext relevance the `textMatches` filter computes - the sorter of `relevanceText()`.
+ * Orders entities by the fulltext relevance of the main filter and, inside a segment, its predicate. Each
+ * `relevanceText` owns its validated weight set and supplies it to every scoring request without changing the
+ * prepared filter or its membership.
  *
  * ## Where the scores come from
  *
@@ -76,15 +79,19 @@ import java.util.function.IntConsumer;
  */
 public class RelevanceTextSorter implements Sorter {
 	/**
-	 * The accessors providing fulltext scores, distinct by identity, never empty.
+	 * The accessors providing fulltext scores, never empty. Copies of one search were already collapsed by their
+	 * structural source identity or reference place key, so each entry is a distinct source.
 	 */
 	@Nonnull private final FulltextScoreAccessor[] accessors;
 	/**
 	 * Global indexes of the scopes whose entities are ranked, or null when the entities of every scope are.
 	 */
 	@Nullable private final EntityIndex[] scopeIndexes;
-	/** Effective query coefficient shared with the score sources. */
+	/** Schema coefficient and impact tables shared with the score sources. */
 	@Nonnull private final FulltextScoringPolicy scoringPolicy;
+
+	/** Immutable overrides of this relevance ordering only. */
+	@Nonnull private final Map<FulltextScoringPolicy.Place, Float> weights;
 
 	/**
 	 * Creates the sorter.
@@ -93,16 +100,19 @@ public class RelevanceTextSorter implements Sorter {
 	 *                     {@link FulltextScoreAccessor#providesFulltextScores()} with true
 	 * @param scopeIndexes global indexes of the scopes whose entities are ranked, or null to rank the entities of every
 	 *                     scope
-	 * @param scoringPolicy effective query coefficient
+	 * @param scoringPolicy schema coefficient and shared impact tables
+	 * @param weights independently validated overrides of this relevance ordering
 	 */
 	public RelevanceTextSorter(
 		@Nonnull FulltextScoreAccessor[] accessors, @Nullable EntityIndex[] scopeIndexes,
-		@Nonnull FulltextScoringPolicy scoringPolicy
+		@Nonnull FulltextScoringPolicy scoringPolicy,
+		@Nonnull Map<FulltextScoringPolicy.Place, Float> weights
 	) {
 		Assert.isPremiseValid(accessors.length > 0, "The relevance sorter needs at least one score accessor!");
 		this.accessors = accessors;
 		this.scopeIndexes = scopeIndexes;
 		this.scoringPolicy = scoringPolicy;
+		this.weights = Map.copyOf(weights);
 	}
 
 	@Nonnull
@@ -182,7 +192,9 @@ public class RelevanceTextSorter implements Sorter {
 	 */
 	@Nonnull
 	private Ranking rank(@Nonnull int[] candidates, int topN) {
-		final Result combined = FulltextScoreCombiner.combine(candidates, this.accessors, this.scoringPolicy);
+		final Result combined = FulltextScoreCombiner.combine(
+			candidates, this.accessors, this.scoringPolicy, this.weights
+		);
 		final Result selected = FulltextPhaseOneScorer.selectTopN(
 			candidates, combined.composites(), topN, combined.postingsWalked()
 		);

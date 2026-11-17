@@ -517,6 +517,30 @@ class ComplexDataObjectConverterTest {
 				assertEquals(characterMap, deserialized.getCharacterKeyMap());
 			}
 
+			/**
+			 * Decimal keys are parsed back from their text, and `BigDecimal` equality depends on scale, so the key
+			 * text must keep a negative scale and match the exponent form released catalogs hold.
+			 */
+			@Test
+			@DisplayName("should preserve the scale of decimal map keys")
+			void shouldPreserveScaleOfDecimalMapKeys() {
+				final Map<BigDecimal, String> decimalMap = new HashMap<>();
+				decimalMap.put(new BigDecimal("1E+3"), "thousand");
+				decimalMap.put(new BigDecimal("3.00"), "three");
+				decimalMap.put(new BigDecimal("1E-7"), "tiny");
+
+				final ContainerWithDecimalMapKeys dto = new ContainerWithDecimalMapKeys(decimalMap);
+				final Serializable serializedForm = new ComplexDataObjectConverter<>(dto).getSerializableForm();
+				final ContainerWithDecimalMapKeys deserialized = ComplexDataObjectConverter.getOriginalForm(
+					serializedForm, ContainerWithDecimalMapKeys.class, reflectionLookup
+				);
+
+				final DataItemMap root = (DataItemMap) ((ComplexDataObject) serializedForm).root();
+				final DataItemMap keys = (DataItemMap) root.getProperty("decimalKeyMap");
+				assertEquals(Set.of("1e3", "3.00", "1e-7"), keys.getPropertyNames());
+				assertEquals(decimalMap, deserialized.getDecimalKeyMap());
+			}
+
 			@Test
 			@DisplayName("should serialize map with null values")
 			void shouldSerializeMapWithNullValues() {
@@ -1626,6 +1650,17 @@ class ComplexDataObjectConverterTest {
 	public static class ContainerWithCharacterMapKeys implements Serializable {
 		@Serial private static final long serialVersionUID = 19L;
 		private Map<Character, String> characterKeyMap;
+	}
+
+	/**
+	 * Container with a map whose decimal keys differ in scale, including a negative one.
+	 */
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class ContainerWithDecimalMapKeys implements Serializable {
+		@Serial private static final long serialVersionUID = 20L;
+		private Map<BigDecimal, String> decimalKeyMap;
 	}
 
 	/**

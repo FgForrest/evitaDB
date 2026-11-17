@@ -25,13 +25,16 @@ package io.evitadb.api.query;
 
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.*;
+import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.*;
+import io.evitadb.api.query.order.RelevanceText;
 import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -338,7 +341,7 @@ public interface QueryConstraints {
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/logical#not)
 	 *
-	 * @see io.evitadb.api.query.filter.Not
+	 * @see Not
 	 */
 	@SourceHash("2d5dbbbf09209b01bd0b1f3adb3626eb")
 	@Nullable
@@ -2349,15 +2352,17 @@ public interface QueryConstraints {
 	 *
 	 * **Behaviour**
 	 *
-	 * - without a `textMatches` filter in the query there is no relevance to sort by, and the constraint passes all
-	 *   entities on to the next ordering constraint in their incoming order
+	 * - scoring sources come from the main filter and, inside a segment, that segment's predicate; other segments and
+	 *   requirement filters supply no scores here
+	 * - without a scoring source the constraint passes entities to the next ordering constraint; text in reach confined
+	 *   to hierarchy `having`, `anyHaving` or `excluding` is refused because it filters the tree and is not scored
 	 * - the constraint can be used in the top-level `orderBy` and inside a `segment`, but not inside the ordering
 	 *   containers that sort by properties of referenced entities (`referenceProperty`, `entityProperty`,
 	 *   `entityGroupProperty`, `traverseByEntityProperty`, `pickFirstByEntityProperty`)
 	 *
 	 * **Place weights**
 	 *
-	 * Children replace the schema search weights of individual searchable places for this query:
+	 * Children replace the schema search weights of individual searchable places for this relevance ordering:
 	 *
 	 * - `attributeWeight` and `associatedDataWeight` weigh attributes and associated data of the queried entity
 	 * - `referenceWeight` weighs the attributes of one reference and, through `entityWeight`, the places of its target
@@ -2365,14 +2370,16 @@ public interface QueryConstraints {
 	 *
 	 * The weights are checked during planning, before any index is read, and a violation refuses the query:
 	 *
-	 * - every weighted place must exist and be searchable in at least one scope the query processes, no weight may be
-	 *   negative, and one `relevanceText` may weight each place only once
-	 * - a query has a single weight policy: every `relevanceText` in it, including those inside segments and those
-	 *   without children, must state the same weights
-	 * - when the query contains a `textMatches`, each weighted place must be searched by a `textMatches` of the main
-	 *   filter or of a segment's `entityHaving`; without any `textMatches` the weights are checked but order nothing
+	 * - every weighted place must exist and be searchable in every scope this ordering covers; enclosing ordering
+	 *   `inScope` containers narrow the query scopes, just as for filterable and sortable attributes
+	 * - weights must be nonnegative and fit the internal float; one `relevanceText` may weight each place only once
+	 * - each `relevanceText` has its own weights, so segments and ordering `inScope` containers can rank differently
+	 * - when scoring text is in reach, each weighted place must be searched by a scoring `textMatches` of the main
+	 *   filter or this segment's predicate; text used only by hierarchy predicates or other segments does not count
+	 * - without scoring text in reach, the existing searched-place checks still apply; with no `textMatches` anywhere,
+	 *   weights receive schema validation only and order nothing
 	 *
-	 * When no `relevanceText` of the query states a weight, the schema search weights apply.
+	 * Places not weighted by this `relevanceText` retain their schema search weights.
 	 *
 	 * ```evitaql
 	 * query(
@@ -2391,10 +2398,10 @@ public interface QueryConstraints {
 	 * )
 	 * ```
 	 *
-	 * @param weights place weights replacing schema search weights for this query, NULL or empty for none
+	 * @param weights place weights for this relevance ordering, NULL or empty for schema defaults
 	 * @return the relevance ordering constraint
 	 * @see io.evitadb.api.query.filter.TextMatches
-	 * @see io.evitadb.api.query.order.RelevanceText
+	 * @see RelevanceText
 	 */
 	@Nonnull
 	static RelevanceText relevanceText(@Nullable RelevanceTextEntitySpecificationOrderConstraint... weights) {
@@ -2402,17 +2409,20 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * The `attributeWeight` constraint replaces the schema search weight of one searchable attribute for this query.
+	 * The `attributeWeight` constraint replaces one searchable attribute weight for its enclosing `relevanceText`.
 	 * The enclosing constraint decides whose attribute it is: directly inside `relevanceText` an attribute of the
 	 * queried entity, inside `referenceWeight` an attribute of that reference, and inside `entityWeight` an attribute
 	 * of the reference's target collection searched through composition. A composed target weight is the final place
 	 * weight, replacing the target search weight times the reference composition weight. Anywhere else the query is
 	 * refused.
 	 *
-	 * The attribute must exist at its level and be searchable in at least one scope the query processes, otherwise
-	 * planning refuses the query. Zero keeps the place's matches and match quality but gives it no strength. Negative
-	 * weights are refused during planning, non-finite numbers already during construction. The name must be non-null
-	 * and non-blank.
+	 * The attribute must exist at its level and be searchable in every scope the enclosing `relevanceText` covers;
+	 * narrow the ordering with `inScope` to cover fewer scopes. Zero keeps matches and quality but gives no strength.
+	 * Negative weights and values that overflow or underflow the internal float are refused during planning.
+	 * The weight is a non-null `BigDecimal`, normalized so scale does not affect equality or plain decimal printing.
+	 * The name must be non-null and non-blank.
+	 * Construction requires at most 100 significant digits and a stripped scale between -100 and 100. Bounds are
+	 * checked before rescaling; diagnostics never expand an unsupported value.
 	 *
 	 * ```evitaql
 	 * relevanceText(
@@ -2423,26 +2433,31 @@ public interface QueryConstraints {
 	 *
 	 * @param attributeName searchable attribute at the level of the enclosing constraint, non-null and
 	 *                       non-blank
-	 * @param weight replacement weight, finite and not negative
+	 * @param weight non-null replacement decimal, validated for the internal float during planning
 	 * @return the place weight
+	 * @throws EvitaInvalidUsageException when the name is null or blank, the weight is null, or its representation
+	 * exceeds the construction bounds
 	 * @see io.evitadb.api.query.order.AttributeWeight
 	 */
 	@Nonnull
-	static AttributeWeight attributeWeight(@Nonnull String attributeName, float weight) {
+	static AttributeWeight attributeWeight(@Nonnull String attributeName, @Nonnull BigDecimal weight) {
 		return new AttributeWeight(attributeName, weight);
 	}
 
 	/**
-	 * The `associatedDataWeight` constraint replaces the schema search weight of one searchable associated data item
-	 * for this query. The enclosing constraint decides whose associated data it is: directly inside `relevanceText` the
-	 * queried entity's, and inside `entityWeight` that of the reference's target collection searched through
-	 * composition. A composed target weight is the final place weight, replacing the target search weight times the
-	 * reference composition weight. Anywhere else the query is refused.
+	 * The `associatedDataWeight` constraint replaces one associated data weight for its enclosing `relevanceText`.
+	 * Directly inside `relevanceText` the data belongs to the queried entity; inside `entityWeight` it belongs to the
+	 * reference's target collection searched through composition. A composed target weight is final, replacing the
+	 * target search weight times the reference composition weight. Anywhere else the query is refused.
 	 *
-	 * The associated data must exist at its level and be searchable in at least one scope the query processes,
-	 * otherwise planning refuses the query. Zero keeps the place's matches and match quality but gives it no strength.
-	 * Negative weights are refused during planning, non-finite numbers already during construction. The name must be
-	 * non-null and non-blank.
+	 * The associated data must exist at its level and be searchable in every scope the enclosing `relevanceText`
+	 * covers; narrow the ordering with `inScope` to cover fewer scopes. Zero keeps matches and quality but gives no
+	 * strength.
+	 * Negative weights and values that overflow or underflow the internal float are refused during planning. The weight
+	 * is a non-null `BigDecimal`, normalized so scale does not affect equality or plain decimal printing. The name must
+	 * be non-null and non-blank.
+	 * Construction requires at most 100 significant digits and a stripped scale between -100 and 100. Bounds are
+	 * checked before rescaling; diagnostics never expand an unsupported value.
 	 *
 	 * ```evitaql
 	 * relevanceText(
@@ -2452,12 +2467,14 @@ public interface QueryConstraints {
 	 *
 	 * @param associatedDataName searchable associated data at the level of the enclosing constraint,
 	 *                            non-null and non-blank
-	 * @param weight replacement weight, finite and not negative
+	 * @param weight non-null replacement decimal, validated for the internal float during planning
 	 * @return the place weight
+	 * @throws EvitaInvalidUsageException when the name is null or blank, the weight is null, or its representation
+	 * exceeds the construction bounds
 	 * @see io.evitadb.api.query.order.AssociatedDataWeight
 	 */
 	@Nonnull
-	static AssociatedDataWeight associatedDataWeight(@Nonnull String associatedDataName, float weight) {
+	static AssociatedDataWeight associatedDataWeight(@Nonnull String associatedDataName, @Nonnull BigDecimal weight) {
 		return new AssociatedDataWeight(associatedDataName, weight);
 	}
 
@@ -2467,11 +2484,14 @@ public interface QueryConstraints {
 	 * `entityWeight` children the final weights of target places searched through composition. It is valid only
 	 * directly inside `relevanceText`.
 	 *
-	 * The reference must exist in the schema of the queried entity, each weighted attribute must be searchable in at
-	 * least one scope the query processes, and the container must hold at least one weight; otherwise planning refuses
-	 * the query. An empty container is retained through query normalization so that planning can refuse it. Several
-	 * `referenceWeight` constraints of one reference combine their places, and only a place weighted twice is refused.
-	 * The reference name must be non-null and non-blank.
+	 * The reference must exist in the queried entity's schema and each weighted attribute must be searchable in every
+	 * scope the enclosing `relevanceText` covers. Narrow the ordering with `inScope` to cover fewer scopes. The
+	 * container must hold at least one weight; an empty container survives normalization so planning can refuse it.
+	 * Several `referenceWeight` constraints combine their places within one `relevanceText`; weighting a place twice
+	 * is refused. The reference name must be non-null and non-blank.
+	 *
+	 * Child weights are non-null `BigDecimal` values with scale-independent equality and plain decimal printing.
+	 * Planning refuses negative weights and values that overflow or underflow the internal float.
 	 *
 	 * ```evitaql
 	 * relevanceText(
@@ -2502,9 +2522,12 @@ public interface QueryConstraints {
 	 * weight times the reference composition weight. Target reference attributes cannot be addressed here. It is valid
 	 * only directly inside `referenceWeight`.
 	 *
-	 * The reference must declare `searchableThrough(COMPOSITION)` in at least one scope the query processes and target
-	 * a managed entity collection, each weighted place must be searchable in at least one processed scope, and the
-	 * container must hold at least one weight; otherwise planning refuses the query.
+	 * The reference must target a managed entity collection and declare `searchableThrough(COMPOSITION)` in every scope
+	 * the enclosing `relevanceText` covers. Each weighted target place must be searchable in every such scope; narrow
+	 * the ordering with `inScope` to cover fewer scopes. A container without child weights is refused during planning.
+	 *
+	 * Child weights are non-null `BigDecimal` values with scale-independent equality and plain decimal printing.
+	 * Planning refuses negative weights and values that overflow or underflow the internal float.
 	 *
 	 * ```evitaql
 	 * referenceWeight(

@@ -33,7 +33,13 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.filter.GroupHaving;
+import io.evitadb.api.query.filter.HierarchyAnyHaving;
+import io.evitadb.api.query.filter.HierarchyExcluding;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
+import io.evitadb.api.query.filter.HierarchyHaving;
+import io.evitadb.api.query.filter.HierarchyReferenceSpecificationFilterConstraint;
+import io.evitadb.api.query.filter.HistogramHaving;
+import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.query.order.*;
@@ -48,11 +54,11 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.fulltext.FulltextFieldDefinition;
 import io.evitadb.index.fulltext.FulltextFieldKey;
-import io.evitadb.index.fulltext.FulltextScoringPolicy;
 import io.evitadb.index.fulltext.FulltextScoringPolicy.Place;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -62,24 +68,17 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Resolves the single fulltext weight policy of a query from the place weights of its `relevanceText` constraints.
- * It validates them against schemas only, before any index is selected or read, so a query is refused or accepted the
- * same way whether or not its collections hold any entity.
- *
- * It refuses `relevanceText` outside the main query's ordering, weights outside their allowed parent, unknown
- * attribute, associated data and reference names, places not searchable in any processed scope, target weights of
- * references that do not compose a managed collection in any processed scope, empty `referenceWeight` and
- * `entityWeight` containers, negative weights, places weighted twice, and `relevanceText` constraints stating
- * different weights. Only when the query contains a `textMatches` does it also refuse weights of places that no
- * `textMatches` of the main filter or of a segment's `entityHaving` searches.
+ * Validates each relevance ordering against schemas and its statically reachable scoring searches before any
+ * index is consulted. Ordering scopes narrow the required capabilities; segment predicates belong only to their
+ * own ordering. Immutable overrides travel to the sorter, never to search preparation.
  */
 final class FulltextWeightResolver {
 	/** Prevents construction of this stateless planning helper. */
 	private FulltextWeightResolver() { }
 
 	/**
-	 * Tells whether the query states any place weight, so that the planner resolves a policy for it even without a
-	 * `textMatches`, while childless relevance ordering resolves none. It reads no schema.
+	 * Tells whether the query states a place weight, including without text, so planning can reject weights without
+	 * a collection before resolving schemas. Childless relevance is detected separately. It reads no schema.
 	 *
 	 * @param query the query being planned
 	 * @return true when a weight constraint occurs anywhere in the ordering or the requirements of the query
@@ -87,6 +86,17 @@ final class FulltextWeightResolver {
 	static boolean hasWeights(@Nonnull Query query) {
 		return contains(query.getOrderBy(), FulltextWeightResolver::isWeight) ||
 			contains(query.getRequire(), FulltextWeightResolver::isWeight);
+	}
+
+	/**
+	 * Finds relevance orderings without the single-occurrence restriction of QueryUtils.findOrder.
+	 *
+	 * @param query the query being planned
+	 * @return true when a `relevanceText` occurs anywhere in the ordering or the requirements of the query
+	 */
+	static boolean hasRelevance(@Nonnull Query query) {
+		return contains(query.getOrderBy(), it -> it instanceof RelevanceText) ||
+			contains(query.getRequire(), it -> it instanceof RelevanceText);
 	}
 
 	/**
@@ -167,67 +177,127 @@ final class FulltextWeightResolver {
 	}
 
 	/**
-	 * Builds the effective policy of the context's own collection from its schema defaults and the query's weights,
-	 * refusing the query when a weight breaks one of the rules listed on this class.
+	 * Checks placement and every relevance ordering independently, including on empty collections.
 	 *
 	 * @param context planning context of the queried collection, supplying the request, schemas and processed scopes
-	 * @param defaults schema defaults of the queried collection
-	 * @return `defaults` itself when no `relevanceText` states a weight, otherwise a new policy with the weights
-	 *         applied
-	 * @throws EvitaInvalidUsageException when a weight is misplaced, unknown, not searchable, negative, repeated or
-	 *                                    disagrees with another `relevanceText`, or names a place the query does not
-	 *                                    search
+	 * @return the validated weights of every `relevanceText` of the main ordering, keyed by the ordering constraint
+	 *         (equal orderings share one entry); an ordering stating no weight maps to an empty map
+	 * @throws EvitaInvalidUsageException when an ordering or a weight is misplaced, a weight names an unknown or
+	 *                                    unsearchable place, weights a place twice, is negative or outside the
+	 *                                    internal float range, or weights a place no scoring search in its reach
+	 *                                    reads
 	 */
 	@Nonnull
-	static FulltextScoringPolicy resolve(
-		@Nonnull QueryPlanningContext context, @Nonnull FulltextScoringPolicy defaults
-	) {
+	static Map<RelevanceText, Map<Place, Float>> validate(@Nonnull QueryPlanningContext context) {
 		final Query query = context.getEvitaRequest().getQuery();
-		final List<RelevanceText> containers = new ArrayList<>(2);
-		collectOrderings(query.getOrderBy(), null, true, containers);
-		collectOrderings(query.getRequire(), null, false, containers);
-		Map<Place, Float> agreed = null;
-		final Map<Place, OrderConstraint> stated = new HashMap<>();
-		for (final RelevanceText container : containers) {
-			final Map<Place, Float> overrides = new HashMap<>();
-			collectWeights(context, context.getSchema(), null, null, container, overrides, stated);
-			if (agreed != null && !agreed.equals(overrides)) {
-				throw invalid(container, "all relevanceText containers of a query must state the same overrides");
-			}
-			agreed = overrides;
-		}
-		if (agreed == null || agreed.isEmpty()) {
-			return defaults;
-		}
-		final Predicate<Constraint<?>> text = constraint -> constraint instanceof TextMatches;
-		final boolean searchesText = contains(query.getFilterBy(), text) || contains(query.getOrderBy(), text) ||
-			contains(query.getRequire(), text);
-		if (searchesText) {
-			final Set<Place> searched = new HashSet<>();
-			collectSearched(context, query.getFilterBy(), null, context.getScopes(), searched);
-			collectSegmentSearches(context, query.getOrderBy(), context.getScopes(), searched);
-			for (final Place place : agreed.keySet()) {
-				if (!searched.contains(place)) {
-					throw invalid(stated.get(place), "the query does not search this place");
-				}
-			}
-		}
-		return defaults.withOverrides(agreed);
+		validatePlacement(query.getOrderBy(), null, true);
+		validatePlacement(query.getRequire(), null, false);
+		final Map<RelevanceText, Map<Place, Float>> weights = new HashMap<>();
+		validateOrderings(context, query.getOrderBy(), context.getScopes(), null, weights);
+		return Map.copyOf(weights);
 	}
 
 	/**
-	 * Walks an ordering or requirement tree, collects the `relevanceText` constraints of the main ordering, and refuses
-	 * `relevanceText` anywhere else as well as any weight outside its allowed parent.
+	 * Checks each relevance ordering against the main filter and only its own segment predicate.
+	 *
+	 * @param context planning context of the queried collection
+	 * @param constraint the ordering constraint being walked, NULL when the query has no ordering
+	 * @param scopes the scopes the enclosing ordering covers, narrowed by every `inScope` above `constraint`
+	 * @param segmentPredicate the `entityHaving` of the enclosing segment, NULL outside a segment or for a segment
+	 *                         without one
+	 * @param resolved receives the validated weights of every `relevanceText` reached
+	 */
+	private static void validateOrderings(
+		@Nonnull QueryPlanningContext context, @Nullable Constraint<?> constraint, @Nonnull Set<Scope> scopes,
+		@Nullable EntityHaving segmentPredicate, @Nonnull Map<RelevanceText, Map<Place, Float>> resolved
+	) {
+		if (constraint == null || isNestedOrderingContainer(constraint)) {
+			return;
+		}
+		final Set<Scope> currentScopes = scopesWithin(constraint, scopes);
+		final EntityHaving predicate = constraint instanceof Segment segment ?
+			segment.getEntityHaving().orElse(null) : segmentPredicate;
+		if (constraint instanceof RelevanceText relevance) {
+			final Query query = context.getEvitaRequest().getQuery();
+			final Map<Place, Float> weights = new HashMap<>();
+			final Map<Place, OrderConstraint> stated = new HashMap<>();
+			collectWeights(context, context.getSchema(), null, null, relevance, weights, stated, currentScopes);
+			final SearchCoverage coverage = new SearchCoverage();
+			collectSearched(context, query.getFilterBy(), null, currentScopes, coverage, true, 0, true);
+			if (predicate != null) {
+				for (final Constraint<?> child : predicate.getChildren()) {
+					collectSearched(context, child, null, currentScopes, coverage, true, 0, true);
+				}
+			}
+			if (!coverage.scoring && coverage.hierarchy && !coverage.otherText) {
+				throw invalid(relevance,
+					"text in hierarchy having / anyHaving / excluding filters the tree and is not scored");
+			}
+			final boolean anyText = contains(query.getFilterBy(), it -> it instanceof TextMatches) ||
+				contains(query.getOrderBy(), it -> it instanceof TextMatches) ||
+				contains(query.getRequire(), it -> it instanceof TextMatches);
+			if (!coverage.scoring && anyText) {
+				collectSearched(context, query.getFilterBy(), null, context.getScopes(), coverage, true, 0, false);
+				collectUnscoredSegmentPlaces(context, query.getOrderBy(), context.getScopes(), coverage);
+			}
+			if (coverage.scoring || anyText) {
+				for (final Place place : weights.keySet()) {
+					if (!coverage.places.contains(place)) {
+						throw invalid(stated.get(place),
+							"no scoring textMatches read by this relevanceText searches this place; " +
+							"text in hierarchy predicates, negative reference positions, other segments or " +
+							"require containers only filters and is not scored for this relevanceText");
+					}
+				}
+			}
+			resolved.put(relevance, Map.copyOf(weights));
+			return;
+		}
+		if (constraint instanceof ConstraintContainer<?> container) {
+			for (final Constraint<?> child : container.getChildren()) {
+				validateOrderings(context, child, currentScopes, predicate, resolved);
+			}
+		}
+	}
+
+	/**
+	 * Narrows the scopes an ordering covers at `inScope`: such a container keeps its own scope only when the enclosing
+	 * ordering covers it, and covers nothing otherwise. Every other constraint inherits the enclosing scopes.
+	 *
+	 * @param constraint the ordering constraint being walked
+	 * @param scopes the scopes covered by the constraint's parent
+	 * @return the scopes covered by `constraint` and its children, empty when an `inScope` names an uncovered scope
+	 */
+	@Nonnull
+	private static Set<Scope> scopesWithin(@Nonnull Constraint<?> constraint, @Nonnull Set<Scope> scopes) {
+		if (!(constraint instanceof OrderInScope scoped)) {
+			return scopes;
+		}
+		return scopes.contains(scoped.getScope()) ? Set.of(scoped.getScope()) : Set.of();
+	}
+
+	/** Schema-only reachability, deliberately independent of prepared formulas and the presence of index data. */
+	private static final class SearchCoverage {
+		/** Owner places searched by sources this ordering can score. */
+		@Nonnull private final Set<Place> places = new HashSet<>();
+		/** Whether a reachable search can supply scores, even when it currently matches nothing. */
+		private boolean scoring;
+		/** Whether a reachable hierarchy predicate contains text used only for tree membership. */
+		private boolean hierarchy;
+		/** Reachable text outside having/anyHaving/excluding, including unscored parent selectors. */
+		private boolean otherText;
+	}
+
+	/**
+	 * Checks ordering and requirement trees, refusing relevance outside the main ordering and misplaced weights.
 	 *
 	 * @param constraint the constraint being walked, NULL when the query lacks this part
 	 * @param parent the constraint directly enclosing `constraint`, NULL at the root
 	 * @param main true while the walk is inside the main query's ordering, false inside requirements and inside
 	 *             orderings of referenced entities or references
-	 * @param containers the collected `relevanceText` constraints in query order
 	 */
-	private static void collectOrderings(
-		@Nullable Constraint<?> constraint, @Nullable Constraint<?> parent, boolean main,
-		@Nonnull List<RelevanceText> containers
+	private static void validatePlacement(
+		@Nullable Constraint<?> constraint, @Nullable Constraint<?> parent, boolean main
 	) {
 		if (constraint == null) {
 			return;
@@ -237,16 +307,15 @@ final class FulltextWeightResolver {
 			if (!mainOrdering) {
 				throw invalid(relevance, "can only be used in the top-level `orderBy` or inside `segment`");
 			}
-			containers.add(relevance);
 		} else if (isWeight(constraint) && !isAllowedParent(constraint, parent)) {
 			throw invalid(constraint, "is outside its allowed weight parent");
 		}
 		if (constraint instanceof ConstraintContainer<?> container) {
 			for (final Constraint<?> child : container.getChildren()) {
-				collectOrderings(child, constraint, mainOrdering, containers);
+				validatePlacement(child, constraint, mainOrdering);
 			}
 			for (final Constraint<?> child : container.getAdditionalChildren()) {
-				collectOrderings(child, constraint, mainOrdering, containers);
+				validatePlacement(child, constraint, mainOrdering);
 			}
 		}
 	}
@@ -264,21 +333,23 @@ final class FulltextWeightResolver {
 	 * @param container the `relevanceText`, `referenceWeight` or `entityWeight` whose children are resolved
 	 * @param overrides receives the weight of every resolved place
 	 * @param stated receives the constraint that stated every resolved place, for later error reporting
-	 * @throws EvitaInvalidUsageException when a place is unknown, not searchable, weighted twice or negatively, or
-	 *                                    a nested container is empty or has no managed target collection
+	 * @param scopes scopes covered by this relevance ordering
+	 * @throws EvitaInvalidUsageException when a place is unknown, not searchable, weighted twice, negatively or
+	 *                                    outside the internal float range, or a nested container is empty or has no
+	 *                                    managed target collection
 	 */
 	private static void collectWeights(
 		@Nonnull QueryPlanningContext context, @Nonnull EntitySchemaContract schema,
 		@Nullable ReferenceSchemaContract reference, @Nullable String composingReference,
 		@Nonnull ConstraintContainer<OrderConstraint> container, @Nonnull Map<Place, Float> overrides,
-		@Nonnull Map<Place, OrderConstraint> stated
+		@Nonnull Map<Place, OrderConstraint> stated, @Nonnull Set<Scope> scopes
 	) {
 		if (!(container instanceof RelevanceText) && container.getChildrenCount() == 0) {
 			throw invalid(container, "requires at least one child weight");
 		}
 		for (final OrderConstraint child : container.getChildren()) {
 			final FulltextFieldKey key;
-			final float weight;
+			final BigDecimal weight;
 			if (child instanceof AttributeWeight attribute) {
 				final String name = attribute.getAttributeName();
 				final AttributeSchemaContract definition = reference == null ? schema.getAttributes().get(name) :
@@ -286,9 +357,7 @@ final class FulltextWeightResolver {
 				if (definition == null) {
 					throw new AttributeNotFoundException(name, schema, reference, child.toString());
 				}
-				if (context.getScopes().stream().noneMatch(definition::isSearchableInScope)) {
-					throw invalid(child, "is not searchable in any of the processed scopes " + context.getScopes());
-				}
+				assertScopes(child, scopes, definition::isSearchableInScope, "is not searchable");
 				key = reference == null ? FulltextFieldKey.attribute(name) :
 					FulltextFieldKey.referenceAttribute(reference.getName(), name);
 				weight = attribute.getWeight();
@@ -296,62 +365,108 @@ final class FulltextWeightResolver {
 				final String name = data.getAssociatedDataName();
 				final AssociatedDataSchemaContract definition = schema.getAssociatedData(name)
 					.orElseThrow(() -> new AssociatedDataNotFoundException(name, schema, child.toString()));
-				if (context.getScopes().stream().noneMatch(definition::isSearchableInScope)) {
-					throw invalid(child, "is not searchable in any of the processed scopes " + context.getScopes());
-				}
+				assertScopes(child, scopes, definition::isSearchableInScope, "is not searchable");
 				key = FulltextFieldKey.associatedData(name);
 				weight = data.getWeight();
 			} else if (child instanceof ReferenceWeight ref) {
 				final ReferenceSchemaContract definition = schema.getReference(ref.getReferenceName())
 					.orElseThrow(
 						() -> new ReferenceNotFoundException(ref.getReferenceName(), schema, child.toString()));
-				collectWeights(context, schema, definition, null, ref, overrides, stated);
+				collectWeights(context, schema, definition, null, ref, overrides, stated, scopes);
 				continue;
 			} else if (child instanceof EntityWeight entity) {
-				if (context.getScopes().stream().noneMatch(
-					scope -> reference.getSearchableThrough(scope) == ReferenceSearchMode.COMPOSITION)) {
-					throw invalid(child, "reference " + reference.getName() +
-						" requires searchableThrough(COMPOSITION) in at least one processed scope " +
-						context.getScopes());
-				}
+				assertScopes(child, scopes,
+					scope -> reference.getSearchableThrough(scope) == ReferenceSearchMode.COMPOSITION,
+					"reference " + reference.getName() + " requires searchableThrough(COMPOSITION)");
 				final EntitySchemaContract target = context.getCatalogSchema()
 					.getEntitySchema(reference.getReferencedEntityType()).orElse(null);
 				if (!reference.isReferencedEntityTypeManaged() || target == null) {
 					throw invalid(child, "reference " + reference.getName() + " has no managed target collection");
 				}
-				collectWeights(context, target, null, reference.getName(), entity, overrides, stated);
+				collectWeights(context, target, null, reference.getName(), entity, overrides, stated, scopes);
 				continue;
 			} else {
 				throw invalid(child, "is not a place weight");
 			}
-			if (weight < 0) {
+			if (weight.signum() < 0) {
 				throw invalid(child, "requires a nonnegative weight");
 			}
+			final float effectiveWeight = weight.floatValue();
+			if (!Float.isFinite(effectiveWeight)) {
+				throw invalid(child, "weight overflows the internal float range");
+			}
+			if (weight.signum() != 0 && effectiveWeight == 0.0f) {
+				throw invalid(child, "non-zero weight underflows the internal float range");
+			}
 			final Place place = new Place(composingReference, key);
-			if (overrides.putIfAbsent(place, weight) != null) {
+			if (overrides.putIfAbsent(place, effectiveWeight) != null) {
 				throw invalid(child, "weights the same place twice");
 			}
 			stated.put(place, child);
 		}
 	}
 
+	/** Names all missing capabilities in enumeration order, matching filterable and sortable scope validation. */
+	private static void assertScopes(
+		@Nonnull Constraint<?> constraint, @Nonnull Set<Scope> scopes, @Nonnull Predicate<Scope> searchable,
+		@Nonnull String reason
+	) {
+		final List<Scope> missing = new ArrayList<>(scopes.size());
+		for (final Scope scope : Scope.values()) {
+			if (scopes.contains(scope) && !searchable.test(scope)) {
+				missing.add(scope);
+			}
+		}
+		if (!missing.isEmpty()) {
+			throw invalid(constraint, reason + (missing.size() == 1 ? " in scope " : " in scopes ") +
+				String.join(", ", missing.stream().map(scope -> "`" + scope.name() + "`").toList()) +
+				"; narrow the ordering with inScope");
+		}
+	}
+
 	/**
-	 * Uses the selector resolver in each owner processing scope; entity/group bodies keep their fixed source
-	 * policy.
+	 * Classifies searches statically, respecting selectors and filter scopes. Hierarchy predicates never score.
+	 * Direct reference text under odd body negation has no positive owners and cannot consume an override when
+	 * scoringOnly is true. A false value preserves the prior searched-place check for pass-through relevance.
+	 * Entity/group bodies supply fixed-policy scores in another namespace, so they contribute no owner places.
+	 * Facet descendant predicates and histogram group selectors supply no owner scoring sources at all.
 	 *
-	 * @param context the planning context supplying the schemas
-	 * @param constraint the filter constraint being walked, NULL when the query has no such part
-	 * @param reference reference the walked constraint is nested in via `referenceHaving`, NULL at the top level
-	 * @param scopes processing scopes in effect, narrowed by `filterInScope`
-	 * @param searched receives the places every reached `textMatches` searches
+	 * @param context planning context supplying the queried schema and the catalog schema
+	 * @param constraint the filter constraint being walked, NULL when the filter is absent
+	 * @param reference the reference whose body is being walked, NULL outside a `referenceHaving` body
+	 * @param scopes the scopes reachable at this point, narrowed by every filter `inScope` above it
+	 * @param coverage receives the searched owner places and the kinds of text reached
+	 * @param ownerNamespace false below `entityHaving` or `groupHaving`, whose text searches another collection and
+	 *                       contributes no owner place
+	 * @param negations number of `not` containers between the nearest enclosing `referenceHaving` (or the root) and
+	 *                  `constraint`; an odd count leaves direct reference text without a positive owner
+	 * @param scoringOnly true to count only text that can score for this ordering, which excludes all hierarchy
+	 *                    filter text and direct reference text under odd negation; false to count reference text
+	 *                    under odd negation and text in hierarchy filters of the queried collection itself, while
+	 *                    hierarchy filters of a reference are still skipped
 	 */
 	private static void collectSearched(
 		@Nonnull QueryPlanningContext context, @Nullable Constraint<?> constraint,
-		@Nullable ReferenceSchemaContract reference, @Nonnull Set<Scope> scopes, @Nonnull Set<Place> searched
+		@Nullable ReferenceSchemaContract reference, @Nonnull Set<Scope> scopes, @Nonnull SearchCoverage coverage,
+		boolean ownerNamespace, int negations, boolean scoringOnly
 	) {
-		if (constraint == null || constraint instanceof EntityHaving || constraint instanceof GroupHaving ||
-			constraint instanceof HierarchyFilterConstraint hierarchy && hierarchy.getReferenceName().isPresent()) {
+		if (constraint == null || scopes.isEmpty()) {
 			return;
+		}
+		if (constraint instanceof HierarchyReferenceSpecificationFilterConstraint ||
+			constraint instanceof HistogramHaving) {
+			// Facet descendants filter target hierarchy nodes; histogram group selectors filter group entities.
+			// Both use separate predicate visitors whose scores never enter this owner's source registrations.
+			coverage.otherText |= contains(constraint, it -> it instanceof TextMatches);
+			return;
+		}
+		if (constraint instanceof HierarchyFilterConstraint hierarchy) {
+			if (scoringOnly) {
+				collectHierarchyText(constraint, scopes, coverage, false);
+				return;
+			} else if (hierarchy.getReferenceName().isPresent()) {
+				return;
+			}
 		}
 		final Set<Scope> currentScopes;
 		if (constraint instanceof FilterInScope scoped) {
@@ -362,45 +477,56 @@ final class FulltextWeightResolver {
 		} else {
 			currentScopes = scopes;
 		}
+		final boolean currentNamespace = ownerNamespace &&
+			!(constraint instanceof EntityHaving || constraint instanceof GroupHaving);
 		final ReferenceSchemaContract currentReference;
-		if (constraint instanceof ReferenceHaving having) {
+		if (constraint instanceof ReferenceHaving having && currentNamespace) {
 			currentReference = context.getSchema().getReference(having.getReferenceName()).orElseThrow(
 				() -> new ReferenceNotFoundException(having.getReferenceName(), context.getSchema()));
 		} else {
-			currentReference = reference;
+			currentReference = currentNamespace ? reference : null;
 		}
+		final int currentNegations = constraint instanceof ReferenceHaving ? 0 :
+			negations + (constraint instanceof Not ? 1 : 0);
 		if (constraint instanceof TextMatches text) {
-			searched.addAll(TextMatchesTranslator.searchedPlaces(
-				text, context.getSchema(), currentReference, currentScopes, context.getCatalogSchema()));
+			coverage.otherText = true;
+			if (!scoringOnly || currentReference == null || currentNegations % 2 == 0) {
+				coverage.scoring = true;
+				if (currentNamespace) {
+					coverage.places.addAll(TextMatchesTranslator.searchedPlaces(
+						text, context.getSchema(), currentReference, currentScopes, context.getCatalogSchema()));
+				}
+			}
 			return;
 		}
 		if (constraint instanceof ConstraintContainer<?> container) {
 			for (final Constraint<?> child : container.getChildren()) {
-				collectSearched(context, child, currentReference, currentScopes, searched);
+				collectSearched(context, child, currentReference, currentScopes, coverage,
+					currentNamespace, currentNegations, scoringOnly);
 			}
 			for (final Constraint<?> child : container.getAdditionalChildren()) {
-				collectSearched(context, child, currentReference, currentScopes, searched);
+				collectSearched(context, child, currentReference, currentScopes, coverage,
+					currentNamespace, currentNegations, scoringOnly);
 			}
 		}
 	}
 
 	/**
-	 * Segment predicates search the main collection even though their container is named entityHaving.
+	 * Distinguishes the specified tree predicates from parent-node selectors without reading an index. Only text
+	 * confined to having/anyHaving/excluding triggers the hierarchy-only refusal; parent selection keeps its prior
+	 * pass-through behavior. Scope containers narrow reachability just as they do in scored filters.
 	 *
-	 * @param context the planning context supplying the schemas
-	 * @param constraint the ordering constraint being walked, NULL when the query has no ordering
-	 * @param scopes processing scopes in effect, narrowed by `orderInScope`
-	 * @param searched receives the places searched by the `entityHaving` predicates of the reached segments
+	 * @param constraint the constraint inside a hierarchy filter being walked
+	 * @param scopes the scopes reachable at this point
+	 * @param coverage receives whether text sits in a tree predicate or elsewhere
+	 * @param withinPredicate true below `having`, `anyHaving` or `excluding`, whose text only filters the tree
 	 */
-	private static void collectSegmentSearches(
-		@Nonnull QueryPlanningContext context, @Nullable Constraint<?> constraint,
-		@Nonnull Set<Scope> scopes, @Nonnull Set<Place> searched
+	private static void collectHierarchyText(
+		@Nonnull Constraint<?> constraint, @Nonnull Set<Scope> scopes, @Nonnull SearchCoverage coverage,
+		boolean withinPredicate
 	) {
-		if (constraint == null || isNestedOrderingContainer(constraint)) {
-			return;
-		}
 		final Set<Scope> currentScopes;
-		if (constraint instanceof OrderInScope scoped) {
+		if (constraint instanceof FilterInScope scoped) {
 			if (!scopes.contains(scoped.getScope())) {
 				return;
 			}
@@ -408,14 +534,47 @@ final class FulltextWeightResolver {
 		} else {
 			currentScopes = scopes;
 		}
+		final boolean predicate = withinPredicate || constraint instanceof HierarchyHaving ||
+			constraint instanceof HierarchyAnyHaving || constraint instanceof HierarchyExcluding;
+		if (constraint instanceof TextMatches) {
+			coverage.hierarchy |= predicate;
+			coverage.otherText |= !predicate;
+		} else if (constraint instanceof ConstraintContainer<?> container) {
+			for (final Constraint<?> child : container.getChildren()) {
+				collectHierarchyText(child, currentScopes, coverage, predicate);
+			}
+			for (final Constraint<?> child : container.getAdditionalChildren()) {
+				collectHierarchyText(child, currentScopes, coverage, predicate);
+			}
+		}
+	}
+
+	/**
+	 * Preserves the earlier searched-place check when this relevance has no scoring text in reach. This keeps
+	 * require-only weights refused and weights searched solely by another segment judged as before; neither kind
+	 * supplies scores here. Once scoring text is in reach, only its own scored places can consume weights.
+	 *
+	 * @param context planning context of the queried collection
+	 * @param constraint the ordering constraint being walked, NULL when the query has no ordering
+	 * @param scopes the scopes the enclosing ordering covers
+	 * @param coverage receives the places searched by the predicate of every segment
+	 */
+	private static void collectUnscoredSegmentPlaces(
+		@Nonnull QueryPlanningContext context, @Nullable Constraint<?> constraint, @Nonnull Set<Scope> scopes,
+		@Nonnull SearchCoverage coverage
+	) {
+		if (constraint == null || isNestedOrderingContainer(constraint)) {
+			return;
+		}
+		final Set<Scope> currentScopes = scopesWithin(constraint, scopes);
 		if (constraint instanceof Segment segment && segment.getEntityHaving().isPresent()) {
 			for (final Constraint<?> child : segment.getEntityHaving().orElseThrow().getChildren()) {
-				collectSearched(context, child, null, currentScopes, searched);
+				collectSearched(context, child, null, currentScopes, coverage, true, 0, false);
 			}
 		}
 		if (constraint instanceof ConstraintContainer<?> container) {
 			for (final Constraint<?> child : container.getChildren()) {
-				collectSegmentSearches(context, child, currentScopes, searched);
+				collectUnscoredSegmentPlaces(context, child, currentScopes, coverage);
 			}
 		}
 	}

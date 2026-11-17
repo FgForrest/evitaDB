@@ -26,11 +26,13 @@ package io.evitadb.api.query;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.AttributeInRange;
 import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.parser.DefaultQueryParser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -252,6 +254,58 @@ class BaseConstraintTest {
 		void shouldConvertOffsetDateTime() {
 			final OffsetDateTime dateTime = OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 			assertEquals("2020-01-01T00:00:00Z", BaseConstraint.convertToString(dateTime));
+		}
+
+		/** A compact extreme scale falls back to the exponent form instead of rendering its magnitude. */
+		@Test
+		@DisplayName("should print extreme decimal scales in exponent form")
+		void shouldPrintExtremeDecimalScalesInExponentForm() {
+			assertEquals("1e2147483648",
+				BaseConstraint.convertToString(new BigDecimal(BigInteger.ONE, Integer.MIN_VALUE)));
+			assertEquals("1e-2147483647",
+				BaseConstraint.convertToString(new BigDecimal(BigInteger.ONE, Integer.MAX_VALUE)));
+			assertEquals("1e1000000", BaseConstraint.convertToString(new BigDecimal("1E+1000000")));
+		}
+
+		/** The 201-character plain bound covers every accepted place weight, including its sign. */
+		@Test
+		@DisplayName("should print decimals plain up to 201 characters and in exponent form above")
+		void shouldPrintDecimalsPlainUpToTheBound() {
+			assertEquals("1" + "0".repeat(200), BaseConstraint.convertToString(new BigDecimal(BigInteger.ONE, -200)));
+			assertEquals("1e201", BaseConstraint.convertToString(new BigDecimal(BigInteger.ONE, -201)));
+			assertEquals("12" + "0".repeat(199),
+				BaseConstraint.convertToString(new BigDecimal(BigInteger.valueOf(12), -199)));
+			assertEquals("1.2e201", BaseConstraint.convertToString(new BigDecimal(BigInteger.valueOf(12), -200)));
+			assertEquals("-1" + "0".repeat(199),
+				BaseConstraint.convertToString(new BigDecimal(BigInteger.ONE.negate(), -199)));
+			assertEquals("-1e200", BaseConstraint.convertToString(new BigDecimal(BigInteger.ONE.negate(), -200)));
+			assertEquals("0." + "0".repeat(198) + "1",
+				BaseConstraint.convertToString(new BigDecimal(BigInteger.ONE, 199)));
+			assertEquals("1e-200", BaseConstraint.convertToString(new BigDecimal(BigInteger.ONE, 200)));
+			assertEquals("0.123", BaseConstraint.convertToString(new BigDecimal("0.123")));
+			assertEquals("0.00", BaseConstraint.convertToString(new BigDecimal("0.00")));
+			assertEquals("0", BaseConstraint.convertToString(new BigDecimal(BigInteger.ZERO, -300)));
+			assertEquals("3.00", BaseConstraint.convertToString(new BigDecimal("3.00")));
+		}
+
+		/** The EvitaQL grammar reads no exponent, so a printed decimal argument must parse back to its number. */
+		@Test
+		@DisplayName("should print negative-scale and tiny decimal arguments as text the parser reads back")
+		void shouldPrintDecimalArgumentsTheParserReadsBack() {
+			final AttributeEquals thousand = attributeEquals("price", new BigDecimal("1E+3"));
+			final AttributeEquals tiny = attributeEquals("price", new BigDecimal("1E-7"));
+			final DefaultQueryParser parser = DefaultQueryParser.getInstance();
+
+			final AttributeEquals parsedThousand =
+				(AttributeEquals) parser.parseFilterConstraintListUnsafe(thousand.toString()).get(0);
+			final FilterConstraint parsedTiny = parser.parseFilterConstraintListUnsafe(tiny.toString()).get(0);
+
+			assertEquals("attributeEquals('price',1000)", thousand.toString());
+			assertEquals("attributeEquals('price',0.0000001)", tiny.toString());
+			// an integer literal parses as an integral number, so the thousand compares by numeric value
+			assertEquals(0, new BigDecimal(String.valueOf((Object) parsedThousand.getAttributeValue()))
+				.compareTo(new BigDecimal("1E+3")));
+			assertEquals(tiny, parsedTiny);
 		}
 
 		@Test

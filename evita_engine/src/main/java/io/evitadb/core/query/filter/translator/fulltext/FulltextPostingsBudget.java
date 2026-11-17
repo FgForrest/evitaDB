@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter.translator.fulltext;
 
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor.SourceIdentity;
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula.ExpandedTerm;
 import io.evitadb.index.fulltext.FulltextScoringPolicy;
 import io.evitadb.index.fulltext.FulltextTermExactness;
@@ -32,6 +33,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * Deterministic predicted-time budget over already collected fulltext expansions. This is independent of elapsed
@@ -266,17 +268,20 @@ final class FulltextPostingsBudget {
 	}
 
 	/**
-	 * Flattens retained batches with their effective rank-time policy and recomputes split-word range ends.
+	 * Flattens retained batches with schema defaults and stable place identities and recomputes split-word range ends.
 	 * Empty words and empty part ranges stay present and count toward coverage. An empty mandatory word
 	 * matches nothing.
 	 * @param words retained words in group-major, part-minor batches
 	 * @param partCounts number of ranges per word, including the original
-	 * @param scoringPolicy effective weights and coefficient
-	 * @return weighted fulltext formula
+	 * @param scoringPolicy schema defaults and coefficient
+	 * @param places stable identities of stored and composed place ids
+	 * @param sourceIdentity semantic origin independent of scope-sensitive preparation, NULL for standalone formulas
+	 * @return fulltext formula whose weights can be overridden only when scores are requested
 	 */
 	@Nonnull
 	static FulltextFormula toFormula(
-		@Nonnull ExpandedTerm[][][] words, @Nonnull int[] partCounts, @Nonnull FulltextScoringPolicy scoringPolicy
+		@Nonnull ExpandedTerm[][][] words, @Nonnull int[] partCounts, @Nonnull FulltextScoringPolicy scoringPolicy,
+		@Nonnull Map<Integer, FulltextScoringPolicy.Place> places, @Nullable SourceIdentity sourceIdentity
 	) {
 		final ExpandedTerm[][] flat = new ExpandedTerm[words.length][];
 		final int[][] coverage = new int[words.length][];
@@ -302,6 +307,6 @@ final class FulltextPostingsBudget {
 				}
 			}
 		}
-		return new FulltextFormula(flat, split ? coverage : null, scoringPolicy);
+		return new FulltextFormula(flat, split ? coverage : null, scoringPolicy, places, sourceIdentity);
 	}
 }

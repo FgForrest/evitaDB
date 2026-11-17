@@ -296,7 +296,7 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 				final int[] candidates = {1, 2, 3};
 				final FilterConstraint separate = textMatches("jacket ", inAttribute("a"), inAttribute("b"));
 				final long[] expectedScores = plannedFormula(session, type, separate)
-					.getFulltextScores(candidates).composites();
+					.getFulltextScores(candidates, Map.of()).composites();
 				final int[] expectedOrder = rankedIds(session, type, separate);
 				for (final FilterConstraint selector : new FilterConstraint[]{
 					textMatches("jacket ", inAttribute("a", "b")),
@@ -306,7 +306,7 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 					assertArrayEquals(candidates, ids(session, type, selector, Scope.LIVE));
 					assertArrayEquals(expectedOrder, rankedIds(session, type, selector));
 					assertArrayEquals(expectedScores, plannedFormula(session, type, selector)
-						.getFulltextScores(candidates).composites());
+						.getFulltextScores(candidates, Map.of()).composites());
 				}
 				assertTrue(expectedScores[1] > 0, "The second attribute must contribute a score");
 			});
@@ -514,7 +514,7 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 					global("PlaceTarget", Scope.LIVE).getFulltextIndex(Locale.ENGLISH)
 						.getFieldId(FulltextFieldKey.attribute("text")));
 				final FulltextFormula formula = plannedFormula(session, "PlaceOwner", "silver violet ");
-				final long[] scores = formula.getFulltextScores(new int[]{1, 2}).composites();
+				final long[] scores = formula.getFulltextScores(new int[]{1, 2}, Map.of()).composites();
 				assertTrue(FulltextScoringPolicy.strength(scores[0]) < FulltextScoringPolicy.strength(scores[1]),
 					"Two places use best + t * other; one place sums both words: " + Arrays.toString(scores));
 			});
@@ -530,7 +530,7 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 					global("PlaceTarget", Scope.ARCHIVED).getFulltextIndex(Locale.ENGLISH)
 						.getFieldId(FulltextFieldKey.attribute("text")));
 				final long[] scores = plannedFormula(session, "PlaceOwner", "silver violet ", BOTH)
-					.getFulltextScores(new int[]{2, 3}).composites();
+					.getFulltextScores(new int[]{2, 3}, Map.of()).composites();
 				assertEquals(scores[0], scores[1], "A target field is one place across both target scopes");
 			});
 		}
@@ -808,7 +808,7 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 				final QueryPlanningContext context = context(session, "LocalReflection", "winter ");
 				final FilterByVisitor visitor = FilterByVisitor.createConstraintCheckVisitor(context);
 				assertDoesNotThrow(() -> filterBy(textMatches("winter ")).accept(visitor));
-				assertEquals(2f, context.getFulltextScoringPolicy(schema)
+				assertEquals(2f, context.getFulltextSchemaScoringPolicy(schema)
 					.weight(FulltextFieldKey.referenceAttribute("owners", "localText")));
 				if (specifiesInheritance && !declaresOwnField) {
 					// Enabling inheritance must preserve exactly the same locally available place.
@@ -1123,7 +1123,7 @@ class FulltextCompositionFunctionalTest implements EvitaTestSupport {
 
 	/** Reads scores from the real planned formula; no score implementation is duplicated by the tests. */
 	private long[] scores(EvitaSessionContract session, String text, int... candidates) {
-		return plannedFormula(session, PRODUCT, text).getFulltextScores(candidates).composites();
+		return plannedFormula(session, PRODUCT, text).getFulltextScores(candidates, Map.of()).composites();
 	}
 
 	/** Extracts the one plain text score source from a real production planner context. */

@@ -226,22 +226,39 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 			.toArray(RelevanceTextEntitySpecificationOrderConstraint[]::new)));
 	}
 
-	/** Parses a single named place weight using the shared numeric argument types. */
+	/** Parses a single named place weight as a decimal using the supported numeric query types. */
 	@Nonnull
 	@Override
 	public OrderConstraint visitAttributeWeightConstraint(@Nonnull AttributeWeightConstraintContext ctx) {
 		return parse(ctx, () -> QueryConstraints.attributeWeight(
 			ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
-			ctx.args.value.accept(this.weightValueTokenVisitor).asNumber().floatValue()));
+			parseWeight(ctx.args.value)));
 	}
 
-	/** Parses a single named place weight using the shared numeric argument types. */
+	/** Parses a single named place weight as a decimal using the supported numeric query types. */
 	@Nonnull
 	@Override
 	public OrderConstraint visitAssociatedDataWeightConstraint(@Nonnull AssociatedDataWeightConstraintContext ctx) {
 		return parse(ctx, () -> QueryConstraints.associatedDataWeight(
 			ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
-			ctx.args.value.accept(this.weightValueTokenVisitor).asNumber().floatValue()));
+			parseWeight(ctx.args.value)));
+	}
+
+	/**
+	 * Reads integer literals directly as decimals so plain weights are not limited to the long range.
+	 * Bound values retain the numeric query-type whitelist, and literals retain the unsafe-mode requirement.
+	 *
+	 * @param ctx the weight argument: an integer or decimal literal, or a bound parameter
+	 * @return the weight as a decimal, NULL when a bound parameter carries no value - the weight constraint then
+	 *         refuses it like any other missing weight
+	 */
+	@Nullable
+	private BigDecimal parseWeight(@Nonnull ValueTokenContext ctx) {
+		if (ctx instanceof IntValueTokenContext) {
+			this.weightValueTokenVisitor.assertLiteralIsAllowed(ctx);
+			return new BigDecimal(ctx.getText());
+		}
+		return ctx.accept(this.weightValueTokenVisitor).asNumber(BigDecimal.class);
 	}
 
 	/** Parses reference weights with reference-level children. */

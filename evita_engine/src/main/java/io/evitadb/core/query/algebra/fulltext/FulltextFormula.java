@@ -36,14 +36,17 @@ import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
 import io.evitadb.index.fulltext.FulltextScoringPolicy;
+import io.evitadb.index.fulltext.FulltextScoringPolicy.Place;
 import io.evitadb.index.fulltext.FulltextTermExactness;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * The formula a fulltext condition translates into: it computes the entities matching every token of the query, and
@@ -62,7 +65,7 @@ import java.util.Arrays;
  *
  * ## What it ranks
  *
- * {@link #getFulltextScores(int[])} runs {@link FulltextPhaseOneScorer} over the same terms and the impact bytes
+ * {@link #getFulltextScores(int[], Map)} runs {@link FulltextPhaseOneScorer} over the same terms and the impact bytes
  * aligned with their postings, for whatever candidates the caller passes - typically the final result of the whole
  * filter. Scoring is not bound to the strict match set: a candidate containing only some of the tokens receives
  * a score too, below the candidates containing more, while one containing none receives a zero composite. A token
@@ -116,15 +119,19 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 */
 	@Nullable private final int[][] partEnds;
 	/**
-	 * The tokens in the shape the scorer reads, built on the first scoring request. Not synchronised, like the memos
-	 * of {@link AbstractFormula}: a formula is evaluated by the one thread running its query.
+	 * Scorer expansions memoized by the complete immutable override map, so one prepared search can serve several
+	 * relevance orderings. Like other formula memos, these belong to the one thread evaluating the query.
 	 */
-	@Nullable private Expansion[][] memoizedExpansions;
+	@Nonnull private final Map<Map<Place, Float>, Expansion[][]> memoizedExpansions = CollectionUtils.createHashMap(2);
+	/** Place identities of stored and synthetic field ids, independent of ordering weights. */
+	@Nonnull private final Map<Integer, Place> places;
 	/**
-	 * Effective place weights and tie breaker the scores are composed with. Mixed into the structural hash, because
-	 * two formulas over the same terms rank differently under different policies.
+	 * Schema defaults and tie breaker; query overrides never enter this formula's structural identity.
 	 */
 	@Nonnull private final FulltextScoringPolicy scoringPolicy;
+
+	/** Origin metadata for score-source grouping, separate from scope-sensitive preparation and membership hashes. */
+	@Nullable private final SourceIdentity sourceIdentity;
 
 	/**
 	 * One term of the dictionary a query token expanded into, in one field.
@@ -203,19 +210,22 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	}
 
 	/**
-	 * Creates a formula with effective rank-time weights and grouping already attached to its expanded terms.
+	 * Creates a formula with schema default weights, grouping and stable place identities attached to its terms.
 	 * Both token and part-end arrays, including their rows, are adopted without copying and must not be written
 	 * after this call. A token may carry no terms; that mandatory word then matches nothing.
 	 * Split coverage is checked by {@link FulltextPhaseOneScorer#validatePartEnds} before the arrays are adopted.
 	 * Ranking tables are fetched lazily when scores are requested.
-	 * @param tokens query words and weighted expansions
+	 * @param tokens query words and expansions carrying schema default weights
 	 * @param partEnds optional split-word boundaries
-	 * @param scoringPolicy effective query coefficient and resolved place table
+	 * @param scoringPolicy schema coefficient and default place table
+	 * @param places field/place ids mapped to schema place identities for rank-time overrides
+	 * @param sourceIdentity semantic text-search identity, NULL for a standalone formula without a query origin
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when there are no tokens, too many tokens, or malformed
 	 *                                                        part ends
 	 */
 	public FulltextFormula(
-		@Nonnull ExpandedTerm[][] tokens, @Nullable int[][] partEnds, @Nonnull FulltextScoringPolicy scoringPolicy
+		@Nonnull ExpandedTerm[][] tokens, @Nullable int[][] partEnds, @Nonnull FulltextScoringPolicy scoringPolicy,
+		@Nonnull Map<Integer, Place> places, @Nullable SourceIdentity sourceIdentity
 	) {
 		Assert.isPremiseValid(tokens.length > 0, "A fulltext formula needs at least one query token!");
 		Assert.isPremiseValid(
@@ -227,6 +237,8 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 		this.tokens = tokens;
 		this.partEnds = partEnds;
 		this.scoringPolicy = scoringPolicy;
+		this.places = Map.copyOf(places);
+		this.sourceIdentity = sourceIdentity;
 		this.initFields();
 	}
 
@@ -240,18 +252,29 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 		return this.tokens;
 	}
 
+	/** Returns the query origin used to collapse independently prepared copies of the same scoring search. */
+	@Nullable
+	@Override
+	public SourceIdentity getFulltextSourceIdentity() {
+		return this.sourceIdentity;
+	}
+
 	@Override
 	public boolean providesFulltextScores() {
 		return true;
 	}
 
+	/** Scores with the requesting relevance ordering's weights; preparation stays weight-independent. */
 	@Nonnull
 	@Override
-	public Result getFulltextScores(@Nonnull int[] candidates) {
-		if (this.memoizedExpansions == null) {
-			this.memoizedExpansions = toExpansions(this.tokens);
-		}
-		return FulltextPhaseOneScorer.scoreAll(candidates, this.memoizedExpansions, this.partEnds, this.scoringPolicy);
+	public Result getFulltextScores(
+		@Nonnull int[] candidates,
+		@Nonnull Map<Place, Float> weights
+	) {
+		final Expansion[][] expansions = this.memoizedExpansions.computeIfAbsent(
+			Map.copyOf(weights), it -> toExpansions(this.tokens, it)
+		);
+		return FulltextPhaseOneScorer.scoreAll(candidates, expansions, this.partEnds, this.scoringPolicy);
 	}
 
 	@Nonnull
@@ -522,18 +545,23 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 * are, never copied - the scorer reads them where the dictionary stores them.
 	 *
 	 * @param tokens the tokens
+	 * @param weights overrides supplied by this scoring request
 	 * @return the scorer's expansions, token by token
 	 */
 	@Nonnull
-	private static Expansion[][] toExpansions(@Nonnull ExpandedTerm[][] tokens) {
+	private Expansion[][] toExpansions(
+		@Nonnull ExpandedTerm[][] tokens, @Nonnull Map<Place, Float> weights
+	) {
 		final Expansion[][] expansions = new Expansion[tokens.length][];
 		for (int i = 0; i < tokens.length; i++) {
 			final ExpandedTerm[] token = tokens[i];
 			final Expansion[] tokenExpansions = new Expansion[token.length];
 			for (int j = 0; j < token.length; j++) {
 				final ExpandedTerm term = token[j];
+				final Place place = this.places.get(term.placeId());
+				final float weight = place == null ? term.weight() : weights.getOrDefault(place, term.weight());
 				tokenExpansions[j] = new Expansion(term.postings(), term.impacts(), term.distance(), term.exactness(),
-					term.placeId(), term.weight());
+					term.placeId(), weight);
 			}
 			expansions[i] = tokenExpansions;
 		}

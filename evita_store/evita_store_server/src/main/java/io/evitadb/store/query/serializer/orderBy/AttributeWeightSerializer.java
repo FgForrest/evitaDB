@@ -32,9 +32,11 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 
+import java.math.BigDecimal;
+
 /**
  * This {@link Serializer} implementation reads/writes {@link AttributeWeight} from/to binary format: the attribute
- * name followed by the float weight.
+ * name followed by the BigDecimal weight.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -49,7 +51,7 @@ public class AttributeWeightSerializer extends Serializer<AttributeWeight> {
 	@Override
 	public void write(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull AttributeWeight constraint) {
 		output.writeString(constraint.getAttributeName());
-		output.writeFloat(constraint.getWeight());
+		kryo.writeObject(output, constraint.getWeight());
 	}
 
 	/**
@@ -59,13 +61,13 @@ public class AttributeWeightSerializer extends Serializer<AttributeWeight> {
 	 * @param input the source the constraint is read from
 	 * @param type the requested constraint class, unused
 	 * @return the restored constraint
-	 * @throws EvitaInvalidUsageException when the stored name is blank or the weight is not finite
+	 * @throws EvitaInvalidUsageException when the stored name is null or blank or the weight is null
 	 */
 	@Nonnull
 	@Override
 	public AttributeWeight read(
 		@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends AttributeWeight> type
 	) {
-		return new AttributeWeight(input.readString(), input.readFloat());
+		return new AttributeWeight(input.readString(), kryo.readObject(input, BigDecimal.class));
 	}
 }

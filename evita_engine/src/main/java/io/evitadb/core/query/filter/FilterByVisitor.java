@@ -64,6 +64,7 @@ import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
 import io.evitadb.core.query.algebra.fulltext.FulltextScoreCombiner;
 import io.evitadb.core.query.algebra.fulltext.ReferenceFulltextScoreAccessor;
 import io.evitadb.core.query.algebra.fulltext.ReferenceOwnerFulltextScoreAccessor;
+import io.evitadb.core.query.algebra.fulltext.ScoredFilterFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
@@ -503,6 +504,59 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Supplier<String> stepDescriptionSupplier,
 		boolean constraintCheckOnly
 	) {
+		return createFormulaForTheFilter(
+			queryContext, indexType, indexesToUse, filterBy, rootFilterBy, entitySchema,
+			stepDescriptionSupplier, constraintCheckOnly, false
+		);
+	}
+
+	/**
+	 * Builds a segment predicate whose formula retains the visitor's additional owner-space score sources.
+	 *
+	 * @param queryContext the context of the query whose segment is translated
+	 * @param scopes the scopes whose global indexes the predicate is translated over
+	 * @param filterBy the predicate the entities of the segment must match
+	 * @param rootFilterBy the filter of the enclosing query, NULL when there is none
+	 * @param entityType the entity type the predicate selects
+	 * @param description the message supplier for the query telemetry
+	 * @return the predicate's membership formula, retaining the score sources its translation found; an empty
+	 *         formula when no global index of the scopes exists
+	 */
+	@Nonnull
+	public static Formula createFormulaForScoredFilter(
+		@Nonnull QueryPlanningContext queryContext, @Nonnull Set<Scope> scopes,
+		@Nonnull FilterBy filterBy, @Nullable FilterBy rootFilterBy, @Nonnull String entityType,
+		@Nonnull Supplier<String> description
+	) {
+		return createFormulaForTheFilter(
+			queryContext, GlobalEntityIndex.class, getGlobalIndexesOrEmpty(queryContext, scopes, entityType),
+			filterBy, rootFilterBy, queryContext.getSchema(entityType), description, false, true
+		);
+	}
+
+	/**
+	 * Translates membership and optionally retains all scoring sources inside the memoized formula.
+	 *
+	 * @param queryContext used for accessing global index, global cache and recording query telemetry
+	 * @param indexType the type of the indexes to use
+	 * @param indexesToUse the indexes the filter is translated over
+	 * @param filterBy the filter constraints the entities must match
+	 * @param rootFilterBy the filter of the enclosing query, NULL when there is none
+	 * @param entitySchema the entity schema of the entity that is looked up
+	 * @param stepDescriptionSupplier the message supplier for the query telemetry
+	 * @param constraintCheckOnly true when the filter is translated only to be checked and its formula is thrown away
+	 * @param retainScores true to wrap the translated membership in a {@link ScoredFilterFormula}, so that the
+	 *                     reference score sources the visitor registered outside the formula tree survive the
+	 *                     visitor and later memo hits; false to return the bare membership formula
+	 * @return output {@link Formula} that is able to produce the matching entity primary keys
+	 */
+	@Nonnull
+	private static <T extends EntityIndex> Formula createFormulaForTheFilter(
+		@Nonnull QueryPlanningContext queryContext, @Nonnull Class<T> indexType,
+		@Nonnull List<T> indexesToUse, @Nonnull FilterBy filterBy, @Nullable FilterBy rootFilterBy,
+		@Nullable EntitySchemaContract entitySchema, @Nonnull Supplier<String> stepDescriptionSupplier,
+		boolean constraintCheckOnly, boolean retainScores
+	) {
 		final QueryPlanningContext localeContext = queryContext.getContextInLocale(
 			queryContext.getEntityType(), filterBy, QueryUtils.resolveLocale(filterBy), queryContext.getScopes(),
 			"resolve nested filter locale"
@@ -557,7 +611,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 
 								filterBy.accept(theFilterByVisitor);
 								// get the result and clear the visitor internal structures
-								return theFilterByVisitor.getFormulaAndClear();
+								final Formula membership = theFilterByVisitor.getFormulaAndClear();
+								return retainScores ? new ScoredFilterFormula(
+									membership, theFilterByVisitor.getAdditionalFulltextScoreSources()
+								) : membership;
 							}
 						)
 					)
@@ -747,14 +804,15 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Returns one source per reference name, text kind, target mapping kind and originating constraint
-	 * value. Equal constraints and scope/index copies of that place collapse. Nested sources carry their 0.5
-	 * reference weight; direct text uses reference attribute weights. Different places combine by best + t × others.
+	 * Retains the opaque structural identities of reference text places when sources cross a segment boundary.
+	 * Equal places from the main filter and the segment predicate collapse to their best copy, just as repeated
+	 * searches in one visitor do. Keys carry reference, text kind, mapping kind and originating constraint value.
 	 *
-	 * @return the score sources in the owner primary-key space; empty when no reference body searched fulltext
+	 * @return unmodifiable score sources in the owner primary-key space, one per reference text place, in
+	 *         registration order; empty when no reference body searched fulltext
 	 */
 	@Nonnull
-	public List<FulltextScoreAccessor> getAdditionalFulltextScores() {
+	public Map<?, FulltextScoreAccessor> getAdditionalFulltextScoreSources() {
 		final Map<ReferencedFulltextPlace, List<FulltextScoreAccessor>> places = CollectionUtils.createLinkedHashMap(
 			this.referencedFulltextScores.size()
 		);
@@ -762,11 +820,13 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			places.computeIfAbsent(registered.place(),
 				ignored -> new ArrayList<>(2)).add(registered.accessor());
 		}
-		final List<FulltextScoreAccessor> result = new ArrayList<>(places.size());
-		for (final List<FulltextScoreAccessor> place : places.values()) {
-			result.add(FulltextScoreCombiner.collapseSources(place.toArray(FulltextScoreAccessor[]::new)));
+		final Map<ReferencedFulltextPlace, FulltextScoreAccessor> result =
+			CollectionUtils.createLinkedHashMap(places.size());
+		for (final Map.Entry<ReferencedFulltextPlace, List<FulltextScoreAccessor>> place : places.entrySet()) {
+			result.put(place.getKey(),
+				FulltextScoreCombiner.collapseSources(place.getValue().toArray(FulltextScoreAccessor[]::new)));
 		}
-		return result;
+		return Collections.unmodifiableMap(result);
 	}
 
 	/**

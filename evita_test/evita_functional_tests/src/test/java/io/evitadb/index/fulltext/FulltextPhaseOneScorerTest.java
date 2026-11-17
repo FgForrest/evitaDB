@@ -23,10 +23,13 @@
 
 package io.evitadb.index.fulltext;
 
+import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula;
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula.ExpandedTerm;
 import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor.SourceIdentity;
 import io.evitadb.core.query.algebra.fulltext.FulltextScoreCombiner;
 import io.evitadb.core.query.algebra.fulltext.ReferenceOwnerFulltextScoreAccessor;
 import io.evitadb.index.bPlusTree.ImpactView;
@@ -37,6 +40,7 @@ import io.evitadb.index.bitmap.SortedArrayBitmap;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.MergeStrategy;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
+import io.evitadb.index.fulltext.FulltextScoringPolicy.Place;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -51,9 +55,13 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.Map;
 
+import static io.evitadb.api.query.QueryConstraints.textMatches;
 import static io.evitadb.index.fulltext.FulltextIndexTestSupport.defaultScoringPolicy;
 import static io.evitadb.index.fulltext.FulltextIndexTestSupport.scoreTopN;
 import static io.evitadb.test.TestTags.ENGINE;
@@ -155,7 +163,7 @@ class FulltextPhaseOneScorerTest {
 				target, ignored -> new BaseBitmap(1), () -> policy);
 			assertNotNull(reference);
 			final Result combined = FulltextScoreCombiner.combine(new int[]{1},
-				new FulltextScoreAccessor[]{own, reference}, policy);
+				new FulltextScoreAccessor[]{own, reference}, policy, Map.of());
 			assertEquals(expected * 8, FulltextScoringPolicy.strength(combined.composites()[0]));
 		}
 
@@ -166,8 +174,8 @@ class FulltextPhaseOneScorerTest {
 			final ExpandedTerm a = weightedTerm(0, 3, 0, 1, 100);
 			final ExpandedTerm b = weightedTerm(0, 3, 0, 1, 200);
 			final FulltextFormula formula = new FulltextFormula(new ExpandedTerm[][]{{a, b}, {a, b}}, null,
-				defaultScoringPolicy());
-			assertEquals(1200 * 8, FulltextScoringPolicy.strength(formula.getFulltextScores(new int[]{1})
+				defaultScoringPolicy(), Map.of(), null);
+			assertEquals(1200 * 8, FulltextScoringPolicy.strength(formula.getFulltextScores(new int[]{1}, Map.of())
 				.composites()[0]));
 		}
 
@@ -239,8 +247,8 @@ class FulltextPhaseOneScorerTest {
 			final FulltextFormula formula = new FulltextFormula(new ExpandedTerm[][]{
 				{weightedTerm(0, 3, 0, 1, 100, 2, 100)},
 				{weightedTerm(0, 3, 0, 1, 100), weightedTerm(1, 1, 0, 2, 100)}
-			}, null, policy);
-			final long[] scores = formula.getFulltextScores(new int[]{1, 2}).composites();
+			}, null, policy, Map.of(), null);
+			final long[] scores = formula.getFulltextScores(new int[]{1, 2}, Map.of()).composites();
 			assertEquals(scores[0] & FulltextScoringPolicy.QUALITY_MASK,
 				scores[1] & FulltextScoringPolicy.QUALITY_MASK);
 			assertEquals(600 * 8, FulltextScoringPolicy.strength(scores[0]));
@@ -254,8 +262,8 @@ class FulltextPhaseOneScorerTest {
 			final ExpandedTerm original = weightedTerm(0, 3, 0, 1, 100);
 			final ExpandedTerm part = weightedTerm(0, 3, 0, 1, 200);
 			final FulltextFormula formula = new FulltextFormula(new ExpandedTerm[][]{{original, part, part}},
-				new int[][]{{1, 2, 3}}, defaultScoringPolicy());
-			final long score = formula.getFulltextScores(new int[]{1}).composites()[0];
+				new int[][]{{1, 2, 3}}, defaultScoringPolicy(), Map.of(), null);
+			final long score = formula.getFulltextScores(new int[]{1}, Map.of()).composites()[0];
 			assertEquals(600 * 8, FulltextScoringPolicy.strength(score));
 			assertEquals(2, lane(score, 56));
 		}
@@ -266,8 +274,9 @@ class FulltextPhaseOneScorerTest {
 		void shouldQuantizeEachWordBeforeAdding() {
 			final ExpandedTerm term = weightedTerm(0, 0.0625f, 0, 1, 1);
 			final FulltextFormula formula = new FulltextFormula(new ExpandedTerm[][]{{term}, {term}}, null,
-				defaultScoringPolicy());
-			assertEquals(2, FulltextScoringPolicy.strength(formula.getFulltextScores(new int[]{1}).composites()[0]));
+				defaultScoringPolicy(), Map.of(), null);
+			assertEquals(2,
+				FulltextScoringPolicy.strength(formula.getFulltextScores(new int[]{1}, Map.of()).composites()[0]));
 		}
 
 		/** Each contribution is below the ceiling; their sum saturates without spilling into quality. */
@@ -276,8 +285,8 @@ class FulltextPhaseOneScorerTest {
 		void shouldSaturatePlaceWordSum() {
 			final ExpandedTerm term = weightedTerm(0, 20, 0, 1, 255);
 			final FulltextFormula formula = new FulltextFormula(new ExpandedTerm[][]{{term}, {term}}, null,
-				defaultScoringPolicy());
-			final long score = formula.getFulltextScores(new int[]{1}).composites()[0];
+				defaultScoringPolicy(), Map.of(), null);
+			final long score = formula.getFulltextScores(new int[]{1}, Map.of()).composites()[0];
 			assertEquals(65535, FulltextScoringPolicy.strength(score));
 			assertEquals(2, lane(score, 56));
 			assertEquals(255, lane(score, 40));
@@ -290,11 +299,12 @@ class FulltextPhaseOneScorerTest {
 			final FulltextFormula zero = formula(defaultScoringPolicy(), weightedTerm(0, 0, 0, 1, 200));
 			final FulltextFormula normal = formula(defaultScoringPolicy(), weightedTerm(0, 1, 0, 1, 200));
 			assertArrayEquals(new int[]{1}, zero.compute().getArray());
-			final long score = zero.getFulltextScores(new int[]{1, 2}).composites()[0];
+			final long score = zero.getFulltextScores(new int[]{1, 2}, Map.of()).composites()[0];
 			assertEquals(0, FulltextScoringPolicy.strength(score));
-			assertEquals(normal.getFulltextScores(new int[]{1}).composites()[0] & FulltextScoringPolicy.QUALITY_MASK,
+			assertEquals(
+				normal.getFulltextScores(new int[]{1}, Map.of()).composites()[0] & FulltextScoringPolicy.QUALITY_MASK,
 				score & FulltextScoringPolicy.QUALITY_MASK);
-			assertEquals(0, zero.getFulltextScores(new int[]{1, 2}).composites()[1]);
+			assertEquals(0, zero.getFulltextScores(new int[]{1, 2}, Map.of()).composites()[1]);
 		}
 
 		/** Quality always dominates even when the lower-quality place saturates strength. */
@@ -303,7 +313,7 @@ class FulltextPhaseOneScorerTest {
 		void shouldKeepQualityAboveAnyWeight() {
 			final FulltextFormula formula = formula(defaultScoringPolicy(),
 				weightedTerm(0, 0, 0, 1, 1), weightedTerm(1, Float.MAX_VALUE, 1, 2, 255));
-			final Result scores = formula.getFulltextScores(new int[]{1, 2});
+			final Result scores = formula.getFulltextScores(new int[]{1, 2}, Map.of());
 			assertEquals(65535, FulltextScoringPolicy.strength(scores.composites()[1]));
 			assertTrue(Long.compareUnsigned(scores.composites()[0], scores.composites()[1]) > 0);
 		}
@@ -316,8 +326,8 @@ class FulltextPhaseOneScorerTest {
 			for (final float weight : new float[]{0, 0.1f, 1, 3, 15, 31, 32, 100, Float.MAX_VALUE}) {
 				final FulltextFormula first = formula(defaultScoringPolicy(), weightedTerm(0, weight, 0, 1, 255));
 				final FulltextFormula replica = formula(defaultScoringPolicy(), weightedTerm(0, weight, 0, 1, 255));
-				final long composite = first.getFulltextScores(new int[]{1}).composites()[0];
-				assertEquals(composite, replica.getFulltextScores(new int[]{1}).composites()[0]);
+				final long composite = first.getFulltextScores(new int[]{1}, Map.of()).composites()[0];
+				assertEquals(composite, replica.getFulltextScores(new int[]{1}, Map.of()).composites()[0]);
 				assertTrue(Long.compareUnsigned(composite, previous) >= 0);
 				assertEquals(0, composite & 0xFFFFFFL);
 				previous = composite;
@@ -344,7 +354,7 @@ class FulltextPhaseOneScorerTest {
 				target, ignored -> new BaseBitmap(1), () -> policy);
 			assertNotNull(reference);
 			final Result result = FulltextScoreCombiner.combine(new int[]{1, 2},
-				new FulltextScoreAccessor[]{own, reference}, policy);
+				new FulltextScoreAccessor[]{own, reference}, policy, Map.of());
 			assertEquals(firstPk, FulltextPhaseOneScorer.selectTopN(new int[]{1, 2}, result.composites(), 1, 0)
 				.primaryKeys()[0]);
 		}
@@ -356,12 +366,12 @@ class FulltextPhaseOneScorerTest {
 			final FulltextFormula exact = formula(defaultScoringPolicy(), weightedTerm(0, 1, 0, 1, 50));
 			final FulltextFormula typo = formula(defaultScoringPolicy(), weightedTerm(0, 1, 1, 1, 200, 2, 100));
 			final int[] candidates = {1, 2, 3};
-			final Result exactScores = exact.getFulltextScores(candidates);
-			final Result typoScores = typo.getFulltextScores(candidates);
+			final Result exactScores = exact.getFulltextScores(candidates, Map.of());
+			final Result typoScores = typo.getFulltextScores(candidates, Map.of());
 			assertTrue(Long.compareUnsigned(exactScores.composites()[0] & FulltextScoringPolicy.QUALITY_MASK,
 				typoScores.composites()[0] & FulltextScoringPolicy.QUALITY_MASK) > 0);
 			final Result combined = FulltextScoreCombiner.combine(candidates,
-				new FulltextScoreAccessor[]{exact, typo}, defaultScoringPolicy());
+				new FulltextScoreAccessor[]{exact, typo}, defaultScoringPolicy(), Map.of());
 			assertEquals(exactScores.composites()[0] & FulltextScoringPolicy.QUALITY_MASK,
 				combined.composites()[0] & FulltextScoringPolicy.QUALITY_MASK);
 			assertEquals(defaultScoringPolicy().combine(200 * 8, (200 + 50) * 8),
@@ -379,10 +389,11 @@ class FulltextPhaseOneScorerTest {
 			final FulltextFormula exact = formula(defaultScoringPolicy(), weightedTerm(0, 1, 0, 1, 50));
 			final FulltextFormula typo = formula(defaultScoringPolicy(), weightedTerm(0, 1, 1, 1, 200, 2, 100));
 			final int[] candidates = {1, 2, 3};
-			final Result exactScores = exact.getFulltextScores(candidates);
-			final Result typoScores = typo.getFulltextScores(candidates);
+			final Result exactScores = exact.getFulltextScores(candidates, Map.of());
+			final Result typoScores = typo.getFulltextScores(candidates, Map.of());
 			for (final FulltextScoreAccessor[] copies : new FulltextScoreAccessor[][]{{exact, typo}, {typo, exact}}) {
-				final Result collapsed = FulltextScoreCombiner.collapseSources(copies).getFulltextScores(candidates);
+				final Result collapsed = FulltextScoreCombiner.collapseSources(copies)
+					.getFulltextScores(candidates, Map.of());
 				assertEquals((exactScores.composites()[0] & FulltextScoringPolicy.QUALITY_MASK)
 					| ((long) (200 * 8) << FulltextScoringPolicy.STRENGTH_SHIFT), collapsed.composites()[0]);
 				assertEquals(typoScores.composites()[1], collapsed.composites()[1]);
@@ -393,6 +404,85 @@ class FulltextPhaseOneScorerTest {
 			assertSame(exact, FulltextScoreCombiner.collapseSources(new FulltextScoreAccessor[]{exact}));
 			assertThrows(GenericEvitaInternalError.class,
 				() -> FulltextScoreCombiner.collapseSources(new FulltextScoreAccessor[0]));
+		}
+
+		/** One source, several sources and a collapsed source all score with the requesting ordering's weights. */
+		@Test
+		@DisplayName("should score every combined source with the weights of the requesting ordering")
+		void shouldScoreEverySourceWithOrderingWeights() {
+			final Place name = new Place(null, FulltextFieldKey.attribute("name"));
+			final Map<Place, Float> weights = Map.of(name, 3f);
+			final FulltextFormula first = placed(name, weightedTerm(0, 1, 0, 1, 200));
+			final FulltextFormula second = placed(name, weightedTerm(0, 1, 0, 2, 100));
+			final FulltextScoreAccessor[] both = {first, second};
+			final int[] candidates = {1, 2};
+
+			final Result unweighted = FulltextScoreCombiner.combine(candidates, new FulltextScoreAccessor[]{first},
+				defaultScoringPolicy(), Map.of());
+			final Result single = FulltextScoreCombiner.combine(candidates, new FulltextScoreAccessor[]{first},
+				defaultScoringPolicy(), weights);
+			final Result several = FulltextScoreCombiner.combine(candidates, both, defaultScoringPolicy(), weights);
+			final Result collapsed = FulltextScoreCombiner.collapseSources(both).getFulltextScores(candidates, weights);
+
+			assertEquals(200 * 8, FulltextScoringPolicy.strength(unweighted.composites()[0]));
+			assertEquals(600 * 8, FulltextScoringPolicy.strength(single.composites()[0]));
+			for (final Result result : new Result[]{several, collapsed}) {
+				assertEquals(600 * 8, FulltextScoringPolicy.strength(result.composites()[0]));
+				assertEquals(300 * 8, FulltextScoringPolicy.strength(result.composites()[1]));
+			}
+		}
+
+		/** A key present on both sides keeps its best copy, other keys stay apart and the merged copies stay intact. */
+		@Test
+		@DisplayName("should merge equally keyed sources to their best copy and keep other keys apart")
+		void shouldMergeEquallyKeyedSourcesToTheirBestCopy() {
+			final FulltextFormula exact = formula(defaultScoringPolicy(), weightedTerm(0, 1, 0, 1, 50));
+			final FulltextFormula typo = formula(defaultScoringPolicy(), weightedTerm(0, 1, 1, 1, 200, 2, 100));
+			final FulltextFormula other = formula(defaultScoringPolicy(), weightedTerm(0, 1, 0, 3, 100));
+			final int[] candidates = {1, 2, 3};
+			final Map<Object, FulltextScoreAccessor> sources = new LinkedHashMap<>();
+			sources.put("place", exact);
+			final Map<String, FulltextScoreAccessor> copies = new LinkedHashMap<>();
+			copies.put("place", typo);
+			copies.put("other", other);
+
+			FulltextScoreCombiner.mergeSources(sources, copies);
+
+			assertEquals(List.of("place", "other"), List.copyOf(sources.keySet()));
+			assertSame(other, sources.get("other"));
+			assertEquals(Map.of("place", typo, "other", other), copies);
+			final long[] merged = sources.get("place").getFulltextScores(candidates, Map.of()).composites();
+			final long exactFirst = exact.getFulltextScores(candidates, Map.of()).composites()[0];
+			assertEquals((exactFirst & FulltextScoringPolicy.QUALITY_MASK)
+				| ((long) (200 * 8) << FulltextScoringPolicy.STRENGTH_SHIFT), merged[0]);
+			assertEquals(typo.getFulltextScores(candidates, Map.of()).composites()[1], merged[1]);
+			assertEquals(0, merged[2]);
+		}
+
+		/** Copies of one search in a formula tree collapse by identity; a scoring search without one is refused. */
+		@Test
+		@DisplayName("should group formula-tree sources by their structural search identity")
+		void shouldGroupFormulaTreeSourcesBySearchIdentity() {
+			final TextMatches text = textMatches("quartz");
+			final SourceIdentity entity = new SourceIdentity(text, "product", Locale.ENGLISH, null);
+			final SourceIdentity reference = new SourceIdentity(text, "product", Locale.ENGLISH, "brand");
+			final FulltextFormula exact = identified(entity, weightedTerm(0, 1, 0, 1, 50));
+			final FulltextFormula typo = identified(entity, weightedTerm(0, 1, 1, 1, 200, 2, 100));
+			final FulltextFormula referenced = identified(reference, weightedTerm(0, 1, 0, 3, 100));
+			final FulltextFormula anonymous = formula(defaultScoringPolicy(), weightedTerm(0, 1, 0, 4, 10));
+			final int[] candidates = {1, 2, 3};
+
+			final Map<SourceIdentity, FulltextScoreAccessor> sources =
+				FulltextScoreCombiner.findSources(new OrFormula(exact, typo, referenced));
+
+			assertEquals(List.of(entity, reference), List.copyOf(sources.keySet()));
+			assertSame(referenced, sources.get(reference));
+			assertArrayEquals(
+				FulltextScoreCombiner.collapseSources(new FulltextScoreAccessor[]{exact, typo})
+					.getFulltextScores(candidates, Map.of()).composites(),
+				sources.get(entity).getFulltextScores(candidates, Map.of()).composites());
+			assertThrows(GenericEvitaInternalError.class,
+				() -> FulltextScoreCombiner.findSources(new OrFormula(exact, anonymous)));
 		}
 
 		/** A coefficient and each effective place weight / grouping participate even with identical postings. */
@@ -422,6 +512,33 @@ class FulltextPhaseOneScorerTest {
 				assertNotEquals(first, changed.computeHash(function));
 			}
 		}
+
+		/** Weights inserted in opposite orders hash alike, while a weight under another reference name does not. */
+		@Test
+		@DisplayName("should hash schema weights independently of their insertion order")
+		void shouldHashWeightsIndependentlyOfInsertionOrder() {
+			final FulltextFieldKey name = FulltextFieldKey.attribute("name");
+			final FulltextFieldKey body = FulltextFieldKey.associatedData("body");
+			final FulltextFieldKey label = FulltextFieldKey.referenceAttribute("brand", "label");
+			final Map<FulltextFieldKey, Float> forward = new LinkedHashMap<>();
+			forward.put(name, 3f);
+			forward.put(body, 1f);
+			forward.put(label, 2f);
+			final Map<FulltextFieldKey, Float> backward = new LinkedHashMap<>();
+			backward.put(label, 2f);
+			backward.put(body, 1f);
+			backward.put(name, 3f);
+			final Map<FulltextFieldKey, Float> renamed = new LinkedHashMap<>(forward);
+			renamed.remove(label);
+			renamed.put(FulltextFieldKey.referenceAttribute("category", "label"), 2f);
+
+			for (final LongHashFunction function : new LongHashFunction[]{
+				LongHashFunction.xx3(), LongHashFunction.xx(), LongHashFunction.city_1_1()}) {
+				final long hash = new FulltextScoringPolicy(forward).computeHash(function);
+				assertEquals(hash, new FulltextScoringPolicy(backward).computeHash(function));
+				assertNotEquals(hash, new FulltextScoringPolicy(renamed).computeHash(function));
+			}
+		}
 	}
 
 	/** Creates one weighted real posting source. */
@@ -432,7 +549,19 @@ class FulltextPhaseOneScorerTest {
 
 	/** Creates a one-word formula retaining explicit effective policy and real postings. */
 	private static FulltextFormula formula(FulltextScoringPolicy policy, ExpandedTerm... expansions) {
-		return new FulltextFormula(new ExpandedTerm[][]{expansions}, null, policy);
+		return new FulltextFormula(new ExpandedTerm[][]{expansions}, null, policy, Map.of(), null);
+	}
+
+	/** Creates a one-word formula whose terms belong to `place`, so an ordering weight of that place applies. */
+	private static FulltextFormula placed(Place place, ExpandedTerm... expansions) {
+		return new FulltextFormula(new ExpandedTerm[][]{expansions}, null, defaultScoringPolicy(),
+			Map.of(0, place), null);
+	}
+
+	/** Creates a one-word formula carrying the structural identity of the search it was prepared for. */
+	private static FulltextFormula identified(SourceIdentity identity, ExpandedTerm... expansions) {
+		return new FulltextFormula(new ExpandedTerm[][]{expansions}, null, defaultScoringPolicy(), Map.of(),
+			identity);
 	}
 
 	@Nested
@@ -1101,15 +1230,19 @@ class FulltextPhaseOneScorerTest {
 					return true;
 				}
 
+				/** Supplies the fixture's aligned score vector through the production scoring contract. */
 				@Nonnull
 				@Override
-				public Result getFulltextScores(@Nonnull int[] candidates) {
+				public Result getFulltextScores(
+					@Nonnull int[] candidates,
+					@Nonnull Map<FulltextScoringPolicy.Place, Float> weights
+				) {
 					return new Result(candidates, new long[candidates.length - 1], 0, 0);
 				}
 			};
 			final FulltextFormula aligned = formula(defaultScoringPolicy(), weightedTerm(0, 1, 0, 1, 50));
 			assertThrows(GenericEvitaInternalError.class, () -> FulltextScoreCombiner.combine(new int[]{1, 2},
-				new FulltextScoreAccessor[]{aligned, misaligned}, defaultScoringPolicy()));
+				new FulltextScoreAccessor[]{aligned, misaligned}, defaultScoringPolicy(), Map.of()));
 		}
 
 	}

@@ -29,9 +29,9 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
+import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.api.query.visitor.QueryPurifierVisitor;
-import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -43,6 +43,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -51,9 +53,10 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.ORDER;
 import static io.evitadb.test.TestTags.QUERY;
+import static java.math.BigDecimal.valueOf;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Contracts for named weights, level boundaries, shared numbers and lossless ordinary EvitaQL forms. */
+/** Contracts for named weights, level boundaries, shared numbers and lossless decimal EvitaQL forms. */
 @Tag(CONTRACT)
 @Tag(ORDER)
 @Tag(QUERY)
@@ -62,13 +65,16 @@ class TextPlaceWeightsTest {
 	/** Supplies every leaf and container shape, including empty containers retained for planning validation. */
 	@Nonnull
 	static Stream<OrderConstraint> forms() {
-		return Stream.of(attributeWeight("name", 3), associatedDataWeight("body", 0.5f),
-			referenceWeight("links"), entityWeight(), entityWeight(attributeWeight("name", 2)),
-			entityWeight(associatedDataWeight("body", 4)), referenceWeight("links", attributeWeight("name", 2)),
-			referenceWeight("links", entityWeight(attributeWeight("name", 2), associatedDataWeight("body", 4))),
-			relevanceText(), relevanceText(attributeWeight("name", 3)),
-			relevanceText(attributeWeight("name", 3), associatedDataWeight("body", 0.5f),
-				referenceWeight("links", attributeWeight("name", 2), entityWeight(attributeWeight("name", 5)))));
+		return Stream.of(attributeWeight("name", valueOf(3)), associatedDataWeight("body", new BigDecimal("0.5")),
+			referenceWeight("links"), entityWeight(), entityWeight(attributeWeight("name", valueOf(2))),
+			entityWeight(associatedDataWeight("body", valueOf(4))),
+			referenceWeight("links", attributeWeight("name", valueOf(2))),
+			referenceWeight("links", entityWeight(attributeWeight("name", valueOf(2)),
+				associatedDataWeight("body", valueOf(4)))),
+			relevanceText(), relevanceText(attributeWeight("name", valueOf(3))),
+			relevanceText(attributeWeight("name", valueOf(3)), associatedDataWeight("body", new BigDecimal("0.5")),
+				referenceWeight("links", attributeWeight("name", valueOf(2)),
+					entityWeight(attributeWeight("name", valueOf(5))))));
 	}
 
 	/** Each level retains its boundary and supplied order through parser and clone visitors. */
@@ -93,46 +99,52 @@ class TextPlaceWeightsTest {
 		}
 	}
 
-	/** Numbers accepted as ordinary literals must retain their float value after shared normalization. */
+	/** Integer and decimal literals retain their full decimal precision through both printing paths. */
 	@ParameterizedTest
-	@ValueSource(strings = {"3", "3.0", "0.5", "0", "0.123456789123456789"})
-	@DisplayName("Round trips integer, decimal, zero and many-decimal weight literals")
-	void shouldRoundTripOrdinaryNumberForms(@Nonnull String number) {
+	@ValueSource(strings = {"0.0000001", "12345678.5", "0", "3", "3.0", "0.123456789123456789",
+		"0.0000000000000000000000000000000000000000000014", "340282350000000000000000000000000000000"})
+	@DisplayName("Round trips plain decimal weights losslessly through text and extracted parameters")
+	void shouldRoundTripNumberForms(@Nonnull String number) {
 		final DefaultQueryParser parser = DefaultQueryParser.getInstance();
-		final OrderConstraint parsed = parser.parseOrderConstraintUnsafe("attributeWeight('name'," + number + ")")
-			.getChildren()[0];
-		assertEquals(parsed, parser.parseOrderConstraintUnsafe(parsed.toString()).getChildren()[0]);
-	}
-
-	/** Shared formatting uses exponents at both extremes, with nonmonotonic large-number plain exceptions. */
-	@Test
-	@DisplayName("Pins the known limitation of shared number formatting at exponent boundaries")
-	void shouldPinKnownLimitationOfSharedNumberFormatting() {
-		final DefaultQueryParser parser = DefaultQueryParser.getInstance();
-		for (final float plain : new float[]{0f, 0.000001f, 9_999_999f, 12_345_678f, 134_217_704f}) {
-			final AttributeWeight weight = attributeWeight("name", plain);
-			assertEquals(orderBy(weight), parser.parseOrderConstraintUnsafe(weight.toString()));
-		}
-		for (final float exponent : new float[]{Float.MIN_VALUE, Math.nextDown(0.000001f), 10_000_000f,
-			Math.nextUp(134_217_704f), Float.MAX_VALUE}) {
-			final String formatted = attributeWeight("name", exponent).toString();
-			assertTrue(formatted.substring(formatted.lastIndexOf(',') + 1).contains("e"), formatted);
-			assertThrows(EvitaSyntaxException.class, () -> parser.parseOrderConstraintUnsafe(formatted));
+		for (final String name : new String[]{"attributeWeight", "associatedDataWeight"}) {
+			final OrderConstraint parsed = parser.parseOrderConstraintUnsafe(name + "('name'," + number + ")")
+				.getChildren()[0];
+			final BigDecimal expected = new BigDecimal(number).stripTrailingZeros();
+			assertEquals(0, expected.compareTo((BigDecimal) parsed.getArguments()[1]));
+			final String printed = parsed.toString();
+			assertFalse(printed.substring(printed.lastIndexOf(',')).matches(".*[eE].*"), printed);
+			assertEquals(parsed, parser.parseOrderConstraintUnsafe(printed).getChildren()[0]);
+			final StringWithParameters extracted = PrettyPrintingVisitor.toStringWithParameterExtraction(parsed);
+			assertFalse(extracted.query().matches(".*[eE][+-]?[0-9]+.*"), extracted.query());
+			assertEquals(orderBy(parsed), parser.parseOrderConstraint(
+				extracted.query(), extracted.parameters().toArray()));
 		}
 	}
 
-	/** Shared argument normalization rejects non-finite values before a query can be planned. */
+	/** Canonical arguments make equality, hashes and text independent of decimal scale, including zero. */
 	@Test
-	@DisplayName("Rejects non-finite numbers during construction")
-	void shouldRejectNonFiniteWeightsDuringConstruction() {
-		for (final float value : new float[]{Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY}) {
-			assertThrows(UnsupportedDataTypeException.class, () -> new AttributeWeight("name", value));
-			assertThrows(UnsupportedDataTypeException.class, () -> associatedDataWeight("body", value));
+	@DisplayName("Normalizes scale once and retains BigDecimal arguments")
+	void shouldNormalizeWeightScale() {
+		for (final String number : new String[]{"1", "3", "0", "10000000"}) {
+			final BigDecimal value = new BigDecimal(number);
+			final AttributeWeight attribute = attributeWeight("name", value);
+			final AssociatedDataWeight data = associatedDataWeight("body", value);
+			for (final int scale : new int[]{0, 1, 2}) {
+				final AttributeWeight scaledAttribute = attributeWeight("name", value.setScale(scale));
+				final AssociatedDataWeight scaledData = associatedDataWeight("body", value.setScale(scale));
+				assertEquals(attribute, scaledAttribute);
+				assertEquals(data, scaledData);
+				assertEquals(attribute.hashCode(), scaledAttribute.hashCode());
+				assertEquals(data.hashCode(), scaledData.hashCode());
+				assertEquals(attribute.toString(), scaledAttribute.toString());
+				assertEquals(data.toString(), scaledData.toString());
+				assertEquals(value, scaledAttribute.getWeight());
+				assertEquals(value, scaledData.getWeight());
+				assertSame(scaledAttribute.getWeight(), scaledAttribute.getArguments()[1]);
+				assertSame(scaledData.getWeight(), scaledData.getArguments()[1]);
+			}
 		}
-		assertEquals(Float.floatToIntBits(0f), Float.floatToIntBits(attributeWeight("name", -0.0f).getWeight()));
-		assertEquals(attributeWeight("name", 0f), attributeWeight("name", -0.0f));
-		assertEquals(associatedDataWeight("body", 0f), associatedDataWeight("body", -0.0f));
-		assertEquals(-1f, attributeWeight("name", -1f).getWeight());
+		assertEquals(valueOf(-1), attributeWeight("name", valueOf(-1)).getWeight());
 	}
 
 	/**
@@ -140,26 +152,28 @@ class TextPlaceWeightsTest {
 	 * and a bound `Float` or `Double` is refused whatever its value.
 	 */
 	@Test
-	@DisplayName("Refuses a bound Float or Double weight regardless of its value")
-	void shouldRefuseBoundFloatWeight() {
-		for (final float value : new float[]{2.5f, Float.NaN, Float.POSITIVE_INFINITY}) {
+	@DisplayName("Refuses binary floating query parameters even though weights are decimal")
+	void shouldRefuseBoundBinaryFloatingWeight() {
+		for (final float value : new float[]{2.5f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY}) {
 			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParser.getInstance()
 				.parseOrderConstraint("attributeWeight(?,?)", "name", value));
 			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParser.getInstance()
 				.parseOrderConstraint("associatedDataWeight(?,?)", "body", value));
 		}
-		assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParser.getInstance()
-			.parseOrderConstraint("attributeWeight(?,?)", "name", 2.5d));
+		for (final double value : new double[]{2.5d, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParser.getInstance()
+				.parseOrderConstraint("attributeWeight(?,?)", "name", value));
+			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParser.getInstance()
+				.parseOrderConstraint("associatedDataWeight(?,?)", "body", value));
+		}
 	}
 
-	/**
-	 * A client sends a query as text with extracted parameters. Weights travel as `BigDecimal` parameters there,
-	 * so even the values whose printed literal uses an exponent arrive unchanged.
-	 */
+	/** Complete client queries retain exact decimal weights in literals and extracted BigDecimal parameters. */
 	@Test
-	@DisplayName("Keeps every weight through parameter extraction and parsing")
+	@DisplayName("Keeps every weight through full-query text and parameter extraction")
 	void shouldKeepWeightsThroughParameterExtraction() {
-		for (final float value : new float[]{0f, 0.5f, 3f, 1e-7f, Float.MIN_VALUE, 1e7f, 2e9f, Float.MAX_VALUE}) {
+		for (final String number : new String[]{"0", "0.5", "3", "1E-7", "1.4E-45", "1E+7", "3.4028235E+38"}) {
+			final BigDecimal value = new BigDecimal(number);
 			final Query original = query(
 				collection("product"),
 				orderBy(relevanceText(
@@ -168,9 +182,9 @@ class TextPlaceWeightsTest {
 				))
 			);
 			final StringWithParameters extracted = original.toStringWithParameterExtraction();
-			final Query parsed = DefaultQueryParser.getInstance()
-				.parseQuery(extracted.query(), extracted.parameters().toArray());
-			assertEquals(original, parsed, "Weight " + value + " must survive the client round trip.");
+			final DefaultQueryParser parser = DefaultQueryParser.getInstance();
+			assertEquals(original, parser.parseQueryUnsafe(original.toString()));
+			assertEquals(original, parser.parseQuery(extracted.query(), extracted.parameters().toArray()));
 		}
 	}
 
@@ -179,39 +193,122 @@ class TextPlaceWeightsTest {
 	@DisplayName("Validates names and serialized argument shapes")
 	void shouldValidateNamesAndArguments() {
 		for (final String invalid : new String[]{null, "", "  "}) {
-			assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight(invalid, 1));
-			assertThrows(EvitaInvalidUsageException.class, () -> new AssociatedDataWeight(invalid, 1));
-			assertThrows(EvitaInvalidUsageException.class, () -> referenceWeight(invalid, attributeWeight("a", 1)));
-			assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight("a", 1)
-				.cloneWithArguments(new Serializable[]{invalid, 1}));
+			assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight(invalid, BigDecimal.ONE));
+			assertThrows(EvitaInvalidUsageException.class, () -> new AssociatedDataWeight(invalid, BigDecimal.ONE));
+			assertThrows(EvitaInvalidUsageException.class,
+				() -> referenceWeight(invalid, attributeWeight("a", BigDecimal.ONE)));
+			assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight("a", BigDecimal.ONE)
+				.cloneWithArguments(new Serializable[]{invalid, BigDecimal.ONE}));
 		}
-		assertEquals("name", attributeWeight("name", 3).getAttributeName());
-		assertEquals("body", associatedDataWeight("body", 3).getAssociatedDataName());
+		assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight("name", null));
+		assertThrows(EvitaInvalidUsageException.class, () -> associatedDataWeight("body", null));
+		for (final Serializable invalid : new Serializable[]{null, 1, 1L, 1f, 1d, "1"}) {
+			assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight("a", BigDecimal.ONE)
+				.cloneWithArguments(new Serializable[]{"a", invalid}));
+			assertThrows(EvitaInvalidUsageException.class, () -> associatedDataWeight("a", BigDecimal.ONE)
+				.cloneWithArguments(new Serializable[]{"a", invalid}));
+		}
+		assertEquals("name", attributeWeight("name", valueOf(3)).getAttributeName());
+		assertEquals("body", associatedDataWeight("body", valueOf(3)).getAssociatedDataName());
 		assertEquals("links", referenceWeight("links").getReferenceName());
-		assertEquals(attributeWeight("b", 2), attributeWeight("a", 1).cloneWithArguments(new Serializable[]{"b", 2}));
-		assertEquals(associatedDataWeight("b", 2), associatedDataWeight("a", 1)
-			.cloneWithArguments(new Serializable[]{"b", 2}));
+		assertEquals(attributeWeight("b", valueOf(2)), attributeWeight("a", BigDecimal.ONE)
+			.cloneWithArguments(new Serializable[]{"b", valueOf(2)}));
+		assertEquals(associatedDataWeight("b", valueOf(2)), associatedDataWeight("a", BigDecimal.ONE)
+			.cloneWithArguments(new Serializable[]{"b", valueOf(2)}));
 		assertThrows(EvitaInvalidUsageException.class,
-			() -> attributeWeight("a", 1).cloneWithArguments(new Serializable[]{"a"}));
+			() -> attributeWeight("a", BigDecimal.ONE).cloneWithArguments(new Serializable[]{"a"}));
 		assertThrows(EvitaInvalidUsageException.class,
-			() -> associatedDataWeight("a", 1).cloneWithArguments(new Serializable[]{"a", "1"}));
+			() -> associatedDataWeight("a", BigDecimal.ONE).cloneWithArguments(new Serializable[]{"a", "1"}));
 		assertThrows(EvitaInvalidUsageException.class,
 			() -> referenceWeight("links").cloneWithArguments(new Serializable[0]));
 		assertThrows(EvitaInvalidUsageException.class,
 			() -> entityWeight().cloneWithArguments(new Serializable[]{"a"}));
 	}
 
+	/** Compact exponents must be refused before normalization expands their mantissa. */
+	@Test
+	@DisplayName("Refuses million-digit weight expansion at construction")
+	void shouldBoundDecimalWeightExpansion() {
+		final BigDecimal value = new BigDecimal("1E+1000000");
+		assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight("a", value));
+		assertThrows(EvitaInvalidUsageException.class, () -> associatedDataWeight("a", value));
+	}
+
+	/** Extreme scale representations must produce ordinary usage errors without arithmetic or string allocation. */
+	@Test
+	@DisplayName("Refuses extreme scales for both weight leaves with bounded diagnostics")
+	void shouldBoundExtremeWeightScales() {
+		for (final int scale : new int[]{Integer.MIN_VALUE, Integer.MAX_VALUE}) {
+			for (final BigInteger mantissa : new BigInteger[]{BigInteger.ONE, BigInteger.TEN}) {
+				final BigDecimal value = new BigDecimal(mantissa, scale);
+				final EvitaInvalidUsageException attribute = assertThrows(EvitaInvalidUsageException.class,
+					() -> attributeWeight("a", value));
+				final EvitaInvalidUsageException data = assertThrows(EvitaInvalidUsageException.class,
+					() -> associatedDataWeight("a", value));
+				assertTrue(attribute.getMessage().length() < 500);
+				assertTrue(data.getMessage().length() < 500);
+			}
+		}
+	}
+
+	/** Bounds apply to the stripped value, while every accepted normalized weight still prints in plain notation. */
+	@Test
+	@DisplayName("Accepts the inclusive precision and scale limits after stripping zeros")
+	void shouldAcceptDecimalRepresentationBoundaries() {
+		final BigInteger maximumPrecision = new BigInteger("1".repeat(100));
+		for (final BigDecimal value : new BigDecimal[]{
+			new BigDecimal(maximumPrecision, -100), new BigDecimal(maximumPrecision, 100),
+			new BigDecimal(BigInteger.TEN, 101), new BigDecimal(maximumPrecision.multiply(BigInteger.TEN), 1),
+			new BigDecimal(BigInteger.ZERO, Integer.MIN_VALUE),
+			new BigDecimal(BigInteger.ZERO, Integer.MAX_VALUE)
+		}) {
+			final AttributeWeight attribute = attributeWeight("a", value);
+			final AssociatedDataWeight data = associatedDataWeight("a", value);
+			assertEquals(0, value.compareTo(attribute.getWeight()));
+			assertEquals(attribute.getWeight(), data.getWeight());
+			assertEquals("attributeWeight('a'," + attribute.getWeight().toPlainString() + ")", attribute.toString());
+			assertEquals("associatedDataWeight('a'," + data.getWeight().toPlainString() + ")", data.toString());
+		}
+		for (final BigDecimal value : new BigDecimal[]{
+			new BigDecimal("1".repeat(101)), new BigDecimal(BigInteger.ONE, -101),
+			new BigDecimal(BigInteger.ONE, 101)
+		}) {
+			assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight("a", value));
+			assertThrows(EvitaInvalidUsageException.class, () -> associatedDataWeight("a", value));
+		}
+	}
+
+	/** Literal and bound parser inputs follow the same bounded constructor policy. */
+	@Test
+	@DisplayName("Refuses excessive literal precision and compact extreme-scale parameters cleanly")
+	void shouldBoundParsedWeights() {
+		final DefaultQueryParser parser = DefaultQueryParser.getInstance();
+		for (final String kind : new String[]{"attributeWeight", "associatedDataWeight"}) {
+			assertThrows(EvitaSyntaxException.class,
+				() -> parser.parseOrderConstraintUnsafe(kind + "('a'," + "1".repeat(101) + ")"));
+			assertThrows(EvitaSyntaxException.class,
+				() -> parser.parseOrderConstraint(kind + "(?,?)", "a",
+					new BigDecimal(BigInteger.ONE, Integer.MIN_VALUE)));
+			assertThrows(EvitaSyntaxException.class,
+				() -> parser.parseOrderConstraint(kind + "(?,?)", "a",
+					new BigDecimal(BigInteger.ONE, Integer.MAX_VALUE)));
+		}
+	}
+
 	/** Duplicate places must remain a list until the planner refuses them, also across nested containers. */
 	@Test
 	@DisplayName("Retains duplicate places and exact child order through full query normalization")
 	void shouldPreserveWeightsAndDuplicatesDuringNormalization() {
-		final RelevanceText weights = relevanceText(associatedDataWeight("body", 1), attributeWeight("name", 3),
-			attributeWeight("name", 3), referenceWeight("links", entityWeight(associatedDataWeight("body", 2))));
+		final RelevanceText weights = relevanceText(associatedDataWeight("body", BigDecimal.ONE),
+			attributeWeight("name", valueOf(3)),
+			attributeWeight("name", valueOf(3)),
+			referenceWeight("links", entityWeight(associatedDataWeight("body", valueOf(2)))));
 		final Query original = query(collection("Item"), orderBy(weights));
 		assertEquals(original, original.normalizeQuery());
 		assertEquals(original, DefaultQueryParser.getInstance().parseQueryUnsafe(original.toString()));
 		assertEquals(4, weights.getChildrenCount());
-		assertNotEquals(relevanceText(attributeWeight("a", 1)), relevanceText(attributeWeight("a", 2)));
+		assertNotEquals(relevanceText(attributeWeight("a", BigDecimal.ONE)),
+			relevanceText(attributeWeight("a", valueOf(2))));
 	}
 
 	/** Child copies enforce the same level markers as the typed constructors. */
@@ -219,7 +316,7 @@ class TextPlaceWeightsTest {
 	@DisplayName("Refuses wrong-level and additional children")
 	void shouldRejectWrongLevels() {
 		assertThrows(EvitaInvalidUsageException.class, () -> referenceWeight("links").getCopyWithNewChildren(
-			new OrderConstraint[]{associatedDataWeight("body", 1)}, new Constraint<?>[0]));
+			new OrderConstraint[]{associatedDataWeight("body", BigDecimal.ONE)}, new Constraint<?>[0]));
 		assertThrows(EvitaInvalidUsageException.class, () -> entityWeight().getCopyWithNewChildren(
 			new OrderConstraint[]{referenceWeight("links")}, new Constraint<?>[0]));
 		assertThrows(EvitaInvalidUsageException.class, () -> entityWeight().getCopyWithNewChildren(
@@ -241,17 +338,17 @@ class TextPlaceWeightsTest {
 			() -> DefaultQueryParser.getInstance().parseOrderConstraintUnsafe(input));
 	}
 
-	/** Bound weights accept every numeric query data type and convert it to the same float weight. */
+	/** Bound weights accept every numeric query data type and normalize it to the same BigDecimal weight. */
 	@Test
 	@DisplayName("Accepts numeric bound weights and refuses a non-numeric one")
 	void shouldAcceptNumericBoundWeights() {
 		final DefaultQueryParser parser = DefaultQueryParser.getInstance();
-		for (final Number weight : new Number[]{(byte) 3, (short) 3, 3, 3L, new BigDecimal("3")}) {
+		for (final Number weight : new Number[]{(byte) 3, (short) 3, 3, 3L, valueOf(3), new BigDecimal("3.00")}) {
 			final Map<String, Object> bindings = Map.of("name", "name", "weight", weight);
 
-			assertEquals(orderBy(attributeWeight("name", 3)),
+			assertEquals(orderBy(attributeWeight("name", valueOf(3))),
 				parser.parseOrderConstraint("attributeWeight(@name,@weight)", bindings), weight.getClass().getName());
-			assertEquals(orderBy(associatedDataWeight("name", 3)),
+			assertEquals(orderBy(associatedDataWeight("name", valueOf(3))),
 				parser.parseOrderConstraint("associatedDataWeight(?,?)", "name", weight), weight.getClass().getName());
 		}
 		assertThrows(EvitaSyntaxException.class,
@@ -260,12 +357,27 @@ class TextPlaceWeightsTest {
 			() -> parser.parseOrderConstraint("associatedDataWeight(?,?)", "name", "3"));
 	}
 
+	/** Null bound weights follow mandatory-name validation; decimal literal parsing still requires unsafe mode. */
+	@Test
+	@DisplayName("Refuses null bound weights and literals in safe mode")
+	void shouldRefuseNullWeightsAndSafeLiterals() {
+		final DefaultQueryParser parser = DefaultQueryParser.getInstance();
+		for (final String name : new String[]{"attributeWeight", "associatedDataWeight"}) {
+			assertThrows(EvitaSyntaxException.class,
+				() -> parser.parseOrderConstraint(name + "(?,?)", "name", null));
+			assertThrows(EvitaSyntaxException.class,
+				() -> parser.parseOrderConstraint(name + "(?,3)", "name"));
+			assertThrows(EvitaSyntaxException.class,
+				() -> parser.parseOrderConstraint(name + "(?,3.0)", "name"));
+		}
+	}
+
 	/** Bound null/blank names follow the selector constructor contract. */
 	@Test
 	@DisplayName("Refuses invalid bound names")
 	void shouldRejectInvalidBoundNames() {
 		for (final String invalid : new String[]{null, "", " "}) {
-			final Map<String, Object> bindings = new java.util.HashMap<>();
+			final Map<String, Object> bindings = new HashMap<>();
 			bindings.put("name", invalid);
 			bindings.put("weight", 1);
 			assertThrows(EvitaSyntaxException.class, () -> DefaultQueryParser.getInstance()

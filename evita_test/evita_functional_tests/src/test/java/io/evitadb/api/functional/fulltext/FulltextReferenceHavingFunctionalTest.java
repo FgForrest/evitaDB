@@ -727,12 +727,13 @@ class FulltextReferenceHavingFunctionalTest {
 				final QueryPlan plan = QueryPlanner.planQuery(context);
 				final FulltextScoreAccessor[] sources = field(plan.getSorters().iterator().next(), "accessors");
 				plan.execute();
-				final long owner = FulltextScoreCombiner.combine(OWNERS, sources, context.getFulltextScoringPolicy())
+				final long owner = FulltextScoreCombiner.combine(
+					OWNERS, sources, context.getFulltextScoringPolicy(), Map.of())
 					.composites()[2];
 				final FulltextFormula union = field(sources[0], "union");
 
 				assertNotEquals(0L, owner, "Owner 3 matches within one row and must score");
-				assertEquals(union.getFulltextScores(OWNERS).composites()[2], owner,
+				assertEquals(union.getFulltextScores(OWNERS, Map.of()).composites()[2], owner,
 					"Direct text must keep the union impact with no referenced-entity 0.5 multiplier");
 			});
 		}
@@ -838,9 +839,9 @@ class FulltextReferenceHavingFunctionalTest {
 				for (final FulltextScoreAccessor source : mixedSources) {
 					if (source instanceof ReferenceFulltextScoreAccessor) {
 						direct++;
-						assertEquals(0L, source.getFulltextScores(new int[]{1}).composites()[0]);
+						assertEquals(0L, source.getFulltextScores(new int[]{1}, Map.of()).composites()[0]);
 					}
-					if (source.getFulltextScores(new int[]{1}).composites()[0] != 0L) {
+					if (source.getFulltextScores(new int[]{1}, Map.of()).composites()[0] != 0L) {
 						positiveDecoy++;
 					}
 				}
@@ -864,7 +865,7 @@ class FulltextReferenceHavingFunctionalTest {
 				assertEquals(1, scopedSources.length, "Scope copies of one direct constraint collapse");
 				scopedPlan.getFilter().initialize(context.getInternalExecutionContext());
 				assertArrayEquals(new int[]{3, 201}, scopedPlan.getFilter().compute().getArray());
-				for (final long score : scopedSources[0].getFulltextScores(new int[]{3, 201}).composites()) {
+				for (final long score : scopedSources[0].getFulltextScores(new int[]{3, 201}, Map.of()).composites()) {
 					assertNotEquals(0L, score);
 				}
 			});
@@ -892,16 +893,16 @@ class FulltextReferenceHavingFunctionalTest {
 				for (final FulltextScoreAccessor source : sources) {
 					if (source instanceof ReferenceOwnerFulltextScoreAccessor) {
 						mapped++;
-						assertNotEquals(0L, source.getFulltextScores(new int[]{2}).composites()[0]);
+						assertNotEquals(0L, source.getFulltextScores(new int[]{2}, Map.of()).composites()[0]);
 					} else if (source instanceof ReferenceFulltextScoreAccessor) {
 						direct++;
-						assertEquals(0L, source.getFulltextScores(new int[]{2}).composites()[0]);
+						assertEquals(0L, source.getFulltextScores(new int[]{2}, Map.of()).composites()[0]);
 					}
 				}
 				assertEquals(2, mapped, "Entity and group mappings keep their distinct weighted places");
 				assertEquals(1, direct);
 				final long[] combined = FulltextScoreCombiner.combine(new int[]{1, 2}, sources,
-					context.getFulltextScoringPolicy()).composites();
+					context.getFulltextScoringPolicy(), Map.of()).composites();
 				assertTrue(FulltextScoringPolicy.strength(combined[0]) > FulltextScoringPolicy.strength(combined[1]));
 				final EvitaResponse<EntityReference> response = session.query(query, EntityReference.class);
 				assertArrayEquals(new int[]{1, 2}, response.getRecordData().stream()
@@ -1069,7 +1070,7 @@ class FulltextReferenceHavingFunctionalTest {
 				final int[] order = response.getRecordData().stream()
 					.mapToInt(EntityReference::getPrimaryKey).toArray();
 				final long[] actual = FulltextScoreCombiner.combine(OWNERS, sources,
-					context.getFulltextScoringPolicy()).composites();
+					context.getFulltextScoringPolicy(), Map.of()).composites();
 				if (expected == null) {
 					expected = actual;
 					expectedOrder = order;

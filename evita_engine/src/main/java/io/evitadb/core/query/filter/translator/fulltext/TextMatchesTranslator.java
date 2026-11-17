@@ -49,6 +49,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor.SourceIdentity;
 import io.evitadb.core.query.algebra.fulltext.FulltextFormula.ExpandedTerm;
 import io.evitadb.core.query.algebra.fulltext.ReferenceFulltextFormula;
 import io.evitadb.core.query.algebra.fulltext.ReferenceFulltextScoreAccessor;
@@ -93,6 +94,7 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -237,7 +239,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 			resolveFields(textMatches, entitySchema, scopes) :
 			resolveReferenceFields(textMatches, entitySchema, referenceSchema, scopes);
 		final FulltextScoringPolicy scoringPolicy = filterByVisitor.getQueryContext()
-			.getFulltextScoringPolicy(entitySchema);
+			.getFulltextSchemaScoringPolicy(entitySchema);
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
 		final FulltextAnalyzerRegistry analyzerRegistry = queryContext.getFulltextAnalyzerRegistry();
 		final String entityType = entitySchema.getName();
@@ -363,7 +365,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 								queryContext, entitySchema, scope, locale, fulltextIndex, groupsByScope.get(scope),
 								searchTokens, unfinished, expansion,
 								globalIndex.getRecordsWithLanguageFormula(locale).getEstimatedCardinality(),
-								scoringPolicy
+								scoringPolicy, new SourceIdentity(textMatches, entityType, locale,
+									referenceSchema == null ? null : referenceSchema.getName())
 							);
 							return referenceSchema != null && prepared instanceof FulltextFormula union ?
 								createReferenceFormula(fulltextIndex, union, queryContext, entitySchema,
@@ -461,15 +464,14 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	}
 
 	/**
-	 * Distinguishes the target inputs of composed places in the root context's shared memo: the owner's effective
-	 * policy, whose composed-place overrides change composed weights, target indexes, target scopes, target scoring
-	 * policies and the composing references with their weights. The processed scopes and the selectors are separate
-	 * parts of the memo key.
+	 * Distinguishes the target inputs of composed places in the root context's shared memo: schema defaults,
+	 * target indexes, target scopes and the composing references with their schema weights. The processed scopes and
+	 * selectors are separate parts of the memo key.
 	 * @param groups searched own and composed groups
 	 * @param context snapshot index and policy resolver
 	 * @param locale query locale
 	 * @param ownIndex already resolved owner index, null when the owner has only composed places
-	 * @param scoringPolicy owner policy carrying final composed-place overrides
+	 * @param scoringPolicy owner schema defaults; ordering weights never enter preparation or its identity
 	 * @return query-local source identity
 	 */
 	private static long sourceIdentity(
@@ -1275,7 +1277,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * @param unfinished whether the raw text ends with an unclosed word
 	 * @param expansion query-local walkers and submitted-search policy shared across scopes and groups
 	 * @param documentCount cardinality of the scope global index's locale bitmap, known before query execution
-	 * @param scoringPolicy effective place weights and coefficient resolved before empty-index shortcuts
+	 * @param scoringPolicy schema place weights and coefficient
+	 * @param sourceIdentity structural search origin, excluding the processed scopes used by preparation
 	 * @return retained union preparation used directly at top level and as the reference matcher's scoring input,
 	 *         or empty when all words were dropped
 	 */
@@ -1284,13 +1287,14 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		@Nonnull QueryPlanningContext context, @Nonnull EntitySchemaContract entitySchema, @Nonnull Scope scope,
 		@Nonnull Locale locale, @Nullable FulltextIndex ownIndex, @Nonnull List<AnalyzedFieldGroup> groups,
 		@Nonnull QueryToken[] tokens, boolean unfinished, @Nonnull FulltextTermExpansion expansion, int documentCount,
-		@Nonnull FulltextScoringPolicy scoringPolicy
+		@Nonnull FulltextScoringPolicy scoringPolicy, @Nonnull SourceIdentity sourceIdentity
 	) {
 		final List<int[]> fieldIds = new ArrayList<>(groups.size());
 		boolean composed = false;
 		for (final AnalyzedFieldGroup group : groups) {
 			composed |= group.source() != null;
 		}
+		final Map<Integer, Place> placeIdentities = new HashMap<>();
 		final float[] ownWeights = new float[ownIndex == null ? 0 : ownIndex.getFieldCount()];
 		final List<float[]> weights = composed ? new ArrayList<>(groups.size()) : null;
 		final List<FulltextIndex> indexes = composed ? new ArrayList<>(groups.size()) : null;
@@ -1326,8 +1330,11 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					ids[count++] = id;
 					final double weight = (double) policy.weight(field.key()) *
 						(source == null ? 1f : source.reference().getSearchableThroughWeight());
-					fieldWeights[id] = source == null ? (float) weight : scoringPolicy.composedWeight(
-						source.reference().getName(), field.key(), (float) Math.min(Float.MAX_VALUE, weight));
+					fieldWeights[id] = (float) Math.min(Float.MAX_VALUE, weight);
+					// own terms keep their field id, lifted composed terms carry the source's place id; both map to
+					// the owner-namespace place whose ordering weight the formula looks up at scoring time
+					placeIdentities.put(source == null ? id : source.places().get(field.key()),
+						new Place(source == null ? null : source.reference().getName(), field.key()));
 					if (source != null) {
 						places[id] = source.places().get(field.key());
 					}
@@ -1443,7 +1450,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 				retained[last] = finalWord;
 			}
 		}
-		return FulltextPostingsBudget.toFormula(retained, Arrays.copyOf(partCounts, words.length), scoringPolicy);
+		return FulltextPostingsBudget.toFormula(
+			retained, Arrays.copyOf(partCounts, words.length), scoringPolicy, placeIdentities, sourceIdentity);
 	}
 
 	/**

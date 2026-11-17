@@ -281,7 +281,7 @@ public interface Constraint<T extends Constraint<T>> extends Serializable {
 	 *
 	 * The string representation:
 	 * - Matches the syntax accepted by the evitaQL parser (round-trip conversion)
-	 * - Uses {@link io.evitadb.dataType.EvitaDataTypes#formatValue} for argument formatting
+	 * - Uses {@link BaseConstraint#convertToString(java.io.Serializable)} for argument formatting
 	 * - Includes child constraints for containers (nested format)
 	 * - Respects {@link io.evitadb.api.query.ConstraintWithDefaults} to hide default argument values
 	 * - Respects {@link io.evitadb.api.query.ConstraintWithSuffix} to hide implicit arguments

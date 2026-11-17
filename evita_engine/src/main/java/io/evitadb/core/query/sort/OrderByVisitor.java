@@ -157,6 +157,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * Set while the sorters of a segment ordering are being created - see {@link #isWithinSegment()}.
 	 */
 	private boolean withinSegment;
+	/** Predicate visible only while constructing the ordering of its segment. */
+	@Getter @Nullable private Formula segmentFilteringFormula;
 
 	/**
 	 * Method creates the {@link Sorter} implementation that could be used for sorting primary keys of entities
@@ -381,23 +383,27 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * answers `true`. The result therefore holds only the sorters the ordering constraints produced themselves - it
 	 * may be empty - and the records none of them can sort stay unsorted, so that they fall out of the segment.
 	 *
+	 * @param predicate memoized predicate and scoring carrier of this segment, NULL for an unfiltered segment
 	 * @param lambda the lambda to execute within the isolated scope that creates and registers the sorter chain
 	 * @return the sorters registered by the lambda in registration order, possibly an empty list
 	 */
 	@Nonnull
-	public final List<Sorter> collectSegmentSorters(@Nonnull Runnable lambda) {
+	public final List<Sorter> collectSegmentSorters(@Nullable Formula predicate, @Nonnull Runnable lambda) {
 		final boolean previouslyWithinSegment = this.withinSegment;
+		final Formula previousPredicate = this.segmentFilteringFormula;
+		this.segmentFilteringFormula = predicate;
 		this.withinSegment = true;
 		try {
 			return collectIsolatedSorters(lambda, false);
 		} finally {
 			this.withinSegment = previouslyWithinSegment;
+			this.segmentFilteringFormula = previousPredicate;
 		}
 	}
 
 	/**
 	 * Returns `true` while the sorters of a segment ordering are being created (see
-	 * {@link #collectSegmentSorters(Runnable)}). A segment takes only the entities its ordering can sort, so a
+	 * {@link #collectSegmentSorters(Formula, Runnable)}). A segment takes only the entities its ordering can sort, so a
 	 * translator must neither register a sorter that places entities lacking the sorted data, nor a prefetch
 	 * comparator that sorts them - outside a segment, such a fallback keeps the entities in the ordering.
 	 *

@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
 import io.evitadb.index.fulltext.FulltextScoringPolicy;
+import io.evitadb.index.fulltext.FulltextScoringPolicy.Place;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -36,6 +37,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
@@ -153,13 +155,17 @@ public class ReferenceOwnerFulltextScoreAccessor implements FulltextScoreAccesso
 		return true;
 	}
 
+	/** Scores targets with their schema defaults, keeping owner overrides out of the target namespace. */
 	@Nonnull
 	@Override
-	public Result getFulltextScores(@Nonnull int[] candidates) {
+	public Result getFulltextScores(
+		@Nonnull int[] candidates,
+		@Nonnull Map<Place, Float> weights
+	) {
 		final long[] composites = new long[candidates.length];
 		final int[] targets = this.targetFilter.compute().getArray();
 		final Result targetScores = FulltextScoreCombiner.combine(
-			targets, this.targetAccessors, this.scoringPolicy
+			targets, this.targetAccessors, this.scoringPolicy, Map.of()
 		);
 		for (int i = 0; i < targets.length; i++) {
 			final long composite = targetScores.composites()[i];

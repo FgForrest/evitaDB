@@ -171,7 +171,9 @@ class FulltextTermLifterTest {
 		assertEquals("winter", retained[0][0][0].term());
 		assertEquals(2, lookups.get(), "Already-reserved exacts prevent all inexact owner lookups");
 		assertArrayEquals(new int[]{1, 2, 3, 4},
-			FulltextPostingsBudget.toFormula(retained, new int[]{1}, new FulltextScoringPolicy(Map.of())).compute()
+			FulltextPostingsBudget.toFormula(
+				retained, new int[]{1}, new FulltextScoringPolicy(Map.of()), Map.of(), null
+			).compute()
 				.getArray());
 		assertEquals(1, FulltextPostingsBudget.retainLifted(words, 0, preparations, new int[]{1})[0][0].length);
 	}
@@ -230,10 +232,10 @@ class FulltextTermLifterTest {
 		assertEquals(targetCount, lookups.get());
 		assertEquals(1, retained[0][0].length);
 		final FulltextFormula formula = FulltextPostingsBudget.toFormula(retained, new int[]{1},
-			new FulltextScoringPolicy(Map.of()));
+			new FulltextScoringPolicy(Map.of()), Map.of(), null);
 		assertArrayEquals(owners.getArray(), formula.compute().getArray());
 		assertEquals(0, reads.get());
-		assertEquals(ownerCount, formula.getFulltextScores(owners.getArray()).matchedDocuments());
+		assertEquals(ownerCount, formula.getFulltextScores(owners.getArray(), Map.of()).matchedDocuments());
 		assertArrayEquals(owners.getArray(), formula.compute().getArray());
 		assertEquals(1, reads.get());
 		assertEquals(targetCount, lookups.get(), "Scoring never repeats an owner lookup");
@@ -243,7 +245,8 @@ class FulltextTermLifterTest {
 	private static FulltextFormula formula(ExpandedTerm term, Bitmap owners) {
 		final PreparedTerm lifted = new FulltextTermLifter(target -> owners).prepare(term, -1, Long.MAX_VALUE);
 		assertNotNull(lifted);
-		return new FulltextFormula(new ExpandedTerm[][]{{lifted.term()}}, null, new FulltextScoringPolicy(Map.of()));
+		return new FulltextFormula(new ExpandedTerm[][]{{lifted.term()}}, null,
+			new FulltextScoringPolicy(Map.of()), Map.of(), null);
 	}
 
 	/** Creates a target expansion with independent posting and impact views. */

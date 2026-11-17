@@ -26,14 +26,18 @@ package io.evitadb.core.query.algebra.fulltext;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
+import io.evitadb.index.fulltext.FulltextScoringPolicy.Place;
 
 import javax.annotation.Nonnull;
+
+import java.util.Map;
 
 /**
  * Scores a direct reference text place with reference-attribute union impacts, masked to owners matched by
  * positive occurrences. Odd negation depth contributes no owners; double negation contributes normally.
- * Several visited partitions accumulate one mask. Reference attribute weights are already in the shared union
- * preparation; this source applies no referenced-entity weight and never truncates the candidate array.
+ * Several visited partitions accumulate one mask. The shared union retains reference attribute schema defaults;
+ * each scoring request supplies its ordering's overrides. This source applies no referenced-entity factor and
+ * never truncates the candidate array.
  */
 public final class ReferenceFulltextScoreAccessor implements FulltextScoreAccessor {
 	/** Shared rank-time preparation, hidden from the formula tree. */
@@ -78,10 +82,14 @@ public final class ReferenceFulltextScoreAccessor implements FulltextScoreAccess
 		return true;
 	}
 
+	/** Scores with the requesting relevance ordering's weights; preparation stays weight-independent. */
 	@Nonnull
 	@Override
-	public Result getFulltextScores(@Nonnull int[] candidates) {
-		final Result scores = this.union.getFulltextScores(candidates);
+	public Result getFulltextScores(
+		@Nonnull int[] candidates,
+		@Nonnull Map<Place, Float> weights
+	) {
+		final Result scores = this.union.getFulltextScores(candidates, weights);
 		final long[] masked = scores.composites().clone();
 		int matched = 0;
 		for (int i = 0; i < candidates.length; i++) {

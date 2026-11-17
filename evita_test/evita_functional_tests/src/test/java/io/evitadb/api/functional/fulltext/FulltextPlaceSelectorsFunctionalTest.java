@@ -65,6 +65,7 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -779,7 +780,7 @@ class FulltextPlaceSelectorsFunctionalTest implements EvitaTestSupport {
 		@Nonnull EvitaSessionContract session, @Nonnull String type, @Nonnull FilterConstraint constraint,
 		@Nonnull int[] candidates
 	) {
-		return plannedFormula(session, type, constraint).getFulltextScores(candidates).composites();
+		return plannedFormula(session, type, constraint).getFulltextScores(candidates, Map.of()).composites();
 	}
 	/** Extracts actual scores for arbitrary selector forms through the production planner. */
 	@Nonnull

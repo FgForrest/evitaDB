@@ -36,10 +36,10 @@ import java.util.Arrays;
 import java.util.Map;
 
 /**
- * Rank-time policy shared by the places and sources of a query. The planner resolves the weights from the processing
- * schema's search weights and query overrides and uses the engine tie breaker. Both are fixed at construction;
- * neither belongs to an index definition. The weight tables and hashes it caches are confined to the query that
- * resolved it.
+ * Rank-time schema defaults shared by the places and sources of a query. Query overrides arrive separately with
+ * each scoring request; this policy supplies schema weights, impact tables and the engine tie breaker. Weights and
+ * coefficient are fixed at construction; neither belongs to an index definition. Its cached impact tables and
+ * structural hashes belong to the query that resolved it.
  *
  * Within each place, each query word contributes its best weighted impact once, including split words. These
  * contributions form a saturating unsigned 16-bit sum; places and sources combine by best + t × others.
@@ -63,8 +63,6 @@ public final class FulltextScoringPolicy {
 	public static final long QUALITY_MASK = 0xFFFFFF0000000000L;
 	/** Resolved place weights keyed by full place identity, including kind and reference context. */
 	@Nonnull private final Map<FulltextFieldKey, Float> weights;
-	/** Final composed weights in the owner's reference namespace, separate from target schema defaults. */
-	@Nonnull private final Map<Place, Float> composedWeights;
 	/** Effective coefficient, retained for structural hashing. */
 	private final float tieBreaker;
 	/** Numerator of the coefficient's exact binary rational. */
@@ -100,73 +98,16 @@ public final class FulltextScoringPolicy {
 	 * @param tieBreaker fraction of the other places to add, finite and within 0–1
 	 */
 	FulltextScoringPolicy(@Nonnull Map<FulltextFieldKey, Float> weights, float tieBreaker) {
-		this(weights, Map.of(), tieBreaker);
-	}
-
-	/**
-	 * Creates an immutable policy with owner-specific composed overrides.
-	 *
-	 * @param weights effective weights of the owner's own places, each finite and nonnegative
-	 * @param composedWeights final weights of target places composed through an owner reference, each finite and
-	 *                       nonnegative
-	 * @param tieBreaker fraction of the other places to add, finite and within 0-1
-	 * @throws GenericEvitaInternalError when a weight or the tie breaker is out of range
-	 */
-	private FulltextScoringPolicy(
-		@Nonnull Map<FulltextFieldKey, Float> weights, @Nonnull Map<Place, Float> composedWeights, float tieBreaker
-	) {
 		Assert.isPremiseValid(Float.isFinite(tieBreaker) && tieBreaker >= 0 && tieBreaker <= 1,
 			"The fulltext tie breaker must be finite and within 0–1!");
 		for (final float weight : weights.values()) {
 			validateWeight(weight);
 		}
 		this.weights = Map.copyOf(weights);
-		for (final float weight : composedWeights.values()) {
-			validateWeight(weight);
-		}
-		this.composedWeights = Map.copyOf(composedWeights);
 		this.tieBreaker = tieBreaker == 0 ? 0 : tieBreaker;
 		final int bits = Float.floatToIntBits(this.tieBreaker);
 		this.numerator = mantissaOf(bits);
 		this.denominatorShift = denominatorShiftOf(bits);
-	}
-
-	/**
-	 * Derives the effective query policy. Own places take their override in place of the schema weight; composed
-	 * places keep their overrides apart, keyed by the composing reference, for
-	 * {@link #composedWeight(String, FulltextFieldKey, float)}. The receiver is never modified, so shared schema
-	 * defaults stay intact. Call it on schema defaults: only the receiver's own weights and tie breaker are carried
-	 * over, composed overrides it already holds are dropped.
-	 *
-	 * @param overrides query weights by place, finite and nonnegative
-	 * @return a new policy with the overrides applied
-	 */
-	@Nonnull
-	public FulltextScoringPolicy withOverrides(@Nonnull Map<Place, Float> overrides) {
-		final Map<FulltextFieldKey, Float> own = CollectionUtils.createHashMap(this.weights.size());
-		own.putAll(this.weights);
-		final Map<Place, Float> composed = CollectionUtils.createHashMap(overrides.size());
-		for (final Map.Entry<Place, Float> entry : overrides.entrySet()) {
-			if (entry.getKey().composingReference() == null) {
-				own.put(entry.getKey().key(), entry.getValue());
-			} else {
-				composed.put(entry.getKey(), entry.getValue());
-			}
-		}
-		return new FulltextScoringPolicy(own, composed, this.tieBreaker);
-	}
-
-	/**
-	 * Resolves the final weight of a target place composed through one owner reference. An override replaces the
-	 * default whole: it is the final place weight, with no target or reference multiplier applied.
-	 *
-	 * @param reference name of the owner's reference composing the target place
-	 * @param key the target place
-	 * @param defaultWeight the target schema weight already multiplied by the reference composition weight
-	 * @return the query override of this reference and place, or `defaultWeight` when there is none
-	 */
-	public float composedWeight(@Nonnull String reference, @Nonnull FulltextFieldKey key, float defaultWeight) {
-		return this.composedWeights.getOrDefault(new Place(reference, key), defaultWeight);
 	}
 
 	/**
@@ -181,8 +122,7 @@ public final class FulltextScoringPolicy {
 	}
 
 	/**
-	 * Hashes effective weights, composed-place overrides with their composing references, the grouping identities
-	 * and the coefficient, independently of map iteration order.
+	 * Hashes schema weights, place identities and the coefficient independently of map iteration order.
 	 * @param hashFunction structural hash implementation
 	 * @return policy identity for formula hashing and query-local memoization
 	 */
@@ -191,20 +131,13 @@ public final class FulltextScoringPolicy {
 		if (memoized != null) {
 			return memoized;
 		}
-		final long[] placeHashes = new long[this.weights.size() + this.composedWeights.size() + 1];
+		final long[] placeHashes = new long[this.weights.size() + 1];
 		int index = 1;
 		for (final Map.Entry<FulltextFieldKey, Float> entry : this.weights.entrySet()) {
 			final FulltextFieldKey key = entry.getKey();
 			placeHashes[index++] = hashFunction.hashLongs(new long[]{key.kind().ordinal(),
 				key.referenceName() == null ? 0 : hashFunction.hashChars(key.referenceName()),
 				hashFunction.hashChars(key.name()), Float.floatToIntBits(entry.getValue())});
-		}
-		for (final Map.Entry<Place, Float> entry : this.composedWeights.entrySet()) {
-			final Place place = entry.getKey();
-			placeHashes[index++] = hashFunction.hashLongs(new long[]{
-				1L, hashFunction.hashChars(place.composingReference()), place.key().kind().ordinal(),
-				place.key().referenceName() == null ? 0 : hashFunction.hashChars(place.key().referenceName()),
-				hashFunction.hashChars(place.key().name()), Float.floatToIntBits(entry.getValue())});
 		}
 		Arrays.sort(placeHashes, 1, placeHashes.length);
 		placeHashes[0] = Float.floatToIntBits(this.tieBreaker);

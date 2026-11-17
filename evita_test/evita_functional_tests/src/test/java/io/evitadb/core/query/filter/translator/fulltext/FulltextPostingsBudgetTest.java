@@ -270,7 +270,7 @@ class FulltextPostingsBudgetTest {
 			final ExpandedTerm[][][] words = {{{original}, {firstPart}, {}, {secondGroupOriginal}, {}, {lastPart}}};
 			final ExpandedTerm[][][] kept = FulltextPostingsBudget.retain(words, 4);
 			final FulltextFormula formula = FulltextPostingsBudget.toFormula(kept, new int[]{3},
-				defaultScoringPolicy());
+				defaultScoringPolicy(), Map.of(), null);
 			assertArrayEquals(new ExpandedTerm[]{original, firstPart, lastPart}, formula.getTokens()[0]);
 			assertArrayEquals(new int[]{1, 2, 3}, formula.compute().getArray());
 			final Result scores = rankedScores(formula, new int[]{1, 2, 3}, 3);
@@ -284,7 +284,7 @@ class FulltextPostingsBudgetTest {
 		void shouldKeepEmptyWordsMandatory() {
 			final ExpandedTerm[][][] words = {{{term(0, "a", EXACT, 1)}}, {{term(0, "b", PREFIX, 1)}}};
 			final FulltextFormula formula = FulltextPostingsBudget.toFormula(
-				FulltextPostingsBudget.retain(words, 1), new int[]{1, 1}, defaultScoringPolicy());
+				FulltextPostingsBudget.retain(words, 1), new int[]{1, 1}, defaultScoringPolicy(), Map.of(), null);
 			assertTrue(formula.compute().isEmpty());
 			assertEquals(2, formula.getTokens().length);
 		}
@@ -297,10 +297,10 @@ class FulltextPostingsBudgetTest {
 			final ExpandedTerm b = term(0, "b", FUZZY, 2, 3);
 			final ExpandedTerm[][][] words = {{{a, b}}, {{a}}};
 			final FulltextFormula expected = new FulltextFormula(new ExpandedTerm[][]{{a, b}, {a}}, null,
-				defaultScoringPolicy());
+				defaultScoringPolicy(), Map.of(), null);
 			final FulltextFormula actual = FulltextPostingsBudget.toFormula(
 				FulltextPostingsBudget.retain(words, FulltextPostingsBudget.limit(2, 3)), new int[]{1, 1},
-					defaultScoringPolicy());
+					defaultScoringPolicy(), Map.of(), null);
 			assertEquals(expected.getHash(), actual.getHash());
 			assertArrayEquals(expected.compute().getArray(), actual.compute().getArray());
 			assertArrayEquals(rankedScores(expected, new int[]{1, 2}, 2).composites(),

@@ -36,19 +36,23 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 
 /**
- * The `attributeWeight` constraint replaces the schema search weight of one searchable attribute for this query.
+ * The `attributeWeight` constraint replaces one searchable attribute weight for its enclosing `relevanceText`.
  * The enclosing constraint decides whose attribute it is: directly inside `relevanceText` an attribute of the
  * queried entity, inside `referenceWeight` an attribute of that reference, and inside `entityWeight` an attribute
  * of the reference's target collection searched through composition. A composed target weight is the final place
  * weight, replacing the target search weight times the reference composition weight. Anywhere else the query is
  * refused.
  *
- * The attribute must exist at its level and be searchable in at least one scope the query processes, otherwise
- * planning refuses the query. Zero keeps the place's matches and match quality but gives it no strength. Negative
- * weights are refused during planning, non-finite numbers already during construction. The name must be non-null
- * and non-blank.
+ * The attribute must exist at its level and be searchable in every scope the enclosing `relevanceText` covers;
+ * narrow the ordering with `inScope` to cover fewer scopes. Zero keeps matches and quality but gives no strength.
+ * Negative weights and values that overflow or underflow the internal float are refused during planning.
+ * The weight is a non-null `BigDecimal`, normalized so scale does not affect equality or plain decimal printing.
+ * The name must be non-null and non-blank.
+ * Construction requires at most 100 significant digits and a stripped scale between -100 and 100. Bounds are
+ * checked before rescaling; diagnostics never expand an unsupported value.
  *
  * ```evitaql
  * relevanceText(
@@ -74,19 +78,20 @@ public class AttributeWeight extends AbstractOrderConstraintLeaf implements Gene
 	 *
 	 * @param attributeName name of the weighted attribute at the level of the enclosing constraint, non-blank
 	 * @param weight number replacing the schema search weight; negative values are accepted here and refused during
-	 *               planning, negative zero is stored as positive zero
-	 * @throws EvitaInvalidUsageException when the name is blank or the weight is not a finite number
+	 *               planning; scale is normalized without losing decimal precision
+	 * @throws EvitaInvalidUsageException when the name is null or blank, the weight is null, or its representation
+	 *                                    exceeds the construction bounds
 	 */
 	@Creator
-	public AttributeWeight(@Nonnull @Classifier String attributeName, @Value float weight) {
-		this(new Serializable[]{attributeName, weight + 0.0f});
+	public AttributeWeight(@Nonnull @Classifier String attributeName, @Nonnull @Value BigDecimal weight) {
+		this(new Serializable[]{attributeName, weight});
 	}
 
 	/**
-	 * Copies serialized arguments while preserving name validation and canonical positive zero.
+	 * Copies serialized arguments while validating the name and normalizing the decimal scale.
 	 *
 	 * @param arguments the name followed by the weight
-	 * @throws EvitaInvalidUsageException when the arguments are not exactly a non-blank name and a number
+	 * @throws EvitaInvalidUsageException when the arguments are not exactly a non-blank name and a BigDecimal
 	 */
 	private AttributeWeight(@Nonnull Serializable[] arguments) {
 		super(validateArguments(arguments));
@@ -105,18 +110,19 @@ public class AttributeWeight extends AbstractOrderConstraintLeaf implements Gene
 	/**
 	 * Returns the weight replacing the schema search weight of the place.
 	 *
-	 * @return a finite number, never negative zero; a negative weight is kept here and refused during planning
+	 * @return the normalized decimal; negative values and float overflow or underflow are refused during planning
 	 */
-	public float getWeight() {
-		return ((Number) getArguments()[1]).floatValue();
+	@Nonnull
+	public BigDecimal getWeight() {
+		return (BigDecimal) getArguments()[1];
 	}
 
 	/**
-	 * Copies this weight with the supplied name and number.
+	 * Copies this weight with the supplied name and decimal.
 	 *
 	 * @param newArguments the name followed by the weight, validated like constructor arguments
 	 * @return a new weight constraint carrying the arguments
-	 * @throws EvitaInvalidUsageException when the arguments are not exactly a non-blank name and a number
+	 * @throws EvitaInvalidUsageException when the arguments are not exactly a non-blank name and a BigDecimal
 	 */
 	@Nonnull
 	@Override
@@ -125,17 +131,17 @@ public class AttributeWeight extends AbstractOrderConstraintLeaf implements Gene
 	}
 
 	/**
-	 * Validates the mandatory name and numeric shape before superclass normalization.
+	 * Validates the mandatory name and decimal, then bounds and canonicalizes the weight before argument storage.
 	 *
-	 * @param arguments the raw arguments, expected to be a non-blank name followed by a number
-	 * @return the name and the weight as a float with negative zero turned into positive zero
-	 * @throws EvitaInvalidUsageException when the arguments have another shape, including NULL
+	 * @param arguments the raw arguments, expected to be a non-blank name followed by a BigDecimal
+	 * @return the name and normalized decimal, with no trailing fractional zeros or negative scale
+	 * @throws EvitaInvalidUsageException when the arguments have another shape or exceed decimal representation bounds
 	 */
 	@Nonnull
 	private static Serializable[] validateArguments(@Nonnull Serializable[] arguments) {
 		Assert.isTrue(arguments != null && arguments.length == 2 &&
-			arguments[0] instanceof String name && !name.isBlank() && arguments[1] instanceof Number,
+			arguments[0] instanceof String name && !name.isBlank() && arguments[1] instanceof BigDecimal,
 			"Constraint `attributeWeight` requires one non-blank name followed by a weight!");
-		return new Serializable[]{arguments[0], ((Number) arguments[1]).floatValue() + 0.0f};
+		return new Serializable[]{arguments[0], TextPlaceWeightSupport.normalize((BigDecimal) arguments[1])};
 	}
 }

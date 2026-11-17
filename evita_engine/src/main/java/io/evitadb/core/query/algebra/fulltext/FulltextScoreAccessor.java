@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.fulltext;
 
+import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -30,8 +31,12 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
+import io.evitadb.index.fulltext.FulltextScoringPolicy.Place;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Marks a formula that can rank entities by fulltext relevance — the formula a fulltext condition translated into,
@@ -43,7 +48,7 @@ import javax.annotation.Nonnull;
  * by primary key, not read from the entity body, so the same accessor serves the index path and the prefetch path
  * alike.
  *
- * **Every wrapper that can sit above a fulltext formula must implement this interface too.** A `SHALLOW` lookup
+ * **Every wrapper exposed through the main filter must implement this interface too.** A `SHALLOW` lookup
  * does not descend into a node it has matched, and with prefetch on the planner wraps translated formulas in
  * {@link SelectionFormula} and {@link EntityFilteringFormula} — both implement this interface, so the lookup stops
  * at them, as the price lookup stops at them because they implement {@link FilteredPriceRecordAccessor}. A wrapper
@@ -61,11 +66,35 @@ import javax.annotation.Nonnull;
 public interface FulltextScoreAccessor {
 
 	/**
+	 * Semantic identity of a searched scoring source. Processing scopes deliberately do not participate: separate
+	 * scope-sensitive preparations of this search are copies of its evidence, whose scores collapse by best copy.
+	 * The reference context distinguishes direct reference bodies from entity-level searches in the same collection.
+	 *
+	 * @param origin the `textMatches` constraint the search was prepared for, compared by value
+	 * @param collection the entity type whose primary keys the source scores
+	 * @param locale the locale the search was planned in
+	 * @param referenceContext the reference whose body holds the search, NULL for an entity-level search
+	 */
+	public record SourceIdentity(
+		@Nonnull TextMatches origin, @Nonnull String collection, @Nonnull Locale locale,
+		@Nullable String referenceContext
+	) { }
+
+	/**
+	 * Returns the structural identity of a formula-tree text source. Additional mapped/reference sources use their
+	 * registration keys instead, and standalone arithmetic sources may have no query origin.
+	 */
+	@Nullable
+	default SourceIdentity getFulltextSourceIdentity() {
+		return null;
+	}
+
+	/**
 	 * Returns whether this accessor has fulltext scores to give. A fulltext formula always has; a wrapper has only
 	 * when it wraps one, so a sorter skips the wrappers that answer `false` rather than treating them as matching
 	 * nothing.
 	 *
-	 * @return true when {@link #getFulltextScores(int[])} may be called
+	 * @return true when {@link #getFulltextScores(int[], Map)} may be called
 	 */
 	boolean providesFulltextScores();
 
@@ -77,10 +106,14 @@ public interface FulltextScoreAccessor {
 	 *
 	 * @param candidates primary keys of the entities to rank — typically the final result of the whole filter —
 	 *                   ascending and distinct
+	 * @param weights immutable overrides of this relevance ordering, keyed in the source owner namespace
 	 * @return all candidate primary keys and their aligned composites, as {@link FulltextPhaseOneScorer} defines them
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when {@link #providesFulltextScores()} is false
 	 */
 	@Nonnull
-	Result getFulltextScores(@Nonnull int[] candidates);
+	Result getFulltextScores(
+		@Nonnull int[] candidates,
+		@Nonnull Map<Place, Float> weights
+	);
 
 }

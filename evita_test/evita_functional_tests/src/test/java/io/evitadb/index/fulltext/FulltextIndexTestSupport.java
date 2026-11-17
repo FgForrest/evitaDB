@@ -101,7 +101,7 @@ public final class FulltextIndexTestSupport {
 	public static FulltextPhaseOneScorer.Result rankedScores(
 		@Nonnull FulltextScoreAccessor accessor, @Nonnull int[] candidates, int topN
 	) {
-		final FulltextPhaseOneScorer.Result scores = accessor.getFulltextScores(candidates);
+		final FulltextPhaseOneScorer.Result scores = accessor.getFulltextScores(candidates, Map.of());
 		return FulltextPhaseOneScorer.selectTopN(candidates, scores.composites(), topN, scores.postingsWalked());
 	}
 

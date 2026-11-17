@@ -45,11 +45,14 @@ import java.io.Serializable;
  * `entityWeight` children the final weights of target places searched through composition. It is valid only
  * directly inside `relevanceText`.
  *
- * The reference must exist in the schema of the queried entity, each weighted attribute must be searchable in at
- * least one scope the query processes, and the container must hold at least one weight; otherwise planning refuses
- * the query. An empty container is retained through query normalization so that planning can refuse it. Several
- * `referenceWeight` constraints of one reference combine their places, and only a place weighted twice is refused.
- * The reference name must be non-null and non-blank.
+ * The reference must exist in the queried entity's schema and each weighted attribute must be searchable in every
+ * scope the enclosing `relevanceText` covers. Narrow the ordering with `inScope` to cover fewer scopes. The
+ * container must hold at least one weight; an empty container survives normalization so planning can refuse it.
+ * Several `referenceWeight` constraints combine their places within one `relevanceText`; weighting a place twice
+ * is refused. The reference name must be non-null and non-blank.
+ *
+ * Child weights are non-null `BigDecimal` values with scale-independent equality and plain decimal printing.
+ * Planning refuses negative weights and values that overflow or underflow the internal float.
  *
  * ```evitaql
  * relevanceText(

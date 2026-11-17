@@ -24,8 +24,10 @@
 package io.evitadb.core.query.sort.fulltext.translator;
 
 import io.evitadb.api.query.order.RelevanceText;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreCombiner;
+import io.evitadb.core.query.algebra.fulltext.ScoredFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.sort.OrderByVisitor;
@@ -42,19 +44,18 @@ import io.evitadb.index.EntityIndex;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
 /**
  * Translates {@link RelevanceText} into the {@link RelevanceTextSorter}, following the two-phase pattern of
  * `priceNatural`:
- * here the planner finds *where* the scores will be - the {@link FulltextScoreAccessor}s of the filter tree, looked up
- * in {@link LookUp#SHALLOW} mode so that a prefetch wrapper delegating the accessor stops the lookup - and the sorter
- * pulls *what* they are only when it sorts.
+ * here the planner finds *where* the scores will be - the {@link FulltextScoreAccessor}s of the filter tree, which
+ * {@link FulltextScoreCombiner#findSources(Formula)} looks up in {@link LookUp#SHALLOW} mode so that a prefetch wrapper
+ * delegating the accessor stops the lookup - and the sorter pulls *what* they are only when it sorts.
  *
  * ## Scores of references and referenced entities
  *
@@ -72,13 +73,15 @@ import java.util.stream.Stream;
  * `relevanceText()` without a `textMatches` in the filter is not an error: no sorter is emitted, so every entity
  * passes on to the next sorter, exactly as if `relevanceText()` were absent. An empty search box drops `textMatches`
  * (its factory returns null for a blank text), and the client must not have to branch its ordering on that. Place
- * weights inside it are still validated by the planner, and a query with invalid ones is refused.
+ * weights inside it are still validated by the planner, and a query with invalid ones is refused. Text used only
+ * in a reachable hierarchy predicate is refused because it filters the tree and supplies no ranking source.
  *
  * ## Place weights
  *
  * The translator consumes its weight children itself and never visits them: the planner has already resolved them
- * into the query's effective policy before index selection, and the sorter reads that policy from the planning
- * context.
+ * independently before index selection. The sorter supplies these weights with each scoring request. Inside a
+ * segment, its predicate's own and additional owner-space sources join the main filter's sources. Copies of equal
+ * searches collapse by structural identity; distinct sources combine once by the usual strength rule.
  *
  * ## Where it may stand
  *
@@ -111,6 +114,7 @@ public class RelevanceTextTranslator
 		);
 	}
 
+	/** Collects the main filter and current segment's independent sources with this ordering's validated weights. */
 	@Nonnull
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull RelevanceText relevanceText, @Nonnull OrderByVisitor orderByVisitor) {
@@ -123,20 +127,17 @@ public class RelevanceTextTranslator
 			throw misplaced(relevanceText);
 		}
 
-		final Collection<FulltextScoreAccessor> foundAccessors = FormulaFinder.find(
-			orderByVisitor.getFilteringFormula(), FulltextScoreAccessor.class, LookUp.SHALLOW
+		final Map<Object, FulltextScoreAccessor> accessors = new LinkedHashMap<>(
+			FulltextScoreCombiner.findSources(orderByVisitor.getFilteringFormula())
 		);
-		// a wrapper that wraps no fulltext formula answers false, and the same formula is reached once per reduced
-		// target index it was AND-ed with, so the accessors are kept distinct by identity
-		final Set<FulltextScoreAccessor> accessors = Collections.newSetFromMap(new IdentityHashMap<>());
-		for (FulltextScoreAccessor accessor : foundAccessors) {
-			if (accessor.providesFulltextScores()) {
-				accessors.add(accessor);
-			}
+		FulltextScoreCombiner.mergeSources(
+			accessors, orderByVisitor.getFilterByVisitor().getAdditionalFulltextScoreSources()
+		);
+		final Formula segmentPredicate = orderByVisitor.getSegmentFilteringFormula();
+		if (segmentPredicate instanceof ScoredFilterFormula scored) {
+			FulltextScoreCombiner.mergeSources(accessors, scored.getFulltextScoreSources());
+			FulltextScoreCombiner.mergeSources(accessors, scored.getAdditionalFulltextScoreSources());
 		}
-		// Additional owner-space sources include direct reference text and mapped entity/group text.
-		// Their scoring formulas are deliberately hidden from the membership tree.
-		accessors.addAll(orderByVisitor.getFilterByVisitor().getAdditionalFulltextScores());
 		if (accessors.isEmpty()) {
 			// no fulltext filter - nothing to sort by, every entity passes on to the next sorter
 			return Stream.empty();
@@ -144,9 +145,10 @@ public class RelevanceTextTranslator
 
 		return Stream.of(
 			new RelevanceTextSorter(
-				accessors.toArray(FulltextScoreAccessor[]::new),
+				accessors.values().toArray(FulltextScoreAccessor[]::new),
 				resolveScopeIndexes(orderByVisitor, processingScope),
-				orderByVisitor.getQueryContext().getFulltextScoringPolicy()
+				orderByVisitor.getQueryContext().getFulltextScoringPolicy(),
+				orderByVisitor.getQueryContext().getFulltextWeights(relevanceText)
 			)
 		);
 	}

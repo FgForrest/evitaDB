@@ -37,6 +37,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
+import io.evitadb.index.fulltext.FulltextScoringPolicy.Place;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -45,6 +46,7 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
@@ -334,9 +336,13 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 		return false;
 	}
 
+	/** Refuses scoring in translated key space; only mapped owner-space sources provide these scores. */
 	@Nonnull
 	@Override
-	public Result getFulltextScores(@Nonnull int[] candidates) {
+	public Result getFulltextScores(
+		@Nonnull int[] candidates,
+		@Nonnull Map<Place, Float> weights
+	) {
 		throw new GenericEvitaInternalError(
 			"Formula `" + getClass().getSimpleName() + "` translates primary keys and provides no fulltext scores!"
 		);

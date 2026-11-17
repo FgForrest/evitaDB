@@ -169,7 +169,7 @@ public class QueryPlanner {
 			// index short-cut
 			context.assertDefaultFacetRelationsEffective();
 			context.assertFacetGroupFiltersEvaluable();
-			resolveFulltextScoringPolicy(context);
+			validateFulltextOrderings(context);
 
 			// determine the indexes that should be used for filtering
 			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
@@ -251,7 +251,7 @@ public class QueryPlanner {
 	) {
 		context.pushStep(QueryPhase.PLANNING_NESTED_QUERY, nestedQueryDescription);
 		try {
-			resolveFulltextScoringPolicy(context);
+			validateFulltextOrderings(context);
 
 			// determine the indexes that should be used for filtering
 			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
@@ -295,25 +295,21 @@ public class QueryPlanner {
 	}
 
 	/**
-	 * Resolves the fulltext scoring policy of the queried entity type before the index selection, when the query
-	 * searches text or states place weights; childless relevance ordering without text resolves no policy. The policy
-	 * is built, validated and cached in the context here, ahead of any empty-index short-cut, so such a query is
-	 * checked the same way whether or not its indexes hold any entity; the translators and the relevance sorter then
-	 * reuse the cached instance.
+	 * Validates each relevance ordering's weights and scoring reachability against schemas before index selection
+	 * and empty-index shortcuts. Search preparation always uses schema defaults; sorters carry their own weights.
 	 *
-	 * @param context planning context of the query or of a nested query
-	 * @throws EvitaInvalidUsageException when the query states place weights without naming its entity collection, or
-	 *                                    when its place weights are invalid
+	 * @throws EvitaInvalidUsageException when weights lack a collection or violate schema or scoring requirements
 	 */
-	private static void resolveFulltextScoringPolicy(@Nonnull QueryPlanningContext context) {
+	private static void validateFulltextOrderings(@Nonnull QueryPlanningContext context) {
 		final boolean weights = FulltextWeightResolver.hasWeights(context.getEvitaRequest().getQuery());
 		if (weights && !context.isEntityTypeKnown()) {
 			throw new EvitaInvalidUsageException(
 				"Fulltext place weights require the queried entity collection to be specified!");
 		}
-		if (context.isEntityTypeKnown() && (weights || !QueryUtils.findFilters(
+		if (context.isEntityTypeKnown() && (weights || FulltextWeightResolver.hasRelevance(
+			context.getEvitaRequest().getQuery()) || !QueryUtils.findFilters(
 			context.getEvitaRequest().getQuery(), TextMatches.class).isEmpty())) {
-			context.resolveFulltextScoringPolicy();
+			context.validateFulltextOrderings();
 		}
 	}
 

@@ -83,11 +83,11 @@ class ReferenceOwnerFulltextScoreAccessorTest {
 			new FulltextFormula.ExpandedTerm(0, "green", new BaseBitmap(1, 2, 3, 4),
 				ImpactView.of(new byte[]{(byte) 200, (byte) 200, (byte) 200, (byte) 210}),
 				0, FulltextTermExactness.EXACT, 0, 1.0f)
-		}}, null, defaultScoringPolicy());
+		}}, null, defaultScoringPolicy(), Map.of(), null);
 		final ReferenceOwnerFulltextScoreAccessor accessor = ReferenceOwnerFulltextScoreAccessor.create(
 			targets, target -> new BaseBitmap(target == 4 ? 11 : 10), () -> defaultScoringPolicy());
 		assertNotNull(accessor);
-		final Result all = accessor.getFulltextScores(new int[]{10, 11, 12});
+		final Result all = accessor.getFulltextScores(new int[]{10, 11, 12}, Map.of());
 		assertArrayEquals(new int[]{10, 11, 12}, all.primaryKeys());
 		assertEquals(100 * 8, FulltextScoringPolicy.strength(all.composites()[0]));
 		assertEquals(105 * 8, FulltextScoringPolicy.strength(all.composites()[1]));
@@ -95,7 +95,7 @@ class ReferenceOwnerFulltextScoreAccessorTest {
 		assertArrayEquals(new int[]{11, 10}, rankedScores(accessor, new int[]{10, 11, 12}, 3).primaryKeys());
 		final FulltextScoreAccessor collapsed = FulltextScoreCombiner.collapseSources(
 			new FulltextScoreAccessor[]{accessor, accessor, accessor});
-		assertArrayEquals(all.composites(), collapsed.getFulltextScores(new int[]{10, 11, 12}).composites(),
+		assertArrayEquals(all.composites(), collapsed.getFulltextScores(new int[]{10, 11, 12}, Map.of()).composites(),
 			"Repeated scope/query accessors of the same reference type must also collapse");
 	}
 
@@ -206,9 +206,13 @@ class ReferenceOwnerFulltextScoreAccessorTest {
 			return this.providesScores;
 		}
 
+		/** Supplies the fixture's aligned score vector through the production scoring contract. */
 		@Nonnull
 		@Override
-		public Result getFulltextScores(@Nonnull int[] candidates) {
+		public Result getFulltextScores(
+			@Nonnull int[] candidates,
+			@Nonnull Map<FulltextScoringPolicy.Place, Float> weights
+		) {
 			final long[] candidateComposites = new long[candidates.length];
 			for (int i = 0; i < candidates.length; i++) {
 				candidateComposites[i] = this.composites.getOrDefault(candidates[i], 0L);

@@ -72,6 +72,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Locale;
@@ -176,7 +177,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				for (final FulltextFormula formula : FormulaFinder.find(root, FulltextFormula.class, LookUp.DEEP)) {
 					found = true;
 					assertEquals(0f, formula.getTokens()[0][0].weight());
-					assertEquals(0, FulltextScoringPolicy.strength(formula.getFulltextScores(new int[]{1})
+					assertEquals(0, FulltextScoringPolicy.strength(formula.getFulltextScores(new int[]{1}, Map.of())
 						.composites()[0]));
 				}
 			}
@@ -245,7 +246,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				((ReferenceOwnerFulltextScoreAccessor) sources[1]).getTargetFilter(),
 				"The regression must exercise the same cached target filter with two mapping kinds");
 			final long[] scores = FulltextScoreCombiner.combine(new int[]{1, 2}, sources,
-				new FulltextScoringPolicy(Map.of())).composites();
+				new FulltextScoringPolicy(Map.of()), Map.of()).composites();
 			assertNotEquals(0, scores[0]);
 			assertEquals(scores[0], scores[1]);
 		});
@@ -414,7 +415,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 		final FulltextScoreAccessor[] sources = field(sorter, "accessors");
 		assertEquals(sourceCount, sources.length, preference.name());
 		assertArrayEquals(expectedScores, FulltextScoreCombiner.combine(new int[]{1, 2}, sources,
-			new FulltextScoringPolicy(Map.of())).composites(), preference.name());
+			new FulltextScoringPolicy(Map.of()), Map.of()).composites(), preference.name());
 	}
 
 	/** Uses public queries and telemetry to prove both execution plans and checks complete score vectors. */
@@ -434,7 +435,7 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				final FulltextScoreAccessor[] sources = field(sorter, "accessors");
 				assertEquals(allScopes ? 1 : 2, sources.length);
 				final long[] scores = FulltextScoreCombiner.combine(new int[]{1, 2}, sources,
-					new FulltextScoringPolicy(Map.of())).composites();
+					new FulltextScoringPolicy(Map.of()), Map.of()).composites();
 				assertEquals(scores[0] & FulltextScoringPolicy.QUALITY_MASK,
 					scores[1] & FulltextScoringPolicy.QUALITY_MASK);
 				if (allScopes) {
@@ -446,10 +447,10 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 		});
 	}
 
-	/** A real owner override and a nested default policy must stay distinct in their shared root formula memo. */
+	/** Owner ordering weights and nested defaults share identical search preparation in their root formula memo. */
 	@Test
-	@DisplayName("should distinguish effective policies in translator computeOnlyOnce keys")
-	void shouldSeparateMemoizedPolicies() {
+	@DisplayName("should share preparation across ordering weights and nested schema defaults")
+	void shouldSharePreparationAcrossWeights() {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.upsertEntity(session.getEntity(OWNER, 1, attributeContentAll(),
 				referenceContentAll(), dataInLocalesAll()).orElseThrow().openForWrite()
@@ -457,7 +458,8 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 		});
 		this.evita.queryCatalog(TEST_CATALOG, session -> {
 			final Query query = query(collection(OWNER), filterBy(entityLocaleEquals(Locale.ENGLISH),
-				textMatches("green ", inAttribute("name"))), orderBy(relevanceText(attributeWeight("name", 1))));
+				textMatches("green ", inAttribute("name"))),
+				orderBy(relevanceText(attributeWeight("name", BigDecimal.ONE))));
 			final QueryPlanningContext context = context(session, query);
 			QueryPlanner.planQuery(context);
 			final Query nestedQuery = query(collection(OWNER), query.getFilterBy());
@@ -470,16 +472,16 @@ class FulltextProcessingSchemaFunctionalTest implements EvitaTestSupport {
 				new EvitaRequest(nestedQuery, OffsetDateTime.now(), EntityReference.class, null), null,
 				indexes, byPk, NoCacheSupervisor.INSTANCE);
 			QueryPlanner.planNestedQuery(nested, () -> "nested schema defaults");
-			assertNotEquals(context.getFulltextScoringPolicy().computeHash(LongHashFunction.xx3()),
+			assertEquals(context.getFulltextScoringPolicy().computeHash(LongHashFunction.xx3()),
 				nested.getFulltextScoringPolicy().computeHash(LongHashFunction.xx3()));
 			final FulltextFormula one = translated(context, query);
 			final FulltextFormula two = translated(nested, nestedQuery);
-			assertNotSame(one, two);
-			assertEquals(1f, one.getTokens()[0][0].weight());
+			assertSame(one, two);
+			assertEquals(100f, one.getTokens()[0][0].weight());
 			assertEquals(100f, two.getTokens()[0][0].weight());
 			assertSame(two, translated(nested, nestedQuery));
 			assertSame(one, translated(context, query));
-			// No explicit leaf-policy keys: this exercises the discriminator for an enclosing preparation itself.
+			// Enclosing preparations share the same membership regardless of the requesting sorter's weights.
 			final Formula enclosingOwner = context.computeOnlyOnce(java.util.List.of(), query.getFilterBy(), () -> one);
 			final Formula enclosingNested = nested.computeOnlyOnce(java.util.List.of(), query.getFilterBy(), () -> two);
 			assertSame(one, enclosingOwner);

@@ -45,9 +45,12 @@ import java.io.Serializable;
  * weight times the reference composition weight. Target reference attributes cannot be addressed here. It is valid
  * only directly inside `referenceWeight`.
  *
- * The reference must declare `searchableThrough(COMPOSITION)` in at least one scope the query processes and target
- * a managed entity collection, each weighted place must be searchable in at least one processed scope, and the
- * container must hold at least one weight; otherwise planning refuses the query.
+ * The reference must target a managed entity collection and declare `searchableThrough(COMPOSITION)` in every scope
+ * the enclosing `relevanceText` covers. Each weighted target place must be searchable in every such scope; narrow
+ * the ordering with `inScope` to cover fewer scopes. A container without child weights is refused during planning.
+ *
+ * Child weights are non-null `BigDecimal` values with scale-independent equality and plain decimal printing.
+ * Planning refuses negative weights and values that overflow or underflow the internal float.
  *
  * ```evitaql
  * referenceWeight(

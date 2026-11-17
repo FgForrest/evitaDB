@@ -65,15 +65,17 @@ import java.io.Serializable;
  *
  * **Behaviour**
  *
- * - without a `textMatches` filter in the query there is no relevance to sort by, and the constraint passes all
- *   entities on to the next ordering constraint in their incoming order
+ * - scoring sources come from the main filter and, inside a segment, that segment's predicate; other segments and
+ *   requirement filters supply no scores here
+ * - without a scoring source the constraint passes entities to the next ordering constraint; text in reach confined
+ *   to hierarchy `having`, `anyHaving` or `excluding` is refused because it filters the tree and is not scored
  * - the constraint can be used in the top-level `orderBy` and inside a `segment`, but not inside the ordering
  *   containers that sort by properties of referenced entities (`referenceProperty`, `entityProperty`,
  *   `entityGroupProperty`, `traverseByEntityProperty`, `pickFirstByEntityProperty`)
  *
  * **Place weights**
  *
- * Children replace the schema search weights of individual searchable places for this query:
+ * Children replace the schema search weights of individual searchable places for this relevance ordering:
  *
  * - `attributeWeight` and `associatedDataWeight` weigh attributes and associated data of the queried entity
  * - `referenceWeight` weighs the attributes of one reference and, through `entityWeight`, the places of its target
@@ -81,14 +83,16 @@ import java.io.Serializable;
  *
  * The weights are checked during planning, before any index is read, and a violation refuses the query:
  *
- * - every weighted place must exist and be searchable in at least one scope the query processes, no weight may be
- *   negative, and one `relevanceText` may weight each place only once
- * - a query has a single weight policy: every `relevanceText` in it, including those inside segments and those
- *   without children, must state the same weights
- * - when the query contains a `textMatches`, each weighted place must be searched by a `textMatches` of the main
- *   filter or of a segment's `entityHaving`; without any `textMatches` the weights are checked but order nothing
+ * - every weighted place must exist and be searchable in every scope this ordering covers; enclosing ordering
+ *   `inScope` containers narrow the query scopes, just as for filterable and sortable attributes
+ * - weights must be nonnegative and fit the internal float; one `relevanceText` may weight each place only once
+ * - each `relevanceText` has its own weights, so segments and ordering `inScope` containers can rank differently
+ * - when scoring text is in reach, each weighted place must be searched by a scoring `textMatches` of the main
+ *   filter or this segment's predicate; text used only by hierarchy predicates or other segments does not count
+ * - without scoring text in reach, the existing searched-place checks still apply; with no `textMatches` anywhere,
+ *   weights receive schema validation only and order nothing
  *
- * When no `relevanceText` of the query states a weight, the schema search weights apply.
+ * Places not weighted by this `relevanceText` retain their schema search weights.
  *
  * ```evitaql
  * query(
@@ -122,7 +126,7 @@ public class RelevanceText extends AbstractOrderConstraintContainer implements G
 	/**
 	 * Creates the `relevanceText` ordering constraint.
 	 *
-	 * @param weights place weights replacing schema search weights for this query, NULL or empty for none
+	 * @param weights place weights for this relevance ordering, NULL or empty for schema defaults
 	 * @throws GenericEvitaInternalError when a child is not a place weight allowed directly in `relevanceText`
 	 */
 	@Creator
