@@ -5,7 +5,7 @@ updated: 2026-11-17 22:22
 status: accepted
 kind: fix
 issues: [1949]
-prs: []
+prs: [2004]
 areas:
   - evita_engine/src/main/java/io/evitadb/core/collection
   - evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference
