@@ -85,7 +85,7 @@ public class SystemChangeObserver
 	 */
 	private final AtomicLong sentEvents = new AtomicLong(0);
 	/**
-	 * Cleaning task that removes inactive publishers from the list of unique publishers once a while.
+	 * Periodic task that releases finished subscriptions and retries idle subscriptions with outstanding demand.
 	 */
 	private final DelayedAsyncTask cleaner;
 	/**
@@ -103,8 +103,8 @@ public class SystemChangeObserver
 	/**
 	 * Creates a new system-stream observer. Wires up the underlying
 	 * {@link ChangeSystemCaptureSharedPublisher} (sized from `cdcOptions`) and schedules a
-	 * periodic cleaner that prunes finished subscribers, plus the periodic statistics emission
-	 * tied to the JFR `ChangeCatalogCaptureStatisticsEvent` channel.
+	 * periodic cleaner that prunes finished subscribers and re-wakes idle ones with outstanding demand,
+	 * plus the periodic statistics emission tied to the JFR `ChangeCatalogCaptureStatisticsEvent` channel.
 	 *
 	 * @param evita        the engine instance the observer belongs to; used for snapshot lookups
 	 * @param cdcOptions   CDC tuning options (recent-events cache limit, per-subscriber buffer size)
@@ -236,19 +236,24 @@ public class SystemChangeObserver
 	}
 
 	/**
-	 * Cleans up inactive or unnecessary subscribers from the shared publisher.
-	 * It checks if there are any subscribers left using the shared publisher's
-	 * checkSubscribersLeft method, and ensures proper cleanup when no subscribers remain.
+	 * Releases finished subscriptions, re-wakes idle subscriptions with demand, and trims the shared publisher.
+	 * A refused or lost wake-up is retried even without another engine publication; a refused retry remains
+	 * eligible for the next tick, so a saturated capture executor can delay delivery by more than the one-minute
+	 * period of this cleaner. The tick cannot tell such a subscription from one that is merely idle, so every idle
+	 * subscription with outstanding demand gets one delivery attempt on the capture executor per tick; an attempt
+	 * that finds nothing new delivers nothing. {@link DefaultChangeCaptureSubscription#notifySubscriber()} handles
+	 * demand, queue state and refusal, and hands delivery to the capture executor.
 	 *
 	 * @return the milliseconds deviation to the next scheduled run (always zero)
 	 */
 	long cleanSubscribers() {
 		// the sweep releases the registrations of subscriptions that terminated but whose release the capture
 		// executor refused; until it does, each holds its tracked version and the ring buffer can never be
-		// trimmed past it. The order of the two calls is convention rather than a requirement - every release
-		// the sweep performs already ends in checkSubscribersLeft() through unsubscribe, and the explicit call
-		// is for the tick that releases nothing
+		// trimmed past it. The sweep's position before checkSubscribersLeft() is convention rather than a
+		// requirement - every release the sweep performs already ends in that call through unsubscribe, and the
+		// explicit call is for the tick that releases nothing
 		this.sharedPublisher.cleanFinishedSubscriptions();
+		this.sharedPublisher.wakeIdleSubscribers();
 		this.sharedPublisher.checkSubscribersLeft();
 		return 0L;
 	}

@@ -97,7 +97,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	 */
 	private final ConcurrentMap<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> uniquePublishers;
 	/**
-	 * Cleaning task that removes inactive publishers from the list of unique publishers once a while.
+	 * Periodic task that removes inactive publishers and retries idle subscriptions with outstanding demand.
 	 */
 	private final DelayedAsyncTask cleaner;
 	/**
@@ -356,9 +356,17 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	 * This runs on the scheduler, whose delay queue is unbounded, so it cannot be starved by the saturation that
 	 * causes the leak.
 	 *
-	 * Its position relative to `checkSubscribersLeft()` is convention rather than a requirement: every release
-	 * the sweep performs already ends in that call, through `unsubscribe`. The explicit one afterwards exists
-	 * for a publisher that released nothing this tick and would otherwise never be asked.
+	 * The sweep's position relative to `checkSubscribersLeft()` is convention rather than a requirement: every
+	 * release the sweep performs already ends in that call, through `unsubscribe`. The explicit one afterwards
+	 * exists for a publisher that released nothing this tick and would otherwise never be asked.
+	 *
+	 * The same tick re-wakes unfinished subscriptions with demand and an empty queue, so a refused or lost wake-up is
+	 * retried on the next tick even when no further catalog version is published. The tick cannot tell such a
+	 * subscription from one that is merely idle, so every idle subscription with outstanding demand gets one delivery
+	 * attempt on the capture executor per tick; an attempt that finds nothing new delivers nothing. A refused retry
+	 * stays eligible for the following tick, so a saturated capture executor can delay delivery by more than the
+	 * one-minute period of this cleaner. The wake goes through
+	 * {@link DefaultChangeCaptureSubscription#notifySubscriber()}, which hands delivery to the capture executor.
 	 *
 	 * @return the milliseconds deviation to the next scheduled run (always zero)
 	 */
@@ -366,6 +374,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		this.uniquePublishers.values().removeIf(
 			publisher -> {
 				publisher.cleanFinishedSubscriptions();
+				publisher.wakeIdleSubscribers();
 				publisher.checkSubscribersLeft();
 				return publisher.isClosed();
 			});
