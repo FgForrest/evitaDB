@@ -23,6 +23,9 @@
 
 package io.evitadb.externalApi.configuration;
 
+import io.evitadb.utils.Assert;
+
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Map;
@@ -52,15 +55,29 @@ public enum TlsMode {
 			.collect(Collectors.toMap(Enum::name, Function.identity()));
 
 	/**
-	 * Returns enum value by its name.
-	 * @param name
-	 * @return
+	 * Resolves an exact TLS mode name, using the endpoint default only when no name is supplied.
+	 *
+	 * @param name configured mode name, or null to use the endpoint default
+	 * @param defaultMode documented default of the endpoint
+	 * @param endpoint endpoint description used in configuration diagnostics
+	 * @return the configured mode or the endpoint default
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when `name` is not null and not the exact,
+	 *         case-sensitive name of a constant, the empty string included; the message names the value, the
+	 *         endpoint and the accepted names
 	 */
-	public static TlsMode getByName(@Nullable String name) {
+	@Nonnull
+	public static TlsMode getByName(
+		@Nullable String name, @Nonnull TlsMode defaultMode, @Nonnull String endpoint
+	) {
 		if (name == null) {
-			return RELAXED;
+			return defaultMode;
 		}
 		final TlsMode mode = lookup.get(name);
-		return mode == null ? RELAXED : mode;
+		Assert.isTrue(
+			mode != null,
+			() -> "Invalid tlsMode '" + name + "' for " + endpoint +
+				". Accepted values: FORCE_TLS, FORCE_NO_TLS, RELAXED."
+		);
+		return mode;
 	}
 }
