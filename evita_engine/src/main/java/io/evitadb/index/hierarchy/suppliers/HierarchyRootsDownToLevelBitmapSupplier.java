@@ -56,6 +56,13 @@ public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBi
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final HierarchyFilteringPredicate excludedNodeTrees;
 
+	/**
+	 * Captures the index and traversal inputs for a deferred, depth-limited listing from all roots.
+	 *
+	 * @param hierarchyIndex the pinned hierarchy index retained for deferred traversal
+	 * @param levels the traversal depth from the roots; `1` includes roots and their direct children
+	 * @param excludedNodeTrees the retained predicate accepting visible nodes; rejection prunes that node's subtree
+	 */
 	public HierarchyRootsDownToLevelBitmapSupplier(
 		@Nonnull HierarchyIndex hierarchyIndex,
 		int levels,

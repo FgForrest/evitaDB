@@ -52,7 +52,11 @@ public abstract class AbstractCacheableFormula extends AbstractFormula {
 	protected AbstractCacheableFormula() {
 	}
 
-	/** Allows this instance to consult the supervisor when initialized for an eligible execution. */
+	/**
+	 * Allows this instance to consult the supervisor when initialized for an eligible execution.
+	 *
+	 * @param cache the supervisor retained by this instance for eligible executions until its memory is cleared
+	 */
 	public final void bindFormulaCache(@Nonnull FormulaCacheSupervisor cache) {
 		this.boundCache = cache;
 	}
@@ -93,7 +97,12 @@ public abstract class AbstractCacheableFormula extends AbstractFormula {
 		return this.memoizedResult;
 	}
 
-	/** Computes a miss and publishes its complete tuple when the per-entry cap accepts the charge. */
+	/**
+	 * Computes a miss and publishes its complete tuple when the per-entry cap accepts the charge.
+	 *
+	 * @param cache the bound supervisor that checks the charge and receives an admissible tuple
+	 * @param key the detached key under which this node's computed tuple is published
+	 */
 	private void computeAndAdmit(@Nonnull FormulaCacheSupervisor cache, @Nonnull FormulaKey key) {
 		final long start = System.nanoTime();
 		this.memoizedResult = computeInternal();
@@ -104,7 +113,14 @@ public abstract class AbstractCacheableFormula extends AbstractFormula {
 		}
 	}
 
-	/** Recomputes a sampled hit with the cache suspended for the whole query and compares it with the stored tuple. */
+	/**
+	 * Recomputes a sampled hit with the cache suspended for the whole query and compares it with the stored tuple.
+	 *
+	 * @param context the execution whose query-wide cache suspension is restored after recomputation
+	 * @param cache the supervisor that compares the stored and recomputed tuples and records verification
+	 * @param key the detached identity of the sampled computation used for verification diagnostics
+	 * @param cached the stored tuple to compare against, whose accepted weight is reused for the recomputed wrapper
+	 */
 	private void recomputeAndVerify(
 		@Nonnull QueryExecutionContext context, @Nonnull FormulaCacheSupervisor cache, @Nonnull FormulaKey key,
 		@Nonnull CachedResult cached
@@ -123,18 +139,32 @@ public abstract class AbstractCacheableFormula extends AbstractFormula {
 	/**
 	 * Returns the complete charge of the tuple this computation would retain, in long arithmetic. The bitmap is
 	 * charged here; a formula with side outputs charges them too and freezes their order before publication.
+	 *
+	 * @param computed the bitmap computed by this node, measured together with any supported side outputs
+	 * @return the complete entry charge in bytes, or {@link CachedResultWeigher#UNSIZED} for unsupported storage
 	 */
 	protected long measurePayload(@Nonnull Bitmap computed) {
 		return CachedResultWeigher.measure(getKey(), computed);
 	}
 
-	/** Builds the complete tuple only after sizing and the per-entry cap have succeeded. */
+	/**
+	 * Builds the complete tuple either for admission, after sizing and the per-entry cap have succeeded, or for
+	 * sampled-hit verification, which reuses the weight of the cached tuple.
+	 *
+	 * @param computed the computed bitmap retained in the tuple without copying
+	 * @param weight the positive byte charge accepted at admission; verification passes the cached tuple's weight
+	 * @return a fresh wrapper retaining the computed bitmap and the accepted weight
+	 */
 	@Nonnull
 	protected CachedResult toCachedResult(@Nonnull Bitmap computed, int weight) {
 		return new CachedBitmapResult(computed, weight);
 	}
 
-	/** Restores the tuple and sets this node's own paid cost to zero. */
+	/**
+	 * Restores the tuple and sets this node's own paid cost to zero.
+	 *
+	 * @param cached the complete stored tuple compatible with this formula; its bitmap is reused without copying
+	 */
 	protected void restoreFromCache(@Nonnull CachedResult cached) {
 		restoreComputedResult(((CachedBitmapResult) cached).result());
 	}

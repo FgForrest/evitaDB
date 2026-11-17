@@ -81,6 +81,8 @@ public record CacheOptions(
 
 	/**
 	 * Builder for the cache options. Recommended to use to avoid binary compatibility problems in the future.
+	 *
+	 * @return a fresh builder initialized with the default cache options
 	 */
 	@Nonnull
 	public static CacheOptions.Builder builder() {
@@ -89,6 +91,9 @@ public record CacheOptions(
 
 	/**
 	 * Builder for the cache options. Recommended to use to avoid binary compatibility problems in the future.
+	 *
+	 * @param cacheOptions the settings copied into the builder as its initial values
+	 * @return a fresh builder initialized from the supplied options
 	 */
 	@Nonnull
 	public static CacheOptions.Builder builder(@Nonnull CacheOptions cacheOptions) {
@@ -128,6 +133,8 @@ public record CacheOptions(
 	/**
 	 * Returns the budget the constructor resolved: a `null` argument has already become the default, so callers may
 	 * unbox it directly, and `0` means formula result caching is off.
+	 *
+	 * @return the nonnegative cache budget in bytes, with `0` disabling formula result caching
 	 */
 	@Nonnull
 	public Long cacheSizeInBytes() {
@@ -160,6 +167,9 @@ public record CacheOptions(
 
 		/**
 		 * Sets the reflection metadata caching mode.
+		 *
+		 * @param reflection the mode used to cache Java reflection metadata
+		 * @return this builder with the supplied setting applied
 		 */
 		@Nonnull
 		public Builder reflection(@Nonnull ReflectionCachingBehaviour reflection) {
@@ -169,6 +179,9 @@ public record CacheOptions(
 
 		/**
 		 * Enables or disables cross-query formula result caching.
+		 *
+		 * @param enabled whether formula computation results may be shared across queries
+		 * @return this builder with the supplied setting applied
 		 */
 		@Nonnull
 		public Builder enabled(boolean enabled) {
@@ -178,6 +191,9 @@ public record CacheOptions(
 
 		/**
 		 * Sets the minimal estimated computation cost required for cache admission.
+		 *
+		 * @param minimalComplexityThreshold the nonnegative minimum estimated computation cost for cache admission
+		 * @return this builder with the supplied setting applied
 		 */
 		@Nonnull
 		public Builder minimalComplexityThreshold(long minimalComplexityThreshold) {
@@ -187,6 +203,9 @@ public record CacheOptions(
 
 		/**
 		 * Sets the estimated retained size budget in bytes; `0` disables the cache.
+		 *
+		 * @param cacheSizeInBytes the nonnegative cache budget in bytes; `0` disables formula result caching
+		 * @return this builder with the supplied setting applied
 		 */
 		@Nonnull
 		public Builder cacheSizeInBytes(long cacheSizeInBytes) {
@@ -196,6 +215,10 @@ public record CacheOptions(
 
 		/**
 		 * Sets the idle expiry and maintenance period in seconds; `0` disables both.
+		 *
+		 * @param dropEntriesAfterSecondsOfInactivity the nonnegative idle expiry and maintenance period in seconds;
+		 *     `0` disables both
+		 * @return this builder with the supplied setting applied
 		 */
 		@Nonnull
 		public Builder dropEntriesAfterSecondsOfInactivity(int dropEntriesAfterSecondsOfInactivity) {
@@ -205,6 +228,10 @@ public record CacheOptions(
 
 		/**
 		 * Sets the hit verification sampling rate; `0` disables verification.
+		 *
+		 * @param verifyOneHitIn the nonnegative sampling interval in cache hits; `1` verifies every hit and
+		 *     `0` disables verification
+		 * @return this builder with the supplied setting applied
 		 */
 		@Nonnull
 		public Builder verifyOneHitIn(int verifyOneHitIn) {
@@ -214,6 +241,8 @@ public record CacheOptions(
 
 		/**
 		 * Builds validated cache options.
+		 *
+		 * @return a fresh immutable options value; invalid negative limits cause validation to fail
 		 */
 		@Nonnull
 		public CacheOptions build() {

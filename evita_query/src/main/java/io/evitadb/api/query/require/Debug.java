@@ -62,6 +62,11 @@ import java.util.EnumSet;
 public class Debug extends AbstractRequireConstraintLeaf {
 	@Serial private static final long serialVersionUID = 5631043212500743575L;
 
+	/**
+	 * Creates a debug constraint from serialized arguments.
+	 *
+	 * @param arguments the serialized debug-mode values passed to the base constraint
+	 */
 	private Debug(@Nonnull Serializable[] arguments) {
 		super(arguments);
 	}

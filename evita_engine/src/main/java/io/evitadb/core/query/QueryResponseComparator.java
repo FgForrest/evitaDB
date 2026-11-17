@@ -67,7 +67,13 @@ final class QueryResponseComparator {
 	private QueryResponseComparator() {
 	}
 
-	/** Compares page identity, pagination and order, then materialized bodies and all non-telemetry extra results. */
+	/**
+	 * Compares page identity, pagination and order, then materialized bodies and all non-telemetry extra results.
+	 *
+	 * @param first the materialized response from the preferred execution path
+	 * @param second the materialized response to verify against the preferred path
+	 * @return true when page structure, ordered content and non-telemetry extra results match
+	 */
 	static boolean matches(@Nonnull EvitaResponse<?> first, @Nonnull EvitaResponse<?> second) {
 		if (first.getClass() != second.getClass() || !first.getRecordPage().equals(second.getRecordPage()) ||
 			!Arrays.equals(first.getPrimaryKeys(), second.getPrimaryKeys()) ||
@@ -85,7 +91,13 @@ final class QueryResponseComparator {
 		return true;
 	}
 
-	/** Compares reference chunk metadata as well as ordered rows, including nested referenced and group bodies. */
+	/**
+	 * Compares reference chunk metadata as well as ordered rows, including nested referenced and group bodies.
+	 *
+	 * @param first the entity projection supplying reference names and chunks
+	 * @param second the entity projection whose corresponding reference chunks are compared
+	 * @return true when reference names, chunk metadata and ordered materialized reference bodies match
+	 */
 	private static boolean sameReferences(@Nonnull EntityContract first, @Nonnull EntityContract second) {
 		if (!first.getReferenceNames().equals(second.getReferenceNames())) return false;
 		for (final String name : first.getReferenceNames()) {
@@ -96,14 +108,29 @@ final class QueryResponseComparator {
 		return true;
 	}
 
-	/** Compares named-only sets which the server deliberately omits from the ordinary reference view. */
+	/**
+	 * Compares named-only sets which the server deliberately omits from the ordinary reference view.
+	 *
+	 * @param first the entity whose server-side named reference sets are inspected when available
+	 * @param second the entity to compare, treating absent server-side sets as an empty map
+	 * @return true when both named reference maps have matching materialized content
+	 */
 	private static boolean sameNamedReferences(@Nonnull EntityContract first, @Nonnull EntityContract second) {
 		final Map<?, ?> left = first instanceof ServerEntityDecorator entity ? entity.getNamedReferenceSets() : null;
 		final Map<?, ?> right = second instanceof ServerEntityDecorator entity ? entity.getNamedReferenceSets() : null;
 		return sameContent(left == null ? Map.of() : left, right == null ? Map.of() : right);
 	}
 
-	/** Matches materialized values by their own keys, without invoking getters for the opposite projection. */
+	/**
+	 * Matches materialized values by their own keys, without invoking getters for the opposite projection.
+	 *
+	 * @param <K> the identity key type used to pair values across projections
+	 * @param <V> the materialized value type whose content is compared
+	 * @param first the materialized values to match by key, independently of encounter order
+	 * @param second the materialized values indexed by their keys for comparison
+	 * @param key the function extracting the unique identity key of each materialized value
+	 * @return true when collection sizes match and each first value matches the second value with its key
+	 */
 	private static <K, V> boolean sameValues(
 		@Nonnull Collection<V> first, @Nonnull Collection<V> second, @Nonnull Function<V, K> key
 	) {
@@ -116,13 +143,25 @@ final class QueryResponseComparator {
 		return true;
 	}
 
-	/** Compares attribute availability and only the values actually present in each projection. */
+	/**
+	 * Compares attribute availability and only the values actually present in each projection.
+	 *
+	 * @param first the projection whose attribute availability and materialized values are inspected
+	 * @param second the projection required to have matching availability and attribute content
+	 * @return true when availability matches and all available attribute values match by key
+	 */
 	private static boolean sameAttributes(@Nonnull AttributesContract<?> first, @Nonnull AttributesContract<?> second) {
 		return first.attributesAvailable() == second.attributesAvailable() && (!first.attributesAvailable() ||
 			sameValues(first.getAttributeValues(), second.getAttributeValues(), AttributeValue::key));
 	}
 
-	/** Compares chunk metadata independently of rows; unpaged PlainChunk deliberately has identity equality. */
+	/**
+	 * Compares chunk metadata independently of rows; unpaged PlainChunk deliberately has identity equality.
+	 *
+	 * @param first the chunk supplying concrete type, total count and pagination metadata
+	 * @param second the chunk whose metadata is compared independently of its rows
+	 * @return true when chunk types, total counts and type-specific pagination values match
+	 */
 	private static boolean sameChunkMetadata(@Nonnull DataChunk<?> first, @Nonnull DataChunk<?> second) {
 		if (first.getClass() != second.getClass() || first.getTotalRecordCount() != second.getTotalRecordCount()) {
 			return false;
@@ -141,7 +180,13 @@ final class QueryResponseComparator {
 		};
 	}
 
-	/** Walks the API's materialized content containers; scalar values retain their API equality semantics. */
+	/**
+	 * Walks the API's materialized content containers; scalar values retain their API equality semantics.
+	 *
+	 * @param first the materialized content to traverse, or null for an absent value
+	 * @param second the content to compare recursively, or null for an absent value
+	 * @return true for the same instance, two nulls or recursively matching content; false otherwise
+	 */
 	private static boolean sameContent(@Nullable Object first, @Nullable Object second) {
 		if (first == second) return true;
 		if (first == null || second == null) return false;

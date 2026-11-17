@@ -56,7 +56,18 @@ public final class FormulaKey {
 	/** Holder retained exclusively for opaque identities. */
 	@Nullable private final Object owner;
 
-	/** Captures the finished single-pass description. */
+	/**
+	 * Captures the finished single-pass description.
+	 *
+	 * @param identity finished declared identity record, retained without copying
+	 * @param children owned ordered child-key array, retained directly and never mutated by this key
+	 * @param owner holder retained for an opaque identity, or null for a detached value identity
+	 * @param hash64 precomputed structural hash used as an equality prefilter
+	 * @param weight retained key weight in abstract weight units, saturated at {@link Integer#MAX_VALUE}
+	 * @param opaque whether equality is bound to the holder instance rather than declared values
+	 * @param queryLocal whether any retained input prevents cross-query reuse
+	 * @param sideKeys whether declared inputs or descendants transitively retain side keys
+	 */
 	private FormulaKey(
 		@Nonnull IdentityRecord identity, @Nonnull FormulaKey[] children, @Nullable Object owner,
 		long hash64, int weight, boolean opaque, boolean queryLocal, boolean sideKeys
@@ -103,32 +114,56 @@ public final class FormulaKey {
 		);
 	}
 
-	/** Returns the declared class identifier. */
+	/**
+	 * Returns the declared class identifier.
+	 *
+	 * @return the discriminator declared by this key's identity record
+	 */
 	public long getClassId() {
 		return this.identity.classId();
 	}
 
-	/** Returns the structural hash, never a replacement for equality. */
+	/**
+	 * Returns the structural hash, never a replacement for equality.
+	 *
+	 * @return the precomputed 64-bit hash used to reject unequal keys before comparing their values
+	 */
 	public long getHash64() {
 		return this.hash64;
 	}
 
-	/** Returns whether this key is bound to its holder instance. */
+	/**
+	 * Returns whether this key is bound to its holder instance.
+	 *
+	 * @return true when equality requires the same opaque holder instance
+	 */
 	public boolean isOpaque() {
 		return this.opaque;
 	}
 
-	/** Reports transitive side keys to a parent accumulator. */
+	/**
+	 * Reports transitive side keys to a parent accumulator.
+	 *
+	 * @return true when a declared input or descendant transitively contains a side key
+	 */
 	boolean hasSideKeys() {
 		return this.sideKeys;
 	}
 
-	/** Returns whether cross-query reuse is refused. */
+	/**
+	 * Returns whether cross-query reuse is refused.
+	 *
+	 * @return true when an opaque or query-local retained input prevents cross-query reuse
+	 */
 	public boolean isQueryLocal() {
 		return this.queryLocal;
 	}
 
-	/** Returns saturating retained weight, including children and side keys. */
+	/**
+	 * Returns saturating retained weight, including children and side keys.
+	 *
+	 * @return the total retained weight in key weight units, saturated at {@link Integer#MAX_VALUE}
+	 */
 	public int getWeight() {
 		return this.weight;
 	}
@@ -177,7 +212,12 @@ public final class FormulaKey {
 		}
 	}
 
-	/** Compares the record and ordered children, checking shared children by reference first. */
+	/**
+	 * Compares the record and ordered children, checking shared children by reference first.
+	 *
+	 * @param other value-based key with matching class, hash and child count, supplying the ordered comparison operands
+	 * @return true when the identity records and all ordered child keys are equal
+	 */
 	private boolean compareValues(@Nonnull FormulaKey other) {
 		if (!this.identity.equals(other.identity)) {
 			return false;

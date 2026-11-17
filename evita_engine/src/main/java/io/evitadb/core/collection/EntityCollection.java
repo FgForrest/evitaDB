@@ -3855,6 +3855,10 @@ public final class EntityCollection implements
 	/**
 	 * Plans body fetching as a root from its own request, preserving the ordinary fetch policy and accounting.
 	 * Verification roots share only execution state and the key-free sibling policy with the originating query.
+	 *
+	 * @param request the body-fetch request whose own policy and accounting define the fetch root
+	 * @param origin the originating query context whose session and available shared execution state are reused
+	 * @return a fresh fetch planning root sharing verification state when the origin carries it
 	 */
 	@Nonnull
 	private QueryPlanningContext createFetchQueryContext(
@@ -3866,7 +3870,14 @@ public final class EntityCollection implements
 			createQueryContext(request, Objects.requireNonNull(origin.getEvitaSession()));
 	}
 
-	/** Creates the fetcher with the root context selected for this body fetch. */
+	/**
+	 * Creates the fetcher with the root context selected for this body fetch.
+	 *
+	 * @param evitaRequest the body-fetch request describing the reference and hierarchy content to load
+	 * @param queryContext the selected fetch root used to create the reference fetcher's execution context
+	 * @return a fresh reference fetcher, or {@link ReferenceFetcher#NO_IMPLEMENTATION} when no references or
+	 *     parent content are requested
+	 */
 	@Nonnull
 	private ReferenceFetcher createReferenceFetcher(
 		@Nonnull EvitaRequest evitaRequest,

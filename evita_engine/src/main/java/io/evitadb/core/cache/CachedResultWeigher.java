@@ -62,7 +62,13 @@ public final class CachedResultWeigher {
 	private CachedResultWeigher() {
 	}
 
-	/** Returns the complete bitmap entry charge using long arithmetic, or {@link #UNSIZED} for unsupported storage. */
+	/**
+	 * Returns the complete bitmap entry charge using long arithmetic, or {@link #UNSIZED} for unsupported storage.
+	 *
+	 * @param key the detached formula key whose weight determines the key allowance
+	 * @param bitmap the result whose concrete representation determines the retained storage charge
+	 * @return the complete entry charge in bytes, or {@link #UNSIZED} for unsupported bitmap storage
+	 */
 	public static long measure(@Nonnull FormulaKey key, @Nonnull Bitmap bitmap) {
 		final long bitmapBytes = measureBitmap(bitmap);
 		if (bitmapBytes == UNSIZED) {
@@ -72,8 +78,15 @@ public final class CachedResultWeigher {
 	}
 
 	/**
-	 * Freezes and charges both price arrays, their holders, all records and SUM component-map capacities.
+	 * Orders and charges both price arrays, their holders, all records and SUM component-map capacities.
 	 * Returns {@link #UNSIZED} for unsupported bitmap storage, non-resolved arrays, unknown records or maps.
+	 *
+	 * @param key the detached formula key whose weight determines the key allowance
+	 * @param bitmap the result whose concrete representation determines the retained storage charge
+	 * @param priceRecords the resolved price holder to charge in full; accessing its array fixes its order
+	 * @param perInnerRecordPriceRecords the optional resolved per-inner-record holder, ordered and charged in full;
+	 *     `null` adds no holder charge
+	 * @return the complete entry charge in bytes, or {@link #UNSIZED} if any retained representation is unsupported
 	 */
 	public static long measure(
 		@Nonnull FormulaKey key, @Nonnull Bitmap bitmap, @Nonnull FilteredPriceRecords priceRecords,
@@ -92,6 +105,10 @@ public final class CachedResultWeigher {
 	/**
 	 * Returns the complete histogram entry charge, or {@link #UNSIZED} for a histogram class other than
 	 * {@link CacheableHistogram} and the shared empty histogram, or for an unknown retained value type.
+	 *
+	 * @param key the detached formula key whose weight determines the key allowance
+	 * @param histogram the retained histogram whose buckets and numeric values are included in the charge
+	 * @return the complete entry charge in bytes, or {@link #UNSIZED} for an unsupported histogram or value type
 	 */
 	public static long measure(@Nonnull FormulaKey key, @Nonnull CacheableHistogramContract histogram) {
 		long bytes = baseCharge(key) + LAYOUT.sizeOfObject(LAYOUT.referenceSize() + Integer.BYTES);
@@ -127,6 +144,11 @@ public final class CachedResultWeigher {
 	 * Converts a complete charge to a cache weight, refusing entries above one percent of the budget or the integer
 	 * range, and a charge below the entry overhead every complete charge includes. Refusals are values, never
 	 * saturated positive weights. An unsized payload keeps its refusal reason.
+	 *
+	 * @param charge the complete entry estimate in bytes, or {@link #UNSIZED} when measurement was unsupported
+	 * @param budget the cache budget in bytes against which the one-percent per-entry cap is checked
+	 * @return the accepted byte charge as a positive weight, {@link #UNSIZED} for an unsupported payload, or
+	 *     {@link #OVERSIZED} when the charge is below the entry overhead or exceeds either limit
 	 */
 	public static int admittedWeight(long charge, long budget) {
 		if (charge == UNSIZED) {
@@ -143,6 +165,9 @@ public final class CachedResultWeigher {
 	 * ArrayBitmap is refused because its composite-array helper narrows the backing footprint to int; subclasses
 	 * and foreign implementations are refused because their additional retained storage has no known size model.
 	 * Roaring-backed representations charge shared containers in full so the charge survives predecessor reclamation.
+	 *
+	 * @param bitmap the retained bitmap whose exact runtime class must have a supported size model
+	 * @return the bitmap storage charge in bytes, or {@link #UNSIZED} for an unsupported class or negative estimate
 	 */
 	private static long measureBitmap(@Nonnull Bitmap bitmap) {
 		final Class<?> bitmapType = bitmap.getClass();
@@ -155,12 +180,22 @@ public final class CachedResultWeigher {
 		return bytes < 0 ? UNSIZED : bytes;
 	}
 
-	/** Charges the detached key and entry bookkeeping without narrowing the multiplication. */
+	/**
+	 * Charges the detached key and entry bookkeeping without narrowing the multiplication.
+	 *
+	 * @param key the detached key whose weight units are converted to a conservative byte allowance
+	 * @return the entry bookkeeping and key allowance in bytes, excluding the result wrapper and payload
+	 */
 	private static long baseCharge(@Nonnull FormulaKey key) {
 		return ENTRY_OVERHEAD_BYTES + (long) key.getWeight() * KEY_WEIGHT_UNIT_BYTES;
 	}
 
-	/** Freezes an array and charges its full retained contents, refusing lazy holders. */
+	/**
+	 * Orders an array and charges its full retained contents, refusing lazy holders.
+	 *
+	 * @param records the resolved holder whose array is ordered in place on access and whose records are charged
+	 * @return the holder, array and record charge in bytes, or {@link #UNSIZED} for a lazy holder or unknown record
+	 */
 	private static long measureRecords(@Nonnull FilteredPriceRecords records) {
 		if (records.getClass() != ResolvedFilteredPriceRecords.class) {
 			return UNSIZED;
@@ -178,7 +213,12 @@ public final class CachedResultWeigher {
 		return bytes;
 	}
 
-	/** Charges a known record and, for SUM, the allocated map capacity and every component record. */
+	/**
+	 * Charges a known record and, for SUM, the allocated map capacity and every component record.
+	 *
+	 * @param record the retained price record to charge, including SUM components; `null` is unsupported
+	 * @return the record and component-storage charge in bytes, or {@link #UNSIZED} for null or unknown shapes
+	 */
 	private static long measureRecord(@Nullable PriceRecordContract record) {
 		if (record == null) {
 			return UNSIZED;
@@ -209,7 +249,12 @@ public final class CachedResultWeigher {
 		return UNSIZED;
 	}
 
-	/** Charges immutable numeric histogram values, including decimal magnitudes and their rendering memo. */
+	/**
+	 * Charges immutable numeric histogram values, including decimal magnitudes and their rendering memo.
+	 *
+	 * @param value the retained numeric value to charge; `null` represents no retained value
+	 * @return the numeric storage charge in bytes, `0` for null, or {@link #UNSIZED} for an unsupported value type
+	 */
 	private static long measureValue(@Nullable Object value) {
 		if (value == null) {
 			return 0;

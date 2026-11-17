@@ -38,7 +38,12 @@ public enum ThresholdOperator {
 	/** At or above the requested value. */
 	GREATER_THAN_EQUALS;
 
-	/** Evaluates a comparison result, regardless of its magnitude. */
+	/**
+	 * Evaluates a comparison result, regardless of its magnitude.
+	 *
+	 * @param comparison the sign of the threshold-to-requested-value comparison, regardless of its magnitude
+	 * @return whether the comparison satisfies this operator's strict or inclusive threshold relation
+	 */
 	public boolean accepts(int comparison) {
 		return switch (this) {
 			case LESS_THAN -> comparison < 0;

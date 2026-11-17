@@ -113,7 +113,11 @@ public abstract class AbstractFormula implements Formula {
 		return computedKey;
 	}
 
-	/** Returns the declared identity components. */
+	/**
+	 * Returns the declared identity components.
+	 *
+	 * @return detached construction-time inputs of this formula, excluding its computed result and cost
+	 */
 	@Nonnull
 	protected abstract IdentityRecord identity();
 
@@ -193,7 +197,11 @@ public abstract class AbstractFormula implements Formula {
 		return this.memoizedResult;
 	}
 
-	/** Restores a retained result and records that this node performed no computation. */
+	/**
+	 * Restores a retained result and records that this node performed no computation.
+	 *
+	 * @param result shared read-only cached bitmap to retain directly as this node's memoized result
+	 */
 	protected final void restoreComputedResult(@Nonnull Bitmap result) {
 		this.memoizedResult = result;
 		this.cost = 0;

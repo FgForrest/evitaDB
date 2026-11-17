@@ -66,6 +66,11 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 		this.initFields(innerFormulas);
 	}
 
+	/**
+	 * Creates a disjunction over raw bitmap operands.
+	 *
+	 * @param bitmaps at least two record sets to union; the operand array and its bitmaps are retained
+	 */
 	public OrFormula(@Nonnull Bitmap... bitmaps) {
 		super(bitmaps);
 		Assert.isTrue(bitmaps.length > 1, "Or formula has no sense with " + bitmaps.length + " inner bitmaps!");

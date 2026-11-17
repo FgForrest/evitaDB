@@ -84,6 +84,9 @@ public class PortManager {
 	/**
 	 * Allocates a new set of ports for a particular `dataSetName`.
 	 *
+	 * @param dataSetName the dataset label retained as the allocation owner; must not already own ports
+	 * @param count the nonnegative number of ports to reserve from the configured base through `65535`
+	 * @return a fresh array of ascending reserved ports, also retained in the allocation table; empty for zero
 	 * @throws IllegalStateException if the requested ports exceed the available range through `65535`
 	 */
 	@Nonnull

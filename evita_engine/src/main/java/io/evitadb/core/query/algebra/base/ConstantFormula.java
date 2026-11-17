@@ -49,6 +49,8 @@ public class ConstantFormula extends AbstractFormula {
 	private static final long CLASS_ID = 2713157071360876502L;
 	/**
 	 * Bitmap of entity primary keys that this constant formula directly returns as its result.
+	 *
+	 * @return the retained nonempty result bitmap, without copying
 	 */
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Getter private final Bitmap delegate;
@@ -75,7 +77,11 @@ public class ConstantFormula extends AbstractFormula {
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private int memoizedCardinality = -1;
 
-	/** Captures a nonempty bitmap whose identity is derived when requested. */
+	/**
+	 * Captures a nonempty bitmap whose identity is derived when requested.
+	 *
+	 * @param delegate the nonempty bitmap retained and returned without copying; its contents must stay fixed
+	 */
 	public ConstantFormula(@Nonnull Bitmap delegate) {
 		Assert.isPremiseValid(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
 		this.delegate = delegate;
@@ -112,7 +118,12 @@ public class ConstantFormula extends AbstractFormula {
 		return this.memoizedCardinality;
 	}
 
-	/** Returns the detached identity of the bitmap operand. */
+	/**
+	 * Returns the detached identity of the bitmap operand.
+	 *
+	 * @return the supplied identity token when present; otherwise a detached producer or bounded content token,
+	 *     or {@link IdentityToken#OPAQUE} when the bitmap has no supported bounded identity
+	 */
 	@Nonnull
 	protected IdentityToken getDelegateIdentityToken() {
 		return this.suppliedIdentity == null ? IdentityToken.of(this.delegate) : this.suppliedIdentity;

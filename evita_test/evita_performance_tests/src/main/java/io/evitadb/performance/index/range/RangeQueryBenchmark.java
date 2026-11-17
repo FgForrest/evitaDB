@@ -446,6 +446,12 @@ public class RangeQueryBenchmark {
 	/**
 	 * The `createRangeCountFormulaIfNecessary` short-circuiting, reproduced so the baseline builds the same formula
 	 * shapes the engine used to build.
+	 *
+	 * @param plus the bitmap operands whose occurrences increase the per-record range count; empty operands are ignored
+	 * @param minus the bitmap operands whose occurrences decrease the per-record range count; empty operands are
+	 *     ignored
+	 * @return a formula selecting records with a positive net count, a union when no subtracting operands remain,
+	 *     or {@link EmptyFormula#INSTANCE} when no adding operands remain
 	 */
 	@Nonnull
 	private static Formula countFormula(@Nonnull List<Bitmap> plus, @Nonnull List<Bitmap> minus) {

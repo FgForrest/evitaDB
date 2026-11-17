@@ -2490,12 +2490,20 @@ public final class Evita implements EvitaContract {
 		/** Last emitted totals; null until the first enabled emission. */
 		@Nullable private FormulaCacheSupervisor.Statistics previous;
 
-		/** Binds this emitter to the engine's actual supervisor. */
+		/**
+		 * Binds this emitter to the engine's actual supervisor.
+		 *
+		 * @param cache the engine-owned supervisor retained as the source of cumulative statistics
+		 */
 		private FormulaCacheStatisticsHook(@Nonnull FormulaCacheSupervisor cache) {
 			this.cache = cache;
 		}
 
-		/** Registers this single emitter at most once, including concurrent observability startup calls. */
+		/**
+		 * Registers this single emitter at most once, including concurrent observability startup calls.
+		 *
+		 * @param evita the engine whose hook registry tracks this emitter and prevents duplicate registration
+		 */
 		private void register(@Nonnull Evita evita) {
 			this.emissionLock.lock();
 			try {
@@ -2592,13 +2600,21 @@ public final class Evita implements EvitaContract {
 
 	}
 
-	/** Returns whether this engine's configured formula result cache remains active. */
+	/**
+	 * Returns whether this engine's configured formula result cache remains active.
+	 *
+	 * @return true when a configured formula cache reports itself active; false when absent or inactive
+	 */
 	public boolean isQueryCacheEnabled() {
 		final FormulaCacheSupervisor.Statistics statistics = getFormulaCacheStatistics();
 		return statistics != null && statistics.active();
 	}
 
-	/** Returns the formula cache's counters and effective state, or null when it was not configured. */
+	/**
+	 * Returns the formula cache's counters and effective state, or null when it was not configured.
+	 *
+	 * @return a snapshot of the supervisor counters and state, or null when no formula cache is configured
+	 */
 	@Nullable
 	public FormulaCacheSupervisor.Statistics getFormulaCacheStatistics() {
 		return this.cacheSupervisor instanceof FormulaCacheSupervisor cache ?

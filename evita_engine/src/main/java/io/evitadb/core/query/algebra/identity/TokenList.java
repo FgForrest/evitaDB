@@ -52,7 +52,11 @@ public final class TokenList {
 	/** Some operand is opaque. */
 	private final boolean opaque;
 
-	/** Captures an owned primitive sequence. */
+	/**
+	 * Captures an owned primitive sequence.
+	 *
+	 * @param producerIds the owned direct-producer version array retained without copying; must not be mutated
+	 */
 	private TokenList(@Nonnull long[] producerIds) {
 		this.producerIds = producerIds;
 		this.tokens = null;
@@ -65,7 +69,11 @@ public final class TokenList {
 		this.hash64 = hash;
 	}
 
-	/** Captures an owned mixed-token sequence. */
+	/**
+	 * Captures an owned mixed-token sequence.
+	 *
+	 * @param tokens the owned ordered token array retained without copying; must not be mutated
+	 */
 	private TokenList(@Nonnull IdentityToken[] tokens) {
 		this.tokens = tokens;
 		this.producerIds = null;
@@ -82,19 +90,35 @@ public final class TokenList {
 		this.opaque = opaque;
 	}
 
-	/** Builds a detached ordered operand list. */
+	/**
+	 * Builds a detached ordered operand list.
+	 *
+	 * @param bitmaps the operand sequence to detach without retaining the supplied array or bitmap instances
+	 * @return a fresh immutable list preserving encounter order and duplicate operands, including an empty list
+	 */
 	@Nonnull
 	public static TokenList ordered(@Nonnull Bitmap[] bitmaps) {
 		return fromBitmaps(bitmaps, false);
 	}
 
-	/** Builds a detached canonical operand multiset. */
+	/**
+	 * Builds a detached canonical operand multiset.
+	 *
+	 * @param bitmaps the operands to detach and sort by token value without changing the supplied array
+	 * @return a fresh immutable canonical list preserving duplicate operands, including an empty list
+	 */
 	@Nonnull
 	public static TokenList canonical(@Nonnull Bitmap[] bitmaps) {
 		return fromBitmaps(bitmaps, true);
 	}
 
-	/** Copies producer identifiers and optionally sorts them, keeping duplicates. */
+	/**
+	 * Copies producer identifiers and optionally sorts them, keeping duplicates.
+	 *
+	 * @param ids the direct-producer versions copied so subsequent caller mutations cannot alter the list
+	 * @param canonical true to sort the copied versions; false to preserve their supplied order
+	 * @return a fresh immutable list backed by an owned copy, with duplicate versions retained
+	 */
 	@Nonnull
 	public static TokenList ofProducerIds(@Nonnull long[] ids, boolean canonical) {
 		final long[] copy = ids.clone();
@@ -104,7 +128,13 @@ public final class TokenList {
 		return new TokenList(copy);
 	}
 
-	/** Selects primitive storage when all bitmaps are transactional producers. */
+	/**
+	 * Selects primitive storage when all bitmaps are transactional producers.
+	 *
+	 * @param bitmaps the bitmap operands read to capture producer versions or detached identity tokens
+	 * @param canonical true to sort the captured operands; false to preserve encounter order
+	 * @return a fresh immutable list using compact producer storage when possible, including for empty input
+	 */
 	@Nonnull
 	private static TokenList fromBitmaps(@Nonnull Bitmap[] bitmaps, boolean canonical) {
 		boolean direct = true;
@@ -131,7 +161,13 @@ public final class TokenList {
 		return new TokenList(tokens);
 	}
 
-	/** Orders producer values before exact content before opaque markers. */
+	/**
+	 * Orders producer values before exact content before opaque markers.
+	 *
+	 * @param left the token placed by kind, then producer id and role or exact hash and contents
+	 * @param right the token to compare with the same ordering rules
+	 * @return a negative value, zero or a positive value for less, equal or greater order; opaque markers tie
+	 */
 	private static int compareTokens(@Nonnull IdentityToken left, @Nonnull IdentityToken right) {
 		if (left instanceof final IdentityToken.ProducerId first) {
 			if (right instanceof final IdentityToken.ProducerId second) {
@@ -153,27 +189,47 @@ public final class TokenList {
 		return right instanceof IdentityToken.Exact ? 1 : 0;
 	}
 
-	/** Returns sequence length. */
+	/**
+	 * Returns sequence length.
+	 *
+	 * @return the number of operands including duplicates, or zero for an empty list
+	 */
 	public int size() {
 		return this.producerIds == null ? this.tokens.length : this.producerIds.length;
 	}
 
-	/** Returns precomputed sequence hash. */
+	/**
+	 * Returns precomputed sequence hash.
+	 *
+	 * @return the precomputed order-sensitive sequence hash, which does not replace value equality
+	 */
 	public long hash64() {
 		return this.hash64;
 	}
 
-	/** Returns retained operand weight. */
+	/**
+	 * Returns retained operand weight.
+	 *
+	 * @return retained operand weight units, zero for an empty list, capped at {@link Integer#MAX_VALUE}
+	 */
 	public int weight() {
 		return this.weight;
 	}
 
-	/** Reports opaque operands. */
+	/**
+	 * Reports opaque operands.
+	 *
+	 * @return true when at least one operand is represented by an opaque marker
+	 */
 	public boolean isOpaque() {
 		return this.opaque;
 	}
 
-	/** Reports opacity or excess operand count. */
+	/**
+	 * Reports opacity or excess operand count.
+	 *
+	 * @return true when an operand is opaque or the operand count exceeds {@link #CAP}; false otherwise
+	 */
 	public boolean isQueryLocal() {
 		return this.opaque || size() > CAP;
 	}

@@ -63,12 +63,24 @@ public record PriceEvaluationContext(
 		targetPriceIndexes = List.copyOf(targetPriceIndexes);
 	}
 
-	/** Builds a context from defensively copied array input. */
+	/**
+	 * Builds a context from defensively copied array input.
+	 *
+	 * @param validIn the price validity moment in epoch milliseconds, or {@link Long#MIN_VALUE} for no validity
+	 *     constraint
+	 * @param targetPriceIndexes the ordered index keys copied into an immutable list; the input array is not retained
+	 */
 	public PriceEvaluationContext(long validIn, @Nonnull PriceIndexKey... targetPriceIndexes) {
 		this(validIn, List.of(targetPriceIndexes));
 	}
 
-	/** Converts an optional validity moment to the range index's precision. */
+	/**
+	 * Converts an optional validity moment to the range index's precision.
+	 *
+	 * @param validIn the price validity moment converted to range-index precision, or `null` for no validity constraint
+	 * @param targetPriceIndexes at least one ordered index key, copied into an immutable list without retaining the
+	 *     array
+	 */
 	public PriceEvaluationContext(
 		@Nullable OffsetDateTime validIn,
 		@Nonnull PriceIndexKey... targetPriceIndexes

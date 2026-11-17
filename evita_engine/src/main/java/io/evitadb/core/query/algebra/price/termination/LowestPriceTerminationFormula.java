@@ -162,6 +162,10 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	/**
 	 * Constructs an LP for the LOWEST_PRICE inner-record-handling path.
 	 *
+	 * @param containerFormula the retained delegate computing candidate entity ids and providing price-record access
+	 * @param priceEvaluationContext the retained validity and ordered price-index context included in identity
+	 * @param queryPriceMode whether tax-inclusive or tax-exclusive amounts determine the lowest price
+	 * @param sellingPricePredicate the retained predicate that at least one inner-record winning price must satisfy
 	 * @param collectPerInnerRecordPrices set to `true` by
 	 *                                    {@code PriceListCompositionTerminationVisitor} when (a) the query
 	 *                                    has a `priceHistogram` extra result and (b) this LP is being built
@@ -194,8 +198,16 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	/**
 	 * Internal constructor used by every cloning factory ({@link #getCloneWithInnerFormulas},
 	 * {@link #withIndividualPricePredicateFactory}). Carries forward the
-	 * individual price predicate and the histogram side-output flag — fields that
-	 * are absent from the public constructor's API surface but must survive cloning.
+	 * individual price predicate and the histogram side-output flag, preserving both across cloning.
+	 *
+	 * @param containerFormula the retained delegate computing candidate entity ids and providing price-record access
+	 * @param priceEvaluationContext the retained validity and ordered price-index context included in identity
+	 * @param queryPriceMode whether tax-inclusive or tax-exclusive amounts determine the lowest price
+	 * @param sellingPricePredicate the retained predicate that at least one inner-record winning price must satisfy
+	 * @param individualPricePredicate the predicate retained for this computation; `null` allows every individual price
+	 * @param individualPricePredicateFactory the factory retained to restart predicate state for clones; `null` reuses
+	 *                                      the supplied predicate when cloning
+	 * @param collectPerInnerRecordPrices whether to retain all inner-record winning prices for histogram computation
 	 */
 	private LowestPriceTerminationFormula(
 		@Nonnull Formula containerFormula,

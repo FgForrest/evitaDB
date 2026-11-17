@@ -147,13 +147,21 @@ public class NotFormula extends AbstractCacheableFormula {
 		}
 	}
 
-	/** Returns the detached raw subtracted operand, absent in formula mode. */
+	/**
+	 * Returns the detached raw subtracted operand, absent in formula mode.
+	 *
+	 * @return a detached token for the raw bitmap to subtract, or null when a child formula supplies that operand
+	 */
 	@Nullable
 	protected IdentityToken getSubtractedBitmapIdentityToken() {
 		return this.subtractedBitmap == null ? null : IdentityToken.of(this.subtractedBitmap);
 	}
 
-	/** Returns the detached raw superset operand, absent in formula mode. */
+	/**
+	 * Returns the detached raw superset operand, absent in formula mode.
+	 *
+	 * @return a detached token for the raw superset bitmap, or null when a child formula supplies that operand
+	 */
 	@Nullable
 	protected IdentityToken getSupersetBitmapIdentityToken() {
 		return this.supersetBitmap == null ? null : IdentityToken.of(this.supersetBitmap);

@@ -40,7 +40,14 @@ public sealed interface IdentityToken permits IdentityToken.ProducerId, Identity
 	/** Marker binding a key to its holder instance. */
 	IdentityToken OPAQUE = Opaque.INSTANCE;
 
-	/** Derives an operand identity without retaining the bitmap or its backing storage. */
+	/**
+	 * Derives an operand identity without retaining the bitmap or its backing storage.
+	 *
+	 * @param bitmap the operand whose producer version or bounded integer content supplies the identity; it is not
+	 *     retained
+	 * @return a fresh producer token or copied content token, or the shared {@link #OPAQUE} marker when an
+	 *     unversioned bitmap exceeds {@link #CONTENT_LIMIT}
+	 */
 	@Nonnull
 	static IdentityToken of(@Nonnull Bitmap bitmap) {
 		if (bitmap instanceof final TransactionalLayerProducer<?, ?> producer) {
@@ -49,23 +56,48 @@ public sealed interface IdentityToken permits IdentityToken.ProducerId, Identity
 		return bitmap.size() > CONTENT_LIMIT ? OPAQUE : ofContent(bitmap.getArray());
 	}
 
-	/** Copies bounded integer content, otherwise returns the opaque marker. */
+	/**
+	 * Copies bounded integer content, otherwise returns the opaque marker.
+	 *
+	 * @param values the operand content to copy when bounded by {@link #CONTENT_LIMIT}; the input array is not retained
+	 * @return a fresh token containing a defensive copy, or the shared {@link #OPAQUE} marker if the array exceeds the
+	 *     limit
+	 */
 	@Nonnull
 	static IdentityToken ofContent(@Nonnull int[] values) {
 		return values.length > CONTENT_LIMIT ? OPAQUE : new Exact(new IntValues(values));
 	}
 
-	/** Names a deterministic derived operand of a versioned owner. */
+	/**
+	 * Names a deterministic derived operand of a versioned owner.
+	 *
+	 * @param ownerId the exact producer version owning the derived bitmap
+	 * @param role the named deterministic derivation that distinguishes this operand within its owner
+	 * @return a fresh producer token pairing the owner version with the derivation role
+	 */
 	@Nonnull
 	static IdentityToken derived(long ownerId, @Nonnull TokenRole role) {
 		return new ProducerId(ownerId, role);
 	}
 
-	/** Returns the operand's precomputed or constant-time hash. */
+	/**
+	 * Returns the operand's precomputed or constant-time hash.
+	 *
+	 * @return the 64-bit hash of the producer or copied content identity, or the constant opaque discriminator
+	 */
 	long hash64();
-	/** Returns retained identity weight. */
+	/**
+	 * Returns retained identity weight.
+	 *
+	 * @return retained identity weight in units: one for a producer or opaque token, or the integer count for copied
+	 *     content
+	 */
 	int weight();
-	/** Returns whether this operand has no value identity. */
+	/**
+	 * Returns whether this operand has no value identity.
+	 *
+	 * @return whether this is the opaque marker, requiring the enclosing key to be bound to its holder instance
+	 */
 	boolean isOpaque();
 
 	/**

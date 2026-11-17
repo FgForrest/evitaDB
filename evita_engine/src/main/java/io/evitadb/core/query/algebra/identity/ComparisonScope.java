@@ -54,7 +54,11 @@ final class ComparisonScope {
 	private ComparisonScope() {
 	}
 
-	/** Returns the comparing thread's scope. */
+	/**
+	 * Returns the comparing thread's scope.
+	 *
+	 * @return the current thread's reusable scope, allocated on first access and confined to that thread
+	 */
 	@Nonnull
 	static ComparisonScope current() {
 		final ComparisonScope scope = SCOPES.get();
@@ -85,12 +89,23 @@ final class ComparisonScope {
 		}
 	}
 
-	/** Finds a reference pair without calling key equality. */
+	/**
+	 * Finds a reference pair without calling key equality.
+	 *
+	 * @param first the left key reference identifying the ordered comparison pair
+	 * @param second the right key reference identifying the ordered comparison pair
+	 * @return whether this exact ordered pair of references has already been proven equal in the active scope
+	 */
 	boolean contains(@Nonnull FormulaKey first, @Nonnull FormulaKey second) {
 		return this.left[find(first, second)] != null;
 	}
 
-	/** Records a pair only after its complete comparison has succeeded. */
+	/**
+	 * Records a pair only after its complete comparison has succeeded.
+	 *
+	 * @param first the proven-equal left key reference retained until the outermost comparison exits
+	 * @param second the proven-equal right key reference retained until the outermost comparison exits
+	 */
 	void add(@Nonnull FormulaKey first, @Nonnull FormulaKey second) {
 		if ((this.size + 1) * 2 >= this.left.length) {
 			final FormulaKey[] oldLeft = this.left;
@@ -112,7 +127,13 @@ final class ComparisonScope {
 		}
 	}
 
-	/** Returns the slot holding the reference pair, or the empty slot that ends its probe sequence. */
+	/**
+	 * Returns the slot holding the reference pair, or the empty slot that ends its probe sequence.
+	 *
+	 * @param first the left key reference identifying the ordered comparison pair
+	 * @param second the right key reference identifying the ordered comparison pair
+	 * @return the occupied slot for this reference pair, or the empty slot where it can be inserted
+	 */
 	private int find(@Nonnull FormulaKey first, @Nonnull FormulaKey second) {
 		int slot = slot(first, second);
 		while (this.left[slot] != null && (this.left[slot] != first || this.right[slot] != second)) {
@@ -124,6 +145,10 @@ final class ComparisonScope {
 	/**
 	 * Hashes the identities of both references into the current table. Both identity hashes are packed into one word
 	 * before mixing: as the seed of `mix`, a 32-bit value would not reach the low bits that select the slot.
+	 *
+	 * @param first the left key reference identifying the ordered comparison pair
+	 * @param second the right key reference identifying the ordered comparison pair
+	 * @return the initial probe slot in the current table, in the range from zero to table capacity minus one
 	 */
 	private int slot(@Nonnull FormulaKey first, @Nonnull FormulaKey second) {
 		final long pair = ((long) System.identityHashCode(first) << 32) |

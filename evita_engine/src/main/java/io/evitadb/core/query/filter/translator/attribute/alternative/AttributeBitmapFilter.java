@@ -180,7 +180,17 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 		return this.memoizedResult;
 	}
 
-	/** Captures the execution strategy together with its detached value inputs. */
+	/**
+	 * Captures the execution strategy together with its detached value inputs.
+	 *
+	 * @param attributeName attribute whose values the accessor supplies to the matcher
+	 * @param requirements entity content requirement retained for prefetching values needed by the matcher
+	 * @param attributeSchemaAccessor retained scope function resolving the schema and validating required traits
+	 * @param attributeValueAccessor retained scope function streaming an entity's attribute values for matching
+	 * @param filterFactory retained stream-predicate factory invoked for each entity type's attribute schema
+	 * @param declaredIdentity detached constraint and execution inputs retained as this filter's identity
+	 * @param requiredAttributeTraits required schema traits, defensively copied before retention
+	 */
 	private AttributeBitmapFilter(
 		@Nonnull String attributeName,
 		@Nonnull EntityContentRequire requirements,
@@ -365,7 +375,12 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 		return List.copyOf(result);
 	}
 
-	/** Converts trait membership to a primitive mask without retaining the caller's array. */
+	/**
+	 * Converts trait membership to a primitive mask without retaining the caller's array.
+	 *
+	 * @param traits schema traits whose membership is encoded; the array is read without mutation
+	 * @return a bit mask with the ordinal bit set for each trait, or zero for an empty array
+	 */
 	private static int traitsMask(@Nonnull AttributeTrait[] traits) {
 		int result = 0;
 		for (final AttributeTrait trait : traits) {
@@ -374,7 +389,13 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 		return result;
 	}
 
-	/** Captures each argument's concrete type and canonical text without retaining any constraint or argument. */
+	/**
+	 * Captures each argument's concrete type and canonical text without retaining the constraint or any mutable
+	 * argument; a `String` argument is its own canonical text and is retained as such.
+	 *
+	 * @param constraint operator and argument values to encode without retaining the constraint
+	 * @return a fresh immutable list of operator name and argument type/text pairs, or null for an unsupported encoding
+	 */
 	@Nullable
 	private static List<String> captureConstraint(@Nonnull FilterConstraint constraint) {
 		final Serializable[] arguments = constraint.getArguments();
@@ -399,6 +420,9 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	/**
 	 * Encodes only immutable supported scalars. Arrays have no EvitaQL formatting branch and remain opaque,
 	 * including nested arrays. Temporal text retains nanoseconds; decimal ranges also name their comparison precision.
+	 *
+	 * @param argument scalar to encode, or null when no supported scalar is supplied
+	 * @return canonical text preserving supported scalar identity, or null for null, arrays or unsupported encodings
 	 */
 	@Nullable
 	private static String argumentText(@Nullable Serializable argument) {

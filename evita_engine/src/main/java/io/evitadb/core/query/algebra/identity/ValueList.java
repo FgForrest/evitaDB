@@ -52,7 +52,12 @@ public final class ValueList {
 	/** Whether unsupported values were encountered. */
 	private final boolean opaque;
 
-	/** Copies and normalizes bucket values without retaining mutable unsupported objects. */
+	/**
+	 * Copies and normalizes bucket values without retaining mutable unsupported objects.
+	 *
+	 * @param values ordered bucket values copied into private storage; decimals are normalized, immutable supported
+	 *               values are retained, and null or unsupported values are replaced by an opaque marker
+	 */
 	public ValueList(@Nonnull Object... values) {
 		this.values = new Object[values.length];
 		long hash = KeyAccumulator.mix(0, values.length);
@@ -83,7 +88,12 @@ public final class ValueList {
 		this.opaque = opaque;
 	}
 
-	/** Recognizes only the closed immutable bucket value domain. */
+	/**
+	 * Recognizes only the closed immutable bucket value domain.
+	 *
+	 * @param value normalized candidate bucket value; null is unsupported
+	 * @return true when the value belongs to the closed immutable domain accepted for bucket identity
+	 */
 	private static boolean supported(@Nullable Object value) {
 		return value instanceof String || value instanceof Byte || value instanceof Short ||
 			value instanceof Integer || value instanceof Long || value instanceof Boolean ||
@@ -94,7 +104,12 @@ public final class ValueList {
 			value != null && value.getClass() == BigDecimal.class;
 	}
 
-	/** Hashes one supported value with its type discriminator and no temporary accumulator. */
+	/**
+	 * Hashes one supported value with its type discriminator and no temporary accumulator.
+	 *
+	 * @param value supported non-null immutable bucket value, with decimals already normalized
+	 * @return the type-discriminated 64-bit content hash for the value
+	 */
 	private static long valueHash(@Nonnull Object value) {
 		if (value instanceof final String text) {
 			return KeyAccumulator.mix(1, KeyAccumulator.contentHash(text));
@@ -133,7 +148,12 @@ public final class ValueList {
 		throw new IllegalArgumentException("Unsupported bucket value.");
 	}
 
-	/** Charges supported retained values by content, never assigning unbounded values a unit weight. */
+	/**
+	 * Charges supported retained values by content, never assigning unbounded values a unit weight.
+	 *
+	 * @param value supported immutable bucket value whose retained content is being charged
+	 * @return its retained weight in key weight units, saturated for unbounded content; fixed-size values cost one unit
+	 */
 	private static int valueWeight(@Nonnull Object value) {
 		if (value instanceof final String text) {
 			return KeyAccumulator.textWeight(text.length());
@@ -147,27 +167,48 @@ public final class ValueList {
 		return 1;
 	}
 
-	/** Returns the number of bucket values. */
+	/**
+	 * Returns the number of bucket values.
+	 *
+	 * @return the nonnegative number of positions, including opaque markers for unsupported values
+	 */
 	public int size() {
 		return this.values.length;
 	}
 
-	/** Returns the precomputed content hash. */
+	/**
+	 * Returns the precomputed content hash.
+	 *
+	 * @return the precomputed 64-bit hash of the normalized ordered content
+	 */
 	public long hash64() {
 		return this.hash64;
 	}
 
-	/** Returns content-sensitive retained weight. */
+	/**
+	 * Returns content-sensitive retained weight.
+	 *
+	 * @return content weight in key weight units, zero for an empty list, or {@link Integer#MAX_VALUE}
+	 *         on saturation or unsupported input
+	 */
 	public int weight() {
 		return this.weight;
 	}
 
-	/** Reports unsupported values. */
+	/**
+	 * Reports unsupported values.
+	 *
+	 * @return true when at least one input value was replaced by an opaque marker
+	 */
 	public boolean isOpaque() {
 		return this.opaque;
 	}
 
-	/** Refuses cross-query reuse for unsupported values or an oversized sequence. */
+	/**
+	 * Refuses cross-query reuse for unsupported values or an oversized sequence.
+	 *
+	 * @return true when an unsupported value or a sequence longer than the token-list cap prevents cross-query reuse
+	 */
 	public boolean isQueryLocal() {
 		return this.opaque || size() > TokenList.CAP;
 	}

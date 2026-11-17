@@ -135,6 +135,8 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	 *                                               absent scope index
 	 * @param referencedEntityTypeIndex              target index for the translation
 	 * @param worstCardinality                       worst-case estimate of the result cardinality
+	 * @param expansionFunction                      retained transformation before superset filtering and translation;
+	 *                                               null uses the inner bitmap unchanged
 	 * @param innerFormula                           inner formula producing referenced entity primary keys
 	 */
 	ReferencedEntityIndexPrimaryKeyTranslatingFormula(
@@ -173,6 +175,8 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	 *        target entity type and a scope
 	 * @param referencedTypeEntityIndex target referenced-type entity index
 	 * @param innerFormula inner formula producing referenced entity primary keys
+	 * @param expansionFunction retained transformation applied before superset filtering and translation, or null
+	 *                          to use the inner bitmap unchanged
 	 */
 	public ReferencedEntityIndexPrimaryKeyTranslatingFormula(
 		@Nonnull ReferenceSchemaContract referenceSchema,

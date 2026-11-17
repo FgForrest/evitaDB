@@ -31,10 +31,18 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public interface IdentityRecord {
-	/** Returns the declaring holder's class identifier. */
+	/**
+	 * Returns the declaring holder's class identifier.
+	 *
+	 * @return the holder class discriminator checked when constructing its formula key
+	 */
 	long classId();
 
-	/** Describes all components in declaration order; empty identities require no components. */
+	/**
+	 * Describes all components in declaration order; empty identities require no components.
+	 *
+	 * @param accumulator the mutable destination to receive this record's components in declaration order
+	 */
 	default void describeTo(@Nonnull KeyAccumulator accumulator) {
 	}
 }

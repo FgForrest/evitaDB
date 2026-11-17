@@ -53,115 +53,191 @@ public class FormulaCacheStatisticsEvent extends AbstractFormulaCacheEvent {
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, null
 	);
 
-	/** Cache hits since the previous emission. */
+	/**
+	 * Cache hits since the previous emission.
+	 *
+	 * @return the nonnegative number of cache hits since the preceding emission
+	 */
 	@Label("Cache hits")
 	@Description("Cache hits since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long hits;
 
-	/** Cache misses since the previous emission. */
+	/**
+	 * Cache misses since the previous emission.
+	 *
+	 * @return the nonnegative number of cache misses since the preceding emission
+	 */
 	@Label("Cache misses")
 	@Description("Cache misses since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long misses;
 
-	/** Unique admissions since the previous emission. */
+	/**
+	 * Unique admissions since the previous emission.
+	 *
+	 * @return the nonnegative number of unique admissions since the preceding emission
+	 */
 	@Label("Unique admissions")
 	@Description("Unique admissions since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long admissions;
 
-	/** Duplicate admissions since the previous emission. */
+	/**
+	 * Duplicate admissions since the previous emission.
+	 *
+	 * @return the nonnegative number of duplicate admissions since the preceding emission
+	 */
 	@Label("Duplicate admissions")
 	@Description("Duplicate admissions since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long duplicateAdmissions;
 
-	/** Duplicate computation milliseconds since the previous emission. */
+	/**
+	 * Duplicate computation milliseconds since the previous emission.
+	 *
+	 * @return the nonnegative duplicate computation time in milliseconds since the preceding emission
+	 */
 	@Label("Duplicate computation milliseconds")
 	@Description("Duplicate computation milliseconds since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long duplicateComputeMillis;
 
-	/** Duplicate computation bytes since the previous emission. */
+	/**
+	 * Duplicate computation bytes since the previous emission.
+	 *
+	 * @return the nonnegative duplicate computation byte count since the preceding emission
+	 */
 	@Label("Duplicate computation bytes")
 	@Description("Duplicate computation bytes since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long duplicateBytes;
 
-	/** Oversized entries refused since the previous emission. */
+	/**
+	 * Oversized entries refused since the previous emission.
+	 *
+	 * @return the nonnegative number of oversized entry refusals since the preceding emission
+	 */
 	@Label("Oversized entries refused")
 	@Description("Oversized entries refused since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long refusedOversized;
 
-	/** Unsized entries refused since the previous emission. */
+	/**
+	 * Unsized entries refused since the previous emission.
+	 *
+	 * @return the nonnegative number of unsized entry refusals since the preceding emission
+	 */
 	@Label("Unsized entries refused")
 	@Description("Unsized entries refused since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long refusedUnsized;
 
-	/** Prefetch bypasses since the previous emission. */
+	/**
+	 * Prefetch bypasses since the previous emission.
+	 *
+	 * @return the nonnegative number of prefetch bypasses since the preceding emission
+	 */
 	@Label("Prefetch bypasses")
 	@Description("Prefetch bypasses since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long prefetchBypasses;
 
-	/** Transaction bypasses since the previous emission. */
+	/**
+	 * Transaction bypasses since the previous emission.
+	 *
+	 * @return the nonnegative number of transaction bypasses since the preceding emission
+	 */
 	@Label("Transaction bypasses")
 	@Description("Transaction bypasses since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long transactionBypasses;
 
-	/** Cache evictions since the previous emission. */
+	/**
+	 * Cache evictions since the previous emission.
+	 *
+	 * @return the nonnegative number of evictions since the preceding emission
+	 */
 	@Label("Cache evictions")
 	@Description("Cache evictions since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long evictions;
 
-	/** Evicted weight bytes since the previous emission. */
+	/**
+	 * Evicted weight bytes since the previous emission.
+	 *
+	 * @return the nonnegative evicted weight in bytes since the preceding emission
+	 */
 	@Label("Evicted weight bytes")
 	@Description("Evicted weight bytes since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long evictedWeightBytes;
 
-	/** Verified hits since the previous emission. */
+	/**
+	 * Verified hits since the previous emission.
+	 *
+	 * @return the nonnegative number of verified hits since the preceding emission
+	 */
 	@Label("Verified hits")
 	@Description("Verified hits since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long verifiedHits;
 
-	/** Verification milliseconds since the previous emission. */
+	/**
+	 * Verification milliseconds since the previous emission.
+	 *
+	 * @return the nonnegative verification time in milliseconds since the preceding emission
+	 */
 	@Label("Verification milliseconds")
 	@Description("Verification milliseconds since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long verificationMillis;
 
-	/** Confirmed mismatches since the previous emission. */
+	/**
+	 * Confirmed mismatches since the previous emission.
+	 *
+	 * @return the nonnegative number of confirmed mismatches since the preceding emission
+	 */
 	@Label("Confirmed mismatches")
 	@Description("Confirmed mismatches since the previous emission.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final long mismatches;
 
-	/** Retained entries at this observation. */
+	/**
+	 * Retained entries at this observation.
+	 *
+	 * @return the current number of retained entries
+	 */
 	@Label("Retained entries")
 	@Description("Retained entries at this observation.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long entries;
 
-	/** Retained weight bytes at this observation. */
+	/**
+	 * Retained weight bytes at this observation.
+	 *
+	 * @return the current retained weight in bytes
+	 */
 	@Label("Retained weight bytes")
 	@Description("Retained weight bytes at this observation.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long weightedSizeBytes;
 
-	/** Maximum weight bytes at this observation. */
+	/**
+	 * Maximum weight bytes at this observation.
+	 *
+	 * @return the current maximum cache weight in bytes
+	 */
 	@Label("Maximum weight bytes")
 	@Description("Maximum weight bytes at this observation.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long maximumWeightBytes;
 
-	/** Cache active: 1 when usable, 0 after shutdown or a confirmed mismatch. */
+	/**
+	 * Cache active: 1 when usable, 0 after shutdown or a confirmed mismatch.
+	 *
+	 * @return `1` when the cache is usable, otherwise `0`
+	 */
 	@Label("Cache active")
 	@Description("Cache active: 1 when usable, 0 after shutdown or a confirmed mismatch.")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -201,6 +277,10 @@ public class FormulaCacheStatisticsEvent extends AbstractFormulaCacheEvent {
 	 * during the engine lifetime, so the clamp never engages today; it keeps a source that resets from exporting a
 	 * negative value. It does not repair a regressed observation: the emitter keeps the regressed value as its next
 	 * baseline, so the following emission exports the difference again.
+	 *
+	 * @param current the cumulative counter at this observation
+	 * @param previous the cumulative counter at the preceding emission, or zero for the first emission
+	 * @return the increase in counter units, or `0` if the counter regressed
 	 */
 	private static long delta(long current, long previous) {
 		return Math.max(0, current - previous);

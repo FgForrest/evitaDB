@@ -45,6 +45,9 @@ public record ThresholdRange(@Nullable BigDecimal from, @Nullable BigDecimal to)
 	/**
 	 * Strips trailing zeros and rebuilds the value as an exact `BigDecimal`, so numerically equal values are equal
 	 * records and no subclass instance is retained.
+	 *
+	 * @param value the optional range bound to normalize; `null` represents an unbounded end of the range
+	 * @return a fresh exact `BigDecimal` with trailing zeros stripped, or `null` when the bound is absent
 	 */
 	@Nullable
 	static BigDecimal normalize(@Nullable BigDecimal value) {

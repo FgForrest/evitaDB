@@ -47,25 +47,43 @@ import javax.annotation.Nullable;
 @Getter
 public class FormulaCacheMismatchEvent extends AbstractFormulaCacheEvent {
 
-	/** Catalog schema name from the verification context. */
+	/**
+	 * Catalog schema name from the verification context.
+	 *
+	 * @return the catalog schema name captured when the mismatch was confirmed
+	 */
 	@Label("Catalog name")
 	@Description("Catalog schema name from the verification context.")
 	@ExportMetricLabel
 	private final String catalogName;
 
-	/** Entity type from the verification request; null when the request names none. */
+	/**
+	 * Entity type from the verification request; null when the request names none.
+	 *
+	 * @return the request's entity type, or null when the request names none
+	 */
 	@Label("Entity type")
 	@Description("Entity type from the verification request.")
 	@ExportMetricLabel
 	@Nullable private final String entityType;
 
-	/** Fully qualified class name of the cached formula or extra-result computer whose result differed. */
+	/**
+	 * Fully qualified class name of the cached formula or extra-result computer whose result differed.
+	 *
+	 * @return the fully qualified class name of the formula or extra-result computer whose verification failed
+	 */
 	@Label("Formula class")
 	@Description("Fully qualified class name of the cached formula or extra-result computer whose result differed.")
 	@ExportMetricLabel
 	private final String formulaClass;
 
-	/** Creates a point-in-time event from the identifiers the mismatch witness names as well. */
+	/**
+	 * Creates a point-in-time event from the identifiers the mismatch witness names as well.
+	 *
+	 * @param catalogName catalog schema name from the verification context, retained as an event label
+	 * @param entityType entity type from the request, or null when the request names none
+	 * @param formulaClass fully qualified class name of the formula or extra-result computer whose result differed
+	 */
 	public FormulaCacheMismatchEvent(
 		@Nonnull String catalogName, @Nullable String entityType, @Nonnull String formulaClass
 	) {

@@ -157,7 +157,12 @@ public class QueryPlanner {
 		return preferredPlan;
 	}
 
-	/** Builds a plan, including an empty plan, before any formula-sharing verification executes it. */
+	/**
+	 * Builds a plan, including an empty plan, before any formula-sharing verification executes it.
+	 *
+	 * @param context the request, pinned indexes and telemetry used to construct and select candidate plans
+	 * @return the preferred executable plan, or an empty plan when index selection proves there are no matches
+	 */
 	@Nonnull
 	private static QueryPlan planQueryInternal(@Nonnull QueryPlanningContext context) {
 		// structural rules the constraints cannot check themselves - they are verified on the final tree here, so
@@ -413,6 +418,7 @@ public class QueryPlanner {
 	 * Candidates that are not eligible for a separate query plan produce no builder at all - they are only
 	 * recorded in telemetry, so that a reader can see the index was considered and why it lost.
 	 *
+	 * @param <T> the index implementation shared by the candidate index sets
 	 * @param queryContext  planning context of the query
 	 * @param targetIndexes candidate index sets to build a formula for
 	 * @param filterBy      filter to translate into a formula tree, NULL when the query has none
@@ -728,6 +734,8 @@ public class QueryPlanner {
 	 * builds record no index activity; the sibling also records no capabilities and starts no further verification.
 	 * The finished event starts when the plan is built, so verification dry runs contribute to its execution interval.
 	 *
+	 * @param context the preferred plan's context from which an independent verification sibling is created
+	 * @param preferredPlan the chosen plan executed and compared with the independently planned baseline
 	 * @throws InconsistentResultsException when sharing or cache analysis changes the full response
 	 */
 	private static void verifyKeyFreeBaseline(
@@ -750,6 +758,9 @@ public class QueryPlanner {
 	 * All verification executions share a frozen random seed so randomized ordering remains comparable.
 	 * The finished event starts at plan construction; its execution interval includes these dry runs.
 	 *
+	 * @param queryPlanBuilders the candidate plans to execute with the same frozen random state
+	 * @param mainBuilder the preferred candidate whose response is the comparison baseline; its identical reference
+	 *     is skipped in the alternatives
 	 * @throws InconsistentResultsException when an alternative produces a different response
 	 */
 	static void verifyConsistentResultsInAllPlans(
@@ -802,6 +813,8 @@ public class QueryPlanner {
 		private static final long CLASS_ID = 497139306778809341L;
 		/**
 		 * This formula represents the real formula to compute the negated set.
+		 *
+		 * @return the retained formula computing the set to negate when the placeholder is resolved
 		 */
 		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		@Getter private final Formula innerFormula;

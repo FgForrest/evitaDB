@@ -32,7 +32,11 @@ import javax.annotation.Nonnull;
  */
 public interface PricePredicateContract {
 
-	/** Returns the detached value inputs that determine price filtering. */
+	/**
+	 * Returns the detached value inputs that determine price filtering.
+	 *
+	 * @return the price-filtering value inputs used to identify equivalent predicates
+	 */
 	@Nonnull
 	PricePredicate.Identity identity();
 

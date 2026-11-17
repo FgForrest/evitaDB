@@ -74,7 +74,8 @@ import java.util.Collection;
  */
 public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
+	 * Unique identifier of this formula used in {@link io.evitadb.core.query.algebra.AbstractFormula#getClassId()}
+	 * as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -2971377943765598548L;
 

@@ -75,6 +75,10 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	/**
 	 * Returns whether matching reads the implicit query moment for the resolved schema. A null schema means that
 	 * entity types resolve it later, so the answer must include every type they may supply.
+	 *
+	 * @param constraint attribute test whose implicit query-moment dependency is being inspected
+	 * @param attributeSchema resolved attribute schema, or null when entity types will resolve it during matching
+	 * @return true when matching may consult the implicit query moment; the default implementation returns false
 	 */
 	default boolean readsQueryMoment(@Nonnull T constraint, @Nullable AttributeSchemaContract attributeSchema) {
 		return false;

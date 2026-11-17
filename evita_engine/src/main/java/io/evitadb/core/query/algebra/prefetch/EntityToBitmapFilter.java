@@ -40,10 +40,18 @@ import javax.annotation.Nonnull;
  */
 public interface EntityToBitmapFilter extends RequirementsDefiner {
 
-	/** Returns the declaring class identifier. */
+	/**
+	 * Returns the declaring class identifier.
+	 *
+	 * @return the stable discriminator distinguishing this filter implementation in computation keys
+	 */
 	long getClassId();
 
-	/** Returns the declared identity components. */
+	/**
+	 * Returns the declared identity components.
+	 *
+	 * @return the value inputs describing this filter's computation independently of its execution state
+	 */
 	@Nonnull
 	IdentityRecord identity();
 

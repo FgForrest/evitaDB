@@ -78,14 +78,24 @@ public class FormulaWrapper implements BitmapSupplier {
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private FormulaKey memoizedKey;
 
-	/** Wraps an unchanged computation with nested-query execution telemetry. */
+	/**
+	 * Wraps an unchanged computation with nested-query execution telemetry.
+	 *
+	 * @param formula delegate retained for initialization, cost estimates and the unchanged bitmap computation
+	 * @param stepDescription retained nested-query description supplier, evaluated only when telemetry is collected
+	 */
 	public FormulaWrapper(@Nonnull Formula formula, @Nonnull Supplier<String> stepDescription) {
 		this.formula = formula;
 		this.stepDescription = stepDescription;
 		this.customComputation = null;
 	}
 
-	/** Captures custom result logic whose identity is bound to the wrapper instance. */
+	/**
+	 * Captures custom result logic whose identity is bound to the wrapper instance.
+	 *
+	 * @param formula delegate retained for initialization and cost estimates and passed to the custom computation
+	 * @param computation retained function receiving the execution context and delegate to produce the memoized bitmap
+	 */
 	private FormulaWrapper(
 		@Nonnull Formula formula,
 		@Nonnull BiFunction<QueryExecutionContext, Formula, Bitmap> computation
@@ -95,7 +105,13 @@ public class FormulaWrapper implements BitmapSupplier {
 		this.customComputation = computation;
 	}
 
-	/** Builds an instance-unique wrapper for computation that may change the delegate's result. */
+	/**
+	 * Builds an instance-unique wrapper for computation that may change the delegate's result.
+	 *
+	 * @param formula delegate retained for initialization and cost estimates and passed to the custom computation
+	 * @param computation retained function receiving the execution context and delegate to produce the memoized bitmap
+	 * @return a fresh wrapper that memoizes the custom result and uses instance-unique identity
+	 */
 	@Nonnull
 	public static FormulaWrapper custom(
 		@Nonnull Formula formula,
@@ -153,7 +169,12 @@ public class FormulaWrapper implements BitmapSupplier {
 		return this.formula.toString();
 	}
 
-	/** Returns detached inputs without computing the bitmap. */
+	/**
+	 * Returns detached inputs without computing the bitmap.
+	 *
+	 * @return a fresh identity record containing the delegate key and an opaque marker for custom computation,
+	 *         or a null marker for transparent telemetry
+	 */
 	@Nonnull
 	public IdentityRecord identity() {
 		return new Identity(this.formula.getKey(), this.customComputation == null ? null : IdentityToken.OPAQUE);
@@ -169,7 +190,11 @@ public class FormulaWrapper implements BitmapSupplier {
 		return this.memoizedKey;
 	}
 
-	/** Returns the stable holder discriminator. */
+	/**
+	 * Returns the stable holder discriminator.
+	 *
+	 * @return the fixed discriminator identifying this bitmap supplier type
+	 */
 	public long getClassId() {
 		return CLASS_ID;
 	}

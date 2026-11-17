@@ -76,6 +76,12 @@ public class RangeCountFormula extends AbstractCacheableFormula {
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final Bitmap[] minus;
 
+	/**
+	 * Creates a signed-count formula over the supplied bitmap families.
+	 *
+	 * @param plus nonempty array of positive operands, retained directly; each membership contributes one count
+	 * @param minus possibly empty negative operand array, retained directly; each membership subtracts one count
+	 */
 	public RangeCountFormula(
 		@Nonnull Bitmap[] plus,
 		@Nonnull Bitmap[] minus

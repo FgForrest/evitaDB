@@ -56,10 +56,15 @@ public class PriceListCombinationFormula extends NotFormula {
 	private static final long CLASS_ID = -379304706891548493L;
 	/**
 	 * Name of the price list whose entity ids are subtracted from the superset formula result.
+	 *
+	 * @return the label of the higher-priority price list, or the comma-separated labels of a nested combination,
+	 *     whose matching entities are removed from the superset
 	 */
 	@Getter private final String subtractedPriceListName;
 	/**
 	 * Name of the price list whose entity ids form the superset formula result.
+	 *
+	 * @return the price list whose matching entities supply the superset before subtraction
 	 */
 	@Getter private final String priceListName;
 	/**
@@ -67,6 +72,16 @@ public class PriceListCombinationFormula extends NotFormula {
 	 */
 	private final PriceEvaluationContext priceEvaluationContext;
 
+	/**
+	 * Creates the price-list fallback relation by subtracting higher-priority matches.
+	 *
+	 * @param subtractedPriceListName the label of the higher-priority price list, or the comma-separated labels of a
+	 *     nested combination, represented by the subtracted formula
+	 * @param priceListName the fallback price list represented by the superset formula
+	 * @param priceEvaluationContext the retained validity and ordered price-index context included in identity
+	 * @param subtractedFormula the retained formula computing entities already covered by the higher-priority lists
+	 * @param supersetFormula the retained formula computing fallback candidates before subtraction
+	 */
 	public PriceListCombinationFormula(@Nonnull String subtractedPriceListName, @Nonnull String priceListName, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
 		super(subtractedFormula, supersetFormula);
 		this.subtractedPriceListName = subtractedPriceListName;

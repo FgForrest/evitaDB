@@ -490,6 +490,10 @@ public class RangeIndex
 	 * would gain: the suffix walk is already a single counting pass. The two forms also differ in shape at
 	 * `Long.MIN_VALUE`: the prefix form collects nothing and short-circuits to {@link EmptyFormula}, where this
 	 * returns a zero-valued {@link RangeCountFormula} over every point - the same records, but a different formula.
+	 *
+	 * @param threshold the inclusive coordinate from which range endpoints are scanned toward larger coordinates
+	 * @return a formula selecting records with more ends than starts at or above the threshold, or
+	 *         {@link EmptyFormula#INSTANCE} when the scanned suffix has no end operands
 	 */
 	@Nonnull
 	public Formula getRecordsFrom(long threshold) {

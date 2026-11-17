@@ -46,7 +46,15 @@ import javax.annotation.concurrent.ThreadSafe;
 public class NoCacheSupervisor implements CacheSupervisor {
 	public static final NoCacheSupervisor INSTANCE = new NoCacheSupervisor();
 
-	/** Preserves the formula graph without building cache keys or allocating bindings. */
+	/**
+	 * Preserves the formula graph without building cache keys or allocating bindings.
+	 *
+	 * @param <T> the formula subtype preserved by this pass-through supervisor
+	 * @param evitaSession the query session, ignored here; `null` is accepted
+	 * @param entityType the queried collection name, ignored because no cache lookup is performed
+	 * @param filterFormula the formula graph to return without mutation
+	 * @return the same formula instance supplied by the caller
+	 */
 	@Nonnull
 	@Override
 	public <T extends Formula> T analyse(
@@ -58,7 +66,17 @@ public class NoCacheSupervisor implements CacheSupervisor {
 		return filterFormula;
 	}
 
-	/** Returns the original computer without consulting its key or execution mode. */
+	/**
+	 * Returns the original computer without consulting its key or execution mode.
+	 *
+	 * @param <U> the extra-result value produced by the computer
+	 * @param <T> the cacheable computer subtype accepted by this supervisor
+	 * @param evitaSession the query session, ignored here; `null` is accepted
+	 * @param entityType the queried collection name, ignored because no cache lookup is performed
+	 * @param extraResultComputer the computer to return without wrapping or evaluating it
+	 * @param context the execution context, ignored because the computer is passed through unchanged
+	 * @return the same extra-result computer instance supplied by the caller
+	 */
 	@SuppressWarnings("ClassEscapesDefinedScope")
 	@Nonnull
 	@Override

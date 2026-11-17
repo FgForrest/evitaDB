@@ -172,7 +172,13 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 		);
 	}
 
-	/** Builds the execution strategy and retains the request for lazy identity capture. */
+	/**
+	 * Builds the execution strategy and retains the request for lazy identity capture.
+	 *
+	 * @param additionalPriceLists additional lists to fetch, copied into an immutable list; `null` means none
+	 * @param filter the retained predicate applied when selecting selling prices
+	 * @param request the request retained for lazy pricing-context identity capture; `null` forces an opaque context
+	 */
 	private SellingPriceAvailableBitmapFilter(
 		@Nullable String[] additionalPriceLists,
 		@Nonnull PriceContractPredicate filter,
@@ -322,7 +328,11 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 		return this.memoizedIdentity;
 	}
 
-	/** Captures detached pricing inputs, using an opaque context when request-wide pricing is ambiguous. */
+	/**
+	 * Captures detached pricing inputs, using an opaque context when request-wide pricing is ambiguous.
+	 *
+	 * @return a fresh detached identity, with an opaque context marker if no unambiguous request pricing is available
+	 */
 	@Nonnull
 	private Identity captureIdentity() {
 		final PricePredicate.Identity filterIdentity = this.filter.identity();

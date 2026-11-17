@@ -44,6 +44,7 @@ public interface CacheSupervisor extends Closeable {
 	 * Analyses a formula graph the caller has already deduplicated and returns the same graph: no node is replaced.
 	 * An implementation may bind eligible nodes in place, so that computing them consults the formula result cache.
 	 *
+	 * @param <T> the concrete formula type preserved by analysis
 	 * @param evitaSession  session the query runs in
 	 * @param entityType    entity type the query targets
 	 * @param filterFormula deduplicated formula graph
@@ -59,6 +60,8 @@ public interface CacheSupervisor extends Closeable {
 	/**
 	 * Analyses an extra-result computer using the execution context that will compute it.
 	 *
+	 * @param <U> the computed extra-result type
+	 * @param <T> the cacheable computer type accepted for analysis
 	 * @param evitaSession        session the query runs in
 	 * @param entityType          entity type the query targets
 	 * @param extraResultComputer computer to analyse

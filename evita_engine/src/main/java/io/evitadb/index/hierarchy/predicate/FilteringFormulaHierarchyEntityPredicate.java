@@ -104,6 +104,8 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	@Nonnull private final Set<Scope> requestedScopes;
 	/**
 	 * Formula computes id of all hierarchical entities that match input filter by constraint.
+	 *
+	 * @return the retained formula computing the hierarchy entity primary keys accepted by this predicate
 	 */
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Getter @Nonnull private final Formula filteringFormula;

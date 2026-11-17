@@ -125,7 +125,13 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 	/** Bounded detached description of the first mismatch. */
 	@Nullable private volatile String witness;
 
-	/** Creates a cache and schedules idle maintenance on the engine's scheduler when expiry is configured. */
+	/**
+	 * Creates a cache and schedules idle maintenance on the engine's scheduler when expiry is configured.
+	 *
+	 * @param options retained cache configuration, including the byte budget, expiry and verification sampling
+	 * @param scheduler engine scheduler used for periodic cleanup when idle expiry is enabled
+	 * @param ticker time source used by the cache to measure entry inactivity
+	 */
 	public FormulaCacheSupervisor(
 		@Nonnull CacheOptions options, @Nonnull Scheduler scheduler, @Nonnull Ticker ticker
 	) {
@@ -151,6 +157,10 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 	/**
 	 * Resolves eligibility independently for a planning root using its session's pinned catalog state. A root refused
 	 * only because a transaction is bound to the thread is counted as a transaction bypass.
+	 *
+	 * @param session session supplying read-only status and pinned catalog state; null disables caching for this root
+	 * @param entityType entity type of the planning root; null disables caching for this root
+	 * @return this shared supervisor for an eligible root, otherwise {@link NoCacheSupervisor#INSTANCE}
 	 */
 	@Nonnull
 	public CacheSupervisor resolveForRoot(@Nullable EvitaSessionContract session, @Nullable String entityType) {
@@ -165,7 +175,11 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		return this;
 	}
 
-	/** Returns whether this engine still allows lookup, binding and admission. */
+	/**
+	 * Returns whether this engine still allows lookup, binding and admission.
+	 *
+	 * @return true while this supervisor has neither been closed nor disabled by a confirmed mismatch
+	 */
 	public boolean isActive() {
 		return this.active.get();
 	}
@@ -230,12 +244,22 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		return eligible(key) ? () -> computeHistogram(context, computer, key) : computer;
 	}
 
-	/** Rejects query-local keys before lookup or retention. */
+	/**
+	 * Rejects query-local keys before lookup or retention.
+	 *
+	 * @param key detached candidate identity checked for cross-query reuse and bounded comparison work
+	 * @return true when the key is not query-local and its retained weight fits the admission limit
+	 */
 	private static boolean eligible(@Nonnull FormulaKey key) {
 		return !key.isQueryLocal() && key.getWeight() <= MAX_ADMITTED_KEY_WEIGHT_UNITS;
 	}
 
-	/** Looks up an eligible key; Caffeine records both hits and misses. */
+	/**
+	 * Looks up an eligible key; Caffeine records both hits and misses.
+	 *
+	 * @param key detached identity under which the caller expects a retained tuple
+	 * @return the shared read-only tuple, or null when no entry is present; no computation is triggered
+	 */
 	@Nullable
 	public CachedResult lookup(@Nonnull FormulaKey key) {
 		return this.cache.getIfPresent(key);
@@ -246,13 +270,24 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		this.prefetchBypasses.increment();
 	}
 
-	/** Selects a hit for verification without shared random state. */
+	/**
+	 * Selects a hit for verification without shared random state.
+	 *
+	 * @return true when verification is enabled and this hit is selected with probability one in the configured rate
+	 */
 	public boolean sampleHit() {
 		return this.options.verifyOneHitIn() > 0 &&
 			ThreadLocalRandom.current().nextInt(this.options.verifyOneHitIn()) == 0;
 	}
 
-	/** Checks the complete long charge before allocating a retained tuple and records refusals. */
+	/**
+	 * Checks the complete long charge before allocating a retained tuple and records refusals.
+	 *
+	 * @param charge complete entry charge in bytes, or {@link CachedResultWeigher#UNSIZED} for unsupported storage
+	 * @return the admitted positive byte weight, {@link CachedResultWeigher#UNSIZED} for unsupported storage,
+	 *         or {@link CachedResultWeigher#OVERSIZED} for a charge below the bookkeeping minimum, above one percent
+	 *         of the byte budget or above the integer range
+	 */
 	public int admittedWeight(long charge) {
 		final int weight = CachedResultWeigher.admittedWeight(charge, this.budget);
 		if (weight == CachedResultWeigher.UNSIZED) {
@@ -263,7 +298,13 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		return weight;
 	}
 
-	/** Publishes without a mapping function, allowing children to admit while their parent is computing. */
+	/**
+	 * Publishes without a mapping function, allowing children to admit while their parent is computing.
+	 *
+	 * @param key eligible detached identity retained if this publication wins
+	 * @param result fully charged tuple to retain; its referenced contents must remain read-only after publication
+	 * @param computeNanos elapsed computation time in nanoseconds, counted as duplicate work if another tuple wins
+	 */
 	public void admit(@Nonnull FormulaKey key, @Nonnull CachedResult result, long computeNanos) {
 		if (!isActive()) {
 			return;
@@ -289,6 +330,13 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 	 * {@link FormulaCacheMismatchEvent} with the catalog name, entity type and class before the exception is thrown,
 	 * also when an earlier mismatch has already switched the cache off.
 	 *
+	 * @param context execution context supplying catalog and entity identifiers for mismatch reporting
+	 * @param key detached identity whose class identifier and hash are included in the diagnostic witness
+	 * @param formulaClass fully qualified class name of the formula or histogram computer being verified
+	 * @param description computation description, truncated when incorporated into the witness
+	 * @param cached shared tuple obtained from the cache, compared without modification
+	 * @param recomputed independently computed tuple to compare against the cached contents
+	 * @param nanos elapsed verification computation time in nanoseconds, added to the cumulative counter
 	 * @throws GenericEvitaInternalError on every confirmed mismatch, describing that mismatch; the first one also
 	 *         switches this engine's cache off and becomes the stored witness
 	 */
@@ -323,7 +371,16 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 
 	/**
 	 * Renders the bounded description of one detected mismatch, retaining no payload or query object. A `null`
-	 * entity type is rendered as `<unknown>`.
+	 * entity type is rendered as {@code <unknown>}.
+	 *
+	 * @param catalogName catalog schema name included in the witness
+	 * @param entityType entity type included in the witness, or null to render an unknown type
+	 * @param key detached identity supplying the class identifier and structural hash
+	 * @param formulaClass fully qualified name of the computation whose results differ
+	 * @param description computation description, limited to the configured character allowance
+	 * @param cached retained tuple summarized as the cached side of the mismatch
+	 * @param recomputed independent tuple summarized as the recomputed side of the mismatch
+	 * @return a detached timestamped description with bounded computation text, summaries and difference text
 	 */
 	@Nonnull
 	private static String describeMismatch(
@@ -338,7 +395,12 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 			", recomputed=" + summary(recomputed) + ", differences=" + differences(cached, recomputed);
 	}
 
-	/** Renders a bounded numeric description without retaining a payload or a query object. */
+	/**
+	 * Renders a bounded numeric description without retaining a payload or a query object.
+	 *
+	 * @param result tuple whose bitmap, price or histogram cardinalities are read without modification
+	 * @return a detached numeric summary of the tuple contents
+	 */
 	@Nonnull
 	private static String summary(@Nonnull CachedResult result) {
 		if (result instanceof CachedBitmapResult bitmap) {
@@ -357,7 +419,13 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		throw new GenericEvitaInternalError("Unsupported cached result type.");
 	}
 
-	/** Captures at most sixteen differing values or tuples as bounded text without retaining payload references. */
+	/**
+	 * Captures at most sixteen differing values or tuples as bounded text without retaining payload references.
+	 *
+	 * @param cached retained tuple supplying the first side of each comparison
+	 * @param recomputed independently computed tuple supplying the second side of each comparison
+	 * @return detached difference text limited to the character allowance, or an empty string when none are listed
+	 */
 	@Nonnull
 	private static String differences(@Nonnull CachedResult cached, @Nonnull CachedResult recomputed) {
 		final Bitmap left = bitmapOf(cached);
@@ -376,7 +444,12 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		return text.substring(0, Math.min(text.length(), MAX_WITNESS_LENGTH_CHARS));
 	}
 
-	/** Returns the bitmap of a bitmap or price tuple; a histogram tuple has none. */
+	/**
+	 * Returns the bitmap of a bitmap or price tuple; a histogram tuple has none.
+	 *
+	 * @param result tuple whose bitmap is requested without computing or copying it
+	 * @return the shared bitmap for bitmap and price tuples, or null for a histogram tuple
+	 */
 	@Nullable
 	private static Bitmap bitmapOf(@Nonnull CachedResult result) {
 		return switch (result) {
@@ -386,7 +459,15 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		};
 	}
 
-	/** Lists identifiers present on one side only, the cached side first, within the shared allowance. */
+	/**
+	 * Lists identifiers present on one side only, the cached side first, within the shared allowance.
+	 *
+	 * @param text mutable witness buffer to append differences to
+	 * @param cached cached bitmap whose identifiers are compared without mutation
+	 * @param recomputed recomputed bitmap whose identifiers are compared without mutation
+	 * @param remaining shared single-element array containing the nonnegative remaining value allowance;
+	 *                  decremented for each value or tuple written
+	 */
 	private static void appendBitmapDifferences(
 		@Nonnull StringBuilder text, @Nonnull Bitmap cached, @Nonnull Bitmap recomputed, @Nonnull int[] remaining
 	) {
@@ -408,7 +489,15 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		}
 	}
 
-	/** Lists differing selling and per-inner-record price tuples and whether only one side has the latter. */
+	/**
+	 * Lists differing selling and per-inner-record price tuples and whether only one side has the latter.
+	 *
+	 * @param text mutable witness buffer to append differences to
+	 * @param cached cached price tuple supplying selling and optional per-inner-record prices
+	 * @param recomputed recomputed price tuple supplying the corresponding price arrays
+	 * @param remaining shared single-element array containing the nonnegative remaining value allowance;
+	 *                  decremented for each value or tuple written
+	 */
 	private static void appendPriceDifferences(
 		@Nonnull StringBuilder text, @Nonnull CachedPriceRecordsResult cached,
 		@Nonnull CachedPriceRecordsResult recomputed, @Nonnull int[] remaining
@@ -422,7 +511,15 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		appendValueDifference(text, "inner array present", cachedInner != null, recomputedInner != null, remaining);
 	}
 
-	/** Lists differing histogram bounds, counts and buckets. */
+	/**
+	 * Lists differing histogram bounds, counts and buckets.
+	 *
+	 * @param text mutable witness buffer to append differences to
+	 * @param cached cached histogram supplying bounds, counts and ordered buckets
+	 * @param recomputed recomputed histogram supplying corresponding bounds, counts and buckets
+	 * @param remaining shared single-element array containing the nonnegative remaining value allowance;
+	 *                  decremented for each value or tuple written
+	 */
 	private static void appendHistogramDifferences(
 		@Nonnull StringBuilder text, @Nonnull CacheableHistogramContract cached,
 		@Nonnull CacheableHistogramContract recomputed, @Nonnull int[] remaining
@@ -439,7 +536,15 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		}
 	}
 
-	/** Renders up to sixteen physical price tuples, retaining no array or record references in the witness. */
+	/**
+	 * Renders up to sixteen physical price tuples, retaining no array or record references in the witness.
+	 *
+	 * @param text mutable witness buffer to append differences to
+	 * @param cached cached ordered price records, read without copying or mutation
+	 * @param recomputed recomputed ordered price records compared at the same array positions
+	 * @param remaining shared single-element array containing the nonnegative remaining value allowance;
+	 *                  decremented for each value or tuple written
+	 */
 	private static void appendPriceTuples(
 		@Nonnull StringBuilder text,
 		@Nonnull ResolvedFilteredPriceRecords cached, @Nonnull ResolvedFilteredPriceRecords recomputed,
@@ -465,7 +570,14 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		}
 	}
 
-	/** Writes a complete physical tuple or a SUM total with bounded component tuples. */
+	/**
+	 * Writes a complete physical tuple or a SUM total with bounded component tuples.
+	 *
+	 * @param text mutable witness buffer to append the physical tuple or SUM components to
+	 * @param record price record read without mutation; SUM components share the same output allowance
+	 * @param remaining shared single-element array containing the nonnegative remaining tuple allowance;
+	 *                  decremented for this record and any rendered components
+	 */
 	private static void appendPriceTuple(
 		@Nonnull StringBuilder text, @Nonnull PriceRecordContract record, @Nonnull int[] remaining
 	) {
@@ -492,7 +604,16 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		text.append(']');
 	}
 
-	/** Adds only differing immutable values, sharing the witness's global sixteen-value allowance. */
+	/**
+	 * Adds only differing immutable values, sharing the witness's global sixteen-value allowance.
+	 *
+	 * @param text mutable witness buffer to append labeled differences to
+	 * @param label description of the compared property, included only if the values differ
+	 * @param cached immutable cached value, or null when the value is absent
+	 * @param recomputed immutable recomputed value, or null when the value is absent
+	 * @param remaining shared single-element array containing the nonnegative remaining value allowance;
+	 *                  decremented separately for each side rendered
+	 */
 	private static void appendValueDifference(
 		@Nonnull StringBuilder text, @Nonnull String label, @Nullable Object cached, @Nullable Object recomputed,
 		@Nonnull int[] remaining
@@ -507,7 +628,15 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		}
 	}
 
-	/** Computes a histogram under the same dynamic suspension and activity rules as a bound formula. */
+	/**
+	 * Computes a histogram under the same dynamic suspension and activity rules as a bound formula.
+	 *
+	 * @param <U> histogram result type produced by the wrapped computer
+	 * @param context execution context whose cache eligibility and suspension state govern this computation
+	 * @param computer histogram computer invoked on misses, bypasses and sampled verification hits
+	 * @param key eligible detached identity used for lookup and possible admission
+	 * @return the shared cached histogram on an unsampled hit, otherwise the computer's result, which may be retained
+	 */
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	private <U> U computeHistogram(
@@ -551,7 +680,11 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 		this.cache.cleanUp();
 	}
 
-	/** Returns weakly consistent counters and gauges used by engine observability. */
+	/**
+	 * Returns weakly consistent counters and gauges used by engine observability.
+	 *
+	 * @return a fresh detached snapshot of counters and gauges, with a null witness if none has been recorded
+	 */
 	@Nonnull
 	public Statistics getStatistics() {
 		final CacheStats stats = this.cache.stats();
@@ -579,6 +712,27 @@ public final class FormulaCacheSupervisor implements CacheSupervisor {
 	 * Detached, weakly consistent counters and gauges. Bypasses count roots for transactions and computer analyses
 	 * or bound formula computations for prefetch. Durations are cumulative milliseconds; the optional witness
 	 * contains only bounded text.
+	 *
+	 * @param hits successful cache lookups
+	 * @param misses cache lookups with no retained tuple
+	 * @param admissions successful publications that found no existing entry
+	 * @param duplicateAdmissions publications that lost to an existing entry
+	 * @param duplicateComputeMillis cumulative computation time of losing publications in milliseconds
+	 * @param duplicateBytes cumulative byte charges of losing publications
+	 * @param refusedOversized entry charges refused by the per-entry byte or integer limits
+	 * @param refusedUnsized entry charges refused because retained storage has no supported size model
+	 * @param prefetchBypasses computer analyses or bound formula computations bypassed for prefetch execution
+	 * @param transactionBypasses otherwise eligible planning roots bypassed because a transaction was bound
+	 * @param evictions entries evicted by the cache, excluding explicit invalidations
+	 * @param evictedWeightBytes cumulative byte weight of evicted entries
+	 * @param verifiedHits completed sampled hit comparisons, including mismatches
+	 * @param verificationMillis cumulative sampled recomputation time in milliseconds
+	 * @param mismatches confirmed differing comparisons, including concurrent detections after cache disablement
+	 * @param entries estimated number of retained entries at sampling time
+	 * @param weightedSizeBytes current retained byte weight reported by the cache policy
+	 * @param maximumWeightBytes configured retained byte budget, an eventual target
+	 * @param active whether lookup, binding and admission are still enabled for this supervisor
+	 * @param witness bounded detached text of the first confirmed mismatch, or null if none has been recorded
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */

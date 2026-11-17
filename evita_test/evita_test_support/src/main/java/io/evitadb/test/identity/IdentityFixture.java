@@ -33,7 +33,11 @@ import java.util.Map;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public interface IdentityFixture<T> {
-	/** Returns named construction modes built through real constructors or factories. */
+	/**
+	 * Returns named construction modes built through real constructors or factories.
+	 *
+	 * @return construction modes keyed by their diagnostic names, each using real constructors or factories
+	 */
 	@Nonnull
 	Map<String, ConstructionMode<T>> modes();
 }

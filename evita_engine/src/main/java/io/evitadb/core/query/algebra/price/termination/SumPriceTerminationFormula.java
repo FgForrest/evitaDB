@@ -86,7 +86,8 @@ import java.util.function.ToIntFunction;
  */
 public class SumPriceTerminationFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
+	 * Unique identifier of this formula used in
+	 * {@link io.evitadb.core.query.algebra.AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 8387802561001219891L;
 	/**
@@ -161,7 +162,18 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		this.initFields(containerFormula);
 	}
 
-	/** Captures a resolved individual predicate and the construction state that restarts it for clones. */
+	/**
+	 * Captures a resolved individual predicate and the construction state that restarts it for clones.
+	 *
+	 * @param containerFormula the child supplying the candidate entity bitmap and filtered price accessors
+	 * @param priceEvaluationContext the retained price-index selection and validity inputs contributing to identity
+	 * @param queryPriceMode the mode selecting tax-inclusive or tax-exclusive amounts for summation
+	 * @param sellingPricePredicate the retained predicate applied to each entity's final summed selling price
+	 * @param individualPricePredicate the independently resolved predicate filtering sum components, or null to
+	 *                                 include all
+	 * @param individualPricePredicateFactory the retained factory restarting component filtering for clones, or null
+	 *                                        when no individual predicate is present
+	 */
 	private SumPriceTerminationFormula(
 		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,

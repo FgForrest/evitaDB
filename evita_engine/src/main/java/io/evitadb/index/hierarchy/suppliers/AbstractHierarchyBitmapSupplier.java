@@ -73,6 +73,11 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private IdentityToken.ProducerId memoizedHierarchyIndexIdentity;
 
+	/**
+	 * Creates a supplier bound to the hierarchy index it will read.
+	 *
+	 * @param hierarchyIndex hierarchy owner retained for lazy listing, cost estimates and versioned identity
+	 */
 	public AbstractHierarchyBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex) {
 		this.hierarchyIndex = hierarchyIndex;
 	}
@@ -142,14 +147,24 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	 * Returns the detached inputs of the concrete supplier: the node and depth arguments of its listing, the key of
 	 * the predicate excluding node subtrees from it, and the version token of the hierarchy index it reads
 	 * ({@link #getHierarchyIndexIdentityToken()}).
+	 *
+	 * @return detached listing arguments, subtree-predicate key and hierarchy version token for this concrete supplier
 	 */
 	@Nonnull
 	protected abstract IdentityRecord identity();
 
-	/** Returns the concrete supplier discriminator. */
+	/**
+	 * Returns the concrete supplier discriminator.
+	 *
+	 * @return the stable discriminator distinguishing this concrete listing operation from other suppliers
+	 */
 	protected abstract long getClassId();
 
-	/** Returns the owner's version token, refreshing the memo when its source version differs. */
+	/**
+	 * Returns the owner's version token, refreshing the memo when its source version differs.
+	 *
+	 * @return the memoized direct-producer token for the hierarchy's current version, refreshed if the version changes
+	 */
 	@Nonnull
 	protected IdentityToken getHierarchyIndexIdentityToken() {
 		final long ownerId = this.hierarchyIndex.getId();

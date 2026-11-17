@@ -38,7 +38,11 @@ import javax.annotation.Nonnull;
  */
 public interface TransactionalDataRelatedStructure {
 
-	/** Returns the detached identity. */
+	/**
+	 * Returns the detached identity.
+	 *
+	 * @return the structure's detached computation key, with opaque inputs bound to their holder instance
+	 */
 	@Nonnull
 	FormulaKey getKey();
 

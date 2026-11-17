@@ -130,6 +130,10 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 	/**
 	 * Supplies the original filter and relaxed baseline; the computer derives supplementation and shallow accessors
 	 * from that provenance.
+	 *
+	 * @param relaxedBaseline the filtering graph with histogram-related price bounds relaxed, retained by the computer
+	 * @return a fresh histogram computer retaining the original filter, relaxed baseline and existing price lookup
+	 *     result
 	 */
 	@Nonnull
 	private PriceHistogramComputer getPriceHistogramComputer(@Nonnull Formula relaxedBaseline) {

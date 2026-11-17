@@ -2281,7 +2281,12 @@ public class InvertedIndex implements
 		return new MatchedBuckets(bitmaps.toArray(MatchedBuckets.NO_RECORD_SETS));
 	}
 
-	/** Returns the ascending disjunction of the verified buckets' record ids. */
+	/**
+	 * Returns the ascending disjunction of the verified buckets' record ids.
+	 *
+	 * @param matched the verified bucket record sets whose identifiers are unioned without modifying the record sets
+	 * @return an ascending disjunction, the empty formula when no bucket matched, or a constant for one bucket
+	 */
 	@Nonnull
 	public Formula toFormula(@Nonnull MatchedBuckets matched) {
 		return toSortedOrFormula(Arrays.asList(matched.recordSets()));

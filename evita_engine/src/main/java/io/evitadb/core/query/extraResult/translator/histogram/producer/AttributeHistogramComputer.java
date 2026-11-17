@@ -91,6 +91,8 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	@Nonnull private final HistogramBehavior behavior;
 	/**
 	 * Contains original {@link AttributeHistogramRequest} that was collected during query examination.
+	 *
+	 * @return the retained histogram request supplying schema, indexes and comparator; no copy is made
 	 */
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Nonnull @Getter private final AttributeHistogramRequest request;
@@ -132,12 +134,20 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		return this.memoizedKey;
 	}
 
-	/** Returns this holder's stable class identifier. */
+	/**
+	 * Returns this holder's stable class identifier.
+	 *
+	 * @return the stable discriminator identifying attribute histogram computations in detached keys
+	 */
 	public long getClassId() {
 		return CLASS_ID;
 	}
 
-	/** Captures schema interpretation, canonical index versions and comparator provenance. */
+	/**
+	 * Captures schema interpretation, canonical index versions and comparator provenance.
+	 *
+	 * @return a fresh identity record with detached filter provenance, canonical index versions and comparator opacity
+	 */
 	@Nonnull
 	protected IdentityRecord identity() {
 		final List<FilterIndex> indexes = this.request.attributeIndexes();
@@ -273,6 +283,12 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 
 	/**
 	 * Creates a histogram computer for the supplied request and filtering inputs.
+	 *
+	 * @param attributeName the retained name identifying the attribute whose values are bucketed
+	 * @param filterFormula the retained mandatory filter intersected with attribute buckets, or null to include all
+	 * @param bucketCount the requested upper limit on the number of output histogram buckets
+	 * @param behavior the retained choice of equal-width or equalized buckets and empty-bucket optimization
+	 * @param request the retained schema, index and comparator inputs collected while examining the query
 	 */
 	public AttributeHistogramComputer(
 		@Nonnull String attributeName,

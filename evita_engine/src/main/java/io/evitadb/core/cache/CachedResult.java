@@ -29,6 +29,10 @@ package io.evitadb.core.cache;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public sealed interface CachedResult permits CachedBitmapResult, CachedPriceRecordsResult, CachedHistogramResult {
-	/** Returns the complete admitted charge in bytes, including the key and entry overhead. */
+	/**
+	 * Returns the complete admitted charge in bytes, including the key and entry overhead.
+	 *
+	 * @return the admitted entry weight in bytes, covering the key, tuple, payload and cache bookkeeping
+	 */
 	int weight();
 }

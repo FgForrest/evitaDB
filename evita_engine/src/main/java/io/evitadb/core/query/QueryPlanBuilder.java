@@ -239,6 +239,8 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 *
 	 * The cost is `O(winning set)` volatile increments plus one per distinct capability the query named, both bounded
 	 * from below by the reads the query is about to perform on those very indexes.
+	 *
+	 * @return a fresh execution plan retaining this builder's query context, filtering and result-processing inputs
 	 */
 	@Nonnull
 	public QueryPlan build() {

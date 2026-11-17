@@ -40,7 +40,11 @@ public final class IntValues {
 	/** Content hash computed once. */
 	private final long hash64;
 
-	/** Copies content accepted by the token factory. */
+	/**
+	 * Copies content accepted by the token factory.
+	 *
+	 * @param values integer content copied defensively; its length must not exceed {@link IdentityToken#CONTENT_LIMIT}
+	 */
 	IntValues(@Nonnull int[] values) {
 		if (values.length > IdentityToken.CONTENT_LIMIT) {
 			throw new IllegalArgumentException("Exact content exceeds the content limit.");
@@ -53,17 +57,30 @@ public final class IntValues {
 		this.hash64 = hash;
 	}
 
-	/** Returns the number of retained integers. */
+	/**
+	 * Returns the number of retained integers.
+	 *
+	 * @return the nonnegative number of integers in the private copied array
+	 */
 	public int size() {
 		return this.values.length;
 	}
 
-	/** Returns the precomputed content hash. */
+	/**
+	 * Returns the precomputed content hash.
+	 *
+	 * @return the precomputed 64-bit hash of the ordered integer content
+	 */
 	public long hash64() {
 		return this.hash64;
 	}
 
-	/** Compares content lexicographically after an equal hash. */
+	/**
+	 * Compares content lexicographically after an equal hash.
+	 *
+	 * @param other detached integer sequence supplying the right-hand lexicographic operand
+	 * @return a negative value, zero or a positive value if this sequence sorts before, equals or sorts after the other
+	 */
 	int compareTo(@Nonnull IntValues other) {
 		return Arrays.compare(this.values, other.values);
 	}

@@ -192,17 +192,30 @@ public class QueryExecutionContext implements Closeable {
 		this.converter = converter;
 	}
 
-	/** Returns execution eligibility, including suspension shared with every context of the query. */
+	/**
+	 * Returns execution eligibility, including suspension shared with every context of the query.
+	 *
+	 * @return whether this execution passed the cache gate and cache access is not suspended for its query
+	 */
 	public boolean isFormulaCacheUsable() {
 		return this.formulaCacheUsable && !this.queryContext.isFormulaCacheSuspended();
 	}
 
-	/** Suspends formula cache access throughout a sampled recomputation and returns the preceding flag. */
+	/**
+	 * Suspends formula cache access throughout a sampled recomputation and returns the preceding flag.
+	 *
+	 * @return the prior suspension flag to pass to {@link #resumeFormulaCache(boolean)}; `false` if no shared state
+	 *     exists
+	 */
 	public boolean suspendFormulaCache() {
 		return this.queryContext.exchangeFormulaCacheSuspension(true);
 	}
 
-	/** Restores the suspension state in a sampled recomputation's finally block. */
+	/**
+	 * Restores the suspension state in a sampled recomputation's finally block.
+	 *
+	 * @param previous the suspension flag returned by the matching {@link #suspendFormulaCache()} call
+	 */
 	public void resumeFormulaCache(boolean previous) {
 		this.queryContext.exchangeFormulaCacheSuspension(previous);
 	}
@@ -211,6 +224,8 @@ public class QueryExecutionContext implements Closeable {
 	 * Returns true during either plan-verification mode, including nested executions and sorter contexts captured
 	 * during planning. The preferred plan can subsequently execute for the client without recording its dry runs.
 	 * Ordinary queries pay one field read and one null check, independently of context depth.
+	 *
+	 * @return whether this context currently carries frozen randomness for a verification execution
 	 */
 	public boolean isDryRun() {
 		return this.verificationState != null && this.verificationState.frozenRandom != null;
@@ -219,6 +234,8 @@ public class QueryExecutionContext implements Closeable {
 	/**
 	 * Returns random object to generate sequences from.
 	 *
+	 * @return a fresh random generator restored from the verification state, or the current thread's shared generator
+	 *     when no verification state is active
 	 * @see #verificationState for more information
 	 */
 	@Nonnull

@@ -181,12 +181,20 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		return this.memoizedKey;
 	}
 
-	/** Returns this holder's stable class identifier. */
+	/**
+	 * Returns this holder's stable class identifier.
+	 *
+	 * @return the stable discriminator identifying price histogram computations in detached keys
+	 */
 	public long getClassId() {
 		return CLASS_ID;
 	}
 
-	/** Captures filtering and baseline provenance without retaining a sorter lookup in the key. */
+	/**
+	 * Captures filtering and baseline provenance without retaining a sorter lookup in the key.
+	 *
+	 * @return a fresh detached identity record marking any retained sorter lookup as opaque
+	 */
 	@Nonnull
 	protected IdentityRecord identity() {
 		return new Identity(
@@ -250,7 +258,14 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 * are looked up in the relaxed baseline, and the histogram is supplemented with the prices the price filter left
 	 * out only when the baseline is neither the filtering formula itself nor {@link EmptyFormula#INSTANCE}.
 	 *
+	 * @param bucketCount the requested upper limit on the number of output histogram buckets
+	 * @param behavior the retained choice of equal-width or equalized buckets and empty-bucket optimization
+	 * @param indexedPricePlaces the number of decimal places used to decode indexed integer price amounts
+	 * @param queryPriceMode the retained mode selecting tax-inclusive or tax-exclusive amounts for bucketing
+	 * @param filteringFormula the retained original query filter defining the matched entities
 	 * @param relaxedBaseline the filtering formula with its price-between carriers peeled off
+	 * @param priceRecordsLookupResult the retained sorter lookup reused by the per-entity collector, or null to
+	 *                                 resolve prices through the accessors instead
 	 */
 	public PriceHistogramComputer(
 		int bucketCount,
@@ -383,6 +398,8 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 *   double-count the same entities) does not show up here.
 	 * - Otherwise (pure `NONE`/`SUM` handling, or no LOWEST_PRICE LP at all) the existing collector path
 	 *   runs unchanged.
+	 *
+	 * @return the memoized array of histogram contributions, empty when none qualify; callers may sort it in place
 	 */
 	private PriceRecordContract[] getPriceRecords() {
 		if (this.memoizedPriceRecords == null) {

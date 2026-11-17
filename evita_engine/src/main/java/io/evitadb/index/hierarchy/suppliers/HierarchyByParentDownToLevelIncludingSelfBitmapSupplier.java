@@ -60,6 +60,14 @@ public class HierarchyByParentDownToLevelIncludingSelfBitmapSupplier extends Abs
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final HierarchyFilteringPredicate excludedNodeTrees;
 
+	/**
+	 * Creates a lazy, depth-limited listing of a parent node and its descendants.
+	 *
+	 * @param hierarchyIndex the retained index read when the supplied bitmap is computed
+	 * @param parentNode the primary key of the subtree root, included when present and accepted by the predicate
+	 * @param levels the maximum descendant depth to traverse; `1` includes the parent and its direct children
+	 * @param excludedNodeTrees the retained predicate; rejecting a node excludes that node and its entire subtree
+	 */
 	public HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(
 		@Nonnull HierarchyIndex hierarchyIndex,
 		int parentNode,

@@ -55,10 +55,17 @@ public class MultipleEntityFormula extends AbstractFormula {
 	private static final long CLASS_ID = 7381005856920907843L;
 	/**
 	 * Contains the bitmap of virtual entity primary keys that were translated from entity references.
+	 *
+	 * @return the retained bitmap of translated virtual entity primary keys, without copying it
 	 */
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	@Getter private final Bitmap directEntityReferences;
 
+	/**
+	 * Creates a leaf that exposes translated entity references and triggers entity prefetch.
+	 *
+	 * @param directEntityReferences the bitmap of translated virtual entity primary keys, retained without copying
+	 */
 	public MultipleEntityFormula(@Nonnull Bitmap directEntityReferences) {
 		this.directEntityReferences = directEntityReferences;
 		this.initFields();

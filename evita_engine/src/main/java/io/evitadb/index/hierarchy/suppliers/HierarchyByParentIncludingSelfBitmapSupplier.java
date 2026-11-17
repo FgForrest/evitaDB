@@ -56,6 +56,13 @@ public class HierarchyByParentIncludingSelfBitmapSupplier extends AbstractHierar
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final HierarchyFilteringPredicate excludedNodeTrees;
 
+	/**
+	 * Creates a lazy subtree listing that includes the accepted parent node itself.
+	 *
+	 * @param hierarchyIndex hierarchy owner retained for lazy traversal and versioned identity
+	 * @param parentNode primary key of the subtree root to include in the listing when accepted by the predicate
+	 * @param excludedNodeTrees retained traversal predicate; rejected nodes and their subtrees are excluded
+	 */
 	public HierarchyByParentIncludingSelfBitmapSupplier(
 		@Nonnull HierarchyIndex hierarchyIndex,
 		int parentNode,

@@ -45,14 +45,26 @@ import java.util.function.Predicate;
  */
 public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, ExecutionContextRequiringPredicate {
 
-	/** Returns the detached identity. */
+	/**
+	 * Returns the detached identity.
+	 *
+	 * @return the detached key identifying the predicate inputs, including any query-local identity
+	 */
 	@Nonnull
 	FormulaKey getKey();
 
-	/** Returns the declaring class identifier. */
+	/**
+	 * Returns the declaring class identifier.
+	 *
+	 * @return the stable discriminator distinguishing this predicate implementation from other holder types
+	 */
 	long getClassId();
 
-	/** Returns the declared identity components. */
+	/**
+	 * Returns the declared identity components.
+	 *
+	 * @return the detached record describing this predicate's inputs without evaluating the predicate
+	 */
 	@Nonnull
 	IdentityRecord identity();
 

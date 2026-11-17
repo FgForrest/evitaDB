@@ -37,7 +37,11 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Retention(RUNTIME)
 @Target(FIELD)
 public @interface IdentityExempt {
-	/** Returns the field's identity classification. */
+	/**
+	 * Returns the field's identity classification.
+	 *
+	 * @return the reason the annotated field is excluded from direct identity components
+	 */
 	Reason value();
 
 	/**

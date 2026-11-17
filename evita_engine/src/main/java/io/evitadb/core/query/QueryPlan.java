@@ -220,6 +220,8 @@ public class QueryPlan {
 	 * This method will {@link Formula#compute()} the filtered result, applies ordering and cuts out the requested page.
 	 * The real execution is performed once per request.
 	 *
+	 * @param <S> the serializable record type requested for the response page
+	 * @param <T> the response subtype selected by the request's result form
 	 * @return the response of the form the {@link EvitaRequest} asked for
 	 * @see #execute(byte[]) for the dry-run and real-execution contract
 	 */
@@ -241,6 +243,8 @@ public class QueryPlan {
 	 * plan-comparison purposes only, and telemetry collection is suppressed - see
 	 * {@link QueryExecutionContext#isDryRun()}.
 	 *
+	 * @param <S> the serializable record type requested for the response page
+	 * @param <T> the response subtype selected by the request's result form
 	 * @param frozenRandom verification seed, or null to inherit an enclosing verification or use ordinary randomness
 	 * @return the response of the form the {@link EvitaRequest} asked for - entity references or full entity bodies -
 	 *         carrying the requested page, the total record count and all requested extra results

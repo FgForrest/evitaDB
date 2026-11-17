@@ -49,7 +49,7 @@ import java.util.function.Predicate;
  * The constructor enforces three structural invariants at creation time:
  *
  * - the bucket array must not be empty;
- * - the last bucket's threshold must be `<= max`;
+ * - the last bucket's threshold must be {@code <= max};
  * - bucket thresholds must form a strictly monotonic (ascending) sequence.
  *
  * These invariants guarantee that downstream code can always rely on `buckets[0].threshold()` as the minimum
@@ -218,7 +218,10 @@ public class CacheableHistogram implements CacheableHistogramContract {
 	/**
 	 * Converts each {@link CacheableBucket} into a query-time {@link Bucket}. The `requested` flag on each
 	 * bucket is set by testing the bucket threshold against `requestedPredicate` — this wires the user's
-	 * `attributeBetween` range (or always-false predicate when no range was requested) into the produced DTO.
+	 * `attributeBetween` range (or always-true predicate when no range was requested) into the produced DTO.
+	 *
+	 * @param requestedPredicate the query-time predicate tested against each cached bucket's lower threshold
+	 * @return a fresh array of query-time buckets carrying the cached values and computed requested flags
 	 */
 	@Nonnull
 	private Bucket[] buildBuckets(@Nonnull Predicate<BigDecimal> requestedPredicate) {

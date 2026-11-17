@@ -71,6 +71,11 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		this.initFields(innerFormulas);
 	}
 
+	/**
+	 * Creates an intersection over retained bitmap operands.
+	 *
+	 * @param bitmaps at least two bitmap operands to intersect; the array and its bitmaps are retained without copying
+	 */
 	public AndFormula(@Nonnull Bitmap... bitmaps) {
 		super(bitmaps);
 		Assert.isTrue(bitmaps.length > 1, "And formula has no sense with " + bitmaps.length + " inner bitmaps!");

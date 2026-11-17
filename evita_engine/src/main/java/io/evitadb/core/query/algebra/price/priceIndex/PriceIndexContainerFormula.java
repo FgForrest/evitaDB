@@ -51,7 +51,8 @@ import javax.annotation.Nonnull;
  */
 public class PriceIndexContainerFormula extends AbstractCacheableFormula implements PriceIndexProvidingFormula, Formula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
+	 * Unique identifier of this formula used in {@link io.evitadb.core.query.algebra.AbstractFormula#getClassId()}
+	 * as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 1785319770058715404L;
 
@@ -71,6 +72,8 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	 * price-list / currency combination, resolved by the caller that built this formula from the GLOBAL entity index it
 	 * is already pinned to. Keeping it as a separate field is what lets a reduced index stop holding a super-index
 	 * pointer of its own.
+	 *
+	 * @return the retained super index used for lazy entity-to-price-record lookup
 	 */
 	@Getter private final PriceListAndCurrencyPriceIndex<?> lowestPriceRecordsSource;
 

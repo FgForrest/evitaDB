@@ -42,7 +42,14 @@ import java.io.Serial;
 public class InconsistentResultsException extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = 185377662501574496L;
 
-	/** Describes a difference between the preferred index plan and an alternative. */
+	/**
+	 * Describes a difference between the preferred index plan and an alternative.
+	 *
+	 * @param mainBuilder the preferred plan whose description identifies the first response
+	 * @param mainResult the preferred response rendered into the diagnostic message
+	 * @param alternativeBuilder the alternative plan whose description identifies the second response
+	 * @param alternativeResult the alternative response rendered into the diagnostic message
+	 */
 	public InconsistentResultsException(
 		@Nonnull QueryPlanBuilder mainBuilder,
 		@Nonnull EvitaResponse<EntityClassifier> mainResult,
@@ -52,7 +59,14 @@ public class InconsistentResultsException extends EvitaInternalError {
 		this(mainBuilder.getDescription(), mainResult, alternativeBuilder.getDescription(), alternativeResult);
 	}
 
-	/** Describes a difference between two named execution paths, retaining both responses for diagnosis. */
+	/**
+	 * Describes a difference between two named execution paths, rendering both responses for diagnosis.
+	 *
+	 * @param mainDescription the preferred execution path label included in both exception messages
+	 * @param mainResult the preferred response converted to text for the detailed message
+	 * @param alternativeDescription the compared execution path label included in both exception messages
+	 * @param alternativeResult the alternative response converted to text for the detailed message
+	 */
 	public InconsistentResultsException(
 		@Nonnull String mainDescription,
 		@Nonnull EvitaResponse<EntityClassifier> mainResult,
@@ -65,7 +79,13 @@ public class InconsistentResultsException extends EvitaInternalError {
 		);
 	}
 
-	/** Names both compared execution paths; shared by the detailed and the public message. */
+	/**
+	 * Names both compared execution paths; shared by the detailed and the public message.
+	 *
+	 * @param mainDescription the label identifying the preferred execution path
+	 * @param alternativeDescription the label identifying the execution path with a differing response
+	 * @return a message naming both paths and stating that their results differ
+	 */
 	@Nonnull
 	private static String headline(@Nonnull String mainDescription, @Nonnull String alternativeDescription) {
 		return "Results for `" + mainDescription + "` and `" + alternativeDescription + "` differ!";

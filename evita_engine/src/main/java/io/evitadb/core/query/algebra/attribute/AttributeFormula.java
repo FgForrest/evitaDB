@@ -75,6 +75,8 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 	@Getter private final AttributeKey attributeKey;
 	/**
 	 * Contains possible predicate that can mark histogram buckets as requested by user constraint.
+	 *
+	 * @return the retained histogram threshold predicate, or null when no bucket selection was requested
 	 */
 	@Nullable @Getter private final RequestedThresholdPredicate requestedPredicate;
 	/**
@@ -151,6 +153,8 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 
 	/**
 	 * Returns attribute name this formula is targeting.
+	 *
+	 * @return the name portion of the retained attribute key, without its locale
 	 */
 	@Nonnull
 	public String getAttributeName() {
@@ -219,7 +223,11 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 		return entityFetch(attributeContent(this.attributeKey.attributeName()));
 	}
 
-	/** Returns the construction flag independently of whether the key is localized. */
+	/**
+	 * Returns the construction flag independently of whether the key is localized.
+	 *
+	 * @return the retained construction flag, including when the attribute key has no locale
+	 */
 	protected final boolean getLocaleImplied() {
 		return this.localeImplied;
 	}

@@ -101,12 +101,20 @@ public class HistogramBitmapSupplier implements BitmapSupplier {
 		return this.memoizedKey;
 	}
 
-	/** Returns this holder's stable class identifier. */
+	/**
+	 * Returns this holder's stable class identifier.
+	 *
+	 * @return the stable discriminator identifying histogram bitmap suppliers in detached keys
+	 */
 	public long getClassId() {
 		return CLASS_ID;
 	}
 
-	/** Copies ordered bucket values and the leaf-version sequence into detached lists. */
+	/**
+	 * Copies ordered bucket values and the leaf-version sequence into detached lists.
+	 *
+	 * @return a fresh identity record containing detached ordered bucket values and copied leaf-version tokens
+	 */
 	@Nonnull
 	protected IdentityRecord identity() {
 		final Object[] values = new Object[this.histogramBuckets.length];

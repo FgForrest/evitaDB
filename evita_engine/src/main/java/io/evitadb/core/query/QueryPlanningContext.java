@@ -253,6 +253,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Effective supervisor of this context: the engine's `FormulaCacheSupervisor` when this planning root passed the
 	 * formula cache gate, otherwise `NoCacheSupervisor`. A nested context shares its parent's and a verification
 	 * sibling never caches.
+	 *
+	 * @return the effective supervisor shared with nested contexts; ineligible roots and verification siblings bypass
+	 *     caching
 	 */
 	@Getter
 	@Nonnull private final CacheSupervisor cacheSupervisor;
@@ -280,6 +283,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * True for a key-free verification sibling, its descendants and the body-fetch roots it creates. These contexts
 	 * never share formulas, collect telemetry, emit the finished event, record capabilities or index activity, or start
 	 * another verification; their effective supervisor always bypasses caching.
+	 *
+	 * @return whether this context belongs to a key-free verification tree whose accounting and caching are disabled
 	 */
 	@Getter
 	private final boolean verificationSibling;
@@ -292,6 +297,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * this one context, so the memoized results stay valid for the whole planning phase instead of being
 	 * recomputed per candidate plan. It is created as an eager planning evaluation, so it never consults or fills the
 	 * formula result cache.
+	 *
+	 * @return the shared execution context used for eager planning evaluations, with formula result caching disabled
 	 */
 	@Getter @Nonnull
 	private final QueryExecutionContext internalExecutionContext;
@@ -437,6 +444,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * This is the only constructor that fabricates the {@link FinishedEvent}, so exactly one metric event is
 	 * emitted per client query regardless of how many nested queries it spawns.
 	 *
+	 * @param <S> the key type identifying indexes available to this context
+	 * @param <T> the index type held in both lookup maps
 	 * @param catalog          the catalog the query is executed against
 	 * @param entityCollection collection targeted by the query, NULL for catalog-wide queries
 	 * @param evitaSession     the enveloping session, must be an {@link EvitaSession} instance
@@ -480,6 +489,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Passing NULL as `parentQueryContext` produces a top level context **without** the metric event, which is
 	 * what internal, non-client-facing evaluations want.
 	 *
+	 * @param <S> the key type identifying indexes available to this context
+	 * @param <T> the index type held in both lookup maps
 	 * @param parentQueryContext context of the enclosing query, NULL for a standalone internal evaluation
 	 * @param catalog            the catalog the query is executed against
 	 * @param entityCollection   collection targeted by the query, NULL for catalog-wide queries
@@ -566,6 +577,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *   constructors assert against that, but the assertion can only run *after* this constructor completed
 	 *   (Java requires the `this(...)` call to come first), so this method must cope with the value on its own.
 	 *
+	 * @param <S> the key type identifying indexes available to this context
+	 * @param <T> the index type held in both lookup maps
 	 * @param parentQueryContext context of the enclosing query, NULL for a top level one
 	 * @param catalog            the catalog the query is executed against
 	 * @param entityCollection   collection targeted by the query, NULL for catalog-wide queries
@@ -675,6 +688,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Its planning policy, optional prefetch, capability accounting and memos belong to the fetch request alone.
 	 * The fetch records no telemetry, capabilities or finished event during verification; otherwise it records them
 	 * like an ordinary root. It resolves its own formula cache gate.
+	 *
+	 * @param <S> the key type identifying indexes available to the fetch request
+	 * @param <T> the index type held in both fetch lookup maps
+	 * @param collection the collection whose bodies this independent root fetches
+	 * @param request the fetch request that determines this root's policy, telemetry and capability accounting
+	 * @param indexes the pinned indexes retained for the fetch, keyed by their index keys
+	 * @param indexesByPk the same pinned indexes retained for lookup by primary key
+	 * @param supervisor the collection's supervisor from which the fetch root resolves its own cache gate
+	 * @return a fresh fetch root retaining this query's shared execution state and verification sibling policy
 	 */
 	@Nonnull
 	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext createFetchContext(
@@ -692,12 +714,20 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		);
 	}
 
-	/** Returns whether this context may deduplicate formulas by their computation keys. */
+	/**
+	 * Returns whether this context may deduplicate formulas by their computation keys.
+	 *
+	 * @return `true` unless this context is a key-free verification sibling
+	 */
 	public boolean isFormulaSharingEnabled() {
 		return !this.verificationSibling;
 	}
 
-	/** Returns whether alternative index plans are verified - the debug flag is on, outside any key-free sibling. */
+	/**
+	 * Returns whether alternative index plans are verified - the debug flag is on, outside any key-free sibling.
+	 *
+	 * @return whether alternative-index verification was requested and this context is not a verification sibling
+	 */
 	public boolean isAlternativeIndexVerificationRequired() {
 		return isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) && !this.verificationSibling;
 	}
@@ -706,6 +736,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Returns whether this context compares its response with a key-free baseline: a root context carrying the flag
 	 * that is no verification sibling. Only {@link QueryPlanner#planQuery(QueryPlanningContext)} asks, so body-fetch
 	 * roots, whose derived requests may carry the flag, never verify.
+	 *
+	 * @return whether the formula-sharing verification flag is set on this non-sibling root context
 	 */
 	public boolean isFormulaSharingVerificationRequired() {
 		return isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) &&
@@ -1671,7 +1703,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		return collection::getIndexByPrimaryKeyIfExists;
 	}
 
-	/** Guards every telemetry step mutation, including runtime planning that holds the original context. */
+	/**
+	 * Guards every telemetry step mutation, including runtime planning that holds the original context.
+	 *
+	 * @return whether telemetry has an open root and no verification execution is active
+	 */
 	private boolean isTelemetryRecording() {
 		return !this.telemetryStack.isEmpty() && !isVerificationExecutionActive();
 	}
@@ -1955,6 +1991,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	/**
 	 * Analyses a histogram computer under the actual calling execution context.
 	 *
+	 * @param <U> the value produced by the extra-result computation
+	 * @param <T> the cacheable computer type accepted for analysis
 	 * @param computer extra-result computation
 	 * @param context execution context controlling planning, prefetch and sampling suspension
 	 * @return the original computer or a wrapper preserving its result contract
@@ -2996,22 +3034,39 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		return formula == null ? EmptyBitmap.INSTANCE : formula.compute();
 	}
 
-	/** Returns whether execution state must travel to an independent body-fetch root. */
+	/**
+	 * Returns whether execution state must travel to an independent body-fetch root.
+	 *
+	 * @return whether shared cache or verification state is allocated for this query
+	 */
 	public boolean hasSharedExecutionState() {
 		return this.verificationState != null;
 	}
 
-	/** Returns whether this planning root passed the formula cache gate. */
+	/**
+	 * Returns whether this planning root passed the formula cache gate.
+	 *
+	 * @return whether this context's effective supervisor is a formula cache supervisor
+	 */
 	public boolean isFormulaCacheEnabled() {
 		return this.cacheSupervisor instanceof FormulaCacheSupervisor;
 	}
 
-	/** Returns the shared suspension flag without traversing the context ancestry. */
+	/**
+	 * Returns the shared suspension flag without traversing the context ancestry.
+	 *
+	 * @return the query's shared cache suspension flag, or `false` when no shared state exists
+	 */
 	boolean isFormulaCacheSuspended() {
 		return this.verificationState != null && this.verificationState.formulaCacheSuspended;
 	}
 
-	/** Exchanges suspension for all execution contexts in this query and its independent fetch roots. */
+	/**
+	 * Exchanges suspension for all execution contexts in this query and its independent fetch roots.
+	 *
+	 * @param suspended the cache suspension flag to install in this query's shared execution state
+	 * @return the preceding flag, or `false` when no shared state exists and nothing is changed
+	 */
 	boolean exchangeFormulaCacheSuspension(boolean suspended) {
 		if (this.verificationState == null) return false;
 		final boolean previous = this.verificationState.formulaCacheSuspended;
@@ -3019,24 +3074,43 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		return previous;
 	}
 
-	/** Returns the shared execution state in constant time, including for contexts captured before execution. */
+	/**
+	 * Returns the shared execution state in constant time, including for contexts captured before execution.
+	 *
+	 * @return the state object shared by this query's execution contexts, or `null` when none is allocated
+	 */
 	@Nullable
 	VerificationState getVerificationState() {
 		return this.verificationState;
 	}
 
-	/** Returns whether a verification execution is currently running anywhere in this query. */
+	/**
+	 * Returns whether a verification execution is currently running anywhere in this query.
+	 *
+	 * @return whether the shared state carries frozen randomness for an active verification execution
+	 */
 	public boolean isVerificationExecutionActive() {
 		return this.verificationState != null && this.verificationState.frozenRandom != null;
 	}
 
-	/** Returns the active verification seed without traversing context ancestry. */
+	/**
+	 * Returns the active verification seed without traversing context ancestry.
+	 *
+	 * @return the shared serialized random state without copying, or `null` when verification is inactive
+	 */
 	@Nullable
 	byte[] getVerificationRandom() {
 		return this.verificationState == null ? null : this.verificationState.frozenRandom;
 	}
 
-	/** Installs execution-scoped verification randomness and returns the state to restore in a finally block. */
+	/**
+	 * Installs execution-scoped verification randomness and returns the state to restore in a finally block.
+	 *
+	 * @param frozenRandom serialized random state retained without copying for verification, or `null` to mark it
+	 *     inactive
+	 * @return the preceding array without copying, or `null` when it was inactive or no shared state exists;
+	 *     nothing is installed when no shared state exists
+	 */
 	@Nullable
 	byte[] exchangeVerificationRandom(@Nullable byte[] frozenRandom) {
 		if (this.verificationState == null) return null;
@@ -3059,7 +3133,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		/** Shared suspension seen by existing contexts and independent fetch roots. */
 		boolean formulaCacheSuspended;
 
-		/** Captures either an explicit execution seed or the inactive query state. */
+		/**
+		 * Captures either an explicit execution seed or the inactive query state.
+		 *
+		 * @param frozenRandom serialized random state retained without copying, or `null` for inactive verification
+		 */
 		VerificationState(@Nullable byte[] frozenRandom) {
 			this.frozenRandom = frozenRandom;
 		}
@@ -3096,7 +3174,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		return createExecutionContext(prefetchExecution, frozenRandom, false);
 	}
 
-	/** Creates an execution context with an explicit eager-planning marker. */
+	/**
+	 * Creates an execution context with an explicit eager-planning marker.
+	 *
+	 * @param prefetchExecution whether filtering uses prefetched entities rather than indexes
+	 * @param frozenRandom serialized random state retained without copying for this execution, or `null` to use
+	 *     the query's shared execution state
+	 * @param planningEvaluation whether this context eagerly evaluates formulas during planning and bypasses the cache
+	 * @return a fresh execution context bound to this planning context
+	 */
 	@Nonnull
 	private QueryExecutionContext createExecutionContext(
 		boolean prefetchExecution, @Nullable byte[] frozenRandom, boolean planningEvaluation

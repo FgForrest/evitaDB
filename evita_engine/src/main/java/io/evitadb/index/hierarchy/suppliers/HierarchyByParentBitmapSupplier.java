@@ -56,6 +56,13 @@ public class HierarchyByParentBitmapSupplier extends AbstractHierarchyBitmapSupp
 	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final HierarchyFilteringPredicate excludedNodeTrees;
 
+	/**
+	 * Creates a lazy supplier of descendants below the requested parent.
+	 *
+	 * @param hierarchyIndex the retained index queried when the supplier computes its bitmap
+	 * @param parentNode the primary key identifying the parent from which the hierarchy lookup starts
+	 * @param excludedNodeTrees the retained predicate initialized for query execution and used to prune the lookup
+	 */
 	public HierarchyByParentBitmapSupplier(
 		@Nonnull HierarchyIndex hierarchyIndex,
 		int parentNode,

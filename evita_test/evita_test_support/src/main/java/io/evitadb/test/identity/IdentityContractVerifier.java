@@ -86,7 +86,13 @@ public final class IdentityContractVerifier {
 	/** Prevents instantiation of the verifier. */
 	private IdentityContractVerifier() { }
 
-	/** Verifies all declared construction modes of one concrete holder. */
+	/**
+	 * Verifies all declared construction modes of one concrete holder.
+	 *
+	 * @param <T> the concrete holder type constructed by the fixture
+	 * @param holderType the concrete class whose identity declarations and instance fields are checked
+	 * @param fixture the construction modes and mutation probes to exercise
+	 */
 	public static <T> void verify(@Nonnull Class<T> holderType, @Nonnull IdentityFixture<T> fixture) {
 		final Map<String, ConstructionMode<T>> modes = fixture.modes();
 		assertFalse(modes.isEmpty(), "Fixture has no construction modes: " + holderType.getName());
@@ -104,6 +110,11 @@ public final class IdentityContractVerifier {
 	 * Requires attested fields to be decomposed and exercised without attestation in another mode that has a base.
 	 * An inherited field is exempt only while no fixture instance sets it, because it is then no input of this holder;
 	 * the superclass fixture cannot witness it, since every holder declares its own `identity()`.
+	 *
+	 * @param <T> the holder type supplied by each construction mode
+	 * @param holderType the concrete class whose inherited and declared fields are inspected
+	 * @param modeName the mode whose attested fields require coverage in another mode
+	 * @param modes all named modes, including the mode identified by `modeName`
 	 */
 	private static <T> void verifyAttestations(
 		@Nonnull Class<T> holderType, @Nonnull String modeName, @Nonnull Map<String, ConstructionMode<T>> modes
@@ -137,6 +148,11 @@ public final class IdentityContractVerifier {
 	/**
 	 * Builds every instance the fixture declares and requires the field to hold its type's default value in each.
 	 * Equal values alone would not do: a fixture without variants has them for any field.
+	 *
+	 * @param <T> the holder type constructed by the mode suppliers
+	 * @param field the inherited field to make accessible and compare with its default value
+	 * @param modes the modes whose base, value, opaque and oversized suppliers are invoked
+	 * @return `true` if every supplied instance leaves the field at its primitive default or `null`
 	 */
 	private static <T> boolean unsetInEveryInstance(
 		@Nonnull Field field, @Nonnull Map<String, ConstructionMode<T>> modes
@@ -228,7 +244,12 @@ public final class IdentityContractVerifier {
 		assertNotEquals(first.getKey(), mutable.getKey(), "Delegate swap must move the key");
 	}
 
-	/** Bridges fixture loading to the type-safe verification entry point. */
+	/**
+	 * Bridges fixture loading to the type-safe verification entry point.
+	 *
+	 * @param holderType the concrete holder class matched to the loaded fixture
+	 * @param fixture the conventionally loaded fixture whose type is erased at the loading boundary
+	 */
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static void verifyUnchecked(@Nonnull Class<?> holderType, @Nonnull IdentityFixture<?> fixture) {
 		verify((Class) holderType, fixture);
@@ -237,6 +258,10 @@ public final class IdentityContractVerifier {
 	/**
 	 * Parses sources and retains concrete holders from the primary root, including named nested classes.
 	 * Related roots supply inherited holder type names for anonymous and local subclass rejection.
+	 *
+	 * @param sourceRoot the existing source directory whose concrete holders are included in the inventory
+	 * @param relatedRoots additional source directories used to recognize inherited holder types; may be empty
+	 * @return an unmodifiable set of loaded concrete holder classes from the primary root, empty if none are found
 	 */
 	@Nonnull
 	public static Set<Class<?>> discover(@Nonnull Path sourceRoot, @Nonnull Path... relatedRoots) {
@@ -282,7 +307,13 @@ public final class IdentityContractVerifier {
 		return Collections.unmodifiableSet(classes);
 	}
 
-	/** Parses every Java source below the roots into the builder, remembering the path each source came from. */
+	/**
+	 * Parses every Java source below the roots into the builder, remembering the path each source came from.
+	 *
+	 * @param roots the existing source directories to walk recursively for Java files
+	 * @param builder the parser populated with sanitized source contents
+	 * @return a fresh identity-based map from parsed sources to their paths, empty when no Java sources are found
+	 */
 	@Nonnull
 	private static Map<JavaSource, Path> parseSources(@Nonnull Set<Path> roots, @Nonnull JavaProjectBuilder builder) {
 		final Map<JavaSource, Path> sourcePaths = new IdentityHashMap<>();
@@ -305,7 +336,13 @@ public final class IdentityContractVerifier {
 		return sourcePaths;
 	}
 
-	/** Distinguishes an anonymous body from surrounding control-flow blocks using balanced arguments. */
+	/**
+	 * Distinguishes an anonymous body from surrounding control-flow blocks using balanced arguments.
+	 *
+	 * @param source source text with comments and literal contents erased
+	 * @param constructors the pattern matching constructor calls of recognized holder types
+	 * @param path the source path included in an assertion failure for an anonymous holder
+	 */
 	private static void rejectAnonymous(@Nonnull String source, @Nonnull Pattern constructors, @Nonnull Path path) {
 		final Matcher matcher = constructors.matcher(source);
 		while (matcher.find()) {
@@ -330,6 +367,9 @@ public final class IdentityContractVerifier {
 	/**
 	 * Removes comments and literal contents before source inventory parsing, preserving code and line positions.
 	 * QDox does not need literal values and can misinterpret quotes inside comments following text blocks.
+	 *
+	 * @param source the Java source text to sanitize without modifying the original string
+	 * @return sanitized text retaining line positions, with literal placeholders and `sealed` method names renamed
 	 */
 	@Nonnull
 	private static String parserInput(@Nonnull String source) {
@@ -383,7 +423,13 @@ public final class IdentityContractVerifier {
 		return new String(code).replaceAll("\\bsealed(?=\\s*\\()", "sealedMethod");
 	}
 
-	/** Blanks one lexical token without moving subsequent source lines. */
+	/**
+	 * Blanks one lexical token without moving subsequent source lines.
+	 *
+	 * @param code the mutable source character array to blank in place, preserving line separators
+	 * @param start the inclusive character offset at which the token begins
+	 * @param end the exclusive character offset at which the token ends
+	 */
 	private static void eraseToken(@Nonnull char[] code, int start, int end) {
 		for (int i = start; i < end; i++) {
 			if (code[i] != '\n' && code[i] != '\r') {
@@ -392,7 +438,14 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Loads every named class without running its static initialization. */
+	/**
+	 * Loads every named class without running its static initialization.
+	 *
+	 * @param source the parsed named class whose loaded type and nested classes are inspected
+	 * @param classes the destination set receiving concrete holders when `included` is `true`
+	 * @param typeNames the destination set receiving simple holder type names for source rejection patterns
+	 * @param included whether classes in this source belong to the primary inventory root
+	 */
 	private static void collect(
 		@Nonnull JavaClass source, @Nonnull Set<Class<?>> classes, @Nonnull Set<String> typeNames, boolean included
 	) {
@@ -415,7 +468,12 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Rejects local holder declarations hidden in methods or constructors. */
+	/**
+	 * Rejects local holder declarations hidden in methods or constructors.
+	 *
+	 * @param source the parsed class whose methods, constructors and nested classes are inspected
+	 * @param local the pattern recognizing local declarations extending or implementing a holder type
+	 */
 	private static void rejectLocal(@Nonnull JavaClass source, @Nonnull Pattern local) {
 		for (final JavaMethod method : source.getMethods()) {
 			if (method.getSourceCode() != null) {
@@ -434,7 +492,13 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Runs the twelve contract checks for one construction mode. */
+	/**
+	 * Runs the twelve contract checks for one construction mode.
+	 *
+	 * @param <T> the concrete holder type constructed by this mode
+	 * @param holderType the concrete class whose field and identity declarations are verified
+	 * @param mode the suppliers, clone paths and coverage declarations exercised by the checks
+	 */
 	private static <T> void verifyMode(@Nonnull Class<T> holderType, @Nonnull ConstructionMode<T> mode) {
 		final List<T> samples = new ArrayList<>();
 		final T base = mode.base() == null ? null : mode.base().get();
@@ -483,7 +547,14 @@ public final class IdentityContractVerifier {
 		verifyFields(holderType, base, variants, samples, componentNames, mode);
 	}
 
-	/** Builds the value, opaque and oversized variants of a mode, checking each kind's own obligations. */
+	/**
+	 * Builds the value, opaque and oversized variants of a mode, checking each kind's own obligations.
+	 *
+	 * @param <T> the holder type constructed by the variant suppliers
+	 * @param base the reference holder for value and oversized comparisons; `null` for an always-opaque mode
+	 * @param mode the suppliers and clone expectations used to construct and check the variants
+	 * @return a fresh mutable list of value, opaque and oversized variants in that order, empty if none are declared
+	 */
 	@Nonnull
 	private static <T> List<T> collectVariants(@Nullable T base, @Nonnull ConstructionMode<T> mode) {
 		final List<T> variants = new ArrayList<>();
@@ -516,7 +587,14 @@ public final class IdentityContractVerifier {
 		return variants;
 	}
 
-	/** Requires each token, list or key component to turn query-local in some sample, unless declared always exact. */
+	/**
+	 * Requires each token, list or key component to turn query-local in some sample, unless declared always exact.
+	 *
+	 * @param <T> the holder type represented by the samples
+	 * @param components the identity components inspected for query-local values
+	 * @param samples the constructed holders whose component values supply locality coverage
+	 * @param mode the declarations identifying components that must remain exact
+	 */
 	private static <T> void verifyLocalityCoverage(
 		@Nonnull RecordComponent[] components, @Nonnull List<T> samples, @Nonnull ConstructionMode<T> mode
 	) {
@@ -535,7 +613,15 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Checks component variants and pinned components. */
+	/**
+	 * Checks component variants and pinned components.
+	 *
+	 * @param <T> the holder type shared by the base and variants
+	 * @param base the holder providing the unchanged reference identity
+	 * @param variants the constructed holders expected to vary every unpinned component
+	 * @param components the identity components compared independently
+	 * @param mode the declarations identifying components allowed to remain pinned
+	 */
 	private static <T> void verifyCoverage(
 		@Nonnull T base, @Nonnull List<T> variants, @Nonnull RecordComponent[] components,
 		@Nonnull ConstructionMode<T> mode
@@ -558,7 +644,13 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Reconstructs a record with exactly one changed component and requires its description to change the hash. */
+	/**
+	 * Reconstructs a record with exactly one changed component and requires its description to change the hash.
+	 *
+	 * @param base the identity record reconstructed with one substituted component
+	 * @param changed the component whose constructor argument is replaced
+	 * @param replacement the substituted component value; `null` tests an absent value
+	 */
 	private static void verifyIsolatedHash(
 		@Nonnull IdentityRecord base, @Nonnull RecordComponent changed, @Nullable Object replacement
 	) {
@@ -594,7 +686,13 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Mutates retained constructor arrays and requires the already captured identity to remain stable. */
+	/**
+	 * Mutates retained constructor arrays and requires the already captured identity to remain stable.
+	 *
+	 * @param <T> the concrete holder type inspected for retained arrays
+	 * @param holderType the class at which the inherited-field scan begins
+	 * @param holder the instance whose retained array elements are mutated temporarily and restored
+	 */
 	private static <T> void verifyArraySnapshots(@Nonnull Class<T> holderType, @Nonnull T holder) {
 		for (Class<?> type = holderType; type != Object.class; type = type.getSuperclass()) {
 			for (final Field field : type.getDeclaredFields()) {
@@ -638,7 +736,13 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Writes a mutation probe with the exact primitive element type required by reflective arrays. */
+	/**
+	 * Writes a mutation probe with the exact primitive element type required by reflective arrays.
+	 *
+	 * @param array the retained primitive or reference array mutated in place
+	 * @param index the zero-based position of the mutation probe
+	 * @param value the replacement, converted to the primitive element type; `null` is valid for reference arrays
+	 */
 	private static void setArrayElement(@Nonnull Object array, int index, @Nullable Object value) {
 		final Class<?> type = array.getClass().getComponentType();
 		if (type == byte.class) {
@@ -656,7 +760,17 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Checks field declarations, individual field transplants and equal-key derived values. */
+	/**
+	 * Checks field declarations, individual field transplants and equal-key derived values.
+	 *
+	 * @param <T> the concrete holder type shared by the fixture instances
+	 * @param holderType the class at which the inherited-field scan begins
+	 * @param base the reference holder for field transplants; `null` skips transplant checks
+	 * @param variants holders supplying alternative field values for fresh base instances
+	 * @param samples all constructed holders used to compare derived values for equal keys
+	 * @param componentNames the declared identity component names used to classify unannotated fields
+	 * @param mode the base supplier and field exemptions controlling transplant coverage
+	 */
 	private static <T> void verifyFields(
 		@Nonnull Class<T> holderType, @Nullable T base, @Nonnull List<T> variants, @Nonnull List<T> samples,
 		@Nonnull Set<String> componentNames, @Nonnull ConstructionMode<T> mode
@@ -697,7 +811,13 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Compares supported derived field values whenever two fixture instances have equal keys. */
+	/**
+	 * Compares supported derived field values whenever two fixture instances have equal keys.
+	 *
+	 * @param <T> the holder type whose derived field is compared
+	 * @param field the accessible derived field; unsupported value types are skipped
+	 * @param samples the holders compared pairwise whenever their keys are equal
+	 */
 	private static <T> void verifyDerived(@Nonnull Field field, @Nonnull List<T> samples) {
 		if (!valueField(field.getType())) {
 			return;
@@ -712,7 +832,14 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Verifies declared clone outcomes, using instance identity to distinguish opaque self returns. */
+	/**
+	 * Verifies declared clone outcomes, using instance identity to distinguish opaque self returns.
+	 *
+	 * @param <T> the holder type accepted by the declared clone paths
+	 * @param holder the instance passed to each clone path
+	 * @param mode the named clone operations and their expected outcomes
+	 * @param opaque whether the holder has an opaque identity, requiring distinct clones to have unequal keys
+	 */
 	private static <T> void verifyClones(@Nonnull T holder, @Nonnull ConstructionMode<T> mode, boolean opaque) {
 		for (final Map.Entry<String, ClonePath<T>> entry : mode.clonePaths().entrySet()) {
 			final ClonePath<T> path = entry.getValue();
@@ -734,7 +861,13 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Tests child replacement and ordering on fresh real holders without assuming cloning is supported. */
+	/**
+	 * Tests child replacement and ordering on fresh real holders without assuming cloning is supported.
+	 *
+	 * @param <T> the holder type constructed by the supplier
+	 * @param holder the reference holder whose ordered children are inspected; non-formula holders are skipped
+	 * @param fresh the supplier of independent equivalent holders with no previously captured key
+	 */
 	private static <T> void verifyChildren(@Nonnull T holder, @Nonnull Supplier<T> fresh) {
 		if (!(holder instanceof Formula formula)) {
 			return;
@@ -768,7 +901,13 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Installs an owned children array before the fresh holder's first key build. */
+	/**
+	 * Installs an owned children array before the fresh holder's first key build.
+	 *
+	 * @param fresh the formula whose child storage is replaced before its first key is captured
+	 * @param children the owned replacement array installed directly into the formula
+	 * @return the same formula instance after its exposed children have been checked against the replacement
+	 */
 	@Nonnull
 	private static Formula withChildren(@Nonnull Formula fresh, @Nonnull Formula[] children) {
 		for (Class<?> type = fresh.getClass(); type != Object.class; type = type.getSuperclass()) {
@@ -791,7 +930,12 @@ public final class IdentityContractVerifier {
 		throw new AssertionError("check 6: no children storage on " + fresh.getClass().getName());
 	}
 
-	/** Builds a real constant leaf through its production constructor. */
+	/**
+	 * Builds a real constant leaf through its production constructor.
+	 *
+	 * @param value the single record identifier placed in the constant bitmap
+	 * @return a fresh constant formula backed by a fresh bitmap containing the supplied identifier
+	 */
 	@Nonnull
 	private static Formula constantFormula(int value) {
 		try {
@@ -802,7 +946,11 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Checks the key mechanics of opaque child and side-key propagation independently of holder constructors. */
+	/**
+	 * Checks the key mechanics of opaque child and side-key propagation independently of holder constructors.
+	 *
+	 * @param opaque the opaque key tested both as an ordered child and as a side input
+	 */
 	private static void verifyPropagation(@Nonnull FormulaKey opaque) {
 		final FormulaKey parent = FormulaKey.of(new ParentIdentity(), 0, new FormulaKey[]{opaque}, new Object());
 		assertTrue(parent.isQueryLocal(), "check 8: opaque child locality");
@@ -813,7 +961,13 @@ public final class IdentityContractVerifier {
 			"check 8: opaque side key must make holder opaque");
 	}
 
-	/** Ensures every concrete holder declares its own matching identity and class identifier. */
+	/**
+	 * Ensures every concrete holder declares its own matching identity and class identifier.
+	 *
+	 * @param type the concrete class required to declare its own identity, class identifier and `CLASS_ID` field
+	 * @param holder the instance on which the declared identity and class identifier methods are invoked
+	 * @param identity the detached record whose class identifier and value must match the holder declarations
+	 */
 	private static void verifyDeclaredPair(
 		@Nonnull Class<?> type, @Nonnull Object holder, @Nonnull IdentityRecord identity
 	) {
@@ -835,7 +989,11 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Validates the closed component type domain recursively, including generic list elements. */
+	/**
+	 * Validates the closed component type domain recursively, including generic list elements.
+	 *
+	 * @param type the declared component type, recursively checked for nested records and supported list elements
+	 */
 	private static void checkDomain(@Nonnull Type type) {
 		if (type instanceof ParameterizedType parameterized) {
 			assertEquals(List.class, parameterized.getRawType(), "check 9: only List is a permitted generic component");
@@ -861,7 +1019,11 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Rejects mutable list components by attempting an actual mutation on each supplied record. */
+	/**
+	 * Rejects mutable list components by attempting an actual mutation on each supplied record.
+	 *
+	 * @param record the identity record whose list components must reject mutation, including nested records
+	 */
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	private static void verifyComponentValues(@Nonnull IdentityRecord record) {
 		for (final RecordComponent component : record.getClass().getRecordComponents()) {
@@ -879,14 +1041,24 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Returns whether a component needs opaque/oversized fixture coverage. */
+	/**
+	 * Returns whether a component needs opaque/oversized fixture coverage.
+	 *
+	 * @param type the declared component type inspected for tokens, keys or lists of keys
+	 * @return `true` if this component type requires query-local fixture coverage
+	 */
 	private static boolean localityType(@Nonnull Type type) {
 		return type == IdentityToken.class || type == TokenList.class || type == ValueList.class ||
 			type == FormulaKey.class || (type instanceof ParameterizedType parameterized &&
 			parameterized.getRawType() == List.class && parameterized.getActualTypeArguments()[0] == FormulaKey.class);
 	}
 
-	/** Computes locality using the same closed component description as a holder. */
+	/**
+	 * Computes locality using the same closed component description as a holder.
+	 *
+	 * @param value the component value described to an accumulator; `null` contributes no locality
+	 * @return `true` if the recognized token, token list, value list or key inputs make the component query-local
+	 */
 	private static boolean componentLocality(@Nullable Object value) {
 		final KeyAccumulator accumulator = new KeyAccumulator(0);
 		if (value instanceof IdentityToken token) {
@@ -907,7 +1079,12 @@ public final class IdentityContractVerifier {
 		return (boolean) invoke(findMethod(KeyAccumulator.class, "isQueryLocal"), accumulator);
 	}
 
-	/** Returns whether a derived field has a supported value comparison. */
+	/**
+	 * Returns whether a derived field has a supported value comparison.
+	 *
+	 * @param type the declared field type examined against the supported comparison domain
+	 * @return `true` if values of this type can participate in the derived-field equality check
+	 */
 	private static boolean valueField(@Nonnull Class<?> type) {
 		return type.isPrimitive() || type.isEnum() || type == String.class || type == Locale.class ||
 			type == Currency.class || type == OffsetDateTime.class || type == AttributeKey.class ||
@@ -917,7 +1094,13 @@ public final class IdentityContractVerifier {
 			type == FormulaKey.class || BaseBitmap.class.isAssignableFrom(type) || List.class.isAssignableFrom(type);
 	}
 
-	/** Compares bitmap values by content and other supported values by equality. */
+	/**
+	 * Compares bitmap values by content and other supported values by equality.
+	 *
+	 * @param first the reference value; `null` is equal only to another `null` value
+	 * @param second the comparison value, which may also be `null`
+	 * @return `true` for equal bitmap contents or deeply equal non-bitmap values
+	 */
 	private static boolean sameValue(@Nullable Object first, @Nullable Object second) {
 		if (first instanceof Bitmap firstBitmap && second instanceof Bitmap secondBitmap) {
 			return Arrays.equals(firstBitmap.getArray(), secondBitmap.getArray());
@@ -925,7 +1108,12 @@ public final class IdentityContractVerifier {
 		return Objects.deepEquals(first, second);
 	}
 
-	/** Reads the detached identity retained by a key; reflection stays inside this test harness. */
+	/**
+	 * Reads the detached identity retained by a key; reflection stays inside this test harness.
+	 *
+	 * @param holder the holder whose key retains the detached identity to inspect
+	 * @return the identity record retained by the holder key, without copying it
+	 */
 	@Nonnull
 	private static IdentityRecord identity(@Nonnull Object holder) {
 		try {
@@ -937,7 +1125,12 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Invokes a holder's key API, including the leaf key of an entity filter alternative. */
+	/**
+	 * Invokes a holder's key API, including the leaf key of an entity filter alternative.
+	 *
+	 * @param holder the holder exposing a key, or an entity filter exposing identity and class identifier methods
+	 * @return the holder API key, or a childless key constructed for an entity filter alternative
+	 */
 	@Nonnull
 	private static FormulaKey key(@Nonnull Object holder) {
 		if (ENTITY_FILTER_TYPE.isInstance(holder)) {
@@ -948,13 +1141,25 @@ public final class IdentityContractVerifier {
 		return (FormulaKey) invoke(findMethod(holder.getClass(), "getKey"), holder);
 	}
 
-	/** Builds a childless key over a record under the record's own class identifier. */
+	/**
+	 * Builds a childless key over a record under the record's own class identifier.
+	 *
+	 * @param record the detached identity used as the entire childless key input
+	 * @param owner the object supplying instance identity when the record contains opaque inputs
+	 * @return a childless key constructed from the record and its declared class identifier
+	 */
 	@Nonnull
 	private static FormulaKey leafKey(@Nonnull IdentityRecord record, @Nonnull Object owner) {
 		return FormulaKey.of(record, record.classId(), FormulaKey.NO_CHILDREN, owner);
 	}
 
-	/** Asserts all equal-key hash obligations together. */
+	/**
+	 * Asserts all equal-key hash obligations together.
+	 *
+	 * @param first the reference key for symmetric equality and both hash comparisons
+	 * @param second the key required to equal the reference and produce the same hashes
+	 * @param message the assertion context, extended with the hash kind when a hash comparison fails
+	 */
 	private static void assertEqualKeys(
 		@Nonnull FormulaKey first, @Nonnull FormulaKey second, @Nonnull String message
 	) {
@@ -964,7 +1169,14 @@ public final class IdentityContractVerifier {
 		assertEquals(first.getHash64(), second.getHash64(), message + " hash64");
 	}
 
-	/** Returns whether the class declares the exact method rather than inheriting it. */
+	/**
+	 * Returns whether the class declares the exact method rather than inheriting it.
+	 *
+	 * @param type the class whose own declarations are inspected, excluding inherited methods
+	 * @param name the method name to look up
+	 * @param parameters the exact parameter types in declaration order; empty for a no-argument method
+	 * @return `true` if the class declares a method with exactly that name and parameter list
+	 */
 	private static boolean declares(@Nonnull Class<?> type, @Nonnull String name, @Nonnull Class<?>... parameters) {
 		try {
 			type.getDeclaredMethod(name, parameters);
@@ -974,7 +1186,13 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Finds a no-argument method up the class hierarchy, including public interface defaults. */
+	/**
+	 * Finds a no-argument method up the class hierarchy, including public interface defaults.
+	 *
+	 * @param type the class at which the search begins before walking superclasses and public interface methods
+	 * @param name the no-argument method name to resolve
+	 * @return the first matching declaration, or a public inherited method when no class declaration matches
+	 */
 	@Nonnull
 	private static Method findMethod(@Nonnull Class<?> type, @Nonnull String name) {
 		for (Class<?> current = type; current != null; current = current.getSuperclass()) {
@@ -991,7 +1209,13 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Invokes an accessible method and preserves failures from the implementation. */
+	/**
+	 * Invokes an accessible method and preserves failures from the implementation.
+	 *
+	 * @param method the method made accessible and invoked without arguments
+	 * @param receiver the instance on which the method is invoked
+	 * @return the value returned by the method, or `null` for a null result or a void method
+	 */
 	@Nullable
 	private static Object invoke(@Nonnull Method method, @Nonnull Object receiver) {
 		method.setAccessible(true);
@@ -1010,13 +1234,25 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Reads a component through its record accessor. */
+	/**
+	 * Reads a component through its record accessor.
+	 *
+	 * @param record the identity record on which the component accessor is invoked
+	 * @param component the record component whose no-argument accessor supplies the value
+	 * @return the component value without copying it, or `null` when the component is absent
+	 */
 	@Nullable
 	private static Object componentValue(@Nonnull IdentityRecord record, @Nonnull RecordComponent component) {
 		return invoke(component.getAccessor(), record);
 	}
 
-	/** Reads an accessible instance field. */
+	/**
+	 * Reads an accessible instance field.
+	 *
+	 * @param field the instance field, already made accessible by the caller
+	 * @param holder the instance whose field value is read
+	 * @return the retained field value, boxed for primitives, or `null` for an unset reference
+	 */
 	@Nullable
 	private static Object read(@Nonnull Field field, @Nonnull Object holder) {
 		try {
@@ -1026,7 +1262,12 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Loads a type without requiring production exports for the test inventory. */
+	/**
+	 * Loads a type without requiring production exports for the test inventory.
+	 *
+	 * @param name the binary class name resolved with this verifier's class loader
+	 * @return the loaded class without triggering its static initialization
+	 */
 	@Nonnull
 	private static Class<?> loadType(@Nonnull String name) {
 		try {
@@ -1036,7 +1277,12 @@ public final class IdentityContractVerifier {
 		}
 	}
 
-	/** Constructs a conventional fixture through its no-argument constructor. */
+	/**
+	 * Constructs a conventional fixture through its no-argument constructor.
+	 *
+	 * @param type the fixture class whose no-argument constructor is made accessible
+	 * @return a fresh fixture instance created through that constructor
+	 */
 	@Nonnull
 	private static Object construct(@Nonnull Class<?> type) {
 		try {
@@ -1061,6 +1307,7 @@ public final class IdentityContractVerifier {
 	/**
 	 * Side-key holder used to check opaque side-input propagation.
 	 *
+	 * @param sideKey the opaque side input whose locality is propagated through the synthetic holder
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	private record SideIdentity(@Nonnull FormulaKey sideKey) implements IdentityRecord {

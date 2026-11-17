@@ -1420,7 +1420,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	/**
 	 * Returns all records present in filter index as {@link AbstractFormula}.
 	 *
-	 * The returned formula is an opaque {@link ConstantFormula} wrapping the materialized bitmap (or
+	 * The returned formula is a {@link ConstantFormula} wrapping the materialized bitmap (or
 	 * {@link EmptyFormula#INSTANCE} when the index has no records). Returning a flat constant rather than the
 	 * raw OR-of-buckets tree from {@link InvertedIndexSubSet#getFormula()} prevents query-planner rewrites that
 	 * would otherwise distribute surrounding {@code NOT(OR(b₁..b_N), U)} via De Morgan into a wide
@@ -1428,8 +1428,11 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 *
 	 * The key is derived from the index version, so the union is not copied into it.
 	 *
-	 * A **fresh** formula is returned on every call. What is memoized is the bitmap behind it — see
+	 * A **fresh** formula is returned when the bitmap is nonempty. What is memoized is the bitmap behind it — see
 	 * {@link #memoizedAllRecords} for why an index must never hand out the same formula instance twice.
+	 *
+	 * @return a fresh constant formula over the shared all-records bitmap, or {@link EmptyFormula#INSTANCE}
+	 *     when this index has no records
 	 */
 	public Formula getAllRecordsFormula() {
 		final Bitmap allRecords = getAllRecords();

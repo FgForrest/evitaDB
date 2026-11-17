@@ -49,6 +49,10 @@ public final class CachedResultEquivalence {
 	/**
 	 * Compares complete result tuples, ignoring their bookkeeping weights. Histograms compare strictly: the same
 	 * instance, or two {@link CacheableHistogram} instances with equal contents; another implementation never matches.
+	 *
+	 * @param left the cached tuple to compare, including any price or histogram payload
+	 * @param right the cached tuple to compare against without considering its entry weight
+	 * @return true when the result kinds and all semantic payloads match; false otherwise
 	 */
 	public static boolean equivalent(@Nonnull CachedResult left, @Nonnull CachedResult right) {
 		if (left instanceof CachedBitmapResult first) {
@@ -68,7 +72,13 @@ public final class CachedResultEquivalence {
 		throw new GenericEvitaInternalError("Unsupported cached result type.");
 	}
 
-	/** Compares size and membership in both directions, including representations that retain duplicate ids. */
+	/**
+	 * Compares size and membership in both directions, including representations that retain duplicate ids.
+	 *
+	 * @param left the bitmap whose reported size and membership are checked
+	 * @param right the bitmap checked in both directions against the first, without modifying either
+	 * @return true when reported sizes match and each bitmap contains every id in the other
+	 */
 	private static boolean equivalentBitmaps(@Nonnull Bitmap left, @Nonnull Bitmap right) {
 		if (left.size() != right.size()) {
 			return false;
@@ -89,7 +99,13 @@ public final class CachedResultEquivalence {
 		return true;
 	}
 
-	/** Compares deterministic selling-price sequences, preserving the order observed by first-wins consumers. */
+	/**
+	 * Compares deterministic selling-price sequences, preserving the order observed by first-wins consumers.
+	 *
+	 * @param left the resolved selling-price sequence in consumer encounter order
+	 * @param right the resolved sequence required to match each price tuple at the same position
+	 * @return true when both sequences have the same length and equivalent records at every position
+	 */
 	private static boolean equivalentOrderedPrices(
 		@Nonnull ResolvedFilteredPriceRecords left, @Nonnull ResolvedFilteredPriceRecords right
 	) {
@@ -111,6 +127,10 @@ public final class CachedResultEquivalence {
 	 * LowestPriceTerminationFormula drains its inner-record hash map in unspecified order. The only consumers are
 	 * the histogram merge (including SelectionFormula's forwarding path) and PriceHistogramComputer, which copies
 	 * all contributions and sorts them by amount before bucketing; none selects a first record from this array.
+	 *
+	 * @param left the entity-grouped histogram prices, or null when no side-output was captured
+	 * @param right the entity-grouped prices to compare, or null when no side-output was captured
+	 * @return true for two absent outputs or equal per-entity multisets in the same entity order
 	 */
 	private static boolean equivalentHistogramPrices(
 		@Nullable ResolvedFilteredPriceRecords left, @Nullable ResolvedFilteredPriceRecords right
@@ -156,7 +176,13 @@ public final class CachedResultEquivalence {
 		return true;
 	}
 
-	/** Compares each supported concrete price tuple, including all SUM components by their map keys. */
+	/**
+	 * Compares each supported concrete price tuple, including all SUM components by their map keys.
+	 *
+	 * @param left the supported concrete price tuple whose values are inspected
+	 * @param right the tuple required to have the same concrete class and price components
+	 * @return true when concrete classes and all compared price values match; false otherwise
+	 */
 	static boolean equivalentRecord(@Nonnull PriceRecordContract left, @Nonnull PriceRecordContract right) {
 		if (left.getClass() != right.getClass()) {
 			return false;
