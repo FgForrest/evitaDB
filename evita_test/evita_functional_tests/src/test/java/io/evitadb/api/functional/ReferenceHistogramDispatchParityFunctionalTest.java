@@ -37,6 +37,10 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMut
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
@@ -63,11 +67,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReference;
+import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -107,14 +118,13 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_BRAND = "brand";
 	private static final String ENTITY_BRAND_GROUP = "brandGroup";
-	private static final String ENTITY_TAG = "tag";
 	private static final String REFERENCE_BRAND = "brand";
 	private static final String REFERENCE_RELATED = "related";
-	private static final String REFERENCE_TAGS = "tags";
 	private static final String REFERENCE_GROUP_LINKS = "groupLinks";
 	private static final String REFERENCE_BRAND_LINKS = "brandLinks";
 	private static final String ATTRIBUTE_SIZES = "sizes";
 	private static final String ATTRIBUTE_ACTIVE = "active";
+	private static final String ATTRIBUTE_STATUS = "status";
 	private static final String ATTRIBUTE_LEVEL = "level";
 	private static final String ATTRIBUTE_WEIGHT = "weight";
 	private static final String HISTOGRAM_SIZE = "sizeHistogram";
@@ -124,13 +134,13 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 		"$reference.referencedEntity?.localizedAttributes['" + ATTRIBUTE_SIZES + "']";
 	private static final String BRAND_ACTIVE =
 		"($reference.referencedEntity?.attributes['" + ATTRIBUTE_ACTIVE + "'] ?? false) == true";
+	private static final String ENGLISH_BRAND_ADMITTED =
+		"($reference.referencedEntity?.localizedAttributes['" + ATTRIBUTE_STATUS +
+			"']['en'] ?? 'inactive') != 'inactive'";
 	private static final String GROUP_ACTIVE =
 		"($reference.groupEntity?.attributes['" + ATTRIBUTE_ACTIVE + "'] ?? false) == true";
 	private static final String PARENT_ACTIVE =
 		"($entity.parentEntity?.attributes['" + ATTRIBUTE_ACTIVE + "'] ?? false) == true";
-	private static final String BRAND_HEAVILY_TAGGED =
-		"$reference.referencedEntity.references['" + REFERENCE_TAGS + "'].any(($.attributes['" + ATTRIBUTE_WEIGHT +
-			"'] ?? 0) > 5)";
 	private static final String GROUP_HEAVILY_LINKED =
 		"$reference.groupEntity?.references['" + REFERENCE_BRAND_LINKS + "']?.any(($.attributes['" + ATTRIBUTE_WEIGHT +
 			"'] ?? 0) > 5)";
@@ -143,10 +153,8 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 	private static final int SIBLING_BRAND_PK = 11;
 	private static final int GROUP_PK = 1;
 	private static final int SECOND_GROUP_PK = 2;
-	private static final int TAG_PK = 1;
 	/**
-	 * A `weight` of a brand's tag, or of a brand's link to a group, that the condition reading it admits; both
-	 * conditions admit any weight above 5.
+	 * A link weight above the facet condition's threshold of 5.
 	 */
 	private static final int HEAVY_WEIGHT = 10;
 	/**
@@ -363,7 +371,7 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 		final Step deactivate = new Step("BRAND_DEACTIVATED", brandActive(false), "live {10=[1]}");
 		final Step removeSubject = removeSubjectReference("live {10=[1]}");
 		final Step removeSibling = removeSiblingReference("live {}");
-		final List<Scenario> scenarios = new ArrayList<>(40);
+		final List<Scenario> scenarios = new ArrayList<>(42);
 
 		// the brand admits or withdraws an array; the sibling holds an element of the subject's array
 		scenarios.add(scenario(
@@ -562,68 +570,80 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 			"GROUP_CONDITION_WITHDRAWS_REPEATED_ELEMENT_AFTER_A_RESTART", groupWithdrawsRepeatedElement
 		));
 
-		// the condition reads the group's links to brands, which reflect the brands' links to groups: one upsert of the
-		// brand raises its links to both groups, the groups' own runs nested in it admit the owners of each group, and
-		// each reads the brand's array through the brand's executor, still in flight
+		// the facet condition reads the group's links; the histogram condition reads the brand's active attribute;
+		// changing the links re-evaluates the histogram in each group's nested dispatch, which rewrites every unit of
+		// the brand's array; the histogram's own inputs do not change, so the cells check that the rewrite keeps every
+		// unit, not that the re-evaluation runs at all
 		final List<Probe> linkedGroups = List.of(
 			groupStoreHistogram("group 1", GROUP_PK, HISTOGRAM_SIZE),
-			groupStoreHistogram("group 2", SECOND_GROUP_PK, HISTOGRAM_SIZE)
+			groupStoreHistogram("group 2", SECOND_GROUP_PK, HISTOGRAM_SIZE),
+			// the facets the raised links admit in both groups show that the step reaches each group's nested dispatch
+			brandFacetsByGroup()
 		);
-		final Step removeLinkedSubject = removeSubjectReference("group 1 {10=[1]} | group 2 {10=[2]}");
-		final Step removeLinkedSibling = removeSiblingReference("group 1 {} | group 2 {10=[2]}");
+		final Step removeLinkedSubject = removeSubjectReference(
+			"group 1 {10=[1]} | group 2 {10=[2]} | facets {1=[11], 2=[10]}"
+		);
+		final Step removeLinkedSibling = removeSiblingReference("group 1 {} | group 2 {10=[2]} | facets {2=[10]}");
 		final Step removeSecondOwnerReference = new Step(
 			"SECOND_OWNER_REFERENCE_REMOVED",
 			upsertOf(
 				ENTITY_PRODUCT, SECOND_PRODUCT_PK,
 				new RemoveReferenceMutation(new ReferenceKey(REFERENCE_BRAND, BRAND_PK))
 			),
-			"group 1 {} | group 2 {}"
+			"group 1 {} | group 2 {} | facets {}"
 		);
 		scenarios.add(scenario(
-			"CONTROL_DISTINCT_ARRAY_ELEMENTS_ADMITTED_BY_REFLECTED_GROUP_LINKS",
+			"CONTROL_DISTINCT_ARRAY_ELEMENTS_REEVALUATED_BY_FACET_GROUP_LINKS_WITH_BRAND_ACTIVE",
 			session -> setUpReflectedGroupLinkCatalog(session, new Integer[]{10, 11}), linkedGroups, List.of(),
-			"group 1 {} | group 2 {}",
+			"group 1 {10=[1], 11=[1]} | group 2 {10=[2], 11=[2]} | facets {}",
 			new Step(
 				"GROUP_LINKS_RAISED", subjectGroupLinksRaised(),
-				"group 1 {10=[1], 11=[1]} | group 2 {10=[2], 11=[2]}"
+				"group 1 {10=[1], 11=[1]} | group 2 {10=[2], 11=[2]} | facets {1=[10, 11], 2=[10]}"
 			),
-			removeSubjectReference("group 1 {10=[1]} | group 2 {10=[2], 11=[2]}"),
-			removeSiblingReference("group 1 {} | group 2 {10=[2], 11=[2]}"),
+			removeSubjectReference("group 1 {10=[1]} | group 2 {10=[2], 11=[2]} | facets {1=[11], 2=[10]}"),
+			removeSiblingReference("group 1 {} | group 2 {10=[2], 11=[2]} | facets {2=[10]}"),
 			removeSecondOwnerReference
 		));
 		scenarios.add(scenario(
-			"REPEATED_ARRAY_ELEMENT_ADMITTED_BY_REFLECTED_GROUP_LINKS",
+			"REPEATED_ARRAY_ELEMENT_REEVALUATED_BY_FACET_GROUP_LINKS_WITH_BRAND_ACTIVE",
 			session -> setUpReflectedGroupLinkCatalog(session, new Integer[]{10, 10}), linkedGroups, List.of(),
-			"group 1 {} | group 2 {}",
-			new Step("GROUP_LINKS_RAISED", subjectGroupLinksRaised(), "group 1 {10=[1]} | group 2 {10=[2]}"),
+			"group 1 {10=[1]} | group 2 {10=[2]} | facets {}",
+			new Step(
+				"GROUP_LINKS_RAISED", subjectGroupLinksRaised(),
+				"group 1 {10=[1]} | group 2 {10=[2]} | facets {1=[10, 11], 2=[10]}"
+			),
 			removeLinkedSubject, removeLinkedSibling, removeSecondOwnerReference
 		));
 
-		// the condition reads an attribute of the brand's own reference to a tag; the array itself does not change
-		final Step raiseTagWeight = new Step("TAG_WEIGHT_RAISED", brandTagWeight(HEAVY_WEIGHT), "live {10=[1]}");
-		final Step lowerTagWeight = new Step("TAG_WEIGHT_LOWERED", brandTagWeight(0), "live {10=[1]}");
+		// a localized attribute of the brand admits or withdraws the unchanged, non-localized array
+		final Step withdrawEnglishStatus = new Step(
+			"ENGLISH_STATUS_WITHDRAWN", englishBrandStatus("inactive"), "live {10=[1]}"
+		);
 		scenarios.add(scenario(
-			"CONTROL_DISTINCT_ARRAY_ELEMENTS_ADMITTED_BY_BRAND_TAG",
-			session -> setUpTaggedArrayCatalog(session, new Integer[]{10, 11}, 0), live, List.of(), "live {10=[1]}",
-			new Step("TAG_WEIGHT_RAISED", brandTagWeight(HEAVY_WEIGHT), "live {10=[1], 11=[1]}"),
+			"CONTROL_DISTINCT_ARRAY_ELEMENTS_ADMITTED_BY_ENGLISH_BRAND_STATUS",
+			session -> setUpEnglishBrandStatusCatalog(session, new Integer[]{10, 11}, false),
+			live, List.of(), "live {10=[1]}",
+			new Step("ENGLISH_STATUS_ADMITTED", englishBrandStatus("subject"), "live {10=[1], 11=[1]}"),
 			removeSubject, removeSibling
 		));
 		scenarios.add(scenario(
-			"REPEATED_ARRAY_ELEMENT_ADMITTED_BY_BRAND_TAG",
-			session -> setUpTaggedArrayCatalog(session, new Integer[]{10, 10}, 0), live, List.of(), "live {10=[1]}",
-			raiseTagWeight, removeSubject, removeSibling
+			"REPEATED_ARRAY_ELEMENT_ADMITTED_BY_ENGLISH_BRAND_STATUS",
+			session -> setUpEnglishBrandStatusCatalog(session, new Integer[]{10, 10}, false),
+			live, List.of(), "live {10=[1]}",
+			new Step("ENGLISH_STATUS_ADMITTED", englishBrandStatus("subject"), "live {10=[1]}"),
+			removeSubject, removeSibling
 		));
 		scenarios.add(scenario(
-			"CONTROL_DISTINCT_ARRAY_ELEMENTS_WITHDRAWN_BY_BRAND_TAG",
-			session -> setUpTaggedArrayCatalog(session, new Integer[]{10, 11}, HEAVY_WEIGHT), live, List.of(),
-			"live {10=[1], 11=[1]}",
-			lowerTagWeight, removeSubject, removeSibling
+			"CONTROL_DISTINCT_ARRAY_ELEMENTS_WITHDRAWN_BY_ENGLISH_BRAND_STATUS",
+			session -> setUpEnglishBrandStatusCatalog(session, new Integer[]{10, 11}, true),
+			live, List.of(), "live {10=[1], 11=[1]}",
+			withdrawEnglishStatus, removeSubject, removeSibling
 		));
 		scenarios.add(scenario(
-			"REPEATED_ARRAY_ELEMENT_WITHDRAWN_BY_BRAND_TAG",
-			session -> setUpTaggedArrayCatalog(session, new Integer[]{10, 10}, HEAVY_WEIGHT), live, List.of(),
-			"live {10=[1]}",
-			lowerTagWeight, removeSubject, removeSibling
+			"REPEATED_ARRAY_ELEMENT_WITHDRAWN_BY_ENGLISH_BRAND_STATUS",
+			session -> setUpEnglishBrandStatusCatalog(session, new Integer[]{10, 10}, true),
+			live, List.of(), "live {10=[1]}",
+			withdrawEnglishStatus, removeSubject, removeSibling
 		));
 
 		// the condition reads the owner's parent; the parent's change admits or withdraws every brand of the owner
@@ -963,10 +983,11 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 	 * the brand group reflects them as its links to brands, with the attribute inherited, so a change of a link's
 	 * weight on the brand changes the reflected link on the group in a run of the group nested in the brand's upsert.
 	 * The reference of the product to a brand is grouped by a brand group, indexed for filtering with both its
-	 * components, faceted, and carries the histogram of the brand's `sizes` without a default, admitted while the group
-	 * has a link of `weight` above 5. The subject brand 10 of `subjectSizes` links to the groups 1 and 2 with the
-	 * weight 0; the sibling brand 11 of `[10]` links to no group. The product 1 references the subject brand and the
-	 * sibling brand in the group 1, the product 2 references the subject brand in the group 2.
+	 * components, faceted, and carries the histogram of the brand's `sizes` without a default, admitted while the brand
+	 * is active. Facets are admitted while the group has a link of `weight` above 5. The subject brand 10 of
+	 * `subjectSizes` links to the groups 1 and 2 with weight 0; the sibling brand 11 of `[10]` links to no group.
+	 * The product 1 references the subject brand and the sibling brand in the group 1, the product 2 references the
+	 * subject brand in the group 2.
 	 *
 	 * @param session      the session of the catalog in warm-up
 	 * @param subjectSizes the `sizes` of the subject brand
@@ -979,6 +1000,7 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 		session.defineEntitySchema(ENTITY_BRAND)
 			.withoutGeneratedPrimaryKey()
 			.withAttribute(ATTRIBUTE_SIZES, Integer[].class, whichIs -> whichIs.filterable().nullable())
+			.withAttribute(ATTRIBUTE_ACTIVE, Boolean.class, whichIs -> whichIs.filterable().nullable())
 			.withReferenceToEntity(
 				REFERENCE_GROUP_LINKS, ENTITY_BRAND_GROUP, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs
@@ -1006,20 +1028,22 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 						ReferenceIndexedComponents.REFERENCED_ENTITY,
 						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
 					)
-					.faceted()
+					.facetedPartially(ExpressionFactory.parse(GROUP_HEAVILY_LINKED))
 					.bucketed(HISTOGRAM_SIZE, ExpressionFactory.parse(SIZES_VALUE))
-					.bucketedPartially(ExpressionFactory.parse(GROUP_HEAVILY_LINKED))
+					.bucketedPartially(ExpressionFactory.parse(BRAND_ACTIVE))
 			)
 			.updateVia(session);
 		session.upsertEntity(session.createNewEntity(ENTITY_BRAND_GROUP, GROUP_PK));
 		session.upsertEntity(session.createNewEntity(ENTITY_BRAND_GROUP, SECOND_GROUP_PK));
 		session.createNewEntity(ENTITY_BRAND, BRAND_PK)
 			.setAttribute(ATTRIBUTE_SIZES, subjectSizes)
+			.setAttribute(ATTRIBUTE_ACTIVE, true)
 			.setReference(REFERENCE_GROUP_LINKS, GROUP_PK, whichIs -> whichIs.setAttribute(ATTRIBUTE_WEIGHT, 0))
 			.setReference(REFERENCE_GROUP_LINKS, SECOND_GROUP_PK, whichIs -> whichIs.setAttribute(ATTRIBUTE_WEIGHT, 0))
 			.upsertVia(session);
 		session.createNewEntity(ENTITY_BRAND, SIBLING_BRAND_PK)
 			.setAttribute(ATTRIBUTE_SIZES, new Integer[]{10})
+			.setAttribute(ATTRIBUTE_ACTIVE, true)
 			.upsertVia(session);
 		session.createNewEntity(ENTITY_PRODUCT, PRODUCT_PK)
 			.setReference(REFERENCE_BRAND, BRAND_PK, whichIs -> whichIs.setGroup(ENTITY_BRAND_GROUP, GROUP_PK))
@@ -1031,32 +1055,26 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 	}
 
 	/**
-	 * Defines the schemas of the tagged brand fixture and stores the tag, the brands and the product.
+	 * Stores array-valued brands whose histogram admission reads the English localized `status`.
+	 * The sibling holds `[10]` and status `sibling`; the subject is admitted by status `subject`.
+	 * Status is unique across locales, and English is the only permitted locale, so the translated
+	 * condition can use the locale-independent unique lookup. The owner references both brands.
 	 *
-	 * The brand has the filterable integer array `sizes` and a reference to tags carrying the filterable `weight`. The
-	 * reference of the product to a brand is indexed for filtering and partitioning, faceted, and carries the histogram
-	 * of the brand's `sizes` without a default, admitted while the brand has a tag of `weight` above 5. The subject
-	 * brand 10 of `subjectSizes` has the tag 1 of `subjectWeight`; the sibling brand 11 of `[10]` has the tag 1 of a
-	 * heavy weight. The product 1 references both.
-	 *
-	 * @param session       the session of the catalog in warm-up
-	 * @param subjectSizes  the `sizes` of the subject brand
-	 * @param subjectWeight the `weight` of the subject brand's tag
+	 * @param session         the session of the catalog in warm-up
+	 * @param subjectSizes    the unchanged histogram source of the subject brand
+	 * @param subjectAdmitted TRUE when the subject starts with an admitted English status
 	 */
-	private static void setUpTaggedArrayCatalog(
+	private static void setUpEnglishBrandStatusCatalog(
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Integer[] subjectSizes,
-		int subjectWeight
+		boolean subjectAdmitted
 	) {
-		session.defineEntitySchema(ENTITY_TAG).withoutGeneratedPrimaryKey().updateVia(session);
 		session.defineEntitySchema(ENTITY_BRAND)
 			.withoutGeneratedPrimaryKey()
+			.withLocale(Locale.ENGLISH)
 			.withAttribute(ATTRIBUTE_SIZES, Integer[].class, whichIs -> whichIs.filterable().nullable())
-			.withReferenceToEntity(
-				REFERENCE_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFiltering()
-					.withAttribute(ATTRIBUTE_WEIGHT, Integer.class, thatIs -> thatIs.filterable().nullable())
+			.withAttribute(
+				ATTRIBUTE_STATUS, String.class, whichIs -> whichIs.localized().unique().nullable()
 			)
 			.updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
@@ -1067,17 +1085,16 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 					.indexedForFilteringAndPartitioning()
 					.faceted()
 					.bucketed(HISTOGRAM_SIZE, ExpressionFactory.parse(SIZES_VALUE))
-					.bucketedPartially(ExpressionFactory.parse(BRAND_HEAVILY_TAGGED))
+					.bucketedPartially(ExpressionFactory.parse(ENGLISH_BRAND_ADMITTED))
 			)
 			.updateVia(session);
-		session.upsertEntity(session.createNewEntity(ENTITY_TAG, TAG_PK));
 		session.createNewEntity(ENTITY_BRAND, BRAND_PK)
 			.setAttribute(ATTRIBUTE_SIZES, subjectSizes)
-			.setReference(REFERENCE_TAGS, TAG_PK, whichIs -> whichIs.setAttribute(ATTRIBUTE_WEIGHT, subjectWeight))
+			.setAttribute(ATTRIBUTE_STATUS, Locale.ENGLISH, subjectAdmitted ? "subject" : "inactive")
 			.upsertVia(session);
 		session.createNewEntity(ENTITY_BRAND, SIBLING_BRAND_PK)
 			.setAttribute(ATTRIBUTE_SIZES, new Integer[]{10})
-			.setReference(REFERENCE_TAGS, TAG_PK, whichIs -> whichIs.setAttribute(ATTRIBUTE_WEIGHT, HEAVY_WEIGHT))
+			.setAttribute(ATTRIBUTE_STATUS, Locale.ENGLISH, "sibling")
 			.upsertVia(session);
 		session.createNewEntity(ENTITY_PRODUCT, PRODUCT_PK)
 			.setReference(REFERENCE_BRAND, BRAND_PK)
@@ -1207,18 +1224,15 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 	}
 
 	/**
-	 * Creates the update setting the `weight` of the subject brand's reference to the tag 1.
+	 * Creates the brand write that changes only its English status.
 	 *
-	 * @param weight the new weight
+	 * @param status the new English status
 	 * @return the update
 	 */
 	@Nonnull
-	private static Consumer<EvitaSessionContract> brandTagWeight(int weight) {
+	private static Consumer<EvitaSessionContract> englishBrandStatus(@Nonnull String status) {
 		return upsertOf(
-			ENTITY_BRAND, BRAND_PK,
-			new ReferenceAttributeMutation(
-				new ReferenceKey(REFERENCE_TAGS, TAG_PK), new UpsertAttributeMutation(ATTRIBUTE_WEIGHT, weight)
-			)
+			ENTITY_BRAND, BRAND_PK, new UpsertAttributeMutation(ATTRIBUTE_STATUS, Locale.ENGLISH, status)
 		);
 	}
 
@@ -1447,6 +1461,46 @@ class ReferenceHistogramDispatchParityFunctionalTest implements EvitaTestSupport
 							return languageTags.toString();
 						})
 						.orElse("absent");
+				}
+			)
+		);
+	}
+
+	/**
+	 * Creates the probe of the facets of the product's reference to a brand, read through the public API: the reference
+	 * summary of the live products lists, group by group, the brands at least one product holds as a facet there.
+	 *
+	 * @return the probe, describing the brands by the primary key of their group, both sorted
+	 */
+	@Nonnull
+	private static Probe brandFacetsByGroup() {
+		return new Probe(
+			"facets",
+			evita -> evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final ReferenceSummary summary = session.query(
+						query(collection(ENTITY_PRODUCT), require(referenceSummaryOfReference(REFERENCE_BRAND))),
+						EntityReference.class
+					).getExtraResult(ReferenceSummary.class);
+					final Map<Integer, List<Integer>> facetsByGroup = new TreeMap<>();
+					if (summary != null) {
+						for (final ReferenceGroupStatistics group : summary.getReferenceStatistics()) {
+							final List<Integer> facets = new ArrayList<>(2);
+							for (final FacetStatistics facet : group.getFacetStatistics()) {
+								if (facet.getCount() > 0) {
+									facets.add(facet.getFacetEntity().getPrimaryKey());
+								}
+							}
+							if (!facets.isEmpty()) {
+								facets.sort(null);
+								// every reference of the fixtures read by this probe has a group
+								final Integer groupPk = Objects.requireNonNull(group.getGroupEntity()).getPrimaryKey();
+								facetsByGroup.put(groupPk, facets);
+							}
+						}
+					}
+					return facetsByGroup.toString();
 				}
 			)
 		);
