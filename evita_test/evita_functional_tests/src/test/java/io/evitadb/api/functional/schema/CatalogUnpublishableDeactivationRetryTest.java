@@ -123,7 +123,7 @@ class CatalogUnpublishableDeactivationRetryTest implements EvitaTestSupport {
 			final HeldMutation holder = refuseSchemaChange()
 		) {
 			holder.awaitHeld();
-			capture.awaitRetries();
+			capture.awaitConflicts();
 			holder.releaseAndAssertRefused();
 			inactive.await();
 			assertEquals(CatalogState.INACTIVE, this.evita.getCatalogState(CATALOG).orElseThrow());
@@ -131,19 +131,19 @@ class CatalogUnpublishableDeactivationRetryTest implements EvitaTestSupport {
 		}
 	}
 
-	/** Waits for the dropped instance's stop record, then checks its absence and subsequent retry/error records. */
+	/** Drops the catalog during the conflict handler's log call and checks that the handler stops deactivation. */
 	@Test
 	@DisplayName("should stop when the originating catalog is dropped while waiting")
 	void shouldStopWhenOriginatingCatalogIsDroppedWhileWaiting() throws Exception {
 		final Catalog origin = (Catalog) this.evita.getCatalogInstanceOrThrowException(CATALOG);
 		try (final RetryCapture capture = new RetryCapture(true); final HeldMutation holder = refuseSchemaChange()) {
 			holder.awaitHeld();
-			capture.awaitRetries();
+			capture.awaitConflicts();
 			holder.releaseAndAssertRefused();
 			this.evita.deleteCatalogIfExists(CATALOG);
 			assertTrue(origin.isTerminated());
 			capture.release.countDown();
-			capture.assertStopped(this.evita);
+			capture.assertStopped(this.evita, "handleFailedDeactivation");
 		}
 	}
 
@@ -154,7 +154,7 @@ class CatalogUnpublishableDeactivationRetryTest implements EvitaTestSupport {
 		final Catalog origin = (Catalog) this.evita.getCatalogInstanceOrThrowException(CATALOG);
 		try (final RetryCapture capture = new RetryCapture(true); final HeldMutation holder = refuseSchemaChange()) {
 			holder.awaitHeld();
-			capture.awaitRetries();
+			capture.awaitConflicts();
 			final CountDownLatch workerHeld = new CountDownLatch(1);
 			final CountDownLatch releaseWorker = new CountDownLatch(1);
 			final CompletableFuture<Void> worker = CompletableFuture.runAsync(
@@ -175,7 +175,7 @@ class CatalogUnpublishableDeactivationRetryTest implements EvitaTestSupport {
 				this.evita.deleteCatalogIfExists(CATALOG);
 				assertTrue(origin.isTerminated());
 			}
-			capture.assertStopped(this.evita);
+			capture.assertStopped(this.evita, "attemptDeactivation");
 		}
 	}
 
@@ -185,7 +185,7 @@ class CatalogUnpublishableDeactivationRetryTest implements EvitaTestSupport {
 	void shouldLogNoDeactivationErrorWhenEngineClosesWhileWaiting() throws Exception {
 		try (final RetryCapture capture = new RetryCapture(true); final HeldMutation holder = refuseSchemaChange()) {
 			holder.awaitHeld();
-			capture.awaitRetries();
+			capture.awaitConflicts();
 			final CompletableFuture<Void> closed = CompletableFuture.runAsync(this.evita::close);
 			try (final AutoCloseable shutdown = () -> {
 				holder.release.countDown();
@@ -277,22 +277,23 @@ class CatalogUnpublishableDeactivationRetryTest implements EvitaTestSupport {
 		}
 	}
 
-	/** Captures this catalog's retry diagnostics, optionally gating the sixth admission-conflict callback. */
+	/** Captures this catalog's deactivation diagnostics and can block the worker while it logs the sixth conflict. */
 	private static final class RetryCapture extends UnsynchronizedAppenderBase<ILoggingEvent> implements AutoCloseable {
 		private final Logger logger = (Logger) LoggerFactory.getLogger(Catalog.class);
 		private final Level originalLevel = this.logger.getLevel();
 		private final CountDownLatch observed = new CountDownLatch(1);
 		private final CountDownLatch stopped = new CountDownLatch(1);
 		private final List<String> afterStop = new CopyOnWriteArrayList<>();
+		private final AtomicReference<StackTraceElement[]> stopCallerData = new AtomicReference<>();
 		private final CountDownLatch release;
-		private final AtomicInteger retries = new AtomicInteger();
+		private final AtomicInteger conflicts = new AtomicInteger();
 		private final List<String> errors = new CopyOnWriteArrayList<>();
 		private final AtomicReference<Throwable> appenderFailure = new AtomicReference<>();
 
 		/**
-		 * Attaches the capture and enables retry diagnostics until it is closed.
+		 * Attaches the capture and enables deactivation diagnostics until it is closed.
 		 *
-		 * @param gate whether to block the sixth retry before it submits further work
+		 * @param gate whether to block the worker during the sixth conflict record until the test releases it
 		 */
 		private RetryCapture(boolean gate) {
 			this.release = new CountDownLatch(gate ? 1 : 0);
@@ -308,22 +309,24 @@ class CatalogUnpublishableDeactivationRetryTest implements EvitaTestSupport {
 			if (!message.contains("`" + CATALOG + "`")) {
 				return;
 			}
-			final boolean retry = event.getLevel() == Level.DEBUG
-				&& message.startsWith("Retrying deactivation of catalog `" + CATALOG + "` after admission conflict");
-			if (this.stopped.getCount() == 0 && (retry || event.getLevel() == Level.ERROR)) {
+			final boolean conflict = event.getLevel() == Level.DEBUG
+				&& message.startsWith("Deactivation of catalog `" + CATALOG + "` met an admission conflict");
+			if (this.stopped.getCount() == 0 && (conflict || event.getLevel() == Level.ERROR)) {
 				this.afterStop.add(message);
 			}
 			if (event.getLevel() == Level.DEBUG && message.equals(
 				"Stopping deactivation of catalog `" + CATALOG + "`: " +
 					"the catalog instance that raised the barrier has ended."
 			)) {
+				// Resolve the first stop record's lazy caller data on the emitting thread.
+				this.stopCallerData.compareAndSet(null, event.getCallerData());
 				this.stopped.countDown();
 			} else if (event.getLevel() == Level.ERROR && message.startsWith("Failed to deactivate catalog")) {
 				// Raising the barrier deliberately logs another ERROR, which is the trigger under test.
 				this.errors.add(message);
 				this.observed.countDown();
-			} else if (retry) {
-				if (this.retries.incrementAndGet() == 6) {
+			} else if (conflict) {
+				if (this.conflicts.incrementAndGet() == 6) {
 					this.observed.countDown();
 					try {
 						await(this.release);
@@ -334,25 +337,31 @@ class CatalogUnpublishableDeactivationRetryTest implements EvitaTestSupport {
 			}
 		}
 
-		/** Waits for six retries or the give-up error and asserts the retry budget was outlasted. */
-		private void awaitRetries() {
+		/** Waits for six admission conflicts or a deactivation error, then checks the conflict count. */
+		private void awaitConflicts() {
 			await(this.observed);
-			assertTrue(this.retries.get() >= 6,
-				() -> "Expected at least 6 admission-conflict retries, observed " + this.retries +
+			assertTrue(this.conflicts.get() >= 6,
+				() -> "Expected at least 6 admission conflicts, observed " + this.conflicts +
 					"; errors: " + this.errors);
 		}
 
 		/**
-		 * Waits for the stop record and its handler's return, then checks catalog absence and captured failures.
+		 * Waits for the stop record and for its task to return. Checks the caller, catalog absence, and diagnostics
+		 * captured through the worker fence.
 		 *
 		 * @param evita engine whose single service worker runs the deactivation attempts
+		 * @param expectedStopMethod name of the `Catalog` method whose termination check must log the stop record
 		 */
-		private void assertStopped(@Nonnull Evita evita) {
+		private void assertStopped(@Nonnull Evita evita, @Nonnull String expectedStopMethod) {
 			await(this.stopped);
-			// The stop record establishes that the attempt ran; this fence then waits for its handler to return.
-			final CountDownLatch retryReturned = new CountDownLatch(1);
-			evita.getServiceExecutor().execute(retryReturned::countDown);
-			await(retryReturned);
+			// The single worker runs this fence after the task that emitted the stop record returns.
+			final CountDownLatch stopTaskReturned = new CountDownLatch(1);
+			evita.getServiceExecutor().execute(stopTaskReturned::countDown);
+			await(stopTaskReturned);
+			final StackTraceElement[] callerData = this.stopCallerData.get();
+			assertTrue(callerData.length > 0, "Stop record has no caller data");
+			assertEquals(Catalog.class.getName(), callerData[0].getClassName());
+			assertEquals(expectedStopMethod, callerData[0].getMethodName());
 			assertTrue(evita.getCatalogState(CATALOG).isEmpty());
 			assertFalse(evita.getCatalogNames().contains(CATALOG));
 			assertTrue(this.afterStop.isEmpty(), () -> "Unexpected records after stopping: " + this.afterStop);

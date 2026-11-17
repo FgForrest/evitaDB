@@ -3202,13 +3202,14 @@ public final class Catalog
 	}
 
 	/**
-	 * Retries admission conflicts while this instance and the engine remain active. Conflicts are recognized
-	 * throughout the cause chain because the progress stage can wrap the refusal. An inactive engine suppresses
-	 * all failures; while it is active, every non-conflict failure is logged as an error, even after this instance
-	 * terminates. This includes scheduler rejections and failures while an accepted deactivation is applied.
+	 * Handles a failed deactivation attempt if the engine is active on entry. Reports admission conflicts found
+	 * anywhere in the cause chain before checking whether this instance has terminated. If its persistence service
+	 * is still open, schedules another attempt that checks both lifetimes before admission. Every non-conflict
+	 * failure is logged as an error, even after this instance terminates. This includes scheduler rejections and
+	 * failures while an accepted deactivation is applied.
 	 *
 	 * @param catalogName name of the catalog that could not be deactivated
-	 * @param failure what stopped it
+	 * @param failure the cause of the failed attempt, possibly wrapped by its progress stage
 	 * @param attempt 1-based number of the attempt that failed
 	 */
 	private void handleFailedDeactivation(@Nonnull String catalogName, @Nonnull Throwable failure, int attempt) {
@@ -3216,13 +3217,11 @@ public final class Catalog
 			return;
 		}
 		if (isLifecycleConflict(failure)) {
-			// Keep this diagnostic stable: a regression test synchronizes on each admission-conflict retry.
+			// Keep this diagnostic stable and ahead of the termination check: a regression test synchronizes on it and
+			// drops the catalog or closes the engine while the record is being logged.
 			log.debug(
-				"Retrying deactivation of catalog `{}` after admission conflict on attempt {}.", catalogName, attempt
+				"Deactivation of catalog `{}` met an admission conflict on attempt {}.", catalogName, attempt
 			);
-			if (!this.evita.isActive()) {
-				return;
-			}
 			if (isTerminated()) {
 				// Keep this diagnostic stable: a regression test synchronizes on deactivation stopping.
 				log.debug(

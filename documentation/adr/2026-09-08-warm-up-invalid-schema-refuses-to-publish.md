@@ -1,7 +1,7 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-11-17 15:26
+updated: 2026-11-17 23:10
 status: accepted
 kind: fix
 issues: [1466]
@@ -248,9 +248,11 @@ recovery after releasing the holder, stopping for a dropped originating instance
 stopping a queued retry after the originating instance is dropped, and closing the engine while waiting without a
 deactivation ERROR. The queued-retry case holds the single service worker after the conflict handler returns,
 drops the catalog, and releases the worker so the pending attempt observes termination. Both drop cases keep
-their appenders attached through the stop DEBUG record and the handler's return, checking that no retry or ERROR
-follows it. Removing the attempt's termination check makes the queued-retry case fail because the stop record
-never arrives. The original three cases were also run against the capped `Catalog`, restored by `cp` and `touch`:
+their appenders attached until a fence task runs on the service worker. They check for further admission-conflict or
+ERROR records between the stop record and that fence. Both termination checks log the same stop record, so each
+drop case asserts the emitting `Catalog` method from the caller data. The first expects the conflict handler and the
+second expects the queued attempt. Removing the attempt's termination check makes the queued-retry case fail to
+observe its expected stop record. The original three cases were also run against the capped `Catalog`:
 **3 tests failed**, each observing zero retry records and the give-up ERROR; with the fix, **3 tests passed**.
 Latches and log events establish ordering; timeouts only bound hangs. Engine close cancels delayed work, so its
 case proves only the absence of a deactivation ERROR during close.
