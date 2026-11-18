@@ -150,6 +150,20 @@
 			<groupId>org.openjdk.jol</groupId>
 			<artifactId>jol-core</artifactId>
 		</dependency>
+		<!--
+			The P6 vector spike (io.evitadb.spike.vector) builds HNSW graphs with both candidate libraries. jVector is
+			a spike-only dependency of this test module; Lucene is declared directly so the spike does not depend on
+			which evita_engine snapshot happens to be resolved.
+		-->
+		<dependency>
+			<groupId>io.github.jbellis</groupId>
+			<artifactId>jvector</artifactId>
+			<version>4.0.2</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-core</artifactId>
+		</dependency>
 	</dependencies>
 
 	<build>
