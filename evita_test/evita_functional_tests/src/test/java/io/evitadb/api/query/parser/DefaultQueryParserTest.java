@@ -105,6 +105,24 @@ class DefaultQueryParserTest {
 		}
 
 		/**
+		 * Each positional argument belongs to exactly one placeholder, so a value no placeholder takes is refused
+		 * rather than ignored: it usually means an earlier placeholder took a value meant for a later one.
+		 */
+		@Test
+		@DisplayName("should refuse positional arguments that the query does not use")
+		void shouldRefuseUnusedPositionalArguments() {
+			final EvitaSyntaxException exception = assertThrows(
+				EvitaSyntaxException.class,
+				() -> parser.parseQuery("query(collection(?),filterBy(entityPrimaryKeyInSet(?)))", "a", 1, 2)
+			);
+			assertTrue(exception.getMessage().contains("3 positional arguments"), exception.getMessage());
+			assertThrows(
+				EvitaSyntaxException.class,
+				() -> parser.parseFilterConstraintList("entityPrimaryKeyInSet(?)", 1, 2)
+			);
+		}
+
+		/**
 		 * An iterable that can be read only once must be refused rather than reach the filter empty, where it would
 		 * silently match nothing.
 		 */
@@ -1184,7 +1202,8 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse value with named and positional arguments")
 		void shouldParseValueWithNamedAndPositionalArgs() {
-			assertEquals("a", parser.parseValue("@name", Map.of("name", "a"), "unused"));
+			// a named argument may stay unused, a positional one may not
+			assertEquals("b", parser.parseValue("?", Map.of("name", "a"), "b"));
 		}
 
 		@Test

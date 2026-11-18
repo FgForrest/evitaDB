@@ -32,6 +32,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -195,7 +197,7 @@ class ParserExecutorTest {
 		@Test
 		@DisplayName("should return context during execution")
 		void shouldReturnContextDuringExecution() {
-			final ParseContext context = new ParseContext("arg1");
+			final ParseContext context = new ParseContext(Map.of("name", "value"));
 
 			final ParseContext result = ParserExecutor.execute(context, ParserExecutor::getContext);
 

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.parser;
 
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
@@ -132,6 +133,24 @@ public class ParseContext {
 		}
 		//noinspection unchecked
 		return (A) checkArgument(argument, "Positional argument of index " + this.lastPositionalArgumentIndex);
+	}
+
+	/**
+	 * Checks that the parsed query used every positional argument the client passed. Each placeholder takes the next
+	 * argument, so an argument left over usually means a placeholder took a value meant for a later one; it is refused
+	 * rather than ignored.
+	 *
+	 * @throws EvitaSyntaxException when some positional arguments were not used by any placeholder
+	 */
+	public void assertAllPositionalArgumentsUsed() {
+		if (this.positionalArguments != null && !this.positionalArguments.isEmpty()) {
+			final int used = this.lastPositionalArgumentIndex + 1;
+			throw new EvitaSyntaxException(
+				0, 0,
+				(used + this.positionalArguments.size()) + " positional arguments were passed, but the query has only "
+					+ used + " positional parameters. Every positional argument must be used by exactly one `?`."
+			);
+		}
 	}
 
 	/**

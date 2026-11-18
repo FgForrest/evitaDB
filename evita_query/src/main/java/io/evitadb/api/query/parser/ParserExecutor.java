@@ -58,6 +58,7 @@ public class ParserExecutor {
 				result,
 				() -> new EvitaSyntaxException(0, 0, "Result of parse execution is null.")
 			);
+			context.assertAllPositionalArgumentsUsed();
 			return result;
 		} catch (EvitaSyntaxException e) {
 			throw e;
