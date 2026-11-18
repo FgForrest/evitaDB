@@ -1491,6 +1491,329 @@ class EvitaQLRequireConstraintVisitorTest {
 		);
 	}
 
+	/**
+	 * Exercises the ambiguous leading value and the optional trailing reference requirement.
+	 */
+	@Nested
+	@DisplayName("Reference content argument dispatch")
+	class ReferenceContentArguments {
+
+		/**
+		 * Checks the name-only overloads and the Java varargs overload for multiple reference names.
+		 */
+		@Test
+		@DisplayName("Resolves scalar reference names and managed-references behaviour")
+		void shouldResolveReferenceNamesWhenBehaviourIsOptional() {
+			assertAll(
+				() -> assertEquals(
+					referenceContent("brand"), parseRequireConstraintUnsafe("referenceContent('brand')")
+				),
+				() -> assertEquals(referenceContent("brand"), parseRequireConstraint("referenceContent(?)", "brand")),
+				() -> assertEquals(
+					referenceContent("brand", "category"),
+					parseRequireConstraintUnsafe("referenceContent('brand', 'category')")
+				),
+				() -> assertEquals(
+					referenceContent("brand", "category"),
+					parseRequireConstraint("referenceContent(?, ?)", "brand", "category")
+				),
+				() -> assertEquals(
+					referenceContent(ManagedReferencesBehaviour.EXISTING, "brand"),
+					parseRequireConstraintUnsafe("referenceContent(EXISTING, 'brand')")
+				),
+				() -> assertEquals(
+					referenceContent(ManagedReferencesBehaviour.EXISTING, "brand"),
+					parseRequireConstraint("referenceContent(?, ?)", ManagedReferencesBehaviour.EXISTING, "brand")
+				)
+			);
+		}
+
+		/**
+		 * Checks the factory overload selected when the values after the reference name are attribute names.
+		 */
+		@Test
+		@DisplayName("Uses trailing scalar values as attribute names")
+		void shouldFetchNamedAttributesWhenArgumentsAreStrings() {
+			assertAll(
+				() -> assertEquals(
+					referenceContentWithAttributes("brand"),
+					parseRequireConstraintUnsafe("referenceContentWithAttributes('brand')")
+				),
+				() -> assertEquals(
+					referenceContentWithAttributes("brand"),
+					parseRequireConstraint("referenceContentWithAttributes(?)", "brand")
+				),
+				() -> assertEquals(
+					referenceContentWithAttributes("brand", "code"),
+					parseRequireConstraintUnsafe("referenceContentWithAttributes('brand', 'code')")
+				),
+				() -> assertEquals(
+					referenceContentWithAttributes("brand", "code", "priority"),
+					parseRequireConstraintUnsafe("referenceContentWithAttributes('brand', 'code', 'priority')")
+				),
+				() -> assertEquals(
+					referenceContentWithAttributes("brand", "code", "priority"),
+					parseRequireConstraint("referenceContentWithAttributes(?, ?, ?)", "brand", "code", "priority")
+				),
+				() -> assertEquals(
+					referenceContentWithAttributes(ManagedReferencesBehaviour.EXISTING, "brand"),
+					parseRequireConstraintUnsafe("referenceContentWithAttributes(EXISTING, 'brand')")
+				),
+				() -> assertEquals(
+					referenceContentWithAttributes(ManagedReferencesBehaviour.EXISTING, "brand"),
+					parseRequireConstraint(
+						"referenceContentWithAttributes(?, ?)", ManagedReferencesBehaviour.EXISTING, "brand"
+					)
+				),
+				() -> assertEquals(
+					referenceContentWithAttributes(ManagedReferencesBehaviour.EXISTING, "brand", "code", "priority"),
+					parseRequireConstraintUnsafe(
+						"referenceContentWithAttributes(EXISTING, 'brand', 'code', 'priority')"
+					)
+				),
+				() -> assertEquals(
+					referenceContentWithAttributes(ManagedReferencesBehaviour.EXISTING, "brand", "code", "priority"),
+					parseRequireConstraint(
+						"referenceContentWithAttributes(?, ?, ?, ?)",
+						ManagedReferencesBehaviour.EXISTING, "brand", "code", "priority"
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks that multi-reference fetches keep both names and the positional child.
+		 */
+		@Test
+		@DisplayName("Fetches multiple named references with a child")
+		void shouldFetchMultipleReferencesWhenNamesPrecedeFetch() {
+			final ReferenceContent expected = referenceContent(
+				new String[]{"brand", "category"}, entityFetch(attributeContent("code"))
+			);
+			assertAll(
+				() -> assertEquals(
+					expected,
+					parseRequireConstraintUnsafe(
+						"referenceContent('brand', 'category', entityFetch(attributeContent('code')))"
+					)
+				),
+				() -> assertEquals(
+					expected, parseRequireConstraint(
+						"referenceContent(?, ?, entityFetch(attributeContent(?)))", "brand", "category", "code"
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks whole-list arguments in the attribute-name position, with or without a behaviour.
+		 */
+		@Test
+		@DisplayName("Accepts a whole list of reference attribute names")
+		void shouldFetchNamedAttributesWhenParameterSuppliesList() {
+			assertAll(
+				() -> assertEquals(
+					referenceContentWithAttributes("brand", "code", "priority"),
+					parseRequireConstraint("referenceContentWithAttributes(?, ?)", "brand", List.of("code", "priority"))
+				),
+				() -> assertEquals(
+					referenceContentWithAttributes(ManagedReferencesBehaviour.EXISTING, "brand", "code", "priority"),
+					parseRequireConstraint(
+						"referenceContentWithAttributes(?, ?, ?)",
+						ManagedReferencesBehaviour.EXISTING, "brand", new String[]{"code", "priority"}
+					)
+				),
+				() -> assertThrows(
+					EvitaSyntaxException.class,
+					() -> parseRequireConstraint(
+						"referenceContentWithAttributes(?, ?, ?)", "brand", "code", List.of("priority")
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks the binding of a sibling requirement after two scalar values in the reference requirement.
+		 */
+		@Test
+		@DisplayName("Keeps outer page parameters after the reference attribute name")
+		void shouldBindOuterPageWhenReferenceAttributeNameIsPositional() {
+			assertEquals(
+				require(entityFetch(referenceContentWithAttributes("brand", "code")), page(1, 20)),
+				parseRequireConstraint(
+					"require(entityFetch(referenceContentWithAttributes(?, ?)), page(?, ?))",
+					"brand", "code", 1, 20
+				)
+			);
+		}
+
+		/**
+		 * Checks the plain reference alternatives that follow the leading values with filter or order children.
+		 *
+		 * @param children children of the plain reference requirement
+		 */
+		@ParameterizedTest
+		@DisplayName("Rejects a second reference name before filter or order children")
+		@ValueSource(strings = {
+			"filterBy(attributeEquals('code', 'some'))",
+			"filterBy(attributeEquals('code', 'some')), entityFetch(), entityGroupFetch()",
+			"orderBy(random())",
+			"orderBy(random()), entityFetch(), entityGroupFetch()",
+			"filterBy(attributeEquals('code', 'some')), orderBy(random())",
+			"filterBy(attributeEquals('code', 'some')), orderBy(random()), entityFetch(), entityGroupFetch()"
+		})
+		void shouldRejectSecondReferenceNameWhenFilterOrOrderFollows(@Nonnull String children) {
+			assertAll(
+				() -> assertThrows(
+					EvitaSyntaxException.class,
+					() -> parseRequireConstraintUnsafe("referenceContent('brand', 'category', " + children + ")")
+				),
+				() -> assertThrows(
+					EvitaSyntaxException.class,
+					() -> DefaultQueryParser.getInstance().parseQuery(
+						"query(collection(?), require(entityFetch(referenceContent(?, ?, "
+							+ children.replace("'code', 'some'", "?, ?") + "))))",
+						children.startsWith("filterBy")
+							? List.of("product", "brand", "category", "code", "some")
+							: List.of("product", "brand", "category")
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks that an extra scalar before a child is rejected in every with-attributes alternative.
+		 *
+		 * @param children children of the reference requirement
+		 */
+		@ParameterizedTest
+		@DisplayName("Rejects an attribute name before a child requirement")
+		@ValueSource(strings = {
+			"entityFetch()",
+			"entityFetch(), entityGroupFetch()",
+			"attributeContentAll(), entityFetch(), entityGroupFetch()",
+			"filterBy(entityPrimaryKeyInSet(1))",
+			"filterBy(entityPrimaryKeyInSet(1)), entityFetch(), entityGroupFetch()",
+			"filterBy(entityPrimaryKeyInSet(1)), attributeContentAll(), entityFetch(), entityGroupFetch()",
+			"orderBy(random())",
+			"orderBy(random()), entityFetch(), entityGroupFetch()",
+			"orderBy(random()), attributeContentAll(), entityFetch(), entityGroupFetch()",
+			"filterBy(entityPrimaryKeyInSet(1)), orderBy(random())",
+			"filterBy(entityPrimaryKeyInSet(1)), orderBy(random()), entityFetch(), entityGroupFetch()",
+			"filterBy(entityPrimaryKeyInSet(1)), orderBy(random()), "
+				+ "attributeContentAll(), entityFetch(), entityGroupFetch()"
+		})
+		void shouldRejectAttributeNameWhenChildFollows(@Nonnull String children) {
+			final boolean hasFilter = children.startsWith("filterBy");
+			assertAll(
+				() -> assertThrows(
+					EvitaSyntaxException.class,
+					() -> parseRequireConstraintUnsafe(
+						"referenceContentWithAttributes('brand', 'code', " + children + ")"
+					)
+				),
+				() -> assertThrows(
+					EvitaSyntaxException.class,
+					() -> parseRequireConstraint(
+						"referenceContentWithAttributes(?, ?, " + children.replace("Set(1)", "Set(?)") + ")",
+						hasFilter ? new Object[]{"brand", "code", 1} : new Object[]{"brand", "code"}
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks all alternatives that allow a trailing chunk after an entity and a group fetch.
+		 *
+		 * @param referenceStart reference constraint and leading arguments before the fetches
+		 */
+		@ParameterizedTest
+		@DisplayName("Rejects a trailing requirement after page or strip")
+		@ValueSource(strings = {
+			"referenceContent('brand', ",
+			"referenceContent('brand', filterBy(entityPrimaryKeyInSet(1)), ",
+			"referenceContent('brand', orderBy(random()), ",
+			"referenceContent('brand', filterBy(entityPrimaryKeyInSet(1)), orderBy(random()), ",
+			"referenceContentAllWithAttributes(attributeContentAll(), ",
+			"referenceContentWithAttributes('brand', attributeContentAll(), ",
+			"referenceContentWithAttributes('brand', filterBy(entityPrimaryKeyInSet(1)), attributeContentAll(), ",
+			"referenceContentWithAttributes('brand', orderBy(random()), attributeContentAll(), ",
+			"referenceContentWithAttributes('brand', filterBy(entityPrimaryKeyInSet(1)), orderBy(random()), "
+				+ "attributeContentAll(), "
+		})
+		void shouldRejectTrailingRequirementWhenPagingComesFirst(@Nonnull String referenceStart) {
+			final List<Object> arguments = new ArrayList<>();
+			if (referenceStart.contains("'brand'")) {
+				arguments.add("brand");
+			}
+			if (referenceStart.contains("Set(1)")) {
+				arguments.add(1);
+			}
+			arguments.addAll(List.of(1, 5, "name", 2, 20));
+			final String positionalStart = referenceStart.replace("'brand'", "?").replace("Set(1)", "Set(?)");
+			final String literal = referenceStart
+				+ "entityFetch(), page(1, 5), entityGroupFetch(attributeContent('name')))";
+			final String positional = "require(entityFetch(" + positionalStart
+				+ "entityFetch(), strip(?, ?), entityGroupFetch(attributeContent(?)))), page(?, ?))";
+
+			assertAll(
+				() -> {
+					final EvitaSyntaxException exception = assertThrows(
+						EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe(literal)
+					);
+					assertEquals(literal.indexOf("entityGroupFetch") + 1, exception.getCharPositionInLine());
+					assertTrue(exception.getReason().contains("after paging constraint `page`"));
+				},
+				() -> {
+					final EvitaSyntaxException exception = assertThrows(
+						EvitaSyntaxException.class, () -> parseRequireConstraint(positional, arguments.toArray())
+					);
+					assertEquals(positional.indexOf("entityGroupFetch") + 1, exception.getCharPositionInLine());
+					assertTrue(exception.getReason().contains("after paging constraint `strip`"));
+				}
+			);
+		}
+
+		/**
+		 * Checks ordered fetches followed by paging, including a group fetch without an entity fetch.
+		 */
+		@Test
+		@DisplayName("Accepts paging as the final child after compatible fetches")
+		void shouldParsePagingWhenItFollowsCompatibleFetches() {
+			assertAll(
+				() -> assertEquals(
+					referenceContent("brand", filterBy(entityPrimaryKeyInSet(1)), entityGroupFetch(), page(2, 5)),
+					parseRequireConstraint(
+						"referenceContent(?, filterBy(entityPrimaryKeyInSet(?)), entityGroupFetch(), page(?, ?))",
+						"brand", 1, 2, 5
+					)
+				),
+				() -> assertEquals(
+					referenceContentWithAttributes("brand", entityFetch(), entityGroupFetch(), strip(2, 5)),
+					parseRequireConstraintUnsafe(
+						"referenceContentWithAttributes('brand', entityFetch(), entityGroupFetch(), strip(2, 5))"
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks that two visits to valid child types cannot silently discard an invalid pair.
+		 *
+		 * @param referenceNames leading reference names, if required by the reference constraint
+		 */
+		@ParameterizedTest
+		@DisplayName("Rejects a second fetch of the same type")
+		@ValueSource(strings = {"referenceContentAll(", "referenceContent('brand', 'category', "})
+		void shouldRejectDuplicateFetchWhenBothChildrenArePresent(@Nonnull String referenceNames) {
+			final String query = referenceNames + "entityFetch(), entityFetch(attributeContent('code')))";
+			final EvitaSyntaxException exception = assertThrows(
+				EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe(query)
+			);
+			assertEquals(query.lastIndexOf("entityFetch") + 1, exception.getCharPositionInLine());
+		}
+	}
+
 	@Test
 	void shouldParseReferenceContentConstraintWithExistingBehaviour() {
 		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("referenceContent(EXISTING, 'a')");
