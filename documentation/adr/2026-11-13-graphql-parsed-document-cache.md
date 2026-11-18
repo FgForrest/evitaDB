@@ -1,11 +1,11 @@
 ---
 title: Cache parsed and validated GraphQL documents per GraphQL instance in a Caffeine cache bounded by bytes
 date: 2026-11-13
-updated: 2026-11-13 12:00
-status: proposed
+updated: 2026-11-18 12:12
+status: accepted
 kind: optimization
 issues: [1191]
-prs: []
+prs: [1958]
 areas: [evita_external_api/evita_external_api_graphql]
 supersedes: []
 superseded-by: []
@@ -98,8 +98,12 @@ deviates from the issue's acceptance criterion "invalid query reports errors whe
   on every schema change and the cache is created inside `CatalogGraphQLBuilder#build` / `SystemGraphQLBuilder#build`.
   Sharing a cache across instances would serve documents validated against an old schema.
 - `documentCacheSizeInBytes: 0` attaches no provider at all; negative values are rejected.
-- Metrics: on a hit `RequestMetricInstrumentation#beginExecuteOperation` sees that parse never started and calls
-  `ExecutedEvent#skipParseAndValidation()` instead of `finishValidation()`. Parse and validation histograms record
+- Metrics: on a hit `GraphQLDocumentCache` marks the request's `ExecutedEvent` (`markDocumentCached()`, found in
+  the GraphQL context), and `RequestMetricInstrumentation#beginExecuteOperation` then calls
+  `ExecutedEvent#skipParseAndValidation()` instead of `finishValidation()`. The hit is reported by the cache rather
+  than inferred from the missing `beginParse` callback, because a hit failing before execution (unknown
+  `operationName`, variable coercion) never reaches `beginExecuteOperation`, and an aborted request lacks
+  `beginParse` too. Parse and validation histograms record
   `0 ms` (they are whole milliseconds, most real parses already land in the 0 ms bucket, and keeping their `_count`
   equal to the request count matches the other phase histograms). The JFR event gets a non-exported boolean
   `documentCached`; it is deliberately not a metric label, which would double series cardinality.
@@ -118,9 +122,12 @@ literals inlined into query texts).
 
 ## Verification
 
-- `GraphQLDocumentCacheTest` - hit/miss, errors never cached, the byte bound (≥ 90 of 100 documents re-parsed with
-  a budget of 10, the most recent one retained), concurrent cold start (16 threads, shared and distinct keys), wiring and the disabled cache,
-  option validation, and the metric path on a hit (fails with `GraphQLInternalError` without the metrics fix).
+- `GraphQLDocumentCacheTest.MetricsTest` (follow-up of 2026-11-18) - requests failing before execution on a miss
+  and on a hit (syntax, validation, unknown `operationName`, variable coercion): bounded durations, `documentCached`
+  set on a hit, the failing phase closed. Before the fix 6 of these failed (operation duration ~1.8 × 10¹² ms).
+- `GraphQLDocumentCacheTest` - hit/miss, errors never cached, the byte bound (documents fitting the budget are all
+  retained, ≥ 90 of 100 re-parsed with a budget of 10), concurrent cold start (16 threads, shared and distinct
+  keys), wiring and the disabled cache, option validation, and the metric path on a hit (fails with `GraphQLInternalError` without the metrics fix).
 - `CatalogGraphQLDocumentCacheFunctionalTest` - repeated query, variables on a cached document, repeated syntax and
   validation errors, a repeated subscription over WebSocket (the sub-protocol accepts subscriptions only), a schema
   change discarding cached documents, and the cache being attached to catalog instances.
@@ -147,14 +154,17 @@ literals inlined into query texts).
 - Memory: the budget applies per `GraphQL` instance, i.e. 2 × catalogs + 1 instances - documented in
   `configure.md`.
 - Failed-source-query recording in `SourceQueryRecordingInstrumentation#logFailedSourceQuery` never fires (the
-  session is put into the context only in `beginExecuteOperation`, and graphql-java completes the parse/validation
-  contexts with a `null` throwable) - pre-existing defect, unaffected by the cache, to be reported separately.
-- On a hit that fails before `beginExecuteOperation` (unknown `operationName`, variable coercion error) the event
-  reports `documentCached=false` and zero preparation; such requests return errors anyway and are rare. Pre-existing
-  and independent of the cache: `instrumentExecutionResult` calls `finishOperationExecution()` unguarded, so any
-  request failing before execution records `now - 0` as its operation duration.
+  session is put into the context only in `beginExecuteOperation`, and graphql-java completes the validation context
+  with a `null` throwable) - pre-existing defect, unaffected by the cache (error entries are never cached), reported
+  as a separate issue.
+- Fixed in a follow-up on 2026-11-18 (`GraphQLDocumentCacheTest.MetricsTest`): a hit failing before
+  `beginExecuteOperation` reported `documentCached=false`, and - pre-existing, independent of the cache - every
+  request failing before execution exported the current epoch time in milliseconds as its operation duration
+  (`finishOperationExecution()` was unguarded), as did the result serialization of every system API response. Such
+  requests now report zero operation / serialization time and the duration of the phase they failed in.
 - A hit-ratio metric could be fed from Caffeine's `recordStats()` if dashboards need it; not done.
 
 ## Timeline
 
-- **2026-11-13** - plan reviewed, Caffeine accepted, implemented (status `proposed` until the PR merges)
+- **2026-11-13** - plan reviewed, Caffeine accepted, implemented, PR #1958 merged
+- **2026-11-18** - metrics of requests failing before execution fixed (hit flag set by the cache, guarded durations)
