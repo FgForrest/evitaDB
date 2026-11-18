@@ -2093,6 +2093,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	 * optional {@link HistogramBehavior} enum as its first element (matching the in-memory constructor
 	 * shape shared with {@link AttributeHistogram}), followed by histogram index names. An empty bound list
 	 * omits the requirement. A leading null in an explicit argument sequence stands for the default behaviour.
+	 *
+	 * @param ctx histogram statistics constraint
+	 * @param requestedBucketCountArg requested bucket count token
+	 * @param entityFetch optional fetch requirement
+	 * @param valuesArg optional behavior followed by histogram index names
+	 * @return the histogram statistics requirement, or null when no index names are provided
 	 */
 	@Nullable
 	private ReferenceHistogramStatistics buildHistogramStatistics(
@@ -2109,7 +2115,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			.collect(Collectors.toCollection(LinkedList::new));
 
 		final HistogramBehavior behavior;
-		final boolean hasNullBehavior = consumeLeadingNullEnumDefault(valuesArg, args);
+		consumeLeadingNullEnumDefault(valuesArg, args);
 		final Serializable firstArgument = args.peekFirst();
 		if (firstArgument instanceof HistogramBehavior) {
 			behavior = castArgument(ctx, args.pop(), HistogramBehavior.class);
@@ -2120,7 +2126,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		}
 
 		final String[] indexNames = parseVariadicTail(ctx, args,
-			EvitaQLValueTokenVisitor.withAllowedTypes(String.class), hasNullBehavior || behavior != null)
+			EvitaQLValueTokenVisitor.withAllowedTypes(String.class))
 			.asStringArray();
 
 		return QueryConstraints.histogramStatistics(requestedBucketCount, behavior, entityFetch, indexNames);
@@ -2193,8 +2199,15 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		);
 	}
 
+	/**
+	 * Parses the histogram bucket count, optional behavior and attribute names.
+	 *
+	 * @param ctx attribute histogram constraint
+	 * @return the histogram requirement, or null when no attribute names are provided
+	 */
+	@Nullable
 	@Override
-	public RequireConstraint visitAttributeHistogramConstraint(AttributeHistogramConstraintContext ctx) {
+	public RequireConstraint visitAttributeHistogramConstraint(@Nonnull AttributeHistogramConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -2207,7 +2220,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.collect(Collectors.toCollection(LinkedList::new));
 
 				final HistogramBehavior behavior;
-				final boolean hasNullBehavior = consumeLeadingNullEnumDefault(ctx.args.values, args);
+				consumeLeadingNullEnumDefault(ctx.args.values, args);
 				final Serializable secondArgument = args.peekFirst();
 				if (secondArgument instanceof HistogramBehavior) {
 					behavior = castArgument(ctx, args.pop(), HistogramBehavior.class);
@@ -2218,7 +2231,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				}
 
 				final String[] attributesNames = parseVariadicTail(ctx, args,
-					EvitaQLValueTokenVisitor.withAllowedTypes(String.class), hasNullBehavior || behavior != null)
+					EvitaQLValueTokenVisitor.withAllowedTypes(String.class))
 					.asStringArray();
 
 				return QueryConstraints.attributeHistogram(
@@ -2275,8 +2288,15 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		);
 	}
 
+	/**
+	 * Parses the optional statistics base and the remaining statistics types.
+	 *
+	 * @param ctx hierarchy statistics constraint
+	 * @return the statistics requirement
+	 */
+	@Nonnull
 	@Override
-	public RequireConstraint visitHierarchyStatisticsConstraint(HierarchyStatisticsConstraintContext ctx) {
+	public RequireConstraint visitHierarchyStatisticsConstraint(@Nonnull HierarchyStatisticsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -2290,22 +2310,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final boolean hasNullBase = consumeLeadingNullEnumDefault(ctx.args.settings, settings);
 				final Serializable first = hasNullBase ? null : settings.peekFirst();
 				final StatisticsBase base;
-				final boolean hasBase;
 				if (first instanceof StatisticsBase statisticsBase) {
+					settings.removeFirst();
 					base = statisticsBase;
-					hasBase = true;
 				} else if (first instanceof EnumWrapper wrapper && wrapper.canBeMappedTo(StatisticsBase.class)) {
+					settings.removeFirst();
 					base = wrapper.toEnum(StatisticsBase.class);
-					hasBase = true;
 				} else {
 					base = StatisticsBase.WITHOUT_USER_FILTER;
-					hasBase = hasNullBase;
-				}
-				if (hasBase && !hasNullBase) {
-					settings.removeFirst();
 				}
 				return QueryConstraints.statistics(base, parseVariadicTail(ctx, settings,
-					EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsType.class, EnumWrapper.class), hasBase)
+					EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsType.class, EnumWrapper.class))
 					.asEnumArray(StatisticsType.class));
 			}
 		);

@@ -191,30 +191,21 @@ public abstract class EvitaQLBaseConstraintVisitor<T extends Constraint<?>> exte
 	}
 
 	/**
-	 * Resolves a variadic tail after an optional enum prefix has been consumed. A tail of a single argument is used
-	 * as the whole list when it is an iterable or an array. A lone null is treated the same way when a prefix
-	 * occupied its own parameter, and is then refused as ambiguous; without a prefix it is a one-item list.
+	 * Resolves a variadic tail after an optional enum prefix has been consumed. A lone iterable or array supplies
+	 * the whole list. A lone scalar or null supplies one item.
 	 *
 	 * @param ctx enclosing constraint
 	 * @param values remaining arguments
 	 * @param visitor expected item types
-	 * @param hasPrefix whether a preceding optional setting occupied a separate parameter
 	 * @return the tail as a convertible array or list wrapper
 	 */
 	@Nonnull
 	protected Value parseVariadicTail(
 		@Nonnull ParserRuleContext ctx,
 		@Nonnull List<?> values,
-		@Nonnull EvitaQLValueTokenVisitor visitor,
-		boolean hasPrefix
+		@Nonnull EvitaQLValueTokenVisitor visitor
 	) {
-		if (values.size() == 1) {
-			final Object first = values.get(0);
-			if ((first == null && hasPrefix) || isListArgument(first)) {
-				return visitor.parseVariadicArguments(ctx, first);
-			}
-		}
-		return visitor.parseVariadicArguments(ctx, values);
+		return visitor.parseVariadicArguments(ctx, values.size() == 1 ? values.get(0) : values);
 	}
 
 	/**

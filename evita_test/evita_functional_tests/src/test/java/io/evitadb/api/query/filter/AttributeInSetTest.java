@@ -74,16 +74,33 @@ class AttributeInSetTest {
 		}
 
 		/**
-		 * A null item is an undefined value and is dropped; the filter stays and matches nothing instead of widening
-		 * the result.
+		 * Omits the filter when a single value is undefined.
 		 */
 		@Test
-		@DisplayName("should match nothing for a null value item")
-		void shouldMatchNothingWhenValueItemIsNull() {
-			final Integer nullInteger = null;
-			final AttributeInSet constraint = attributeInSet("refs", nullInteger);
+		@DisplayName("should leave the constraint out for a null variable")
+		void shouldReturnNullForNullVariable() {
+			final Integer value = null;
 
-			assertArrayEquals(new Comparable<?>[0], constraint.getAttributeValues());
+			assertNull(attributeInSet("refs", value));
+		}
+
+		/**
+		 * Keeps the filter applicable with no matches when an explicit list contains only nulls.
+		 */
+		@Test
+		@DisplayName("should match nothing for a list of only nulls")
+		void shouldMatchNothingWhenValueItemIsNull() {
+			assertArrayEquals(new Comparable<?>[0], attributeInSet("refs", new Integer[]{null}).getAttributeValues());
+			assertArrayEquals(new Comparable<?>[0], attributeInSet("refs", null, null).getAttributeValues());
+		}
+
+		/**
+		 * Compares a defined single value with a one-item list of the same value.
+		 */
+		@Test
+		@DisplayName("should produce equal constraints for a single value and a one-item list")
+		void shouldMatchOneItemListForSingleValue() {
+			assertEquals(attributeInSet("refs", new Integer[]{1}), attributeInSet("refs", 1));
 		}
 
 		@Test

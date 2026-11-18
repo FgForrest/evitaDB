@@ -35,6 +35,7 @@ import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -170,8 +171,15 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		);
 	}
 
+	/**
+	 * Parses the optional discount direction and the remaining price list values.
+	 *
+	 * @param ctx discount order arguments
+	 * @return the discount ordering, or null when there are no defined price lists
+	 */
+	@Nullable
 	@Override
-	public OrderConstraint visitPriceDiscountConstraint(PriceDiscountConstraintContext ctx) {
+	public OrderConstraint visitPriceDiscountConstraint(@Nonnull PriceDiscountConstraintContext ctx) {
 		return parse(ctx, () -> {
 			final LinkedList<Serializable> settings = Arrays.stream(ctx.args.values
 					.accept(this.orderDirectionOrStringTokenVisitor).asSerializableArray())
@@ -193,7 +201,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 				settings.removeFirst();
 			}
 			return QueryConstraints.priceDiscount(direction, parseVariadicTail(ctx, settings,
-				EvitaQLValueTokenVisitor.withAllowedTypes(String.class), hasDirection).asStringArray());
+				EvitaQLValueTokenVisitor.withAllowedTypes(String.class)).asStringArray());
 		});
 	}
 

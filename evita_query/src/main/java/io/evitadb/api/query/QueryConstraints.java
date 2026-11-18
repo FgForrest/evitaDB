@@ -69,7 +69,8 @@ import static java.util.Optional.ofNullable;
  * - **Null Handling**: A null value omits its constraint unless the constraint gives null a meaning (an open bound,
  *   the default page). A null or blank name throws `EvitaInvalidUsageException`. A null enum selects its documented
  *   default and throws only where there is none (`inScope`, the special value of `attributeIs`, the mode of
- *   `priceContent`).
+ *   `priceContent`). A single nullable variable in `entityPrimaryKeyInSet(id)`, `attributeInSet("code", value)` or
+ *   `priceInPriceLists(priceList)` binds to the single-value overload and leaves the filter out if it is null.
  * - **Consistency**: Provides a uniform API across all constraint types (head, filter, order, require).
  *
  * **Usage Pattern:**
@@ -122,8 +123,10 @@ import static java.util.Optional.ofNullable;
  * - **Immutability**: All constraint objects returned by these factory methods are immutable. Modifying a query
  *   requires constructing a new constraint tree.
  * - **Null Tolerance**: Nullable values allow conditional query building. Null items of a value list are ignored,
- *   and so are blank price-list names: a null filter value list omits the filter, one with only null items matches
- *   nothing, and elsewhere a null list means an empty one. A null or blank item of a name or enum list throws.
+ *   and so are blank price-list names. A null filter value list omits the filter. An explicit filter value list
+ *   of only nulls, such as `f(null, null)` or an array containing only nulls, matches nothing. EvitaQL treats a lone
+ *   parameter bound to a scalar or null as one value. Elsewhere a null list means an empty one.
+ *   A null or blank item of a name or enum list throws.
  *   A container that means nothing without children is omitted when all its children were omitted.
  * - **Validation**: Factory methods perform basic validation (e.g., non-null checks for mandatory parameters) but
  *   do not validate against schema — schema validation occurs at query execution time.
@@ -613,6 +616,19 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * Filters entities to those with at least one price in the specified price list.
+	 * A null or blank price list leaves the constraint out.
+	 *
+	 * @param priceList price list to match
+	 * @return the price list filter, or null when the price list is undefined
+	 * @see PriceInPriceLists
+	 */
+	@Nullable
+	static PriceInPriceLists priceInPriceLists(@Nullable String priceList) {
+		return priceList == null || priceList.isBlank() ? null : new PriceInPriceLists(priceList);
+	}
+
+	/**
 	 * Filters entities to those with at least one price in the specified ISO 4217 currency (e.g., "EUR", "USD"). Only one `priceInCurrency` constraint is allowed per query, and it cannot be combined with multiple currencies or nested in user filters. Used with `priceInPriceLists` and `priceValidIn` to determine the "price for sale" per entity.
 	 *
 	 * ```evitaql
@@ -1002,6 +1018,24 @@ public interface QueryConstraints {
 		requireName(attributeName, "attributeName");
 		final T[] normalizedSet = withoutNullValues(set);
 		return normalizedSet == null ? null : new AttributeInSet(attributeName, normalizedSet);
+	}
+
+	/**
+	 * Filters entities where the specified attribute equals the given value.
+	 * A null value leaves the constraint out.
+	 *
+	 * @param attributeName attribute to match
+	 * @param attributeValue value to match
+	 * @param <T> type of the attribute value
+	 * @return the attribute filter, or null when the value is undefined
+	 * @see AttributeInSet
+	 */
+	@Nullable
+	static <T extends Serializable> AttributeInSet attributeInSet(
+		@Nonnull String attributeName, @Nullable T attributeValue
+	) {
+		requireName(attributeName, "attributeName");
+		return attributeValue == null ? null : new AttributeInSet(attributeName, attributeValue);
 	}
 
 	/**
@@ -1400,6 +1434,19 @@ public interface QueryConstraints {
 	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable Integer... primaryKey) {
 		final Integer[] normalizedPrimaryKey = withoutNullValues(primaryKey);
 		return normalizedPrimaryKey == null ? null : new EntityPrimaryKeyInSet(normalizedPrimaryKey);
+	}
+
+	/**
+	 * Filters entities by an exact match on the specified primary key.
+	 * A null primary key leaves the constraint out.
+	 *
+	 * @param primaryKey primary key to match
+	 * @return the primary key filter, or null when the key is undefined
+	 * @see EntityPrimaryKeyInSet
+	 */
+	@Nullable
+	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable Integer primaryKey) {
+		return primaryKey == null ? null : new EntityPrimaryKeyInSet(primaryKey);
 	}
 
 	/**

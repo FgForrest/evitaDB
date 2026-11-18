@@ -40,6 +40,9 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.HierarchyAnyHavingConst
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
@@ -271,8 +274,15 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		);
 	}
 
+	/**
+	 * Parses an attribute filter, selecting the factory according to the shape of the value arguments.
+	 *
+	 * @param ctx attribute name and optional list of values
+	 * @return the attribute filter, or null for an undefined single value
+	 */
+	@Nullable
 	@Override
-	public FilterConstraint visitAttributeInSetConstraint(EvitaQLParser.AttributeInSetConstraintContext ctx) {
+	public FilterConstraint visitAttributeInSetConstraint(@Nonnull EvitaQLParser.AttributeInSetConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -280,12 +290,11 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 				if (ctx.args.values == null) {
 					return QueryConstraints.attributeInSet(classifier);
 				}
-				return QueryConstraints.attributeInSet(
-					classifier,
-					ctx.args.values
-						.accept(this.comparableValueTokenVisitor)
-						.asSerializableArray()
-				);
+				final Value values = ctx.args.values.accept(this.comparableValueTokenVisitor);
+				final Serializable[] arguments = values.asSerializableArray();
+				return values.isSingleVariadicArgument() ?
+					QueryConstraints.attributeInSet(classifier, arguments[0]) :
+					QueryConstraints.attributeInSet(classifier, arguments);
 			}
 		);
 	}
@@ -414,17 +423,28 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		);
 	}
 
+	/**
+	 * Parses a primary key filter, preserving the distinction between one key and a key list.
+	 *
+	 * @param ctx optional primary key arguments
+	 * @return the primary key filter, or null for an undefined single key
+	 */
+	@Nullable
 	@Override
-	public FilterConstraint visitEntityPrimaryKeyInSetConstraint(EvitaQLParser.EntityPrimaryKeyInSetConstraintContext ctx) {
+	public FilterConstraint visitEntityPrimaryKeyInSetConstraint(
+		@Nonnull EvitaQLParser.EntityPrimaryKeyInSetConstraintContext ctx
+	) {
 		return parse(
 			ctx,
 			() -> {
 				if (ctx.args == null) {
 					return QueryConstraints.entityPrimaryKeyInSet();
 				}
-				return QueryConstraints.entityPrimaryKeyInSet(
-					ctx.args.values.accept(this.intValueTokenVisitor).asIntegerArray()
-				);
+				final Value values = ctx.args.values.accept(this.intValueTokenVisitor);
+				final Integer[] arguments = values.asIntegerArray();
+				return values.isSingleVariadicArgument() ?
+					QueryConstraints.entityPrimaryKeyInSet(arguments[0]) :
+					QueryConstraints.entityPrimaryKeyInSet(arguments);
 			}
 		);
 	}
@@ -514,17 +534,28 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		);
 	}
 
+	/**
+	 * Parses a price list filter, preserving the distinction between one price list name and a list of names.
+	 *
+	 * @param ctx optional price list arguments
+	 * @return the price list filter, or null for an undefined single price list
+	 */
+	@Nullable
 	@Override
-	public FilterConstraint visitPriceInPriceListsConstraints(EvitaQLParser.PriceInPriceListsConstraintsContext ctx) {
+	public FilterConstraint visitPriceInPriceListsConstraints(
+		@Nonnull EvitaQLParser.PriceInPriceListsConstraintsContext ctx
+	) {
 		return parse(
 			ctx,
 			() -> {
 				if (ctx.args == null) {
 					return QueryConstraints.priceInPriceLists();
 				}
-				return QueryConstraints.priceInPriceLists(
-					ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArray()
-				);
+				final Value values = ctx.args.classifiers.accept(this.stringValueListTokenVisitor);
+				final String[] arguments = values.asStringArray();
+				return values.isSingleVariadicArgument() ?
+					QueryConstraints.priceInPriceLists(arguments[0]) :
+					QueryConstraints.priceInPriceLists(arguments);
 			}
 		);
 	}

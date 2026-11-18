@@ -1,11 +1,11 @@
 ---
 title: Null arguments in query constraints follow one rule set in Java, EvitaQL and REST
 date: 2026-11-12
-updated: 2026-11-12 19:35
+updated: 2026-11-18 17:20
 status: accepted
 kind: fix
-issues: [1943]
-prs: []
+issues: [1943, 2013]
+prs: [1965]
 areas: [evita_query, evita_query/src/main/java/io/evitadb/api/query/parser, evita_external_api/evita_external_api_core, evita_engine/src/main/java/io/evitadb/core/query]
 supersedes: []
 superseded-by: []
@@ -19,6 +19,8 @@ in `QueryConstraints`, written in EvitaQL with bound parameters, or sent as REST
 typed or picked) may be undefined: the constraint is then left out. **A name** (attribute, reference, entity type,
 output name, ...) is set by the application: a null or blank name is an error. **An enum** setting falls back to its
 documented default, and is an error only where the constraint has none. Lists apply the same rules to their items.
+A single value is not a list: `entityPrimaryKeyInSet(id)` with an undefined `id` leaves the filter out, in Java and in
+EvitaQL alike, while an explicit list whose every item is undefined matches nothing.
 
 ## Why
 
@@ -77,7 +79,8 @@ constraints through the same `QueryConstraints` factories, so they cannot drift 
 ### A filter list of only nulls leaves the filter out (declined)
 
 - **Rejected because:** the caller sent a list and every item of it is undefined, so nothing matches. Leaving the
-  filter out would widen the result (maintainer's decision).
+  filter out would widen the result (maintainer's decision). Reconsidered and declined again in #2013, where the
+  real complaint was a single undefined value, not a list (see below).
 
 ### A null name list throws (declined)
 
@@ -89,12 +92,56 @@ constraints through the same `QueryConstraints` factories, so they cannot drift 
 - **Rejected because:** 188 factory overloads already document a default for their enum; breaking them gains
   nothing. Only `inScope`, the special value of `attributeIs` and the mode of `priceContent` have none and throw.
 
-### Read a lone bound null in an EvitaQL list position as a null list, or as one null item (declined)
+### A single value is a single value, in Java and EvitaQL (chosen in #2013)
 
-- **Rejected because:** a lone `?` there accepts a list or a single value, and the Java factories answer "no list"
-  and "one undefined item" differently (`attributeInSet` would match everything or nothing). Either reading silently
-  picks one. It stays a syntax error that names the constraint and says to bind an empty list or leave it out.
-  Revisit only if EvitaQL gains a way to tell the two apart.
+javac compiles `entityPrimaryKeyInSet(id)` into `entityPrimaryKeyInSet(new Integer[]{id})`, so the first
+implementation read one undefined variable as a list of only nulls, and the filter matched nothing. Up to 2026.2
+the same call left the filter out, and conditional query building relied on it (the old "Null Handling" JavaDoc
+advertised the pattern). The three filter value lists got single-value overloads that leave the filter out for an
+undefined value, and EvitaQL reads a list position the way javac reads a single argument.
+
+- **Pros:** 2026.2 behaviour for `f(nullVariable)` comes back for every value list (name and enum lists keep the
+  refusal decided above); the list rule stays intact for explicit lists; EvitaQL and Java answer a lone null or
+  blank the same way in every list position.
+- **Cons:** a literal `priceInPriceLists(null)` no longer compiles; binaries compiled before the overloads existed
+  keep the list form until recompiled (both under Consequences).
+
+### Read a lone bound null in an EvitaQL list position as a syntax error (declined in #2013)
+
+The first implementation kept it an error: a lone `?` there accepts a list or a single value, and the Java
+factories then answered "no list" and "one undefined item" differently.
+
+- **Rejected because:** once Java decides by the static shape of the argument, EvitaQL can decide the same way from
+  the bound object: an array or iterable is the list, anything else is one value. The ambiguity is gone, and Java and
+  EvitaQL must behave alike (maintainer's decision). 2026.2 refused every null parameter, so no working query
+  depended on the error.
+
+### Tell `f(nullVariable)` from a list at run time (declined)
+
+A one-item array holding `null` would leave the filter out, longer all-null arrays would match nothing.
+
+- **Rejected because:** `f(nullVariable)` and `f(new Integer[]{null})` are the same array at run time, so an
+  explicitly built one-item list would contradict the list rule, and `f(null)` against `f(null, null)` would mean
+  opposite things by count alone. Only the compiler sees the difference.
+
+### Only document that `f(nullVariable)` matches nothing (declined)
+
+- **Rejected because:** the regression is silent (an empty result, no error) and hits a pattern the previous
+  JavaDoc recommended.
+
+### Unwrap an array passed to the single-value `attributeInSet` at run time (declined)
+
+- **Rejected because:** javac already sends every statically typed object array (`String[]`, `Serializable[]`) to
+  the list overload; what reaches the single-value one as an array (a primitive array, an array behind a
+  `Serializable` variable) was wrapped into a one-item list before too, so the plain overload changes nothing for a
+  defined value. Unwrapping would be a new feature nobody asked for.
+
+### A single-value `dataInLocales` that leaves the requirement out (declined)
+
+- **Rejected because:** 2026.2 fetched every locale for `dataInLocales(nullLocale)` (measured on 2026.2.9), and
+  the one-null-item list still does; the maintainer chose 2026.2 parity. The other non-filter list positions
+  (orderings, price contents, accompanying price lists) need no overload either: their list with one undefined
+  item already means what 2026.2 gave a single undefined value.
 
 ### A leading bound null before an optional enum is a syntax error (declined)
 
@@ -164,6 +211,30 @@ A blank name counts as a null name; a blank price-list name counts as a null val
 `EvitaInvalidUsageException` from Java, `EvitaSyntaxException` from EvitaQL and HTTP 400 from REST. GraphQL keeps
 refusing null list items at schema validation, which is stricter but never wider.
 
+**A single value is not a list (#2013).** `entityPrimaryKeyInSet(Integer)`, `attributeInSet(String, T)` and
+`priceInPriceLists(String)` take one value and follow the value row: null, or a blank price list, leaves the filter
+out. javac picks them for a single argument whose static type is not an object array (a primitive `int[]` still
+reaches the existing `int[]` overload of `entityPrimaryKeyInSet`). The other value lists have no such overload, so
+`f(nullVariable)` is a list of one null item there and takes the empty-list meaning; name and enum lists refuse it,
+whether through a list or through a single-name overload such as `referenceContent(String)`. EvitaQL reads a list
+position the way javac reads a single argument: a bound array or iterable is the list; one literal, or one parameter
+bound to a scalar or to `null`, is one value and reaches the same overload Java would pick.
+
+One undefined value per list position, measured on 2026.2.9 and on the snapshot before #2013:
+
+| Position | 2026.2 Java `f(nullVariable)` | First implementation, Java | Now, Java and EvitaQL |
+|---|---|---|---|
+| `entityPrimaryKeyInSet`, `attributeInSet`, `priceInPriceLists` | left out | matches nothing | left out |
+| blank price list (`" "`) | left out | matches nothing | left out |
+| `attributeSetExact`, `entityPrimaryKeyExact`, `defaultAccompanyingPriceLists` | left out | left out | left out |
+| `dataInLocales` | every locale | every locale | every locale |
+| `priceContentRespectingFilter` | kept with a null item | no extra price lists | no extra price lists |
+| `priceContent(RESPECTING_FILTER, ...)` | no extra price lists | the same | the same |
+| `attributeContent`, `associatedDataContent`, `scope` | kept or left out | **error** | **error** |
+
+EvitaQL refused every lone null parameter in 2026.2 and in the first implementation; it now answers like the last
+column.
+
 Examples, before and after:
 
 | Input | Before | After |
@@ -191,14 +262,14 @@ Examples, before and after:
 | Java `scope(Scope.LIVE, null)` | whole `filterBy` dropped | **error** |
 | Java `userFilter(attributeEquals("a", null), entityPrimaryKeyInSet(1))` | NPE | keeps the second filter |
 | EvitaQL `inScope(LIVE)` without children | syntax error | left out |
-| EvitaQL `attributeInSet('code', ?)` with the lone `?` bound to `null` | syntax error | syntax error, clearer message |
+| EvitaQL `attributeInSet('code', ?)` with the lone `?` bound to `null` | syntax error | left out (#2013) |
+| EvitaQL `priceInPriceLists(' ')` | kept as written | left out (#2013) |
 
 The meaning of an empty list stays a property of each constraint: `attributeContent`, `associatedDataContent`,
 `referenceContent` and `dataInLocales` fetch everything, filters match nothing, orderings are left out.
 
-**What would reopen this:** EvitaQL gaining a null literal or a typed binding (then the lone-null exception can go);
-a client need to keep an undefined value as "matches nothing" instead of "no filter" (a new explicit constraint, not
-a change of these rules).
+**What would reopen this:** a client need to keep an undefined value as "matches nothing" instead of "no filter" (a
+new explicit constraint, not a change of these rules).
 
 ## Key technical details
 
@@ -229,18 +300,31 @@ a change of these rules).
   list and keeps `NoSorter` when it is the only one: owners stay in traversal blocks, by primary key within each.
 - **Empty containers return `null` from their factories.** Engine code that needs an empty `FilterBy` as a sentinel
   (`ReferencedEntityFetcher#extractBodyFilter`, `FacetHavingTranslator`) constructs it directly.
+- **The single-value overloads construct their constraint directly.** Calling the factory of the same name from
+  inside would resolve to the overload itself. For a defined value they build the same constraint as the one-item
+  list. `(String, T[])` is more specific than `(String, T)`, so a `String[]` or `Serializable[]` still reaches the
+  list form of `attributeInSet`; the REST/GraphQL `ConstraintResolver` matches creators by exact erased types and
+  every `@Creator` takes an array, so it keeps calling the list forms.
+- **EvitaQL keeps the argument shape.** `EvitaQLValueTokenVisitor#parseVariadicArguments` and
+  `#visitExplicitVariadicValueTokens` mark one literal or one scalar or null binding with
+  `Value#isSingleVariadicArgument`; the filter visitors convert once (keeping the overflow check of
+  `asIntegerArray()`) and pick the overload from that flag. A positional parameter is consumed when it is visited,
+  so a visitor must never visit it a second time just to look at its shape.
+  `EvitaQLBaseConstraintVisitor#parseVariadicTail` no longer needs to know whether an optional enum preceded the
+  tail: a lone null after it is one null item too.
 - The factory JavaDoc in `QueryConstraints` is generated by `JavaDocSummarizer` (keyed by `@SourceHash`) and was not
-  edited; the rules are stated once in the `QueryConstraints` class JavaDoc and here.
+  edited; the rules are stated once in the `QueryConstraints` class JavaDoc and here. The three single-value
+  overloads carry a hand-written summary and no `@SourceHash` until the next summarizer run regenerates them.
 
 ## Verification
 
 - `NullArgumentsInventoryTest` reflects over every public factory: 294 scalar names (null and three blank forms),
   194 enum positions compared with the overload without the enum or its documented default, every list parameter in
   five shapes, both null positions in every child-constraint array, and 458 container overloads with no children
-  (2,541 cases). A factory added later without the rules fails it.
+  (2,541 cases at the time, 2,548 after #2013). A factory added later without the rules fails it.
 - `NullArgumentsParityTest` runs the same inputs through Java and through `DefaultQueryParser` with positional and
   named parameters, including the lone-null cases, omitted children and nested arrays inside bound arrays
-  (1,011 cases).
+  (1,011 cases at the time, 1,026 after #2013).
 - `CatalogRestNullArgumentsTest` (46 cases, over HTTP and at the resolver) and `CatalogGraphQLNullArgumentsTest`
   (9 cases) cover the external APIs, each example of the Decision table included; each of those examples has a
   case that was run against the previous resolver first and failed there. `ConstraintFactoryDispatchTest`
@@ -250,12 +334,27 @@ a change of these rules).
   failures (70 skipped as before). Two correctness review passes; 1,161 null-binding mutations end in no internal
   error; the 189 EvitaQL queries of the user documentation parse exactly as before; the existing REST query suite
   (188 cases) passes unchanged.
+- **#2013:** the cases with an expectation of their own were run against the first implementation and failed there (9
+  failures and 24 errors in the selected classes): the three null-variable cases, the blank price list, the issue's
+  `hierarchyWithin` scenario in `QueryTest`, the three missing overloads, the blank EvitaQL literal, and 24
+  lone-parameter parity cases that hit the old syntax error. The equality of a defined single value with its one-item
+  list, and `dataInLocales(nullLocale)`, pass on both and pin behaviour that did not change.
+  `NullArgumentsInventoryTest` requires a single-value sibling for every factory in its filter value-list set whose last
+  parameter is an object array, and compares it with the one-item list.
+  `NullArgumentsParityTest#shouldMatchFactoriesWhenListPositionHasOneValue` compares a lone positional and named
+  parameter (null, a value, a blank price list) with the Java single-argument call in 21 list positions: filters,
+  orderings, fetch and statistics requirements, name and enum lists. A refusal must now carry the factory's diagnostic
+  (argument names masked); with the old syntax error put back, 18 lone-null name and enum cases fail on that check
+  alone. Gates: the `query | contract` groups, 24,775 tests, 0 failures (9 skipped), with
+  `ConstraintFactoryDispatchTest` (119), the EvitaQL parser suites and the REST/GraphQL null-argument suites inside; the
+  whole reactor compiles with `-P full`, so no call site anywhere became ambiguous.
 
 ## Consequences & open follow-ups
 
 - **Breaking changes:** a null or blank name throws in Java, EvitaQL and REST; a null enum without a default throws;
   a null or blank item in a name or enum list throws; a Java filter list of only nulls matches nothing instead of
-  being left out; EvitaQL literals with a blank name (`attributeEquals('', 1)`) are now syntax errors. Callers that
+  being left out (an explicit list such as `f(null, null)` or an array; a single nullable variable still leaves the
+  filter out); EvitaQL literals with a blank name (`attributeEquals('', 1)`) are now syntax errors. Callers that
   build queries conditionally guard the name, not the factory result. The explicit forms `referenceContentAll()`,
   `hierarchyWithinRootSelf()` and `attributeContentAll()` remain.
 - **REST and GraphQL results change** where they differed from Java: a `...ContentWithAttributes` without
@@ -267,8 +366,26 @@ a change of these rules).
   `fromNode`, `facetSummaryOfReference`, `referenceSummaryOfReference`) still throw a raw `NullPointerException` for a
   null child-constraint *array*, for example `referenceHaving("brand", (FilterConstraint[]) null)`. Before this work
   there were 21 in 10 factories; `facetSummary` and `referenceSummary` were fixed on the way.
-- When a constraint's class JavaDoc changes, its generated factory summary needs a `JavaDocSummarizer` run.
+- **Source compatibility (#2013):** a literal `priceInPriceLists(null)`, or a generic expression such as
+  `priceInPriceLists(value())` with `<V> V value()`, no longer compiles (ambiguous); `entityPrimaryKeyInSet(null)`
+  already did not, because of its `int[]` overload. `(String) null` leaves the filter out as one undefined value,
+  `(String[]) null` as no list. `attributeInSet("code", null)` still resolves to the list form and is left out. The
+  maintainer accepted this without a `breaking change` label; the upgrade note is on #2013.
+- **Binary compatibility (#2013):** code compiled before the single-value overloads existed, against 2026.2 or an
+  earlier 2026.3 snapshot, still calls the list form, so `f(nullVariable)` matches nothing until the code is
+  recompiled. Nothing at run time can tell the two apart (see the declined run-time option).
+- **EvitaQL (#2013):** only inputs that were errors in 2026.2 change meaning, with one exception: a blank price
+  list, literal (`priceInPriceLists(' ')`) or bound to a lone parameter, was kept as written and is now left out.
+- A left-out `attributeInSet` takes the filter that `attributeSetInFilter` orders by with it, so that ordering then
+  fails for a missing filter, exactly as it did in 2026.2.
+- A new filter value list factory needs its own single-value overload; `NullArgumentsInventoryTest` checks it once
+  the factory is added to the test's filter value-list set.
+- When a constraint's class JavaDoc changes, its generated factory summary needs a `JavaDocSummarizer` run; the three
+  single-value overloads from #2013 need one now.
 
 ## Timeline
 
 - **2026-11-12** — rules agreed with the maintainer and filed as issue #1943; implemented for Java, EvitaQL and REST.
+- **2026-11-18** — #2013: a single nullable variable matched nothing since #1965. Single-value overloads for the
+  three filter value lists, EvitaQL aligned with Java in every list position, the lone-null syntax error removed;
+  `dataInLocales` keeps every locale (2026.2 parity).

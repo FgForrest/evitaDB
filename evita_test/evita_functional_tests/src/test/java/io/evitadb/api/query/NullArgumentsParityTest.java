@@ -51,8 +51,6 @@ import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -258,7 +256,7 @@ class NullArgumentsParityTest {
 	}
 
 	/**
-	 * Compares list normalization and ambiguous lone bindings across both parameter styles.
+	 * Compares list and single-value bindings across both parameter styles.
 	 */
 	@Nested
 	@DisplayName("Variadic arguments")
@@ -268,16 +266,16 @@ class NullArgumentsParityTest {
 		 *
 		 * @return list regression cases
 		 */
+		@Nonnull
 		@TestFactory
 		@DisplayName("Bound arrays, lists and separate items follow the factory rules")
 		Stream<DynamicTest> shouldMatchFactoriesWhenListsContainNulls() {
 			return listRows().flatMap(list -> Stream.of(false, true).flatMap(named ->
-				Stream.concat(Stream.of("empty", "value then null", "null then value", "only nulls", "missing"),
-					list.value() instanceof String && (list.expression().startsWith("price")
-						|| list.expression().startsWith("defaultAccompanying")
-						|| list.expression().startsWith("accompanyingPrice")) ?
+				Stream.concat(Stream.of("empty", "value then null", "null then value", "only nulls", "one null"),
+					list.hasPriceListValues() ?
 						Stream.of("value then blank", "blank then value", "only blanks") : Stream.empty())
-					.flatMap(shape -> Stream.of("array", "iterable", "separate")
+					.flatMap(shape -> (shape.equals("empty") || shape.equals("one null") ?
+						Stream.of("array", "iterable") : Stream.of("array", "iterable", "separate"))
 						.map(binding ->
 						DynamicTest.dynamicTest(list.expression() + " " + shape + " " + binding + " " + named, () -> {
 							final Object[] items = switch (shape) {
@@ -288,35 +286,63 @@ class NullArgumentsParityTest {
 								case "value then blank" -> new Object[]{list.value(), " "};
 								case "blank then value" -> new Object[]{" ", list.value()};
 								case "only blanks" -> new Object[]{"", " "};
-								case "missing" -> null;
+								case "one null" -> new Object[]{null};
 								default -> throw new IllegalStateException("Unknown list shape");
 							};
-							final Object array = items == null ? null : typedArray(list.value().getClass(), items);
+							final Object array = typedArray(list.value().getClass(), items);
 							final List<Object> arguments = new ArrayList<>(Arrays.asList(list.prefix()));
 							String expression = list.expression();
-							if (binding.equals("separate") && items != null && items.length > 1) {
+							if (binding.equals("separate")) {
 								expression = expression.substring(0, expression.lastIndexOf('?')) +
 									"?, ?" + expression.substring(expression.lastIndexOf('?') + 1);
 								arguments.addAll(Arrays.asList(items));
 							} else {
-								arguments.add(binding.equals("iterable") && items != null ? Arrays.asList(items)
-									: array);
+								arguments.add(binding.equals("iterable") ? Arrays.asList(items) : array);
 							}
-							if (items == null) {
-								final String query = expression;
-								final EvitaSyntaxException exception = assertThrows(EvitaSyntaxException.class,
-									() -> parse(query, list.category(), arguments.toArray(), named));
-								final Matcher owner = Pattern.compile("([A-Za-z][A-Za-z0-9]*)\\([^()]*$")
-									.matcher(expression.substring(0, expression.lastIndexOf('?')));
-								assertTrue(owner.find());
-								assertTrue(exception.getMessage().contains(owner.group(1)));
-								assertTrue(exception.getMessage().contains("empty list"));
-								assertTrue(exception.getMessage().contains("leave the constraint out"));
-							} else {
-								assertParity(row(expression, list.category(), () -> list.factory().apply(array),
-									arguments.toArray()), named);
-							}
+							assertParity(row(expression, list.category(), () -> list.factory().apply(array),
+								arguments.toArray()), named);
 						})))));
+		}
+
+		/**
+		 * Compares a lone parameter with the corresponding Java single-argument call.
+		 *
+		 * @return one case per value shape and parameter style
+		 */
+		@Nonnull
+		@TestFactory
+		@DisplayName("Lone parameters follow the single-argument factory rules")
+		Stream<DynamicTest> shouldMatchFactoriesWhenListPositionHasOneValue() {
+			return listRows().flatMap(list -> Stream.of(false, true).flatMap(named ->
+				Stream.concat(
+					Stream.of("missing", "single value"),
+					list.hasPriceListValues() ? Stream.of("single blank") : Stream.empty()
+				).map(shape -> DynamicTest.dynamicTest(list.expression() + " " + shape + " " + named, () -> {
+					final Object value = switch (shape) {
+						case "missing" -> null;
+						case "single value" -> list.value();
+						case "single blank" -> " ";
+						default -> throw new IllegalStateException("Unknown value shape");
+					};
+					final List<Object> arguments = new ArrayList<>(Arrays.asList(list.prefix()));
+					arguments.add(value);
+					assertParity(row(list.expression(), list.category(), () -> list.singleValueFactory() == null
+						? list.factory().apply(typedArray(list.value().getClass(), new Object[]{value}))
+						: list.singleValueFactory().apply(value), arguments.toArray()), named);
+				}))));
+		}
+
+		/**
+		 * A blank literal follows the same omission rule as a bound blank string.
+		 */
+		@Test
+		@DisplayName("A single blank price list literal leaves the filter out")
+		void shouldOmitFilterWhenPriceListLiteralIsBlank() {
+			final Query parsed = PARSER.parseQueryUnsafe(
+				"query(collection('Product'), filterBy(priceInPriceLists(' ')))"
+			);
+			assertNull(parsed.getFilterBy());
+			assertEquals(Query.query(collection("Product"), filterBy(priceInPriceLists(" "))), parsed);
 		}
 
 		/**
@@ -491,10 +517,13 @@ class NullArgumentsParityTest {
 	@Nonnull
 	private static Stream<ListRow> listRows() {
 		return Stream.of(
-			list("attributeInSet(?, ?)", FilterConstraint.class, "A", a -> attributeInSet("code", (String[]) a),
-				"code"),
-			list("entityPrimaryKeyInSet(?)", FilterConstraint.class, 1, a -> entityPrimaryKeyInSet((Integer[]) a)),
-			list("priceInPriceLists(?)", FilterConstraint.class, "basic", a -> priceInPriceLists((String[]) a)),
+			new ListRow("attributeInSet(?, ?)", FilterConstraint.class, "A",
+				a -> attributeInSet("code", (String[]) a), v -> attributeInSet("code", (String) v),
+				new Object[]{"code"}),
+			new ListRow("entityPrimaryKeyInSet(?)", FilterConstraint.class, 1,
+				a -> entityPrimaryKeyInSet((Integer[]) a), v -> entityPrimaryKeyInSet((Integer) v), new Object[0]),
+			new ListRow("priceInPriceLists(?)", FilterConstraint.class, "basic",
+				a -> priceInPriceLists((String[]) a), v -> priceInPriceLists((String) v), new Object[0]),
 			list("scope(?)", FilterConstraint.class, Scope.LIVE, a -> scope((Scope[]) a)),
 			list("attributeSetExact(?, ?)", OrderConstraint.class, "A", a -> attributeSetExact("code", (String[]) a),
 				"code"),
@@ -543,7 +572,7 @@ class NullArgumentsParityTest {
 	@Nonnull
 	private static ListRow list(@Nonnull String expression, @Nonnull Class<?> category, @Nonnull Object value,
 		@Nonnull Function<Object, Constraint<?>> factory, @Nonnull Object... prefix) {
-		return new ListRow(expression, category, value, factory, prefix);
+		return new ListRow(expression, category, value, factory, null, prefix);
 	}
 
 	/**
@@ -562,7 +591,8 @@ class NullArgumentsParityTest {
 	}
 
 	/**
-	 * Compares factory outcomes including omission and the surface-specific client exceptions.
+	 * Compares factory outcomes including omission and the surface-specific client exceptions. A refusal must carry
+	 * the factory's own diagnostic, so an unrelated syntax error cannot pass for the same answer.
 	 *
 	 * @param row example under test
 	 * @param named whether named parameters should be used
@@ -572,12 +602,31 @@ class NullArgumentsParityTest {
 		try {
 			expected = row.expected().get();
 		} catch (EvitaInvalidUsageException exception) {
-			assertThrows(EvitaSyntaxException.class,
+			final EvitaSyntaxException syntaxException = assertThrows(EvitaSyntaxException.class,
 				() -> parse(row.expression(), row.category(), row.arguments(), named));
+			// the parser may name the argument after its own variable, so only the argument names are masked
+			final String expectedDiagnostic = withoutArgumentNames(exception.getMessage());
+			assertTrue(
+				withoutArgumentNames(syntaxException.getMessage()).contains(expectedDiagnostic),
+				() -> "EvitaQL must refuse with the factory's diagnostic `" + exception.getMessage() + "`, but got `"
+					+ syntaxException.getMessage() + "`"
+			);
 			return;
 		}
 		assertEquals(Collections.singletonList(expected),
 			parse(row.expression(), row.category(), row.arguments(), named));
+	}
+
+	/**
+	 * Masks the back-quoted names in a diagnostic so that two messages differing only in the name of the argument
+	 * compare as equal.
+	 *
+	 * @param message exception message
+	 * @return the message with every back-quoted part replaced by the same placeholder
+	 */
+	@Nonnull
+	private static String withoutArgumentNames(@Nonnull String message) {
+		return message.replaceAll("`[^`]*`", "`?`");
 	}
 
 	/**
@@ -689,9 +738,26 @@ class NullArgumentsParityTest {
 	 * @param expression constraint expression
 	 * @param category constraint category
 	 * @param value representative value
-	 * @param factory Java factory
+	 * @param factory Java factory taking a typed array
+	 * @param singleValueFactory Java factory taking one value, when available
 	 * @param prefix preceding scalar bindings
 	 */
-	private record ListRow(String expression, Class<?> category, Object value,
-		Function<Object, Constraint<?>> factory, Object[] prefix) {}
+	private record ListRow(
+		@Nonnull String expression,
+		@Nonnull Class<?> category,
+		@Nonnull Object value,
+		@Nonnull Function<Object, Constraint<?>> factory,
+		@Nullable Function<Object, Constraint<?>> singleValueFactory,
+		@Nonnull Object[] prefix
+	) {
+		/**
+		 * Identifies the price-list positions that treat a blank string as undefined.
+		 *
+		 * @return whether the position takes price lists
+		 */
+		boolean hasPriceListValues() {
+			return this.expression.startsWith("price") || this.expression.startsWith("defaultAccompanying")
+				|| this.expression.startsWith("accompanyingPrice");
+		}
+	}
 }
