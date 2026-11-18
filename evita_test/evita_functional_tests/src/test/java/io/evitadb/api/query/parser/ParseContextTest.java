@@ -28,6 +28,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -233,13 +234,15 @@ class ParseContextTest {
 		@DisplayName("should refuse an iterable that is not a collection")
 		void shouldRefuseIterableThatIsNotCollection() {
 			final Iterator<Integer> once = new ArrayList<>(List.of(7)).iterator();
-			final Iterable<Integer> readOnce = () -> once;
+			// serializable, so that only the iterable check can refuse it
+			final Iterable<Integer> readOnce = (Iterable<Integer> & Serializable) () -> once;
 
 			final EvitaInvalidUsageException positional = assertThrows(
 				EvitaInvalidUsageException.class, () -> new ParseContext((Object) readOnce).getNextPositionalArgument()
 			);
+			final ParseContext namedContext = new ParseContext(Map.of("ids", readOnce));
 			final EvitaInvalidUsageException named = assertThrows(
-				EvitaInvalidUsageException.class, () -> new ParseContext(Map.of("ids", readOnce)).getNamedArgument("ids")
+				EvitaInvalidUsageException.class, () -> namedContext.getNamedArgument("ids")
 			);
 
 			assertTrue(positional.getMessage().contains("Bind a list or an array"), positional.getMessage());

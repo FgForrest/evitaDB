@@ -1,7 +1,7 @@
 ---
 title: Null arguments in query constraints follow one rule set in Java, EvitaQL and REST
 date: 2026-11-12
-updated: 2026-11-18 17:20
+updated: 2026-11-18 21:40
 status: accepted
 kind: fix
 issues: [1943, 2013]
@@ -111,10 +111,10 @@ undefined value, and EvitaQL reads a list position the way javac reads a single 
 The first implementation kept it an error: a lone `?` there accepts a list or a single value, and the Java
 factories then answered "no list" and "one undefined item" differently.
 
-- **Rejected because:** once Java decides by the static shape of the argument, EvitaQL can decide the same way from
-  the bound object: an array or collection is the list, anything else is one value. The ambiguity is gone, and Java and
-  EvitaQL must behave alike (maintainer's decision). 2026.2 refused every null parameter, so no working query
-  depended on the error.
+- **Rejected because:** once Java decides by the static shape of the argument, EvitaQL can decide the same way from the
+  bound object: an array or collection is the list, any other iterable is refused, anything else is one value. The
+  ambiguity is gone, and Java and EvitaQL must behave alike (maintainer's decision). 2026.2 refused every null
+  parameter, so no working query depended on the error.
 
 ### Tell `f(nullVariable)` from a list at run time (declined)
 
@@ -375,8 +375,11 @@ new explicit constraint, not a change of these rules).
 - **Binary compatibility (#2013):** code compiled before the single-value overloads existed, against 2026.2 or an
   earlier 2026.3 snapshot, still calls the list form, so `f(nullVariable)` matches nothing until the code is
   recompiled. Nothing at run time can tell the two apart (see the declined run-time option).
-- **EvitaQL (#2013):** only inputs that were errors in 2026.2 change meaning, with one exception: a blank price
-  list, literal (`priceInPriceLists(' ')`) or bound to a lone parameter, was kept as written and is now left out.
+- **EvitaQL (#2013):** only inputs that were errors in 2026.2 change meaning, with two exceptions. A blank price
+  list, literal (`priceInPriceLists(' ')`) or bound to a lone parameter, was kept as written and is now left out. A
+  bound `Iterable` that is not a `Collection` was read as a list and is now refused: the type check reads the items
+  before the visitor, so one that can be read only once reached the filter empty and silently matched nothing. The
+  maintainer chose the refusal over reading every iterable once into a list; bind a list or an array instead.
 - A left-out `attributeInSet` takes the filter that `attributeSetInFilter` orders by with it, so that ordering then
   fails for a missing filter, exactly as it did in 2026.2.
 - A new filter value list factory needs its own single-value overload; `NullArgumentsInventoryTest` checks it once

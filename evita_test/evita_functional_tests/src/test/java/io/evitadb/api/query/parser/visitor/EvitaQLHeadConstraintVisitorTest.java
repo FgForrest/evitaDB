@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.Currency;
+import java.util.Locale;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
@@ -56,16 +57,23 @@ import static io.evitadb.test.TestTags.QUERY;
 class EvitaQLHeadConstraintVisitorTest {
 
 	/**
-	 * Checks that the comparable label value rejects a currency in either binding mode.
+	 * Checks that the comparable label value rejects a currency and a locale in either binding mode, because the Java
+	 * factory requires a comparable value and neither type is one.
 	 */
 	@Test
-	@DisplayName("Reject currency parameters in labels")
-	void shouldRejectBoundCurrencyInLabel() {
+	@DisplayName("Reject currency and locale parameters in labels")
+	void shouldRejectBoundCurrencyAndLocaleInLabel() {
 		final Currency usd = Currency.getInstance("USD");
 		assertAll(
 			() -> assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("label(?, ?)", "currency", usd)),
 			() -> assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint(
 				"label(@key, @value)", Map.of("key", "currency", "value", usd)
+			)),
+			() -> assertThrows(
+				EvitaSyntaxException.class, () -> parseHeadConstraint("label(?, ?)", "lang", Locale.ENGLISH)
+			),
+			() -> assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint(
+				"label(@key, @value)", Map.of("key", "lang", "value", Locale.ENGLISH)
 			))
 		);
 	}

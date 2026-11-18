@@ -179,6 +179,9 @@ public class ParseContext {
 	 * collections of evita data types or enums.
 	 * Null, and null items inside arrays and collections, are supported as undefined values; every defined item is
 	 * checked.
+	 *
+	 * @param argument bound argument, null for an undefined value
+	 * @return true when the query language supports the argument's data type
 	 */
 	private static boolean isArgumentDataTypeSupported(@Nullable Object argument) {
 		if (argument != null && argument.getClass().isArray()) {
