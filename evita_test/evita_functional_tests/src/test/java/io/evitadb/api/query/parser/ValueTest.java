@@ -486,27 +486,11 @@ class ValueTest {
 		}
 
 		@Test
-		@DisplayName("should return as comparable")
-		void shouldReturnAsComparable() {
-			final Value value = new Value("name");
-
-			assertEquals("name", value.asComparable());
-		}
-
-		@Test
 		@DisplayName("should return as serializable and comparable")
 		void shouldReturnAsSerializableAndComparable() {
 			final Value value = new Value("name");
 
 			assertEquals("name", value.asSerializableAndComparable());
-		}
-
-		@Test
-		@DisplayName("should throw when value is not comparable")
-		void shouldThrowWhenValueIsNotComparable() {
-			final Value value = new Value(List.of("a", "b"));
-
-			assertThrows(EvitaInternalError.class, value::asComparable);
 		}
 
 		@Test

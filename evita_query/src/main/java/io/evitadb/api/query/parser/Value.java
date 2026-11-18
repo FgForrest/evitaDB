@@ -189,14 +189,6 @@ public class Value {
 	}
 
 	/**
-	 * Returns the value cast to {@link Comparable}.
-	 */
-	@Nullable
-	public Comparable<?> asComparable() {
-		return asSpecificType(this.actualValue, Comparable.class);
-	}
-
-	/**
 	 * Returns the value cast to both {@link Serializable} and {@link Comparable}.
 	 */
 	@Nullable
