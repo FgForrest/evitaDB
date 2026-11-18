@@ -38,6 +38,7 @@ import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -106,13 +107,54 @@ public record ResolvedFulltextAnalyzer(
 		final String language = locale.getLanguage();
 		return new ResolvedFulltextAnalyzer(
 			analyzer,
-			resolvePhase(catalogSchema, analyzer, language, FulltextAnalysisPhases::text),
+			resolvePhase(catalogSchema, analyzer, language, FulltextAnalysisPhases::text, null),
 			catalogSchema.getFulltextLanguage(language)
 				.map(FulltextLanguageSchemaContract::getWordSplitting)
 				.orElse(DEFAULT_SPLITTING),
-			resolvePhase(catalogSchema, analyzer, language, FulltextAnalysisPhases::words),
+			resolvePhase(catalogSchema, analyzer, language, FulltextAnalysisPhases::words, null),
 			new FulltextAnalysisContext(locale, collectResources(catalogSchema))
 		);
+	}
+
+	/**
+	 * Compares the declarations actually consulted for both phases. Base analyzers beyond the one that defines a
+	 * phase do not contribute to that phase's comparison. Effective step and resource contents are compared by the
+	 * caller.
+	 * @param current current catalog declarations
+	 * @param start catalog declarations at the beginning of the session
+	 * @param analyzer analyzer whose dependencies are being compared
+	 * @param locale locale selecting phase overrides
+	 * @return true when both phases consult the same inheritance and override declarations
+	 * @throws EvitaInvalidUsageException when an analyzer on the way does not exist or `basedOn` forms a cycle in
+	 *                                    either schema, as in {@link #resolve}
+	 */
+	static boolean hasSamePhaseDeclarations(
+		@Nonnull CatalogSchemaContract current, @Nonnull CatalogSchemaContract start, @Nonnull String analyzer,
+		@Nonnull Locale locale
+	) {
+		final String language = locale.getLanguage();
+		return phaseDeclarations(current, analyzer, language, FulltextAnalysisPhases::text)
+			.equals(phaseDeclarations(start, analyzer, language, FulltextAnalysisPhases::text)) &&
+			phaseDeclarations(current, analyzer, language, FulltextAnalysisPhases::words)
+				.equals(phaseDeclarations(start, analyzer, language, FulltextAnalysisPhases::words));
+	}
+
+	/**
+	 * Captures the declaration path through the same resolver used by compiled chains.
+	 * @param schema catalog providing analyzer declarations
+	 * @param analyzer analyzer whose phase is being resolved
+	 * @param language language selecting overrides, empty for root
+	 * @param phase text or words phase to trace
+	 * @return the ordered declarations consulted for the phase
+	 */
+	@Nonnull
+	private static List<PhaseDeclaration> phaseDeclarations(
+		@Nonnull CatalogSchemaContract schema, @Nonnull String analyzer, @Nonnull String language,
+		@Nonnull Function<FulltextAnalysisPhases, List<AnalysisStep>> phase
+	) {
+		final List<PhaseDeclaration> declarations = new ArrayList<>(4);
+		resolvePhase(schema, analyzer, language, phase, declarations);
+		return declarations;
 	}
 
 	/**
@@ -123,6 +165,7 @@ public record ResolvedFulltextAnalyzer(
 	 * @param analyzer      the name of the analyzer being resolved
 	 * @param language      the ISO 639 code of the language, empty for the all-languages definition
 	 * @param phase         reads the phase being resolved from a definition, `null` when it leaves it undefined
+	 * @param declarations collects the consulted analyzers and their phase source when requested
 	 * @return the steps of the phase, empty when no analyzer on the way defines it
 	 * @throws EvitaInvalidUsageException when an analyzer on the way does not exist or `basedOn` forms a cycle
 	 */
@@ -131,7 +174,8 @@ public record ResolvedFulltextAnalyzer(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull String analyzer,
 		@Nonnull String language,
-		@Nonnull Function<FulltextAnalysisPhases, List<AnalysisStep>> phase
+		@Nonnull Function<FulltextAnalysisPhases, List<AnalysisStep>> phase,
+		@Nullable List<PhaseDeclaration> declarations
 	) {
 		final Set<String> visited = CollectionUtils.createHashSet(4);
 		String current = analyzer;
@@ -145,10 +189,14 @@ public record ResolvedFulltextAnalyzer(
 			final FulltextAnalyzerSchemaContract definition = find(catalogSchema, current, basedOnBy);
 			final FulltextAnalysisPhases override = definition.getLanguages().get(language);
 			final List<AnalysisStep> overridden = override == null ? null : phase.apply(override);
+			final List<AnalysisStep> allLanguages =
+				overridden == null ? phase.apply(definition.getAllLanguages()) : null;
+			if (declarations != null) {
+				declarations.add(new PhaseDeclaration(current, overridden != null, allLanguages != null));
+			}
 			if (overridden != null) {
 				return overridden;
 			}
-			final List<AnalysisStep> allLanguages = phase.apply(definition.getAllLanguages());
 			if (allLanguages != null) {
 				return allLanguages;
 			}
@@ -157,6 +205,15 @@ public record ResolvedFulltextAnalyzer(
 		}
 		return List.of();
 	}
+
+	/**
+	 * Identifies the declaration consulted by one hop of the phase resolver. The record is compared by equality, so
+	 * `allLanguages` is always false when `override` is true: the all-languages settings are not read then.
+	 * @param analyzer analyzer whose phase settings were consulted
+	 * @param override whether the language override provides the phase
+	 * @param allLanguages whether the all-languages settings provide the phase
+	 */
+	private record PhaseDeclaration(@Nonnull String analyzer, boolean override, boolean allLanguages) {}
 
 	/**
 	 * Finds an analyzer by name: a built-in one, or one the catalog declares.

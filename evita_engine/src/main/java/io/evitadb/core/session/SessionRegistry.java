@@ -41,6 +41,7 @@ import io.evitadb.core.exception.SessionBusyException;
 import io.evitadb.core.metric.event.transaction.TransactionResolution;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerBehaviourCheck.SessionChecks;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
@@ -824,6 +825,23 @@ public final class SessionRegistry {
 		} catch (Throwable closeFailure) {
 			cause.addSuppressed(closeFailure);
 		}
+	}
+
+	/**
+	 * Finds the live writer's baseline from the registered session. Warm-up admission allows one session, and
+	 * the registry entry follows the session across client and engine mutation threads until termination.
+	 * @param catalog warming-up instance about to flush
+	 * @return the writer's checks, or null when no writer owns this instance
+	 */
+	@Nullable
+	public SessionChecks getWarmUpAnalyzerChecks(@Nonnull Catalog catalog) {
+		for (final EvitaSessionTuple session : this.activeSessions.values()) {
+			final SessionChecks checks = session.plainSession().analyzerChecksFor(catalog);
+			if (checks != null) {
+				return checks;
+			}
+		}
+		return null;
 	}
 
 	/**

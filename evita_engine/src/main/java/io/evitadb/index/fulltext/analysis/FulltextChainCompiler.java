@@ -196,6 +196,25 @@ public final class FulltextChainCompiler {
 	}
 
 	/**
+	 * Compiles the full index chain in which one stemming step leaves every word unstemmed, while the normalization
+	 * the stemmer embeds ({@link FulltextWordsAnalysisOperation#wrapQuerySurface(TokenStream)}) still applies. Every
+	 * step is created, prepared and placed exactly as in the production index chain - the steps following the
+	 * stemmer prepare their resources through the real stemmer - and only the chain's own pass over the stemming
+	 * step is replaced. It shows what the index side produces for a word the stemmer protects.
+	 *
+	 * @param analyzer the analyzer resolved for the locale of the field
+	 * @param unstemmedStep position, within the analyzer's words phase, of the stemming step whose stemming is left
+	 *                      out
+	 * @return the comparison chain; the caller owns it and has to close it
+	 * @throws EvitaInvalidUsageException when the analyzer's index chain does not compile
+	 */
+	@Nonnull
+	public Analyzer compileUnstemmedIndexChain(@Nonnull ResolvedFulltextAnalyzer analyzer, int unstemmedStep) {
+		return compile(analyzer.text(), analyzer.splitting(), analyzer.words(), FulltextAnalysisSide.INDEX,
+			analyzer.context(), false, null, false, false, false, unstemmedStep);
+	}
+
+	/**
 	 * Selects resolved text steps that act on query input, preserving their declared content and order.
 	 *
 	 * @param analyzer the definition resolved for this locale
@@ -381,6 +400,38 @@ public final class FulltextChainCompiler {
 		@Nonnull FulltextAnalysisContext context, boolean keyword,
 		@Nullable List<StopWordPreparation> stopWords, boolean surfaceOnly, boolean captureIndex, boolean fragment
 	) {
+		return compile(text, splitting, words, side, context, keyword, stopWords, surfaceOnly, captureIndex, fragment,
+			-1);
+	}
+
+	/**
+	 * Builds a complete chain, the query surface prefix or the unstemmed comparison chain using the same resolved
+	 * operations.
+	 *
+	 * @param text text operations
+	 * @param splitting language splitting
+	 * @param words words operations
+	 * @param side compilation side
+	 * @param context resources and locale
+	 * @param keyword whether to use one input token
+	 * @param stopWords optional stop-word preparation collector
+	 * @param surfaceOnly whether to stop at the first stemming step, keeping only its declared query surface
+	 *                    normalization
+	 * @param captureIndex whether to carry the actual index pre-stem token through the full chain
+	 * @param fragment whether to omit, before creating its operation, every words step whose factory declines
+	 *                 {@link FulltextWordsAnalysisStepFactory#participatesInQueryFragment()}
+	 * @param unstemmedStep position in `words` of the step whose pass the chain replaces by the step's own surface
+	 *                      normalization after every step is created, prepared and placed; -1 replaces none
+	 * @return the owned compiled chain
+	 */
+	@Nonnull
+	private Analyzer compile(
+		@Nonnull List<AnalysisStep> text, @Nonnull List<AnalysisStep> splitting,
+		@Nonnull List<AnalysisStep> words, @Nonnull FulltextAnalysisSide side,
+		@Nonnull FulltextAnalysisContext context, boolean keyword,
+		@Nullable List<StopWordPreparation> stopWords, boolean surfaceOnly, boolean captureIndex, boolean fragment,
+		int unstemmedStep
+	) {
 		final List<FulltextTextAnalysisOperation> textOperations = new ArrayList<>(text.size());
 		for (final AnalysisStep step : text) {
 			final FulltextTextAnalysisStepFactory factory = resolve(
@@ -411,8 +462,10 @@ public final class FulltextChainCompiler {
 		final List<PlacedStep> placedSteps = new ArrayList<>(words.size());
 		int stopWordIndex = 0;
 		int captureAt = -1;
+		int unstemmedAt = -1;
 		FulltextWordsAnalysisOperation captureNormalization = null;
-		for (final AnalysisStep step : words) {
+		for (int position = 0; position < words.size(); position++) {
+			final AnalysisStep step = words.get(position);
 			final FulltextWordsAnalysisStepFactory factory = resolve(
 				step, FulltextWordsAnalysisStepFactory.class, "a words step"
 			);
@@ -447,12 +500,20 @@ public final class FulltextChainCompiler {
 								wordOperations.toArray(FulltextWordsAnalysisOperation[]::new), tokenizer, side)));
 					}
 				}
+				if (position == unstemmedStep) {
+					unstemmedAt = wordOperations.size();
+				}
 				wordOperations.add(operation);
 				placedSteps.add(new PlacedStep(step.name(), operation.getTraits(side)));
 			}
 		}
 		if (!surfaceOnly) {
 			verifyPlacements(wordOperations, List.copyOf(placedSteps), side);
+		}
+		if (unstemmedAt >= 0) {
+			// the following steps were prepared and placed against the real stemmer; only the pass changes
+			final FulltextWordsAnalysisOperation stemming = wordOperations.get(unstemmedAt);
+			wordOperations.set(unstemmedAt, (stream, ignoredSide) -> stemming.wrapQuerySurface(stream));
 		}
 		return new CompiledChain(
 			textOperations.toArray(FulltextTextAnalysisOperation[]::new),

@@ -138,7 +138,7 @@ class FulltextAnalyzerValidationSchemaTest implements EvitaTestSupport {
 				session -> {
 					session.getCatalogSchema()
 						.openForWrite()
-						.withFulltextAnalyzer(ANALYZER_NAMES, a -> a.words(asciiFolding(), stemming()))
+						.withFulltextAnalyzer(ANALYZER_NAMES, a -> a.words(lowercase(), asciiFolding(), stemming()))
 						.updateVia(session);
 					defineProduct(session, CZECH);
 				}
@@ -163,7 +163,7 @@ class FulltextAnalyzerValidationSchemaTest implements EvitaTestSupport {
 			session -> {
 				session.getCatalogSchema()
 					.openForWrite()
-					.withFulltextAnalyzer(ANALYZER_NAMES, a -> a.words(asciiFolding(), stemming()))
+					.withFulltextAnalyzer(ANALYZER_NAMES, a -> a.words(lowercase(), asciiFolding(), stemming()))
 					.updateVia(session);
 				defineProduct(session, Locale.ENGLISH);
 			}
@@ -247,7 +247,7 @@ class FulltextAnalyzerValidationSchemaTest implements EvitaTestSupport {
 				session.getCatalogSchema().openForWrite()
 					.withFulltextResource("usedStops", wordList("the"))
 					.withFulltextResource("unusedStops", wordList("unused"))
-					.withFulltextAnalyzer(ANALYZER_NAMES, a -> a.words(stopWords(resource("usedStops"))))
+					.withFulltextAnalyzer(ANALYZER_NAMES, a -> a.words(lowercase(), stopWords(resource("usedStops"))))
 					.withFulltextAnalyzer("unusedAnalyzer", a -> a.words())
 					.updateVia(session);
 				defineProduct(session, Locale.ENGLISH);

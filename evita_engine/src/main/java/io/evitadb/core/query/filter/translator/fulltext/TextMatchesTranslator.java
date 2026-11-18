@@ -101,6 +101,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
@@ -1144,6 +1145,52 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	) { }
 
 	/**
+	 * Obtains exact query alternatives for a single analyzer using the planner's text-aware split and word chains.
+	 * Each outer row is a mandatory query word; its inner rows contain the original's and its parts' alternatives.
+	 * An empty term array marks a dropped word part, and a word all of whose parts are dropped is dropped. The outer
+	 * array retains the pre-filter word count that {@link FulltextPhaseOneScorer#MAX_QUERY_TOKENS} limits.
+	 *
+	 * @param analyzer the catalog's compiled chains
+	 * @param text the sample query text
+	 * @param indexTerms exact terms of the sample corpus, used by folded stop-word recognition
+	 * @return alternatives grouped exactly as in a homogeneous textMatches query
+	 */
+	@Nonnull
+	public static String[][][] analyzeAlternatives(
+		@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull String text, @Nonnull Set<String> indexTerms
+	) {
+		final TokenCollector collector = new TokenCollector();
+		analyzer.textSplitting().analyze(text, collector);
+		final QueryToken[] words = collector.getTokens();
+		final String[][][] alternatives = analyzeGroups(analyzer, words, true);
+		for (int i = 0; i < words.length; i++) {
+			for (int part = 0; part < alternatives[i].length; part++) {
+				final String[] terms = alternatives[i][part];
+				if (isDropped(analyzer, words[i].wordAt(part).surfaceForm(), terms,
+					() -> Arrays.stream(terms).anyMatch(indexTerms::contains))) {
+					alternatives[i][part] = new String[0];
+				}
+			}
+		}
+		return alternatives;
+	}
+
+	/**
+	 * Applies the exact query-word dropping rule before expansion or unfinished-word policy.
+	 * @param analyzer compiled stop-word preparations
+	 * @param surface original query-word surface
+	 * @param alternatives terms emitted by the word chain
+	 * @param knownToIndex lazy exact-term collision probe in the searched corpus
+	 * @return whether the word chain dropped the word or it is an unrepresented folded stop word
+	 */
+	private static boolean isDropped(
+		@Nonnull CompiledFulltextAnalyzer analyzer, @Nonnull String surface, @Nonnull String[] alternatives,
+		@Nonnull BooleanSupplier knownToIndex
+	) {
+		return alternatives.length == 0 || analyzer.isFoldedStopWord(surface) && !knownToIndex.getAsBoolean();
+	}
+
+	/**
 	 * Runs a group's word chain over every term of each shared word, separately for the original and each of its
 	 * parts. Position increments emitted inside the word chain never create a new query word; every nonempty emitted
 	 * term is an alternative of the original or part it was analyzed from.
@@ -1380,9 +1427,8 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					final String[] fragments = lastUnfinished ? group.fragments()[part] : new String[0];
 					final boolean hasFragment = expansion.expandsUnfinishedWord(fragments, lastUnfinished);
 					// Stop recognition depends on exact corpus collisions, never on a fuzzy neighbour.
-					final boolean dropped = alternatives.length == 0 ||
-						group.analyzer().isFoldedStopWord(word.surfaceForm()) &&
-							!isKnownToIndex(groupIndex, new QueryToken(word.surfaceForm(), alternatives));
+					final boolean dropped = isDropped(group.analyzer(), word.surfaceForm(), alternatives,
+						() -> isKnownToIndex(groupIndex, new QueryToken(word.surfaceForm(), alternatives)));
 					if (dropped && !hasFragment) {
 						continue;
 					}

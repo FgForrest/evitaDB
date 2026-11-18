@@ -181,7 +181,7 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 					a -> a.text(removeCharacters("-")).words(lowercase(), asciiFolding()))
 				.updateVia(session);
 			});
-			defineFields("joined", "joinedOther");
+			defineFields("joined", "joinedOther", Locale.ENGLISH);
 			put(1, Locale.ENGLISH, "USB-C", "USB-C");
 			for (final String text : new String[]{"USB-C", "usb-c", "USBC"}) {
 				assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, text, null, 1);
@@ -197,7 +197,7 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 				.withFulltextAnalyzer("joined", a -> a.text(removeCharacters("-")).words(lowercase()))
 				.withFulltextAnalyzer("plain", a -> a.words(lowercase())).updateVia(session);
 			});
-			defineFields("joined", "plain");
+			defineFields("joined", "plain", Locale.ENGLISH);
 			// Keep each split part more than two edits from the joined form, so typos cannot hide a boundary.
 			put(1, Locale.ENGLISH, "USB-TYPEC", "red");
 			put(2, Locale.ENGLISH, "red", "USB-TYPEC");
@@ -257,7 +257,7 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 				.withFulltextAnalyzer("stopX", a -> a.words(lowercase(), stopWords(resource("stop"))))
 				.updateVia(session);
 			});
-			defineFields("erase", "stopX");
+			defineFields("erase", "stopX", Locale.ENGLISH);
 			put(1, Locale.ENGLISH, "x red", "red");
 			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "x red", null, 1);
 		}
@@ -272,7 +272,7 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 				.withFulltextAnalyzer("possessive", a -> a.words(englishPossessive(), lowercase(),
 					stopWords(resource("stop")))).updateVia(session);
 			});
-			defineFields("possessive", "possessive");
+			defineFields("possessive", "possessive", Locale.ENGLISH);
 			put(1, Locale.ENGLISH, "café's red", "red");
 			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, Locale.ENGLISH, "cafe's red", null, 1);
 		}
@@ -395,8 +395,10 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 			defineFields("text", "plain");
 			put(1, CZECH, "čaj", "skladem");
 			FulltextFieldAnalysisFunctionalTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				// the English possessive step keeps the Czech terms but changes the fingerprint: the group goes stale
 				session.getCatalogSchema().openForWrite()
-					.withFulltextAnalyzer("plain", a -> a.words(lowercase())).updateVia(session);
+					.withFulltextAnalyzer("plain", a -> a.words(lowercase(), asciiFolding(), englishPossessive()))
+					.updateVia(session);
 			});
 			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, CZECH, "skladem", "body");
 			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, CZECH, "není čaj", null, 1);
@@ -409,14 +411,16 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 		void shouldReturnNothingWhenEveryFieldIsStale() {
 			FulltextFieldAnalysisFunctionalTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
 				session.getCatalogSchema().openForWrite()
-					.withFulltextAnalyzer("plain", a -> a.words(lowercase())).updateVia(session);
+					.withFulltextAnalyzer("plain", a -> a.words(lowercase(), asciiFolding())).updateVia(session);
 			});
 			defineFields("plain", "plain");
 			put(1, CZECH, "čaj", "skladem");
 			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, CZECH, "čaj", null, 1);
 			FulltextFieldAnalysisFunctionalTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				// the English possessive step keeps the Czech terms but changes the fingerprint: the group goes stale
 				session.getCatalogSchema().openForWrite()
-					.withFulltextAnalyzer("plain", a -> a.words(lowercase(), asciiFolding())).updateVia(session);
+					.withFulltextAnalyzer("plain", a -> a.words(lowercase(), asciiFolding(), englishPossessive()))
+					.updateVia(session);
 			});
 			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, CZECH, "čaj", null);
 			assertMatches(FulltextFieldAnalysisFunctionalTest.this.evita, CZECH, "skladem", null);
@@ -503,11 +507,27 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 		}
 	}
 
-	/** Defines two localized nullable fields with separately chosen analyzers. */
+	/**
+	 * Defines English and Czech searchable fields for tests covering both locales.
+	 * @param titleAnalyzer analyzer of the title field
+	 * @param bodyAnalyzer analyzer of the body field
+	 */
 	private void defineFields(@Nonnull String titleAnalyzer, @Nonnull String bodyAnalyzer) {
+		defineFields(titleAnalyzer, bodyAnalyzer, Locale.ENGLISH, CZECH);
+	}
+
+	/**
+	 * Defines two searchable fields in the locales exercised by the test.
+	 * @param titleAnalyzer analyzer of the title field
+	 * @param bodyAnalyzer analyzer of the body field
+	 * @param locales locales supported by both fields
+	 */
+	private void defineFields(
+		@Nonnull String titleAnalyzer, @Nonnull String bodyAnalyzer, @Nonnull Locale... locales
+	) {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(PRODUCT)
-				.withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH, CZECH)
+				.withoutGeneratedPrimaryKey().withLocale(locales)
 				.withAttribute("title", String.class,
 					a -> a.localized().nullable().searchable().analyzer(titleAnalyzer))
 				.withAttribute("body", String.class, a -> a.localized().nullable().searchable().analyzer(bodyAnalyzer))
@@ -533,9 +553,9 @@ class FulltextFieldAnalysisFunctionalTest implements EvitaTestSupport {
 				.withFulltextResource("stop", wordList("unused"))
 				.withFulltextAnalyzer("names", a -> {
 					if (stop) {
-						a.words(lowercase(), stopWords(resource("stop")), synonyms(resource("syn")));
+						a.words(lowercase(), asciiFolding(), stopWords(resource("stop")), synonyms(resource("syn")));
 					} else {
-						a.words(lowercase(), synonyms(resource("syn")));
+						a.words(lowercase(), asciiFolding(), synonyms(resource("syn")));
 					}
 				}).updateVia(session);
 		});

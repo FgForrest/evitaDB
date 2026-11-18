@@ -54,7 +54,7 @@ class FulltextTypoQueryFunctionalTest implements EvitaTestSupport {
 	/** Engine with the two-profile catalog, created for every test. */
 	private Evita evita;
 
-	/** Defines a folding profile and an independent case-sensitive profile. */
+	/** Defines a folding profile and an independent profile that keeps accents. */
 	@BeforeEach
 	void setUp() {
 		this.paths = createTestPaths("FulltextTypoQueryFunctionalTest");
@@ -64,11 +64,11 @@ class FulltextTypoQueryFunctionalTest implements EvitaTestSupport {
 			session.getCatalogSchema().openForWrite()
 				.withFulltextResource("stops", wordList("jako"))
 				.withFulltextAnalyzer("folded", a -> a.words(lowercase(), asciiFolding(), stopWords(resource("stops"))))
-				.withFulltextAnalyzer("sensitive", a -> a.words())
+				.withFulltextAnalyzer("accented", a -> a.words(lowercase()))
 				.updateVia(session);
 			session.defineEntitySchema("product").withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
 				.withAttribute("title", String.class, a -> a.localized().searchable().analyzer("folded"))
-				.withAttribute("brand", String.class, a -> a.localized().searchable().analyzer("sensitive"))
+				.withAttribute("brand", String.class, a -> a.localized().searchable().analyzer("accented"))
 				.updateVia(session);
 		});
 	}
@@ -289,13 +289,15 @@ class FulltextTypoQueryFunctionalTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("Isolates fields and profile groups including prefix normalization")
 		void shouldIsolateGroups() {
-			put(1, "blackberry", "CaféStore");
+			put(1, "ÉtageCup", "ÉtageCup");
 			put(2, "unused", "blaxkberry");
-			matches("blakcberry ", "title", 1);
-			matches("blakcberry ", null, 1, 2);
+			put(3, "blackberry", "unused");
+			matches("blakcberry ", "title", 3);
+			matches("blakcberry ", null, 2, 3);
 			matches("blakcberry ", "brand", 2);
-			matches("cafe", "brand");
-			matches("Café", "brand", 1);
+			matches("etage", "title", 1);
+			matches("etage", "brand");
+			matches("ÉTAGE", "brand", 1);
 		}
 	}
 	/** Lane readers must retain the field group's profile and typed normalization. */
