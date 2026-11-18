@@ -427,7 +427,15 @@ referenceSummaryRequirementsArgs :                  requirements += requireConst
 
 histogramStatistics1Args :                          argsOpening requestedBucketCount = valueToken ARGS_DELIMITER values = variadicValueTokens argsClosing ;
 
-histogramStatistics2Args :                          argsOpening requestedBucketCount = valueToken ARGS_DELIMITER entityFetch = requireConstraint ARGS_DELIMITER values = variadicValueTokens argsClosing ;
+histogramStatistics2Args
+	: argsOpening requestedBucketCount = valueToken ARGS_DELIMITER
+	(
+		(behavior = valueToken ARGS_DELIMITER)? fetchBeforeValues = requireConstraint ARGS_DELIMITER
+			values = variadicValueTokens
+		| values = variadicValueTokens ARGS_DELIMITER fetchAfterValues = requireConstraint
+	)
+	argsClosing
+	;
 
 attributeHistogramArgs :                            argsOpening requestedBucketCount = valueToken ARGS_DELIMITER values = variadicValueTokens argsClosing ;
 

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.parser.visitor;
 
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.parser.DefaultQueryParser;
@@ -32,12 +33,18 @@ import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.require.*;
+import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -3562,6 +3569,145 @@ class EvitaQLRequireConstraintVisitorTest {
 			histogramStatistics(20, entityFetch(attributeContent("code")), "priceIndex"),
 			constraint
 		);
+	}
+
+	/**
+	 * Tests the printed representation of histogram statistics with a nested fetch.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Histogram statistics with a nested fetch")
+	class HistogramFetchRoundTripTest {
+
+		/**
+		 * Checks the literal and positional parameter output for a single index and multiple indexes.
+		 *
+		 * @param explicitBehavior whether to set a histogram behavior
+		 * @param multipleIndexes whether to use more than one histogram index
+		 */
+		@ParameterizedTest
+		@CsvSource({"false, false", "false, true", "true, false", "true, true"})
+		@DisplayName("Parse the Java output with and without an explicit behavior")
+		void shouldParsePrintedHistogramStatisticsWhenFetchIsLast(boolean explicitBehavior, boolean multipleIndexes) {
+			final EntityFetch fetch = entityFetch(attributeContent("code"));
+			final String[] indexNames = multipleIndexes
+				? new String[]{"priceIndex", "ratingIndex"}
+				: new String[]{"priceIndex"};
+			final RequireConstraint original = explicitBehavior
+				? histogramStatistics(20, HistogramBehavior.OPTIMIZED, fetch, indexNames)
+				: histogramStatistics(20, fetch, indexNames);
+			final Query query = Query.query(collection("product"), require(original));
+			final StringWithParameters extracted = query.toStringWithParameterExtraction();
+
+			assertAll(
+				() -> assertEquals(original, parseRequireConstraintUnsafe(original.toString())),
+				() -> assertEquals(
+					query,
+					DefaultQueryParser.getInstance()
+						.parseQuery(extracted.query(), new ArrayList<>(extracted.parameters()))
+				)
+			);
+		}
+
+		/**
+		 * Checks named bindings in the printed argument order.
+		 */
+		@Test
+		@DisplayName("Bind named parameters when the fetch follows the index names")
+		void shouldBindNamedParametersWhenHistogramFetchIsLast() {
+			final RequireConstraint original = histogramStatistics(
+				20, HistogramBehavior.OPTIMIZED, entityFetch(attributeContent("code")), "priceIndex", "ratingIndex"
+			);
+
+			assertEquals(
+				original,
+				parseRequireConstraint(
+					"histogramStatistics(@buckets,@behavior,@price,@rating,entityFetch(attributeContent(@attribute)))",
+					Map.of("buckets", 20, "behavior", HistogramBehavior.OPTIMIZED, "price", "priceIndex",
+						"rating", "ratingIndex", "attribute", "code")
+				)
+			);
+		}
+
+		/**
+		 * Checks that the nested histogram survives printing and parsing in each reference summary spelling.
+		 *
+		 * @param namedReference whether the summary targets a single reference
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Parse a printed reference summary containing a histogram with a fetch")
+		void shouldParsePrintedHistogramStatisticsWhenNestedInReferenceSummary(boolean namedReference) {
+			final ReferenceHistogramStatistics histogram =
+				histogramStatistics(20, entityFetch(attributeContent("code")), "priceIndex");
+			final RequireConstraint original = namedReference
+				? referenceSummaryOfReferenceWithHistograms("parameter", IMPACT, null, null, histogram)
+				: referenceSummaryWithHistograms(IMPACT, null, null, histogram);
+			final String printed = original.toString();
+
+			assertAll(
+				() -> assertEquals(original, parseRequireConstraintUnsafe(printed)),
+				() -> assertEquals(original, parseRequireConstraintUnsafe(printed.replace("WithHistograms(", "(")))
+			);
+		}
+
+		/**
+		 * Checks the documented order with an explicit behavior before the fetch and an index name after it.
+		 */
+		@Test
+		@DisplayName("Parse the documented histogram statistics example")
+		void shouldParseDocumentedHistogramStatisticsWhenBehaviorPrecedesFetch() {
+			assertEquals(
+				histogramStatistics(
+					20, HistogramBehavior.STANDARD, entityFetch(attributeContent("code")), "priceIndex"
+				),
+				parseRequireConstraintUnsafe(
+					"histogramStatistics(20, STANDARD, entityFetch(attributeContent('code')), \"priceIndex\")"
+				)
+			);
+		}
+
+		/**
+		 * Checks that positional parameters follow the query order for either placement of the optional behavior
+		 * when the fetch precedes the index names.
+		 */
+		@Test
+		@DisplayName("Bind each positional parameter in query order when the fetch precedes the indexes")
+		void shouldBindPositionalParametersWhenHistogramFetchPrecedesIndexes() {
+			final RequireConstraint original = histogramStatistics(
+				20, HistogramBehavior.OPTIMIZED, entityFetch(attributeContent("code")), "priceIndex"
+			);
+
+			assertAll(
+				() -> assertEquals(original, parseRequireConstraint(
+					"histogramStatistics(?, ?, entityFetch(attributeContent(?)), ?)",
+					20, HistogramBehavior.OPTIMIZED, "code", "priceIndex"
+				)),
+				() -> assertEquals(original, parseRequireConstraint(
+					"histogramStatistics(?, entityFetch(attributeContent(?)), ?, ?)",
+					20, "code", HistogramBehavior.OPTIMIZED, "priceIndex"
+				))
+			);
+		}
+
+		/**
+		 * Checks the child type restriction on facet summaries.
+		 *
+		 * @param prefix facet summary name and any arguments preceding the histogram
+		 */
+		@ParameterizedTest
+		@ValueSource(strings = {"facetSummary(", "facetSummaryOfReference('parameter',"})
+		@DisplayName("Reject histogram statistics as a child of a facet summary")
+		void shouldRejectHistogramStatisticsWhenNestedInFacetSummary(@Nonnull String prefix) {
+			final EvitaSyntaxException exception = assertThrows(
+				EvitaSyntaxException.class,
+				() -> parseRequireConstraintUnsafe(
+					prefix + "histogramStatistics(20,'priceIndex',entityFetch(attributeContent('code'))))"
+				)
+			);
+			assertTrue(exception.getMessage().contains("Invalid child constraint `histogramStatistics`"));
+		}
 	}
 
 	@Test

@@ -2070,46 +2070,70 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		);
 	}
 
+	/**
+	 * Parses histogram statistics without an entity fetch.
+	 *
+	 * @param ctx histogram statistics constraint
+	 * @return parsed histogram statistics, or null when no index names are provided
+	 */
+	@Nullable
 	@Override
-	public RequireConstraint visitHistogramStatistics1Constraint(HistogramStatistics1ConstraintContext ctx) {
+	public RequireConstraint visitHistogramStatistics1Constraint(@Nonnull HistogramStatistics1ConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> buildHistogramStatistics(ctx, ctx.args.requestedBucketCount, null, ctx.args.values)
+			() -> buildHistogramStatistics(ctx, ctx.args.requestedBucketCount, null, null, ctx.args.values, null)
 		);
 	}
 
+	/**
+	 * Parses histogram statistics with an entity fetch on either side of the index names.
+	 *
+	 * @param ctx histogram statistics constraint
+	 * @return parsed histogram statistics, or null when no index names are provided
+	 */
+	@Nullable
 	@Override
-	public RequireConstraint visitHistogramStatistics2Constraint(HistogramStatistics2ConstraintContext ctx) {
+	public RequireConstraint visitHistogramStatistics2Constraint(@Nonnull HistogramStatistics2ConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> buildHistogramStatistics(ctx, ctx.args.requestedBucketCount, ctx.args.entityFetch, ctx.args.values)
+			() -> buildHistogramStatistics(
+				ctx, ctx.args.requestedBucketCount, ctx.args.behavior, ctx.args.fetchBeforeValues,
+				ctx.args.values, ctx.args.fetchAfterValues
+			)
 		);
 	}
 
 	/**
 	 * Common builder for {@link ReferenceHistogramStatistics}. The variadic value list may carry an
 	 * optional {@link HistogramBehavior} enum as its first element (matching the in-memory constructor
-	 * shape shared with {@link AttributeHistogram}), followed by histogram index names. An empty bound list
-	 * omits the requirement. A leading null in an explicit argument sequence stands for the default behaviour.
+	 * shape shared with {@link AttributeHistogram}), followed by histogram index names. The behavior can also
+	 * precede a fetch that comes before the index names. An empty bound list omits the requirement. A leading null
+	 * in an explicit argument sequence stands for the default behavior.
 	 * The arguments are visited in the order they appear in the query, because each positional parameter takes the
 	 * next bound value when it is visited.
 	 *
 	 * @param ctx histogram statistics constraint
 	 * @param requestedBucketCountArg requested bucket count token
-	 * @param entityFetchArg optional fetch requirement, not yet visited
+	 * @param behaviorArg optional behavior token preceding the fetch
+	 * @param fetchBeforeValuesArg optional fetch preceding the value list
 	 * @param valuesArg optional behavior followed by histogram index names
+	 * @param fetchAfterValuesArg optional fetch following the value list
 	 * @return the histogram statistics requirement, or null when no index names are provided
 	 */
 	@Nullable
 	private ReferenceHistogramStatistics buildHistogramStatistics(
 		@Nonnull RequireConstraintContext ctx,
 		@Nonnull ValueTokenContext requestedBucketCountArg,
-		@Nullable RequireConstraintContext entityFetchArg,
-		@Nonnull VariadicValueTokensContext valuesArg
+		@Nullable ValueTokenContext behaviorArg,
+		@Nullable RequireConstraintContext fetchBeforeValuesArg,
+		@Nonnull VariadicValueTokensContext valuesArg,
+		@Nullable RequireConstraintContext fetchAfterValuesArg
 	) {
 		final int requestedBucketCount = requestedBucketCountArg.accept(this.intValueTokenVisitor).asRequiredInt();
-		final EntityFetch entityFetch = entityFetchArg == null ?
-			null : visitChildConstraint(entityFetchArg, EntityFetch.class);
+		final HistogramBehavior explicitBehavior = behaviorArg == null ? null :
+			behaviorArg.accept(this.histogramBehaviorValueTokenVisitor).asEnum(HistogramBehavior.class);
+		final EntityFetch fetchBeforeValues = fetchBeforeValuesArg == null ?
+			null : visitChildConstraint(fetchBeforeValuesArg, EntityFetch.class);
 
 		final LinkedList<Serializable> args = Arrays.stream(valuesArg
 				.accept(this.attributeHistogramArgValueTokenVisitor)
@@ -2117,19 +2141,28 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			.collect(Collectors.toCollection(LinkedList::new));
 
 		final HistogramBehavior behavior;
-		consumeLeadingNullEnumDefault(valuesArg, args);
-		final Serializable firstArgument = args.peekFirst();
-		if (firstArgument instanceof HistogramBehavior) {
-			behavior = castArgument(ctx, args.pop(), HistogramBehavior.class);
-		} else if (firstArgument instanceof EnumWrapper enumWrapper && enumWrapper.canBeMappedTo(HistogramBehavior.class)) {
-			behavior = castArgument(ctx, args.pop(), EnumWrapper.class).toEnum(HistogramBehavior.class);
+		if (behaviorArg != null) {
+			behavior = explicitBehavior;
 		} else {
-			behavior = null;
+			consumeLeadingNullEnumDefault(valuesArg, args);
+			final Serializable firstArgument = args.peekFirst();
+			if (firstArgument instanceof HistogramBehavior histogramBehavior) {
+				behavior = histogramBehavior;
+				args.pop();
+			} else if (firstArgument instanceof EnumWrapper enumWrapper &&
+				enumWrapper.canBeMappedTo(HistogramBehavior.class)) {
+				behavior = enumWrapper.toEnum(HistogramBehavior.class);
+				args.pop();
+			} else {
+				behavior = null;
+			}
 		}
 
 		final String[] indexNames = parseVariadicTail(ctx, args,
 			EvitaQLValueTokenVisitor.withAllowedTypes(String.class))
 			.asStringArray();
+		final EntityFetch entityFetch = fetchAfterValuesArg == null ?
+			fetchBeforeValues : visitChildConstraint(fetchAfterValuesArg, EntityFetch.class);
 
 		return QueryConstraints.histogramStatistics(requestedBucketCount, behavior, entityFetch, indexNames);
 	}

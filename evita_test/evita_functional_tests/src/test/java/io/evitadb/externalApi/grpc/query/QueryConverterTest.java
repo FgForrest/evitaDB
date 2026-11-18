@@ -33,6 +33,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HierarchyParentsBehaviour;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -63,9 +64,14 @@ import java.util.Locale;
 import java.util.Map;
 
 import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
+import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
+import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
@@ -290,6 +296,33 @@ class QueryConverterTest {
 			.toList();
 		assertTrue(encoded.stream().anyMatch(GrpcQueryParam::hasCurrencyValue));
 		assertTrue(encoded.stream().anyMatch(GrpcQueryParam::hasLocaleValue));
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
+	}
+
+	/**
+	 * Checks that the server parses a reference histogram and its fetch from the Java client's query and parameters.
+	 */
+	@Test
+	@DisplayName("Round-trip histogram statistics with a nested fetch through the gRPC query converter")
+	void shouldRoundTripHistogramStatisticsWhenFetchHasParameters() {
+		final Query original = query(
+			collection("product"),
+			require(referenceSummaryWithHistograms(
+				FacetStatisticsDepth.COUNTS, null, null,
+				histogramStatistics(
+					20, HistogramBehavior.OPTIMIZED, entityFetch(attributeContent("code")), "priceIndex", "ratingIndex"
+				)
+			))
+		).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
 
 		final QueryWithParameters parsed = QueryUtil.parseQuery(
 			extracted.query(), encoded, Map.of(), null,
