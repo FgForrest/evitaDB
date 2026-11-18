@@ -39,8 +39,11 @@ import java.util.function.Consumer;
  * implementations:
  *
  * - {@link SinglePriceEntityPrices}: maintains only single price (with or without inner record id)
- * - {@link MultiplePriceEntityPrices}: maintains multiple prices that are not linked to inner record id
- * - {@link FullBlownEntityPrices}: maintains multiple prices (with or without inner record id)
+ * - {@link MultiplePriceEntityPrices}: maintains multiple prices whose inner record ids play no role - the prices carry
+ *   none, or they belong to an index of entities without inner record handling, where an inner record id has no
+ *   meaning and all prices of the entity compete for a single place
+ * - {@link FullBlownEntityPrices}: maintains multiple prices (with or without inner record id) and the lowest one of
+ *   each inner record
  *
  * These implementations are divided into three variants to optimize memory - i.e. to keep data structures
  * with a minimal set of fields to reduce heap memory consumption.
@@ -78,22 +81,44 @@ public abstract class EntityPrices {
 	protected static final Comparator<PriceRecordContract> PRICE_ID_COMPARATOR =
 		Comparator.comparingInt(PriceRecordContract::internalPriceId);
 	/**
-	 * Comparator that orders {@link PriceRecordContract} by
-	 * {@link PriceRecordContract#priceWithoutTax()} first, then by
-	 * {@link PriceRecordContract#internalPriceId()} to break ties.
+	 * Comparator that picks the lowest price of a group - the prices of one inner record, or all prices of an entity
+	 * whose inner record ids play no role: it orders {@link PriceRecordContract} by
+	 * {@link PriceRecordContract#priceWithoutTax()} first, then by {@link PriceRecordContract#priceId()} to break ties.
+	 *
+	 * The tie-break reads the price id the entity knows the price by, never the internal price id, which merely
+	 * follows the order the prices happened to be indexed in. Within the prices of one entity in one price list and
+	 * currency the price id is unique, so the order is total.
+	 *
+	 * The comparator only picks a winner - no array is sorted or searched by it; {@link #PRICE_ID_COMPARATOR} is the
+	 * order the holders keep and search. It compares the price without tax whatever the query price mode. The entity
+	 * side (`PricesContract`) selects among several prices of one inner record in one price list by the very same
+	 * rule, so the two agree on the price that stands for the group - except for amounts with more decimal places
+	 * than the schema indexes, which this comparator sees rounded.
 	 */
 	protected static final Comparator<PriceRecordContract> WITHOUT_TAX_COMPARATOR =
 		Comparator.comparingInt(PriceRecordContract::priceWithoutTax)
-			.thenComparing(PriceRecordContract::internalPriceId);
+			.thenComparingInt(PriceRecordContract::priceId);
 
 	/**
 	 * Creates duplicate of the `original` DTO adding new `priceRecord` to it in the process.
+	 *
+	 * @param original             the holder of the entity's prices so far
+	 * @param priceRecord          the price record to add
+	 * @param groupedByInnerRecord `true` when the index keeps the lowest price of each inner record (inner record
+	 *                             handling `LOWEST_PRICE` and `SUM`), `false` when an inner record id has no meaning
+	 *                             and the index keeps a single lowest price of the entity (inner record handling
+	 *                             `NONE`)
+	 * @return the new holder
 	 */
 	@Nonnull
-	public static EntityPrices addPriceRecord(@Nonnull EntityPrices original, @Nonnull PriceRecordContract priceRecord) {
+	public static EntityPrices addPriceRecord(
+		@Nonnull EntityPrices original,
+		@Nonnull PriceRecordContract priceRecord,
+		boolean groupedByInnerRecord
+	) {
 		if (original.isEmpty()) {
 			return new SinglePriceEntityPrices(priceRecord);
-		} else if (priceRecord.isInnerRecordSpecific() || original.isInnerRecordSpecific()) {
+		} else if (needsInnerRecordGrouping(original, priceRecord, groupedByInnerRecord)) {
 			return new FullBlownEntityPrices(
 				original.computePricesAdding(priceRecord)
 			);
@@ -102,6 +127,24 @@ public abstract class EntityPrices {
 				original.computePricesAdding(priceRecord)
 			);
 		}
+	}
+
+	/**
+	 * Tells whether the holder of the entity's prices must keep the lowest price of each inner record: only in an index
+	 * that groups the prices by inner record, and only when the added or removed record or a record held so far is
+	 * {@link PriceRecordContract#isInnerRecordSpecific() inner record specific}.
+	 *
+	 * @param original             the holder of the entity's prices so far
+	 * @param priceRecord          the price record added or removed
+	 * @param groupedByInnerRecord `true` when the index keeps the lowest price of each inner record
+	 * @return `true` when the new holder keeps the lowest price of each inner record
+	 */
+	private static boolean needsInnerRecordGrouping(
+		@Nonnull EntityPrices original,
+		@Nonnull PriceRecordContract priceRecord,
+		boolean groupedByInnerRecord
+	) {
+		return groupedByInnerRecord && (priceRecord.isInnerRecordSpecific() || original.isInnerRecordSpecific());
 	}
 
 	/**
@@ -115,16 +158,27 @@ public abstract class EntityPrices {
 	/**
 	 * Creates duplicate of the `original` DTO removing existing `priceRecord` from it in the process.
 	 * Method doesn't check the existence of the price in the DTO - it should be checked elsewhere.
+	 *
+	 * @param original             the holder of the entity's prices so far
+	 * @param priceRecord          the price record to remove
+	 * @param groupedByInnerRecord `true` when the index keeps the lowest price of each inner record, `false` when it
+	 *                             keeps a single lowest price of the entity - see
+	 *                             {@link #addPriceRecord(EntityPrices, PriceRecordContract, boolean)}
+	 * @return the new holder
 	 */
 	@Nonnull
-	public static EntityPrices removePrice(@Nonnull EntityPrices original, @Nonnull PriceRecordContract priceRecord) {
+	public static EntityPrices removePrice(
+		@Nonnull EntityPrices original,
+		@Nonnull PriceRecordContract priceRecord,
+		boolean groupedByInnerRecord
+	) {
 		if (original.getSize() < 2) {
 			return SinglePriceEntityPrices.EMPTY;
 		} else if (original.getSize() < 3) {
 			final PriceRecordContract[] priceRecords = original.computePricesRemoving(priceRecord);
 			Assert.isPremiseValid(priceRecords.length == 1, "Expected single result!");
 			return new SinglePriceEntityPrices(priceRecords[0]);
-		} else if (priceRecord.isInnerRecordSpecific() || original.isInnerRecordSpecific()) {
+		} else if (needsInnerRecordGrouping(original, priceRecord, groupedByInnerRecord)) {
 			return new FullBlownEntityPrices(original.computePricesRemoving(priceRecord));
 		} else {
 			return new MultiplePriceEntityPrices(original.computePricesRemoving(priceRecord));

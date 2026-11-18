@@ -187,7 +187,11 @@ public class SetReferenceSchemaIndexedMutationConverter
 	@Nonnull
 	public SetReferenceSchemaIndexedMutation convert(@Nonnull GrpcSetReferenceSchemaIndexedMutation mutation) {
 		if (mutation.getInherited()) {
-			return new SetReferenceSchemaIndexedMutation(mutation.getName(), (ScopedReferenceIndexType[]) null);
+			// a mutation inheriting the index types may still declare components; without them it leaves the
+			// components as they are - the message cannot tell that from declaring none
+			return new SetReferenceSchemaIndexedMutation(
+				mutation.getName(), null, getIndexedComponentsInScopes(mutation.getScopedIndexedComponentsList())
+			);
 		}
 
 		final ScopedReferenceIndexType[] indexedInScopes = resolveIndexedInScopes(

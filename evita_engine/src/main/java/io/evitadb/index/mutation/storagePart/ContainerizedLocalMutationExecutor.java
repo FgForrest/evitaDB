@@ -24,6 +24,7 @@
 package io.evitadb.index.mutation.storagePart;
 
 import com.carrotsearch.hppc.IntHashSet;
+import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
@@ -36,6 +37,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor;
@@ -58,6 +60,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMut
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.data.structure.PriceAmbiguityVerifier;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
@@ -107,6 +110,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStorag
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart.MissingReferenceBehavior;
+import io.evitadb.spi.store.catalog.shared.model.PriceWithInternalIds;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
@@ -194,6 +198,20 @@ public final class ContainerizedLocalMutationExecutor
 	private Map<Locale, AttributesStoragePart> languageSpecificAttributesContainer;
 	private Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataContainers;
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
+	/**
+	 * Keys of the prices this mutation set added, revived, or moved to another validity or inner record - the only
+	 * prices that can make the entity's prices ambiguous. Each upsert is judged against the price the previous
+	 * mutation of the set left, so a price removed and set again unchanged within the set counts as revived. A price
+	 * moved more than once is named more than once, which the check tolerates. `null` until the first such price; an
+	 * entity whose prices were not touched pays nothing in {@link #verifyConsistency()}.
+	 */
+	@Nullable private List<PriceKey> touchedPriceKeys;
+	/**
+	 * True when a mutation of this set changed the price inner record handling of the entity from the one the previous
+	 * mutation left - which changes the group every price competes in and so touches all of them. It stays set even
+	 * when a later mutation of the set restores the original handling.
+	 */
+	private boolean priceInnerRecordHandlingChanged;
 	private ReferenceKeyManager referenceKeyManager;
 	@Nullable private Map<Locale, EnumSet<LocaleScope>> addedLocales;
 	@Nullable private Map<Locale, EnumSet<LocaleScope>> removedLocales;
@@ -420,10 +438,10 @@ public final class ContainerizedLocalMutationExecutor
 	 * goes through this method for that reason; adding one that calls `fetch` directly reopens the hole.
 	 *
 	 * The same obligation holds at the read sites this helper cannot reach, and is met at each of them instead:
-	 * `ReferencedEntityAttributeValueProvider#getAttributeValues`,
-	 * `ReferenceAttributeDeltaResolver#getInitialAttributeValue`, and the binary entity read in
-	 * `DefaultEntityCollectionPersistenceService`. The rule they all follow is the same: a consumer that needs an
-	 * entity's whole reference set BINDS the unrestricted coverage; it never assumes the thread carries none.
+	 * `ReferencedEntityAttributeValueProvider#getAttributeValues` and
+	 * `ReferenceAttributeDeltaResolver#getInitialAttributeValue`. The rule they all follow is the same: a consumer
+	 * that needs an entity's whole reference set BINDS the unrestricted coverage; it never assumes the thread
+	 * carries none.
 	 *
 	 * @param dataStoreReader    reader to fetch the part from
 	 * @param entityPrimaryKey   primary key of the entity whose references are read
@@ -1545,7 +1563,63 @@ public final class ContainerizedLocalMutationExecutor
 					.filter(ReferencesStoragePart::isDirty)
 					.ifPresent(this::verifyReferenceCardinalities);
 			}
+			if (this.touchedPriceKeys != null || this.priceInnerRecordHandlingChanged) {
+				verifyPricesNotAmbiguous();
+			}
 		}
+	}
+
+	/**
+	 * Verifies that no price this mutation set touched competes with another price of the entity for the price for
+	 * sale: two existing prices of one group - one inner record (any inner record when the entity has no inner record
+	 * handling) in one price list and currency - must not be valid at a common moment. The raw mutations of the
+	 * external APIs and of the Java client reach the server without passing a builder, so the server applies the check
+	 * the entity builders apply ({@link PriceAmbiguityVerifier}) to the end state of the mutation set, where a removal
+	 * and an upsert of the same set are already combined.
+	 *
+	 * Only pairs with a touched price are checked, so an entity that already holds an ambiguous pair stays updatable
+	 * as long as the pair is left alone. A change of the inner record handling touches every price. Which prices are
+	 * touched is decided mutation by mutation ({@link #touchedPriceKeys}, {@link #priceInnerRecordHandlingChanged}),
+	 * not against the state before the set: a price removed and set again unchanged, or a handling changed and
+	 * restored, within one set still counts, whereas an entity builder cancels such a pair out before it sends its
+	 * mutations. The prices are taken from the prices part this executor already holds - the part was loaded by the
+	 * first price mutation - so the check reads nothing from the storage. For `k` touched prices of an entity with
+	 * `n` prices it costs `O(k log k)` comparisons to sort the touched prices and `O(n log k)` comparisons to look up
+	 * the touched neighbour of every price, whatever the number of prices in one group - `O(n log n)` when all prices
+	 * are touched, as in a bulk insert or a change of the inner record handling. It allocates an array of `k`
+	 * references - of `n` when the handling changed - and the temporary array the sort may need.
+	 *
+	 * @throws AmbiguousPriceException when a touched price competes with another price of the entity
+	 */
+	private void verifyPricesNotAmbiguous() {
+		final PricesStoragePart pricesPart = this.pricesContainer;
+		if (pricesPart == null) {
+			return;
+		}
+		final PriceWithInternalIds[] prices = pricesPart.getPrices();
+		// collect the touched prices that exist in the end state
+		final PriceContract[] touched;
+		int touchedCount = 0;
+		if (this.priceInnerRecordHandlingChanged) {
+			touched = new PriceContract[prices.length];
+			for (final PriceWithInternalIds price : prices) {
+				if (price.exists()) {
+					touched[touchedCount++] = price;
+				}
+			}
+		} else {
+			final List<PriceKey> touchedKeys = Objects.requireNonNull(this.touchedPriceKeys);
+			touched = new PriceContract[touchedKeys.size()];
+			for (final PriceKey touchedKey : touchedKeys) {
+				final PriceWithInternalIds price = pricesPart.getPriceByKey(touchedKey);
+				if (price != null && price.exists()) {
+					touched[touchedCount++] = price;
+				}
+			}
+		}
+		PriceAmbiguityVerifier.verifyPricesNotAmbiguous(
+			prices, prices.length, touched, touchedCount, pricesPart.getPriceInnerRecordHandling()
+		);
 	}
 
 	@Nonnull
@@ -1646,6 +1720,22 @@ public final class ContainerizedLocalMutationExecutor
 						this.referencesStorageContainer, List.of(), mutationCollector,
 						EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)
 					);
+					if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
+						// a reference written together with the scope change gets its default values and the
+						// mandatory check exactly as it would without one - the same selection as the branch below
+						verifyReferenceAttributes(
+							targetEntityScope,
+							this.entityContainer,
+							selectReferencesToVerify(
+								this.referencesStorageContainer != null && this.referencesStorageContainer.isDirty()
+							),
+							inputMutations,
+							missingMandatedAttributes,
+							mutationCollector,
+							implicitMutationBehavior,
+							false
+						);
+					}
 				} else {
 					final boolean referencesDirty = this.referencesStorageContainer != null
 						&& this.referencesStorageContainer.isDirty();
@@ -1661,32 +1751,11 @@ public final class ContainerizedLocalMutationExecutor
 						);
 					}
 					if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
-						// Attribute verification does NOT share that trigger, because an added entity locale makes
-						// references non-compliant without touching any of them:
-						// `processReferenceAttributesWithDefaultValue` iterates the ENTITY locales for every
-						// localized mandatory / default-valued attribute. A batch that only writes a localized
-						// attribute or associated-data value in a locale the entity did not yet declare therefore
-						// leaves every existing reference short of that locale's value, and the reference container
-						// never becomes dirty to say so - it is usually not even loaded.
-						//
-						// Gating on the dirty flag alone made the outcome depend on an unrelated co-mutation: the
-						// same locale introduced alongside any reference write repaired EVERY reference, and
-						// introduced on its own repaired none. Loading the container for the locale-added case
-						// costs one storage read on a batch that adds an entity locale, which is rare; a clean
-						// container is never persisted (`addIfDirty`) and never sorted again
-						// (`assignMissingIdsAndSort` short-circuits once primary keys are assigned).
-						final ReferencesStoragePart referencesToVerify;
-						if (referencesDirty) {
-							referencesToVerify = this.referencesStorageContainer;
-						} else if (hasAddedEntityLocale()) {
-							referencesToVerify = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
-						} else {
-							referencesToVerify = null;
-						}
+						// attribute verification does NOT share that trigger - see `selectReferencesToVerify` for why
 						verifyReferenceAttributes(
 							targetEntityScope,
 							this.entityContainer,
-							referencesToVerify,
+							selectReferencesToVerify(referencesDirty),
 							inputMutations,
 							missingMandatedAttributes,
 							mutationCollector,
@@ -2990,15 +3059,49 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	/**
+	 * Picks the references of an existing entity whose attributes {@link #verifyReferenceAttributes} checks: the
+	 * reference container when the batch dirtied it, the stored container when the batch added an entity locale, and
+	 * none otherwise.
+	 *
+	 * The choice is not gated on the dirty flag alone, because an added entity locale makes references non-compliant
+	 * without touching any of them: `processReferenceAttributesWithDefaultValue` iterates the ENTITY locales for every
+	 * localized mandatory / default-valued attribute. A batch that only writes a localized attribute or
+	 * associated-data value in a locale the entity did not yet declare therefore leaves every existing reference short
+	 * of that locale's value, and the reference container never becomes dirty to say so - it is usually not even
+	 * loaded.
+	 *
+	 * Gating on the dirty flag alone made the outcome depend on an unrelated co-mutation: the same locale introduced
+	 * alongside any reference write repaired EVERY reference, and introduced on its own repaired none. Loading the
+	 * container for the locale-added case costs one storage read on a batch that adds an entity locale, which is rare;
+	 * a clean container is never persisted (`addIfDirty`) and never sorted again (`assignMissingIdsAndSort`
+	 * short-circuits once primary keys are assigned).
+	 *
+	 * @param referencesDirty whether the reference container is dirty, read by the caller at the moment its branch
+	 *                        requires
+	 * @return the references to verify, or `null` when there is nothing to verify
+	 */
+	@Nullable
+	private ReferencesStoragePart selectReferencesToVerify(boolean referencesDirty) {
+		if (referencesDirty) {
+			return this.referencesStorageContainer;
+		} else if (hasAddedEntityLocale()) {
+			return getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
+		} else {
+			return null;
+		}
+	}
+
+	/**
 	 * Tells whether this entity application added an entity-scoped locale.
 	 *
 	 * Only {@link LocaleScope#ENTITY} counts: it is registered solely when the entity's own locale set actually
 	 * changed, so an attribute written in a locale the entity already declares does not trigger it.
 	 *
-	 * Answers two questions in {@link #popImplicitMutations}, and they are easy to confuse. It decides **whether**
-	 * an existing entity's references are verified at all when the reference container is clean - a locale-only
-	 * batch would otherwise be skipped entirely - and, once verification runs, **how much** of the container it
-	 * covers, by sending {@link #verifyReferenceAttributes} back to the full scan.
+	 * Answers two questions for an existing entity, with or without a scope change, and they are easy to confuse. It
+	 * decides **whether** the entity's references are verified at all when the reference container is clean - a
+	 * locale-only batch would otherwise be skipped entirely ({@link #selectReferencesToVerify}) - and, once
+	 * verification runs, **how much** of the container it covers, by sending {@link #verifyReferenceAttributes} back
+	 * to the full scan.
 	 *
 	 * @return true when at least one added locale carries {@link LocaleScope#ENTITY}
 	 */
@@ -3136,17 +3239,17 @@ public final class ContainerizedLocalMutationExecutor
 						final Scope counterpartScope = findScopeOfReferencedEntity(dataStoreReader, referenceKey.primaryKey());
 						if (counterpartScope != null) {
 							// if the current reference is a reflected reference
-							if (referenceSchema instanceof ReflectedReferenceSchemaContract rrsc) {
+							if (referenceSchema instanceof ReflectedReferenceSchema rrsc) {
 								final Optional<ReferenceSchemaContract> counterpartSchema = catalogSchema
 									.getEntitySchema(rrsc.getReferencedEntityType())
 									.flatMap(it -> it.getReference(rrsc.getReflectedReferenceName()));
-								final boolean attributeVisibleFromOtherSide = counterpartSchema
-									.flatMap(it -> it.getAttribute(ram.getAttributeKey().attributeName()))
-									.isPresent();
+								final boolean attributeSharedWithCounterpart = counterpartSchema.isPresent() &&
+									rrsc.getInheritedAttributes().contains(ram.getAttributeKey().attributeName());
 								// create a mutation to counterpart reference in the referenced entity, but only if
-								// the attribute is visible from that point of view and the relation is maintained
-								// for the current scope span (an invisible mirror would not exist to update)
-								if (attributeVisibleFromOtherSide &&
+								// the attribute is inherited - a same-named local declaration is independent of the
+								// original - and the relation is maintained for the current scope span (an
+								// invisible mirror would not exist to update)
+								if (attributeSharedWithCounterpart &&
 									isRelationMaintained(referenceSchema, counterpartSchema.get(), scope, counterpartScope)) {
 									final ReferenceKey referenceKeyToUpdate = new ReferenceKey(
 										rrsc.getReflectedReferenceName(), this.entityPrimaryKey,
@@ -3175,13 +3278,13 @@ public final class ContainerizedLocalMutationExecutor
 									final ReflectedReferenceSchema rrsc = reflectedReferenceSchema.get();
 									// if such is found, create a mutation to counterpart reflected reference
 									// in the referenced entity
-									final boolean attributeVisibleFromOtherSide = rrsc.getAttribute(
-										ram.getAttributeKey().attributeName()
-									).isPresent();
+									final boolean attributeSharedWithCounterpart = rrsc.getInheritedAttributes()
+										.contains(ram.getAttributeKey().attributeName());
 									// create a mutation to counterpart reference in the referenced entity, but only
-									// if the attribute is visible from that point of view and the relation is
-									// maintained for the current scope span (a discarded mirror cannot be updated)
-									if (attributeVisibleFromOtherSide &&
+									// if the reflection inherits the attribute - a same-named local declaration
+									// there is independent - and the relation is maintained for the current scope
+									// span (a discarded mirror cannot be updated)
+									if (attributeSharedWithCounterpart &&
 										isRelationMaintained(referenceSchema, rrsc, scope, counterpartScope)) {
 										final ReferenceKey referenceKeyToUpdate = new ReferenceKey(
 											rrsc.getName(), this.entityPrimaryKey,
@@ -3880,7 +3983,21 @@ public final class ContainerizedLocalMutationExecutor
 		// add or replace price in the container
 		pricesStorageContainer.replaceOrAddPrice(
 			localMutation.getPriceKey(),
-			priceContract -> localMutation.mutateLocal(entitySchema, priceContract),
+			priceContract -> {
+				final PriceContract mutatedPrice = localMutation.mutateLocal(entitySchema, priceContract);
+				// a price that starts to exist or moves to another validity or inner record may compete with another
+				// price - see verifyPricesNotAmbiguous; an upsert that changes the amounts only cannot
+				if (mutatedPrice.exists() &&
+					PriceAmbiguityVerifier.isAddedOrMoved(
+						priceContract, mutatedPrice.validity(), mutatedPrice.innerRecordId()
+					)) {
+					if (this.touchedPriceKeys == null) {
+						this.touchedPriceKeys = new ArrayList<>(4);
+					}
+					this.touchedPriceKeys.add(localMutation.getPriceKey());
+				}
+				return mutatedPrice;
+			},
 			priceKey -> {
 				final Integer assignedPriceId = this.assignedInternalPriceIdIndex == null
 					? null : this.assignedInternalPriceIdIndex.get(priceKey);
@@ -3913,6 +4030,9 @@ public final class ContainerizedLocalMutationExecutor
 				pricesStorageContainer.getPriceInnerRecordHandling()
 			)
 		);
+		if (pricesStorageContainer.getPriceInnerRecordHandling() != mutatedPrices.getPriceInnerRecordHandling()) {
+			this.priceInnerRecordHandlingChanged = true;
+		}
 		pricesStorageContainer.setPriceInnerRecordHandling(mutatedPrices.getPriceInnerRecordHandling());
 		// change in entity parts also change the entity itself (we need to update the version)
 		if (pricesStorageContainer.isDirty()) {

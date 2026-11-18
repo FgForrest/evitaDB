@@ -32,6 +32,7 @@ import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
@@ -39,7 +40,6 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
@@ -57,7 +57,6 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExisten
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -82,8 +81,11 @@ import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
 import io.evitadb.api.statistics.*;
 import io.evitadb.api.statistics.CollectionIndexSummary.IndexTypeCount;
 import io.evitadb.core.buffer.DataStoreChanges;
@@ -110,7 +112,6 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
@@ -151,6 +152,7 @@ import io.evitadb.index.mutation.IndexMutationExecutorRegistry;
 import io.evitadb.index.mutation.IndexMutationTarget;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.MissingHistogramValueBehavior;
 import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
@@ -164,7 +166,6 @@ import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CollectionStorageFootprint;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.BinaryEntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.EntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
@@ -226,6 +227,15 @@ public final class EntityCollection implements
 	EntityCollectionContract,
 	DataStoreReader,
 	CatalogRelatedDataStructure<EntityCollection> {
+
+	/**
+	 * The consequence and the remedy the warning about an attribute renamed over stored entities states, shared by
+	 * the entity and the reference attribute variant of the warning.
+	 */
+	private static final String RENAMED_ATTRIBUTE_CONSEQUENCE =
+		"The values the stored entities hold for it, and the indexes built from them, stay under the old name, so " +
+			"filtering and sorting by the new name miss those entities. Index the entities again (a full reindex) to " +
+			"move their values to the new name.";
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -879,7 +889,7 @@ public final class EntityCollection implements
 	public Optional<SealedEntity> getEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		// a fetch is not planned, so the structural rules `QueryPlanner#planQuery` checks for a query are checked here
 		// - the reference content filters of the requirements are evaluated directly by the reference fetcher
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 
 		// record query information
@@ -894,7 +904,7 @@ public final class EntityCollection implements
 	@Nonnull
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		// see `getEntity` - an enrichment is not planned either
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		// enrichment adds and never subtracts, so the named sets this entity already carries have to survive a
 		// request that does not mention them. They are fetched again rather than carried over: this read may land on
@@ -999,7 +1009,7 @@ public final class EntityCollection implements
 		@Nonnull EvitaRequest evitaRequest
 	) {
 		// refused before the mutation - the reference fetcher evaluating the requirements runs only after it
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final ServerEntityDecorator internalEntity =
 			wrapToDecorator(
 				evitaRequest,
@@ -1038,7 +1048,7 @@ public final class EntityCollection implements
 	@Nonnull
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		// see `upsertAndFetchEntity` - refused before the entity is removed
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -1086,7 +1096,7 @@ public final class EntityCollection implements
 	@Override
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		// see `upsertAndFetchEntity` - refused before any entity of the hierarchy is removed
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 		if (globalIndex != null) {
 			final int[] primaryKeys = evitaRequest.getPrimaryKeys();
@@ -1164,7 +1174,7 @@ public final class EntityCollection implements
 	@Override
 	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		// see `upsertAndFetchEntity` - refused before the entity changes its scope
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -1198,7 +1208,7 @@ public final class EntityCollection implements
 	@Override
 	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		// see `upsertAndFetchEntity` - refused before the entity changes its scope
-		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
+		assertScopeUsageValid(evitaRequest);
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalArchiveIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -1286,6 +1296,8 @@ public final class EntityCollection implements
 			updatedSchema = refreshReflectedSchemas(originalSchema, updatedSchema, updatedReferenceSchemas);
 
 			warnAboutAcceleratorsAddedOverStoredEntities(originalSchema, updatedSchema);
+			warnAboutReferenceIndexesMissingStoredEntities(originalSchema, updatedSchema);
+			warnAboutRenamedAttributesOfStoredEntities(originalSchema, updatedSchema, schemaMutation);
 
 			if (updatedSchema.version() > originalSchema.version()) {
 				exchangeSchema(originalSchema, updatedSchema);
@@ -1734,25 +1746,69 @@ public final class EntityCollection implements
 		final List<ReferenceSchemaContract> updatedReferenceSchemas = new ArrayList<>(referenceSchemas.size());
 		for (ReferenceSchemaContract referenceSchema : referenceSchemas) {
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-				final Optional<? extends EntitySchemaContract> targetEntitySchema;
-				if (schema.getName().equals(reflectedReferenceSchema.getReferencedEntityType())) {
-					// self referenced schema
-					targetEntitySchema = of(schema);
-				} else {
-					targetEntitySchema = schemaLookup.apply(reflectedReferenceSchema.getReferencedEntityType());
-				}
 				// the plain binding, never `withReferencedSchemaAfterSchemaChange`: this runs on catalog load (and on the
 				// goLive / handover rebuilds), where the schema is the stored one and nothing about it has changed - a
 				// stored scope indexed without components never indexed anything, and filling it here would make it
 				// claim indexes that were never built and silence the checks that refuse it
-				targetEntitySchema
-					.flatMap(it -> it.getReference(reflectedReferenceSchema.getReflectedReferenceName()))
-					.ifPresent(originalReference -> updatedReferenceSchemas.add(reflectedReferenceSchema.withReferencedSchema(originalReference)));
+				findReflectedReference(schema, reflectedReferenceSchema, schemaLookup, new HashSet<>(4))
+					.ifPresent(
+						originalReference -> updatedReferenceSchemas.add(
+							reflectedReferenceSchema.withReferencedSchema(originalReference)
+						)
+					);
 			}
 		}
 		return updatedReferenceSchemas.isEmpty() ?
 			schema :
 			schema.withReplacedReferenceSchema(updatedReferenceSchemas.toArray(ReferenceSchemaContract[]::new));
+	}
+
+	/**
+	 * Finds the reference a reflected reference reflects. When that reference is itself a reflected reference the
+	 * lookup returns unbound, it is bound first, along the whole chain of reflections. The storage migrations look up
+	 * the schemas as stored, and a catalog load binds its collections one at a time, so a schema of another entity
+	 * type may not be bound yet. Binding to an unbound reflected reference fails as soon as the binding reads a
+	 * property both of them inherit, such as `faceted`.
+	 *
+	 * In a valid schema the chain of reflections ends in a plain reference. A cycle ends the search with nothing found,
+	 * and the reflected reference is then left as it is, like one whose source cannot be found.
+	 *
+	 * @param schema             the schema that holds the reflected reference
+	 * @param reflectedReference the reflected reference whose source is looked up
+	 * @param schemaLookup       finds the schema of another entity type of the catalog by its name
+	 * @param visited            the reflected references already met on the chain, as entity type and reference name
+	 * @return the source reference, bound when it is a reflected reference itself, or empty when it cannot be found
+	 */
+	@Nonnull
+	private static Optional<ReferenceSchemaContract> findReflectedReference(
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull ReflectedReferenceSchema reflectedReference,
+		@Nonnull Function<String, Optional<? extends EntitySchemaContract>> schemaLookup,
+		@Nonnull Set<Entry<String, String>> visited
+	) {
+		if (!visited.add(Map.entry(schema.getName(), reflectedReference.getName()))) {
+			return empty();
+		}
+		final String targetEntityType = reflectedReference.getReferencedEntityType();
+		// a self referenced schema is its own target
+		final Optional<? extends EntitySchemaContract> targetEntitySchema = schema.getName().equals(targetEntityType) ?
+			of(schema) : schemaLookup.apply(targetEntityType);
+		if (targetEntitySchema.isEmpty()) {
+			return empty();
+		}
+		final EntitySchemaContract targetSchema = targetEntitySchema.get();
+		final Optional<ReferenceSchemaContract> sourceReference = targetSchema.getReference(
+			reflectedReference.getReflectedReferenceName()
+		);
+		if (
+			sourceReference.isPresent() &&
+				sourceReference.get() instanceof ReflectedReferenceSchema reflectedSource &&
+				!reflectedSource.isReflectedReferenceAvailable()
+		) {
+			return findReflectedReference(targetSchema, reflectedSource, schemaLookup, visited)
+				.map(reflectedSource::withReferencedSchema);
+		}
+		return sourceReference;
 	}
 
 	/**
@@ -1786,86 +1842,6 @@ public final class EntityCollection implements
 	public Optional<SealedEntity> fetchEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 		return fetchEntity(primaryKey, evitaRequest, session, referenceFetcher);
-	}
-
-	/**
-	 * Fetches a list of BinaryEntity objects based on the provided primary keys, EvitaRequest, and session.
-	 * For each primary key, the method attempts to fetch the corresponding {@link BinaryEntity}.
-	 * Only the entities that are successfully fetched and present are returned in the list. Method is part of the
-	 * internal API and is used to fetch entities from the underlying storage as a part of the larger query - thus it
-	 * doesn't record data into {@link TrafficRecorder}.
-	 *
-	 * @param primaryKeys an array of primary keys used to identify the BinaryEntity objects
-	 * @param evitaRequest the request context in which the fetching process is executed
-	 * @param session the session contract containing session-related information and configurations
-	 * @return a list of successfully retrieved BinaryEntity objects
-	 */
-	@Nonnull
-	public List<BinaryEntity> fetchBinaryEntities(@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		return Arrays.stream(primaryKeys)
-			.mapToObj(it -> fetchBinaryEntity(it, evitaRequest, session))
-			.filter(Optional::isPresent)
-			.map(Optional::get)
-			.toList();
-	}
-
-	/**
-	 * Retrieves a binary entity based on the provided primary key, evita request, and session contract.
-	 * Uses caching mechanism to analyze and potentially enrich the entity's data based on
-	 * entity requirements specified in the request. Method is part of the internal API and is used to fetch entities
-	 * from the underlying storage as a part of the larger query - thus it doesn't record data into {@link TrafficRecorder}.
-	 *
-	 * @param primaryKey the unique identifier of the binary entity to be fetched
-	 * @param evitaRequest the request containing specifications and requirements for entity retrieval
-	 * @param session the session contract representing the current session for database operations
-	 *
-	 * @return an Optional containing the fetched BinaryEntity if found, otherwise an empty Optional
-	 */
-	@Nonnull
-	public Optional<BinaryEntity> fetchBinaryEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final long catalogVersion = this.catalog.getVersion();
-		final Optional<BinaryEntity> entity = this.cacheSupervisor.analyse(
-				session,
-				primaryKey,
-				getSchema().getName(),
-				evitaRequest.getEntityRequirement(),
-				() -> {
-					final BinaryEntityWithFetchCount binaryEntityWithFetchCount = this.persistenceService.readBinaryEntity(
-						catalogVersion,
-						primaryKey,
-						evitaRequest,
-						getInternalSchema(),
-						session,
-						entityType -> entityType.equals(getEntityType()) ?
-							this : this.catalog.getCollectionForEntityOrThrowException(entityType),
-						this.dataStoreReader
-					);
-
-					return binaryEntityWithFetchCount == null ?
-						null :
-						new ServerBinaryEntityDecorator(
-							binaryEntityWithFetchCount.entity(),
-							binaryEntityWithFetchCount.ioFetchCount(),
-							binaryEntityWithFetchCount.ioFetchedBytes()
-						);
-				},
-				binaryEntity -> {
-					final BinaryEntityWithFetchCount binaryEntityWithFetchCount = this.persistenceService.enrichEntity(
-						catalogVersion,
-						getInternalSchema(),
-						binaryEntity,
-						evitaRequest,
-						this.dataStoreReader
-					);
-					return new ServerBinaryEntityDecorator(
-						binaryEntityWithFetchCount.entity(),
-						binaryEntity.getIoFetchCount() + binaryEntityWithFetchCount.ioFetchCount(),
-						binaryEntity.getIoFetchedBytes() + binaryEntityWithFetchCount.ioFetchedBytes()
-					);
-				}
-			)
-			.map(it -> it);
-		return entity.map(it -> limitEntity(it, Objects.requireNonNull(evitaRequest.getEntityRequirement())));
 	}
 
 	/**
@@ -2451,6 +2427,22 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Refuses a request using scopes in a way the engine cannot honour, before the request looks for an entity or
+	 * changes it - see {@link QueryUtils#assertNoNestedScopeContainers},
+	 * {@link QueryUtils#assertScopePlacementValid} and
+	 * {@link QueryUtils#assertFilterScopesApplicable}.
+	 *
+	 * @param evitaRequest the request of the client
+	 */
+	private static void assertScopeUsageValid(@Nonnull EvitaRequest evitaRequest) {
+		final Query query = evitaRequest.getQuery();
+		QueryUtils.assertNoNestedScopeContainers(query);
+		// before scope lookup, which reads through forbidden containers and fails on duplicate selections
+		QueryUtils.assertScopePlacementValid(query);
+		QueryUtils.assertFilterScopesApplicable(query, evitaRequest.getRequestedScopes());
+	}
+
+	/**
 	 * Method creates {@link QueryPlanningContext} that is used for read operations.
 	 */
 	@Nonnull
@@ -3004,6 +2996,50 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Dry-runs reflected inheritance changes before the catalog registers them with the transaction.
+	 * Replacing a local declaration with an inherited definition can swap independently stored values, so the
+	 * refusal is conclusive only while no preceding mutation changed this collection or the original owner.
+	 * Other dry-run failures can depend on surrounding mutations and are left to the real pass.
+	 *
+	 * @param catalogSchema the catalog schema the mutations are applied against
+	 * @param entityTypesChangedEarlier entity types changed by preceding mutations of this batch
+	 * @param schemaMutation mutations to check without exchanging schemas
+	 * @throws InvalidSchemaMutationException when inheritance replaces a reflected reference's local declaration
+	 */
+	public void verifySchemaMutationsApplicable(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull Set<String> entityTypesChangedEarlier,
+		@Nonnull LocalEntitySchemaMutation... schemaMutation
+	) {
+		final EntitySchema originalSchema = getInternalSchema();
+		EntitySchema updatedSchema = originalSchema;
+		for (final EntitySchemaMutation theMutation : schemaMutation) {
+			try {
+				final EntitySchemaContract mutated = theMutation.mutate(catalogSchema, updatedSchema);
+				if (!(mutated instanceof EntitySchema theSchema)) {
+					// Leave mutations this preflight cannot reason about to the real pass.
+					return;
+				}
+				updatedSchema = theSchema;
+			} catch (RuntimeException ex) {
+				// the inheritance refusal is conclusive only while no earlier mutation of the batch changed this
+				// collection or the one owning the reflected original - see the method's javadoc
+				if (ex instanceof InvalidSchemaMutationException &&
+					theMutation instanceof ModifyReflectedReferenceAttributeInheritanceSchemaMutation inheritance &&
+					!entityTypesChangedEarlier.contains(getEntityType()) &&
+					updatedSchema.getReference(inheritance.getName())
+						.map(ReferenceSchemaContract::getReferencedEntityType)
+						.filter(originalOwner -> !entityTypesChangedEarlier.contains(originalOwner))
+						.isPresent()) {
+					throw ex;
+				}
+				// Other dry-run failures can depend on surrounding catalog mutations; the real pass reports them.
+				return;
+			}
+		}
+	}
+
+	/**
 	 * Warns when a schema change newly declares a {@link AttributeFilterAccelerator} on an attribute of a collection
 	 * that already holds entities.
 	 *
@@ -3060,6 +3096,280 @@ public final class EntityCollection implements
 				}
 			}
 		}
+	}
+
+	/**
+	 * Logs one warning for every stored reference and scope the schema change makes the reference indexed in, or
+	 * faceted in, where it was not indexed, or not faceted, before - or indexed with a component it was not indexed
+	 * with before - while the collection holds entities.
+	 *
+	 * The reference and facet indexes are filled as entity mutations are indexed, and nothing builds them for the
+	 * entities already stored, so filters those indexes serve miss every entity stored before the change - the group
+	 * indexes a gained {@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY} adds included. Like a
+	 * filter accelerator, which {@link #warnAboutAcceleratorsAddedOverStoredEntities(EntitySchema, EntitySchema)}
+	 * leaves dormant in the same situation, the change is accepted: applications that define their schema from model
+	 * classes apply it when they start, and refusing it would stop them from starting.
+	 *
+	 * A reference the change creates has no stored data to miss, and a reflected reference that is not bound to its
+	 * original cannot tell the settings it inherits, so neither is reported. {@link #isEmpty()} is consulted only when
+	 * a reference gained such a scope, because it is a storage read.
+	 *
+	 * @param originalSchema the schema as it stood before the mutations were applied
+	 * @param updatedSchema  the schema the mutations produced
+	 */
+	private void warnAboutReferenceIndexesMissingStoredEntities(
+		@Nonnull EntitySchema originalSchema,
+		@Nonnull EntitySchema updatedSchema
+	) {
+		// the storage read is made once, at the first reference that gained a scope
+		boolean emptinessChecked = false;
+		for (final ReferenceSchemaContract updatedReference : updatedSchema.getReferences().values()) {
+			final ReferenceSchemaContract originalReference = originalSchema.getReferences()
+				.get(updatedReference.getName());
+			if (originalReference == null || !hasReadableIndexing(originalReference) ||
+				!hasReadableIndexing(updatedReference)) {
+				continue;
+			}
+			for (final Scope scope : Scope.values()) {
+				final boolean becomesIndexed =
+					updatedReference.isIndexedInScope(scope) && !originalReference.isIndexedInScope(scope);
+				final boolean becomesFaceted =
+					updatedReference.isFacetedInScope(scope) && !originalReference.isFacetedInScope(scope);
+				// a scope that becomes indexed gains all its components, which the indexed gain already says
+				final Set<ReferenceIndexedComponents> gainedComponents =
+					(becomesIndexed || !updatedReference.isIndexedInScope(scope))
+						? Collections.emptySet()
+						: gainedComponents(originalReference, updatedReference, scope);
+				if (!becomesIndexed && !becomesFaceted && gainedComponents.isEmpty()) {
+					continue;
+				}
+				if (!emptinessChecked) {
+					if (isEmpty()) {
+						return;
+					}
+					emptinessChecked = true;
+				}
+				log.warn(
+					"Reference `{}` of entity `{}` became {} in scope `{}` while the collection already contains " +
+						"entities! Its indexes are built as entities are indexed and there is no way to build them " +
+						"for entities that are already stored, so filtering by the reference will miss those " +
+						"entities. Declare the setting before inserting data, or load the data into a new catalog " +
+						"that declares it.",
+					updatedReference.getName(), updatedSchema.getName(),
+					describeIndexingGain(becomesIndexed, becomesFaceted, gainedComponents), scope
+				);
+			}
+		}
+	}
+
+	/**
+	 * Logs one warning for every attribute of the entity or of one of its references the schema change renames while
+	 * the collection holds entities.
+	 *
+	 * A rename moves the attribute to its new name in the schema, but nothing moves the data: the values the stored
+	 * entities hold for the attribute, and the indexes built from them, stay under the old name. Filtering and
+	 * sorting by the new name therefore miss every entity stored before the rename, until the entities are indexed
+	 * again. Like the gained indexing
+	 * {@link #warnAboutReferenceIndexesMissingStoredEntities(EntitySchema, EntitySchema)} reports, the change is
+	 * accepted rather than refused. A rename of a global attribute reaches the collection as the rename of the
+	 * attribute in the entity, so it is reported here too.
+	 *
+	 * A rename to the name the attribute already has moves nothing and is not reported. An attribute the same update
+	 * creates holds no stored values, so only an attribute the original schema declares is reported - for a reflected
+	 * reference, one it declares itself (see {@link #isAttributeDeclared(EntitySchema, String, String)}).
+	 * {@link #isEmpty()} is consulted only when there is such a rename, because it is a storage read.
+	 *
+	 * @param originalSchema the schema as it stood before the mutations were applied
+	 * @param updatedSchema  the schema the mutations produced
+	 * @param mutations      the mutations that were applied
+	 */
+	private void warnAboutRenamedAttributesOfStoredEntities(
+		@Nonnull EntitySchema originalSchema,
+		@Nonnull EntitySchema updatedSchema,
+		@Nonnull LocalEntitySchemaMutation[] mutations
+	) {
+		// the storage read is made once, at the first rename of a stored attribute
+		boolean emptinessChecked = false;
+		for (final LocalEntitySchemaMutation mutation : mutations) {
+			final String referenceName;
+			final ModifyAttributeSchemaNameMutation rename;
+			if (mutation instanceof ModifyAttributeSchemaNameMutation entityAttributeRename) {
+				referenceName = null;
+				rename = entityAttributeRename;
+			} else if (
+				mutation instanceof ModifyReferenceAttributeSchemaMutation referenceAttributeMutation &&
+					referenceAttributeMutation.getAttributeSchemaMutation()
+						instanceof ModifyAttributeSchemaNameMutation referenceAttributeRename
+			) {
+				referenceName = referenceAttributeMutation.getName();
+				rename = referenceAttributeRename;
+			} else {
+				continue;
+			}
+			if (rename.getName().equals(rename.getNewName())) {
+				// a rename to the name the attribute already has leaves the schema and the stored values as they are
+				continue;
+			}
+			if (!isAttributeDeclared(originalSchema, referenceName, rename.getName())) {
+				continue;
+			}
+			if (!emptinessChecked) {
+				if (isEmpty()) {
+					return;
+				}
+				emptinessChecked = true;
+			}
+			if (referenceName == null) {
+				log.warn(
+					"Attribute `{}` of entity `{}` was renamed to `{}` while the collection already contains " +
+						"entities! " + RENAMED_ATTRIBUTE_CONSEQUENCE,
+					rename.getName(), updatedSchema.getName(), rename.getNewName()
+				);
+			} else {
+				log.warn(
+					"Attribute `{}` of reference `{}` of entity `{}` was renamed to `{}` while the collection " +
+						"already contains entities! " + RENAMED_ATTRIBUTE_CONSEQUENCE,
+					rename.getName(), referenceName, updatedSchema.getName(), rename.getNewName()
+				);
+			}
+		}
+	}
+
+	/**
+	 * Returns true when the schema declares the attribute - at the entity level, or in the reference when a reference
+	 * name is given.
+	 *
+	 * @param schema        the entity schema to look the attribute up in
+	 * @param referenceName the name of the reference holding the attribute, null for an attribute of the entity
+	 * @param attributeName the name of the attribute
+	 * @return true when the attribute is declared, false also when the schema holds no reference of that name
+	 */
+	private static boolean isAttributeDeclared(
+		@Nonnull EntitySchema schema,
+		@Nullable String referenceName,
+		@Nonnull String attributeName
+	) {
+		if (referenceName == null) {
+			return schema.getAttribute(attributeName).isPresent();
+		}
+		final Optional<ReferenceSchemaContract> reference = schema.getReference(referenceName);
+		if (reference.isEmpty()) {
+			return false;
+		} else if (reference.get() instanceof final ReflectedReferenceSchema reflectedReference) {
+			// a reflected reference renames only the attributes it declares, and its inherited ones cannot be read
+			// before its original reference exists
+			return reflectedReference.getDeclaredAttributes().containsKey(attributeName);
+		} else {
+			return reference.get().getAttribute(attributeName).isPresent();
+		}
+	}
+
+	/**
+	 * Returns the components the reference is indexed with in the scope after the change and was not indexed with
+	 * before, in their declaration order.
+	 *
+	 * @param originalReference the reference before the change
+	 * @param updatedReference  the reference after the change
+	 * @param scope             the scope to compare
+	 * @return the gained components, empty when there are none
+	 */
+	@Nonnull
+	private static Set<ReferenceIndexedComponents> gainedComponents(
+		@Nonnull ReferenceSchemaContract originalReference,
+		@Nonnull ReferenceSchemaContract updatedReference,
+		@Nonnull Scope scope
+	) {
+		final Set<ReferenceIndexedComponents> originalComponents = originalReference.getIndexedComponents(scope);
+		EnumSet<ReferenceIndexedComponents> gained = null;
+		for (final ReferenceIndexedComponents component : updatedReference.getIndexedComponents(scope)) {
+			if (!originalComponents.contains(component)) {
+				if (gained == null) {
+					gained = EnumSet.noneOf(ReferenceIndexedComponents.class);
+				}
+				gained.add(component);
+			}
+		}
+		return gained == null ? Collections.emptySet() : gained;
+	}
+
+	/**
+	 * Describes what a reference gained in a scope for the warning of
+	 * {@link #warnAboutReferenceIndexesMissingStoredEntities(EntitySchema, EntitySchema)}.
+	 *
+	 * @param becomesIndexed   whether the reference became indexed in the scope
+	 * @param becomesFaceted   whether the reference became faceted in the scope
+	 * @param gainedComponents the components an already indexed reference gained in the scope
+	 * @return the description of the gain
+	 */
+	@Nonnull
+	private static String describeIndexingGain(
+		boolean becomesIndexed,
+		boolean becomesFaceted,
+		@Nonnull Set<ReferenceIndexedComponents> gainedComponents
+	) {
+		final StringBuilder description = new StringBuilder(64);
+		if (becomesIndexed) {
+			description.append("indexed");
+		} else if (!gainedComponents.isEmpty()) {
+			description.append("indexed with ");
+			boolean first = true;
+			for (final ReferenceIndexedComponents component : gainedComponents) {
+				if (!first) {
+					description.append(", ");
+				}
+				description.append('`').append(component.name()).append('`');
+				first = false;
+			}
+		}
+		if (becomesFaceted) {
+			description.append(description.isEmpty() ? "faceted" : " and faceted");
+		}
+		return description.toString();
+	}
+
+	/**
+	 * Returns true when the indexing and faceting of the given reference can be read: a reflected reference that is
+	 * not bound to its original cannot tell the settings it inherits from it.
+	 *
+	 * @param referenceSchema the reference whose settings are to be read
+	 * @return true when the indexing and faceting of the reference can be read
+	 */
+	private static boolean hasReadableIndexing(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return !(referenceSchema instanceof final ReflectedReferenceSchema reflectedReference)
+			|| reflectedReference.isReflectedReferenceAvailable()
+			|| !(
+				reflectedReference.isIndexedInherited() || reflectedReference.isFacetedInherited()
+					|| reflectedReference.isIndexedComponentsInherited()
+			);
+	}
+
+	/**
+	 * Returns the attributes of the given reference that can be read without knowing what the reference inherits from
+	 * - all of them for an ordinary reference, and the half it declares itself for an **unresolved reflected**
+	 * reference.
+	 *
+	 * A reflected reference does declare attributes of its own -
+	 * {@link io.evitadb.api.requestResponse.schema.builder.ReflectedReferenceSchemaBuilder#withAttribute} puts them
+	 * there - and presents them merged with the ones it inherits from the reference it reflects. While the target is
+	 * missing that inherited half is unknowable, so {@link ReflectedReferenceSchema#getAttributes()} declines to
+	 * answer at all and throws; {@link ReflectedReferenceSchema#getDeclaredAttributes()} answers the declared half
+	 * without throwing.
+	 *
+	 * Reading only the declared half costs the caller nothing, because the inherited half is a copy of the target
+	 * reference's own attributes and is vetted against the collection that declares *it*.
+	 *
+	 * @param referenceSchema the reference whose attributes are to be read
+	 * @return the attributes readable in the reference's current resolution state
+	 */
+	@Nonnull
+	private static Map<String, AttributeSchemaContract> getAttributesVisibleWithoutTarget(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		// ReferenceSchema is sealed and permits only ReflectedReferenceSchema, so this narrowing covers every
+		// reference an EntitySchema can hold
+		return referenceSchema instanceof final ReflectedReferenceSchema reflectedReference
+			&& !reflectedReference.isReflectedReferenceAvailable() ?
+			reflectedReference.getDeclaredAttributes() : referenceSchema.getAttributes();
 	}
 
 	/**
@@ -4001,6 +4311,7 @@ public final class EntityCollection implements
 			this.catalog.getFulltextAnalyzerRegistry(),
 			getAttributeNormalizationResolver(),
 			this.catalog.isUsageStatisticsTracked(),
+			this.entityIndexCreator.getMissingHistogramValueBehavior(),
 			// the collector is shared by the whole root mutation, so its executors share the reservations too
 			localMutationExecutorCollector.getPartitionReservations()
 		);
@@ -4032,17 +4343,6 @@ public final class EntityCollection implements
 			throw exhaustedSequence(SequenceType.PRICE);
 		}
 		return internalPriceId;
-	}
-
-	/**
-	 * Method will check whether the entity contains only the content required by `fetchRequirements` and if it contains
-	 * more data than requested, new instance of {@link BinaryEntity} is created referencing only the requested set
-	 * of data containers.
-	 */
-	@Nonnull
-	private BinaryEntity limitEntity(@Nonnull BinaryEntity entity, @Nonnull EntityFetch fetchRequirements) {
-		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
-		return entity;
 	}
 
 	/**
@@ -4421,15 +4721,6 @@ public final class EntityCollection implements
 
 		@Nullable
 		@Override
-		public <T extends StoragePart> byte[] fetchBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-			return EntitySchemaContext.executeWithSchemaContext(
-				this.schemaSupplier.get(),
-				() -> this.dataStoreReader.fetchBinary(catalogVersion, primaryKey, containerType)
-			);
-		}
-
-		@Nullable
-		@Override
 		public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
 			final StorageAccessScope cache = StorageAccessScope.getIfActive();
 			return cache == null ?
@@ -4459,15 +4750,6 @@ public final class EntityCollection implements
 			return EntitySchemaContext.executeWithSchemaContext(
 				this.schemaSupplier.get(),
 				() -> this.dataStoreReader.fetch(catalogVersion, originalKey, containerType, compressedKeyComputer)
-			);
-		}
-
-		@Nullable
-		@Override
-		public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
-			return EntitySchemaContext.executeWithSchemaContext(
-				this.schemaSupplier.get(),
-				() -> this.dataStoreReader.fetchBinary(catalogVersion, originalKey, containerType, compressedKeyComputer)
 			);
 		}
 
@@ -4939,6 +5221,15 @@ public final class EntityCollection implements
 			final EntityCollection sourceCollection = EntityCollection.this.catalog
 				.getCollectionForEntityOrThrowException(entityType);
 			return sourceCollection.getInternalSchema().getLocales();
+		}
+
+		/**
+		 * Answers the catalog's behavior, so every executor of the collection reads the one value.
+		 */
+		@Nonnull
+		@Override
+		public MissingHistogramValueBehavior getMissingHistogramValueBehavior() {
+			return EntityCollection.this.catalog.getMissingHistogramValueBehavior();
 		}
 
 		/**

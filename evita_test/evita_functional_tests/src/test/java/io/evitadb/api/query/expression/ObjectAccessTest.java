@@ -282,6 +282,27 @@ class ObjectAccessTest {
 
 			assertEquals("?.name", step.toString());
 		}
+
+		@Test
+		@DisplayName("should equal a step wrapping an equal next step")
+		void shouldEqualStepWithEqualNextStep() {
+			final NullSafeAccessStep step = new NullSafeAccessStep(new PropertyAccessStep("name", null));
+			final NullSafeAccessStep sameStep = new NullSafeAccessStep(new PropertyAccessStep("name", null));
+
+			assertEquals(step, sameStep);
+			assertEquals(step.hashCode(), sameStep.hashCode());
+			assertNotEquals(step, new NullSafeAccessStep(new PropertyAccessStep("code", null)));
+		}
+
+		@Test
+		@DisplayName("should make two parses of a null-safe expression equal")
+		void shouldMakeParsedNullSafeExpressionsEqual() {
+			// schemas compare their expressions by value - an expression that never equals its own re-parse makes
+			// an unchanged schema look changed
+			final String expression = "$reference.groupEntity?.attributes['mode'] == 'LIST'";
+
+			assertEquals(ExpressionFactory.parse(expression), ExpressionFactory.parse(expression));
+		}
 	}
 
 	@Nested
@@ -317,6 +338,29 @@ class ObjectAccessTest {
 				);
 
 			assertEquals(".*[$]", step.toString());
+		}
+
+		@Test
+		@DisplayName("should equal a step with equal mapping, compactness and next step")
+		void shouldEqualStepWithEqualContent() {
+			final SpreadAccessStep step = new SpreadAccessStep(new VariableOperand(null), false, null);
+			final SpreadAccessStep sameStep = new SpreadAccessStep(new VariableOperand(null), false, null);
+
+			assertEquals(step, sameStep);
+			assertEquals(step.hashCode(), sameStep.hashCode());
+			assertNotEquals(step, new SpreadAccessStep(new VariableOperand(null), true, null));
+			assertNotEquals(step, new SpreadAccessStep(new VariableOperand("item"), false, null));
+			assertNotEquals(
+				step, new SpreadAccessStep(new VariableOperand(null), false, new PropertyAccessStep("name", null))
+			);
+		}
+
+		@Test
+		@DisplayName("should make two parses of a spread expression equal")
+		void shouldMakeParsedSpreadExpressionsEqual() {
+			final String expression = "$entity.references['categories'].*[$.attributes['priority']]";
+
+			assertEquals(ExpressionFactory.parse(expression), ExpressionFactory.parse(expression));
 		}
 
 		@Test

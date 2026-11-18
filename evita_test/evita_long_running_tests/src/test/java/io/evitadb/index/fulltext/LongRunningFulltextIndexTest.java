@@ -41,7 +41,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -142,7 +141,6 @@ class LongRunningFulltextIndexTest implements TimeBoundedTestSupport {
 
 	@DisplayName("survives randomized value writes, field registrations and retirements across chained commits")
 	@ParameterizedTest(name = "FulltextIndex should survive generational randomized churn against a value oracle")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(@Nonnull GenerationalTestInput input) {
@@ -203,8 +201,7 @@ class LongRunningFulltextIndexTest implements TimeBoundedTestSupport {
 
 	@DisplayName("survives randomized value writes, field registrations and retirements outside a transaction")
 	@ParameterizedTest(name = "FulltextIndex should survive non-transactional (warm-up) churn against a value oracle")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
+		@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalWarmUpProofTest(@Nonnull GenerationalTestInput input) {
 		runFor(
 			input,

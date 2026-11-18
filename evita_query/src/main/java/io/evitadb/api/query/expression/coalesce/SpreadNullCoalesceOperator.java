@@ -24,6 +24,7 @@
 package io.evitadb.api.query.expression.coalesce;
 
 import io.evitadb.api.query.expression.AbstractBinaryOperator;
+import io.evitadb.api.query.expression.ExpressionPrecedence;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
@@ -78,6 +79,11 @@ public class SpreadNullCoalesceOperator extends AbstractBinaryOperator {
 	@Override
 	protected String getOperatorSymbol() {
 		return this.nullSafe ? "?*?" : "*?";
+	}
+
+	@Override
+	protected int getPrecedence() {
+		return ExpressionPrecedence.SPREAD_NULL_COALESCE;
 	}
 
 	@Nullable

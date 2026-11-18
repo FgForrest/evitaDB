@@ -44,7 +44,7 @@ Developers, however, can define custom indexing rules for archived entities, all
 based on the application's specific needs while keeping the ability to search for archived entities by a selected set of
 attributes or relationships.
 
-When retrieving entities, developers can use the [`scope(LIVE, ARCHIVED)`](https://evitadb.io/documentation/query/filtering/behavioral#scope)
+When retrieving entities, developers can use the [`scope(LIVE, ARCHIVED)`](https://evitadb.io/documentation/query/filtering/constant#scope)
 filtering constraint to specify whether they want to include live entities, archived entities, or both in their queries.
 This flexibility allows for precise control over the data retrieved, without adding complexity to the application code.
 The database handles the filtering internally, ensuring consistency and reducing the risk of errors.

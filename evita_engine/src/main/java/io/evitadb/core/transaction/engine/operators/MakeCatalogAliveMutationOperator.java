@@ -273,12 +273,12 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 				// own session through `executeTerminationSteps` rather than through `closeInternal`, where the
 				// validation lives. All three go-live entry points funnel through this operator, so the check sits
 				// here, ahead of the first publication, and raises the same barrier an ordinary close would.
-				// caught as the whole `EvitaInvalidUsageException` family for the same reason, and with the same
-				// caveat, as the warm-up close in `EvitaSession#closeInternal`: `validate()` refuses in two
-				// vocabularies, and only the narrower one is a `SchemaAlteringException`
+				// caught as any exception for the same reason as the warm-up close in `EvitaSession#closeInternal`:
+				// `validate()` refuses in two vocabularies, only the narrower one is a `SchemaAlteringException`, and
+				// an exception outside both leaves the schema unvalidated - none of them may reach a publication
 				try {
 					theCatalog.getSchema().validate();
-				} catch (EvitaInvalidUsageException ex) {
+				} catch (Throwable ex) {
 					theCatalog.markUnpublishableDueToInvalidSchema(ex);
 					throw ex;
 				}
@@ -374,8 +374,9 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 						}
 
 						try {
-							// Emit the host event AFTER the live-view callback so the system CDC stream
-							// reflects the ALIVE settlement strictly after the underlying mutation.
+							// Emit the host event AFTER the live-view callback so that a subscriber handling it
+							// finds the ALIVE settlement (delivery is not ordered with engine mutations,
+							// see `HostSystemEvent`).
 							evita.notifyCatalogStateSettled(catalogName, CatalogState.ALIVE);
 						} catch (Throwable ex) {
 							log.error(

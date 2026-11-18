@@ -26,6 +26,7 @@ package io.evitadb.api.functional.attribute;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -38,6 +39,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound
+	.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
@@ -169,6 +172,12 @@ class DeclaredNormalizationWriteRoundTripTest implements EvitaTestSupport {
 	@DisplayName("should reopen populated indexes after removing or renaming their declaration")
 	void shouldReloadAfterSchemaChange(int count, boolean rename) {
 		createFixture(count);
+		if (rename) {
+			assertThrows(InvalidSchemaMutationException.class, () -> this.evita.updateCatalog(TEST_CATALOG, session -> {
+				session.updateEntitySchema(new ModifyEntitySchemaMutation("Product",
+					new ModifyAttributeSchemaNameMutation("rootElement", "renamedElement")));
+			}));
+		}
 		for (final String role : ORPHAN_ROLES) {
 			changeDeclaration(role, rename);
 		}
@@ -207,6 +216,7 @@ class DeclaredNormalizationWriteRoundTripTest implements EvitaTestSupport {
 			} else if (role.equals("compound")) {
 				if (rename) {
 					session.updateEntitySchema(new ModifyEntitySchemaMutation("Product",
+						new RemoveSortableAttributeCompoundSchemaMutation("compound"),
 						new ModifyAttributeSchemaNameMutation("rootElement", "renamedElement")));
 				} else {
 					session.getEntitySchemaOrThrow("Product").openForWrite()

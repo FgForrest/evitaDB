@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -104,16 +104,6 @@ class ComplexDataObjectConverterTest {
 		}
 
 		@Test
-		@DisplayName("should return same ComplexDataObject[] instance from static getSerializableForm")
-		void shouldReturnSameInstanceWhenStaticGetSerializableFormReceivesCdoArray() {
-			final ComplexDataObject[] cdoArray = new ComplexDataObject[]{
-				new ComplexDataObject(new DataItemMap(Collections.emptyMap()))
-			};
-			final Serializable result = ComplexDataObjectConverter.getSerializableForm(cdoArray);
-			assertSame(cdoArray, result);
-		}
-
-		@Test
 		@DisplayName("should return same supported type from static getSerializableForm")
 		void shouldReturnSameInstanceWhenStaticGetSerializableFormReceivesSupportedType() {
 			final String value = "ABC";
@@ -188,17 +178,6 @@ class ComplexDataObjectConverterTest {
 			assertArrayEquals(new String[]{"ABC", "DEF"}, ComplexDataObjectConverter.getOriginalForm(serializedForm, String[].class,
 			                                                                                         ComplexDataObjectConverterTest.this.reflectionLookup
 			));
-		}
-
-		@Test
-		@DisplayName("should return same CDO[] instance from instance getSerializableForm")
-		void shouldReturnSameInstanceWhenInstanceGetSerializableFormReceivesCdoArray() {
-			final ComplexDataObject[] cdoArray = new ComplexDataObject[]{
-				new ComplexDataObject(new DataItemMap(Collections.emptyMap()))
-			};
-			final ComplexDataObjectConverter<ComplexDataObject[]> converter = new ComplexDataObjectConverter<>(cdoArray);
-			final Serializable result = converter.getSerializableForm();
-			assertSame(cdoArray, result);
 		}
 	}
 
@@ -519,6 +498,23 @@ class ComplexDataObjectConverterTest {
 				assertEquals("two", deserialized.getIntegerKeyMap().get(2));
 				assertEquals("United States", deserialized.getLocaleKeyMap().get(Locale.US));
 				assertEquals("Canada", deserialized.getLocaleKeyMap().get(Locale.CANADA));
+			}
+
+			@Test
+			@DisplayName("should serialize and deserialize map with char keys written as escaped literals")
+			void shouldSerializeAndDeserializeMapWithCharacterKeys() {
+				final Map<Character, String> characterMap = new HashMap<>();
+				characterMap.put('\\', "backslash");
+				characterMap.put('\n', "line break");
+				characterMap.put('a', "letter");
+
+				final ContainerWithCharacterMapKeys dto = new ContainerWithCharacterMapKeys(characterMap);
+				final Serializable serializedForm = new ComplexDataObjectConverter<>(dto).getSerializableForm();
+				final ContainerWithCharacterMapKeys deserialized = ComplexDataObjectConverter.getOriginalForm(
+					serializedForm, ContainerWithCharacterMapKeys.class, reflectionLookup
+				);
+
+				assertEquals(characterMap, deserialized.getCharacterKeyMap());
 			}
 
 			@Test
@@ -877,6 +873,34 @@ class ComplexDataObjectConverterTest {
 	@Nested
 	@DisplayName("Error handling")
 	class ErrorHandlingTest {
+
+		@Test
+		@DisplayName("should refuse an array of complex data objects in static getSerializableForm")
+		void shouldRefuseArrayOfComplexDataObjectsWhenStaticGetSerializableFormReceivesIt() {
+			final ComplexDataObject[] cdoArray = new ComplexDataObject[]{
+				new ComplexDataObject(new DataItemMap(Collections.emptyMap()))
+			};
+
+			final SerializationFailedException exception = assertThrows(
+				SerializationFailedException.class,
+				() -> ComplexDataObjectConverter.getSerializableForm(cdoArray)
+			);
+			assertTrue(exception.getMessage().contains("one `ComplexDataObject`"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("should refuse an array of complex data objects in instance getSerializableForm")
+		void shouldRefuseArrayOfComplexDataObjectsWhenInstanceGetSerializableFormReceivesIt() {
+			final ComplexDataObject[] cdoArray = new ComplexDataObject[]{
+				new ComplexDataObject(new DataItemMap(Collections.emptyMap()))
+			};
+			final ComplexDataObjectConverter<ComplexDataObject[]> converter = new ComplexDataObjectConverter<>(cdoArray);
+
+			final SerializationFailedException exception = assertThrows(
+				SerializationFailedException.class, converter::getSerializableForm
+			);
+			assertTrue(exception.getMessage().contains("one `ComplexDataObject`"), exception.getMessage());
+		}
 
 		@Test
 		@DisplayName("should fail to serialize incompatible object with no usable properties")
@@ -1590,6 +1614,18 @@ class ComplexDataObjectConverterTest {
 		@Serial private static final long serialVersionUID = 5L;
 		private Map<Integer, String> integerKeyMap;
 		private Map<Locale, String> localeKeyMap;
+	}
+
+	/**
+	 * Container with a map whose char keys include the backslash and a control character, which the serialized form
+	 * writes as escaped literals.
+	 */
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class ContainerWithCharacterMapKeys implements Serializable {
+		@Serial private static final long serialVersionUID = 19L;
+		private Map<Character, String> characterKeyMap;
 	}
 
 	/**

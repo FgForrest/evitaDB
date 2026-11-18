@@ -214,6 +214,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			this.catalogUsageRegistry,
 			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
+			MissingHistogramValueBehavior.REFUSE,
 			reservations
 		);
 	}

@@ -47,17 +47,18 @@ flowchart TD
     APPLY --> DISPATCH{"LocalMutationHandlerRegistry\nresolves a handler"}
     DISPATCH -->|SetPriceInnerRecordHandling| PIRH[updatePriceHandlingForEntity]
     DISPATCH -->|PriceMutation| PRICE[updatePriceIndex\n+ cross-ref fan-out]
-    DISPATCH -->|ParentMutation| HIER[updateHierarchyPlacement]
+    DISPATCH -->|ParentMutation| HIER["histogram withdrawal\n+ updateHierarchyPlacement"]
     DISPATCH -->|ReferenceMutation| REF["updateReferences\n+ cross-ref fan-out"]
     DISPATCH -->|AttributeMutation| ATTR["updateAttribute\n+ cross-ref fan-out"]
-    DISPATCH -->|AssociatedDataMutation| NOP[no-op]
-    DISPATCH -->|SetEntityScopeMutation| SCOPE["removeEntityFromIndexes\n+ addEntityToIndexes"]
+    DISPATCH -->|AssociatedDataMutation| ADATA[histogram withdrawal]
+    SCOPE["executeDeferredReEvaluations\n+ removeEntityFromIndexes\n+ addEntityToIndexes"]
+    DISPATCH -->|SetEntityScopeMutation| SCOPE
     PIRH --> LOOP
     PRICE --> LOOP
     HIER --> LOOP
     REF --> LOOP
     ATTR --> LOOP
-    NOP --> LOOP
+    ADATA --> LOOP
     SCOPE --> LOOP
     LOOP -->|done| FINISH
     FINISH["finishLocalMutationExecutionPhase()"]
@@ -94,8 +95,8 @@ then calls into the per-domain mutators:
 | `SetPriceInnerRecordHandlingMut.`   | `updatePriceHandlingForEntity`    |          Yes           |
 | `UpsertPriceMutation` (indexed)     | `updatePriceIndex` on global      |      Yes (upsert)      |
 | `RemovePriceMutation` / non-indexed | `updatePriceIndex` on reduced 1st |     Yes (removal)      |
-| `SetParentMutation`                 | `setParent`                       |           No           |
-| `RemoveParentMutation`              | `removeParent`                    |           No           |
+| `SetParentMutation`                 | withdrawal + `setParent`          |           No           |
+| `RemoveParentMutation`              | withdrawal + `removeParent`       |           No           |
 | `InsertReferenceMutation`           | `referenceInsert*` + facets       |          Yes           |
 | `RemoveReferenceMutation`           | `referenceRemoval*` + facets      |          Yes           |
 | `SetReferenceGroupMutation`         | facet group swap + group indexes  |          Yes           |
@@ -105,8 +106,8 @@ then calls into the per-domain mutators:
 | `UpsertAttributeMutation`           | `executeAttributeUpsert`          |          Yes           |
 | `RemoveAttributeMutation`           | `executeAttributeRemoval`         |          Yes           |
 | `ApplyDeltaAttributeMutation`       | `executeAttributeDelta`           |          Yes           |
-| `AssociatedDataMutation`            | *(no-op)*                         |           No           |
-| `SetEntityScopeMutation`            | full remove + full add            |          N/A           |
+| `AssociatedDataMutation`            | histogram withdrawal              |           No           |
+| `SetEntityScopeMutation`            | drain + full remove + full add    |          N/A           |
 
 <Term location="/documentation/developer/indexes/overview.md" name="cross-reference propagation">**Cross-reference
 propagation**</Term>
@@ -126,9 +127,17 @@ indexes.
 
 #### `finishLocalMutationExecutionPhase()`
 
-Runs and clears the deferred expression re-evaluation actions (facet and histogram) collected while
-the mutations were applied. It must run after the storage writer has processed the current mutation,
-so that expression evaluation reads updated values.
+Runs deferred facet actions and adds each awaiting reference's final histogram values once through
+`executeDeferredReEvaluations()`. It must run after the storage writer has processed the current
+mutation, so evaluation reads updated values. The same call clears the recorded histogram identities and
+drops the reduced indexes memoized for the run.
+
+Each queued action writes into the scope the entity was in when the action was queued. That is why
+`SetEntityScopeMutation` calls `executeDeferredReEvaluations()` before it removes the entity from its
+current scope: the actions queued by the preceding mutations land in the scope they target, and the
+removal then takes their result out of that scope with the rest of the entity. Actions queued after
+the scope change run in the new scope: before the next scope change, or at the end of the phase when
+there is none.
 
 #### `applyChanges()`
 
@@ -192,19 +201,20 @@ structures participate correctly; nothing in this document's mutators registers 
 
 ### Key Fields
 
-| Field                              | Purpose                                                     |
-|------------------------------------|-------------------------------------------------------------|
-| `entityIndexCreatingAccessor`      | Creates / retrieves `EntityIndex` instances                 |
-| `catalogIndexCreatingAccessor`     | Creates / retrieves `CatalogIndex` instances                |
-| `entityPrimaryKey` (LinkedList)    | Stack of PK resolvers; top element is active                |
-| `accessedIndexes`                  | All `EntityIndexKey`s touched during mutation; used for     |
-|                                    | activity recording and empty-index cleanup in               |
-|                                    | `applyChanges()`                                            |
-| `accessedCatalogIndexes`           | Per-scope `CatalogIndex`es this mutation maintained, if any |
-| `memoizedRepresentativeAttributes` | Cache of `RepresentativeReferenceKeys` per reference        |
-| `createdReferences`                | References newly inserted in this batch                     |
-| `localMutations`                   | Full batch; peeked during RepresentativeReferenceKey calc   |
-| `deferredExpressionReEvaluations`  | Actions drained by `finishLocalMutationExecutionPhase()`    |
+| Field                                 | Purpose                                                     |
+|---------------------------------------|-------------------------------------------------------------|
+| `entityIndexCreatingAccessor`         | Creates / retrieves `EntityIndex` instances                 |
+| `catalogIndexCreatingAccessor`        | Creates / retrieves `CatalogIndex` instances                |
+| `entityPrimaryKey` (LinkedList)       | Stack of PK resolvers; top element is active                |
+| `accessedIndexes`                     | All `EntityIndexKey`s touched during mutation; used for     |
+|                                       | activity recording and empty-index cleanup in               |
+|                                       | `applyChanges()`                                            |
+| `accessedCatalogIndexes`              | Per-scope `CatalogIndex`es this mutation maintained, if any |
+| `memoizedRepresentativeAttributes`    | Cache of `RepresentativeReferenceKeys` per reference        |
+| `createdReferences`                   | References newly inserted in this batch                     |
+| `localMutations`                      | Full batch; peeked during RepresentativeReferenceKey calc   |
+| `deferredExpressionReEvaluations`     | Facet actions drained by `executeDeferredReEvaluations()`   |
+| `referencesAwaitingFinalHistogramAdd` | References scheduled for their final histogram add          |
 
 ### Primary Key Overloading
 
@@ -942,6 +952,8 @@ tuple.
 ## Histogram Mutations (Conditional Bucketed Indexing)
 
 **Primary classes:**
+`EntityIndexLocalMutationExecutor` (withdrawal, scheduling and the final add of each deferred run),
+`HistogramReferenceIdentity` (reference name, target primary key and internal primary key),
 `ReferenceIndexMutator` (histogram insert/remove within reference processing),
 `ReevaluateExpressionExecutor` (cross-entity re-evaluation).
 
@@ -961,13 +973,84 @@ Triggers fire through `HistogramExpressionTrigger` instances (extending
 
 ### Local Triggers (same-entity mutations)
 
-When an entity attribute, reference attribute, or reference itself changes, local
-`HistogramExpressionTrigger`s are evaluated inline during the mutation batch. The trigger:
+Within one deferred run, `withdrawHistogramValuesAndScheduleFinalAdd` removes the reference's current
+histogram values and records it in `referencesAwaitingFinalHistogramAdd`. Later mutations of that reference
+do nothing for histograms until the run ends. Each trigger evaluates its condition against current storage
+and removes its values only when the condition holds. `removeHistogramValuesAssertingPresence` asserts that
+all values are present for the owner in the locale bucket: in the referenced-type index when ungrouped, or in
+every reduced index listed for the group. A grouped reference requires the group-type index and at least one
+listed index. Missing indexes, histograms, locale buckets or value-owner pairs fail loudly, unless the engine
+was started with the hidden system property `evitadb.referenceHistogram.missingValueBehavior=REPORT` (a temporary
+safety valve read once by the `Evita` constructor; see `MissingHistogramValueBehavior`). Then a value missing from
+an index that exists is logged at error level and skipped, and the rest of the withdrawal goes on. Where the index
+itself is missing - the type index, the group-type index or its listing for the group, or a listed reduced index
+the executor answers as missing - its values are reported the same way, and the write then fails only if the run
+adds a value into that index, on the final add's own check. A reduced index the group still lists but the
+collection no longer holds fails the write in either mode: the collection's accessor behind
+`getGroupIndexByPrimaryKeyForModification` refuses its primary key with its own error, and nothing is reported for
+it. The values must have the shape the histogram descriptor declares: `resolveHistogramValues` fails on an array
+where a single value is declared or vice versa, and on a value or element of the wrong number or range kind, rather than
+resolving to fewer values and skipping their presence check.
 
-1. Evaluates the condition expression against the current entity state.
-2. If true, resolves the value from the `HistogramValueDescriptor` source.
-3. Performs cardinality-tracked insert/remove on the target `HistogramIndex`
-   (`ReducedGroupEntityIndex` for grouped references, `ReferencedTypeEntityIndex` for ungrouped).
+Whole-entity removal takes a different route on both of its paths: deleting the entity, where `updateReferences` sends
+each `RemoveReferenceMutation` of an entity removed entirely to `removeHistogramValuesPresentForOwnerOfRemovedEntity`,
+and unindexing the entity from a scope it leaves, in `unindexReferences`. Both call `removeHistogramFromIndex`, which
+evaluates no condition and removes, through `removeHistogramValuesPresentForOwner`, whatever values are present for the
+owner: all references of the owner leave together. Presence is not asserted because that would require evaluating each
+reference's condition on every such removal, and entity deletion drops the parent before the references, so a condition
+reading the parent would see a state the values were never added under. Entity removal schedules no final add, so both
+paths first assert that no reference awaits one.
+
+**Open: #1924.** A group split into several reduced indexes now fails loudly at withdrawal when a reduced
+index created later lacks the group's values. Group histogram replication remains an open follow-up.
+
+Withdrawal runs at the top of `updateReferences`, before representative-key migration or index removal.
+`canMutationChangeHistogramValues` selects group changes, reference removals and attribute changes used as
+histogram values or condition inputs. On a grouped reference allowing duplicates, any attribute change can
+start representative-key migration and therefore requires withdrawal. Entity attribute changes call the same
+withdrawal method for stored references whose histogram conditions read the changed attribute.
+
+Parent and associated-data changes withdraw the same way. `ParentMutationFanOut` and
+`AssociatedDataMutationFanOut` look up the reference names through
+`CatalogExpressionTriggerRegistry#getLocalHistogramReferencesForParent` and
+`#getLocalHistogramReferencesForAssociatedData`, which list cross-entity triggers too, and pass them to
+`OwnerInputHistogramWithdrawal`. Before the input changes, it calls `withdrawHistogramValuesAndScheduleFinalAdd`
+for every stored existing reference of those names; an input no histogram reads costs the registry lookup alone.
+The parent fan-out does nothing while the entity is removed entirely, because the parent removal precedes the
+reference removals, which remove the values without a condition and assert that no reference awaits a final add.
+The associated-data removals of an entity removal follow the reference removals and find no existing reference.
+
+Withdrawal asserts that the reference exists in storage. Its recorded identity includes the reference name,
+referenced primary key and internal primary key, keeping positive, temporary negative and unknown `0` keys
+distinct. `scheduleFinalHistogramAddOfInsertedReference` records an insert without removing values and asserts
+that it was not already recorded. Removal cancels the final add for the exact identity recorded earlier.
+
+`executeDeferredReEvaluations` calls `addFinalHistogramValuesOfAwaitingReferences`, which asserts that each
+recorded identity resolves to an existing reference and adds all its histogram values once, reading the final
+condition, values and group from storage. A grouped value requires the group-type index to list at least one
+reduced index for the group, as the withdrawal does. The identities are cleared in `finally` after every run. Storage
+assigns missing internal primary keys only after this drain, so an inserted reference recorded with key `0`
+still has key `0` when the add resolves it.
+
+`indexAllReferences` asserts that no reference awaits a final add. It adds synchronously from the full entity
+body during a scope change and records nothing, enumerating a localized value by the locale rule below. A later
+mutation starts another withdrawal and final add in the new scope. Whole-entity unindexing likewise asserts that
+no reference awaits a final add before removing histograms.
+
+**The locale set of a localized value.** `ReferenceIndexMutator#resolveHistogramLocales` enumerates a
+localized `REFERENCE_ATTRIBUTE` value on every path - final add, re-index, withdrawal, unindexing and entity
+removal - over the locales of the reference's own values of the source attribute and, when the value has a `??`
+default, every locale of the entity as its in-flight body has them at that moment (`EntityBodyStoragePart#getLocales`,
+associated data included). Entity removal reads the locales from before the removal instead, because it removes the
+references first. The rule holds because every mutation that may change the entity's locale set - a localized entity
+or reference attribute upserted or removed, localized associated data upserted or removed, a reference holding
+localized attributes removed - first withdraws, through `handler/EntityLocaleFanOut`, every stored reference whose
+histogram reads a localized defaulted reference attribute
+(`CatalogExpressionTriggerRegistry#getLocalHistogramReferencesWithLocalizedDefault`, one map probe for an entity type
+without one). A withdrawal then reads the set the reference's last add used, and the run's final add the set the run
+left. The hooks sit at the top of six handlers, before `ReferenceMutationFanOut#apply`, which returns early for a
+reference not indexed in the scope and, for a removal, cancels the removed reference's final add. Entity removal
+withdraws nothing. A new writer of the entity's locale set needs the same hook.
 
 ### Cross-Entity Triggers (ReevaluateExpressionMutation)
 

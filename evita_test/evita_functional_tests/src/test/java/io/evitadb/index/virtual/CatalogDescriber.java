@@ -159,9 +159,10 @@ import static org.junit.jupiter.api.Assertions.fail;
  * They are left out, and nothing virtual is lost by it - each is a pre-existing defect of the object reading:
  *
  * - the block-by-block ordering by the referenced primary key over a reference allowing duplicates (a stale read of a
- *   scratch buffer in the merge walk of `SortedRecordsSupplierFactory`);
- * - `attributeSetExact` in a block-by-block ordering over several partitions, or over a partition holding no value of
- *   the attribute - the line narrows the owners to those of one target whose row carries a value.
+ *   scratch buffer in the merge walk of `SortedRecordsSupplierFactory`).
+ *
+ * Exact attribute sets are described both over the whole traversal and with a referenceHaving selecting owners of
+ * one target. Each target is sorted as its own block; partitions without an attribute value claim nothing.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -789,9 +790,8 @@ public final class CatalogDescriber {
 		for (final AttributeSchemaContract attributeSchema : new TreeMap<>(referenceSchema.getAttributes()).values()) {
 			final String attributeName = attributeSchema.getName();
 			final List<Serializable> values = sample.getAttributeValues(referenceName, attributeName);
-			// `attributeSetExact` sorts by the sort index of the only partition the ordering plans over, and fails
-			// reading index objects as well over several partitions and over a partition holding no value of the
-			// attribute - so the line narrows the owners to those of one target whose row carries a value
+			// Keep the released query shape selecting owners of one valued target beside the whole-traversal line.
+			// referenceHaving selects owners; exact ordering still visits every unbounded target block.
 			final Integer exactTarget = sample.getTargetWithValue(referenceName, attributeName);
 			if (
 				!attributeSchema.isSortableInScope(scope) || attributeSchema.isLocalized() ||
@@ -810,6 +810,18 @@ public final class CatalogDescriber {
 				lines, orderPrefix + "traverse/attributeSetExact/" + attributeName,
 				queryOrder(
 					session, entityType, scope, ownersOfExactTarget,
+					referenceProperty(
+						referenceName,
+						traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+						attributeSetExact(attributeName, exactOrder)
+					),
+					DebugMode.PREFER_INDEX_SCAN
+				)
+			);
+			putOrder(
+				lines, orderPrefix + "traverse/attributeSetExactUnnarrowed/" + attributeName,
+				queryOrder(
+					session, entityType, scope, null,
 					referenceProperty(
 						referenceName,
 						traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),

@@ -27,15 +27,19 @@ import com.google.common.collect.Lists;
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.ExportFileSizeLimit;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -55,6 +59,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -80,6 +85,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		.directory(getPathInTargetDirectory(SUBDIR_NAME))
 		.build();
 	private ExportFileService exportService;
+	private Scheduler scheduler;
 
 	/**
 	 * Method returns number files in target directory.
@@ -99,12 +105,165 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(SUBDIR_NAME);
-		this.exportService = new ExportFileService(this.exportOptions, Mockito.mock(Scheduler.class));
+		final ImmediateScheduledThreadPoolExecutor executor = new ImmediateScheduledThreadPoolExecutor();
+		executor.setThreadFactory(Thread.ofPlatform().daemon(true).factory());
+		this.scheduler = new Scheduler(executor);
+		this.exportService = new ExportFileService(this.exportOptions, this.scheduler);
 	}
 
 	@AfterEach
 	void tearDown() {
 		this.exportService.close();
+		this.scheduler.shutdownNow();
+	}
+
+	/** A restarted service must read line-break metadata and retain a payload of exactly its allowance. */
+	@Test
+	@DisplayName("Should retain an export with line breaks after reopening and purging")
+	void shouldRetainExportWithLineBreaksAfterReopeningAndPurging() throws IOException {
+		final ExportFileHandle handle = this.exportService.storeFile(
+			"first\nsecond\r\nthird\rfourth.zip", "first\nsecond\r\nthird\rfourth", "application/zip", "backup"
+		);
+		final byte[] payload = new byte[Math.toIntExact(handle.sizeLimit().maxFileSizeInBytes())];
+		try (final OutputStream output = handle.outputStream()) {
+			output.write(payload);
+		}
+		this.exportService.close();
+		this.exportService = new ExportFileService(this.exportOptions, this.scheduler);
+		assertEquals(1, this.exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount(),
+			"the export must still be listed after reopening");
+		final FileForFetch restored = this.exportService.getFile(handle.fileId()).orElseThrow();
+		assertEquals("first second third fourth", restored.description());
+		assertEquals("first_second_third_fourth.zip", restored.name());
+		this.exportService.purgeFiles();
+		assertTrue(this.exportService.getFile(handle.fileId()).isPresent(),
+			"a file of exactly the allowance must survive purge");
+		try (final InputStream input = this.exportService.fetchFile(handle.fileId())) {
+			assertArrayEquals(payload, input.readAllBytes());
+		}
+		final long sidecarBytes = Files.size(restored.metadataPath(this.exportOptions.getDirectory()));
+		final long unused = this.exportOptions.getSizeLimitBytes() - payload.length - sidecarBytes;
+		assertTrue(unused >= 0 && unused <= 64, "sidecar reserve must leave at most 64 bytes unused: " + unused);
+	}
+
+	/** A sidecar write failure must terminate the future and remove all unpublished export files. */
+	@Test
+	@DisplayName("Should discard the archive and complete its future when writing metadata fails")
+	void shouldDiscardArchiveWhenWritingMetadataFails() throws IOException {
+		final ExportFileHandle handle = this.exportService.storeFile("failed.zip", null, "application/zip", null);
+		final Path archive = this.exportOptions.getDirectory().resolve(handle.fileId() + ".zip");
+		final Path sidecar = this.exportOptions.getDirectory()
+			.resolve(handle.fileId() + FileForFetch.METADATA_EXTENSION);
+		handle.outputStream().write(new byte[]{1, 2, 3});
+		Files.createDirectory(sidecar);
+		final UnexpectedIOException failure = assertThrows(UnexpectedIOException.class, handle::close);
+		assertAll(
+			() -> assertTrue(handle.fileForFetchFuture().isCompletedExceptionally(),
+				"the failed sidecar write must complete the future exceptionally"),
+			() -> assertFalse(Files.exists(archive), "the failed sidecar write must remove the archive"),
+			() -> assertFalse(Files.exists(sidecar), "the failed sidecar write must remove its sidecar"),
+			() -> assertEquals(0, this.exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount())
+		);
+		assertSame(failure, assertThrows(CompletionException.class, handle.fileForFetchFuture()::join).getCause());
+		assertInstanceOf(IOException.class, failure.getCause());
+	}
+
+	/** Per-file allowances reserve the bytes used by this export's sidecar. */
+	@Nested
+	@DisplayName("Per-file size limit")
+	class SizeLimit {
+		@Test
+		@DisplayName("should retain a maximum-sized payload together with its sidecar")
+		void shouldRetainMaximumPayloadWithSidecar() throws IOException {
+			assertMaximumPayload("maximum.zip", "description", "backup");
+		}
+
+		@Test
+		@DisplayName("should reserve UTF-8 bytes for multibyte metadata")
+		void shouldReserveUtf8BytesForMultibyteMetadata() throws IOException {
+			// Make the byte/character difference exceed the conservative size and timestamp padding.
+			assertMaximumPayload(
+				"žluťoučký🦊.zip", "説明".repeat(32) + " příliš žluťoučký 🦊", "záloha, 起源🦊"
+			);
+		}
+
+		@Test
+		@DisplayName("should floor the allowance at zero when metadata exceeds the limit")
+		void shouldFloorAllowanceAtZero() {
+			final ExportFileHandle handle = exportService.storeFile(
+				"large.zip", "x".repeat(1100), "application/zip", null
+			);
+			assertEquals(0, handle.sizeLimit().maxFileSizeInBytes());
+			assertTrue(handle.discard());
+		}
+
+		/** Writes the reported allowance and checks retention and reserve tightness. */
+		private void assertMaximumPayload(
+			@Nonnull String name, @Nonnull String description, @Nonnull String origin
+		) throws IOException {
+			final ExportFileHandle handle = exportService.storeFile(name, description, "application/zip", origin);
+			final ExportFileSizeLimit limit = handle.sizeLimit();
+			assertEquals(1000, limit.configuredLimitInBytes());
+			assertEquals("export.fileSystem.sizeLimitBytes", limit.configurationProperty());
+			final byte[] payload = new byte[Math.toIntExact(limit.maxFileSizeInBytes())];
+			handle.outputStream().write(payload);
+			handle.close();
+			exportService.purgeFiles();
+			assertTrue(exportService.getFile(handle.fileId()).isPresent(),
+				"the maximum admitted payload and sidecar must survive purge");
+			try (final InputStream input = exportService.fetchFile(handle.fileId())) {
+				assertArrayEquals(payload, input.readAllBytes());
+			}
+			final long sidecarBytes = Files.size(exportOptions.getDirectory()
+				.resolve(handle.fileId() + FileForFetch.METADATA_EXTENSION));
+			final long unused = limit.configuredLimitInBytes() - payload.length - sidecarBytes;
+			assertTrue(unused >= 0 && unused <= 64, "sidecar reserve must leave at most 64 bytes unused: " + unused);
+		}
+	}
+
+	/**
+	 * Contracts for abandoning an unpublished export and retaining an already published one.
+	 */
+	@Nested
+	@DisplayName("Discarding an export")
+	class Discard {
+		@Test
+		@DisplayName("should remove an open file without publishing metadata")
+		void shouldDiscardOpenHandleWithoutPublishing() throws IOException {
+			final ExportFileHandle handle = exportService.storeFile("discard.zip", null, "application/zip", null);
+			final Path file = exportOptions.getDirectory().resolve(handle.fileId() + ".zip");
+			final Path sidecar = exportOptions.getDirectory().resolve(handle.fileId() + FileForFetch.METADATA_EXTENSION);
+			handle.outputStream().write(new byte[]{1, 2, 3});
+			assertTrue(Files.exists(file));
+
+			assertTrue(handle.discard());
+			assertTrue(handle.fileForFetchFuture().isCancelled(), "the exposed future must be cancelled");
+			assertFalse(Files.exists(file), "discard must remove the open file");
+			assertFalse(Files.exists(sidecar), "discard must never publish a sidecar");
+			assertEquals(0, exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+			assertTrue(exportService.getFile(handle.fileId()).isEmpty());
+			assertFalse(handle.discard(), "a second discard must be a no-op");
+			handle.close();
+			assertEquals(1, numberOfFiles(exportOptions.getDirectory()), "later close must leave only the folder lock");
+			assertEquals(0, exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+			assertThrows(IOException.class, () -> handle.outputStream().write(4));
+		}
+
+		@Test
+		@DisplayName("should retain a closed file for fetching")
+		void shouldRetainPublishedFileWhenDiscardingClosedHandle() throws IOException {
+			final ExportFileHandle handle = exportService.storeFile("retain.zip", null, "application/zip", null);
+			handle.outputStream().write(new byte[]{1, 2, 3});
+			handle.close();
+
+			assertFalse(handle.discard());
+			assertFalse(handle.fileForFetchFuture().isCancelled());
+			assertEquals(1, exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+			try (final InputStream input = exportService.fetchFile(handle.fileId())) {
+				assertArrayEquals(new byte[]{1, 2, 3}, input.readAllBytes());
+			}
+			assertEquals(3, numberOfFiles(exportOptions.getDirectory()));
+		}
 	}
 
 	@Test

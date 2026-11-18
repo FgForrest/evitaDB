@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,7 +64,8 @@ public class NoSorter implements Sorter {
 		}
 
 		final int maxLength = Math.max(0, Math.min(recomputedEndIndex - recomputedStartIndex, filteredRecordIdBitmap.size() - recomputedStartIndex));
-		if (recomputedEndIndex > 0 && !filteredRecordIdBitmap.isEmpty()) {
+		// a slice beyond the last record reads nothing - the strict bitmaps reject a range starting past their end
+		if (maxLength > 0) {
 			final int[] slice = filteredRecordIdBitmap.getRange(recomputedStartIndex, recomputedStartIndex + maxLength);
 			final int copiedLength = Math.min(result.length - peak, slice.length);
 			System.arraycopy(slice, 0, result, peak, copiedLength);

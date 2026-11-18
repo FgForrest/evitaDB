@@ -450,6 +450,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.catalogUsageRegistry,
 						new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 						true,
+						MissingHistogramValueBehavior.REFUSE,
 						new PartitionReservations()
 					),
 					null,
@@ -483,6 +484,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.catalogUsageRegistry,
 						new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 						true,
+						MissingHistogramValueBehavior.REFUSE,
 						new PartitionReservations()
 					),
 					null,
@@ -521,6 +523,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.catalogUsageRegistry,
 				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 				true,
+				MissingHistogramValueBehavior.REFUSE,
 				new PartitionReservations()
 			),
 			null,
@@ -549,6 +552,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.catalogUsageRegistry,
 				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 				true,
+				MissingHistogramValueBehavior.REFUSE,
 				new PartitionReservations()
 			),
 			null,
@@ -684,6 +688,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.catalogUsageRegistry,
 				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 				true,
+				MissingHistogramValueBehavior.REFUSE,
 				new PartitionReservations()
 			),
 			null,

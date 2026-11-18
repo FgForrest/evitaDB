@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -42,6 +43,10 @@ import static java.util.Optional.ofNullable;
  */
 public class GraphQLOptions extends AbstractApiOptions implements ApiWithSpecificPrefix {
 	private static final String BASE_GRAPHQL_PATH = "gql";
+	/**
+	 * Default memory budget of the parsed and validated document cache of a single GraphQL instance (16 MB).
+	 */
+	public static final long DEFAULT_DOCUMENT_CACHE_SIZE_IN_BYTES = 16L * 1024L * 1024L;
 
 	/**
 	 * Controls the prefix GraphQL API will react on.
@@ -49,20 +54,35 @@ public class GraphQLOptions extends AbstractApiOptions implements ApiWithSpecifi
 	 */
 	@Getter private final String prefix;
 	/**
-	 * Controls whether the ReadDataFetcher will be executed in parallel.
+	 * Controls whether the data fetchers wrapped in
+	 * {@link io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher} run asynchronously: reads on
+	 * the request executor, writes on the transaction executor. These are the fetchers of all top-level query and
+	 * mutation fields of the data API and the schema API of every catalog and of the system API, plus a few nested
+	 * schema API fields; subscription fields are not wrapped and are not affected. When disabled, the wrapped
+	 * fetchers run on the calling thread. Default value is `true`.
 	 */
 	@Getter private final boolean parallelize;
+	/**
+	 * Approximate memory budget in bytes of the cache of parsed and validated GraphQL documents. Identical query
+	 * texts are lexed, parsed and validated only once and the resulting document is reused by subsequent requests.
+	 * The budget applies to each GraphQL instance separately - i.e. to the data API and the schema API of every
+	 * catalog and to the system API. The size of a cached document is estimated from the length of its query text.
+	 * Zero disables the cache, negative values are rejected. Default value is 16 MB.
+	 */
+	@Getter private final long documentCacheSizeInBytes;
 
 	public GraphQLOptions() {
 		super();
 		this.prefix = BASE_GRAPHQL_PATH;
 		this.parallelize = true;
+		this.documentCacheSizeInBytes = DEFAULT_DOCUMENT_CACHE_SIZE_IN_BYTES;
 	}
 
 	public GraphQLOptions(@Nonnull String host) {
 		super(true, host);
 		this.prefix = BASE_GRAPHQL_PATH;
 		this.parallelize = true;
+		this.documentCacheSizeInBytes = DEFAULT_DOCUMENT_CACHE_SIZE_IN_BYTES;
 	}
 
 	@JsonCreator
@@ -74,11 +94,19 @@ public class GraphQLOptions extends AbstractApiOptions implements ApiWithSpecifi
 		@Nullable @JsonProperty("keepAlive") Boolean keepAlive,
 		@Nullable @JsonProperty("prefix") String prefix,
 		@Nullable @JsonProperty("parallelize") Boolean parallelize,
+		@Nullable @JsonProperty("documentCacheSizeInBytes") Long documentCacheSizeInBytes,
 		@Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
 		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
 		this.prefix = ofNullable(prefix).orElse(BASE_GRAPHQL_PATH);
-		this.parallelize = ofNullable(parallelize).orElse(false);
+		this.parallelize = ofNullable(parallelize).orElse(true);
+		this.documentCacheSizeInBytes = ofNullable(documentCacheSizeInBytes)
+			.orElse(DEFAULT_DOCUMENT_CACHE_SIZE_IN_BYTES);
+		Assert.isTrue(
+			this.documentCacheSizeInBytes >= 0,
+			() -> "GraphQL `documentCacheSizeInBytes` must not be negative (use 0 to disable the cache), but was: " +
+				this.documentCacheSizeInBytes
+		);
 	}
 
 }

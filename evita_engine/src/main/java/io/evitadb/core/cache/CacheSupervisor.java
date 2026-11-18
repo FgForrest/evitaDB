@@ -30,7 +30,6 @@ import io.evitadb.core.cache.model.CachedRecord;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
-import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import net.openhft.hashing.LongHashFunction;
@@ -122,29 +121,6 @@ public interface CacheSupervisor extends Closeable {
 		@Nullable EntityFetch entityRequirement,
 		@Nonnull Supplier<ServerEntityDecorator> entityFetcher,
 		@Nonnull UnaryOperator<ServerEntityDecorator> enricher
-	);
-
-	/**
-	 * Method tries to find particular entity `primaryKey` and `requirements` in the cache so that we can avoid physical
-	 * fetch from the persistent datastore.
-	 *
-	 * If the entity is not found in the cache, it is fetched via `entityFetcher` function and {@link CacheRecordAdept}
-	 * is created for it. If there are enough requests targeting this entity, the entity will eventually propagate to
-	 * the cache.
-	 *
-	 * This method is analogous to {@link #analyse(EvitaSessionContract, int, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
-	 * but it handles and returns {@link ServerBinaryEntityDecorator} instead.
-	 *
-	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
-	 */
-	@Nonnull
-	Optional<ServerBinaryEntityDecorator> analyse(
-		@Nonnull EvitaSessionContract evitaSession,
-		int primaryKey,
-		@Nonnull String entityType,
-		@Nullable EntityFetch entityRequirement,
-		@Nonnull Supplier<ServerBinaryEntityDecorator> entityFetcher,
-		@Nonnull UnaryOperator<ServerBinaryEntityDecorator> enricher
 	);
 
 	/**

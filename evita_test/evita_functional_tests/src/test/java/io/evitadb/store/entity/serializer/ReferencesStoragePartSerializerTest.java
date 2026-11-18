@@ -24,29 +24,39 @@
 package io.evitadb.store.entity.serializer;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoException;
+import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.ByteBufferInput;
 import com.esotericsoftware.kryo.io.ByteBufferOutput;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
-import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
 import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadOnlyKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
+import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
+import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -58,6 +68,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -119,6 +134,8 @@ class ReferencesStoragePartSerializerTest {
 
 	private EntitySchema productSchema;
 	private Kryo kryo;
+	/** Compressor shared by the production writer and the hand-built legacy attribute writer. */
+	private ReadWriteKeyCompressor keyCompressor;
 
 	@Nonnull
 	private static ReferenceSchema referenceSchema(@Nonnull String name, @Nullable String groupType) {
@@ -126,7 +143,7 @@ class ReferencesStoragePartSerializerTest {
 			name, NamingConvention.generate(name),
 			null, null,
 			Cardinality.ZERO_OR_MORE,
-			name, NamingConvention.generate(name), false,
+			"item", NamingConvention.generate("item"), false,
 			groupType, groupType == null ? Collections.emptyMap() : NamingConvention.generate(groupType), false,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
@@ -185,14 +202,18 @@ class ReferencesStoragePartSerializerTest {
 			Map.of(
 				BRAND, referenceSchema(BRAND, null),
 				CATEGORY, referenceSchema(CATEGORY, "categoryGroup"),
-				PARAMETER, referenceSchema(PARAMETER, null)
+				PARAMETER, referenceSchema(PARAMETER, null),
+				"categoryLonger", referenceSchema("categoryLonger", "categoryGroup"),
+				"žluťoučký", referenceSchema("žluťoučký", "categoryGroup"),
+				"longName".repeat(80), referenceSchema("longName".repeat(80), "categoryGroup")
 			),
 			Collections.emptySet(),
 			Collections.emptyMap()
 		);
+		this.keyCompressor = new ReadWriteKeyCompressor(new ConcurrentHashMap<>());
 		this.kryo = KryoFactory.createKryo(
 			SharedClassesConfigurer.INSTANCE
-				.andThen(new EntityStoragePartConfigurer(new ReadWriteKeyCompressor(new ConcurrentHashMap<>())))
+				.andThen(new EntityStoragePartConfigurer(this.keyCompressor))
 		);
 	}
 
@@ -485,6 +506,296 @@ class ReferencesStoragePartSerializerTest {
 		return baos.toByteArray();
 	}
 
+	/**
+	 * Uses a complete ordinary decode as the admission oracle, then compares every retained field and exact offset.
+	 */
+	@Test
+	@DisplayName("current attributes preserve every admitted reference and byte offset for all coverage shapes")
+	void shouldPreserveReferencesAndOffsetsWhenSkippingCurrentAttributes() {
+		verifySkipMatrix(false);
+	}
+
+	/**
+	 * Exercises the same matrix with version-prefixed attributes hand-written in the 2026.2 layout.
+	 */
+	@Test
+	@DisplayName("2026.2 attributes preserve every admitted reference and byte offset for all coverage shapes")
+	void shouldPreserveReferencesAndOffsetsWhenSkippingLegacyAttributes() {
+		verifySkipMatrix(true);
+	}
+
+	/**
+	 * Covers direct invocations outside a part and restoration after nested and failed coverage bindings.
+	 */
+	@Test
+	@DisplayName("direct reference reads use context and restore nested and failed part bindings")
+	void shouldRestoreCoverageForDirectReferenceReads() {
+		final byte[] bytes;
+		try (final Output output = new Output(128, -1)) {
+			this.kryo.writeObject(output, reference(CATEGORY, 201, 1, null, Map.of(), false));
+			bytes = output.toBytes();
+		}
+		final SerialVersionBasedSerializer<?> versioned =
+			(SerialVersionBasedSerializer<?>) this.kryo.getSerializer(Reference.class);
+		final ReferenceSerializer serializer = (ReferenceSerializer) versioned.getCurrentVersionSerializer();
+		final ReferenceDecodeCoverage none = ReferenceDecodeCoverage.ofNames(Set.of());
+		EntitySchemaContext.executeWithSchemaContext(this.productSchema, () ->
+			ReferenceDecodeCoverageContext.executeWithCoverage(null, () -> {
+				serializer.withDecodeCoverage(none, () -> {
+					assertNull(this.kryo.readObject(new Input(bytes), Reference.class));
+					serializer.withDecodeCoverage(null, () -> {
+						assertEquals(201, this.kryo.readObject(new Input(bytes), Reference.class).getReferenceKey().primaryKey());
+						return null;
+					});
+					assertNull(this.kryo.readObject(new Input(bytes), Reference.class));
+					assertThrows(IllegalStateException.class, () -> serializer.withDecodeCoverage(null, () -> {
+						throw new IllegalStateException("failed read");
+					}));
+					assertNull(this.kryo.readObject(new Input(bytes), Reference.class));
+					return null;
+				});
+				assertEquals(201, this.kryo.readObject(new Input(bytes), Reference.class).getReferenceKey().primaryKey());
+				ReferenceDecodeCoverageContext.executeWithCoverage(none, () -> {
+					assertNull(this.kryo.readObject(new Input(bytes), Reference.class));
+					return null;
+				});
+				return null;
+			})
+		);
+	}
+
+	/**
+	 * A truncated real part fails inside the reference loop; later reads on the same Kryo must use fresh coverage.
+	 */
+	@Test
+	@DisplayName("releases part coverage after a truncated reference payload")
+	void shouldReleaseCoverageAfterTruncatedPartRead() {
+		final byte[] complete = writeParts(firstPart());
+		final byte[] truncated = Arrays.copyOf(complete, complete.length - 1);
+		final Reference expected = reference(CATEGORY, 201, 7, null, Map.of(), false);
+		final byte[] direct;
+		try (final Output output = new Output(128, -1)) {
+			this.kryo.writeObject(output, expected);
+			direct = output.toBytes();
+		}
+		EntitySchemaContext.executeWithSchemaContext(this.productSchema, () -> {
+			ReferenceDecodeCoverageContext.executeWithCoverage(ReferenceDecodeCoverage.ofNames(Set.of()), () -> {
+				try (final Input input = new Input(truncated)) {
+					assertThrows(KryoException.class,
+						() -> this.kryo.readObject(input, ReferencesStoragePart.class));
+					assertEquals(truncated.length, input.total(), "failure must reach the truncated payload end");
+				}
+				return null;
+			});
+			ReferenceDecodeCoverageContext.executeWithCoverage(ReferenceDecodeCoverage.ofNames(Set.of(CATEGORY)), () -> {
+				// A direct read cannot overwrite a stale part binding, so it proves the failed read unbound it.
+				try (final Input input = new Input(direct)) {
+					assertReferenceContents(
+						new Reference[]{expected}, new Reference[]{this.kryo.readObject(input, Reference.class)},
+						"direct read after the failed part read"
+					);
+				}
+				try (final Input input = new Input(complete)) {
+					assertArrayEquals(new int[]{200, 201}, referencedIdsOf(
+						this.kryo.readObject(input, ReferencesStoragePart.class)));
+				}
+				return null;
+			});
+			return null;
+		});
+	}
+
+	/**
+	 * Writes two rich parts and a sentinel, then compares complete decoding with all name/key coverage variants using
+	 * small and large buffers. Repeating each name exercises memo hits; prefix names and Unicode exercise misses.
+	 */
+	private void verifySkipMatrix(boolean legacyAttributes) {
+		final String[] names = {BRAND, CATEGORY, "categoryLonger", "žluťoučký", "longName".repeat(80)};
+		final ReferencesStoragePart part = skipMatrixPart(names);
+		if (legacyAttributes) {
+			// The old release wrote the same payload following its UID; no fixtures or byte patching are involved.
+			this.kryo.getRegistration(AttributeValue.class).setSerializer(
+				new LegacyAttributeValueWriter(this.keyCompressor)
+			);
+		}
+		final byte[] bytes;
+		final int partEnd;
+		try (final Output output = new Output(4_096, -1)) {
+			this.kryo.writeObject(output, part);
+			partEnd = output.position();
+			this.kryo.writeObject(output, part);
+			output.writeInt(0x12345678);
+			bytes = output.toBytes();
+		}
+		// Restore the normal version dispatcher, also for legacy data, before establishing the oracle.
+		new EntityStoragePartConfigurer(this.keyCompressor).accept(this.kryo);
+		EntitySchemaContext.executeWithSchemaContext(this.productSchema, () -> {
+			final Input ordinary = new Input(bytes);
+			final ReferencesStoragePart complete = this.kryo.readObject(ordinary, ReferencesStoragePart.class);
+			assertEquals(partEnd, ordinary.total());
+			// the oracle must hold the fixture: five live references of every name, the sixth one is dropped
+			assertEquals(names.length * 5, complete.getReferences().length);
+			final List<ReferenceDecodeCoverage> coverages = skipMatrixCoverages(names);
+			int narrowingCoverages = 0;
+			for (final int bufferSize : new int[]{32, 16_384}) {
+				for (final ReferenceDecodeCoverage coverage : coverages) {
+					final String scenario = "coverage=" + coverage + ", buffer=" + bufferSize;
+					final Reference[] expected = Arrays.stream(complete.getReferences())
+						.filter(it -> coverage == null || coverage.isReferenceDecoded(
+							it.getReferenceName(), it.getReferenceKey().primaryKey()))
+						.toArray(Reference[]::new);
+					if (expected.length > 0 && expected.length < complete.getReferences().length) {
+						narrowingCoverages++;
+					}
+					try (final ObservableInput<?> input = new ObservableInput<>(
+						new ByteArrayInputStream(bytes), bufferSize, Checksum.NO_OP, null
+					)) {
+						ReferenceDecodeCoverageContext.executeWithCoverage(coverage, () -> {
+							for (int record = 1; record <= 2; record++) {
+								final ReferencesStoragePart decoded = this.kryo.readObject(input, ReferencesStoragePart.class);
+								assertReferenceContents(
+									expected, decoded.getReferences(), scenario + ", record=" + record
+								);
+								assertEquals(complete.sizeInBytes(), decoded.sizeInBytes(), scenario);
+								assertEquals((long) partEnd * record, input.total(), scenario);
+								assertEquals(coverage, decoded.getDecodeCoverage(), scenario);
+							}
+							return null;
+						});
+						assertEquals(0x12345678, input.readInt(), scenario);
+						assertEquals(bytes.length, input.total(), scenario);
+					}
+				}
+			}
+			// without a coverage that keeps some references and drops others, matching the oracle proves no skip
+			assertTrue(narrowingCoverages > 0, "no coverage both admitted and rejected references");
+			assertKeylessReaderSkipsEveryReference(bytes, partEnd);
+			return null;
+		});
+	}
+
+	/**
+	 * Builds the part the skip matrix writes twice: six references of every passed name, without attributes, with
+	 * one attribute and with every value shape in turn, every other one grouped (never a brand), the last one dropped.
+	 *
+	 * @param names reference names, each spread over six consecutive references
+	 * @return the part holding all the references
+	 */
+	@Nonnull
+	private ReferencesStoragePart skipMatrixPart(@Nonnull String[] names) {
+		final Serializable[] values = {
+			"žluťoučký " + "value".repeat(80), 42, 1234567890123L, new BigDecimal("123.456"),
+			LocalDate.of(2030, 1, 2), LocalDateTime.of(2030, 1, 2, 3, 4), OffsetDateTime.MAX,
+			IntegerNumberRange.between(-10, 30),
+			DateTimeRange.between(OffsetDateTime.parse("2030-01-01T00:00:00Z"),
+				OffsetDateTime.parse("2031-01-01T00:00:00Z")),
+			new String[]{"a", "český", "漢字"}, new Integer[]{1, 2, 3}, new int[]{4, 5},
+			new LocalDateTime[]{LocalDateTime.MIN, LocalDateTime.of(2030, 1, 2, 3, 4)}, null
+		};
+		final List<Reference> references = new ArrayList<>(names.length * 6);
+		for (final String name : names) {
+			for (int row = 0; row < 6; row++) {
+				final Map<AttributeKey, AttributeValue> attributes = CollectionUtils.createLinkedHashMap(values.length);
+				final int count = row % 3 == 0 ? 0 : row % 3 == 1 ? 1 : values.length;
+				for (int attribute = 0; attribute < count; attribute++) {
+					final AttributeKey key = new AttributeKey("value" + attribute, attribute % 2 == 0 ? Locale.ENGLISH : null);
+					attributes.put(key, new AttributeValue(3, key, values[attribute], attribute == values.length - 1));
+				}
+				references.add(reference(name, 100 + row, references.size() + 1,
+					row % 2 == 0 && !name.equals(BRAND) ? 900 : null, attributes, row == 5));
+			}
+		}
+		return new ReferencesStoragePart(
+			10, references.size(), references.toArray(Reference[]::new), -1
+		);
+	}
+
+	/**
+	 * Lists the coverages the skip matrix decodes under: none at all, one rejecting everything, each name admitted
+	 * whole, each name narrowed by key, and a whole name mixed with a key-narrowed one.
+	 *
+	 * @param names reference names the matrix part holds
+	 * @return the coverages, `null` standing for no coverage
+	 */
+	@Nonnull
+	private static List<ReferenceDecodeCoverage> skipMatrixCoverages(@Nonnull String[] names) {
+		final List<ReferenceDecodeCoverage> coverages = new ArrayList<>();
+		coverages.add(null);
+		coverages.add(ReferenceDecodeCoverage.ofNames(Set.of()));
+		for (final String name : names) {
+			coverages.add(ReferenceDecodeCoverage.ofNames(Set.of(name)));
+			coverages.add(ReferenceDecodeCoverage.of(Set.of(), Map.of(name, new int[]{101, 102, 105})));
+		}
+		coverages.add(ReferenceDecodeCoverage.of(Set.of(BRAND), Map.of(CATEGORY, new int[]{102})));
+		return coverages;
+	}
+
+	/**
+	 * A missing-key compressor proves the reference skip actually reaches the key-free attribute path: a reader that
+	 * resolved any attribute key of a rejected reference would fail.
+	 *
+	 * @param bytes   the matrix part written twice, followed by the sentinel
+	 * @param partEnd the stream offset at which the first part ends
+	 */
+	private static void assertKeylessReaderSkipsEveryReference(@Nonnull byte[] bytes, int partEnd) {
+		final Kryo keyless = KryoFactory.createKryo(
+			SharedClassesConfigurer.INSTANCE.andThen(
+				new EntityStoragePartConfigurer(new ReadOnlyKeyCompressor(Map.of()))
+			)
+		);
+		ReferenceDecodeCoverageContext.executeWithCoverage(ReferenceDecodeCoverage.ofNames(Set.of()), () -> {
+			try (final ObservableInput<?> input = new ObservableInput<>(
+				new ByteArrayInputStream(bytes), 32, Checksum.NO_OP, null
+			)) {
+				for (int record = 1; record <= 2; record++) {
+					assertEquals(0, keyless.readObject(input, ReferencesStoragePart.class).getReferences().length);
+					assertEquals((long) partEnd * record, input.total());
+				}
+				assertEquals(0x12345678, input.readInt());
+			}
+			return null;
+		});
+	}
+
+	/**
+	 * Compares the complete persisted state, including array-valued attributes by contents rather than identity.
+	 *
+	 * @param expected the references a complete decode admitted
+	 * @param actual   the references the decode under test returned
+	 * @param scenario what was decoded, reported when an assertion fails
+	 */
+	private static void assertReferenceContents(
+		@Nonnull Reference[] expected,
+		@Nonnull Reference[] actual,
+		@Nonnull String scenario
+	) {
+		assertEquals(expected.length, actual.length, scenario);
+		for (int i = 0; i < expected.length; i++) {
+			final String reference = scenario + ", reference #" + i;
+			assertEquals(expected[i].getReferenceKey(), actual[i].getReferenceKey(), reference);
+			assertEquals(
+				expected[i].getReferenceKey().internalPrimaryKey(), actual[i].getReferenceKey().internalPrimaryKey(),
+				reference
+			);
+			assertEquals(expected[i].version(), actual[i].version(), reference);
+			assertEquals(expected[i].dropped(), actual[i].dropped(), reference);
+			assertEquals(expected[i].getGroup(), actual[i].getGroup(), reference);
+			final List<AttributeValue> expectedAttributes = new ArrayList<>(expected[i].getAttributeValues());
+			final List<AttributeValue> actualAttributes = new ArrayList<>(actual[i].getAttributeValues());
+			expectedAttributes.sort(Comparator.comparing(AttributeValue::key));
+			actualAttributes.sort(Comparator.comparing(AttributeValue::key));
+			assertEquals(expectedAttributes.size(), actualAttributes.size(), reference);
+			for (int j = 0; j < expectedAttributes.size(); j++) {
+				final AttributeValue wanted = expectedAttributes.get(j);
+				final AttributeValue found = actualAttributes.get(j);
+				assertEquals(wanted.key(), found.key(), reference);
+				assertEquals(wanted.version(), found.version(), reference);
+				assertEquals(wanted.dropped(), found.dropped(), reference);
+				assertArrayEquals(new Object[]{wanted.value()}, new Object[]{found.value()}, reference);
+			}
+		}
+	}
+
 	@Nested
 	@DisplayName("Unfiltered decode")
 	class UnfilteredDecodeTest {
@@ -544,7 +855,8 @@ class ReferencesStoragePartSerializerTest {
 			final ReferencesStoragePart[] parts = readTwoParts(writeTwoParts(), Set.of(CATEGORY));
 
 			assertArrayEquals(new String[]{CATEGORY, CATEGORY}, referenceNamesOf(parts[0]));
-			assertArrayEquals(new int[]{900, 901}, parts[0].getDistinctReferencedGroupIds(CATEGORY));
+			assertEquals(900, parts[0].getReferences()[0].getGroup().orElseThrow().getPrimaryKeyOrThrowException());
+			assertEquals(901, parts[0].getReferences()[1].getGroup().orElseThrow().getPrimaryKeyOrThrowException());
 			assertEquals("category-code", parts[0].getReferences()[0].getAttribute(ATTRIBUTE_CODE));
 
 			// the second part has no category reference at all - an empty result, not a desynchronized stream
@@ -743,7 +1055,6 @@ class ReferencesStoragePartSerializerTest {
 			final ReferencesStoragePart narrowed = readTwoParts(writeTwoParts(), Set.of(PARAMETER))[0];
 
 			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getReferencedIds(BRAND));
-			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedIds(CATEGORY));
 			assertThrows(GenericEvitaInternalError.class, () -> narrowed.contains(new ReferenceKey(BRAND, 100)));
 			// whole-part questions cannot be answered from a subset either
 			assertThrows(GenericEvitaInternalError.class, narrowed::isEmpty);
@@ -978,7 +1289,6 @@ class ReferencesStoragePartSerializerTest {
 
 			// category 200 was SKIPPED, not found missing - reading the difference as absence is the whole hazard
 			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getReferencedIds(CATEGORY));
-			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedIds(CATEGORY));
 			assertThrows(GenericEvitaInternalError.class, () -> narrowed.contains(new ReferenceKey(CATEGORY, 200)));
 			assertThrows(GenericEvitaInternalError.class, narrowed::isEmpty);
 		}
@@ -1057,6 +1367,35 @@ class ReferencesStoragePartSerializerTest {
 			assertFalse(parts[2].isComplete());
 			assertArrayEquals(new int[]{201}, referencedIdsOf(parts[2]));
 			assertEquals(coverage, parts[2].getDecodeCoverage());
+		}
+	}
+
+	/**
+	 * Writes the historical UID and the unchanged payload without binary fixtures or byte patching.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private static class LegacyAttributeValueWriter extends Serializer<AttributeValue> {
+		/** Current payload writer shared by the unchanged historical attribute layout. */
+		private final AttributeValueSerializer payloadWriter;
+
+		/** Creates the legacy writer sharing the real compressor used by the current writer. */
+		private LegacyAttributeValueWriter(@Nonnull ReadWriteKeyCompressor keyCompressor) {
+			this.payloadWriter = new AttributeValueSerializer(keyCompressor);
+		}
+
+		/** Writes the historical discriminator and its unchanged attribute payload. */
+		@Override
+		public void write(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull AttributeValue value) {
+			output.writeLong(AttributeValueSerializer_2026_2Test.LEGACY_ATTRIBUTE_VALUE_UID);
+			this.payloadWriter.write(kryo, output, value);
+		}
+
+		/** This writer is replaced with production readers before any decoding. */
+		@Nonnull
+		@Override
+		public AttributeValue read(@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends AttributeValue> type) {
+			throw new UnsupportedOperationException("writer only");
 		}
 	}
 

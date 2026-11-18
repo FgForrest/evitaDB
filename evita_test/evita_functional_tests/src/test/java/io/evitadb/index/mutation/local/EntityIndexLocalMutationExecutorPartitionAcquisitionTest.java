@@ -145,6 +145,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			this.catalogUsageRegistry,
 			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
+			MissingHistogramValueBehavior.REFUSE,
 			new PartitionReservations()
 		);
 	}

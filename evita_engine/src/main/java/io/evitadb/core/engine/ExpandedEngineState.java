@@ -313,20 +313,29 @@ public record ExpandedEngineState(
 	 * same catalog the read may be stale relative to whoever ultimately wins the swap. The commit
 	 * pipeline (`TransactionManager#propagateCatalogSnapshot`) serializes calls per catalog, so in
 	 * practice this race cannot occur — the read remains consistent with the replaced reference.
-	 * Only a strictly newer reference replaces the existing one; if the reference is the same or
-	 * older, the current catalog remains unchanged.
+	 * Only a strictly newer reference of the same catalog replaces the existing one; if the reference is the
+	 * same, older or belongs to another catalog, the current catalog remains unchanged.
 	 *
 	 * @param catalog a newer {@link Catalog} instance to swap in by name
 	 * @return {@code true} when the swap actually happened AND the new catalog has a strictly
 	 * higher schema version than the prior reference; {@code false} when the swap was skipped
-	 * (older / identical reference) or when the schema version did not advance (data-only commit)
+	 * (older / identical reference, or one of another catalog) or when the schema version did not advance
+	 * (data-only commit)
 	 */
 	public boolean replaceCatalogReference(@Nonnull Catalog catalog) {
 		// catalog indexes are ConcurrentHashMap - we can do it safely here
 		final CatalogWrapper currentCatalogRef = this.catalogs.get(catalog.getName());
-		// replace catalog only when reference/pointer differs and is strictly newer
+		// replace catalog only when reference/pointer differs and is a strictly newer one of the same catalog
 		final CatalogContract currentCatalog = currentCatalogRef.catalog();
-		if (currentCatalog == catalog || currentCatalog.getVersion() >= catalog.getVersion()) {
+		if (currentCatalog == catalog) {
+			return false;
+		}
+		// Versions of different catalogs are not comparable: after a replace the surviving catalog (the former source)
+		// can have a lower version than the discarded target, and a late round of that target must not overwrite it.
+		if (currentCatalog instanceof Catalog current && !current.getCatalogId().equals(catalog.getCatalogId())) {
+			return false;
+		}
+		if (currentCatalog.getVersion() >= catalog.getVersion()) {
 			return false;
 		}
 		// UnusableCatalog placeholder cannot read its schema (would throw); treat as -1 so a

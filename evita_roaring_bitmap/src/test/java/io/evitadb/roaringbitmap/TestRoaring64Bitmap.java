@@ -1,5 +1,6 @@
 package io.evitadb.roaringbitmap;
 
+import javax.annotation.Nonnull;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.roaringbitmap.Util.toUnsignedLong;
@@ -1869,6 +1870,25 @@ public class TestRoaring64Bitmap {
 			Assertions.assertArrayEquals(new long[]{-3L, -2L}, x.toArray());
 		}
 
+		/**
+		 * Re-optimizing a mutated run container recovers space and preserves its values (upstream #886).
+		 */
+		@DisplayName("runOptimize converts runs that are no longer compact")
+		@Test
+		public void testRunOptimizeConvertsRunsThatAreNoLongerCompact() {
+			final PersistentLongRoaringBitmap bitmap = new PersistentLongRoaringBitmap();
+			bitmap.addRange(0L, 100L);
+			assertTrue(bitmap.runOptimize());
+			for (long i = 200; i < 65536; i += 2) {
+				bitmap.add(i); // each value becomes a run of length one
+			}
+			final PersistentLongRoaringBitmap expected = bitmap.clone();
+			final long before = bitmap.serializedSizeInBytes();
+			assertFalse(bitmap.runOptimize());
+			assertTrue(bitmap.serializedSizeInBytes() < before / 10);
+			assertEquals(expected, bitmap);
+		}
+
 		@DisplayName("runOptimize leaves the values intact")
 		@Test
 		public void testRunOptimize() {
@@ -3006,4 +3026,164 @@ public class TestRoaring64Bitmap {
 		}
 	}
 
+
+	/**
+	 * Ports upstream #895's `testFlipOverThreeContainers` scenario.
+	 */
+	@Test
+	public void testFlipOverThreeContainers() {
+		PersistentLongRoaringBitmap map = PersistentLongRoaringBitmap.bitmapOf(2L << 16, (3L << 16) + 1, (4L << 16) + 3);
+		map.flip(2L << 16, (4L << 16) + 4);
+		PersistentLongRoaringBitmap expected = new PersistentLongRoaringBitmap();
+		expected.addRange((2L << 16) + 1, (4L << 16) + 3);
+		expected.removeLong((3L << 16) + 1);
+		assertEquals(131073, map.getLongCardinality());
+		assertEquals(expected, map);
+	}
+
+	/**
+	 * Ports upstream #895's `testFlipAcrossTheHigh32Boundary` scenario.
+	 */
+	@Test
+	public void testFlipAcrossTheHigh32Boundary() {
+		PersistentLongRoaringBitmap map = PersistentLongRoaringBitmap.bitmapOf((1L << 32) - 2, (1L << 32), (1L << 32) + 2, 1L << 50);
+		map.flip((1L << 32) - 2, (1L << 32) + 2);
+		assertArrayEquals(new long[] {(1L << 32) - 1, (1L << 32) + 1, (1L << 32) + 2, 1L << 50}, map.toArray());
+
+		PersistentLongRoaringBitmap upToK = new PersistentLongRoaringBitmap();
+		upToK.flip((1L << 32) - 2, (1L << 32));
+		assertArrayEquals(new long[] {(1L << 32) - 2, (1L << 32) - 1}, upToK.toArray());
+		// one bucket holding one array container: no (empty) container was left for (1L << 32)
+
+		PersistentLongRoaringBitmap last = PersistentLongRoaringBitmap.bitmapOf((1L << 32) - 1);
+		last.flip((1L << 32) - 1, (1L << 32));
+		assertTrue(last.isEmpty());
+	}
+
+	/**
+	 * Ports upstream #895's `testAdvanceToTheLargestValue` scenario.
+	 */
+	@Test
+	public void testAdvanceToTheLargestValue() {
+		PersistentLongRoaringBitmap present = PersistentLongRoaringBitmap.bitmapOf(5L, (-1L) - 1, (-1L));
+		PeekableLongIterator it = present.getLongIterator();
+		it.advanceIfNeeded((-1L));
+		assertTrue(it.hasNext());
+		assertEquals((-1L), it.peekNext());
+		assertEquals((-1L), it.next());
+		assertFalse(it.hasNext());
+		PeekableLongIterator from = present.getLongIteratorFrom((-1L));
+		assertTrue(from.hasNext());
+		assertEquals((-1L), from.next());
+		assertFalse(from.hasNext());
+
+		PersistentLongRoaringBitmap absent = PersistentLongRoaringBitmap.bitmapOf(5L, (-1L) - 1);
+		it = absent.getLongIterator();
+		it.advanceIfNeeded((-1L));
+		assertFalse(it.hasNext());
+		assertFalse(absent.getLongIteratorFrom((-1L)).hasNext());
+	}
+
+	/**
+	 * Ports upstream #895's `testCardinalityAndIntersectsAcrossBuckets` scenario.
+	 */
+	@Test
+	public void testCardinalityAndIntersectsAcrossBuckets() {
+		PersistentLongRoaringBitmap r1 = PersistentLongRoaringBitmap.bitmapOf(1L, 2 * (1L << 32) + 5);
+		PersistentLongRoaringBitmap r2 = PersistentLongRoaringBitmap.bitmapOf(7 * (1L << 32) + 1, 9 * (1L << 32) + 5);
+		assertEquals(0, PersistentLongRoaringBitmap.andCardinality(r1, r2));
+		assertFalse(PersistentLongRoaringBitmap.intersects(r1, r2));
+
+		r1 = new PersistentLongRoaringBitmap();
+		r2 = new PersistentLongRoaringBitmap();
+		r1.addRange(0, 100);
+		r1.addRange(2 * (1L << 32), 2 * (1L << 32) + 100);
+		r2.addRange(50, 150);
+		r2.addRange(8 * (1L << 32) + 50, 8 * (1L << 32) + 150);
+		assertEquals(50, PersistentLongRoaringBitmap.andCardinality(r1, r2));
+		assertTrue(PersistentLongRoaringBitmap.intersects(r1, r2));
+		PersistentLongRoaringBitmap union = r1.clone();
+		union.or(r2);
+		assertEquals(350, union.getLongCardinality());
+
+		PersistentLongRoaringBitmap empty = new PersistentLongRoaringBitmap();
+		assertEquals(0, PersistentLongRoaringBitmap.andCardinality(r1, empty));
+		assertEquals(0, PersistentLongRoaringBitmap.andCardinality(empty, r1));
+		assertFalse(PersistentLongRoaringBitmap.intersects(r1, empty));
+		assertFalse(PersistentLongRoaringBitmap.intersects(empty, r1));
+		assertFalse(PersistentLongRoaringBitmap.intersects(empty, new PersistentLongRoaringBitmap()));
+		assertEquals(r1.getLongCardinality(), PersistentLongRoaringBitmap.andCardinality(r1, r1));
+		assertTrue(PersistentLongRoaringBitmap.intersects(r1, r1));
+
+	}
+
+	/**
+	 * Ports upstream #895's `testBulkAddWithDuplicatesAndUnsortedValues` scenario.
+	 */
+	@Test
+	public void testBulkAddWithDuplicatesAndUnsortedValues() {
+		long[] values = {1, 1L << 33, 1L << 33, 7, (-1L), 0, 1L << 60, 7};
+		long[] expected = {0, 1, 7, 1L << 33, 1L << 60, (-1L)};
+		PersistentLongRoaringBitmap bitmap = new PersistentLongRoaringBitmap();
+		bitmap.add(values);
+		assertEquals(6, bitmap.getLongCardinality());
+		assertArrayEquals(expected, bitmap.toArray());
+		assertArrayEquals(expected, PersistentLongRoaringBitmap.bitmapOf(values).toArray());
+	}
+
+	/**
+	 * Ports upstream #895's `testRandomRangeOperationsAgainstATreeSet` scenario.
+	 */
+	@Test
+	public void testRandomRangeOperationsAgainstATreeSet() {
+		// port of CRoaring's test_cpp_r64_random_range_ops_vs_set
+		long[] bases = {0, (1L << 16) - 512, (1L << 32) - 512, (1L << 48) - 512, (-1L) - 1024};
+		Random random = new Random(42);
+		PersistentLongRoaringBitmap bitmap = new PersistentLongRoaringBitmap();
+		TreeSet<Long> reference = new TreeSet<>(Long::compareUnsigned);
+		for (int op = 0; op < 1000; op++) {
+			long min = bases[random.nextInt(bases.length)] + random.nextInt(1024);
+			int width = random.nextInt(10) == 0 ? random.nextInt(10000) : random.nextInt(300);
+			long max = min + width;
+			if (Long.compareUnsigned(max, min) < 0) {
+				max = (-1L);
+			}
+			switch (random.nextInt(4)) {
+				case 0:
+					bitmap.addRange(min, max);
+					for (long v = min; v != max; v++) {
+						reference.add(v);
+					}
+					break;
+				case 1:
+					bitmap.flip(min, max);
+					for (long v = min; v != max; v++) {
+						if (!reference.remove(v)) {
+							reference.add(v);
+						}
+					}
+					break;
+				case 2:
+					bitmap.addLong(min);
+					reference.add(min);
+					break;
+				default:
+					bitmap.removeLong(min);
+					reference.remove(min);
+					break;
+			}
+			if (random.nextInt(10) == 0) {
+				bitmap.runOptimize();
+			}
+			assertEquals(reference.size(), bitmap.getLongCardinality(), "operation " + op);
+			if (op % 16 == 0) {
+				long[] expected = new long[reference.size()];
+				int i = 0;
+				for (long v : reference) {
+					expected[i++] = v;
+				}
+				assertArrayEquals(expected, bitmap.toArray(), "operation " + op);
+			}
+		}
+	}
 }

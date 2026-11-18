@@ -1758,20 +1758,6 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 
 		@Nonnull
 		@Override
-		public <T extends StoragePart> byte[] serializeStoragePart(@Nonnull T storagePart) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Nonnull
-		@Override
-		public <T extends StoragePart> T deserializeStoragePart(
-			@Nonnull byte[] storagePart, @Nonnull Class<T> containerType
-		) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Nonnull
-		@Override
 		public KeyCompressorSnapshot getKeyCompressorSnapshot() {
 			throw new UnsupportedOperationException();
 		}

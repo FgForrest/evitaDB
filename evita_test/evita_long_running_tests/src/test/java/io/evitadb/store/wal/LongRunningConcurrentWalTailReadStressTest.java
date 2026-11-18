@@ -73,7 +73,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
 import static net.bytebuddy.matcher.ElementMatchers.is;
@@ -312,7 +311,6 @@ public class LongRunningConcurrentWalTailReadStressTest implements EvitaTestSupp
 	}
 
 	@Test
-	@Tag(SLOW)
 	@DisplayName("tailing a WAL while it is being appended must not construct an internal error")
 	void shouldNotConstructInternalErrorsWhileTailingAConcurrentlyAppendedWal() throws InterruptedException {
 		final Instrumentation instrumentation = ByteBuddyAgent.install();

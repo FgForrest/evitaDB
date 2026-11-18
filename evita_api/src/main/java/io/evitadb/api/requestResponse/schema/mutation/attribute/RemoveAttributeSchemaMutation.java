@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -53,6 +54,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -61,6 +63,10 @@ import java.util.stream.Collectors;
 /**
  * Mutation is responsible for removing an existing {@link AttributeSchemaContract} in the
  * {@link EntitySchemaContract} or {@link GlobalAttributeSchemaContract} in the {@link CatalogSchemaContract}.
+ * The removal is refused with {@link SortableAttributeCompoundSchemaException} when a sortable attribute compound of
+ * the entity or of the reference is made of the attribute - the compound would name a missing attribute and every
+ * later upsert into the collection would fail on it. A removal of a global attribute verifies every entity schema
+ * using it before the catalog schema changes, so a refusal by one of them leaves all of them as they are.
  * Mutation can be used for altering also the existing {@link AttributeSchemaContract}
  * or {@link GlobalAttributeSchemaContract} alone.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with
@@ -114,6 +120,14 @@ public class RemoveAttributeSchemaMutation
 		return null;
 	}
 
+	/**
+	 * Removes the global attribute from the catalog schema and cascades the removal into the entity schemas using it;
+	 * an entity schema with an attribute of its own of that name keeps it. All of them are verified before the catalog
+	 * schema changes. A global attribute the catalog schema does not hold leaves it as it is.
+	 *
+	 * @throws SortableAttributeCompoundSchemaException when a sortable attribute compound of an entity schema using
+	 *                                                  the attribute is made of it
+	 */
 	@Nullable
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
@@ -124,6 +138,17 @@ public class RemoveAttributeSchemaMutation
 			// so we can simply return current schema
 			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
+			// every entity schema using the attribute is verified before the first changes, because the removal reaches
+			// them one after another and a refusal by one of them would leave the ones before it without the attribute
+			final List<EntitySchemaContract> usingEntitySchemas =
+				AttributeSchemaMutationVerifier.entitySchemasUsingGlobalAttribute(entitySchemaAccessor, this.name);
+			final ModifyEntitySchemaMutation[] entitySchemaMutations =
+				new ModifyEntitySchemaMutation[usingEntitySchemas.size()];
+			for (int i = 0; i < entitySchemaMutations.length; i++) {
+				final EntitySchemaContract entitySchema = usingEntitySchemas.get(i);
+				AttributeSchemaMutationVerifier.verifyRemovalInEntity(entitySchema, this.name);
+				entitySchemaMutations[i] = new ModifyEntitySchemaMutation(entitySchema.getName(), this);
+			}
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
 					catalogSchema.version() + 1,
@@ -143,19 +168,18 @@ public class RemoveAttributeSchemaMutation
 						),
 					entitySchemaAccessor
 				),
-				entitySchemaAccessor
-					.getEntitySchemas()
-					.stream()
-					.filter(it -> it.getAttributes().containsKey(this.name))
-					.map(it -> new ModifyEntitySchemaMutation(
-						it.getName(),
-						this
-					))
-					.toArray(ModifyEntitySchemaMutation[]::new)
+				entitySchemaMutations
 			);
 		}
 	}
 
+	/**
+	 * Refuses the removal when a sortable attribute compound of the entity is made of the attribute. An attribute the
+	 * entity schema does not hold leaves it as it is, which is what the replay of a cascaded global removal relies on.
+	 *
+	 * @throws SortableAttributeCompoundSchemaException when a sortable attribute compound of the entity is made of the
+	 *                                                  attribute
+	 */
 	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
@@ -166,6 +190,7 @@ public class RemoveAttributeSchemaMutation
 			// so we can simply return current schema
 			return entitySchema;
 		} else {
+			AttributeSchemaMutationVerifier.verifyRemovalInEntity(entitySchema, this.name);
 			return EntitySchema._internalBuild(
 				entitySchema.version() + 1,
 				entitySchema.getName(),
@@ -198,6 +223,16 @@ public class RemoveAttributeSchemaMutation
 		}
 	}
 
+	/**
+	 * Refuses the removal when a sortable attribute compound of the reference is made of the attribute, unless
+	 * `consistencyChecks` is {@link ConsistencyChecks#SKIP}. An attribute the reference does not hold leaves it as it
+	 * is, while one a bound reflected reference inherits is refused with `InvalidSchemaMutationException` by the
+	 * lookup of {@link #getReferenceAttributeSchema(ReferenceSchemaContract, String)}, as it can be removed only in the
+	 * original reference.
+	 *
+	 * @throws SortableAttributeCompoundSchemaException when a sortable attribute compound of the reference is made of
+	 *                                                  the attribute
+	 */
 	@Nullable
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
@@ -208,6 +243,12 @@ public class RemoveAttributeSchemaMutation
 			// so we can simply return current schema
 			return referenceSchema;
 		} else {
+			if (consistencyChecks != ConsistencyChecks.SKIP) {
+				// the reference schema builders skip the check and refuse the removal on their own; a reflected
+				// reference whose original is not available yet skips it too, as the compounds it inherits are not
+				// known before it is bound
+				AttributeSchemaMutationVerifier.verifyRemovalInReference(entitySchema, referenceSchema, this.name);
+			}
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
 				return reflectedReferenceSchema
 					.withDeclaredAttributes(

@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-20
-updated: 2026-10-25 05:45
+updated: 2026-11-10 12:15
 status: accepted
 kind: refactor
 issues: [1615]
@@ -16,7 +16,7 @@ areas:
   - evita_engine/src/main/java/io/evitadb/index/attribute
 supersedes: []
 superseded-by: []
-relates: [2026-10-21-one-locale-per-entity-level, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-27-string-attribute-normalization]
+relates: [2026-11-05-nested-inscope-requested-scopes, 2026-10-21-one-locale-per-entity-level, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-27-string-attribute-normalization]
 ---
 
 # The filter of `referenceContent` is evaluated row by row over the fetched owners' references
@@ -200,9 +200,9 @@ table. A measured case where the index route is faster (none of the eight was) w
   called from `ReferenceContentTranslator`) with a constraint-check visitor and throws the result away. In check mode `NestedSet`
   resolves its nested query eagerly, so nested filters are validated and their capabilities counted whatever the data;
   in a fetch it is lazy and restricted to the targets and groups of the rows tested. A nested level is planned in the
-  locale its fetch uses (`ReferenceContentTranslator#getOwnerLocale` folds
+  locale its fetch uses (`ReferenceContentTranslator#resolveOwnerLevel` folds
   `ReferencedEntityFetcher#getReferencedEntityLocale` over the enclosing `referenceContent` requirements, outermost
-  first - the level-2 test pins that order).
+  first - the level-2 test pins that order), and since #1883 in the scope its fetch uses too.
 - **The owner must carry every row** (`getOwnerCarryingEveryRow`). Rows are read off the raw entity, never off the
   decorator, which hides names, rows and attributes the request did not ask for. A `ServerEntityDecorator` whose
   reference predicate covers the name carries every row that matters; one that requires no references is accepted on
@@ -524,6 +524,8 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
 
 ## Related work
 
+- [2026-11-05-nested-inscope-requested-scopes](2026-11-05-nested-inscope-requested-scopes.md) - judges an `inScope` of the filter at the entry point of a request,
+  so the verdict no longer waits for a row to reach the node, and hands the requested scopes to `NestedSet`.
 - [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md) - the
   record whose registry rows made the index route a double evaluator; this one lands in the same pull request.
 - [2026-09-23-reference-decode-narrowing-by-referenced-key](2026-09-23-reference-decode-narrowing-by-referenced-key.md) -

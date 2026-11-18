@@ -323,6 +323,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			new SchemaCapabilityUsageRegistry(),
 			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
+			MissingHistogramValueBehavior.REFUSE,
 			new PartitionReservations()
 		);
 	}
@@ -1259,6 +1260,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			new SchemaCapabilityUsageRegistry(),
 			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
+			MissingHistogramValueBehavior.REFUSE,
 			new PartitionReservations()
 		);
 	}

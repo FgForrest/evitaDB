@@ -53,8 +53,7 @@ public interface GrpcEvitaSessionResponseOrBuilder extends
 
   /**
    * <pre>
-   * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
-   * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
+   * Type of the created session - read-only vs. read-write. See `GrpcSessionType`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -63,8 +62,7 @@ public interface GrpcEvitaSessionResponseOrBuilder extends
   int getSessionTypeValue();
   /**
    * <pre>
-   * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
-   * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
+   * Type of the created session - read-only vs. read-write. See `GrpcSessionType`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>

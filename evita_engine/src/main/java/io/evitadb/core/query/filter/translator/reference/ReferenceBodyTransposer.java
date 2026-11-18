@@ -31,14 +31,18 @@ import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.reference.IndexTaggedFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +67,12 @@ import java.util.function.Supplier;
  * Complementing against the enclosing super set instead answers "this owner has no matching row anywhere", which
  * additionally returns every owner holding no row of the reference at all. Every {@link FutureNotFormula}
  * placeholder is therefore resolved here, per index, and none reaches the enclosing level.
+ *
+ * An `inScope` container is rebuilt the same way. A row lives in the scope of its owner, and the container restricts
+ * the rows of its own scope only - exactly as it restricts the entities of its own scope at the top level of a filter.
+ * Its {@link ScopeContainerFormula} is therefore decided for each row by the scope of the row's index: for a row of
+ * its scope it is the conjunction of its children, for a row of another scope it is satisfied - the owners of the
+ * row's index. No container reaches the enclosing level either.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -133,24 +143,66 @@ public class ReferenceBodyTransposer {
 	 * - **with a negation**, every index in scope. An index contributing nothing to a negated leaf contributes its
 	 *   entire owner set, because the complement of nothing is everything - skipping it would lose owners.
 	 *
+	 * An `inScope` container is decided before either rule applies:
+	 *
+	 * - **when every container names the one scope of all the rows** - the `inScope` of the scope of a query over that
+	 *   scope alone - each is the conjunction of its children for every row, so it is unwrapped and the body is
+	 *   rebuilt, or returned as it stands, exactly as though it held none;
+	 * - **otherwise** every index in scope is rebuilt, as for a negation, and each container is decided by the scope
+	 *   of the index: an index of another scope than the container's contributes its entire owner set to it,
+	 *   whatever it tagged.
+	 *
 	 * A subtree carrying no tags is index-independent - a constant, or a nested query planned once - and is kept
 	 * as it stands for every index rather than being read as absent.
 	 *
 	 * @param body               the translated body of a `referenceHaving`
-	 * @param scopeIndexSupplier supplies the indexes the body was evaluated against; consulted only when
-	 *                           a negation is present, because that is the only case where an untagged index
-	 *                           can still contribute
-	 * @return the row-scoped equivalent, carrying neither tags nor unresolved negations
+	 * @param rowScopes          the scopes of the rows the body was evaluated for - of every index it was evaluated
+	 *                           against
+	 * @param scopeIndexSupplier supplies the indexes the body was evaluated against; consulted only when a negation,
+	 *                           or a scope container naming another scope than the one of all the rows, is present,
+	 *                           because those are the only cases where an untagged index can still contribute
+	 * @return the row-scoped equivalent, carrying neither tags, nor unresolved negations, nor scope containers
 	 */
 	@Nonnull
 	public static Formula transpose(
 		@Nonnull Formula body,
+		@Nonnull Set<Scope> rowScopes,
 		@Nonnull Supplier<List<EntityIndex>> scopeIndexSupplier
 	) {
+		final Set<Scope> containerScopes = EnumSet.noneOf(Scope.class);
+		final boolean negating = inspectBody(body, containerScopes);
+		if (containerScopes.isEmpty()) {
+			return transposeRows(body, negating, scopeIndexSupplier);
+		} else if (rowScopes.size() == 1 && containerScopes.equals(rowScopes)) {
+			// every container restricts the scope of every row, so none decides anything per row - and unwrapped, the
+			// body takes the paths of a body without them, the return of the body as it stands included
+			return transposeRows(unwrapContainers(body), negating, scopeIndexSupplier);
+		} else {
+			// a container restricting another scope than that of some rows is satisfied by them whatever they hold,
+			// so every index contributes to it - and is rebuilt with its scope, which decides each container
+			return projectEveryIndex(body, scopeIndexSupplier.get(), true);
+		}
+	}
+
+	/**
+	 * Rebuilds a body holding no scope container - see {@link #transpose(Formula, Set, Supplier)}.
+	 *
+	 * @param body               the translated body, without any {@link ScopeContainerFormula}
+	 * @param negating           TRUE when the body holds a {@link FutureNotFormula}
+	 * @param scopeIndexSupplier supplies the indexes the body was evaluated against; consulted only for a negation
+	 * @return the row-scoped equivalent, carrying neither tags nor unresolved negations
+	 */
+	@Nonnull
+	private static Formula transposeRows(
+		@Nonnull Formula body,
+		boolean negating,
+		@Nonnull Supplier<List<EntityIndex>> scopeIndexSupplier
+	) {
+		if (negating) {
+			return projectEveryIndex(body, scopeIndexSupplier.get(), false);
+		}
 		final Map<Formula, Boolean> projectableSubtrees = new IdentityHashMap<>();
-		final Map<Formula, OrChildren> orChildren = new IdentityHashMap<>();
-		final boolean negating = containsFutureNot(body);
-		if (!negating && combinedOnlyByUnion(body, projectableSubtrees)) {
+		if (combinedOnlyByUnion(body, projectableSubtrees)) {
 			// the body already answers the row-scoped question, so the rebuild would only reproduce it at the cost
 			// of one projection per index in the family - see `combinedOnlyByUnion`. A body that was never
 			// evaluated per index lands here too: it says the same thing about every row, and carries no tag for
@@ -158,26 +210,56 @@ public class ReferenceBodyTransposer {
 			return stripTags(body);
 		}
 
-		final List<Formula> perIndexFormulas;
-		if (negating) {
-			final List<EntityIndex> scopeIndexes = scopeIndexSupplier.get();
-			perIndexFormulas = new ArrayList<>(scopeIndexes.size());
-			for (final EntityIndex scopeIndex : scopeIndexes) {
-				collectProjection(
-					body, scopeIndex.getPrimaryKey(), scopeIndex::getAllPrimaryKeysFormula,
-					projectableSubtrees, orChildren, perIndexFormulas
-				);
-			}
-		} else {
-			final Set<Integer> taggedIndexes = CollectionUtils.createLinkedHashSet(16);
-			collectTaggedIndexes(body, taggedIndexes);
-			perIndexFormulas = new ArrayList<>(taggedIndexes.size());
-			for (final Integer indexPrimaryKey : taggedIndexes) {
-				collectProjection(
-					body, indexPrimaryKey, UNREACHABLE_SUPER_SET, projectableSubtrees, orChildren, perIndexFormulas
-				);
-			}
+		final Map<Formula, OrChildren> orChildren = new IdentityHashMap<>();
+		final Set<Integer> taggedIndexes = CollectionUtils.createLinkedHashSet(16);
+		collectTaggedIndexes(body, taggedIndexes);
+		final List<Formula> perIndexFormulas = new ArrayList<>(taggedIndexes.size());
+		for (final Integer indexPrimaryKey : taggedIndexes) {
+			collectProjection(
+				body, indexPrimaryKey, null, UNREACHABLE_SUPER_SET,
+				projectableSubtrees, orChildren, perIndexFormulas
+			);
 		}
+		return unionOf(perIndexFormulas);
+	}
+
+	/**
+	 * Rebuilds the body for every index it was evaluated against, the untagged ones included, and unions the
+	 * projections - the path of a body holding a negation, or a scope container that some rows satisfy whatever they
+	 * hold, where an index can contribute without having tagged anything.
+	 *
+	 * @param body           the translated body
+	 * @param scopeIndexes   the indexes the body was evaluated against
+	 * @param withIndexScope TRUE to project each index with its scope, which decides the scope containers of the
+	 *                       body; FALSE for a body holding none
+	 * @return the union of the per-index projections
+	 */
+	@Nonnull
+	private static Formula projectEveryIndex(
+		@Nonnull Formula body,
+		@Nonnull List<EntityIndex> scopeIndexes,
+		boolean withIndexScope
+	) {
+		final Map<Formula, Boolean> projectableSubtrees = new IdentityHashMap<>();
+		final Map<Formula, OrChildren> orChildren = new IdentityHashMap<>();
+		final List<Formula> perIndexFormulas = new ArrayList<>(scopeIndexes.size());
+		for (final EntityIndex scopeIndex : scopeIndexes) {
+			collectProjection(
+				body, scopeIndex.getPrimaryKey(), withIndexScope ? scopeIndex.getIndexKey().scope() : null,
+				scopeIndex::getAllPrimaryKeysFormula, projectableSubtrees, orChildren, perIndexFormulas
+			);
+		}
+		return unionOf(perIndexFormulas);
+	}
+
+	/**
+	 * Returns the union of the per-index formulas.
+	 *
+	 * @param perIndexFormulas the projections of the indexes contributing something
+	 * @return their union, or {@link EmptyFormula#INSTANCE} when there is none
+	 */
+	@Nonnull
+	private static Formula unionOf(@Nonnull List<Formula> perIndexFormulas) {
 		return switch (perIndexFormulas.size()) {
 			case 0 -> EmptyFormula.INSTANCE;
 			case 1 -> perIndexFormulas.getFirst();
@@ -186,10 +268,68 @@ public class ReferenceBodyTransposer {
 	}
 
 	/**
+	 * Returns the body with every {@link ScopeContainerFormula} replaced by the conjunction of its children, composed
+	 * as an `and` container composes them - a negation among them stays a placeholder, or becomes the subtraction from
+	 * its positive siblings. Used only when every container names the scope of every row, so each one is that
+	 * conjunction for every row. The rest of the tree is returned untouched where nothing below it changed.
+	 *
+	 * @param formula the formula to unwrap
+	 * @return an equivalent formula, for rows of the containers' scope, holding no container
+	 * @throws GenericEvitaInternalError when a container holds no constraint - the translator leaves one empty only
+	 *                                   for a scope the body examines no row of, never for the scope of every row
+	 */
+	@Nonnull
+	private static Formula unwrapContainers(@Nonnull Formula formula) {
+		if (formula instanceof final ScopeContainerFormula container) {
+			final Formula[] children = container.getInnerFormulas();
+			if (children.length == 0) {
+				// the translator leaves a container without children only for a scope the body examines no row of
+				throw new GenericEvitaInternalError(
+					"An `inScope` container of the scope of every row of a `referenceHaving` body holds no constraint!"
+				);
+			}
+			final Formula[] unwrappedChildren = new Formula[children.length];
+			for (int i = 0; i < children.length; i++) {
+				unwrappedChildren[i] = unwrapContainers(children[i]);
+			}
+			return FutureNotFormula.postProcess(unwrappedChildren, EnclosingContainerRelation.CONJUNCTION);
+		}
+		if (formula instanceof final FutureNotFormula futureNot) {
+			// the placeholder holds its operand apart from its inner formulas
+			final Formula unwrappedInner = unwrapContainers(futureNot.getInnerFormula());
+			if (unwrappedInner instanceof final FutureNotFormula nestedNegation) {
+				// `not(inScope(S, not(x)))` - the container hid the inner placeholder from the `not` above it, which
+				// cancels such a pair when it sees one; unwrapped, the pair is `x`. Cancelled here rather than in the
+				// projection, an index contributing nothing to `x` projects to EMPTY - an absent leaf a conjunction
+				// above recognizes - instead of to the negation of all its owners
+				return nestedNegation.getInnerFormula();
+			}
+			return unwrappedInner == futureNot.getInnerFormula() ? formula : new FutureNotFormula(unwrappedInner);
+		}
+		if (formula instanceof IndexTaggedFormula) {
+			// a tag wraps the contribution of one index to a leaf, which holds no container
+			return formula;
+		}
+		final Formula[] children = formula.getInnerFormulas();
+		Formula[] rebuiltChildren = null;
+		for (int i = 0; i < children.length; i++) {
+			final Formula unwrappedChild = unwrapContainers(children[i]);
+			if (unwrappedChild != children[i]) {
+				if (rebuiltChildren == null) {
+					rebuiltChildren = children.clone();
+				}
+				rebuiltChildren[i] = unwrappedChild;
+			}
+		}
+		return rebuiltChildren == null ? formula : formula.getCloneWithInnerFormulas(rebuiltChildren);
+	}
+
+	/**
 	 * Projects the body onto one index and appends the result, unless the index contributes nothing.
 	 *
 	 * @param body                the translated body
 	 * @param indexPrimaryKey     the index whose row is being isolated
+	 * @param indexScope          the scope of that index, NULL when the body holds no scope container
 	 * @param superSet            owners of that index - the set a negation inside it is complemented against
 	 * @param projectableSubtrees memo shared across indexes
 	 * @param orChildren          memo of the split children of every `or` node, shared across indexes
@@ -198,13 +338,14 @@ public class ReferenceBodyTransposer {
 	private static void collectProjection(
 		@Nonnull Formula body,
 		int indexPrimaryKey,
+		@Nullable Scope indexScope,
 		@Nonnull Supplier<Formula> superSet,
 		@Nonnull Map<Formula, Boolean> projectableSubtrees,
 		@Nonnull Map<Formula, OrChildren> orChildren,
 		@Nonnull List<Formula> collected
 	) {
 		final Formula projection = resolveNegation(
-			project(body, indexPrimaryKey, superSet, projectableSubtrees, orChildren), superSet
+			project(body, indexPrimaryKey, indexScope, superSet, projectableSubtrees, orChildren), superSet
 		);
 		if (!(projection instanceof EmptyFormula)) {
 			collected.add(projection);
@@ -234,6 +375,7 @@ public class ReferenceBodyTransposer {
 	 *
 	 * @param node                node being projected
 	 * @param indexPrimaryKey     the index whose row is being isolated
+	 * @param indexScope          the scope of that index, NULL when the body holds no scope container
 	 * @param superSet            owners of that index, for the negations inside it
 	 * @param projectableSubtrees memoized answer to "does this subtree have to be projected at all"
 	 * @param orChildren          memoized split of the children of every `or` node reached so far
@@ -243,6 +385,7 @@ public class ReferenceBodyTransposer {
 	private static Formula project(
 		@Nonnull Formula node,
 		int indexPrimaryKey,
+		@Nullable Scope indexScope,
 		@Nonnull Supplier<Formula> superSet,
 		@Nonnull Map<Formula, Boolean> projectableSubtrees,
 		@Nonnull Map<Formula, OrChildren> orChildren
@@ -251,10 +394,21 @@ public class ReferenceBodyTransposer {
 			return tagged.getIndexPrimaryKey() == indexPrimaryKey ?
 				stripTags(tagged.getDelegate()) : EmptyFormula.INSTANCE;
 		}
+		if (node instanceof final ScopeContainerFormula container) {
+			return projectScopeContainer(
+				container, indexPrimaryKey, indexScope, superSet, projectableSubtrees, orChildren
+			);
+		}
 		if (node instanceof final FutureNotFormula futureNot) {
 			final Formula projectedInner = project(
-				futureNot.getInnerFormula(), indexPrimaryKey, superSet, projectableSubtrees, orChildren
+				futureNot.getInnerFormula(), indexPrimaryKey, indexScope, superSet, projectableSubtrees, orChildren
 			);
+			if (projectedInner instanceof final FutureNotFormula nestedNegation) {
+				// a disjunction hands its negation up as a placeholder - `P OR NOT N` as `NOT(N \ P)` - which this
+				// negation cancels, as `NotTranslator` cancels the pair it sees; an unwrapped scope container leaves
+				// such a pair below an `or` the translation saw as positive
+				return nestedNegation.getInnerFormula();
+			}
 			// nothing in this index matches what is being negated, so every row of it satisfies the negation -
 			// returning EMPTY here would delete the very owners the negation is supposed to select
 			return projectedInner instanceof EmptyFormula ?
@@ -268,12 +422,14 @@ public class ReferenceBodyTransposer {
 		if (node instanceof OrFormula) {
 			return projectDisjunction(
 				children, orChildren.computeIfAbsent(node, it -> OrChildren.of(children)),
-				indexPrimaryKey, superSet, projectableSubtrees, orChildren
+				indexPrimaryKey, indexScope, superSet, projectableSubtrees, orChildren
 			);
 		}
 		final Formula[] projectedChildren = new Formula[children.length];
 		for (int i = 0; i < children.length; i++) {
-			projectedChildren[i] = project(children[i], indexPrimaryKey, superSet, projectableSubtrees, orChildren);
+			projectedChildren[i] = project(
+				children[i], indexPrimaryKey, indexScope, superSet, projectableSubtrees, orChildren
+			);
 		}
 		if (node instanceof AndFormula) {
 			// a leaf that contributed nothing for this row makes the whole conjunction empty for this row -
@@ -288,7 +444,7 @@ public class ReferenceBodyTransposer {
 				projectedChildren, EnclosingContainerRelation.CONJUNCTION, superSet
 			);
 		}
-		// any other container - an `AttributeFormula` wrapper, a scope container - keeps its identity because
+		// any other container - an `AttributeFormula` wrapper, a user filter - keeps its identity because
 		// downstream consumers match on it; it contributes nothing when everything under it went away. A
 		// placeholder is resolved before the clone, because such a container is not a boolean junction and
 		// carries no relation under which the negation could be composed.
@@ -313,6 +469,7 @@ public class ReferenceBodyTransposer {
 	 * @param children            the children of the `or` node
 	 * @param split               the children split by the index that tagged them
 	 * @param indexPrimaryKey     the index whose row is being isolated
+	 * @param indexScope          the scope of that index, NULL when the body holds no scope container
 	 * @param superSet            owners of that index, for the negations inside it
 	 * @param projectableSubtrees memoized answer to "does this subtree have to be projected at all"
 	 * @param orChildren          memoized split of the children of every `or` node reached so far
@@ -323,6 +480,7 @@ public class ReferenceBodyTransposer {
 		@Nonnull Formula[] children,
 		@Nonnull OrChildren split,
 		int indexPrimaryKey,
+		@Nullable Scope indexScope,
 		@Nonnull Supplier<Formula> superSet,
 		@Nonnull Map<Formula, Boolean> projectableSubtrees,
 		@Nonnull Map<Formula, OrChildren> orChildren
@@ -338,7 +496,7 @@ public class ReferenceBodyTransposer {
 				(nextTagged < tagged.length && tagged[nextTagged] < untagged[nextUntagged]) ?
 				tagged[nextTagged++] : untagged[nextUntagged++];
 			final Formula projected = project(
-				children[position], indexPrimaryKey, superSet, projectableSubtrees, orChildren
+				children[position], indexPrimaryKey, indexScope, superSet, projectableSubtrees, orChildren
 			);
 			if (!(projected instanceof EmptyFormula)) {
 				survivors.add(projected);
@@ -349,6 +507,58 @@ public class ReferenceBodyTransposer {
 			FutureNotFormula.postProcess(
 				survivors.toArray(Formula[]::new), EnclosingContainerRelation.DISJUNCTION, superSet
 			);
+	}
+
+	/**
+	 * Projects an `inScope` container onto one index - see the class documentation. For an index of the container's
+	 * scope it is the conjunction of its children, composed as an `and` node is: a child contributing nothing for the
+	 * row empties it, and a negation among the children is subtracted from the owners of the index. For an index of
+	 * another scope the container restricts nothing, so the row satisfies it and the index contributes its owners.
+	 *
+	 * @param container           the container
+	 * @param indexPrimaryKey     the index whose row is being isolated
+	 * @param indexScope          the scope of that index, which decides the container - NULL is legal in
+	 *                            {@link #project} only for a body holding no container, and refused here
+	 * @param superSet            owners of that index
+	 * @param projectableSubtrees memoized answer to "does this subtree have to be projected at all"
+	 * @param orChildren          memoized split of the children of every `or` node reached so far
+	 * @return the projection, or {@link EmptyFormula#INSTANCE} when the row does not satisfy the container
+	 * @throws GenericEvitaInternalError when the scope of the index is NULL - a body reached the rebuild without the
+	 *                                   scopes of its indexes while still holding a container
+	 */
+	@Nonnull
+	private static Formula projectScopeContainer(
+		@Nonnull ScopeContainerFormula container,
+		int indexPrimaryKey,
+		@Nullable Scope indexScope,
+		@Nonnull Supplier<Formula> superSet,
+		@Nonnull Map<Formula, Boolean> projectableSubtrees,
+		@Nonnull Map<Formula, OrChildren> orChildren
+	) {
+		if (indexScope == null) {
+			// a body reaches the rebuild without the scopes of its indexes only once its containers are unwrapped
+			throw new GenericEvitaInternalError(
+				"The scope of index `" + indexPrimaryKey + "` is unknown while rebuilding a `referenceHaving` body " +
+					"holding a scope container!"
+			);
+		}
+		final Formula[] children = container.getInnerFormulas();
+		if (container.getScope() != indexScope || children.length == 0) {
+			// a container of another scope restricts nothing for this row, and one without children - left for
+			// a scope the body examines no row of - restricts nothing at all
+			return superSet.get();
+		}
+		final Formula[] projectedChildren = new Formula[children.length];
+		for (int i = 0; i < children.length; i++) {
+			projectedChildren[i] = project(
+				children[i], indexPrimaryKey, indexScope, superSet, projectableSubtrees, orChildren
+			);
+			// as in an `and` node, a child contributing nothing for this row empties the container for it
+			if (projectedChildren[i] instanceof EmptyFormula) {
+				return EmptyFormula.INSTANCE;
+			}
+		}
+		return FutureNotFormula.postProcess(projectedChildren, EnclosingContainerRelation.CONJUNCTION, superSet);
 	}
 
 	/**
@@ -468,8 +678,9 @@ public class ReferenceBodyTransposer {
 	}
 
 	/**
-	 * Answers whether the subtree has to be rebuilt per index - it carries a tag, or a negation that has to be
-	 * complemented against one index's owners. Memoized per node identity.
+	 * Answers whether the subtree has to be rebuilt per index - it carries a tag, a negation that has to be
+	 * complemented against one index's owners, or a scope container decided by the scope of the index. Memoized per
+	 * node identity.
 	 *
 	 * @param node                subtree root
 	 * @param projectableSubtrees memo
@@ -483,7 +694,8 @@ public class ReferenceBodyTransposer {
 		if (memoized != null) {
 			return memoized;
 		}
-		boolean projectable = node instanceof IndexTaggedFormula || node instanceof FutureNotFormula;
+		boolean projectable = node instanceof IndexTaggedFormula || node instanceof FutureNotFormula ||
+			node instanceof ScopeContainerFormula;
 		if (!projectable) {
 			for (final Formula child : node.getInnerFormulas()) {
 				if (isProjectable(child, projectableSubtrees)) {
@@ -516,21 +728,28 @@ public class ReferenceBodyTransposer {
 	}
 
 	/**
-	 * Answers whether an unresolved negation placeholder sits anywhere in the subtree.
+	 * Answers whether an unresolved negation placeholder sits anywhere in the subtree, and collects the scopes of all
+	 * its scope containers. The walk covers the whole subtree even after a placeholder is found, because every
+	 * container - one below a negation included - is projected by the scope of the index it is projected for.
 	 *
-	 * @param node subtree root
+	 * @param node            subtree root
+	 * @param containerScopes accumulator of the scopes of the {@link ScopeContainerFormula} nodes
 	 * @return true when a {@link FutureNotFormula} is present
 	 */
-	private static boolean containsFutureNot(@Nonnull Formula node) {
-		if (node instanceof FutureNotFormula) {
+	private static boolean inspectBody(@Nonnull Formula node, @Nonnull Set<Scope> containerScopes) {
+		if (node instanceof final FutureNotFormula futureNot) {
+			// the placeholder holds its operand apart from its inner formulas
+			inspectBody(futureNot.getInnerFormula(), containerScopes);
 			return true;
 		}
-		for (final Formula child : node.getInnerFormulas()) {
-			if (containsFutureNot(child)) {
-				return true;
-			}
+		boolean negating = false;
+		if (node instanceof final ScopeContainerFormula container) {
+			containerScopes.add(container.getScope());
 		}
-		return false;
+		for (final Formula child : node.getInnerFormulas()) {
+			negating |= inspectBody(child, containerScopes);
+		}
+		return negating;
 	}
 
 	/**

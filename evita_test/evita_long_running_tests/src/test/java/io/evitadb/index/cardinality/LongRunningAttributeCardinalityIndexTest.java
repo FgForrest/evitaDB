@@ -41,7 +41,6 @@ import java.util.Random;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -62,7 +61,6 @@ class LongRunningAttributeCardinalityIndexTest implements TimeBoundedTestSupport
 
 	@DisplayName("survives generational randomized test applying modifications on it")
 	@ParameterizedTest(name = "AttributeCardinalityIndex should survive generational randomized test applying modifications on it")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final int initialCount = 30;
@@ -103,7 +101,6 @@ class LongRunningAttributeCardinalityIndexTest implements TimeBoundedTestSupport
 	 */
 	@DisplayName("rollback discards every in-transaction mutation and leaves the base intact")
 	@ParameterizedTest(name = "AttributeCardinalityIndex rollback discards every in-transaction mutation and leaves the base intact")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTest(GenerationalTestInput input) {

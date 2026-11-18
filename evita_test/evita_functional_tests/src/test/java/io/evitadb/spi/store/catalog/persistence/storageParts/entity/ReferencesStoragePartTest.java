@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart.MissingReferenceBehavior;
 import org.junit.jupiter.api.DisplayName;
@@ -54,6 +55,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -513,8 +515,8 @@ class ReferencesStoragePartTest {
 	}
 
 	@Test
-	@DisplayName("should return referenced ids, distinct ids and group ids and ignore dropped")
-	void shouldReturnReferencedIdsAndDistinctIdsAndGroupIdsAndIgnoreDropped() {
+	@DisplayName("should return referenced ids and ignore dropped")
+	void shouldReturnReferencedIdsAndIgnoreDropped() {
 		final io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart part = new io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart(
 			6, 0, new Reference[]{
 			newRef("A", 1, 10, group(2), false),
@@ -527,20 +529,10 @@ class ReferencesStoragePartTest {
 		);
 
 		assertArrayEquals(new int[]{1, 2}, part.getReferencedIds("A"));
-		assertArrayEquals(new int[]{1, 2}, part.getDistinctReferencedIds("A"));
-		assertArrayEquals(new int[]{1, 2}, part.getDistinctReferencedGroupIds("A"));
 		assertArrayEquals(new int[]{1, 1}, part.getReferencedIds("B"));
-		assertArrayEquals(new int[]{1}, part.getDistinctReferencedIds("B"));
-		assertArrayEquals(new int[]{2, 3}, part.getDistinctReferencedGroupIds("B"));
 		assertArrayEquals(new int[]{}, part.getReferencedIds("C"));
-		assertArrayEquals(new int[]{}, part.getDistinctReferencedIds("C"));
-		assertArrayEquals(new int[]{}, part.getDistinctReferencedGroupIds("C"));
 		assertArrayEquals(new int[]{}, part.getReferencedIds("D"));
-		assertArrayEquals(new int[]{}, part.getDistinctReferencedIds("D"));
-		assertArrayEquals(new int[]{}, part.getDistinctReferencedGroupIds("D"));
 		assertArrayEquals(new int[]{}, part.getReferencedIds("1"));
-		assertArrayEquals(new int[]{}, part.getDistinctReferencedIds("1"));
-		assertArrayEquals(new int[]{}, part.getDistinctReferencedGroupIds("1"));
 	}
 
 	@Test
@@ -612,13 +604,9 @@ class ReferencesStoragePartTest {
 		// isEmpty must report true when only dropped references are present
 		assertTrue(part.isEmpty());
 
-		// all getters must ignore dropped references and return empty arrays
+		// getReferencedIds must ignore dropped references and return an empty array for every name
 		assertArrayEquals(new int[0], part.getReferencedIds("A"));
 		assertArrayEquals(new int[0], part.getReferencedIds("B"));
-		assertArrayEquals(new int[0], part.getDistinctReferencedIds("A"));
-		assertArrayEquals(new int[0], part.getDistinctReferencedIds("B"));
-		assertArrayEquals(new int[0], part.getDistinctReferencedGroupIds("A"));
-		assertArrayEquals(new int[0], part.getDistinctReferencedGroupIds("B"));
 	}
 
 	@Test
@@ -1010,6 +998,76 @@ class ReferencesStoragePartTest {
 	}
 
 	@Nested
+	@DisplayName("Replacement of a reference attribute")
+	class ReferenceAttributeReplacementTest {
+
+		/**
+		 * Creates reference `A` to entity 1 holding the passed range in its attribute `range`.
+		 *
+		 * @param range the value of the attribute
+		 * @return new reference
+		 */
+		@Nonnull
+		private static Reference referenceWithRange(@Nonnull BigDecimalNumberRange range) {
+			return new Reference(
+				ReferencesBuilder.createImplicitSchema(
+					mockEntitySchema(), "A", EXAMPLE_ENTITY_TYPE, Cardinality.ZERO_OR_MORE, null
+				),
+				1,
+				new ReferenceKey("A", 1, 1),
+				null,
+				new ReferenceAttributes(
+					mockEntitySchema(),
+					Mockito.mock(ReferenceSchemaContract.class),
+					List.of(new AttributeValue(1, new AttributeKey("range"), range)),
+					Map.of("range", Mockito.mock(AttributeSchemaContract.class))
+				),
+				false
+			);
+		}
+
+		/**
+		 * `[1.0,2.0]` and `[10,20]` compare equal by their encoded bounds, yet a reader gets other bounds back. The
+		 * part must take the new reference and become dirty, and stay clean when the very same range arrives again.
+		 */
+		@Test
+		@DisplayName("should mark dirty when a range attribute differs only in bounds encoded to the same longs")
+		void shouldMarkDirtyWhenRangeAttributeDiffersOnlyInBoundsEncodedToSameLongs() {
+			final BigDecimalNumberRange oneToTwo =
+				BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+			final ReferencesStoragePart changed =
+				new ReferencesStoragePart(8, 1, new Reference[]{referenceWithRange(oneToTwo)}, -1);
+
+			changed.replaceOrAddReference(
+				new ReferenceKey("A", 1, 1),
+				existing -> referenceWithRange(
+					BigDecimalNumberRange.between(new BigDecimal("10"), new BigDecimal("20"))
+				),
+				() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+			);
+
+			assertTrue(changed.isDirty());
+			assertEquals(
+				"[10,20]",
+				String.valueOf(
+					(Object) changed.findReferenceOrThrowException(new ReferenceKey("A", 1)).getAttribute("range")
+				)
+			);
+
+			final ReferencesStoragePart unchanged =
+				new ReferencesStoragePart(8, 1, new Reference[]{referenceWithRange(oneToTwo)}, -1);
+			unchanged.replaceOrAddReference(
+				new ReferenceKey("A", 1, 1),
+				existing -> referenceWithRange(
+					BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"))
+				),
+				() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+			);
+			assertFalse(unchanged.isDirty());
+		}
+	}
+
+	@Nested
 	@DisplayName("Narrowed view refusals")
 	class NarrowedViewTest {
 		private static final String DECODED = "brand";
@@ -1069,8 +1127,6 @@ class ReferencesStoragePartTest {
 			final ReferencesStoragePart narrowed = narrowedPart();
 
 			assertArrayEquals(new int[]{100, 101}, narrowed.getReferencedIds(DECODED));
-			assertArrayEquals(new int[]{100, 101}, narrowed.getDistinctReferencedIds(DECODED));
-			assertArrayEquals(new int[]{900, 901}, narrowed.getDistinctReferencedGroupIds(DECODED));
 			assertTrue(narrowed.contains(new ReferenceKey(DECODED, 100, 1)));
 			assertTrue(narrowed.findReference(new ReferenceKey(DECODED, 100, 1)).isPresent());
 		}
@@ -1108,8 +1164,6 @@ class ReferencesStoragePartTest {
 			final ReferencesStoragePart narrowed = narrowedPart();
 
 			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getReferencedIds(UNDECODED));
-			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedIds(UNDECODED));
-			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedGroupIds(UNDECODED));
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> narrowed.contains(new ReferenceKey(UNDECODED, 100, 1))

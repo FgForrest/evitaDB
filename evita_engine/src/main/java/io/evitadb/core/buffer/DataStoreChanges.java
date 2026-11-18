@@ -715,38 +715,6 @@ public class DataStoreChanges
 	}
 
 	/**
-	 * Retrieves a storage part as a binary array. The storage part is first searched for in the local trapped changes
-	 * cache. If found, it is serialized and returned unless it is a {@link RemovedStoragePart}; in which case, null is returned.
-	 * If not found in the cache, it fetches the storage part from the persistence service and returns it as a binary array.
-	 *
-	 * @param catalogVersion the current version of the catalog to read from
-	 * @param primaryKey primary key of the storage part to retrieve
-	 * @param containerType class type of the storage part container
-	 * @param <T> type of the storage part container
-	 * @return byte array representing the storage part if found, otherwise null
-	 */
-	@Nullable
-	public <T extends StoragePart> byte[] getStoragePartAsBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-		if (this.trappedChanges != null) {
-			final LongObjectMap<StoragePart> trappedChanges = this.trappedChanges.get(containerType);
-			if (trappedChanges != null) {
-				final StoragePart storagePart = trappedChanges.get(primaryKey);
-				if (storagePart != null) {
-					if (storagePart instanceof RemovedStoragePart) {
-						return null;
-					}
-					// serializing a part this transaction is holding in memory reads nothing - the bytes the caller
-					// will note are the ones parked here, not ones that came off the disk
-					final byte[] serialized = this.persistenceService.serializeStoragePart(storagePart);
-					StorageAccessScope.noteRecordServedFromMemory(serialized);
-					return serialized;
-				}
-			}
-		}
-		return this.persistenceService.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
-	}
-
-	/**
 	 * Removes a storage part identified by the given catalog version, primary key, and entity class.
 	 *
 	 * Both halves of what this changes are revertable by an open warm-up savepoint: the trapped-cache slot through the

@@ -49,7 +49,8 @@ import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
 
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLList.list;
@@ -81,7 +82,11 @@ public class EntityObjectReferenceDecorator implements EntityObjectDecorator {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		if (!entitySchema.getReferences().isEmpty()) {
-			final Collection<ReferenceSchemaContract> referenceSchemas = collectionBuildingContext.getSchema().getReferences().values();
+			// reference order decides the template of shared hashed types, so it must be deterministic
+			final List<ReferenceSchemaContract> referenceSchemas = entitySchema.getReferences().values()
+				.stream()
+				.sorted(Comparator.comparing(ReferenceSchemaContract::getName))
+				.toList();
 			referenceSchemas.forEach(
 				referenceSchema ->
 					buildAndAddEntityReferenceFields(

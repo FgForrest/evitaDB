@@ -1,7 +1,7 @@
 ---
 title: Answer a referenceHaving from whichever end of a bidirectional reference is cheaper, and stop emitting provably-empty null subtractions
 date: 2026-09-15
-updated: 2026-10-06 11:45
+updated: 2026-10-28 23:45
 status: accepted
 kind: optimization
 issues: [1547, 1583, 1584, 1585]
@@ -9,7 +9,17 @@ prs: [1548, 1568]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/algebra/reference, evita_engine/src/main/java/io/evitadb/core/query/indexSelection, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_engine/src/main/java/io/evitadb/core/query/QueryPlanningContext.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-11-reference-name-narrowing, 2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-13-per-entity-io-statistics-attribution, 2026-09-15-non-collapsible-formula-marker, 2026-09-17-row-scoped-reference-having-body, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-25-attribute-is-null-in-reference-having, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
+relates:
+  - 2026-09-11-reference-name-narrowing
+  - 2026-09-12-committed-snapshot-provenance-for-enrichment
+  - 2026-09-13-per-entity-io-statistics-attribution
+  - 2026-09-15-non-collapsible-formula-marker
+  - 2026-09-17-row-scoped-reference-having-body
+  - 2026-09-23-pick-first-reference-ordering-from-selection
+  - 2026-09-25-attribute-is-null-in-reference-having
+  - 2026-09-28-indexed-reference-scope-requires-entity-component
+  - 2026-10-08-scope-faithful-planning-and-facet-summary-parity
+  - 2026-10-29-traverse-ordering-route-parity
 ---
 
 # Answer a `referenceHaving` from whichever end of a bidirectional reference is cheaper
@@ -21,6 +31,10 @@ partitions the very same rows the other way round — one reduced index per *own
 question can be answered by visiting one index per candidate owner instead. The planner now compares
 the two fan-outs on bitmap cardinalities — one type-index union and one intersection, no reduced
 index materialized — and takes the cheaper end when the constraint shape permits it. On the large e-commerce catalogue this replaces **44 390 index visits with 588**.
+
+The [traverse route-parity decision](2026-10-29-traverse-ordering-route-parity.md) narrows guard 4 below:
+traversal no longer depends on reference-filter candidates. The counterpart rewrite and null-subtraction decisions
+stand as recorded.
 
 The same investigation found a second, independent planning-time cost on the same path: an
 `attributeIs(NULL)` inside that constraint emitted 44 390 `NotFormula` nodes whose difference was
@@ -237,8 +251,8 @@ non-empty scope set; a counterpart exists and is available;
 both ends are `isIndexedInScope` with `REFERENCED_ENTITY` among their indexed components in *every*
 requested scope; every attribute the constraint names is inherited by the reflected end and is
 filterable or unique on the counterpart; the constraint shape is at most one non-empty `entityHaving`
-plus at most one attribute child that is a leaf or a pure `Or` of leaves; and the query does not sort
-by `referenceProperty` on the same reference.
+plus at most one attribute child that is a leaf or a pure `Or` of leaves; and any `referenceProperty` ordering
+on the same reference uses traverse. The last condition was narrowed by #1670; non-traverse orderings still decline.
 
 **Four traps, each of which produces a plausible wrong answer rather than a failure.**
 
@@ -261,14 +275,15 @@ by `referenceProperty` on the same reference.
    a conjunction widens the result instead of emptying it. `ReferencedOwnerExistenceFormula` therefore
    does not implement the marker interface, and its clone returns a real instance wrapping an empty
    inner formula — it is the absorbing element of its parent, never the identity one.
-4. `orderBy(referenceProperty(R, ...))` changes result *order* when the reference's `TargetIndexes`
-   entry is gone: `ReferencePropertyTranslator#selectReducedEntityIndexSet:104-122` falls back to
+4. Originally, `orderBy(referenceProperty(R, ...))` changed result *order* when the reference's `TargetIndexes`
+   entry was gone: `ReferencePropertyTranslator#selectReducedEntityIndexSet:104-122` fell back to
    every reduced index of `R`, ordering owners by their first reference row rather than their first
-   *matching* one. Such queries are declined.
+   *matching* one. Such queries were declined.
    Since `2026-09-23-pick-first-reference-ordering-from-selection` a pick-first ordering by a comparable value
    resolves its partitions from the selected owners and no longer reads the candidate set, so for that shape the
-   guard is conservative; traverse orderings and chain attributes still read it, which keeps the guard necessary for
-   them.
+   guard is conservative. Since [#1670](2026-10-29-traverse-ordering-route-parity.md), traverse also ignores that
+   candidate set and no longer triggers the guard. It remains for non-traverse orderings, including implicit
+   pick-first chains whose unbounded path still reads the candidates.
 
 **The per-owner formulas are internal state, not inner formulas.** They are positionally paired with
 the owner keys, and `FormulaCloner` is allowed to drop a child its mutator rejects — a dropped child
@@ -565,6 +580,9 @@ one owner can hold two rows of the *same pair* carrying different values — and
   `entityProperty`, declining a rewrite that would have been safe. Cost only, never a wrong result.
 
 ## Related work
+
+- [Traverse ordering route parity](2026-10-29-traverse-ordering-route-parity.md) removes guard 4 for explicit and
+  default traverse orderings by resolving hierarchy bounds independently of reference index selection.
 
 - `2026-09-11-reference-name-narrowing` — same issue, same query. That change moved storage decode off
   the profile, which is *why* planning became 75 % of `q1` and this fan-out became the top cost.

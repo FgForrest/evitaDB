@@ -23,8 +23,6 @@
 
 package io.evitadb.core.catalog;
 
-import com.carrotsearch.hppc.ObjectObjectIdentityHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
@@ -120,6 +118,7 @@ import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.expression.trigger.FacetExpressionTriggerFactory;
 import io.evitadb.core.expression.trigger.HistogramExpressionTriggerFactory;
+import io.evitadb.core.expression.trigger.IndexingExpressionInputValidator;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryPlan;
@@ -162,6 +161,7 @@ import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.MissingHistogramValueBehavior;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.index.usage.SchemaCapabilityUsageProjection;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
@@ -260,9 +260,13 @@ public final class Catalog
 	 * (e.g. histogram value expressions referencing attributes on other entities) thus only sees
 	 * the final, consistent schema at the end of the batch.
 	 *
-	 * Nesting is supported: the recursive `updateSchema` call at the end of `updateSchema` (which
-	 * applies cascading `ModifyEntitySchemaMutation`s) pushes its own frame and drains it before
+	 * Nesting is supported: the recursive `updateSchema` call right after a catalog mutation (which
+	 * applies the `ModifyEntitySchemaMutation`s it cascades) pushes its own frame and drains it before
 	 * returning, so outer / inner frames never interfere.
+	 *
+	 * The warm-up flush a collection-level DDL operation runs mid-batch reads every frame on the stack and is skipped
+	 * while one of their entity types does not build its triggers. In a warming-up catalog a refused drain raises the
+	 * unpublishable barrier.
 	 */
 	private static final ThreadLocal<Deque<Set<String>>> PENDING_TRIGGER_REBUILDS =
 		ThreadLocal.withInitial(ArrayDeque::new);
@@ -382,6 +386,12 @@ public final class Catalog
 	 */
 	private final EvitaConfiguration evitaConfiguration;
 	/**
+	 * What a write in this catalog does when it must withdraw a reference-histogram value the index does not hold for
+	 * the entity. The engine resolves it once when it starts and hands it to the catalog it creates or loads; every
+	 * later version of the catalog copies it from the version before, so it cannot change under a running catalog.
+	 */
+	@Nonnull private final MissingHistogramValueBehavior missingHistogramValueBehavior;
+	/**
 	 * Reference to the engine this catalog belongs to. Held only for the state the engine owns *about* this catalog
 	 * but does not store in it - today that is the session registry, which is created lazily on the first session and
 	 * therefore cannot be handed to the constructor. It is carried across catalog generations like the transaction
@@ -484,13 +494,19 @@ public final class Catalog
 	 */
 	private long lastPersistedSchemaVersion;
 	/**
+	 * Headers the latest {@link #flushCollections(long)} produced, by collection primary key, waiting for the merge of
+	 * the same round to consume them. The flush and the merge of a round run one after the other on the same thread
+	 * and the same instance; `null` whenever no flush is pending.
+	 */
+	@Nullable private Map<Integer, EntityCollectionHeader> flushedHeadersByPrimaryKey;
+	/**
 	 * The failure that made this catalog's in-memory state impossible to publish - a warm-up flush or rollback, a
-	 * {@link #goLive()} that threw after publishing its ALIVE bootstrap record, or a warm-up schema change refused
-	 * by validation - or `null` while the catalog can still be persisted. Set by
-	 * {@link #recordUnpublishableCause(Throwable)} through one of two public entry points:
-	 * {@link #markUnpublishable(Throwable)} for the engine failures, {@link #markUnpublishableDueToInvalidSchema}
-	 * for the refused schema change. Never cleared - a catalog recovers by being reloaded from disk, not by this
-	 * field going back to `null`.
+	 * {@link #goLive()} that threw after publishing its ALIVE bootstrap record, or a warm-up schema change refused by
+	 * validation or by the build of its expression triggers - or `null` while the catalog can still be persisted. Set
+	 * by {@link #recordUnpublishableCause(Throwable)} through one of two public entry points:
+	 * {@link #markUnpublishable(Throwable)} for the engine failures, {@link #markUnpublishableDueToInvalidSchema} for
+	 * the refused schema change. Never cleared - a catalog recovers by being reloaded from disk, not by this field
+	 * going back to `null`.
 	 *
 	 * Holds the cause atomically so the FIRST failure wins - it is the one that explains every refusal after it -
 	 * and so that the deactivation it schedules is issued exactly once. Written from more than one thread: the
@@ -560,6 +576,8 @@ public final class Catalog
 	 *                                  one or the instance its write-ahead log was replayed to
 	 * @param onFailure                 callback function to be invoked upon failure, receiving the catalog name and the encountered exception
 	 * @param tracingContext            tracing context used for distributed tracing and monitoring
+	 * @param missingHistogramValueBehavior what a write does when it must withdraw a reference-histogram value the
+	 *                                  index does not hold, as the engine resolved it when it started
 	 * @return a {@link ProgressingFuture} object that tracks the progress of the catalog loading process and eventually
 	 * resolves to the {@link Catalog} instance `onSuccess` settled on
 	 */
@@ -575,7 +593,8 @@ public final class Catalog
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull BiFunction<String, Catalog, Catalog> onSuccess,
 		@Nonnull BiConsumer<String, Throwable> onFailure,
-		@Nonnull TracingContext tracingContext
+		@Nonnull TracingContext tracingContext,
+		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior
 	) {
 		return new ProgressingFuture<>(
 			1,
@@ -595,7 +614,8 @@ public final class Catalog
 					collections,
 					collectionByPk,
 					entitySchemaIndex,
-					readOnly
+					readOnly,
+					missingHistogramValueBehavior
 				);
 
 				final CatalogHeader<? extends LogRecordReference, ? extends CollectionReference> catalogHeader =
@@ -808,6 +828,20 @@ public final class Catalog
 		return boundSchemas;
 	}
 
+	/**
+	 * Creates a brand-new, empty catalog in the warm-up state and stores its first header.
+	 *
+	 * @param catalogSchema                 the schema of the new catalog
+	 * @param cacheSupervisor               the supervisor of the engine's cache
+	 * @param evita                         the engine the catalog belongs to
+	 * @param proxyFactory                  the factory of entity proxies
+	 * @param exportService                 the service handling file exports
+	 * @param fileManagementService         the service managing the files the engine produces for a user
+	 * @param newCatalogVersionConsumer     receives every new version of the catalog
+	 * @param tracingContext                the tracing context
+	 * @param missingHistogramValueBehavior what a write does when it must withdraw a reference-histogram value the
+	 *                                      index does not hold, as the engine resolved it when it started
+	 */
 	public Catalog(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull CacheSupervisor cacheSupervisor,
@@ -816,19 +850,21 @@ public final class Catalog
 		@Nonnull ExportService exportService,
 		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
-		@Nonnull TracingContext tracingContext
+		@Nonnull TracingContext tracingContext,
+		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior
 	) {
 		final String catalogName = catalogSchema.getName();
 		final long catalogVersion = 0L;
 
 		this.evita = evita;
 		this.evitaConfiguration = evita.getConfiguration();
+		this.missingHistogramValueBehavior = missingHistogramValueBehavior;
 		this.scheduler = evita.getServiceExecutor();
 		this.transactionalExecutor = evita.getTransactionExecutor();
 
 		final CatalogSchema internalCatalogSchema = CatalogSchema._internalBuild(
-			catalogName, catalogSchema.getNameVariants(), null, catalogSchema.getCatalogEvolutionMode(),
-			getEntitySchemaAccessor()
+			catalogName, catalogSchema.getNameVariants(), catalogSchema.getConflictResolution().orElse(null),
+			catalogSchema.getCatalogEvolutionMode(), getEntitySchemaAccessor()
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
 		//noinspection unchecked
@@ -906,6 +942,26 @@ public final class Catalog
 		);
 	}
 
+	/**
+	 * Reads the header, the schema and the catalog indexes of a stored catalog at the last catalog version its
+	 * persistence service reports, without its collections: the maps are filled by {@link #loadCatalog} as the
+	 * collections are read.
+	 *
+	 * @param catalogName                   the name of the catalog
+	 * @param cacheSupervisor               the supervisor of the engine's cache
+	 * @param evita                         the engine the catalog belongs to
+	 * @param proxyFactory                  the factory of entity proxies
+	 * @param exportService                 the service handling file exports
+	 * @param fileManagementService         the service managing the files the engine produces for a user
+	 * @param newCatalogVersionConsumer     receives every new version of the catalog
+	 * @param tracingContext                the tracing context
+	 * @param collections                   the collections by entity type, filled by the caller
+	 * @param collectionByPk                the collections by entity type primary key, filled by the caller
+	 * @param entitySchemaIndex             the entity schemas by entity type, filled by the caller
+	 * @param readOnly                      whether the catalog refuses mutations
+	 * @param missingHistogramValueBehavior what a write does when it must withdraw a reference-histogram value the
+	 *                                      index does not hold, as the engine resolved it when it started
+	 */
 	private Catalog(
 		@Nonnull String catalogName,
 		@Nonnull CacheSupervisor cacheSupervisor,
@@ -918,10 +974,12 @@ public final class Catalog
 		@Nonnull Map<String, EntityCollection> collections,
 		@Nonnull Map<Integer, EntityCollection> collectionByPk,
 		@Nonnull Map<String, EntitySchemaContract> entitySchemaIndex,
-		boolean readOnly
+		boolean readOnly,
+		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior
 	) {
 		this.evita = evita;
 		this.evitaConfiguration = evita.getConfiguration();
+		this.missingHistogramValueBehavior = missingHistogramValueBehavior;
 		this.scheduler = evita.getServiceExecutor();
 		this.transactionalExecutor = evita.getTransactionExecutor();
 		//noinspection unchecked
@@ -1108,6 +1166,7 @@ public final class Catalog
 		this.proxyFactory = previousCatalogVersion.proxyFactory;
 		this.evita = previousCatalogVersion.evita;
 		this.evitaConfiguration = previousCatalogVersion.evitaConfiguration;
+		this.missingHistogramValueBehavior = previousCatalogVersion.missingHistogramValueBehavior;
 		this.scheduler = previousCatalogVersion.scheduler;
 		this.transactionalExecutor = previousCatalogVersion.transactionalExecutor;
 		this.newCatalogVersionConsumer = previousCatalogVersion.newCatalogVersionConsumer;
@@ -1208,23 +1267,32 @@ public final class Catalog
 		this.entityCollections.values().forEach(collection ->
 			originalCollectionPolicies.put(collection, collection.getNormalizationPolicy()));
 		final AtomicReference<MutationApplicationRecord> record = new AtomicReference<>();
+		final Optional<Transaction> transactionRef = Transaction.getTransaction();
+		// whether a mutation of the batch reached the transaction, which cannot take it back
+		boolean mutationRegistered = false;
 		// collect entity types whose cross-entity trigger registry must be rebuilt, deferring
 		// the rebuild until the entire batch is applied — intermediate states may be transiently
 		// inconsistent (e.g. entity B declares a histogram referencing an attribute on entity A
-		// that a later mutation in the same batch will add). `LazyHashSet` avoids allocating the
-		// backing `HashSet` for batches that touch no entity schemas (single-mutation catalog-level
-		// calls), which is the common case.
+		// that a later mutation in the same batch will add). The cascades of a catalog mutation are
+		// a batch of their own: the nested call applying them drains its own frame, so the entity
+		// types they touch are rebuilt right after that mutation, before the rest of this batch.
+		// `LazyHashSet` avoids allocating the backing `HashSet` for batches that touch no entity
+		// schemas (single-mutation catalog-level calls), which is the common case.
 		final Deque<Set<String>> rebuildStack = PENDING_TRIGGER_REBUILDS.get();
 		final Set<String> rebuildFrame = new LazyHashSet<>(4);
 		rebuildStack.push(rebuildFrame);
 		try {
-			final Optional<Transaction> transactionRef = Transaction.getTransaction();
-			ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
+			// refuse the whole batch before a single schema is exchanged - see the method's own documentation for why
+			// a mid-cascade refusal cannot be undone
+			verifyEntitySchemaMutationsApplicable(schemaMutation);
+			final Transaction transaction = transactionRef.orElse(null);
 			CatalogSchema currentSchema = originalSchema;
 			CatalogSchemaContract updatedSchema = originalSchema;
-			final Transaction transaction = transactionRef.orElse(null);
 			for (LocalCatalogSchemaMutation theMutation : schemaMutation) {
+				// Registration may append WAL continuation frames before serialization fails.
+				mutationRegistered = true;
 				transactionRef.ifPresent(it -> it.registerMutation(theMutation));
+				ModifyEntitySchemaMutation[] cascadedMutations = null;
 
 				// record the mutation
 				if (sessionId != null) {
@@ -1267,32 +1335,47 @@ public final class Catalog
 					final CatalogSchemaWithImpactOnEntitySchemas schemaWithImpactOnEntitySchemas = modifyCatalogSchema(
 						theMutation, updatedSchema);
 					updatedSchema = schemaWithImpactOnEntitySchemas.updatedCatalogSchema();
-					modifyEntitySchemaMutations = modifyEntitySchemaMutations == null || ArrayUtils.isEmpty(
-						schemaWithImpactOnEntitySchemas.entitySchemaMutations()) ?
-						schemaWithImpactOnEntitySchemas.entitySchemaMutations() :
-						ArrayUtils.mergeArrays(
-							modifyEntitySchemaMutations, schemaWithImpactOnEntitySchemas.entitySchemaMutations());
+					cascadedMutations = schemaWithImpactOnEntitySchemas.entitySchemaMutations();
 				}
 
-				// finish the recording
+				// finish the recording; forget it so that a failure after this mutation cannot record it again
 				if (sessionId != null) {
 					record.get().finish();
+					record.set(null);
 				}
 
 				// exchange the current catalog schema so that additional entity schema mutations can take advantage of
 				// previous catalog mutations when validated
 				currentSchema = exchangeCatalogSchema(updatedSchema, currentSchema);
+
+				// apply what the catalog mutation cascades into the entity schemas - for example a removed global
+				// attribute leaving every entity schema that uses it - right away, before the mutations that follow:
+				// the replay of the WAL applies every mutation as an update of its own, so the session must see the
+				// same order; cascades applied at the end of the batch let a session accept a batch its replay then
+				// refused, and could hit an attribute or an entity the batch had replaced or renamed meanwhile
+				if (!ArrayUtils.isEmpty(cascadedMutations)) {
+					updateSchema(evita, sessionId, cascadedMutations);
+					currentSchema = getInternalSchema();
+					updatedSchema = currentSchema;
+				}
 			}
-			// alter affected entity schemas
-			if (modifyEntitySchemaMutations != null) {
-				updateSchema(evita, sessionId, modifyEntitySchemaMutations);
-			}
-			// drain deferred trigger rebuilds inside the try block so any cross-entity
-			// validation failure (e.g. a histogram value expression referencing a missing
-			// attribute) propagates into the revert branch just like an eager rebuild would
+			// drain deferred trigger rebuilds inside the try block; a refused build is handled like any refusal below,
+			// and in warm-up the drain has already raised the unpublishable barrier, because nothing here reverts the
+			// entity schemas the batch exchanged
 			drainTriggerRebuildFrame(rebuildFrame);
-		} catch (RuntimeException ex) {
-			// revert all changes in the schema (for current transaction) if anything failed
+			// store the updated catalog schema inside the try, so that a failed write is handled like any refusal
+			final CatalogSchema schemaToStore = getInternalSchema();
+			if (schemaToStore.version() > originalSchema.version()) {
+				this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(schemaToStore));
+			}
+		} catch (RuntimeException | Error ex) {
+			// Earlier collection changes cannot be undone here, and registered mutations must not reach the shared WAL.
+			// A preflight refusal remains recoverable unless an enclosing batch already registered its parent mutation.
+			if (mutationRegistered) {
+				transactionRef.ifPresent(it -> it.setRollbackOnlyWithException(ex));
+			}
+			// Restore the catalog schema; collection changes may remain until the transaction rolls back, and in
+			// warm-up they remain for good - the barrier, not a revert, protects the disk when the build refused them.
 			this.schema.set(new CatalogSchemaDecorator(originalSchema));
 			adoptGlobalNormalizationRows(originalNormalizationRows);
 			originalCollectionPolicies.forEach(EntityCollection::adoptNormalizationPolicy);
@@ -1305,18 +1388,14 @@ public final class Catalog
 
 			throw ex;
 		} finally {
-			// always pop our own frame; if no exception was thrown the frame was already
-			// drained and is empty, if an exception was thrown we discard any remaining
-			// pending rebuilds (the revert above restored the pre-batch schema so there is
-			// nothing new to rebuild)
+			// always pop our own frame; if no exception was thrown the frame was already drained and is empty. If an
+			// exception was thrown, the pending rebuilds are discarded: in a transaction the rollback discards the
+			// exchanged schemas with them; in warm-up a refused build has raised the barrier, while a batch that failed
+			// before its drain keeps its exchanged schemas with their previous triggers (a known limitation, see ADR
+			// `2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier`)
 			rebuildStack.pop();
 			if (rebuildStack.isEmpty()) {
 				PENDING_TRIGGER_REBUILDS.remove();
-			}
-			// finally, store the updated catalog schema to disk
-			final CatalogSchema currentSchema = getInternalSchema();
-			if (currentSchema.version() > originalSchema.version()) {
-				this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(currentSchema));
 			}
 		}
 		return getSchema();
@@ -1325,7 +1404,18 @@ public final class Catalog
 	/**
 	 * Rebuilds expression triggers for every entity type collected in the given batch frame.
 	 * Called at the end of a `updateSchema(...)` batch, after every mutation in the batch has
-	 * been applied and before exceptions can escape the enclosing `try` block.
+	 * been applied and before exceptions can escape the enclosing `try` block. The cascades of a
+	 * catalog mutation are applied as a nested batch, so their frame is drained right after that
+	 * mutation, before the enclosing batch goes on.
+	 *
+	 * **In a warming-up catalog a refused build raises the unpublishable barrier** through
+	 * {@link #markUnpublishableDueToInvalidSchema(Throwable)} before the exception leaves. The `catch` of
+	 * {@link #updateSchema} restores only the catalog schema: the entity schemas the batch exchanged stay in memory
+	 * and in the data store buffer, and warm-up has no transaction to discard them, so the next publication would
+	 * write a definition the next load refuses. The build's exception is rethrown unchanged; a failure of the marking
+	 * itself is attached to it as suppressed, and the barrier stands anyway, because the cause is recorded before the
+	 * deactivation is scheduled. A catalog in a transaction is left to the rollback, which discards the exchanged
+	 * schemas with it.
 	 *
 	 * @param frame the batch frame holding deferred entity type names
 	 */
@@ -1333,8 +1423,21 @@ public final class Catalog
 		if (frame.isEmpty()) {
 			return;
 		}
-		for (final String entityType : frame) {
-			rebuildExpressionTriggerRegistryForEntityType(entityType);
+		try {
+			for (final String entityType : frame) {
+				rebuildExpressionTriggerRegistryForEntityType(entityType);
+			}
+		} catch (RuntimeException | Error ex) {
+			// the state check is defensive: a call without a transaction is expected only in warm-up, and a barrier in
+			// a live catalog would deactivate it
+			if (Transaction.getTransaction().isEmpty() && getCatalogState() == CatalogState.WARMING_UP) {
+				try {
+					markUnpublishableDueToInvalidSchema(ex);
+				} catch (RuntimeException | Error markingFailure) {
+					ex.addSuppressed(markingFailure);
+				}
+			}
+			throw ex;
 		}
 		frame.clear();
 	}
@@ -1504,6 +1607,26 @@ public final class Catalog
 			});
 	}
 
+	/**
+	 * Waits for commits in progress to finish live-view notification before a catalog handover. The contract is that
+	 * of {@link TransactionManager#waitUntilPipelineDrained()}.
+	 *
+	 * @throws io.evitadb.api.exception.TransactionTimedOutException when the commits outlast the bounded wait
+	 * @throws TransactionException when the pipeline is suspended with commits still behind it
+	 */
+	public void waitUntilPipelineDrained() {
+		this.transactionManager.waitUntilPipelineDrained();
+	}
+
+	/**
+	 * Relabels this catalog and replaces the optional target. The caller must first drain its commit pipeline:
+	 * this method acts on `this`, so it must be the newest instance and no round may still have data to publish. A
+	 * round in its schema notification may still be running, since that writes nothing to storage.
+	 *
+	 * @param updatedSchema schema carrying the resulting name
+	 * @param catalogToBeReplaced optional catalog whose contents are discarded
+	 * @return progress of the handover
+	 */
 	@Nonnull
 	@Override
 	public ProgressingFuture<CatalogContract> replace(
@@ -2634,6 +2757,19 @@ public final class Catalog
 	}
 
 	/**
+	 * What a write in this catalog does when it must withdraw a reference-histogram value the index does not hold for
+	 * the entity - fixed when the engine started (see {@link MissingHistogramValueBehavior#fromSystemProperty()}) and
+	 * answered here so that every site withdrawing a histogram value reads the one value. It cannot change under a
+	 * running catalog.
+	 *
+	 * @return the behavior on a missing histogram value
+	 */
+	@Nonnull
+	public MissingHistogramValueBehavior getMissingHistogramValueBehavior() {
+		return this.missingHistogramValueBehavior;
+	}
+
+	/**
 	 * Returns {@link EntitySchema} for passed `entityType` or throws {@link IllegalArgumentException} if schema for
 	 * this type is not yet known.
 	 */
@@ -2754,52 +2890,90 @@ public final class Catalog
 
 		final MapChanges<String, EntityCollection> collectionChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(
 			this.entityCollections);
-		if (collectionChanges != null) {
-			// recognize renamed collections
-			final Map<String, EntityCollection> originalCollectionContents = collectionChanges.getMapDelegate();
-			final ObjectObjectIdentityHashMap<EntityCollection, String> originalCollections = new ObjectObjectIdentityHashMap<>(
-				collectionChanges.getRemovedKeys().size());
-			for (String removedKey : collectionChanges.getRemovedKeys()) {
-				originalCollections.put(collectionChanges.getMapDelegate().get(removedKey), removedKey);
+		// the headers of the flush that preceded this merge, if there was one; they alone know about a compaction
+		final Map<Integer, EntityCollectionHeader> flushedHeaders = this.flushedHeadersByPrimaryKey;
+		this.flushedHeadersByPrimaryKey = null;
+		if (collectionChanges == null) {
+			if (flushedHeaders != null) {
+				// no collection was created, renamed or dropped, but a flush may still have compacted one
+				final EntityCollectionHeader[] headers = new EntityCollectionHeader[this.entityCollections.size()];
+				int headerIndex = 0;
+				for (EntityCollection entityCollection : this.entityCollections.values()) {
+					headers[headerIndex++] = flushedHeaders.getOrDefault(
+						entityCollection.getEntityTypePrimaryKey(), entityCollection.getEntityCollectionHeader());
+				}
+				this.persistenceService.updateEntityCollectionHeaders(newCatalogVersionId, headers);
 			}
+		} else {
+			// A collection is identified by its primary key, never by its name: names are what a transaction moves
+			// around (swaps them through a temporary one, chains them, reuses a freed one for a new collection),
+			// and the key is the only thing that stays with the collection throughout.
+			final Map<String, EntityCollection> originalCollectionContents = collectionChanges.getMapDelegate();
+			final Map<Integer, String> originalNamesByPrimaryKey = CollectionUtils.createHashMap(
+				originalCollectionContents.size());
+			for (Entry<String, EntityCollection> original : originalCollectionContents.entrySet()) {
+				originalNamesByPrimaryKey.put(original.getValue().getEntityTypePrimaryKey(), original.getKey());
+			}
+			// the collections the transaction leaves behind, by name
+			final Map<String, EntityCollection> survivingCollections = CollectionUtils.createHashMap(
+				originalCollectionContents.size() + collectionChanges.getModifiedKeys().size());
+			survivingCollections.putAll(originalCollectionContents);
+			collectionChanges.getRemovedKeys().forEach(survivingCollections::remove);
+			survivingCollections.putAll(collectionChanges.getModifiedKeys());
+			final Set<Integer> survivingPrimaryKeys = CollectionUtils.createHashSet(survivingCollections.size());
+			for (EntityCollection survivor : survivingCollections.values()) {
+				survivingPrimaryKeys.add(survivor.getEntityTypePrimaryKey());
+			}
+
+			// headers of the collections whose files this merge has just produced; every other collection keeps the
+			// header its last flush stored, which is the only one that names its newest data file
+			final Map<String, EntityCollectionHeader> producedHeaders = CollectionUtils.createHashMap(
+				collectionChanges.getModifiedKeys().size());
 			for (Entry<String, EntityCollection> updatedKey : collectionChanges.getModifiedKeys().entrySet()) {
 				final EntityCollection updatedCollection = updatedKey.getValue();
-				final String removedEntityType = originalCollections.get(updatedCollection);
 				final String newEntityType = updatedKey.getKey();
-				if (removedEntityType != null) {
+				final String originalEntityType = originalNamesByPrimaryKey.get(updatedCollection.getEntityTypePrimaryKey());
+				if (originalEntityType == null) {
+					// a collection created by this transaction
+					producedHeaders.put(newEntityType, updatedCollection.getEntityCollectionHeader());
+				} else if (!originalEntityType.equals(newEntityType)) {
 					final EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> newPersistenceService =
 						this.persistenceService.replaceCollectionWith(
-							newCatalogVersionId, removedEntityType,
+							newCatalogVersionId, originalEntityType,
 							updatedCollection.getEntityTypePrimaryKey(),
 							newEntityType
 						);
-					this.entityCollections.put(
-						updatedKey.getKey(),
-						updatedKey.getValue().createCopyWithNewPersistenceService(
-							newCatalogVersionId, CatalogState.ALIVE, newPersistenceService
-						)
+					final EntityCollection renamedCollection = updatedCollection.createCopyWithNewPersistenceService(
+						newCatalogVersionId, CatalogState.ALIVE, newPersistenceService
 					);
-					originalCollections.remove(updatedCollection);
-					ofNullable(originalCollectionContents.get(newEntityType)).ifPresent(
-						it -> it.removeLayer(transactionalLayer));
+					this.entityCollections.put(newEntityType, renamedCollection);
+					survivingCollections.put(newEntityType, renamedCollection);
+					producedHeaders.put(newEntityType, renamedCollection.getEntityCollectionHeader());
 				}
 			}
-			for (ObjectObjectCursor<EntityCollection, String> originalItem : originalCollections) {
-				this.persistenceService.deleteEntityCollection(
-					newCatalogVersionId,
-					originalItem.key.getEntityCollectionHeader()
-				);
-				originalCollectionContents.get(originalItem.value).removeLayer(transactionalLayer);
+			for (Entry<String, EntityCollection> original : originalCollectionContents.entrySet()) {
+				final EntityCollection droppedCollection = original.getValue();
+				if (!survivingPrimaryKeys.contains(droppedCollection.getEntityTypePrimaryKey())) {
+					// the header the collection was last flushed with names its newest file; the collection object
+					// may still hold the service from before a compaction
+					this.persistenceService.deleteEntityCollection(
+						newCatalogVersionId,
+						lastKnownHeader(newCatalogVersionId, droppedCollection, flushedHeaders)
+					);
+					droppedCollection.removeLayer(transactionalLayer);
+				}
 			}
 
 			// update catalog header with new entity collection headers
-			this.persistenceService.updateEntityCollectionHeaders(
-				newCatalogVersionId,
-				this.entityCollections.values()
-					.stream()
-					.map(EntityCollection::getEntityCollectionHeader)
-					.toArray(EntityCollectionHeader[]::new)
-			);
+			final EntityCollectionHeader[] survivingHeaders = new EntityCollectionHeader[survivingCollections.size()];
+			int headerIndex = 0;
+			for (Entry<String, EntityCollection> survivor : survivingCollections.entrySet()) {
+				final EntityCollectionHeader producedHeader = producedHeaders.get(survivor.getKey());
+				survivingHeaders[headerIndex++] = producedHeader != null ?
+					producedHeader :
+					lastKnownHeader(newCatalogVersionId, survivor.getValue(), flushedHeaders);
+			}
+			this.persistenceService.updateEntityCollectionHeaders(newCatalogVersionId, survivingHeaders);
 		}
 
 		final Map<String, EntityCollection> possiblyUpdatedCollections = transactionalLayer.getStateCopyWithCommittedChanges(
@@ -3094,8 +3268,8 @@ public final class Catalog
 	 * This is the **public entry point** for all three: it raises the barrier and reports it in the operator's own
 	 * terms. A caller that has already reported its situation accurately - the message here would contradict it -
 	 * raises the same barrier through {@link #recordUnpublishableCause(Throwable)} instead, and a warm-up schema
-	 * change refused by validation takes {@link #markUnpublishableDueToInvalidSchema}, which is that pattern with a
-	 * message of its own.
+	 * change refused by validation or by the build of its expression triggers takes
+	 * {@link #markUnpublishableDueToInvalidSchema}, which is that pattern with a message of its own.
 	 *
 	 * @param cause the warm-up failure that made the in-memory state unpublishable
 	 */
@@ -3124,6 +3298,11 @@ public final class Catalog
 	 * mutation would exchange again ON TOP of that work rather than reverse it - so the in-memory catalog cannot be
 	 * argued back into a state worth publishing.
 	 *
+	 * The build of the expression triggers at the end of every schema change is the second caller
+	 * ({@link #drainTriggerRebuildFrame(Set)}). Some definitions are refused only there, from inside the schema change,
+	 * after the change has exchanged the schemas and before it returns - and for the same reason: warm-up has no undo
+	 * that spans the collections the change reached.
+	 *
 	 * **Nothing on disk is damaged.** The last bootstrap record still names a complete, correct state, and the
 	 * deactivation this schedules is what lets the operator get back to it: activating the catalog again loads
 	 * exactly that state, with a schema that validates. What is lost is everything written since - which was never
@@ -3131,17 +3310,19 @@ public final class Catalog
 	 * operation flushes mid-session, so the state that comes back is the newest one that reached the disk rather
 	 * than the newest closed session.
 	 *
-	 * The parameter is the whole {@link EvitaInvalidUsageException} family rather than
-	 * {@link SchemaAlteringException} alone, because `validate()` refuses in both vocabularies: a rule it evaluates
-	 * throws the schema-altering kind, while a getter it reaches on a half-built schema simply refuses to answer.
-	 * Both mean the same thing here - the schema as it stands is not acceptable and cannot be un-applied.
+	 * The parameter is any {@link Throwable} rather than {@link SchemaAlteringException} alone. `validate()` refuses in
+	 * two vocabularies: a rule it evaluates throws the schema-altering kind, while a getter it reaches on a half-built
+	 * schema simply refuses to answer. And an exception outside both - an engine defect the walk uncovers - leaves the
+	 * schema unvalidated. All of them mean the same thing here - the schema as it stands cannot be vouched for and
+	 * cannot be un-applied.
 	 *
-	 * @param cause the validation failure that refused the schema change
+	 * @param cause the validation failure that refused the schema change, the exception the validation failed with, or
+	 *              the refusal of the trigger build
 	 */
-	public void markUnpublishableDueToInvalidSchema(@Nonnull EvitaInvalidUsageException cause) {
+	public void markUnpublishableDueToInvalidSchema(@Nonnull Throwable cause) {
 		if (recordUnpublishableCause(cause)) {
 			log.error(
-				"Catalog `{}` holds a schema that failed validation and cannot be un-applied in the warm-up " +
+				"Catalog `{}` holds a schema that did not pass validation and cannot be un-applied in the warm-up " +
 					"phase, so it will be deactivated. Its stored data is intact at the last version it published; " +
 					"activating the catalog again loads exactly that state, and everything written since then has " +
 					"to be replayed once the schema change is corrected.",
@@ -3183,8 +3364,10 @@ public final class Catalog
 	 * {@link CatalogSchemaContract#validate()}.
 	 *
 	 * Exists for the publications that happen while a warm-up session is **still open**, which the barrier cannot
-	 * help with: the barrier is raised when a session closes and validation refuses it, so anything publishing
-	 * earlier in that same session publishes before there is a barrier to consult. Those callers ask this instead.
+	 * help with: the barrier is raised when a session closes and validation refuses it, or when the trigger build at
+	 * the end of a schema change refuses it, so anything publishing earlier in that same session publishes before
+	 * there is a barrier to consult. Those callers ask this instead; the build condition of those publications is
+	 * {@link #canBuildPendingExpressionTriggers()}.
 	 *
 	 * It is deliberately a question rather than an assertion. A schema that does not validate mid-session is not an
 	 * error - building one across several steps whose intermediate states do not validate is supported, a reflected
@@ -3211,15 +3394,57 @@ public final class Catalog
 	}
 
 	/**
+	 * Tells whether every entity type on the pending trigger rebuild frames of this thread builds its expression
+	 * triggers as its schema currently stands. It is the build condition of {@link #flushMidSessionIfSchemaValid()}:
+	 * a collection-level DDL operation publishes in the middle of a warm-up schema change, before the build at the
+	 * end of the change has decided, and a definition that build refuses must not reach the disk ahead of the refusal.
+	 *
+	 * Every frame on the stack is read, not only the top one, so a flush inside a nested schema change also checks the
+	 * entity types the enclosing change has exchanged so far. The triggers are built and discarded: nothing is
+	 * registered, and the trigger factories keep no state. Only the entity types on the frames are checked - an entity
+	 * type whose definition a change of another entity type broke is not among them.
+	 *
+	 * It is a question, never a refusal. A definition that cannot be built yet is legitimate in the middle of a
+	 * change - a histogram defined before the attribute it reads, in the same change, is the worked example - so the
+	 * caller skips its publication, and the build at the end of the change gives the verdict. **Every
+	 * {@link RuntimeException} is caught, {@link io.evitadb.exception.EvitaInternalError} included**, unlike in
+	 * {@link #isSchemaValid()}: the factories refuse user input with several exception types, an internal error among
+	 * them, and an engine defect swallowed here is thrown again by the build at the end of the change once the change
+	 * reaches it, provided the entity type still has a schema then. A change that fails before its build discards the
+	 * frame unbuilt, so what it kept is published later without that verdict - a known limitation of the warm-up
+	 * barrier, explained in the `finally` of {@link #updateSchema}. An {@link Error} is not a verdict on the schema and
+	 * propagates.
+	 *
+	 * @return true when every pending entity type builds its triggers
+	 */
+	private boolean canBuildPendingExpressionTriggers() {
+		for (final Set<String> frame : PENDING_TRIGGER_REBUILDS.get()) {
+			for (final String entityType : frame) {
+				try {
+					buildExpressionTriggers(entityType);
+				} catch (RuntimeException ex) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	/**
 	 * Performs the warm-up flush that a collection-level DDL operation runs while its session is still open, unless
-	 * the catalog schema would be refused by validation as it currently stands.
+	 * the catalog schema would be refused by validation as it currently stands, or an entity type the running schema
+	 * change has touched does not build its expression triggers yet ({@link #canBuildPendingExpressionTriggers()}).
 	 *
 	 * Skipping is not a lost write. The changes stay in the data store buffer and are published by the session
 	 * close, which validates first - so a schema that is merely half-built at this moment still reaches the disk,
-	 * while one that is still invalid when the session closes reaches nothing.
+	 * while one that is still invalid when the session closes reaches nothing. A skip for the build condition is safe
+	 * for the same reason whenever the schema change reaches its build: the build decides, and when it refuses, the
+	 * unpublishable barrier it raises finds nothing of the refused definition published. A change that fails before
+	 * its build leaves the skipped definition without that verdict - the known limitation
+	 * {@link #canBuildPendingExpressionTriggers()} names.
 	 */
 	private void flushMidSessionIfSchemaValid() {
-		if (!isSchemaValid()) {
+		if (!isSchemaValid() || !canBuildPendingExpressionTriggers()) {
 			return;
 		}
 		// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
@@ -3235,8 +3460,8 @@ public final class Catalog
 	 * the flush loop and the header write, and then goes on to release every resource. Everything else uses
 	 * {@link #assertPublishable()}.
 	 *
-	 * @return true when nothing - neither a warm-up engine failure nor a schema change refused by validation - has
-	 *         made this catalog's state unpublishable
+	 * @return true when nothing - neither a warm-up engine failure nor a schema change refused by validation or by the
+	 *         build of its expression triggers - has made this catalog's state unpublishable
 	 */
 	public boolean isPublishable() {
 		return this.unpublishableCause.get() == null;
@@ -3250,7 +3475,8 @@ public final class Catalog
 	 * of pouring in more work. Termination deliberately does not call this - see {@link #isPublishable()}.
 	 *
 	 * @throws CatalogUnpublishableException when something - a warm-up engine failure, or a schema change refused
-	 *                                       by validation - has made this catalog's state unpublishable
+	 *                                       by validation or by the build of its expression triggers - has made this
+	 *                                       catalog's state unpublishable
 	 */
 	public void assertPublishable() {
 		final Throwable cause = this.unpublishableCause.get();
@@ -3383,21 +3609,36 @@ public final class Catalog
 	}
 
 	/**
-	 * This method writes all changed storage parts into the file offset index of {@link EntityCollection} and then stores
-	 * {@link CatalogHeader} marking the catalog version as committed.
+	 * Writes all changed storage parts of every {@link EntityCollection} and of the catalog itself into their file
+	 * offset indexes. It is the first half of publishing a round; the second half is
+	 * {@link #publishHeader(long, TransactionMutation, FlushOutcome)}.
+	 *
+	 * **Nothing is published here.** The catalog header and the bootstrap record are deliberately left to the second
+	 * half, because the round is not finished when the data is flushed: the merge that follows it still copies
+	 * the files of renamed collections, retires the files of dropped ones and rewrites the collection headers. A
+	 * record published before it would name the state from before the merge while claiming to cover the round, and
+	 * the write-ahead log - told the round is processed - would never repair it.
+	 *
+	 * @param catalogVersion the version of the round being flushed
+	 * @return what the flush found out, for {@link #publishHeader(long, TransactionMutation, FlushOutcome)}
 	 */
-	public void flush(long catalogVersion, @Nonnull TransactionMutation lastProcessedTransaction) {
+	@Nonnull
+	public FlushOutcome flushCollections(long catalogVersion) {
 		Assert.isPremiseValid(getCatalogState() == CatalogState.ALIVE, "Catalog is not in ALIVE state!");
 		// the last APPLIED version, not the last checkpointed one: with a checkpoint interval configured the latter
 		// lags by up to that interval, which would make every round in between look like a change
 		boolean changeOccurred = this.persistenceService.getLastAppliedCatalogVersion() != catalogVersion ||
 			getInternalSchema().version() != this.lastPersistedSchemaVersion;
-		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
+		final Map<Integer, EntityCollectionHeader> flushedHeaders = CollectionUtils.createHashMap(
+			this.entityCollections.size());
 		for (EntityCollection entityCollection : this.entityCollections.values()) {
 			final long lastSeenVersion = entityCollection.getVersion();
-			entityHeaders.add(entityCollection.flush(catalogVersion));
+			flushedHeaders.put(entityCollection.getEntityTypePrimaryKey(), entityCollection.flush(catalogVersion));
 			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
 		}
+		// handed to the merge of the same round, which runs next on this very instance: the headers the flush has
+		// just produced are the only ones that name a compaction's target, and nothing else is stored yet
+		this.flushedHeadersByPrimaryKey = flushedHeaders;
 
 		if (changeOccurred) {
 			this.persistenceService.flushTrappedUpdates(
@@ -3405,6 +3646,49 @@ public final class Catalog
 				this.dataStoreBuffer.popTrappedChanges(),
 				Functions.noOpIntConsumer()
 			);
+			this.lastPersistedSchemaVersion = getInternalSchema().version();
+		}
+		return new FlushOutcome(changeOccurred);
+	}
+
+	/**
+	 * Returns the newest header of a collection that this merge has not itself produced: the one its flush of this
+	 * round returned, or - when there was no flush - the one stored for it. The collection object is no source for it,
+	 * because it may still hold the persistence service from before a compaction.
+	 */
+	@Nonnull
+	private EntityCollectionHeader lastKnownHeader(
+		long catalogVersion,
+		@Nonnull EntityCollection collection,
+		@Nullable Map<Integer, EntityCollectionHeader> flushedHeaders
+	) {
+		final EntityCollectionHeader flushedHeader = flushedHeaders == null ?
+			null : flushedHeaders.get(collection.getEntityTypePrimaryKey());
+		return flushedHeader != null ?
+			flushedHeader :
+			this.persistenceService.getEntityCollectionHeader(catalogVersion, collection.getEntityTypePrimaryKey());
+	}
+
+	/**
+	 * Stores the {@link CatalogHeader} that marks the catalog version as committed, and with it publishes (or defers
+	 * the publication of) the bootstrap record. Called on the catalog produced by the merge of the round, so the
+	 * headers it stores are those of the collections the merge left behind - renamed, created and compacted ones
+	 * included.
+	 *
+	 * @param catalogVersion           the version of the round being published
+	 * @param lastProcessedTransaction the last transaction the round incorporated
+	 * @param outcome                  the outcome of {@link #flushCollections(long)} on the catalog the round started from
+	 */
+	public void publishHeader(
+		long catalogVersion,
+		@Nonnull TransactionMutation lastProcessedTransaction,
+		@Nonnull FlushOutcome outcome
+	) {
+		if (outcome.changeOccurred()) {
+			final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
+			for (EntityCollection entityCollection : this.entityCollections.values()) {
+				entityHeaders.add(entityCollection.getEntityCollectionHeader());
+			}
 			this.persistenceService.storeHeader(
 				this.catalogId,
 				CatalogState.ALIVE,
@@ -3414,9 +3698,15 @@ public final class Catalog
 				entityHeaders,
 				this.dataStoreBuffer
 			);
-			this.lastPersistedSchemaVersion = getInternalSchema().version();
 		}
 	}
+
+	/**
+	 * Result of {@link #flushCollections(long)}.
+	 *
+	 * @param changeOccurred whether the round changed anything that has to be published
+	 */
+	public record FlushOutcome(boolean changeOccurred) {}
 
 	/**
 	 * Creates an isolated WAL (Write-Ahead Log) service for the specified transaction ID.
@@ -3573,27 +3863,39 @@ public final class Catalog
 		final CatalogExpressionTriggerRegistry currentRegistry = Objects.requireNonNull(
 			this.expressionTriggerRegistry.get()
 		);
-		final EntitySchemaContract entitySchema = this.entitySchemaIndex.get(entityType);
-		final List<ExpressionIndexTrigger> newTriggers;
-		if (entitySchema == null) {
-			newTriggers = Collections.emptyList();
-		} else {
-			final List<ExpressionIndexTrigger> collected = new ArrayList<>(4);
-			for (final ReferenceSchemaContract refSchema : entitySchema.getReferences().values()) {
-				collected.addAll(
-					FacetExpressionTriggerFactory.buildTriggersForReference(entityType, refSchema)
-				);
-				collected.addAll(
-					HistogramExpressionTriggerFactory.buildTriggersForReference(
-						entityType, refSchema, this.entitySchemaIndex::get
-					)
-				);
-			}
-			newTriggers = collected;
-		}
+		final List<ExpressionIndexTrigger> newTriggers = buildExpressionTriggers(entityType);
 		this.expressionTriggerRegistry.set(
 			currentRegistry.rebuildForEntityType(entityType, newTriggers)
 		);
+	}
+
+	/**
+	 * Builds the expression triggers of the specified entity type from all its reference schemas, without registering
+	 * them anywhere. Reads the entity schema index, the referenced entity types' schemas included; an entity type that
+	 * has no schema there (a removed one) has no triggers.
+	 *
+	 * @param entityType the owner entity type whose triggers are built
+	 * @return the triggers, empty when the entity type has no schema
+	 * @throws RuntimeException whatever the trigger factories throw for a definition they refuse
+	 */
+	@Nonnull
+	private List<ExpressionIndexTrigger> buildExpressionTriggers(@Nonnull String entityType) {
+		final EntitySchemaContract entitySchema = this.entitySchemaIndex.get(entityType);
+		if (entitySchema == null) {
+			return Collections.emptyList();
+		}
+		final List<ExpressionIndexTrigger> collected = new ArrayList<>(4);
+		for (final ReferenceSchemaContract refSchema : entitySchema.getReferences().values()) {
+			collected.addAll(
+				FacetExpressionTriggerFactory.buildTriggersForReference(entityType, refSchema)
+			);
+			collected.addAll(
+				HistogramExpressionTriggerFactory.buildTriggersForReference(
+					entityType, refSchema, this.entitySchemaIndex::get
+				)
+			);
+		}
+		return collected;
 	}
 
 	/**
@@ -3879,6 +4181,68 @@ public final class Catalog
 	}
 
 	/**
+	 * Preflights every {@link ModifyEntitySchemaMutation} in a batch against the collection it targets, so that a
+	 * refusal is raised **before** any schema is exchanged. It also runs before any mutation of the batch is
+	 * registered with the transaction, so its refusal leaves the transaction usable - unless an enclosing batch has
+	 * already registered the catalog mutation that fanned out into this one.
+	 *
+	 * The problem this solves is failure atomicity, not validation coverage. A catalog-level change to a global
+	 * attribute fans out into one entity mutation per consuming collection, and the loop below applies them one at a
+	 * time - each exchanging its schema and writing its storage part. If the fourth collection refuses, the `catch`
+	 * restores only {@link #schema}: the three collections already updated keep the change, in memory and on disk,
+	 * while the catalog schema says the operation failed. Checking all of them first is what makes the cascade
+	 * all-or-nothing without holding a rollback log of exchanged schemas.
+	 *
+	 * Collections that do not exist yet are skipped - a batch may create one and then modify it, and there is nothing
+	 * to preflight against until it exists.
+	 *
+	 * Every collection is preflighted against the state before the batch, while the real pass applies the batch in
+	 * order. Each collection therefore learns which entity types the mutations before its own create, remove, rename
+	 * or modify, so that it raises a refusal depending on another collection's state only when nothing earlier in
+	 * the batch changed that state.
+	 *
+	 * Before that dry run, every indexing expression the batch carries is checked against the reads its slot admits
+	 * ({@link IndexingExpressionInputValidator}). The check reads the mutation payloads only - it needs no schema and
+	 * no collection - so it covers the collections the dry run skips: one the batch creates, and one whose dry run
+	 * ends without a verdict. Refusing here, before any schema is exchanged, keeps a refused read an ordinary refusal.
+	 * The trigger factories refuse some expressions only in the deferred rebuild, after the collection has exchanged
+	 * and buffered the schema; in a warming-up catalog that refusal raises the unpublishable barrier.
+	 *
+	 * @param schemaMutations the batch about to be applied
+	 * @throws io.evitadb.api.exception.InvalidSchemaMutationException when any affected collection refuses its share
+	 */
+	private void verifyEntitySchemaMutationsApplicable(
+		@Nonnull LocalCatalogSchemaMutation[] schemaMutations
+	) {
+		for (final LocalCatalogSchemaMutation theMutation : schemaMutations) {
+			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
+				IndexingExpressionInputValidator.validateEntitySchemaMutation(modifyEntitySchemaMutation);
+			}
+		}
+		final CatalogSchema currentCatalogSchema = getInternalSchema();
+		final Set<String> entityTypesChangedEarlier = new HashSet<>(schemaMutations.length);
+		for (final LocalCatalogSchemaMutation theMutation : schemaMutations) {
+			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
+				final EntityCollection entityCollection =
+					this.entityCollections.get(modifyEntitySchemaMutation.getName());
+				if (entityCollection != null) {
+					entityCollection.verifySchemaMutationsApplicable(
+						currentCatalogSchema, entityTypesChangedEarlier, modifyEntitySchemaMutation.getSchemaMutations()
+					);
+				}
+				entityTypesChangedEarlier.add(modifyEntitySchemaMutation.getName());
+			} else if (theMutation instanceof CreateEntitySchemaMutation createEntitySchemaMutation) {
+				entityTypesChangedEarlier.add(createEntitySchemaMutation.getName());
+			} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
+				entityTypesChangedEarlier.add(removeEntitySchemaMutation.getName());
+			} else if (theMutation instanceof ModifyEntitySchemaNameMutation renameEntitySchemaMutation) {
+				entityTypesChangedEarlier.add(renameEntitySchemaMutation.getName());
+				entityTypesChangedEarlier.add(renameEntitySchemaMutation.getNewName());
+			}
+		}
+	}
+
+	/**
 	 * Modifies the entity schema by applying the given schema mutations.
 	 *
 	 * @param sessionId                  The session the modification is performed on behalf of, or null when it is
@@ -3969,6 +4333,15 @@ public final class Catalog
 
 	/**
 	 * Internal shared implementation of catalog replacement used both from rename and replace existing catalog methods.
+	 *
+	 * In a warming-up catalog the collection being renamed - its name and primary key - must be on the published
+	 * catalog header, or the rename is refused before any part of it is applied. The storage step resolves the
+	 * collection's data file through that header by both, and it runs after the schema has been exchanged and the
+	 * collection taken out of the collection map - a failed lookup there leaves the collection under neither name. A
+	 * collection created or renamed earlier in the same session is not on the header while the inline flush of the
+	 * operation that created it was skipped ({@link #flushMidSessionIfSchemaValid()}), or found nothing to publish; a
+	 * collection re-created under a published name is not either, because the header entry under that name belongs to
+	 * the collection it replaced.
 	 */
 	private void doReplaceEntityCollectionInternal(
 		@Nullable UUID sessionId,
@@ -3978,6 +4351,24 @@ public final class Catalog
 		@Nonnull EntityCollection entityCollectionToBeReplacedWith,
 		boolean transactionOpen
 	) {
+		if (!transactionOpen) {
+			// the storage step below finds the data file of the renamed collection through the published catalog
+			// header, by its name and primary key; asking the same question before the schema is exchanged keeps a
+			// failed lookup from leaving the collection under neither name
+			final int sourcePrimaryKey = entityCollectionToBeReplacedWith.getEntityTypePrimaryKey();
+			Assert.isTrue(
+				this.persistenceService.getCatalogHeader(getVersion())
+					.getEntityTypeFileIndexIfExists(entityCollectionNameToBeReplacedWith)
+					.filter(it -> it.entityTypePrimaryKey() == sourcePrimaryKey)
+					.isPresent(),
+				() -> new InvalidSchemaMutationException(
+					"Entity collection `" + entityCollectionNameToBeReplacedWith + "` cannot be renamed to `" +
+						entityCollectionNameToBeReplaced + "` yet: it was created or renamed earlier in this warm-up " +
+						"session and has not been stored since, and a rename finds the data file of the collection " +
+						"it renames among the stored ones. It can be renamed once the catalog has stored it."
+				)
+			);
+		}
 		entityCollectionToBeReplacedWith.updateSchema(
 			sessionId,
 			getSchema(),

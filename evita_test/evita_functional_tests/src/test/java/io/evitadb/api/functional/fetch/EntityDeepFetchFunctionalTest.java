@@ -23,7 +23,6 @@
 
 package io.evitadb.api.functional.fetch;
 
-import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
@@ -39,7 +38,6 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.comparator.LocalizedStringComparator;
@@ -91,7 +89,7 @@ import static io.evitadb.test.TestTags.QUERY;
 /**
  * This test verifies deep fetching of referenced entity bodies, including eager and lazy deep
  * fetching, filtered and ordered reference fetching, reference attribute filtering/ordering,
- * handling of missing references, and binary entity deep fetching.
+ * and handling of missing references.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -2228,104 +2226,6 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 
 				return null;
 			}
-		);
-	}
-
-	@DisplayName("References can be eagerly deeply fetched in binary form")
-	@UseDataSet(HUNDRED_PRODUCTS)
-	@Test
-	void shouldEagerlyDeepFetchReferenceEntityBinaryBodies(
-		Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalBrands) {
-		final Set<Integer> brandsWithGroupedCategory = originalBrands.stream()
-			.filter(it -> it.getReferences(Entities.STORE).stream().anyMatch(ref -> ref.getGroup().isPresent()))
-			.map(EntityContract::getPrimaryKey)
-			.collect(Collectors.toSet());
-
-		final SealedEntity selectedEntity = findEntityByPredicate(
-			originalProducts,
-			it -> !it.getReferences(Entities.BRAND).isEmpty() &&
-				it.getReferences(Entities.BRAND)
-					.stream()
-					.anyMatch(brand -> brandsWithGroupedCategory.contains(brand.getReferencedPrimaryKey())) &&
-				!it.getReferences(Entities.STORE).isEmpty()
-		);
-
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<BinaryEntity> productByPk = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(selectedEntity.getPrimaryKey())
-						),
-						require(
-							entityFetch(
-								referenceContent(
-									Entities.BRAND,
-									entityFetch(
-										attributeContent(),
-										referenceContent(
-											Entities.STORE,
-											entityFetch(attributeContent()),
-											entityGroupFetch(attributeContent(), associatedDataContentAll())
-										)
-									),
-									entityGroupFetch(attributeContent())
-								),
-								referenceContent(
-									Entities.STORE,
-									entityFetch(attributeContent(), associatedDataContentAll())
-								)
-							)
-						)
-					),
-					BinaryEntity.class
-				);
-
-				assertEquals(1, productByPk.getRecordData().size());
-				assertEquals(1, productByPk.getTotalRecordCount());
-
-				final BinaryEntity product = productByPk.getRecordData().getFirst();
-				assertTrue(product.getReferencedEntities().length > 0);
-
-				final Optional<BinaryEntity> referencedStore = Arrays.stream(product.getReferencedEntities())
-					.filter(it -> Entities.STORE.equals(it.getType()) && it.getPrimaryKey()
-						.equals(REFERENCED_ID_EXTRACTOR.apply(selectedEntity, Entities.STORE)[0]))
-					.findFirst();
-
-				assertTrue(referencedStore.isPresent());
-				assertTrue(referencedStore.get().getAttributeStorageParts().length > 0);
-				assertTrue(referencedStore.get().getAssociatedDataStorageParts().length > 0);
-
-				final Optional<BinaryEntity> brand = Arrays.stream(product.getReferencedEntities())
-					.filter(it -> Entities.BRAND.equals(it.getType()) && brandsWithGroupedCategory.contains(
-						it.getPrimaryKey()))
-					.findFirst();
-
-				assertTrue(brand.isPresent());
-				assertTrue(brand.get().getAttributeStorageParts().length > 0);
-				assertEquals(0, brand.get().getAssociatedDataStorageParts().length);
-
-				final Optional<BinaryEntity> referencedBrandStore = Arrays.stream(brand.get().getReferencedEntities())
-					.filter(it -> Entities.STORE.equals(it.getType()))
-					.findFirst();
-				final Optional<BinaryEntity> referencedBrandStoreCategory = Arrays.stream(
-						brand.get().getReferencedEntities())
-					.filter(it -> Entities.CATEGORY.equals(it.getType()))
-					.findFirst();
-
-				assertTrue(referencedBrandStore.isPresent());
-				assertTrue(referencedBrandStore.get().getAttributeStorageParts().length > 0);
-				assertEquals(0, referencedBrandStore.get().getAssociatedDataStorageParts().length);
-
-				assertTrue(referencedBrandStoreCategory.isPresent());
-				assertTrue(referencedBrandStoreCategory.get().getAttributeStorageParts().length > 0);
-				assertTrue(referencedBrandStoreCategory.get().getAssociatedDataStorageParts().length > 0);
-
-				return null;
-			},
-			SessionFlags.BINARY
 		);
 	}
 

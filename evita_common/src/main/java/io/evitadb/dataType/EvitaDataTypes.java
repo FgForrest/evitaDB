@@ -24,6 +24,9 @@
 package io.evitadb.dataType;
 
 import io.evitadb.dataType.data.DataItem;
+import io.evitadb.dataType.data.DataItemArray;
+import io.evitadb.dataType.data.DataItemMap;
+import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.Expression;
@@ -32,6 +35,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.NumberUtils;
+import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,7 +55,6 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static io.evitadb.utils.MemoryMeasuringConstants.*;
 
@@ -214,16 +217,9 @@ public class EvitaDataTypes {
 	 */
 	private static final char CHAR_STRING_DELIMITER = '\'';
 	/**
-	 * String representation of the single-quote delimiter used in EvitaQL. Used in conjunction
-	 * with `STRING_DELIMITER_PATTERN` for escaping embedded quotes in string values.
+	 * The hexadecimal digits of the Unicode escape a control character without an escape of its own is written as.
 	 */
-	private static final String STRING_DELIMITER ="" + CHAR_STRING_DELIMITER;
-	/**
-	 * Compiled regex pattern for matching and escaping single-quote delimiters in string values.
-	 * Used by `formatValue()` to escape embedded quotes (e.g., `it's` becomes `it\'s`) when
-	 * formatting strings for EvitaQL query syntax.
-	 */
-	private static final Pattern STRING_DELIMITER_PATTERN = Pattern.compile(STRING_DELIMITER);
+	private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 	/**
 	 * Parser function that attempts to parse a string to `OffsetDateTime` using ISO-8601 format
 	 * (`DateTimeFormatter.ISO_OFFSET_DATE_TIME`). Returns `null` on parse failure rather than
@@ -341,10 +337,12 @@ public class EvitaDataTypes {
 	 * Conversion function for coercing arbitrary objects to `Character`. Returns `Character`
 	 * inputs unchanged. For `Number` inputs, converts to an integer and validates range
 	 * (0-65535, the valid Unicode code point range for char); throws if out of bounds. For string
-	 * inputs, accepts single-character strings, or three-character single-quoted literals like
-	 * `'A'` (strips quotes). Throws `InconvertibleDataTypeException` for multi-character strings
-	 * or out-of-range numeric values. Used by `convertSingleObject` when target type is
-	 * `Character` or `char`.
+	 * inputs, accepts single-character strings, three-character single-quoted literals like
+	 * `'A'` (strips quotes), and single-quoted literals of one escaped character as `formatValue`
+	 * writes them, like `'\\'` or `'\n'`. The three-character form is read first, because older
+	 * versions wrote the backslash unescaped as `'\'`. Throws `InconvertibleDataTypeException` for
+	 * multi-character strings, malformed escapes or out-of-range numeric values. Used by
+	 * `convertSingleObject` when target type is `Character` or `char`.
 	 */
 	private static final BiFunction<Class<?>, Serializable, Character>
 		CHAR_FUNCTION =
@@ -368,6 +366,21 @@ public class EvitaDataTypes {
 					// handle single-quoted character literal from EvitaQL, e.g., 'A'
 				} else if (str.length() == 3 && str.charAt(0) == '\'' && str.charAt(2) == '\'') {
 					return str.charAt(1);
+				} else if (
+					str.length() > 3 && str.charAt(0) == '\'' && str.charAt(1) == '\\' &&
+						str.charAt(str.length() - 1) == '\''
+				) {
+					// one escaped character, as `formatValue` writes a backslash, an apostrophe or a control character
+					final String unescaped;
+					try {
+						unescaped = StringUtils.translateEscapes(str.substring(1, str.length() - 1));
+					} catch (IllegalArgumentException | IndexOutOfBoundsException ex) {
+						throw new InconvertibleDataTypeException(requestedType, unknownObject);
+					}
+					if (unescaped.length() != 1) {
+						throw new InconvertibleDataTypeException(requestedType, unknownObject);
+					}
+					return unescaped.charAt(0);
 				} else {
 					throw new InconvertibleDataTypeException(requestedType, unknownObject);
 				}
@@ -1247,6 +1260,196 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Returns `true` when a reader of the stored data can tell the two stored values apart - the question the
+	 * "did the value change" checks of the write paths of stored values - attributes, associated data and price
+	 * validities - ask before they bump a version or rewrite a stored part. It is `equals` with two refinements:
+	 *
+	 * - two values `equals` finds the same are told apart by {@link #rangeRepresentationDiffers(Serializable,
+	 *   Serializable)} when they are ranges, whose `equals` compares the encoded bounds only, or complex data holding
+	 *   such ranges as leaves;
+	 * - arrays are compared element by element under the same rule rather than by identity, so an array holding the
+	 *   very same values is no change.
+	 *
+	 * Being `equals`, it is strict about the scale of a decimal number: `1.0` replaced by `1.00` is a change, unlike
+	 * for `QueryUtils#valueDiffers`, which compares by `compareTo`.
+	 *
+	 * The method runs on every upsert of a stored value: a value that is neither an object array, a range nor complex
+	 * data costs one type check and the `equals` call when the values differ, and three more type checks when they are
+	 * the same. Nothing is allocated on that path; complex data `equals` finds the same are walked a second time.
+	 *
+	 * @param existing  the value stored so far, may be `null`
+	 * @param candidate the value about to be stored, may be `null`
+	 * @return `true` when the values are distinguishable, `false` when the candidate stores the very same value
+	 */
+	public static boolean storedValueDiffers(@Nullable Serializable existing, @Nullable Serializable candidate) {
+		if (existing == candidate) {
+			return false;
+		} else if (existing == null || candidate == null) {
+			return true;
+		} else if (existing instanceof Object[] existingArray) {
+			if (!(candidate instanceof Object[] candidateArray) || existingArray.length != candidateArray.length) {
+				return true;
+			}
+			for (int i = 0; i < existingArray.length; i++) {
+				if (storedValueDiffers((Serializable) existingArray[i], (Serializable) candidateArray[i])) {
+					return true;
+				}
+			}
+			return false;
+		} else if (existing.equals(candidate)) {
+			return rangeRepresentationDiffers(existing, candidate);
+		} else {
+			// an array of primitives - which the stored type normalization lets through - has identity equals
+			return !(existing.getClass().isArray() && Objects.deepEquals(existing, candidate));
+		}
+	}
+
+	/**
+	 * Answers the one question the comparisons of the write paths cannot answer with `equals` or `compareTo`: do two
+	 * values those comparisons find the same differ in a range a reader gets back? A {@link Range} compares by its
+	 * encoded bounds, the identity the indexes rely on, so `[1.0,2.0]` equals `[10,20]` and two ranges naming the same
+	 * instants at different zone offsets are equal too. Here two ranges are the same value only when they are of the
+	 * same class, their precise bounds are equal by `equals` (so `1.0` differs from `1.00` and `12:00+02:00` from
+	 * `11:00+01:00`) and, for a {@link BigDecimalNumberRange}, they retain the same effective number of decimal
+	 * places. Arrays of ranges are compared element by element.
+	 *
+	 * {@link ComplexDataObject} compares by its tree of {@link DataItem data items}, so a range leaf anywhere in the
+	 * tree - a property of a {@link DataItemMap}, an item of a {@link DataItemArray}, however deeply nested - carries
+	 * its encoded equality into the equality of the whole object. Complex data are therefore walked leaf by leaf, and
+	 * every pair of {@link DataItemValue} leaves is put the range question. Leaves that are not ranges stay the
+	 * business of the base comparison; trees of a different shape count as told apart, which the base comparison will
+	 * have reported already. An array of DTOs is stored as a single complex object with an array root, which the walk
+	 * covers like any other tree.
+	 *
+	 * The method refines a base comparison that has already found the two values the same and is meant to be
+	 * combined with it - `!equals(a, b) || rangeRepresentationDiffers(a, b)`, or
+	 * `QueryUtils#valueDiffers(a, b) || rangeRepresentationDiffers(a, b)` where a `BigDecimal` rescaled to the same
+	 * number is to be no change. For a stored value that is neither a range, complex data nor an array of ranges it
+	 * returns `false` and leaves the decision to the base comparison whatever the candidate is, at the cost of three
+	 * type checks and no allocation. A stored range, array of ranges or complex data is told apart from a candidate
+	 * of any other type, `null` included. Complex data are walked a second time - after `equals` - and the walk
+	 * allocates the iterators of the maps it passes through.
+	 *
+	 * @param existing  the value stored so far, may be `null`
+	 * @param candidate the value about to be stored, may be `null`
+	 * @return `true` when the values are ranges, arrays of ranges or complex data a reader can tell apart
+	 */
+	public static boolean rangeRepresentationDiffers(
+		@Nullable Serializable existing,
+		@Nullable Serializable candidate
+	) {
+		if (existing instanceof Range<?> existingRange) {
+			return !(candidate instanceof Range<?> candidateRange) ||
+				representationDiffers(existingRange, candidateRange);
+		} else if (existing instanceof ComplexDataObject existingObject) {
+			return !(candidate instanceof ComplexDataObject candidateObject) ||
+				rangeLeafDiffers(existingObject.root(), candidateObject.root());
+		} else if (existing instanceof Range<?>[] existingRanges) {
+			if (!(candidate instanceof Range<?>[] candidateRanges) || existingRanges.length != candidateRanges.length) {
+				return true;
+			}
+			for (int i = 0; i < existingRanges.length; i++) {
+				final Range<?> existingRange = existingRanges[i];
+				final Range<?> candidateRange = candidateRanges[i];
+				if (existingRange == null || candidateRange == null) {
+					if (existingRange != candidateRange) {
+						return true;
+					}
+				} else if (representationDiffers(existingRange, candidateRange)) {
+					return true;
+				}
+			}
+			return false;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Walks two trees of complex data in parallel and returns `true` when a pair of their leaves are ranges a reader
+	 * can tell apart (see {@link #rangeRepresentationDiffers(Serializable, Serializable)}) or when the trees differ in
+	 * shape: a different kind of item at the same place, a different number of items or properties, a property missing
+	 * on one side, or a `null` item or leaf value on one side only.
+	 *
+	 * @param existing  the item of the tree stored so far, may be `null` inside an array
+	 * @param candidate the item at the same place of the tree about to be stored, may be `null` inside an array
+	 * @return `true` when the trees are told apart by a range leaf or by their shape
+	 */
+	private static boolean rangeLeafDiffers(@Nullable DataItem existing, @Nullable DataItem candidate) {
+		if (existing == null || candidate == null) {
+			return existing != candidate;
+		}
+		if (existing instanceof DataItemValue existingValue) {
+			if (!(candidate instanceof DataItemValue candidateValue)) {
+				return true;
+			}
+			final Serializable existingLeaf = existingValue.value();
+			final Serializable candidateLeaf = candidateValue.value();
+			return existingLeaf == null || candidateLeaf == null ?
+				existingLeaf != candidateLeaf :
+				rangeRepresentationDiffers(existingLeaf, candidateLeaf);
+		} else if (existing instanceof DataItemArray existingArray) {
+			if (!(candidate instanceof DataItemArray candidateArray)) {
+				return true;
+			}
+			final DataItem[] existingChildren = existingArray.children();
+			final DataItem[] candidateChildren = candidateArray.children();
+			if (existingChildren.length != candidateChildren.length) {
+				return true;
+			}
+			for (int i = 0; i < existingChildren.length; i++) {
+				if (rangeLeafDiffers(existingChildren[i], candidateChildren[i])) {
+					return true;
+				}
+			}
+			return false;
+		} else if (existing instanceof DataItemMap existingMap) {
+			if (!(candidate instanceof DataItemMap candidateMap)) {
+				return true;
+			}
+			final Map<String, DataItem> existingProperties = existingMap.childrenIndex();
+			final Map<String, DataItem> candidateProperties = candidateMap.childrenIndex();
+			if (existingProperties.size() != candidateProperties.size()) {
+				return true;
+			}
+			for (final Map.Entry<String, DataItem> existingProperty : existingProperties.entrySet()) {
+				final String propertyName = existingProperty.getKey();
+				final DataItem candidateChild = candidateProperties.get(propertyName);
+				if (candidateChild == null && !candidateProperties.containsKey(propertyName)) {
+					return true;
+				}
+				if (rangeLeafDiffers(existingProperty.getValue(), candidateChild)) {
+					return true;
+				}
+			}
+			return false;
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unexpected data item type `" + existing.getClass().getName() + "` in complex data!"
+			);
+		}
+	}
+
+	/**
+	 * Returns `true` when the two ranges differ in anything a reader can see: their class, a precise bound, or - for
+	 * a {@link BigDecimalNumberRange} - the effective number of retained decimal places.
+	 *
+	 * @param existing  the range stored so far
+	 * @param candidate the range about to be stored
+	 * @return `true` when the ranges are distinguishable
+	 */
+	private static boolean representationDiffers(@Nonnull Range<?> existing, @Nonnull Range<?> candidate) {
+		if (existing.getClass() != candidate.getClass() ||
+			!Objects.equals(existing.getPreciseFrom(), candidate.getPreciseFrom()) ||
+			!Objects.equals(existing.getPreciseTo(), candidate.getPreciseTo())) {
+			return true;
+		}
+		return existing instanceof BigDecimalNumberRange existingDecimal &&
+			existingDecimal.getEffectiveRetainedDecimalPlaces() !=
+				((BigDecimalNumberRange) candidate).getEffectiveRetainedDecimalPlaces();
+	}
+
+	/**
 	 * Scalar-or-array counterpart of {@link #toSupportedStoredType(Serializable)} — the entry point
 	 * used by attribute mutations, which must preserve the data type the attribute schema declares.
 	 * For scalar values delegates to {@link #toSupportedStoredType(Serializable)}; for arrays
@@ -1483,13 +1686,53 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Returns the text as a string literal of EvitaQL and EvitaEL: in apostrophes, with every character the grammar
+	 * does not take as it is written as an escape `StringUtils#translateEscapes` reads back - the apostrophe that would
+	 * end the literal, the backslash that would start an escape, and the control characters the grammar refuses raw.
+	 * Any other character is written as it is.
+	 *
+	 * @param text the text to write
+	 * @return the literal
+	 */
+	@Nonnull
+	private static String toStringLiteral(@Nonnull String text) {
+		final StringBuilder literal = new StringBuilder(text.length() + 2);
+		literal.append(CHAR_STRING_DELIMITER);
+		for (int i = 0; i < text.length(); i++) {
+			final char character = text.charAt(i);
+			switch (character) {
+				case '\'' -> literal.append("\\'");
+				case '\\' -> literal.append("\\\\");
+				case '\b' -> literal.append("\\b");
+				case '\f' -> literal.append("\\f");
+				case '\n' -> literal.append("\\n");
+				case '\r' -> literal.append("\\r");
+				case '\t' -> literal.append("\\t");
+				default -> {
+					if (character < ' ') {
+						// the other control characters have no escape of their own
+						literal.append("\\u00")
+							.append(HEX_DIGITS[character >> 4])
+							.append(HEX_DIGITS[character & 0xF]);
+					} else {
+						literal.append(character);
+					}
+				}
+			}
+		}
+		return literal.append(CHAR_STRING_DELIMITER).toString();
+	}
+
+	/**
 	 * Formats a serializable value for printing in EvitaQL query syntax. Produces string
 	 * representations suitable for embedding in queries, with appropriate quoting and escaping.
 	 * This method is used by query builders, logging, and debugging tools to generate readable
 	 * EvitaQL syntax from programmatic values.
 	 *
 	 * Formatting rules:
-	 * - String, Character: single-quoted, with embedded quotes escaped as `\'`
+	 * - String, Character: single-quoted, with the apostrophe escaped as `\'`, the backslash as `\\`, and the
+	 * control characters (U+0000 to U+001F) as `\b`, `\f`, `\n`, `\r`, `\t` or a Unicode escape, so that the
+	 * EvitaQL and EvitaEL parsers read the literal back as the same text
 	 * - BigDecimal: normalized to lowercase exponential notation (e.g., `2.5e8` not `2.5E+8`)
 	 * - Number: `toString()` representation
 	 * - Boolean: `true` or `false`
@@ -1512,13 +1755,9 @@ public class EvitaDataTypes {
 		@Nullable Serializable value
 	) {
 		if (value instanceof String stringValue) {
-			return CHAR_STRING_DELIMITER
-				+ STRING_DELIMITER_PATTERN.matcher(stringValue).replaceAll("\\\\'")
-				+ STRING_DELIMITER;
+			return toStringLiteral(stringValue);
 		} else if (value instanceof Character characterValue) {
-			return CHAR_STRING_DELIMITER
-				+ STRING_DELIMITER_PATTERN.matcher(characterValue.toString()).replaceAll("\\\\'")
-				+ STRING_DELIMITER;
+			return toStringLiteral(characterValue.toString());
 		} else if (value instanceof BigDecimal bigDecimalValue) {
 			// Value normalizations were taken from
 			// https://github.com/googleapis/googleapis/blob/master/google/type/decimal.proto

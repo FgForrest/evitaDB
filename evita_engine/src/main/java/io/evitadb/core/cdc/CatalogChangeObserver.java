@@ -254,8 +254,8 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	 *
 	 * This is the factory every {@link ChangeCatalogCapturePublisher} facade calls - lazily, when it first needs one,
 	 * and again whenever it finds its shared publisher retired - so it may run long after the registration, and
-	 * after this observer was closed together with its catalog. It runs under the read lock of {@link #lifecycleLock}
-	 * for that reason: the `active` check and the insertion into the map must not be split by {@link #close()}.
+	 * after this observer was closed together with its catalog. The `active` check and the insertion into the map run
+	 * under the read lock of {@link #lifecycleLock} for that reason: {@link #close()} must not split them.
 	 *
 	 * @param criteriaBundle the criteria the shared publisher filters by
 	 * @param catalogName    the name of the catalog, for logging only
@@ -267,6 +267,11 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		@Nonnull ChangeCatalogCriteriaBundle criteriaBundle,
 		@Nonnull String catalogName
 	) {
+		// ConcurrentHashMap.compute invokes the mapping function at most once, on this thread. The catalog a new
+		// publisher was created with stays in this local: a field of the publisher would pin that snapshot for the
+		// publisher's whole lifetime.
+		final Catalog[] createdWith = {null};
+		final ChangeCatalogCaptureSharedPublisher sharedPublisher;
 		final Lock creationLock = this.lifecycleLock.readLock();
 		creationLock.lock();
 		try {
@@ -276,7 +281,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 			// here, `computeIfAbsent` would hand the closed instance straight back. A caller renewing after a
 			// refused registration would then be refused a second time by `assertActive()`, for no reason other
 			// than losing that race, which is exactly what the renewal exists to prevent.
-			return this.uniquePublishers.compute(
+			sharedPublisher = this.uniquePublishers.compute(
 				criteriaBundle,
 				(cb, existingPublisher) -> {
 					if (existingPublisher != null && !existingPublisher.isClosed()) {
@@ -292,6 +297,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 						"Creating new shared CDC publisher for catalog '{}' and criteria: {}",
 						catalogName, cb
 					);
+					createdWith[0] = catalogToServe;
 					return new ChangeCatalogCaptureSharedPublisher(
 						catalogToServe,
 						this.cdcExecutor,
@@ -312,6 +318,21 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		} finally {
 			creationLock.unlock();
 		}
+		if (createdWith[0] != null) {
+			// A publication between reading the catalog in compute and inserting the new publisher cannot
+			// notify it through the map. Re-read only after insertion: publication stores the catalog then
+			// walks the map; creation inserts into the map then reads the catalog. One always sees the other,
+			// so the first capture need not wait for another commit even when this publisher missed the walk.
+			// The ordering does not rest on the lock, and waking subscribers may run their callbacks inline, so
+			// this runs after the unlock: a callback closing this observer would otherwise request the write lock
+			// on a thread that holds the read lock, which never succeeds.
+			final Catalog publishedMeanwhile = this.currentCatalog.get();
+			// absent once this observer has been closed since the insertion - its sweep closed this publisher too
+			if (publishedMeanwhile != null) {
+				sharedPublisher.catchUpWith(createdWith[0], publishedMeanwhile);
+			}
+		}
+		return sharedPublisher;
 	}
 
 	/**

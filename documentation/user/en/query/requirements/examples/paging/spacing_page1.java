@@ -11,11 +11,11 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 						spacing(
 							gap(
 								1,
-								ExpressionFactory.parse("'$pageNumber % 2 == 0 && $pageNumber <= 10'")
+								ExpressionFactory.parse("$pageNumber % 2 == 0 && $pageNumber <= 10")
 							),
 							gap(
 								1,
-								ExpressionFactory.parse("'$pageNumber == 1 || $pageNumber == 4'")
+								ExpressionFactory.parse("$pageNumber == 1 || $pageNumber == 4")
 							)
 						)
 					)

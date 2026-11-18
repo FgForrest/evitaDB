@@ -47,7 +47,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -124,7 +123,6 @@ class LongRunningTrigramIndexTest implements TimeBoundedTestSupport {
 	private static final int MAX_VALUE_LENGTH = 9;
 
 	@ParameterizedTest(name = "TrigramIndex should survive generational randomized churn against a corpus oracle")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {

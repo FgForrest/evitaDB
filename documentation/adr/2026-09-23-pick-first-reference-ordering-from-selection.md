@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-10-12 02:40
+updated: 2026-10-28 23:45
 status: accepted
 kind: fix
 issues: [1614]
@@ -14,19 +14,28 @@ areas:
   - documentation/user/en/query/ordering
 supersedes: []
 superseded-by: []
-relates: [2026-09-18-reference-planning-from-owner-membership, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-20-single-owner-partitions-as-registry-rows]
+relates:
+  - 2026-09-18-reference-planning-from-owner-membership
+  - 2026-09-15-bidirectional-reference-counterpart-rewrite
+  - 2026-10-08-scope-faithful-planning-and-facet-summary-parity
+  - 2026-10-20-single-owner-partitions-as-registry-rows
+  - 2026-10-29-traverse-ordering-route-parity
 ---
 
 # A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection
 
 `orderBy(referenceProperty(R, attributeNatural(A)))` under `pickFirstByEntityProperty` (explicit, or the default for
 a non-hierarchical target) now means one thing on both routes the engine can take to it: an owner sorts on the value
-of its **first row, in target order, that carries the value**; every row of the owner takes part whatever the filter
-says about `R`; rows sharing one target follow in the order of their representative attribute values; owners with
-equal values follow their primary key in the direction of the ordering. The reduced indexes the index route walks are
+of its **first row, in target order, that carries the value**; every row of the owner takes part regardless of a
+`referenceHaving` filter on `R`; rows sharing one target follow in the order of their representative attribute values;
+owners with equal values follow their primary key in the direction of the ordering. The reduced indexes walked are
 resolved at execution time from the selected owners, through the owner→partition map the facet trigger and the
 planner already maintain, instead of at planning time from whatever candidate set a `referenceHaving` on the same
 reference happened to produce.
+
+The [traverse route-parity decision](2026-10-29-traverse-ordering-route-parity.md) narrows the original
+"every row counts whatever the filter says" rule for hierarchy filters: pick-first now uses the same filtered
+hierarchy bound as traverse. The remaining selection-based resolution and merge decisions in this record still apply.
 
 ## Why
 
@@ -204,10 +213,10 @@ a measured production shape: that is where the per-query cost still follows `row
   too.
 - `MergedComparableSortedRecordsSupplierSorter` / `PreSortedRecordsSorter` take the ordering direction and break
   ties by primary key in it. This also changes multi-scope plain attribute sorts, which had the same mixed rule.
-- **Not changed, deliberately:** `traverseByEntityProperty`, and chain attributes (`Predecessor`,
-  `ReferencedEntityPredecessor`) under an implicit `pickFirst`, which are sorted block by block. Both keep the
-  planning-time, filter-narrowed index set (`ReferencePropertyTranslator#selectPlanningReducedIndexes`); changing
-  which blocks exist changes their semantics, which needs its own decision.
+- **Originally deferred, now resolved by #1670:** `traverseByEntityProperty` uses hierarchy bounds independently
+  of index-selection candidates, and implicit pick-first chains follow target and representative-value order on
+  both routes. Unbounded implicit chains retain their candidate dependency and the conservative rewrite guard; see
+  the [route-parity decision](2026-10-29-traverse-ordering-route-parity.md).
 - A reference with no reduced index of the referenced-entity family in any processed scope produces no sorter and
   its nested constraints are not planned at all (`ReferencePropertyTranslator#hasAnyReducedIndex`). Planning them
   anyway fails the single-index translators (`attributeSetExact` expects exactly one index), requires the referenced
@@ -309,21 +318,21 @@ a measured production shape: that is where the per-query cost still follows `row
 
 ## Consequences & open follow-ups
 
-- **Traverse narrowing** (`traverseByEntityProperty`, and chains under implicit pick-first) still depends on the
-  filter's candidate set - the same defect class for block orderings. Settling it needs a decision on whether a block
-  of a non-matching target may appear at all.
+- **Traverse narrowing — closed by #1670.** The filtered hierarchy bounds traversal; `referenceHaving` selects
+  owners without narrowing the ordering rows. Implicit pick-first chains retain their unbounded candidate path,
+  while their target/representative ordering now agrees across routes.
 - **The bidirectional rewrite's ordering guard** (`2026-09-15-bidirectional-reference-counterpart-rewrite`, point 4)
   declines queries that order by the reference they filter on because the ordering used to depend on the candidate
-  set. A comparable pick-first ordering no longer does; the guard could be narrowed to traverse and chain orderings.
+  set. #1670 removes that dependency and the guard for traverse; it stays conservative for non-traverse orderings,
+  including implicit pick-first chains.
 - **Persistent owner projection** (issue #1614's "default ordering, full family" design) - deferred; see Decision.
 - **The chain-ordering gate issue #1614 handed to #1615 is met (2026-10-12 note).** The gate: chains keep their
   per-partition blocks, so a single-owner partition without an index object must resolve as chain position `0` with
   the record id the write path indexes. #1615 implements exactly that (`a03e8d0445`) - see
   [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md).
-- **Found, fixed for pick-first only: the prefetch route ignores `inScope`.** The pick-first comparators now admit
-  owners of the ordering's scopes only. The entity-level `AttributeComparator` (and the other entity comparators)
-  still sort owners of every scope on the prefetch route under `inScope`, while their index route sorts the named
-  scope only; that general gap needs the same admission check in each of them and is left for its own fix.
+- **Scope admission — extended by #1670.** The pick-first comparators admit owners of the ordering's scopes only.
+  The broader gap originally left here is also closed: scoped entity attribute, primary-key, exact, price and
+  random orderings pass owners of other scopes to the next sorter, with compounds limited to their indexed scopes.
 - `SortedRecordsProvider`s are still built per query, but only for partitions that hold an unclaimed owner: the
   factory the sorter receives answers "has this partition a sort index of the value" cheaply and hands back a lazy
   source, because building a provider creates its value seeker eagerly
@@ -345,11 +354,10 @@ a measured production shape: that is where the per-query cost still follows `row
   they must be rebuilt (release note on #1615); removal was deliberately not made tolerant, because that would hide
   genuine inconsistency. It was fixed first because promoting a single-owner partition would otherwise have changed
   ordering - see [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md).
-- **Found, not fixed: the two routes disagree on `traverseByEntityProperty`.** On the oracle test's dataset the
-  index route and the prefetch route return different orders for a traverse ordering - off by 4-9 positions over
-  live owners, by more than 100 over both scopes, the index route placing archived owners after live ones within a
-  target. It predates this change, which leaves traverse untouched (see Key technical details), and needs the
-  traverse-narrowing decision above before either route can be called right.
+- **Traverse route disagreement — fixed by #1670.** The original oracle differed by 4–9 positions over live
+  owners and by more than 100 over both scopes, with the index route placing archived owners after live owners
+  inside a target. The route-parity decision settles narrowing, merges scopes by value, picks the first valued row
+  across duplicate keys and passes value-less rows on, including a lone owner.
 - **Fixed by #1671: `ExactSorter` failed on a page starting past the matched keys.** With
   `orderBy(entityPrimaryKeyExact(10, 3), ...)` and `page(2, 3)`, `ExactSorter#sortAndSlice` computed a negative copy
   length and threw `ArrayIndexOutOfBoundsException` instead of handing the rest to the next sorter. Found by the
@@ -359,6 +367,9 @@ a measured production shape: that is where the per-query cost still follows `row
   records an earlier one had already skipped.
 
 ## Related work
+
+- [Traverse ordering route parity](2026-10-29-traverse-ordering-route-parity.md) narrows this record's unbounded
+  hierarchy rule and closes the traverse follow-ups above; the selection-based pick-first design remains in use.
 
 - `2026-09-18-reference-planning-from-owner-membership` - widened the owner→partition map to every indexed reference;
   without that widening the gather would find no membership for most references and fall back to the family walk.

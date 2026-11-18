@@ -292,7 +292,7 @@ class OrderGroupByTest {
 	private static OrderGroupBy createOrderGroupBy(@Nullable String... values) {
 		return orderGroupBy(
 			Arrays.stream(values)
-				.map(QueryConstraints::attributeNatural)
+				.map(AttributeNatural::new)
 				.toArray(OrderConstraint[]::new)
 		);
 	}

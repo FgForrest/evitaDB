@@ -56,7 +56,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -87,7 +86,6 @@ class LongRunningFacetIndexTest implements TimeBoundedTestSupport {
 	);
 
 	@ParameterizedTest(name = "FacetIndex should survive generational randomized test applying modifications on it")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		runFor(
@@ -151,7 +149,6 @@ class LongRunningFacetIndexTest implements TimeBoundedTestSupport {
 	 * value was published.
 	 */
 	@ParameterizedTest(name = "FacetIndex rollback discards every in-transaction mutation and leaves the base intact")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTest(GenerationalTestInput input) {

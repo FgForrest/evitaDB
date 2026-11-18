@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.query.order.PickFirstByEntityProperty;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.parser.ParseContext;
+import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
@@ -71,7 +72,8 @@ class EvitaQLOrderConstraintVisitorTest {
         final OrderConstraint constraint3 = parseOrderConstraintUnsafe("orderBy( attributeNatural('a') ,  attributeNatural('b',  DESC ) )");
         assertEquals(orderBy(attributeNatural("a"), attributeNatural("b", DESC)), constraint3);
 
-        final OrderConstraint constraint4 = parseOrderConstraint("orderBy()");
+		final OrderConstraint constraint4 = DefaultQueryParser.getInstance()
+			.parseOrderConstraintListUnsafe("orderBy()").get(0);
         assertEquals(orderBy(), constraint4);
     }
 
@@ -93,7 +95,8 @@ class EvitaQLOrderConstraintVisitorTest {
         final OrderConstraint constraint3 = parseOrderConstraintUnsafe("orderGroupBy( attributeNatural('a') ,  attributeNatural('b',  DESC ) )");
         assertEquals(orderGroupBy(attributeNatural("a"), attributeNatural("b", DESC)), constraint3);
 
-        final OrderConstraint constraint4 = parseOrderConstraint("orderGroupBy()");
+		final OrderConstraint constraint4 = DefaultQueryParser.getInstance()
+			.parseOrderConstraintListUnsafe("orderGroupBy()").get(0);
         assertEquals(orderGroupBy(), constraint4);
     }
 
@@ -713,6 +716,15 @@ class EvitaQLOrderConstraintVisitorTest {
             1, 5, 8L
         );
         assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()), limit(5)), segment(orderBy(randomWithSeed(8L))))), constraint7);
+
+        // nested segments parse - the engine rejects them when it plans the query
+        final OrderConstraint nestedConstraint = parseOrderConstraintUnsafe(
+            "orderBy(segments(segment(orderBy(inScope(LIVE, segments(segment(orderBy(random()))))))))"
+        );
+        assertEquals(
+            orderBy(segments(segment(orderBy(inScope(Scope.LIVE, segments(segment(orderBy(random())))))))),
+            nestedConstraint
+        );
 
         final OrderConstraint constraint8 = parseOrderConstraint(
             "orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(@pk)),orderBy(random()),limit(@limit)),segment(orderBy(randomWithSeed(@seed))))))",

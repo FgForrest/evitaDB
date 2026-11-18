@@ -26,13 +26,16 @@ package io.evitadb.index.mutation.local.handler;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.handler.EntityLocaleFanOut.LocalizedValueChange;
 
 import javax.annotation.Nonnull;
 
 /**
- * Handler for `UpsertAssociatedDataMutation`. Associated data is not directly indexed; the only
- * indexing side-effect is to re-evaluate facet expressions that reference the mutated associated
- * data key — and even that is deferred so the expression evaluation observes post-write storage
+ * Handler for `UpsertAssociatedDataMutation`. Associated data is not directly indexed, but its locales count among
+ * the entity's locales: an upsert in a locale the entity lacks first withdraws the references whose local histogram
+ * reads a localized reference attribute with a `??` default, a value contributed in every locale of the entity
+ * (`EntityLocaleFanOut`). The other indexing side-effect is to re-evaluate facet expressions that reference the
+ * mutated associated data key — and even that is deferred so the expression evaluation observes post-write storage
  * state.
  */
 public final class UpsertAssociatedDataMutationHandler implements LocalMutationHandler<UpsertAssociatedDataMutation> {
@@ -55,6 +58,9 @@ public final class UpsertAssociatedDataMutationHandler implements LocalMutationH
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
+		EntityLocaleFanOut.withdrawBeforeLocalizedValueChange(
+			executor, mutation.getAssociatedDataKey().locale(), LocalizedValueChange.UPSERT
+		);
 		AssociatedDataMutationFanOut.apply(mutation.getAssociatedDataKey().associatedDataName(), executor, globalIndex);
 	}
 

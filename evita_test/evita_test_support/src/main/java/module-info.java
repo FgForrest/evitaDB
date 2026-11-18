@@ -7,6 +7,7 @@ module evita.test.support {
 	exports io.evitadb.test.builder;
 	exports io.evitadb.test.fulltext;
 	exports io.evitadb.test.diagnostics;
+	exports io.evitadb.test.upgrade;
 
 	requires static lombok;
 	requires static jsr305;

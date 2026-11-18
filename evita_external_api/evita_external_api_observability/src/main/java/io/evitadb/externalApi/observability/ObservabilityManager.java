@@ -46,6 +46,7 @@ import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+import io.evitadb.externalApi.http.routing.PrefixRoutingService;
 import io.evitadb.externalApi.observability.agent.ErrorMonitor;
 import io.evitadb.externalApi.observability.agent.ErrorOriginLogger;
 import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
@@ -63,7 +64,6 @@ import io.evitadb.externalApi.observability.metric.PrometheusMetricsHttpService;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask.RecordingSettings;
 import io.evitadb.externalApi.serialization.OffsetDateTimeSerializer;
-import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.utils.Assert;
 import jdk.jfr.FlightRecorder;
 import lombok.Getter;
@@ -176,7 +176,7 @@ public class ObservabilityManager {
 	/**
 	 * Router for observability endpoints.
 	 */
-	private final PathHandlingService observabilityRouter = new PathHandlingService();
+	private final PrefixRoutingService observabilityRouter = new PrefixRoutingService();
 	/**
 	 * Observability API config.
 	 */
@@ -337,6 +337,10 @@ public class ObservabilityManager {
 
 	/**
 	 * Starts JFR recording that logs all specified events.
+	 *
+	 * The recording is compressed and stored once it stops. The returned task or its future then fails with
+	 * {@link io.evitadb.api.exception.ExportFileTooLargeException} when the archive would not fit in export storage,
+	 * and nothing is kept. Raise the export storage size limit and restart the server to retry.
 	 */
 	@Nonnull
 	public ServerTask<RecordingSettings, FileForFetch> start(
@@ -366,6 +370,9 @@ public class ObservabilityManager {
 
 	/**
 	 * Stops currently running JFR recording and stores recorded content to a file.
+	 *
+	 * The task stores the file asynchronously, so the returned status may not yet say whether it fit in export
+	 * storage: see {@link #start(String[], Long, Long)}.
 	 */
 	@Nonnull
 	public TaskStatus<?, ?> stop() throws JfRException {
@@ -414,7 +421,7 @@ public class ObservabilityManager {
 	 * Gets {@link HttpService} for observability endpoints.
 	 */
 	@Nonnull
-	public PathHandlingService getObservabilityRouter() {
+	public PrefixRoutingService getObservabilityRouter() {
 		return this.observabilityRouter;
 	}
 

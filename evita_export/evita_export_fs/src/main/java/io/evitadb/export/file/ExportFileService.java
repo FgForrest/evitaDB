@@ -34,6 +34,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.export.model.ExportFileSizeLimit;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.FolderLock;
@@ -48,13 +49,13 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -84,6 +85,13 @@ import static java.util.Optional.of;
  */
 @Slf4j
 public class ExportFileService implements ExportService {
+	/**
+	 * The timestamp `ISO_OFFSET_DATE_TIME` prints longest: expanded year, nanoseconds and an offset with seconds. A
+	 * sidecar written at any moment fits the space reserved for this one.
+	 */
+	private static final OffsetDateTime LONGEST_TIMESTAMP = OffsetDateTime.of(
+		999999999, 12, 31, 23, 59, 59, 999999999, ZoneOffset.ofHoursMinutesSeconds(17, 59, 59)
+	);
 	/**
 	 * Folder lock to prevent concurrent access to the export directory.
 	 */
@@ -279,21 +287,21 @@ public class ExportFileService implements ExportService {
 				fileId,
 				fileForFetchCompletableFuture,
 				finalFilePath,
+				computeSizeLimit(fileId, fileName, description, contentType, origin),
 				new WriteMetadataOnCloseOutputStream(
 					finalFilePath,
+					this.fsOptions.getDirectory().resolve(fileId + FileForFetch.METADATA_EXTENSION),
 					fileForFetchCompletableFuture,
 					() -> {
 						try {
-							final FileForFetch fileForFetch = new FileForFetch(
+							final FileForFetch fileForFetch = createFileDescriptor(
 								fileId,
 								fileName,
 								description,
 								contentType,
 								Files.size(finalFilePath),
 								this.timeProvider.get(),
-								origin == null ? null : Arrays.stream(origin.split(","))
-									.map(String::trim)
-									.toArray(String[]::new)
+								origin
 							);
 							writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
 							this.files.addFirst(fileForFetch);
@@ -301,7 +309,8 @@ public class ExportFileService implements ExportService {
 						} catch (IOException e) {
 							throw new UnexpectedIOException(
 								"Failed to write metadata file: " + e.getMessage(),
-								"Failed to write metadata file."
+								"Failed to write metadata file.",
+								e
 							);
 						}
 					}
@@ -432,6 +441,36 @@ public class ExportFileService implements ExportService {
 		return 0L;
 	}
 
+	/** Builds the descriptor shared by the sidecar writer and its maximum encoded size calculation. */
+	@Nonnull
+	private static FileForFetch createFileDescriptor(
+		@Nonnull UUID fileId, @Nonnull String fileName, @Nullable String description,
+		@Nonnull String contentType, long size, @Nonnull OffsetDateTime created, @Nullable String origin
+	) {
+		return new FileForFetch(
+			fileId, fileName, description, contentType, size, created,
+			origin == null ? null : Arrays.stream(origin.split(",")).map(String::trim).toArray(String[]::new)
+		);
+	}
+
+	/** Reserves the UTF-8 bytes of every sidecar line, including its terminating platform line separator. */
+	@Nonnull
+	private ExportFileSizeLimit computeSizeLimit(
+		@Nonnull UUID fileId, @Nonnull String fileName, @Nullable String description,
+		@Nonnull String contentType, @Nullable String origin
+	) {
+		final FileForFetch descriptor = createFileDescriptor(
+			fileId, fileName, description, contentType, Long.MAX_VALUE, LONGEST_TIMESTAMP, origin
+		);
+		final int lineSeparatorBytes = System.lineSeparator().getBytes(StandardCharsets.UTF_8).length;
+		long metadataBytes = 0;
+		for (final String line : descriptor.toLines()) {
+			metadataBytes += line.getBytes(StandardCharsets.UTF_8).length + lineSeparatorBytes;
+		}
+		final long limit = this.fsOptions.getSizeLimitBytes();
+		return new ExportFileSizeLimit(Math.max(0, limit - metadataBytes), limit, "export.fileSystem.sizeLimitBytes");
+	}
+
 	/**
 	 * Writes or updates the sidecar metadata for the provided file descriptor.
 	 *
@@ -469,14 +508,21 @@ public class ExportFileService implements ExportService {
 	 * @param fileId             ID of the file.
 	 * @param fileForFetchFuture Future that will be completed when the file is written.
 	 * @param filePath		     Path to the file.
+	 * @param sizeLimit          Payload allowance after reserving sidecar bytes, floored at zero.
 	 * @param outputStream       Output stream the file can be written to.
 	 */
 	public record ExportFileHandleLocal(
 		@Nonnull UUID fileId,
 		@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
 		@Nonnull Path filePath,
-		@Nonnull OutputStream outputStream
+		@Nonnull ExportFileSizeLimit sizeLimit,
+		@Nonnull WriteMetadataOnCloseOutputStream outputStream
 	) implements ExportFileHandle {
+
+		@Override
+		public boolean discard() {
+			return this.outputStream.discard();
+		}
 
 		@Override
 		public long size() {
@@ -501,16 +547,46 @@ public class ExportFileService implements ExportService {
 	private final static class WriteMetadataOnCloseOutputStream extends FileOutputStream implements Closeable {
 		private final CompletableFuture<FileForFetch> fileForFetchFuture;
 		private final Supplier<FileForFetch> onClose;
+		private final Path path;
+		private final Path metadataPath;
 		private boolean closed;
 
+		/** Captures both export paths so a failed publication can remove all unpublished bytes. */
 		public WriteMetadataOnCloseOutputStream(
 			@Nonnull Path finalFilePath,
+			@Nonnull Path metadataPath,
 			@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
 			@Nonnull Supplier<FileForFetch> onClose
 		) throws FileNotFoundException {
 			super(finalFilePath.toFile());
 			this.fileForFetchFuture = fileForFetchFuture;
 			this.onClose = onClose;
+			this.path = finalFilePath;
+			this.metadataPath = metadataPath;
+		}
+
+		/**
+		 * Closes the file without publishing metadata, removes its bytes and cancels its future.
+		 *
+		 * @return whether this call abandoned an open stream
+		 */
+		public boolean discard() {
+			if (this.closed) {
+				return false;
+			}
+			this.closed = true;
+			try {
+				super.close();
+			} catch (Exception e) {
+				log.error("Failed to close discarded export: {}", this.path, e);
+			}
+			try {
+				Files.deleteIfExists(this.path);
+			} catch (Exception e) {
+				log.error("Failed to delete discarded export: {}", this.path, e);
+			}
+			this.fileForFetchFuture.cancel(false);
+			return true;
 		}
 
 		@Override
@@ -521,7 +597,24 @@ public class ExportFileService implements ExportService {
 				try {
 					super.close();
 				} finally {
-					this.fileForFetchFuture.complete(this.onClose.get());
+					try {
+						this.fileForFetchFuture.complete(this.onClose.get());
+					} catch (RuntimeException failure) {
+						removeUnpublishedFiles();
+						this.fileForFetchFuture.completeExceptionally(failure);
+						throw failure;
+					}
+				}
+			}
+		}
+
+		/** Removes the archive and its sidecar; a failure here is only logged, so it never replaces the reason. */
+		private void removeUnpublishedFiles() {
+			for (final Path unpublished : new Path[]{this.path, this.metadataPath}) {
+				try {
+					Files.deleteIfExists(unpublished);
+				} catch (Exception cleanupFailure) {
+					log.error("Failed to delete unpublished export file: {}", unpublished, cleanupFailure);
 				}
 			}
 		}

@@ -27,12 +27,17 @@ package io.evitadb.store.catalog;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Range;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeLongArray;
@@ -43,7 +48,9 @@ import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
+import io.evitadb.index.attribute.LegacyDecimalRangeFilterIndexCorrection;
 import io.evitadb.index.attribute.LegacyOwnerSortIndexCorrection;
+import io.evitadb.index.attribute.LegacyRangeFilterIndexCorrection;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -89,9 +96,24 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Map.Entry;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -236,13 +258,17 @@ import java.util.function.Function;
  * a filter or histogram tree this migration clamps, canonicalizes and merges colliding buckets in one rewrite,
  * uniting their records. Every listed filter and histogram BUCKET tree is inspected; canonical keys and strict
  * ordering are established together. A paged range inversion is re-sorted only when the whole sequence follows
- * the released second-granularity order; other paged inversions, and a stored key a page repeats from its
- * predecessor, remain for the loader to report as corruption.
+ * the released second-granularity order, and a paged decimal range root is re-sorted by the range companion
+ * rebuild described below; other paged inversions, and a stored key a page repeats from its predecessor, remain
+ * for the loader to report as corruption.
  * Inline restore re-inserts distinct stored keys in comparator order and rejects duplicates. Canonical trees emit
  * nothing; rewritten paged trees replace every leaf above the persisted high-water and retire old pages. A
  * unique attribute cannot hold two owners at one key, so the pre-pass finds the owners of
  * different values that meet once clamped and truncated - in a standalone unique index and in a unique attribute
- * folded onto its filter tree - and refuses the upgrade like any other unique collision. A reference
+ * folded onto its filter tree - and refuses the upgrade like any other unique collision. Current-equal date-time
+ * range keys are checked across every unique FILTER bucket, even when release ordering separates them. Distinct
+ * reference partition manifests whose complete current keys are equal are refused before conversion as well:
+ * merging them would require choosing reference data or remapping dependent indexes. A reference
  * partition keyed by a representative temporal value beyond the window cannot be re-keyed without renaming storage
  * parts, so the pre-pass refuses the upgrade over it too ({@link #refuseUpgradeOverOutOfWindowRepresentativeKeys}).
  *
@@ -250,6 +276,24 @@ import java.util.function.Function;
  * The root version identifies seconds; its unversioned leaves cannot convert themselves. Inline companions have
  * already been converted by the versioned reader and pass through unchanged. A root needing both changes is
  * replaced once, with new range pages above its persisted high-water and removals of every old range page.
+ *
+ * # Range companions and the loss warning
+ *
+ * The range companion of a range filter index - the threshold index a range query reads - is rebuilt from the
+ * surviving bucket rows alone, never from the old threshold pages ({@link LegacyRangeFilterIndexCorrection}): for
+ * every `BigDecimalNumberRange` root, whose released thresholds can sit at a scale other than the frozen index scale,
+ * and for a root of any range type in the referenced-type, group-type and reduced-group indexes, whose released
+ * companions dropped contributions of rows sharing a border. A decimal root whose bucket keys invert or coincide at the
+ * frozen scale has its bucket pages rewritten in order as well ({@link LegacyDecimalRangeFilterIndexCorrection}). The
+ * new range pages lie above the old high-water, and the old ones are removed from the new offset index only.
+ *
+ * What the surviving indexes cannot restore is reported instead. Once the upgrade is published, one warning names
+ * every field whose release indexes may have folded distinct values - sub-second date-time ranges and price validity,
+ * collator-equal localized spellings, decimal ranges first written by 2026.1 or older, duplicate references with a
+ * temporal representative - read from the schemas alone ({@link #reportPotentiallyLossyIndexes}). It cannot tell
+ * whether any value was actually affected, so its remedy is conditional: republish the collection from source data
+ * when a listed condition holds. The REINDEX advice belongs to the separate report of the cardinality counters that
+ * could not be checked.
  *
  * # Publication
  *
@@ -265,12 +309,13 @@ import java.util.function.Function;
  * @deprecated removable once no catalog older than 2026.3 can be encountered — at which point no catalog can
  * still carry raw-keyed cardinality counters, raw-keyed unique indexes, temporal keys beyond the supported window,
  * owner sort indexes holding raw temporal values or ordered by the bare collator, a language tag or whole seconds, or
- * single-owner reference partitions held by index objects, and this migration has nothing left to do. Two readers do
- * not leave with it, each because records keep their `serialVersionUID` until they are rewritten - see each reader's
+ * single-owner reference partitions held by index objects, and this migration has nothing left to do. Three readers
+ * do not leave with it, each because records keep their `serialVersionUID` until they are rewritten - see each reader's
  * own deprecation note:
  *
  * - `AttributeCardinalityIndexStoragePartSerializer_2026_2`: a counter part this migration found already canonical is
  *   not rewritten;
+ * - `SortIndexStoragePartSerializer_2026_2`: a sort part this migration found already correct is not rewritten;
  * - `AttributeValueSerializer_2026_2`: this migration rewrites no entity body at all, so every body 2026.2 wrote is
  *   read through it until its entity is next written.
  */
@@ -423,6 +468,18 @@ public interface Migration_2026_3 {
 		final Function<String, Optional<? extends EntitySchemaContract>> schemaLookup =
 			entityType -> Optional.ofNullable(storedSchemas.get(entityType));
 
+		final List<LegacyRepresentativeKeyPreflight.Collision> representativeCollisions = new ArrayList<>();
+		for (final CollectionUnderUpgrade collection : collections) {
+			representativeCollisions.addAll(LegacyRepresentativeKeyPreflight.findCollisions(
+				catalogVersion, collection.header().entityType(),
+				EntityCollection.bindReflectedReferences(collection.entitySchema(), schemaLookup),
+				collection.indexIds(), collection.service().getStoragePartPersistenceService()
+			));
+		}
+		LegacyRepresentativeKeyPreflight.refuseCollisions(
+			catalogHeader.catalogName(), catalogHeader.storageProtocolVersion(), representativeCollisions
+		);
+
 		// THE PRE-PASS. The standalone unique trees are re-keyed onto the filter index's key space, and two stored
 		// spellings of one value held by different owners would become one key with two owners - a state no unique
 		// index can hold. Every such pair is found before a single byte is written, so a refusal leaves the catalog
@@ -468,7 +525,9 @@ public interface Migration_2026_3 {
 			// virtual-partition conversion loads complete indexes whose ranges must already be in milliseconds.
 			// Each plan is drained and released before the next tree is planned. A later planning failure
 			// aborts before publication; any earlier unpublished parts are inert under the durability model.
-			final int rewrittenBucketTrees = rewriteBucketTrees(catalogVersion, collection);
+			final BucketRewriteOutcome bucketRewrites = rewriteBucketTrees(catalogVersion, collection);
+			final int rewrittenBucketTrees = bucketRewrites.trees();
+			final int rebuiltCompanions = bucketRewrites.rangeCompanions();
 
 			int rekeyedCounters = 0;
 			int orphanedPairs = 0;
@@ -523,7 +582,7 @@ public interface Migration_2026_3 {
 			final int rewrittenSortIndexes = rewriteLegacyOwnerSortIndexes(catalogVersion, collection);
 			// whether the steps running before the conversion left anything unflushed in the data store - each such
 			// step adds its own term here, the publication below does not need to know which of them wrote; a
-			// collection with nothing but sort indexes to rewrite must still publish its new collection header, or
+			// collection with only a sort index or range companion rewrite must still publish its new header, or
 			// protocol 7 would be published over the legacy parts
 			final boolean changedBeforeConversion =
 				rekeyed || rewrittenSortIndexes > 0 || rewrittenBucketTrees > 0;
@@ -583,6 +642,14 @@ public interface Migration_2026_3 {
 					ConsoleColor.BRIGHT_BLUE
 				);
 			}
+			if (rebuiltCompanions > 0) {
+				ConsoleWriter.writeLine(
+					"Entity collection `" + entityCollectionHeader.entityType() + "`: rebuilt " + rebuiltCompanions +
+						" range companion(s) from stored bucket membership, preserving scalar contributions and " +
+						"consolidating array intervals.",
+					ConsoleColor.BRIGHT_BLUE
+				);
+			}
 			if (rewrittenSortIndexes > 0) {
 				ConsoleWriter.writeLine(
 					"Entity collection `" + entityCollectionHeader.entityType() + "`: rewrote " + rewrittenSortIndexes +
@@ -626,6 +693,8 @@ public interface Migration_2026_3 {
 				catalogHeader.activeRecordShare()
 			)
 		);
+
+		reportPotentiallyLossyIndexes(catalogHeader.catalogName(), collections, schemaLookup);
 
 		ConsoleWriter.writeLine(
 			"Catalog `" + catalogHeader.catalogName() + "` was successfully upgraded to the protocol version " +
@@ -1042,9 +1111,132 @@ public interface Migration_2026_3 {
 				uncheckedAttributes.size() + " attribute cardinality counter(s) could NOT be checked against the " +
 				"index entries they count. They may or may not reference entries that are no longer present; the " +
 				"absence of an error for them means only that nothing looked. Not checked, with the reason each: " +
-				formatAttributeList(uncheckedAttributes) + ".";
+				formatAttributeList(uncheckedAttributes) + ". If filtering is incomplete or writes fail an index " +
+				"premise, REINDEX entity collection `" + entityType + "` of catalog `" + catalogName +
+				"` to rebuild its indexes.";
 			ConsoleWriter.writeLine(message, ConsoleColor.BRIGHT_YELLOW);
 			LoggerFactory.getLogger(Migration_2026_3.class).warn(message);
+		}
+	}
+
+	/**
+	 * Reports potential release-era loss once, after the bootstrap callback publishes the catalog upgrade. Only that
+	 * success path reaches it, so a refused upgrade never warns.
+	 * Stored schemas identify every susceptible field, including fields without surviving index buckets. They cannot
+	 * establish whether any value actually lost precision or a spelling, so the remedy remains conditional.
+	 * Duplicate references with temporal representatives qualify independently of their indexed scopes.
+	 * The protocol gate prevents this method from being reached on later loads.
+	 */
+	private static void reportPotentiallyLossyIndexes(
+		@Nonnull String catalogName,
+		@Nonnull List<CollectionUnderUpgrade> collections,
+		@Nonnull Function<String, Optional<? extends EntitySchemaContract>> schemaLookup
+	) {
+		final Map<String, Set<String>> affectedCollections = new TreeMap<>();
+		for (final CollectionUnderUpgrade collection : collections) {
+			final EntitySchema schema =
+				EntityCollection.bindReflectedReferences(collection.entitySchema(), schemaLookup);
+			final Set<String> affected = new TreeSet<>();
+			collectPotentiallyLossyAttributes(schema.getAttributes(), schema.getSortableAttributeCompounds(),
+				EnumSet.allOf(Scope.class), "", affected);
+			for (final ReferenceSchemaContract reference : schema.getReferences().values()) {
+				collectPotentiallyLossyAttributes(reference.getAttributes(), reference.getSortableAttributeCompounds(),
+					reference.getIndexedInScopes(), reference.getName() + ".", affected);
+				if (reference.getCardinality().allowsDuplicates() &&
+					reference.getAttributes().values().stream().anyMatch(attribute ->
+						attribute.isRepresentative() && attribute.getPlainType() == DateTimeRange.class)) {
+					affected.add("reference `" + reference.getName() + "` (only if rows of this reference to one " +
+						"target differ only in time zone offset or below one second; adding, editing or removing " +
+						"such rows may fail)");
+				}
+			}
+			if (schema.isWithPrice() && !schema.getPriceIndexedInScopes().isEmpty()) {
+				affected.add("price validity (only values with sub-second precision)");
+			}
+			if (!affected.isEmpty()) {
+				affectedCollections.put(collection.header().entityType(), affected);
+			}
+		}
+		if (!affectedCollections.isEmpty()) {
+			final List<String> descriptions = new ArrayList<>(affectedCollections.size());
+			affectedCollections.forEach((entityType, fields) -> descriptions.add(
+				"entity collection `" + entityType + "`: " + String.join(", ", fields)));
+			final String message = "Catalog `" + catalogName + "`: legacy indexes may have lost precision or " +
+				"distinct spellings. Indexes alone cannot determine whether any value was affected. Potentially " +
+				"affected fields: " + String.join("; ", descriptions) + ". If a listed condition holds for a " +
+				"collection's data, republish that collection from source data.";
+			ConsoleWriter.writeLine(message, ConsoleColor.BRIGHT_YELLOW);
+			LoggerFactory.getLogger(Migration_2026_3.class).warn(message);
+		}
+	}
+
+	/**
+	 * Names attributes whose persisted keys or thresholds could have folded distinct release values.
+	 * Filter indexes include implicitly folded unique attributes; a localized unique key spanning locales uses a
+	 * standalone natural-order text tree, so uniqueness alone does not expose it to the collator. A compound compares
+	 * every text component by its locale's collator when any component is localized. Decimal FILTERs may retain
+	 * bounds folded by 2026.1 or older, even in a catalog later written by 2026.2. No scan reads entity data.
+	 *
+	 * Visible to tests: it runs after the upgrade is published, so it must hold up against every schema shape a release
+	 * catalog can hold, including a reflected reference written by 2026.2 that inherits a compound without all of its
+	 * attributes - the current engine refuses to declare that shape, but loads it as stored.
+	 *
+	 * @param attributes the attributes of the entity or of one of its references, by name
+	 * @param compounds  the sortable attribute compounds over those attributes, by name
+	 * @param scopes     the scopes whose indexes are considered
+	 * @param prefix     prepended to every attribute name in a description: the reference name and a dot for
+	 *                   a reference attribute, empty for an entity attribute
+	 * @param affected   receives the description of every susceptible attribute
+	 */
+	static void collectPotentiallyLossyAttributes(
+		@Nonnull Map<String, ? extends AttributeSchemaContract> attributes,
+		@Nonnull Map<String, ? extends SortableAttributeCompoundSchemaContract> compounds,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull String prefix,
+		@Nonnull Set<String> affected
+	) {
+		final Set<String> ranges = new TreeSet<>();
+		final Set<String> texts = new TreeSet<>();
+		for (final AttributeSchemaContract attribute : attributes.values()) {
+			final boolean filterOrSort = scopes.stream().anyMatch(scope ->
+				attribute.isFilterableInScope(scope) || attribute.isSortableInScope(scope));
+			if (attribute.getPlainType() == DateTimeRange.class &&
+				(filterOrSort || scopes.stream().anyMatch(attribute::isUniqueInScope))) {
+				ranges.add(attribute.getName());
+			} else if (attribute.getPlainType() == String.class && attribute.isLocalized() &&
+				(filterOrSort || scopes.stream().anyMatch(attribute::isUniqueWithinLocaleInScope))) {
+				texts.add(attribute.getName());
+			} else if (attribute.getPlainType() == BigDecimalNumberRange.class &&
+				scopes.stream().anyMatch(attribute::hasFilterIndexInScope)) {
+				affected.add("attribute `" + prefix + attribute.getName() +
+					"` (decimal range; only if values were first written by 2026.1 or older and two of them " +
+					"differ only in the position of the decimal point, such as `[12, 90]` and `[1.2, 9]`)");
+			}
+		}
+		for (final SortableAttributeCompoundSchemaContract compound : compounds.values()) {
+			if (scopes.stream().noneMatch(compound::isIndexedInScope)) {
+				continue;
+			}
+			// a reflected reference written by 2026.2 may inherit a compound without one of its elements, which then
+			// holds no value here
+			final List<? extends AttributeSchemaContract> components = compound.getAttributeElements().stream()
+				.map(element -> attributes.get(element.attributeName())).filter(Objects::nonNull).toList();
+			final boolean localized = components.stream().anyMatch(AttributeSchemaContract::isLocalized);
+			for (final AttributeSchemaContract component : components) {
+				if (component.getPlainType() == DateTimeRange.class) {
+					ranges.add(component.getName());
+				} else if (component.getPlainType() == String.class && localized) {
+					texts.add(component.getName());
+				}
+			}
+		}
+		for (final String attribute : ranges) {
+			affected.add("attribute `" + prefix + attribute +
+				"` (DateTimeRange; only values with sub-second precision)");
+		}
+		for (final String attribute : texts) {
+			affected.add("attribute `" + prefix + attribute +
+				"` (localized text; only spellings the collator treats as equal)");
 		}
 	}
 
@@ -1104,14 +1296,20 @@ public interface Migration_2026_3 {
 	 * equal payload is the same entry; an owner unique index stores the record id alone, so an equal record id may
 	 * still be two locales of a localized attribute, and is reported rather than folded.
 	 *
+	 * Distinct date-time ranges can retain their canonical spelling while their comparison order changes between
+	 * releases. An inversion among those keys also requests a rewrite; the writers rebuild the trees in current order.
+	 * Equal keys also request a plan: identical complete payloads fold, and different entries refuse before
+	 * publication.
+	 *
 	 * Extracted from the storage plumbing so it can be tested as the pure transform it is.
 	 *
-	 * @param values               the stored keys, in any order
+	 * @param values               the stored keys, in stored order - the date-time range inversion check compares
+	 *                             neighbours
 	 * @param owners               the owner of each key, positionally aligned with `values` - a record id or a packed
 	 *                             entity tuple
 	 * @param ownerIdentifiesEntry `true` when an equal owner proves two keys are the same entry
 	 * @param canonicalizer        maps a stored value onto its canonical form (see {@link #canonicalizerFor})
-	 * @return `null` when every key is already canonical and the index needs no rewrite, otherwise the canonical keys
+	 * @return `null` when the index needs no rewrite, otherwise the canonical keys
 	 * with their owners and every colliding pair of positions in the input
 	 */
 	@Nullable
@@ -1136,11 +1334,23 @@ public interface Migration_2026_3 {
 			if (firstPosition == null) {
 				canonicalValues.add(canonicalValue);
 				canonicalOwners.add(owners[i]);
-			} else if (!(ownerIdentifiesEntry && owners[firstPosition] == owners[i])) {
-				collisions.add(new int[]{firstPosition, i});
+			} else {
+				changed = true;
+				if (!(ownerIdentifiesEntry && owners[firstPosition] == owners[i])) {
+					collisions.add(new int[]{firstPosition, i});
+				}
 			}
 		}
-		// keys that were all canonical already were distinct tree keys, so they can neither move nor collide
+		// a range can stay equal to its canonical spelling while its comparison order changes between releases
+		if (!changed && canonicalValues.size() == values.length) {
+			for (int i = 1; i < values.length; i++) {
+				if (values[i - 1] instanceof DateTimeRange previous && values[i] instanceof DateTimeRange current &&
+					previous.compareTo(current) > 0) {
+					changed = true;
+					break;
+				}
+			}
+		}
 		return changed ?
 			new UniqueKeyRekeying(
 				canonicalValues.toArray(Serializable[]::new), canonicalOwners.toArray(), collisions
@@ -1802,6 +2012,10 @@ public interface Migration_2026_3 {
 	 * checked: a tree it leaves unchanged holds no two buckets under one key, or is a stale twin the loader reports
 	 * as corruption, which no remediation of unique values could fix. Collisions are collected before any union.
 	 *
+	 * One shape escapes this check: a paged `BigDecimalNumberRange` tree whose keys invert at the frozen scale is
+	 * left unchanged by that correction, yet {@link LegacyDecimalRangeFilterIndexCorrection} re-sorts it afterwards
+	 * and unites buckets whose keys coincide, without comparing their owners.
+	 *
 	 * @param catalogVersion the catalog version being upgraded
 	 * @param collection the opened collection and its published entity-index list
 	 * @param collisions receives folded unique collisions in canonical bucket order
@@ -1830,6 +2044,13 @@ public interface Migration_2026_3 {
 				final FilterTreeData tree = readFilterTree(catalogVersion, indexPrimaryKey, storageKey, service);
 				final FilterIndexStoragePart root = tree.root();
 				final Class<?> plainType = plainTypeOf(root.getAttributeType());
+				if (DateTimeRange.class.isAssignableFrom(plainType)) {
+					findUniqueDateTimeRangeFilterCollisions(
+						catalogVersion, root, service, collection, indexPart, collisions
+					);
+					// Aggregate ids identify partitions, not owners; the range helper excludes those families.
+					continue;
+				}
 				if (LegacyInvertedIndexCorrection.correct(
 					plainType, root.getIndexedDecimalPlaces(), tree.pages(), tree.valueIds(),
 					FilterIndex.getComparator(root.getAttributeIndexKey(), plainType), root.isPaged()
@@ -1847,12 +2068,15 @@ public interface Migration_2026_3 {
 	 *
 	 * @param catalogVersion the catalog version being upgraded
 	 * @param collection the opened collection and its published entity-index list
-	 * @return the number of rewritten filter and histogram trees
+	 * @return rewritten tree and reconstructed companion counts
 	 */
-	private static int rewriteBucketTrees(long catalogVersion, @Nonnull CollectionUnderUpgrade collection) {
+	private static BucketRewriteOutcome rewriteBucketTrees(
+		long catalogVersion, @Nonnull CollectionUnderUpgrade collection
+	) {
 		final OffsetIndexStoragePartPersistenceService service =
 			collection.service().getStoragePartPersistenceService();
 		int rewritten = 0;
+		int rangeCompanions = 0;
 		for (final Integer indexPrimaryKey : collection.indexIds()) {
 			final EntityIndexStoragePart indexPart = requireEntityIndexPart(service, catalogVersion, indexPrimaryKey);
 			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
@@ -1866,9 +2090,19 @@ public interface Migration_2026_3 {
 					plainType, root.getIndexedDecimalPlaces(), tree.pages(), tree.valueIds(),
 					FilterIndex.getComparator(root.getAttributeIndexKey(), plainType), root.isPaged()
 				);
-				if (corrected != null || root.isSecondGranularityRangePages()) {
-					final TrappedChanges changes =
-						planFilterRewrite(catalogVersion, root, tree.streamId(), corrected, service);
+				final EntityIndexType indexType = indexPart.getEntityIndexKey().type();
+				final boolean rebuildCompanion = BigDecimalNumberRange.class.isAssignableFrom(plainType) ||
+					(Range.class.isAssignableFrom(plainType) &&
+						(indexType == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+							indexType == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE ||
+							indexType == EntityIndexType.REFERENCED_GROUP_ENTITY));
+				if (corrected != null || root.isSecondGranularityRangePages() || rebuildCompanion) {
+					final TrappedChanges changes = planFilterRewrite(
+						catalogVersion, root, tree.streamId(), corrected, rebuildCompanion, service
+					);
+					if (rebuildCompanion) {
+						rangeCompanions++;
+					}
 					drain(catalogVersion, changes, service);
 					rewritten++;
 				}
@@ -1909,7 +2143,101 @@ public interface Migration_2026_3 {
 				}
 			}
 		}
-		return rewritten;
+		return new BucketRewriteOutcome(rewritten, rangeCompanions);
+	}
+
+	/**
+	 * Finds equal current range keys across a complete owner FILTER tree, preserving each owner's original value.
+	 * Release ordering need not keep today's equal keys adjacent. Repeated contributions of one owner are harmless.
+	 * Type-level reference indexes carry partition ids and may retain a withdrawn owner's representative spelling;
+	 * those buckets cannot establish a collision between current owners and are excluded.
+	 */
+	private static void findUniqueDateTimeRangeFilterCollisions(
+		long catalogVersion,
+		@Nonnull FilterIndexStoragePart root,
+		@Nonnull OffsetIndexStoragePartPersistenceService service,
+		@Nonnull CollectionUnderUpgrade collection,
+		@Nonnull EntityIndexStoragePart indexPart,
+		@Nonnull List<UniqueKeyCollision> collisions
+	) {
+		final EntityIndexType indexType = indexPart.getEntityIndexKey().type();
+		if (indexType == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+			indexType == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE) {
+			return;
+		}
+		final Map<Serializable, ValueToRecord> firstBuckets = new HashMap<>();
+		final String entityType = collection.header().entityType();
+		final String structure = "attribute `" + describeAttribute(root.getAttributeIndexKey()) + "` of entity `" +
+			entityType + "` (scope " + indexPart.getEntityIndexKey().scope() + ")";
+		final boolean global = indexPart.getEntityIndexKey().type() == EntityIndexType.GLOBAL;
+		final Consumer<ValueToRecord> inspect = bucket -> {
+			final ValueToRecord first = firstBuckets.putIfAbsent(bucket.getValue(), bucket);
+			final ValueToRecord original = first == null ? bucket : first;
+			final int firstOwner = original.getRecordIds().getFirst();
+			for (final int owner : bucket.getRecordIds().getArray()) {
+				if (owner != firstOwner) {
+					collisions.add(new UniqueKeyCollision(
+						structure, original.getValue(), describeOwnerRecord(entityType, indexPart, global, firstOwner),
+						bucket.getValue(), describeOwnerRecord(entityType, indexPart, global, owner)
+					));
+				}
+			}
+		};
+		if (root.isPaged()) {
+			for (final FilterIndexLeafPagePart page :
+				readFilterIndexLeafPages(catalogVersion, root.getEntityIndexPrimaryKey(), root, service)) {
+				for (final ValueToRecord bucket : page.getBuckets()) {
+					inspect.accept(bucket);
+				}
+			}
+		} else {
+			for (final ValueToRecord bucket : root.getHistogramPoints()) {
+				inspect.accept(bucket);
+			}
+		}
+	}
+
+	/**
+	 * Reads every bucket page a paged filter index root lists, in the order it lists them - the way the load path
+	 * reads them.
+	 *
+	 * @param catalogVersion  the catalog version being upgraded
+	 * @param indexPrimaryKey the entity index holding the filter index
+	 * @param root            the root of the filter index
+	 * @param service         the collection's storage part service
+	 * @return the bucket pages, none for an inline root
+	 * @throws GenericEvitaInternalError when a listed leaf page is missing
+	 */
+	@Nonnull
+	private static FilterIndexLeafPagePart[] readFilterIndexLeafPages(
+		long catalogVersion,
+		int indexPrimaryKey,
+		@Nonnull FilterIndexStoragePart root,
+		@Nonnull OffsetIndexStoragePartPersistenceService service
+	) {
+		if (!root.isPaged()) {
+			return new FilterIndexLeafPagePart[0];
+		}
+		final int streamId = service.getReadOnlyKeyCompressor().getId(
+			new LeafStreamKey(
+				indexPrimaryKey, new AttributeKeyWithIndexType(root.getAttributeIndexKey(), AttributeIndexType.FILTER)
+			)
+		);
+		final int[] pageSequences = root.getLeafPageSequences();
+		final FilterIndexLeafPagePart[] pages = new FilterIndexLeafPagePart[pageSequences.length];
+		for (int i = 0; i < pageSequences.length; i++) {
+			pages[i] = service.getStoragePart(
+				catalogVersion, AbstractLeafPagePart.computeUniquePartId(streamId, pageSequences[i]),
+				FilterIndexLeafPagePart.class
+			);
+			if (pages[i] == null) {
+				throw new GenericEvitaInternalError(
+					"Filter index leaf page " + pageSequences[i] + " (stream " + streamId + ") for key " +
+						root.getAttributeIndexKey() + " was not found in persistent storage!"
+				);
+			}
+		}
+		return pages;
 	}
 
 	/**
@@ -1957,7 +2285,8 @@ public interface Migration_2026_3 {
 				);
 				if (leaf == null) {
 					throw new GenericEvitaInternalError(
-						"Missing filter leaf " + sequences[i] + " of " + storageKey + "."
+						"Filter index leaf page " + sequences[i] + " (stream " + streamId + ") for key " +
+							root.getAttributeIndexKey() + " was not found in persistent storage!"
 					);
 				}
 				if ((ids == null) == (leaf.getValueIds() != null)) {
@@ -2015,13 +2344,15 @@ public interface Migration_2026_3 {
 	 * @param root the original filter root
 	 * @param streamId the persisted bucket stream id, ignored for inline trees
 	 * @param corrected canonical buckets with their surviving ids
+	 * @param rebuildCompanion reconstruct thresholds from final buckets instead of reading old range pages
 	 * @param service the collection's part reader
 	 * @return the parts and removals to drain after all refusal checks
 	 */
 	@Nonnull
 	private static TrappedChanges planFilterRewrite(
 		long catalogVersion, @Nonnull FilterIndexStoragePart root, int streamId,
-		@Nullable CorrectedBuckets corrected, @Nonnull OffsetIndexStoragePartPersistenceService service
+		@Nullable CorrectedBuckets corrected, boolean rebuildCompanion,
+		@Nonnull OffsetIndexStoragePartPersistenceService service
 	) {
 		final TrappedChanges changes = new TrappedChanges();
 		final int[] sequences = root.isPaged() && corrected != null
@@ -2043,13 +2374,15 @@ public interface Migration_2026_3 {
 				changes.addChangeToStore(new FilterIndexLeafPageRemoval(root.getEntityIndexPrimaryKey(), key, old));
 			}
 		}
-		final RangeAxis range = preserveRangeAxis(
+		final RangeAxis range = rebuildCompanion ?
+			new RangeAxis(root.getRangeIndex(), root.getRangeHighWaterPageSequence(), root.getRangeLeafPageSequences()) :
+			preserveRangeAxis(
 			catalogVersion, root.getEntityIndexPrimaryKey(), root.getAttributeIndexKey(), null,
 			root.isSecondGranularityRangePages() && LegacyRangeIndexConversion.isDateTimeRange(root.getAttributeType()),
 			root.getRangeIndex(), root.isRangePaged(), root.getRangeHighWaterPageSequence(),
 			root.getRangeLeafPageSequences(), changes, service
 		);
-		changes.addChangeToStore(new FilterIndexStoragePart(
+		final FilterIndexStoragePart finalBuckets = new FilterIndexStoragePart(
 			root.getEntityIndexPrimaryKey(), root.getAttributeIndexKey(), root.getAttributeType(),
 			corrected == null || root.isPaged() ? root.getHistogramPoints() : bitmapBuckets(corrected.pages()),
 			range.inline(),
@@ -2058,7 +2391,29 @@ public interface Migration_2026_3 {
 			corrected == null ? root.getInlineValueIds() :
 				(root.isPaged() || corrected.valueIds() == null ? null : corrected.valueIds()[0]),
 			root.getStoragePartPK()
-		));
+		);
+		if (rebuildCompanion) {
+			final FilterIndexLeafPagePart[] pages;
+			if (root.isPaged() && corrected != null) {
+				pages = new FilterIndexLeafPagePart[sequences.length];
+				for (int i = 0; i < pages.length; i++) {
+					pages[i] = new FilterIndexLeafPagePart(
+						streamId, sequences[i], corrected.pages()[i],
+						corrected.valueIds() == null ? null : corrected.valueIds()[i],
+						AbstractLeafPagePart.computeUniquePartId(streamId, sequences[i])
+					);
+				}
+			} else {
+				pages = readFilterIndexLeafPages(catalogVersion, root.getEntityIndexPrimaryKey(), root, service);
+			}
+			final List<StoragePart> companionParts =
+				BigDecimalNumberRange.class.isAssignableFrom(plainTypeOf(root.getAttributeType())) ?
+					LegacyDecimalRangeFilterIndexCorrection.rewrite(finalBuckets, pages) :
+					LegacyRangeFilterIndexCorrection.rewrite(finalBuckets, pages);
+			companionParts.forEach(changes::addChangeToStore);
+		} else {
+			changes.addChangeToStore(finalBuckets);
+		}
 		return changes;
 	}
 
@@ -2326,8 +2681,8 @@ public interface Migration_2026_3 {
 
 	/**
 	 * Refuses the upgrade because two stored spellings of one unique value are held by different owners, telling the
-	 * operator exactly which values and what to do about them. Nothing has been written when this runs, so the catalog
-	 * stays loadable by the release that wrote it, which is where the data has to be fixed.
+	 * operator exactly which values and what to do about them. Nothing has been published when this runs, so the
+	 * catalog stays loadable by the release that wrote it, which is where the data has to be fixed.
 	 *
 	 * @param catalogName the name of the catalog being upgraded
 	 * @param collisions  every collision found by the pre-pass
@@ -2345,13 +2700,14 @@ public interface Migration_2026_3 {
 			PersistenceService.STORAGE_PROTOCOL_VERSION + ": " +
 			collisions.size() + " unique value(s) are stored in two spellings held by different owners. This version " +
 			"compares unique values exactly as it compares filtered ones, so it treats as ONE unique value the same " +
-			"instant written at two offsets, two Unicode spellings of one text (for example a precomposed `\\u010D` " +
+			"instant or open-bound date-time range written at two offsets, two Unicode spellings of one text " +
+			"(for example a precomposed `\\u010D` " +
 			"and a `c` followed by the combining caron `\\u030C`), two decimals equal at the attribute's indexed " +
 			"decimal places, two date-time values of one type that differ only below the millisecond, which this " +
 			"version truncates to whole milliseconds, and two date-time values of one type beyond the supported " +
 			"date-time window (such as `OffsetDateTime.MAX` and `OffsetDateTime.MAX.minusDays(1)`) or one beyond it " +
 			"and one inside the millisecond at its edge, which this version holds at the same edge of the window; " +
-			"each pair below would become one value with two owners. Nothing has been written - " +
+			"each pair below would become one value with two owners. Nothing has been published - " +
 			"the catalog is unchanged. Start the evitaDB version that wrote this catalog on it, change or remove one " +
 			"value of every pair, and then start this version again. Collisions: " +
 			formatAttributeList(described) + ".";
@@ -2479,6 +2835,15 @@ public interface Migration_2026_3 {
 	}
 
 	/**
+	 * Counts per-tree corrections, including range reconstructions that need no bucket correction.
+	 *
+	 * @param trees filter/histogram roots rewritten
+	 * @param rangeCompanions filter companions reconstructed from surviving bucket memberships
+	 */
+	record BucketRewriteOutcome(int trees, int rangeCompanions) {
+	}
+
+	/**
 	 * A persisted filter tree read through the same path for collision detection and rewriting.
 	 *
 	 * @param root the persisted filter root
@@ -2535,7 +2900,7 @@ public interface Migration_2026_3 {
 			);
 			this.entityType = collection.header().entityType();
 			this.structure = "attribute `" + describeAttribute(root.getAttributeIndexKey()) + "` of entity `" +
-				this.entityType + "`";
+				this.entityType + "` (scope " + indexPart.getEntityIndexKey().scope() + ")";
 			this.indexPart = indexPart;
 			this.normalizer = LegacyOwnerSortIndexCorrection.createClampingNormalizer(
 				plainTypeOf(root.getAttributeType()), root.getIndexedDecimalPlaces()

@@ -45,9 +45,11 @@ public class SetReferenceSchemaIndexedMutationSerializer_2025_5 extends Serializ
 
 	@Override
 	public SetReferenceSchemaIndexedMutation read(Kryo kryo, Input input, Class<? extends SetReferenceSchemaIndexedMutation> type) {
-		return new SetReferenceSchemaIndexedMutation(
-			input.readString(),
-			input.readBoolean() ? readScopeArray(kryo, input) : null
+		return SetReferenceSchemaIndexedMutationSerializer.withComponentsOfFormatWithoutThem(
+			new SetReferenceSchemaIndexedMutation(
+				input.readString(),
+				input.readBoolean() ? readScopeArray(kryo, input) : null
+			)
 		);
 	}
 }

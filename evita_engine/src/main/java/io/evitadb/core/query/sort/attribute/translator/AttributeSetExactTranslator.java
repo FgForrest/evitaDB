@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,8 +33,13 @@ import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.sorter.AttributeExactSorter;
-import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
+import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
+import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
@@ -60,28 +65,83 @@ import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getR
 
 /**
  * This implementation of {@link OrderingConstraintTranslator} converts {@link AttributeSetExact} to {@link Sorter}.
+ * A traverse exact ordering reads only the current block of partitions, choosing each owner's first valued row
+ * before looking up listed values. Other orderings retain the single-index contract of {@link #getRecordsEqualTo}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class AttributeSetExactTranslator implements OrderingConstraintTranslator<AttributeSetExact> {
 
+	/**
+	 * Plans a block-aware exact sorter for a traverse, retaining the single-index lookup elsewhere.
+	 * Chain attributes are refused before values are converted or either execution route is prepared.
+	 *
+	 * @param attributeSetExact the exact value ordering
+	 * @param orderByVisitor    the ordering context
+	 * @return the exact sorter, or no sorter when the single-index route has no partitions
+	 * @throws EvitaInvalidUsageException when the attribute is a {@link Predecessor} or
+	 *                                    {@link ReferencedEntityPredecessor} chain, which orders by predecessor links
+	 *                                    and has no values to list
+	 */
 	@Nonnull
 	@Override
-	public Stream<Sorter> createSorter(@Nonnull AttributeSetExact attributeSetExact, @Nonnull OrderByVisitor orderByVisitor) {
+	public Stream<Sorter> createSorter(
+		@Nonnull AttributeSetExact attributeSetExact,
+		@Nonnull OrderByVisitor orderByVisitor
+	) {
 		final String attributeName = attributeSetExact.getAttributeName();
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
-		final AttributeSchemaContract attributeSchema = processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE);
+		final AttributeSchemaContract attributeSchema = processingScope.getAttributeSchema(
+			attributeName, AttributeTrait.SORTABLE
+		);
+		final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
+		if (Predecessor.class.equals(attributeType) || ReferencedEntityPredecessor.class.equals(attributeType)) {
+			throw new EvitaInvalidUsageException(
+				"Constraint `attributeSetExact` cannot order chain attribute `" + attributeName + "` of type `" +
+					attributeType.getName() + "`: a chain orders by predecessor links, so its values cannot be " +
+					"listed. Use `attributeNatural` to order by the chain instead; inside `referenceProperty` it " +
+					"needs `traverseByEntityProperty` or no explicit traversal, not `pickFirstByEntityProperty`."
+			);
+		}
+
+		final Serializable[] exactOrder = Arrays.stream(attributeSetExact.getAttributeValues())
+			.map(it -> toAttributeProbeValue(it, attributeType))
+			.toArray(Serializable[]::new);
+		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
+		if (
+			referenceSchema != null && processingScope.mergeModeDefinition() != null &&
+				processingScope.mergeModeDefinition().mergeMode() == MergeMode.APPEND_ALL
+		) {
+			// fetch the sorted value and the attributes needed to choose among duplicate reference rows
+			final String[] attributes = Stream.concat(
+				Stream.of(attributeName),
+				referenceSchema.getRepresentativeAttributeDefinition().getAttributeNames().stream()
+			).toArray(String[]::new);
+			orderByVisitor.addRequirementToPrefetch(
+				referenceContentWithAttributes(referenceSchema.getName(), attributes)
+			);
+			return Stream.of(
+				new AttributeExactSorter(
+					attributeName, exactOrder, referenceSchema, attributeSchema, orderByVisitor.getLocale(),
+					orderByVisitor.getPartitionsForSort(),
+					orderByVisitor.getAttributeNormalizationResolver().resolveSortNormalizer(
+						referenceSchema.getName(), attributeSchema,
+						attributeSchema.isLocalized() ? orderByVisitor.getLocale() : null
+					)
+				)
+			);
+		}
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		addRequirementsToPrefetch(orderByVisitor);
 
+		final RecordsEqualTo recordsEqualTo = getRecordsEqualTo(orderByVisitor, attributeSchema, "");
+		if (recordsEqualTo == null) {
+			return Stream.empty();
+		}
 		return Stream.of(
 			createExactSorter(
-				orderByVisitor, attributeSchema,
-				Arrays.stream(attributeSetExact.getAttributeValues())
-					.map(it -> toAttributeProbeValue(it, attributeSchema.getPlainType()))
-					.toArray(Serializable[]::new),
-				""
+				orderByVisitor, attributeSchema, exactOrder, recordsEqualTo
 			)
 		);
 	}
@@ -93,7 +153,7 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 	 * @param visitor         the visitor planning the ordering
 	 * @param attributeSchema the sorted attribute
 	 * @param probeValues     the probe values converted to the attribute's type, in the requested order
-	 * @param hint            the advice appended to the error raised when the ordering reads more than one index
+	 * @param recordsEqualTo  the lookup and the scope of the sorted index
 	 * @return the exact sorter
 	 */
 	@Nonnull
@@ -101,13 +161,12 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 		@Nonnull OrderByVisitor visitor,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Serializable[] probeValues,
-		@Nonnull String hint
+		@Nonnull RecordsEqualTo recordsEqualTo
 	) {
 		final ReferenceSchema referenceSchema = visitor.getProcessingScope().referenceSchema();
 		final String referenceName = referenceSchema == null ? null : referenceSchema.getName();
 		return new AttributeExactSorter(
-			probeValues,
-			getRecordsEqualTo(visitor, attributeSchema, hint),
+			attributeSchema.getName(), probeValues, recordsEqualTo.lookup(), recordsEqualTo.scope(),
 			getAttributeValueFetcher(visitor, attributeSchema),
 			visitor.getAttributeNormalizationResolver().resolveSortNormalizer(
 				referenceName, attributeSchema, attributeSchema.isLocalized() ? visitor.getLocale() : null
@@ -154,19 +213,19 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 	}
 
 	/**
-	 * Returns the lookup translating an attribute value to the primary keys of the entities carrying it, from the only
-	 * index (partition) the ordering sorts by: the sort index of the attribute for the indexed entities and for a
-	 * materialized reference partition, the registry row for a virtual reference partition (see
+	 * Returns the single-index lookup used outside exact traversal ordering and by `attributeSetInFilter`.
+	 * It translates an attribute value to the primary keys of the entities carrying it: the attribute sort index for
+	 * indexed entities and a materialized reference partition, the registry row for a virtual reference partition (see
 	 * {@link VirtualPartitionSortedRecords#getRecordsEqualTo}) - `O(log n)` per value, never a walk of the registry's
 	 * sort index of the key.
 	 *
 	 * @param orderByVisitor  the visitor of the planned query
 	 * @param attributeSchema the attribute the sorter sorts along
 	 * @param hint            appended to the message when there is not exactly one index (partition)
-	 * @return the lookup
+	 * @return the lookup and its scope, or `null` when the ordered scope has no index or partition
 	 */
-	@Nonnull
-	static Function<Serializable, Bitmap> getRecordsEqualTo(
+	@Nullable
+	static RecordsEqualTo getRecordsEqualTo(
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull String hint
@@ -176,18 +235,27 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 		final Locale locale = orderByVisitor.getLocale();
 		if (referenceSchema == null) {
 			final EntityIndex[] indexForSort = orderByVisitor.getIndexesForSort();
+			if (indexForSort.length == 0) {
+				return null;
+			}
 			Assert.isTrue(
 				indexForSort.length == 1,
 				"Expected exactly one index for sorting, but " + indexForSort.length + " were found." + hint
 			);
-			return getRecordsEqualToOfIndex(indexForSort[0], null, attributeSchema, locale);
+			return new RecordsEqualTo(
+				indexForSort[0].getIndexKey().scope(),
+				getRecordsEqualToOfIndex(indexForSort[0], null, attributeSchema, locale)
+			);
 		} else {
 			final ReferencePartition[] partitionsForSort = orderByVisitor.getPartitionsForSort();
+			if (partitionsForSort.length == 0) {
+				return null;
+			}
 			Assert.isTrue(
 				partitionsForSort.length == 1,
 				"Expected exactly one index for sorting, but " + partitionsForSort.length + " were found." + hint
 			);
-			return switch (partitionsForSort[0]) {
+			final Function<Serializable, Bitmap> lookup = switch (partitionsForSort[0]) {
 				case ReducedEntityIndex reducedEntityIndex ->
 					getRecordsEqualToOfIndex(reducedEntityIndex, referenceSchema, attributeSchema, locale);
 				case VirtualReferencePartition virtualPartition -> {
@@ -197,6 +265,7 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 					yield value -> VirtualPartitionSortedRecords.getRecordsEqualTo(virtualPartition, key, value);
 				}
 			};
+			return new RecordsEqualTo(partitionsForSort[0].getIndexKey().scope(), lookup);
 		}
 	}
 
@@ -220,6 +289,16 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 		// a lambda rather than a method reference keeps a missing sort index failing where it always failed - when
 		// the sorter reads it
 		return value -> sortIndex.getRecordsEqualTo(value);
+	}
+
+	/**
+	 * The value lookup of the only index or partition an exact ordering sorts by, with its scope so the prefetch
+	 * comparator admits exactly the same entities.
+	 *
+	 * @param scope  the scope of the sort data
+	 * @param lookup translates a value to the entities carrying it
+	 */
+	record RecordsEqualTo(@Nonnull Scope scope, @Nonnull Function<Serializable, Bitmap> lookup) {
 	}
 
 }

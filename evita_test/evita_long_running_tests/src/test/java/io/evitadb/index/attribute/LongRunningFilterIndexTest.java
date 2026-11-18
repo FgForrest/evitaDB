@@ -56,7 +56,6 @@ import java.util.stream.Collectors;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -80,7 +79,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 class LongRunningFilterIndexTest implements TimeBoundedTestSupport {
 
 	@ParameterizedTest(name = "FilterIndex should survive generational randomized test applying modifications on it")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final int initialCount = 100;
@@ -170,7 +168,6 @@ class LongRunningFilterIndexTest implements TimeBoundedTestSupport {
 	 * and no committed value was published.
 	 */
 	@ParameterizedTest(name = "FilterIndex rollback discards every in-transaction mutation and leaves the base intact")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTest(GenerationalTestInput input) {

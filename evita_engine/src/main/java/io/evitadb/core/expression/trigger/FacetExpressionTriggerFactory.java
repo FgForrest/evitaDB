@@ -79,12 +79,18 @@ public class FacetExpressionTriggerFactory {
 	 * @param ownerEntityType the entity type that owns the reference (e.g. "product")
 	 * @param referenceSchema the reference schema to build triggers from
 	 * @return list of triggers (empty if the reference has no `facetedPartially` expressions)
+	 * @throws io.evitadb.api.exception.InvalidSchemaMutationException when a `facetedPartially` condition reads data
+	 *                                                                 on the reject list; checked first, so a stored
+	 *                                                                 schema holding one fails the catalog load
 	 */
 	@Nonnull
 	public static List<FacetExpressionTrigger> buildTriggersForReference(
 		@Nonnull String ownerEntityType,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
+		// first, before the early return: a stored schema holding a condition on the reject list must fail here, on
+		// load as well as on every rebuild
+		IndexingExpressionInputValidator.validateFacetExpressions(ownerEntityType, referenceSchema);
 		final Map<Scope, Expression> expressions = referenceSchema.getFacetedPartiallyInScopes();
 		if (expressions.isEmpty()) {
 			return List.of();

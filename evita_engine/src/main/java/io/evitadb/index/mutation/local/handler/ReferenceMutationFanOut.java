@@ -59,6 +59,9 @@ import java.util.function.Predicate;
  */
 final class ReferenceMutationFanOut {
 
+	/**
+	 * Prevents instantiation of the shared reference orchestration.
+	 */
 	private ReferenceMutationFanOut() {
 		// no instances
 	}
@@ -72,6 +75,10 @@ final class ReferenceMutationFanOut {
 	 *   reduced indexes;
 	 * - finally the deferred re-evaluation of facet expressions and histograms that depend on a changed reference
 	 *   attribute.
+	 *
+	 * Applies the reference's own index changes, including the withdrawal - or, for an entity removed entirely, the
+	 * removal - of its histogram values before handler cleanup, then fans out facet updates to other reference
+	 * indexes and defers relevant facet expression re-evaluations.
 	 *
 	 * @param mutation    the reference mutation
 	 * @param executor    the executor of the entity mutation
@@ -125,12 +132,6 @@ final class ReferenceMutationFanOut {
 					trigger -> mutatedRefName.equals(trigger.getReferenceName())
 						&& trigger.getLocalReferenceAttributes().contains(mutatedAttrName)
 				)
-			);
-		}
-		// defer histogram re-evaluation for reference attribute changes
-		if (mutation instanceof ReferenceAttributeMutation ram2) {
-			executor.deferHistogramReEvaluationForReferenceAttribute(
-				referenceKey, ram2.getAttributeKey().attributeName(), executor.getScope()
 			);
 		}
 	}

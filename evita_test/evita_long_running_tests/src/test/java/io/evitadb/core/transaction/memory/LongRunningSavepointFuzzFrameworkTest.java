@@ -55,7 +55,6 @@ import java.util.TreeMap;
 import java.util.function.BiFunction;
 
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
 import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
@@ -110,7 +109,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	private static final int KEY_SPACE = 64;
 
 	@ParameterizedTest(name = "TransactionalMap: savepoint rollback restores the exact pre-savepoint contents")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalMap: savepoint rollback restores the exact pre-savepoint contents")
 	void shouldRollBackTransactionalMapToSavepoint(@Nonnull GenerationalTestInput input) {
@@ -132,7 +130,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "TransactionalMap: savepoint commit keeps the in-savepoint contents")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalMap: savepoint commit keeps the in-savepoint contents")
 	void shouldCommitTransactionalMapSavepoint(@Nonnull GenerationalTestInput input) {
@@ -149,7 +146,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "TransactionalBitmap: savepoint rollback restores the exact pre-savepoint record set")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalBitmap: savepoint rollback restores the exact pre-savepoint record set")
 	void shouldRollBackTransactionalBitmapToSavepoint(@Nonnull GenerationalTestInput input) {
@@ -171,7 +167,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "TransactionalBitmap: savepoint commit keeps the in-savepoint record set")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalBitmap: savepoint commit keeps the in-savepoint record set")
 	void shouldCommitTransactionalBitmapSavepoint(@Nonnull GenerationalTestInput input) {
@@ -188,7 +183,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "TransactionalMap: warm-up savepoint rollback restores the exact pre-savepoint contents")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalMap: warm-up savepoint rollback restores the exact pre-savepoint contents")
 	void shouldRollBackTransactionalMapToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
@@ -210,7 +204,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "TransactionalMap: warm-up savepoint commit keeps the in-savepoint contents")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalMap: warm-up savepoint commit keeps the in-savepoint contents")
 	void shouldCommitTransactionalMapWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
@@ -227,7 +220,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "TransactionalSet: warm-up savepoint rollback restores the exact pre-savepoint elements")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalSet: warm-up savepoint rollback restores the exact pre-savepoint elements")
 	void shouldRollBackTransactionalSetToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
@@ -249,7 +241,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "TransactionalSet: warm-up savepoint commit keeps the in-savepoint elements")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalSet: warm-up savepoint commit keeps the in-savepoint elements")
 	void shouldCommitTransactionalSetWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
@@ -266,7 +257,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "TransactionalList: warm-up savepoint rollback restores the exact pre-savepoint order")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalList: warm-up savepoint rollback restores the exact pre-savepoint order")
 	void shouldRollBackTransactionalListToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
@@ -288,7 +278,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "TransactionalList: warm-up savepoint commit keeps the in-savepoint order")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalList: warm-up savepoint commit keeps the in-savepoint order")
 	void shouldCommitTransactionalListWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
@@ -307,7 +296,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@ParameterizedTest(
 		name = "TransactionalBitmap: warm-up savepoint rollback restores the exact pre-savepoint record set"
 	)
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalBitmap: warm-up savepoint rollback restores the exact pre-savepoint record set")
 	void shouldRollBackTransactionalBitmapToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
@@ -329,7 +317,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "TransactionalBitmap: warm-up savepoint commit keeps the in-savepoint record set")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalBitmap: warm-up savepoint commit keeps the in-savepoint record set")
 	void shouldCommitTransactionalBitmapWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
@@ -378,7 +365,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@ParameterizedTest(
 		name = "TransactionalObjectBPlusTree: warm-up savepoint rollback restores the exact pre-savepoint contents"
 	)
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalObjectBPlusTree: warm-up savepoint rollback restores the exact pre-savepoint contents")
 	void shouldRollBackObjectTreeToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
@@ -400,7 +386,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "TransactionalObjectBPlusTree: warm-up savepoint commit keeps the in-savepoint contents")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalObjectBPlusTree: warm-up savepoint commit keeps the in-savepoint contents")
 	void shouldCommitObjectTreeWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
@@ -419,7 +404,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@ParameterizedTest(
 		name = "TransactionalBucketBPlusTree: warm-up savepoint rollback restores the exact pre-savepoint buckets"
 	)
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalBucketBPlusTree: warm-up savepoint rollback restores the exact pre-savepoint buckets")
 	void shouldRollBackBucketTreeToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
@@ -441,7 +425,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "TransactionalBucketBPlusTree: warm-up savepoint commit keeps the in-savepoint buckets")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalBucketBPlusTree: warm-up savepoint commit keeps the in-savepoint buckets")
 	void shouldCommitBucketTreeWarmUpSavepoint(@Nonnull GenerationalTestInput input) {

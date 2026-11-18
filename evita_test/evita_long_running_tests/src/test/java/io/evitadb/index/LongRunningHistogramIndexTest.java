@@ -48,7 +48,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -77,7 +76,6 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	private static final String REFERENCE_NAME = "BRAND";
 
 	@ParameterizedTest(name = "SimpleHistogramIndex should survive generational randomized test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void shouldSurviveSimpleHistogramGenerationalTest(GenerationalTestInput input) {
 		// reference model: value -> (ownerPK -> cardinality count)
@@ -116,7 +114,6 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@ParameterizedTest(name = "LocalizedHistogramIndex should survive generational randomized test")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void shouldSurviveLocalizedHistogramGenerationalTest(GenerationalTestInput input) {
 		final Locale[] locales = {Locale.ENGLISH, new Locale("cs"), Locale.GERMAN};
@@ -167,7 +164,6 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	 * random-draw sequence.
 	 */
 	@ParameterizedTest(name = "SimpleHistogramIndex rollback discards every in-transaction mutation and leaves the base intact")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTest(GenerationalTestInput input) {
@@ -210,7 +206,6 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	 * {@link LocalizedHistogramIndex}.
 	 */
 	@ParameterizedTest(name = "LocalizedHistogramIndex rollback discards every in-transaction mutation and leaves the base intact")
-	@Tag(SLOW)
 	@Tag(TRANSACTION)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalRollbackProofTestLocalized(GenerationalTestInput input) {

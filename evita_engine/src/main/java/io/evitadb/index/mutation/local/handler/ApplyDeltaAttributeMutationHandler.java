@@ -58,6 +58,7 @@ public final class ApplyDeltaAttributeMutationHandler
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
+		// no `EntityLocaleFanOut` withdrawal: a delta changes a value the entity has already, never its locale set
 		AttributeMutationFanOut.apply(mutation, executor, globalIndex);
 	}
 

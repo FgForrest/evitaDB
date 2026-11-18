@@ -28,7 +28,6 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
-import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.proxy.mock.CategoryInterface;
 import io.evitadb.api.proxy.mock.ProductInterface;
@@ -112,7 +111,6 @@ import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1038,43 +1036,6 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	}
 
 	/**
-	 * Tests that the client can query and retrieve a single sealed entity in binary format.
-	 *
-	 * This test verifies that the client can successfully query for an entity
-	 * using binary session flags and retrieve the entity in binary serialized format.
-	 * Currently disabled as this functionality is not yet implemented.
-	 *
-	 * @param evitaClient the EvitaClient instance injected by the test framework
-	 * @param products map of product entities available for testing
-	 */
-	@Test
-	@DisplayName("query one sealed binary entity")
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	@Disabled("Not working (yet)")
-	void shouldQueryOneSealedBinaryEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
-		final SealedEntity sealedEntity = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryOneSealedEntity(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(1)
-						),
-						require(
-							entityFetchAll()
-						)
-					)
-				);
-			},
-			SessionFlags.BINARY
-		).orElseThrow();
-
-		assertEquals(Entities.PRODUCT, sealedEntity.getType());
-		assertExactlyEquals(products.get(1), sealedEntity);
-	}
-
-	/**
 	 * Tests that the client can query and retrieve a list of entity references.
 	 *
 	 * This test verifies that the client can successfully query for multiple entities
@@ -1342,6 +1303,35 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
 		assertNotNull(referenceSummary);
 		assertFalse(referenceSummary.getReferenceStatistics().isEmpty());
+	}
+
+	/**
+	 * Tests that the condition of a spacing gap reaches the server as the expression it is. The client sends the
+	 * expression as a query parameter, and the server parses its text - a quoted text would parse as a string
+	 * constant, never true, and the gap would take no place on the page.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
+	@Test
+	@DisplayName("query a page whose spacing gap has an expression condition")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldQueryPageWithSpacingGapCondition(EvitaClient evitaClient) {
+		final EvitaResponse<EntityReference> result = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(page(1, 5, spacing(gap(2, "$pageNumber == 1"))))
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		// the gap takes two of the five places on the first page
+		assertEquals(3, result.getRecordData().size());
+		assertEquals(PRODUCT_COUNT, result.getTotalRecordCount());
 	}
 
 	/**

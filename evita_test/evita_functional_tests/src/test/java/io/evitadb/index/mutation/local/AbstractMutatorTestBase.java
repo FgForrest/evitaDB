@@ -171,6 +171,7 @@ abstract class AbstractMutatorTestBase {
 			this.catalogUsageRegistry,
 			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
+			MissingHistogramValueBehavior.REFUSE,
 			new PartitionReservations()
 		);
 

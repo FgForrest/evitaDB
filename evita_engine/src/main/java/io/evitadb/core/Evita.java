@@ -106,6 +106,7 @@ import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.core.transaction.engine.operators.DefaultUpgradeExecutor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.index.mutation.local.MissingHistogramValueBehavior;
 import io.evitadb.roaringbitmap.RoaringKernels;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.VersionSource;
@@ -220,6 +221,12 @@ public final class Evita implements EvitaContract {
 	 * Field contains the global - shared configuration for the entire Evita instance.
 	 */
 	@Getter private final EvitaConfiguration configuration;
+	/**
+	 * What a write does when it must withdraw a reference-histogram value the index does not hold for the entity -
+	 * resolved once, when this instance starts, by {@link MissingHistogramValueBehavior#fromSystemProperty()}, and
+	 * handed to every catalog this instance creates or loads, so that no catalog reads the system property itself.
+	 */
+	@Nonnull private final MissingHistogramValueBehavior missingHistogramValueBehavior;
 	/**
 	 * Resolves the on-disk directory holding a catalog's data. This is the single sanctioned way to answer
 	 * "which folder is catalog `X`?" — see {@link CatalogFolderResolver} for why the catalog
@@ -515,6 +522,9 @@ public final class Evita implements EvitaContract {
 			Functions.noOpConsumer() : onSessionCreationCallback;
 		this.onSessionTerminationCallback = onSessionTerminationCallback == null ?
 			Functions.noOpConsumer() : onSessionTerminationCallback;
+		// resolved before any executor or storage exists, so that a malformed value stops the start with nothing to
+		// release, rather than failing a catalog load later as if the catalog were corrupted
+		this.missingHistogramValueBehavior = MissingHistogramValueBehavior.fromSystemProperty();
 
 		this.serviceExecutor = directExecutor ?
 			// in test environment we use immediate (synchronous) executor to avoid race conditions
@@ -928,6 +938,9 @@ public final class Evita implements EvitaContract {
 	 * {@link io.evitadb.spi.store.engine.model.CatalogFolderId}, which is the engine's private way of telling one
 	 * incarnation of a name from another, and it is only meaningful within the process that captured it. See
 	 * {@link EngineMutationPrecondition} for why the token is the identity used and what bounds that carries.
+	 *
+	 * The operation waits briefly for sessions and commits in progress and can be refused, on the terms described at
+	 * {@link EvitaContract#replaceCatalogWithProgress(String, String)}.
 	 *
 	 * @param catalogNameToBeReplacedWith name of the catalog that will take the other one's place
 	 * @param catalogNameToBeReplaced     name of the catalog that will be replaced
@@ -1359,17 +1372,6 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Discards the suspension state of the session registry associated with the given catalog name, if present.
-	 * The method resumes operations for the session registry if it exists for the provided catalog name.
-	 *
-	 * @param catalogName The name of the catalog whose suspension state should be discarded. Must not be null.
-	 */
-	public void discardSuspension(@Nonnull String catalogName) {
-		ofNullable(this.catalogSessionRegistries.get(catalogName))
-			.ifPresent(SessionRegistry::resumeOperations);
-	}
-
-	/**
 	 * Creates a new CatalogContract instance using the provided catalog schema and other dependencies.
 	 *
 	 * @param catalogSchema the schema definition for the catalog; must not be null
@@ -1385,7 +1387,8 @@ public final class Evita implements EvitaContract {
 			this.management.exportService(),
 			this.management.fileManagementService(),
 			this::replaceCatalogReference,
-			this.tracingContext
+			this.tracingContext,
+			this.missingHistogramValueBehavior
 		);
 	}
 
@@ -1505,7 +1508,8 @@ public final class Evita implements EvitaContract {
 				log.error("Catalog {} is corrupted!", cn, exception);
 				markCatalogCorrupted(cn, exception);
 			},
-			this.tracingContext
+			this.tracingContext,
+			this.missingHistogramValueBehavior
 		);
 	}
 
@@ -1963,9 +1967,6 @@ public final class Evita implements EvitaContract {
 
 		final boolean schemaAdvanced = snapshot.replaceCatalogReference(catalog);
 
-		// discard suspension of the session registry for the catalog, if present
-		discardSuspension(catalog.getName());
-
 		// notify callback that it's now a live snapshot
 		catalog.notifyCatalogPresentInLiveView();
 
@@ -2172,6 +2173,33 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Resolves the current catalog for both newly created and renamed session registries.
+	 *
+	 * Both suppliers must preserve transitional placeholders' representative exceptions: a lifecycle operation
+	 * publishes its placeholder before draining sessions, whose close must still finish through the registry.
+	 *
+	 * @param catalogName current name served by the registry
+	 * @return the usable catalog
+	 * @throws CatalogNotFoundException when the name resolves to no catalog
+	 * @throws RuntimeException the placeholder's representative exception when the name resolves to an
+	 *                          {@link UnusableCatalog}
+	 */
+	@Nonnull
+	public Catalog getCatalogForSessionRegistry(@Nonnull String catalogName) {
+		return this.getEngineState().getCatalog(catalogName)
+			.map(it -> {
+				if (it instanceof Catalog catalog) {
+					return catalog;
+				} else if (it instanceof UnusableCatalog unusableCatalog) {
+					throw unusableCatalog.getRepresentativeException();
+				} else {
+					throw new GenericEvitaInternalError("Could not happen!");
+				}
+			})
+			.orElseThrow(() -> new CatalogNotFoundException(catalogName));
+	}
+
+	/**
 	 * Creates and initializes a new instance of SessionRegistry using the provided session traits.
 	 *
 	 * @param sessionTraits the traits of the session, including catalog name and other properties,
@@ -2183,18 +2211,7 @@ public final class Evita implements EvitaContract {
 		final String catalogName = sessionTraits.catalogName();
 		return new SessionRegistry(
 			this.tracingContext,
-			() -> this.getEngineState()
-			          .getCatalog(catalogName)
-			          .map(it -> {
-				          if (it instanceof Catalog catalog) {
-					          return catalog;
-				          } else if (it instanceof UnusableCatalog unusableCatalog) {
-					          throw unusableCatalog.getRepresentativeException();
-				          } else {
-					          throw new GenericEvitaInternalError("Could not happen!");
-				          }
-			          })
-			          .orElseThrow(() -> new CatalogNotFoundException(catalogName)),
+			() -> getCatalogForSessionRegistry(catalogName),
 			this.sessionRegistryDataStore
 		);
 	}

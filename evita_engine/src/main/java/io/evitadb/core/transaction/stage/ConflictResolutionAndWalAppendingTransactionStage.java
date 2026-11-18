@@ -42,10 +42,12 @@ import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.Trun
 import io.evitadb.spi.store.catalog.exception.CatalogWriteAheadLastTransactionMismatchException;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.Closeable;
 import java.time.OffsetDateTime;
 import java.util.ArrayDeque;
 import java.util.Set;
@@ -161,6 +163,8 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 		// refuse up front once the WAL has stopped being able to accept durable writes - see the field
 		final Throwable durabilityFailure = this.walDurabilityFailure;
 		if (durabilityFailure != null) {
+			// the refused transaction is never appended to the shared WAL, so nothing else releases its isolated WAL
+			task.releaseWalReference();
 			throw new TransactionException(
 				"Write-ahead log of catalog `" + task.catalogName() + "` can no longer be made durable - " +
 					"refusing to accept further transactions.",
@@ -217,13 +221,19 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 				new TransactionConflictEvent(task.catalogName(), conflict).commit();
 				this.transactionManager.recordConflictedTransaction();
 			}
-			rollbackFailedTask(
-				task,
-				expectedCatalogVersion,
-				droppedCatalogVersions,
-				droppedCatalogSchemaVersionDelta,
-				ex
-			);
+			try {
+				rollbackFailedTask(
+					task,
+					expectedCatalogVersion,
+					droppedCatalogVersions,
+					droppedCatalogSchemaVersionDelta,
+					ex
+				);
+			} finally {
+				// the transaction is never going to be appended to the shared WAL - unless the append failed after
+				// copying it, which released it already - so nothing else would release its isolated WAL contents
+				task.releaseWalReference();
+			}
 			// rethrow the exception to be handled by the exception handler
 			throw ex;
 		}
@@ -774,6 +784,18 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 				commitProgress,
 				new TransactionQueuedEvent(catalogName, "transaction_acceptance")
 			);
+		}
+
+		/**
+		 * Releases the off-heap region or the temporary file holding the isolated WAL contents of a transaction that is
+		 * not going to be appended to the shared WAL - the append releases them otherwise. A region never released
+		 * keeps the catalog's off-heap memory block allocated, and the regions refused transactions keep out of use
+		 * are lost to the transactions that follow. Releasing the contents again is harmless.
+		 */
+		public void releaseWalReference() {
+			if (this.walReference instanceof Closeable closeable) {
+				IOUtils.closeQuietly(closeable::close);
+			}
 		}
 
 		@Override

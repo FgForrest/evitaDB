@@ -143,6 +143,7 @@ api:                                              # [see API configuration](#api
       tlsMode: null
       keepAlive: null
       parallelize: true
+      documentCacheSizeInBytes: 16MB
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -778,8 +779,12 @@ Configuration for local file system export backend. This is the default backend 
     <dt>sizeLimitBytes</dt>
     <dd>
         <p>**Default:** `1G`</p>
-        <p>Specifies the maximum total size of all exported files stored by this backend. If the total size
-        exceeds this limit, the oldest files are removed until the total size drops below the limit.</p>
+        <p>Specifies the maximum total size of all exported files stored by this backend, including the metadata
+        file kept beside each of them. If the total size exceeds this limit, the oldest files are removed until the
+        total size drops below the limit.</p>
+        <p>A single backup, JFR recording or traffic recording has to fit into this limit as well. One that would
+        exceed it stops as soon as it crosses the limit, keeps nothing, and its task fails with an error naming this
+        setting. To keep a larger file, raise the limit and restart the server.</p>
     </dd>
     <dt>historyExpirationSeconds</dt>
     <dd>
@@ -812,6 +817,9 @@ Configuration for S3-compatible storage export backend. Requires the `evita_expo
         <p>**Default:** `1G`</p>
         <p>Specifies the maximum total size of all exported files stored by this backend. If the total size
         exceeds this limit, the oldest files are removed until the total size drops below the limit.</p>
+        <p>A single backup, JFR recording or traffic recording has to fit into this limit as well. One that would
+        exceed it stops as soon as it crosses the limit, keeps nothing, and its task fails with an error naming this
+        setting. To keep a larger file, raise the limit and restart the server.</p>
     </dd>
     <dt>historyExpirationSeconds</dt>
     <dd>
@@ -849,10 +857,10 @@ Configuration for S3-compatible storage export backend. Requires the `evita_expo
     <dt>requestTimeoutInMillis</dt>
     <dd>
         <p>**Default:** `30s`</p>
-        <p>Specifies the timeout applied to all external S3 operations performed by the export service.
-        The timeout is used when waiting for completion of asynchronous MinIO client calls, such as
-        bucket creation, object upload, download, deletion and metadata reads. Increase this value if
-        your S3 provider or network exhibits higher latencies.</p>
+        <p>Specifies the timeout for establishing connections and individual socket writes and reads.
+        An upload may take longer in total while its connection keeps making progress. The same value
+        bounds waits for bucket operations, downloads, deletions and metadata reads. Increase this value
+        if your S3 provider or network exhibits higher latencies.</p>
     </dd>
 </dl>
 
@@ -875,6 +883,10 @@ This section contains configuration options for the storage layer of the databas
             store temporary (isolated) transactional data before they are committed to the database.
             If the buffer is full, the transaction data are immediately written to the disk and the transaction 
             processing gets slower.</p>
+        <p>Each catalog allocates its own buffer when it runs its first transaction, and the engine one more for its
+            own changes, such as creating a catalog. A catalog's buffer is freed once the catalog is closed and no
+            transaction uses the buffer any more - on a JDK that does not allow freeing it explicitly, when the
+            garbage collector reclaims it.</p>
     </dd>
     <dt>transactionMemoryRegionCount</dt>
     <dd>
@@ -1364,7 +1376,26 @@ This allows you to set common settings for all endpoints in one place.
     <dt>parallelize</dt>
     <dd>
         <p>**Default:** `true`</p>
-        <p>Controls whether queries that fetch data from evitaDB engine will be executed in parallel.</p>
+        <p>Controls whether GraphQL queries and mutations are executed asynchronously on the evitaDB engine thread
+        pools - queries on the `requestThreadPool`, mutations on the `transactionThreadPool` (see
+        [server configuration](#server-configuration)) - which lets the top-level fields of a single query be fetched
+        concurrently. When `false`, they run on the thread that processes the request. Subscriptions are not
+        affected.</p>
+    </dd>
+    <dt>documentCacheSizeInBytes</dt>
+    <dd>
+        <p>**Default:** `16MB`</p>
+        <p>Approximate memory budget of the cache of parsed and validated GraphQL documents. When the same query text
+        is sent repeatedly (typically a front store sending static queries with values passed as variables), it is
+        lexed, parsed and validated only once and the cached document is reused by subsequent requests. Only
+        successfully validated documents are cached, invalid queries are processed on every request.</p>
+        <p>The budget applies to **each GraphQL instance separately** - i.e. to the data API and the schema API of
+        every catalog and to the system API - so the total memory used may be a multiple of this value. The size of
+        a cached document is estimated as 1 KB plus 8 times the length of its query text (measured on real
+        e-commerce queries, a parsed document retains roughly 6.3-7.4 times the size of its text, tiny documents
+        are dominated by a fixed cost of several hundred bytes). The cache of a catalog is
+        discarded whenever its GraphQL schema is rebuilt (e.g. after a catalog schema change).</p>
+        <p>Set to `0` to disable the cache. Negative values are rejected.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>
@@ -1472,13 +1503,17 @@ This allows you to set common settings for all endpoints in one place.
 
 ### System API configuration
 
-There is a special `api.endpoints.system` endpoint that allows access over the unsecured HTTP protocol. Since it's the
-only exposed endpoint on the unsecured http protocol, it must run on a separate port. The endpoint allows anyone to
-download the public part of the server certificate.
+There is a special `api.endpoints.system` endpoint that allows access over the unsecured HTTP protocol (its `tlsMode`
+defaults to `FORCE_NO_TLS`). It shares the port with the other APIs by default. The endpoint allows anyone to
+download the public part of the server certificate at `/system/server.crt` whenever at least one endpoint requires
+TLS. This URL is printed at start-up in both generated and custom certificate modes. When
+`api.certificate.generateAndUseSelfSigned` is `false`, it serves `api.certificate.custom.certificate`.
+Before trusting a certificate downloaded over plain HTTP, verify it against the server's
+[start-up fingerprint](tls.md#default-mtls-behaviour-not-secure).
 
 It also allows downloading the default client private/public key pair if `api.certificate.generateAndUseSelfSigned` and
 any of `api.*.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](tls.md#default-mtls-behaviour-not-secure) for
-more information.
+more information. Client certificates and private keys are not distributed in custom mode.
 
 <dl>
     <dt>enabled</dt>

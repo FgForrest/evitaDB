@@ -35,7 +35,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -53,7 +52,6 @@ class LongRunningTransactionalBooleanTest implements TimeBoundedTestSupport {
 
 	@DisplayName("survives generational randomized test applying modifications")
 	@ParameterizedTest(name = "TransactionalBoolean should survive generational randomized test applying modifications on it")
-	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final AtomicBoolean nextBooleanToCompare = new AtomicBoolean();

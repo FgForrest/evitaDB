@@ -473,18 +473,8 @@ public class CreateGlobalAttributeSchemaMutation
 							NamedSchemaWithDeprecationContract::getDeprecationNotice,
 							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(this.name, newValue)
 						),
-						makeMutationIfDifferent(
-							GlobalAttributeSchemaContract.class,
-							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::getType,
-							newValue -> new ModifyAttributeSchemaTypeMutation(this.name, newValue, this.indexedDecimalPlaces)
-						),
-						makeMutationIfDifferent(
-							GlobalAttributeSchemaContract.class,
-							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::getDefaultValue,
-							newValue -> new ModifyAttributeSchemaDefaultValueMutation(this.name, this.defaultValue)
-						),
+						makeTypeMutationIfDifferent(createdVersion, existingVersion, this.indexedDecimalPlaces),
+						makeDefaultValueMutationIfDifferent(createdVersion, existingVersion, this.defaultValue),
 						makeMutationIfDifferent(
 							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,

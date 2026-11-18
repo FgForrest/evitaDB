@@ -42,6 +42,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.zip.DataFormatException;
@@ -688,6 +689,33 @@ public class ObservableInput<T extends InputStream> extends Input {
 	public String readString() {
 		require(1);
 		return super.readString();
+	}
+
+	/**
+	 * Consumes an upcoming string only if its complete encoding matches the remembered `Output.writeString` bytes.
+	 * A mismatch or an encoding spanning the buffered remainder consumes no bytes, so the caller can
+	 * fall back to {@link #readString()}. Comparing the complete encoding includes its terminator or length prefix,
+	 * distinguishing prefix names, empty strings and both Kryo string encodings without decoding characters.
+	 *
+	 * Like {@link #readString()}, this checks record overflow before touching the buffer. It advances only
+	 * `position`: totals and checksums observe that position when the buffer is retired or the record ends,
+	 * exactly as they do after Kryo's string reader. The capped `limit` prevents crossing a record boundary.
+	 *
+	 * @param encodedString the complete encoding of the remembered string
+	 * @return true if the encoding matched and was consumed, false if normal decoding is needed
+	 */
+	public boolean trySkipString(@Nonnull byte[] encodedString) {
+		require(1);
+		if (encodedString.length > this.limit - this.position) {
+			return false;
+		}
+		if (Arrays.mismatch(
+			this.buffer, this.position, this.position + encodedString.length, encodedString, 0, encodedString.length
+		) != -1) {
+			return false;
+		}
+		this.position += encodedString.length;
+		return true;
 	}
 
 	/**

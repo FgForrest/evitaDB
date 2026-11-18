@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,9 +38,11 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleContext;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
+import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.comparator.IntComparator;
 import io.evitadb.core.query.QueryExecutionContext;
@@ -167,51 +169,59 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		final String[] priceLists = priceDiscount.getInPriceLists();
 		final QueryPriceMode queryPriceMode = orderByVisitor.getQueryPriceMode();
 
-		// if prefetch happens we need to prefetch prices so that the entity comparator can work
-		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
-
 		// are filtered prices used in the filtering?
 		final Collection<PriceFilteringEnvelopeContainer> sellingPriceFilteringEnvelopeContainers = FormulaFinder.find(
 			orderByVisitor.getFilteringFormula(), PriceFilteringEnvelopeContainer.class, LookUp.SHALLOW
 		);
-
-		final Sorter thisSorter;
-		if (!sellingPriceFilteringEnvelopeContainers.isEmpty()) {
-			// collect all the selling price record accessors
-			final Collection<FilteredPriceRecordAccessor> sellingPriceRecordAccessors = FormulaFinder.find(
-				orderByVisitor.getFilteringFormula(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
-			);
-			// if so, create filtered prices sorter
-			thisSorter = new FilteredPricesSorter(
-				// with specific kind of comparator
-				createPriceComparator(
-					priceDiscount.getOrder(),
-					queryPriceMode,
-					sellingPriceFilteringEnvelopeContainers.stream()
-						.map(it -> createReferencePriceFormula(orderByVisitor, it, priceLists, queryPriceMode))
-						.toList()
-				),
-				sellingPriceRecordAccessors
-			);
-		} else {
-			// otherwise, we cannot sort the entities by price
-			thisSorter = NoSorter.INSTANCE;
+		if (sellingPriceFilteringEnvelopeContainers.isEmpty()) {
+			// without a price filter there is no price for sale and so no discount to sort by on either route - the
+			// prefetched entities carry no price context either, so no prefetch comparator is registered and no price
+			// is prefetched; outside a segment every entity of the ordered scopes keeps its ascending primary key
+			// order, a segment takes none of them
+			return orderByVisitor.isWithinSegment() ?
+				Stream.empty() : Stream.of(orderByVisitor.restrictToOrderedScopes(NoSorter.INSTANCE));
 		}
+
+		// if prefetch happens we need to prefetch prices so that the entity comparator can work
+		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
+
+		// collect all the selling price record accessors
+		final Collection<FilteredPriceRecordAccessor> sellingPriceRecordAccessors = FormulaFinder.find(
+			orderByVisitor.getFilteringFormula(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
+		);
+		// create filtered prices sorter
+		final Sorter thisSorter = new FilteredPricesSorter(
+			// with specific kind of comparator
+			createPriceComparator(
+				priceDiscount.getOrder(),
+				queryPriceMode,
+				sellingPriceFilteringEnvelopeContainers.stream()
+					.map(it -> createReferencePriceFormula(orderByVisitor, it, priceLists, queryPriceMode))
+					.toList()
+			),
+			sellingPriceRecordAccessors
+		);
 
 		// and for the scenario where the entities are prefetched instantiate different comparator - for entity objects
 		final EntityComparator entityComparator;
 		final Function<PriceContract, BigDecimal> priceExtractor = queryPriceMode == QueryPriceMode.WITH_TAX ?
 			PriceContract::priceWithTax : PriceContract::priceWithoutTax;
+		final boolean withinSegment = orderByVisitor.isWithinSegment();
 		if (priceDiscount.getOrder() == OrderDirection.ASC) {
-			entityComparator = new EntityPriceDiscountEntityComparator(priceExtractor, Comparator.naturalOrder(), priceLists);
+			entityComparator = new EntityPriceDiscountEntityComparator(
+				queryPriceMode, priceExtractor, Comparator.naturalOrder(), priceLists, withinSegment
+			);
 		} else {
-			entityComparator = new EntityPriceDiscountEntityComparator(priceExtractor, Comparator.reverseOrder(), priceLists);
+			entityComparator = new EntityPriceDiscountEntityComparator(
+				queryPriceMode, priceExtractor, Comparator.reverseOrder(), priceLists, withinSegment
+			);
 		}
 
 		// return both sorters
+		// an `inScope` ordering sorts only the entities of its scope on either route, the others are passed on
 		return Stream.of(
-			new PrefetchedRecordsSorter(entityComparator),
-			thisSorter
+			orderByVisitor.restrictToOrderedScopes(new PrefetchedRecordsSorter(entityComparator)),
+			orderByVisitor.restrictToOrderedScopes(thisSorter)
 		);
 	}
 
@@ -236,6 +246,10 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		 */
 		private static final BigDecimal NEGATIVE_DISCOUNT = BigDecimal.valueOf(-1);
 		/**
+		 * The price mode of the query, which decides the price for sale the discount is computed from.
+		 */
+		private final QueryPriceMode queryPriceMode;
+		/**
 		 * The function to extract the price from the price contract (sometimes the price with tax is used, sometimes
 		 * the price without tax is used).
 		 */
@@ -248,6 +262,11 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		 * The array of price lists to be used for calculating the discounted price.
 		 */
 		private final String[] discountPriceLists;
+		/**
+		 * `true` when the comparator orders a segment, which classifies every entity up front so that an entity without
+		 * a discount is left out of the segment even when it is the only one there - it is never compared then.
+		 */
+		private final boolean withinSegment;
 		/**
 		 * Memoized discounts for the entities so that for each entity the discount is calculated only once.
 		 * NULL values are represented by {@link #NEGATIVE_DISCOUNT}.
@@ -262,6 +281,23 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		@Override
 		public Iterable<EntityContract> getNonSortedEntities() {
 			return this.nonSortedEntities == null ? List.of() : this.nonSortedEntities;
+		}
+
+		/**
+		 * Within a segment, classifies the entity as sortable when it has a price for sale and a discount against it,
+		 * memoizing the discount for the comparisons that follow; outside a segment every entity is sortable and the
+		 * ones without a discount are reported while comparing.
+		 *
+		 * @param entity the entity to classify
+		 * @return `true` when the entity is to be sorted by this comparator
+		 */
+		@SuppressWarnings("NumberEquality")
+		@Override
+		public boolean canSort(@Nonnull EntityContract entity) {
+			if (!this.withinSegment) {
+				return true;
+			}
+			return entity.getPriceForSaleIfAvailable().isPresent() && getPriceDiscount(entity) != NEGATIVE_DISCOUNT;
 		}
 
 		@SuppressWarnings({"NumberEquality", "ObjectInstantiationInEqualsHashCode"})
@@ -313,13 +349,20 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			final Optional<PriceForSaleWithAccompanyingPrices> calculatedPrices;
 			if (entity instanceof ServerEntityDecorator sed && sed.getPriceForSaleContext().isPresent()) {
 				final PriceForSaleContext priceForSaleContext = sed.getPriceForSaleContext().get();
-				calculatedPrices = sed.getDelegate().getPriceForSaleWithAccompanyingPrices(
+				// the body of the entity holds also the prices of the discount price lists the decorator may hide, but
+				// it knows no query and so no price mode - the computation is handed the one of the query
+				final Entity delegate = sed.getDelegate();
+				calculatedPrices = PricesContract.computePriceForSale(
+					delegate.getPrices(),
+					delegate.getPriceInnerRecordHandling(),
 					priceForSaleContext.currency().orElseThrow(ContextMissingException::new),
 					priceForSaleContext.atTheMoment().orElse(null),
 					priceForSaleContext.priceListPriority().orElseThrow(ContextMissingException::new),
+					Objects::nonNull,
 					new AccompanyingPrice[]{
 						new AccompanyingPrice(DISCOUNTED_PRICE, this.discountPriceLists)
-					}
+					},
+					this.queryPriceMode
 				);
 			} else {
 				calculatedPrices = entity.getPriceForSaleWithAccompanyingPrices(
@@ -520,8 +563,10 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		 * price refers to only one inner product or is a virtual sum of multiple products.
 		 *
 		 * This predicate uses optimized way for searching the selling price records. It builds on the fact that the
-		 * selling price records are sorted by entity primary key and inner record id and that examined records will
-		 * be in the same order.
+		 * selling price records are sorted by entity primary key and that the examined records come in ascending order
+		 * of their entity primary key too. The records of a single entity may come in any order - all of them are
+		 * compared with the very same selling price record, so the iteration order of the per-entity hash map
+		 * {@link SumPriceTerminationFormula} examines them in does not matter.
 		 */
 		private static class InnerRecordInSellingPricesMatchingPredicate implements SumPredicate<PriceRecordContract> {
 			/**
@@ -553,8 +598,9 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 
 			@Override
 			public boolean test(PriceRecordContract examinedRecord) {
-				// if we can progress in the selling price records, we do so
-				if (this.lastIndex + 1 < this.sellingPriceRecordsLength) {
+				// the last selling price record must be reachable too - it is compared with every record of its entity,
+				// not only with the first one examined
+				if (this.lastIndex < this.sellingPriceRecordsLength) {
 					// use the last index to locate the selling price record for comparison
 					PriceRecordContract priceRecord = this.sellingPriceRecords[this.lastIndex];
 					// progress until we find the record with matching entity primary key or reach the end
@@ -563,15 +609,6 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 					}
 					// if we found the record with matching entity primary key, we can now compare the inner record ids
 					if (priceRecord.entityPrimaryKey() == examinedRecord.entityPrimaryKey()) {
-						// progress until we find the record with matching inner record id or reach the end
-						while (
-							priceRecord.innerRecordId() < examinedRecord.innerRecordId() &&
-								this.lastIndex + 1 < this.sellingPriceRecordsLength &&
-								this.sellingPriceRecords[this.lastIndex + 1].entityPrimaryKey() < examinedRecord.entityPrimaryKey()
-						) {
-							priceRecord = this.sellingPriceRecords[++this.lastIndex];
-						}
-						// return whether the inner record ids match
 						return priceRecord.relatesTo(examinedRecord);
 					}
 				}
