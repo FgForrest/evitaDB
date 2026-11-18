@@ -55,6 +55,7 @@ import io.evitadb.api.exception.CatalogNotAliveException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.ConflictingEngineMutationException;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
@@ -201,6 +202,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -477,6 +479,26 @@ public final class Catalog
 	 * caller a completed termination to observe rather than merely a silent no-op.
 	 */
 	@Nonnull private final Object terminationLock = new Object();
+	/**
+	 * Serializes the calls of this catalog's warm-up writer with the publication {@link #terminateInternally()}
+	 * performs, so that termination never publishes a state a call can still be changing, or one whose session close -
+	 * the point at which a warm-up schema is validated - has not run yet.
+	 *
+	 * A read-write session bound to a `WARMING_UP` instance holds it for its whole outermost call, including the
+	 * forced close the session drain hands to the call's own thread when the call returns
+	 * ({@link #getWarmUpCallLock()}, taken by `EvitaSessionProxy`). The call runs on the session's thread or, for a
+	 * schema change, on the engine executor while the session's thread waits for it - holding the lock on the
+	 * session's thread covers both, and the engine executor must never take it. Termination takes it without waiting
+	 * before it decides whether to publish and keeps it until the collections are released; a call starting
+	 * meanwhile waits for the termination and then finds the instance unable to publish, because a warm-up
+	 * termination bars it from publishing before it lets the lock go.
+	 *
+	 * Termination does not wait for a running call. The engine's session drain has already waited for it before
+	 * shutdown terminates the catalog, and a call that returns hands only its forced close to its thread - the flush
+	 * that close starts runs on the transaction executor after the lock is released, so a termination taking the lock
+	 * then would flush beside it.
+	 */
+	@Nonnull private final ReentrantLock warmUpCallLock = new ReentrantLock();
 
 	/**
 	 * Verifies whether the catalog name could be used for a new catalog.
@@ -2327,6 +2349,19 @@ public final class Catalog
 	}
 
 	/**
+	 * Returns the lock a call of this catalog's read-write session holds for its whole duration while the catalog is
+	 * warming up, so that {@link #terminate()} cannot publish while the call is still running - see
+	 * {@link #warmUpCallLock}.
+	 *
+	 * @return the lock of a `WARMING_UP` instance, or `null` for an `ALIVE` one, whose sessions change nothing in
+	 *         place and therefore take no lock at all
+	 */
+	@Nullable
+	public ReentrantLock getWarmUpCallLock() {
+		return this.state == CatalogState.WARMING_UP ? this.warmUpCallLock : null;
+	}
+
+	/**
 	 * Sets the read-only state of the object.
 	 *
 	 * @param readOnly a boolean value indicating whether the object should be set to read-only (true)
@@ -4079,9 +4114,21 @@ public final class Catalog
 	 * The termination process involves flushing and updating entity collections, storing
 	 * headers if applicable, and preparing the system for garbage collection.
 	 * Logs relevant information or errors during the lifecycle of this operation.
+	 *
+	 * **A warming-up catalog is published only when no call of its writer is running.** The decision and everything
+	 * after it run under {@link #warmUpCallLock}, taken without waiting: when a call holds it, the call can still be
+	 * changing the state and its session close has not validated it, so nothing is published, the skip is logged as a
+	 * warning, and the instance is barred from publishing at once, because the call's own session close would
+	 * otherwise flush a catalog whose collections this method is releasing. The last published state stays the
+	 * catalog's state, which is the state a reload finds. A termination that holds the lock bars the instance just
+	 * before releasing it, for the call queued behind it.
 	 */
 	private void terminateInternally() {
 		final String catalogName = getName();
+		final boolean warmingUp = getCatalogState() == CatalogState.WARMING_UP;
+		// taken before anything is decided and kept until the collections are released, so that a call of the
+		// writer can neither be running when the termination decides nor start before it is done
+		final boolean callLockHeld = warmingUp && this.warmUpCallLock.tryLock();
 		try {
 			// close transaction manager
 			IOUtils.closeQuietly(this.transactionManager::close);
@@ -4091,7 +4138,21 @@ public final class Catalog
 			// Only a warming-up catalog persists anything at close, and only one that may still publish has anything
 			// to gain from doing so - for the rest the header write would be refused anyway, so skip straight to
 			// releasing the resources. This is the one barrier site that must NOT throw: shutdown has to finish.
-			final boolean flushBeforeTerminate = getCatalogState() == CatalogState.WARMING_UP && isPublishable();
+			final boolean flushBeforeTerminate = callLockHeld && isPublishable();
+			if (warmingUp && !callLockHeld && isPublishable()) {
+				log.warn(
+					"Catalog `{}` is being terminated while a call of its warm-up session is still running, so its " +
+						"in-memory state is not published: the call can still be changing it, and the session close " +
+						"that validates it has not run. The stored catalog stays at the last version it published; " +
+						"the changes made since then are lost.",
+					catalogName
+				);
+				// no deactivation is scheduled - the instance is being terminated by whoever terminates it, and the
+				// barrier only has to stop the running call's session close from flushing it once the call returns
+				this.unpublishableCause.compareAndSet(
+					null, new InstanceTerminatedException("catalog `" + catalogName + "`")
+				);
+			}
 			// tracks whether every collection got its changes onto the disk. A header names ALL of them at once, so
 			// one collection failing means the header would describe a mix of what this run wrote and what the
 			// previous one did - and a single root entity mutation can write into several collections through
@@ -4159,6 +4220,15 @@ public final class Catalog
 		} catch (RuntimeException ex) {
 			// log error
 			log.error("Failed to terminate catalog {} due to: {}", catalogName, ex.getMessage(), ex);
+		} finally {
+			if (callLockHeld) {
+				// a call queued on the lock resumes the moment it is released - before `terminate()` closes the
+				// persistence service - and finds the collections released; it must not publish what is left of them
+				this.unpublishableCause.compareAndSet(
+					null, new InstanceTerminatedException("catalog `" + catalogName + "`")
+				);
+				this.warmUpCallLock.unlock();
+			}
 		}
 	}
 
