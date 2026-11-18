@@ -33,6 +33,7 @@ import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.Scope;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -3497,6 +3498,23 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertEquals(
 			histogramStatistics(20, entityFetch(attributeContentAll()), "priceIndex"),
 			constraint10
+		);
+	}
+
+	/**
+	 * Positional parameters are consumed in the order they are visited, so the bucket count, which comes first in the
+	 * query, must take the first value even when the nested fetch has a parameter of its own.
+	 */
+	@Test
+	@DisplayName("should bind positional parameters in query order when the nested fetch has its own")
+	void shouldBindPositionalParametersInQueryOrderWhenHistogramFetchHasParameters() {
+		final RequireConstraint constraint = parseRequireConstraint(
+			"histogramStatistics(?, entityFetch(attributeContent(?)), ?)",
+			20, "code", "priceIndex"
+		);
+		assertEquals(
+			histogramStatistics(20, entityFetch(attributeContent("code")), "priceIndex"),
+			constraint
 		);
 	}
 

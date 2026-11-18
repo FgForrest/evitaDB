@@ -2079,12 +2079,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitHistogramStatistics2Constraint(HistogramStatistics2ConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> buildHistogramStatistics(
-				ctx,
-				ctx.args.requestedBucketCount,
-				visitChildConstraint(ctx.args.entityFetch, EntityFetch.class),
-				ctx.args.values
-			)
+			() -> buildHistogramStatistics(ctx, ctx.args.requestedBucketCount, ctx.args.entityFetch, ctx.args.values)
 		);
 	}
 
@@ -2093,10 +2088,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	 * optional {@link HistogramBehavior} enum as its first element (matching the in-memory constructor
 	 * shape shared with {@link AttributeHistogram}), followed by histogram index names. An empty bound list
 	 * omits the requirement. A leading null in an explicit argument sequence stands for the default behaviour.
+	 * The arguments are visited in the order they appear in the query, because each positional parameter takes the
+	 * next bound value when it is visited.
 	 *
 	 * @param ctx histogram statistics constraint
 	 * @param requestedBucketCountArg requested bucket count token
-	 * @param entityFetch optional fetch requirement
+	 * @param entityFetchArg optional fetch requirement, not yet visited
 	 * @param valuesArg optional behavior followed by histogram index names
 	 * @return the histogram statistics requirement, or null when no index names are provided
 	 */
@@ -2104,10 +2101,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	private ReferenceHistogramStatistics buildHistogramStatistics(
 		@Nonnull RequireConstraintContext ctx,
 		@Nonnull ValueTokenContext requestedBucketCountArg,
-		@Nullable EntityFetch entityFetch,
+		@Nullable RequireConstraintContext entityFetchArg,
 		@Nonnull VariadicValueTokensContext valuesArg
 	) {
 		final int requestedBucketCount = requestedBucketCountArg.accept(this.intValueTokenVisitor).asRequiredInt();
+		final EntityFetch entityFetch = entityFetchArg == null ?
+			null : visitChildConstraint(entityFetchArg, EntityFetch.class);
 
 		final LinkedList<Serializable> args = Arrays.stream(valuesArg
 				.accept(this.attributeHistogramArgValueTokenVisitor)
