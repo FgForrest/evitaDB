@@ -112,7 +112,7 @@ The first implementation kept it an error: a lone `?` there accepts a list or a 
 factories then answered "no list" and "one undefined item" differently.
 
 - **Rejected because:** once Java decides by the static shape of the argument, EvitaQL can decide the same way from
-  the bound object: an array or iterable is the list, anything else is one value. The ambiguity is gone, and Java and
+  the bound object: an array or collection is the list, anything else is one value. The ambiguity is gone, and Java and
   EvitaQL must behave alike (maintainer's decision). 2026.2 refused every null parameter, so no working query
   depended on the error.
 
@@ -217,8 +217,9 @@ out. javac picks them for a single argument whose static type is not an object a
 reaches the existing `int[]` overload of `entityPrimaryKeyInSet`). The other value lists have no such overload, so
 `f(nullVariable)` is a list of one null item there and takes the empty-list meaning; name and enum lists refuse it,
 whether through a list or through a single-name overload such as `referenceContent(String)`. EvitaQL reads a list
-position the way javac reads a single argument: a bound array or iterable is the list; one literal, or one parameter
-bound to a scalar or to `null`, is one value and reaches the same overload Java would pick.
+position the way javac reads a single argument: a bound array or collection is the list (any other iterable is
+refused, because the type check would read it before the visitor); one literal, or one parameter bound to a scalar
+or to `null`, is one value and reaches the same overload Java would pick.
 
 One undefined value per list position, measured on 2026.2.9 and on the snapshot before #2013:
 

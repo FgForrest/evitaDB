@@ -34,6 +34,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
@@ -99,6 +102,24 @@ class DefaultQueryParserTest {
 					List.of("a", "b")
 				)
 			);
+		}
+
+		/**
+		 * An iterable that can be read only once must be refused rather than reach the filter empty, where it would
+		 * silently match nothing.
+		 */
+		@Test
+		@DisplayName("should refuse a bound iterable that is not a collection")
+		void shouldRefuseBoundIterableThatIsNotCollection() {
+			final Iterator<Integer> once = new ArrayList<>(List.of(7)).iterator();
+			// serializable, so that it passes the type check and would otherwise reach the filter already read
+			final Iterable<Integer> readOnce = (Iterable<Integer> & Serializable) () -> once;
+
+			final EvitaSyntaxException exception = assertThrows(
+				EvitaSyntaxException.class,
+				() -> parser.parseQuery("query(collection(?),filterBy(entityPrimaryKeyInSet(?)))", "a", readOnce)
+			);
+			assertTrue(exception.getMessage().contains("Bind a list or an array"), exception.getMessage());
 		}
 
 		@Test

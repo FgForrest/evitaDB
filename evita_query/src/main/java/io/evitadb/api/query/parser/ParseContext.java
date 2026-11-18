@@ -33,7 +33,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -128,13 +130,8 @@ public class ParseContext {
 				"Missing argument of index " + this.lastPositionalArgumentIndex + "."
 			);
 		}
-		Assert.isTrue(
-			isArgumentDataTypeSupported(argument),
-			"Positional argument of index " + this.lastPositionalArgumentIndex + " has unsupported data type."
-		);
-
 		//noinspection unchecked
-		return (A) argument;
+		return (A) checkArgument(argument, "Positional argument of index " + this.lastPositionalArgumentIndex);
 	}
 
 	/**
@@ -150,19 +147,37 @@ public class ParseContext {
 		);
 		final Object argument = this.namedArguments.get(name);
 		Assert.isTrue(this.namedArguments.containsKey(name), "Missing argument of name `" + name + "`.");
-		Assert.isTrue(
-			isArgumentDataTypeSupported(argument),
-			"Named argument of name `" + name + "` has unsupported data type."
-		);
-
 		//noinspection unchecked
-		return (A) argument;
+		return (A) checkArgument(argument, "Named argument of name `" + name + "`");
 	}
 
 	/**
-	 * Supported argument data types are: evita data types, enums, arrays of evita data types and enums, iterables
-	 * of evita data types or enums.
-	 * Null, and null items inside arrays and iterables, are supported as undefined values; every defined item is
+	 * Checks the data type of a bound argument and returns it in the form the visitors read. A bound iterable must be
+	 * a collection: the check below reads its items before the visitor does, so an iterable that can be read only
+	 * once would reach the visitor empty, and the visitors need a serializable value. A collection that is not
+	 * serializable itself, such as the values of a map, is therefore passed on as a list.
+	 *
+	 * @param argument bound argument, null for an undefined value
+	 * @param description how an error message names the argument
+	 * @return the argument, or a list with the items of a collection that is not serializable
+	 * @throws EvitaInvalidUsageException when the argument is an iterable but not a collection, or has a data type
+	 *                                    the query language does not support
+	 */
+	@Nullable
+	private static Object checkArgument(@Nullable Object argument, @Nonnull String description) {
+		Assert.isTrue(
+			!(argument instanceof Iterable<?>) || argument instanceof Collection<?>,
+			() -> description + " is an `Iterable` that is not a `Collection`. Bind a list or an array instead."
+		);
+		Assert.isTrue(isArgumentDataTypeSupported(argument), () -> description + " has unsupported data type.");
+		return argument instanceof Collection<?> collection && !(argument instanceof Serializable) ?
+			new ArrayList<>(collection) : argument;
+	}
+
+	/**
+	 * Supported argument data types are: evita data types, enums, arrays of evita data types and enums,
+	 * collections of evita data types or enums.
+	 * Null, and null items inside arrays and collections, are supported as undefined values; every defined item is
 	 * checked.
 	 */
 	private static boolean isArgumentDataTypeSupported(@Nullable Object argument) {
@@ -187,8 +202,8 @@ public class ParseContext {
 		if (argument.getClass().isEnum()) {
 			return true;
 		}
-		if (argument instanceof final Iterable<?> iterable) {
-			for (final Object item : iterable) {
+		if (argument instanceof final Collection<?> collection) {
+			for (final Object item : collection) {
 				if (item != null && !EvitaDataTypes.isSupportedType(item.getClass()) && !item.getClass().isEnum()) {
 					return false;
 				}

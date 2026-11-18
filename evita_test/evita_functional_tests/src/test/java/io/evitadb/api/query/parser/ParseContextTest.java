@@ -28,6 +28,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
@@ -220,6 +223,43 @@ class ParseContextTest {
 			final List<String> result = context.getNextPositionalArgument();
 
 			assertEquals(List.of("a", "b"), result);
+		}
+
+		/**
+		 * The data type check reads the items before the visitor does, so an iterable that can be read only once would
+		 * reach the visitor empty and silently turn into an empty list.
+		 */
+		@Test
+		@DisplayName("should refuse an iterable that is not a collection")
+		void shouldRefuseIterableThatIsNotCollection() {
+			final Iterator<Integer> once = new ArrayList<>(List.of(7)).iterator();
+			final Iterable<Integer> readOnce = () -> once;
+
+			final EvitaInvalidUsageException positional = assertThrows(
+				EvitaInvalidUsageException.class, () -> new ParseContext((Object) readOnce).getNextPositionalArgument()
+			);
+			final EvitaInvalidUsageException named = assertThrows(
+				EvitaInvalidUsageException.class, () -> new ParseContext(Map.of("ids", readOnce)).getNamedArgument("ids")
+			);
+
+			assertTrue(positional.getMessage().contains("Bind a list or an array"), positional.getMessage());
+			assertTrue(named.getMessage().contains("Bind a list or an array"), named.getMessage());
+		}
+
+		/**
+		 * A collection view such as the values of a map is not serializable itself, but its items are what the query
+		 * needs, so it is passed on as a list.
+		 */
+		@Test
+		@DisplayName("should accept a collection that is not serializable as a list")
+		void shouldAcceptCollectionThatIsNotSerializable() {
+			final Map<String, Integer> ids = new HashMap<>(Map.of("first", 1));
+
+			final List<Integer> positional = new ParseContext((Object) ids.values()).getNextPositionalArgument();
+			final List<Integer> named = new ParseContext(Map.of("ids", ids.values())).getNamedArgument("ids");
+
+			assertEquals(List.of(1), positional);
+			assertEquals(List.of(1), named);
 		}
 	}
 }
