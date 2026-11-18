@@ -29,6 +29,8 @@ import graphql.ExecutionInput;
 import graphql.GraphQL;
 import graphql.execution.preparsed.PreparsedDocumentEntry;
 import graphql.execution.preparsed.PreparsedDocumentProvider;
+import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -126,6 +128,13 @@ public class GraphQLDocumentCache implements PreparsedDocumentProvider {
 		final String query = executionInput.getQuery();
 		final PreparsedDocumentEntry cachedEntry = this.cache.getIfPresent(query);
 		if (cachedEntry != null) {
+			// reported explicitly, so that the request metrics know about the hit even when the request fails before
+			// its operation starts executing (no `beginExecuteOperation` callback then)
+			final ExecutedEvent executedEvent = executionInput.getGraphQLContext()
+				.get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
+			if (executedEvent != null) {
+				executedEvent.markDocumentCached();
+			}
 			return CompletableFuture.completedFuture(cachedEntry);
 		}
 
