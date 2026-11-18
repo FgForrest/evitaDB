@@ -27,7 +27,10 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
-import net.openhft.hashing.LongHashFunction;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 
 import javax.annotation.Nonnull;
 import java.util.function.Supplier;
@@ -41,12 +44,13 @@ import java.util.function.Supplier;
  */
 public class DeferredFormula extends AbstractFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 8831456737770154017L;
 	/**
 	 * Supplier providing the lazily computed bitmap result of this deferred formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	protected final BitmapSupplier retrieveLambda;
 
 	public DeferredFormula(@Nonnull BitmapSupplier retrieveLambda) {
@@ -77,11 +81,6 @@ public class DeferredFormula extends AbstractFormula {
 	}
 
 	@Override
-	protected long getCostToPerformanceInternal() {
-		return this.retrieveLambda.getCost() / Math.max(1, this.retrieveLambda.get().size());
-	}
-
-	@Override
 	public long getOperationCost() {
 		return 60;
 	}
@@ -97,22 +96,6 @@ public class DeferredFormula extends AbstractFormula {
 		return this.retrieveLambda.getEstimatedCardinality();
 	}
 
-	@Nonnull
-	@Override
-	public long[] gatherBitmapIdsInternal() {
-		return this.retrieveLambda.gatherTransactionalIds();
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			new long[] {
-				CLASS_ID,
-				this.retrieveLambda.getHash()
-			}
-		);
-	}
-
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
@@ -121,5 +104,32 @@ public class DeferredFormula extends AbstractFormula {
 	@Override
 	public String toString() {
 		return "DEFERRED CALCULATION: " + this.retrieveLambda.toString();
+	}
+
+	/** Returns the key of the supplier this formula defers its bitmap to; the supplier is not computed. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.retrieveLambda.getKey());
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param retrieveLambda key of the supplier that computes the bitmap lazily
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull FormulaKey retrieveLambda) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.retrieveLambda);
+		}
 	}
 }

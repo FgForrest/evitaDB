@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.key.AbstractPriceKey;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
-import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -41,7 +40,6 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class PriceIndexKey extends AbstractPriceKey implements Comparable<PriceIndexKey> {
-	public static final int MEMORY_SIZE = MemoryMeasuringConstants.OBJECT_HEADER_SIZE + 3 * MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.INT_SIZE;
 	@Serial private static final long serialVersionUID = -8408134564383192647L;
 	@Getter private final PriceInnerRecordHandling recordHandling;
 

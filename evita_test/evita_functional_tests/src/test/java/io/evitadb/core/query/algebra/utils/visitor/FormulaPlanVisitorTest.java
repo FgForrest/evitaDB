@@ -31,6 +31,7 @@ import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.ArrayBitmap;
+import io.evitadb.index.hierarchy.HierarchyIndex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -42,6 +43,7 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -69,6 +71,21 @@ class FormulaPlanVisitorTest {
 			new ConstantFormula(new ArrayBitmap(1, 2, 3, 4, 5)),
 			new ConstantFormula(new ArrayBitmap(2, 3, 4, 6))
 		);
+	}
+
+	/**
+	 * Creates a hierarchy index holding one root with one child.
+	 *
+	 * @param root  the primary key of the root
+	 * @param child the primary key of the child
+	 * @return the hierarchy index
+	 */
+	@Nonnull
+	private static HierarchyIndex createTree(int root, int child) {
+		final HierarchyIndex tree = new HierarchyIndex();
+		tree.addNode(root, null);
+		tree.addNode(child, root);
+		return tree;
 	}
 
 	@Nested
@@ -275,6 +292,7 @@ class FormulaPlanVisitorTest {
 			assertEquals(firstOccurrence.id(), secondOccurrence.id());
 			assertTrue(secondOccurrence.children().isEmpty());
 			assertNull(secondOccurrence.description());
+			assertEquals(firstOccurrence.hash(), secondOccurrence.hash());
 		}
 
 		@Test
@@ -295,6 +313,19 @@ class FormulaPlanVisitorTest {
 			assertFalse(first.isReference());
 			assertFalse(second.isReference());
 			assertEquals(first.hash(), second.hash());
+		}
+
+		@Test
+		@DisplayName("should give structurally equal formulas over different indexes different hashes")
+		void shouldGiveStructurallyEqualFormulasOverDifferentIndexesDifferentHashes() {
+			final Formula first = createTree(1, 2).getListHierarchyNodesFromRootFormula();
+			final Formula second = createTree(11, 12).getListHierarchyNodesFromRootFormula();
+			// the same computation, each over its own index
+			assertNotEquals(first.getKey(), second.getKey());
+
+			final FormulaPlan plan = FormulaPlanVisitor.toPlan(new ScopeContainerFormula(Scope.LIVE, first, second));
+
+			assertNotEquals(plan.children().get(0).hash(), plan.children().get(1).hash());
 		}
 	}
 }

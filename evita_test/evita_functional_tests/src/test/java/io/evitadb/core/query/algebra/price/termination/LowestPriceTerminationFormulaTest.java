@@ -23,9 +23,12 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
+import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
+import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexContainerFormula;
+import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -59,8 +62,8 @@ import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link LowestPriceTerminationFormula} verifying construction, hashing, cloning,
- * cardinality estimation, cache behavior and the selection of the lowest price among inner records.
+ * Tests for {@link LowestPriceTerminationFormula} verifying construction, identity, cloning,
+ * cardinality estimation and the selection of the lowest price among inner records.
  *
  * The selection is computed over real price indexes wrapped in
  * {@link io.evitadb.core.query.algebra.price.priceIndex.PriceIndexContainerFormula}, which provide the price records
@@ -77,13 +80,19 @@ class LowestPriceTerminationFormulaTest {
 	private static final Currency CZK = Currency.getInstance("CZK");
 	private static final Currency EUR = Currency.getInstance("EUR");
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticalFormulas() {
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticalFormulas() {
 			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
 			final PriceEvaluationContext context = createContext("basic", CZK);
 			final PriceRecordPredicate predicate = PricePredicate.ALL_RECORD_FILTER;
@@ -95,12 +104,13 @@ class LowestPriceTerminationFormulaTest {
 				inner, context, QueryPriceMode.WITH_TAX, predicate, false
 			);
 
-			assertEquals(f1.getHash(), f2.getHash());
+			assertEquals(f1.getKey(), f2.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different evaluation context")
-		void shouldProduceDifferentHashForDifferentEvaluationContext() {
+		@DisplayName("should produce different key for different evaluation context")
+		void shouldProduceDifferentKeyForDifferentEvaluationContext() {
 			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2));
 
 			final LowestPriceTerminationFormula f1 = new LowestPriceTerminationFormula(
@@ -112,12 +122,13 @@ class LowestPriceTerminationFormulaTest {
 				QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, false
 			);
 
-			assertNotEquals(f1.getHash(), f2.getHash());
+			assertNotEquals(f1.getKey(), f2.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different selling price predicate")
-		void shouldProduceDifferentHashForDifferentSellingPricePredicate() {
+		@DisplayName("should produce different key for different selling price predicate")
+		void shouldProduceDifferentKeyForDifferentSellingPricePredicate() {
 			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2));
 			final PriceEvaluationContext context = createContext("basic", CZK);
 
@@ -131,12 +142,13 @@ class LowestPriceTerminationFormulaTest {
 				inner, context, QueryPriceMode.WITH_TAX, rangePredicate, false
 			);
 
-			assertNotEquals(f1.getHash(), f2.getHash());
+			assertNotEquals(f1.getKey(), f2.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different inner formulas")
-		void shouldProduceDifferentHashForDifferentInnerFormulas() {
+		@DisplayName("should produce different key for different inner formulas")
+		void shouldProduceDifferentKeyForDifferentInnerFormulas() {
 			final PriceEvaluationContext context = createContext("basic", CZK);
 
 			final LowestPriceTerminationFormula f1 = new LowestPriceTerminationFormula(
@@ -148,12 +160,13 @@ class LowestPriceTerminationFormulaTest {
 				QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, false
 			);
 
-			assertNotEquals(f1.getHash(), f2.getHash());
+			assertNotEquals(f1.getKey(), f2.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different currency")
-		void shouldProduceDifferentHashForDifferentCurrency() {
+		@DisplayName("should produce different key for different currency")
+		void shouldProduceDifferentKeyForDifferentCurrency() {
 			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2));
 
 			final LowestPriceTerminationFormula f1 = new LowestPriceTerminationFormula(
@@ -165,7 +178,48 @@ class LowestPriceTerminationFormulaTest {
 				QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, false
 			);
 
-			assertNotEquals(f1.getHash(), f2.getHash());
+			assertNotEquals(f1.getKey(), f2.getKey());
+		}
+
+		/** Price mode changes selling-price selection even with an unrestricted selling-price predicate. */
+		@Test
+		@DisplayName("Distinguishes query price modes with an unrestricted selling-price predicate")
+		void shouldProduceDifferentIdentityWhenPriceModeSelectsDifferentSellingPrice() {
+			final PriceIndexKey priceIndexKey = new PriceIndexKey("basic", CZK, PriceInnerRecordHandling.LOWEST_PRICE);
+			final PriceListAndCurrencyPriceSuperIndex priceIndex =
+				new PriceListAndCurrencyPriceSuperIndex(priceIndexKey);
+			final PriceRecordContract cheaperWithoutTax = new PriceRecordInnerRecordSpecific(1, 1, 1, 1, 12100, 10000);
+			final PriceRecordContract cheaperWithTax = new PriceRecordInnerRecordSpecific(2, 2, 1, 2, 11000, 10500);
+			priceIndex.addPrice(cheaperWithoutTax, null);
+			priceIndex.addPrice(cheaperWithTax, null);
+			final PriceIndexContainerFormula container = new PriceIndexContainerFormula(
+				priceIndex, priceIndex, priceIndex.getIndexedPriceEntityIdsFormula()
+			);
+			final PriceEvaluationContext context = new PriceEvaluationContext(null, priceIndexKey);
+
+			final LowestPriceTerminationFormula withTax = new LowestPriceTerminationFormula(
+				container, context, QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER, false
+			);
+			final LowestPriceTerminationFormula withoutTax = new LowestPriceTerminationFormula(
+				container, context, QueryPriceMode.WITHOUT_TAX, PricePredicate.ALL_RECORD_FILTER, false
+			);
+			withTax.compute();
+			withoutTax.compute();
+
+			// the price records are resolved without an execution context, as `compute()` itself resolves them
+			assertArrayEquals(
+				new PriceRecordContract[]{cheaperWithTax},
+				((ResolvedFilteredPriceRecords) withTax.getFilteredPriceRecords(null)).getPriceRecords()
+			);
+			assertArrayEquals(
+				new PriceRecordContract[]{cheaperWithoutTax},
+				((ResolvedFilteredPriceRecords) withoutTax.getFilteredPriceRecords(null)).getPriceRecords()
+			);
+			assertNotEquals(
+				withTax.getKey(),
+				withoutTax.getKey()
+			);
+			assertNotEquals(withTax.getKey().getHash64(), withoutTax.getKey().getHash64());
 		}
 	}
 
@@ -173,6 +227,7 @@ class LowestPriceTerminationFormulaTest {
 	@DisplayName("Cloning")
 	class CloningTest {
 
+		/** Verifies that cloning retains the declared computation inputs. */
 		@Test
 		@DisplayName("should preserve context, price mode, and predicate when cloning")
 		void shouldPreserveAllConfigWhenCloning() {
@@ -190,7 +245,12 @@ class LowestPriceTerminationFormulaTest {
 
 			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
 			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;
-			assertSame(context, typedClone.getPriceEvaluationContext());
+			assertEquals(
+				new LowestPriceTerminationFormula(
+					newInner, context, QueryPriceMode.WITHOUT_TAX, predicate, false
+				).getKey(),
+				typedClone.getKey()
+			);
 			assertEquals(QueryPriceMode.WITHOUT_TAX, typedClone.getQueryPriceMode());
 			assertSame(predicate, typedClone.getSellingPricePredicate());
 		}
@@ -215,9 +275,10 @@ class LowestPriceTerminationFormulaTest {
 			);
 		}
 
+		/** Verifies that cloning retains the declared computation inputs. */
 		@Test
-		@DisplayName("should create clone with computation callback preserving all config")
-		void shouldCreateCloneWithComputationCallbackPreservingAllConfig() {
+		@DisplayName("should create clone with inner formulas preserving all config")
+		void shouldCreateCloneWithInnerFormulasPreservingAllConfig() {
 			final PriceEvaluationContext context = createContext("basic", CZK);
 			final PriceRecordPredicate predicate = PricePredicate.ALL_RECORD_FILTER;
 			final LowestPriceTerminationFormula original = new LowestPriceTerminationFormula(
@@ -226,38 +287,18 @@ class LowestPriceTerminationFormulaTest {
 			);
 
 			final ConstantFormula newInner = new ConstantFormula(new ArrayBitmap(5, 6));
-			final CacheableFormula clone = original.getCloneWithComputationCallback(
-				f -> { /* no-op callback */ }, newInner
-			);
+			final Formula clone = original.getCloneWithInnerFormulas(newInner);
 
 			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
 			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;
-			assertSame(context, typedClone.getPriceEvaluationContext());
+			assertEquals(
+				new LowestPriceTerminationFormula(
+					newInner, context, QueryPriceMode.WITH_TAX, predicate, false
+				).getKey(),
+				typedClone.getKey()
+			);
 			assertEquals(QueryPriceMode.WITH_TAX, typedClone.getQueryPriceMode());
 			assertSame(predicate, typedClone.getSellingPricePredicate());
-		}
-
-		@Test
-		@DisplayName("should create clone with price predicate filtered out results")
-		void shouldCreateCloneWithPricePredicateFilteredOutResults() {
-			// first compute to populate recordsFilteredOutByPredicate
-			final LowestPriceTerminationFormula formula = new LowestPriceTerminationFormula(
-				EmptyFormula.INSTANCE,
-				createContext("basic", CZK),
-				QueryPriceMode.WITH_TAX,
-				PricePredicate.ALL_RECORD_FILTER,
-				false
-			);
-
-			// trigger computation on empty input - populates filtered out records
-			formula.compute();
-
-			final Formula clone = formula.getCloneWithPricePredicateFilteredOutResults();
-
-			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
-			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;
-			// the clone should use ALL_RECORD_FILTER predicate
-			assertSame(PricePredicate.ALL_RECORD_FILTER, typedClone.getSellingPricePredicate());
 		}
 	}
 
@@ -366,8 +407,6 @@ class LowestPriceTerminationFormulaTest {
 			);
 
 			assertTrue(formula.compute().isEmpty());
-			assertNotNull(formula.getRecordsFilteredOutByPredicate());
-			assertTrue(formula.getRecordsFilteredOutByPredicate().isEmpty());
 		}
 
 		@Test
@@ -426,9 +465,10 @@ class LowestPriceTerminationFormulaTest {
 			assertTrue(withHistogram.isCollectingPerInnerRecordPrices());
 		}
 
+		/** Includes the histogram collection requirement in detached identity. */
 		@Test
-		@DisplayName("should produce different hash when per-inner-record collection differs")
-		void shouldProduceDifferentHashWhenPerInnerRecordCollectionDiffers() {
+		@DisplayName("should produce different keys when per-inner-record collection differs")
+		void shouldProduceDifferentKeyWhenPerInnerRecordCollectionDiffers() {
 			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
 			final PriceEvaluationContext context = createContext("basic", CZK);
 			final PriceRecordPredicate predicate = PricePredicate.ALL_RECORD_FILTER;
@@ -440,10 +480,8 @@ class LowestPriceTerminationFormulaTest {
 				inner, context, QueryPriceMode.WITH_TAX, predicate, true
 			);
 
-			// cache isolation acceptance criterion — the histogram-enabled formula uses a different
-			// flattened payload class on cache hit, so its hash MUST diverge to avoid feeding the wrong
-			// cached entry back to the caller (a.k.a. "cache poisoning")
-			assertNotEquals(without.getHash(), with.getHash());
+			// Formula identity distinguishes the presence of the per-inner-record histogram side-output.
+			assertNotEquals(without.getKey(), with.getKey());
 		}
 
 		@Test
@@ -467,8 +505,8 @@ class LowestPriceTerminationFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should propagate the flag through individual price predicate cloning")
-		void shouldPropagateFlagThroughIndividualPricePredicateCloning() {
+		@DisplayName("should propagate the flag through individual price predicate factory cloning")
+		void shouldPropagateFlagThroughIndividualPricePredicateFactoryCloning() {
 			final LowestPriceTerminationFormula withHistogram = new LowestPriceTerminationFormula(
 				new ConstantFormula(new ArrayBitmap(1)),
 				createContext("basic", CZK),
@@ -477,14 +515,16 @@ class LowestPriceTerminationFormulaTest {
 				true
 			);
 
-			final LowestPriceTerminationFormula clone = withHistogram.withIndividualPricePredicate(price -> true);
+			final LowestPriceTerminationFormula clone = withHistogram.withIndividualPricePredicateFactory(
+				() -> price -> true
+			);
 
 			assertTrue(clone.isCollectingPerInnerRecordPrices());
 		}
 
 		@Test
-		@DisplayName("should propagate the flag through computation callback cloning")
-		void shouldPropagateFlagThroughComputationCallbackCloning() {
+		@DisplayName("should propagate the flag through inner-formula cloning")
+		void shouldPropagateFlagThroughInnerFormulaCloning() {
 			final LowestPriceTerminationFormula withHistogram = new LowestPriceTerminationFormula(
 				new ConstantFormula(new ArrayBitmap(1)),
 				createContext("basic", CZK),
@@ -493,59 +533,11 @@ class LowestPriceTerminationFormulaTest {
 				true
 			);
 
-			final CacheableFormula clone = withHistogram.getCloneWithComputationCallback(
-				f -> { /* no-op callback */ },
-				new ConstantFormula(new ArrayBitmap(5, 6))
-			);
+			final Formula clone = withHistogram.getCloneWithInnerFormulas(new ConstantFormula(new ArrayBitmap(5, 6)));
 
 			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
 			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;
 			assertTrue(typedClone.isCollectingPerInnerRecordPrices());
-		}
-
-		@Test
-		@DisplayName("should propagate the flag through price predicate filtered out results cloning")
-		void shouldPropagateFlagThroughFilteredOutResultsCloning() {
-			final LowestPriceTerminationFormula withHistogram = new LowestPriceTerminationFormula(
-				EmptyFormula.INSTANCE,
-				createContext("basic", CZK),
-				QueryPriceMode.WITH_TAX,
-				PricePredicate.ALL_RECORD_FILTER,
-				true
-			);
-
-			// trigger computation on empty input — populates filtered out records bitmap so that
-			// getCloneWithPricePredicateFilteredOutResults() can be invoked legitimately
-			withHistogram.compute();
-
-			final Formula clone = withHistogram.getCloneWithPricePredicateFilteredOutResults();
-
-			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
-			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;
-			// this is the path most likely to drop the flag silently — every cloning factory must carry it
-			assertTrue(typedClone.isCollectingPerInnerRecordPrices());
-		}
-
-		@Test
-		@DisplayName("should propagate cleared flag through price predicate filtered out results cloning")
-		void shouldPropagateClearedFlagThroughFilteredOutResultsCloning() {
-			// regression sibling — when the flag is OFF on the source it must stay OFF on the clone too,
-			// otherwise non-histogram queries would start paying the per-inner-record cost on cache miss
-			final LowestPriceTerminationFormula withoutHistogram = new LowestPriceTerminationFormula(
-				EmptyFormula.INSTANCE,
-				createContext("basic", CZK),
-				QueryPriceMode.WITH_TAX,
-				PricePredicate.ALL_RECORD_FILTER,
-				false
-			);
-
-			withoutHistogram.compute();
-
-			final Formula clone = withoutHistogram.getCloneWithPricePredicateFilteredOutResults();
-
-			assertInstanceOf(LowestPriceTerminationFormula.class, clone);
-			final LowestPriceTerminationFormula typedClone = (LowestPriceTerminationFormula) clone;
-			assertFalse(typedClone.isCollectingPerInnerRecordPrices());
 		}
 
 		@Test
@@ -586,10 +578,7 @@ class LowestPriceTerminationFormulaTest {
 		}
 
 		/**
-		 * The empty-input branch in `LowestPriceTerminationFormula.computeInternal()` must allocate a
-		 * fresh `ResolvedFilteredPriceRecords` rather than alias the shared `ResolvedFilteredPriceRecords.EMPTY`
-		 * singleton — otherwise concurrent histogram queries against empty inputs would race when the
-		 * cache writer thread invokes `prepareForFlattening()` on the shared instance.
+		 * Empty-input computation exposes an independently owned resolved set with no histogram data points.
 		 */
 		@Test
 		@DisplayName("should return fresh empty records for empty input")
@@ -605,8 +594,7 @@ class LowestPriceTerminationFormulaTest {
 			withHistogram.compute();
 
 			final FilteredPriceRecords histogramRecords = withHistogram.getFilteredPriceRecordsForHistogram(null);
-			// per-instance allocation prevents the singleton-leak race — the histogram side-output must
-			// never alias the shared ResolvedFilteredPriceRecords.EMPTY
+			// The histogram side-output belongs to this formula instance.
 			assertNotSame(ResolvedFilteredPriceRecords.EMPTY, histogramRecords);
 			// the freshly allocated records must still be empty so downstream consumers see no data points
 			assertInstanceOf(ResolvedFilteredPriceRecords.class, histogramRecords);
@@ -913,4 +901,5 @@ class LowestPriceTerminationFormulaTest {
 			new PriceIndexKey(priceList, currency, PriceInnerRecordHandling.NONE)
 		);
 	}
+
 }

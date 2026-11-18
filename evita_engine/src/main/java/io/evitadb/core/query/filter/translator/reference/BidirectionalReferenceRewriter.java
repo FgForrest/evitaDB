@@ -38,7 +38,6 @@ import io.evitadb.api.query.order.ReferenceOrderingSpecification;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.order.TraverseByEntityProperty;
 import io.evitadb.api.query.require.ReferenceContent;
-import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -222,12 +221,7 @@ public class BidirectionalReferenceRewriter {
 			new ReferencedOwnerExistenceFormula(
 				plan.candidateOwners(),
 				perOwnerFormulas,
-				referencedEntityFormula,
-				counterpartTypeIndexId(
-					filterByVisitor.getQueryContext(), plan.targetEntityType(), plan.counterpart(),
-					plan.counterpartScopes()
-				)
-			)
+				referencedEntityFormula)
 		);
 	}
 
@@ -946,16 +940,7 @@ public class BidirectionalReferenceRewriter {
 		return new DeferredFormula(
 			new FormulaWrapper(
 				nestedFormula,
-				(executionContext, formula) -> {
-					try {
-						executionContext.pushStep(
-							QueryPhase.EXECUTION_FILTER_NESTED_QUERY, () -> nestedQueryDescription
-						);
-						return formula.compute();
-					} finally {
-						executionContext.popStep();
-					}
-				}
+				() -> nestedQueryDescription
 			)
 		);
 	}
@@ -1243,27 +1228,6 @@ public class BidirectionalReferenceRewriter {
 			plainFormulas[j] = ownerIndexes.get(j).getAllPrimaryKeysFormula();
 		}
 		return FormulaFactory.or(plainFormulas);
-	}
-
-	/**
-	 * Returns the transactional id of the counterpart type-level index the candidate owners were read from, so that
-	 * the produced formula becomes obsolete as soon as anything about those references changes.
-	 */
-	private static long counterpartTypeIndexId(
-		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull String targetEntityType,
-		@Nonnull ReferenceSchemaContract counterpart,
-		@Nonnull Set<Scope> scopes
-	) {
-		long id = 0L;
-		for (final Scope scope : scopes) {
-			id = 31L * id + queryContext.getEntityIndex(
-				targetEntityType,
-				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, counterpart.getName()),
-				ReferencedTypeEntityIndex.class
-			).map(ReferencedTypeEntityIndex::getId).orElse(0L);
-		}
-		return id;
 	}
 
 	/**

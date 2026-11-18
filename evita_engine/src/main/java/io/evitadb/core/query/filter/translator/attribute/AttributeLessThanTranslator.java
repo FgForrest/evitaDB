@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.AttributeLessThan;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.attribute.ThresholdOperator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
@@ -48,7 +49,7 @@ public class AttributeLessThanTranslator extends AbstractAttributeComparisonTran
 
 	public AttributeLessThanTranslator() {
 		super(
-			result -> result < 0,
+			ThresholdOperator.LESS_THAN,
 			FilterIndex::getRecordsLesserThanFormula,
 			"lesser than"
 		);

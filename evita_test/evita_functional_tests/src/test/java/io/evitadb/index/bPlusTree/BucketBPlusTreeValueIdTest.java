@@ -32,7 +32,6 @@ import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.utils.CollectionUtils;
-import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.LongLongHashMap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -771,22 +770,19 @@ class BucketBPlusTreeValueIdTest {
 	class CandidateResolution {
 
 		@Test
-		@DisplayName("with no predicate and no pattern the bucket comes back and its leaf reaches the sink")
+		@DisplayName("with no predicate and no pattern the bucket comes back")
 		void shouldAnswerWithoutReadingTheKeyAtAll() {
 			// A null predicate is the caller stating that every id it hands over is already known to match, so the key
-			// is never decoded. What is observable from here is the rest of the contract: the records come back and
-			// the leaf the answer depends on is reported, because the answer would go stale with that leaf.
+			// is never decoded. The records must still be returned.
 			final TransactionalBucketBPlusTree<Integer> tree = treeWithIds(LEAF_BLOCK_SIZE + 2);
 			tree.rebuildValueIdDirectory();
-			final LongArrayList reportedLeaves = new LongArrayList();
 
 			final Bitmap records = tree.recordsOfMatchingValueId(
-				tree.valueIdOf(3), null, null, reportedLeaves::add
+				tree.valueIdOf(3), null, null
 			);
 
 			assertNotNull(records, "the id names a live bucket, so it must answer");
 			assertArrayEquals(new int[]{4}, records.getArray());
-			assertEquals(1, reportedLeaves.size(), "exactly the one leaf the answer was read from must be reported");
 		}
 
 		@Test
@@ -803,26 +799,18 @@ class BucketBPlusTreeValueIdTest {
 				invocations[0]++;
 				return value.contains("item");
 			};
-			final LongArrayList reportedLeaves = new LongArrayList();
 
 			final Bitmap matched = tree.recordsOfMatchingValueId(
-				tree.valueIdOf("gamma item"), counting, "item".getBytes(StandardCharsets.UTF_8),
-				reportedLeaves::add
+				tree.valueIdOf("gamma item"), counting, "item".getBytes(StandardCharsets.UTF_8)
 			);
 			assertNotNull(matched, "the value contains the pattern, so the bucket must come back");
 			assertArrayEquals(new int[]{3}, matched.getArray());
-			assertEquals(1, reportedLeaves.size(), "a match must report the leaf it was read from");
 			assertEquals(0, invocations[0], "the stored bytes must have answered, not the predicate");
 
 			final Bitmap rejected = tree.recordsOfMatchingValueId(
-				tree.valueIdOf("beta widget"), counting, "item".getBytes(StandardCharsets.UTF_8),
-				reportedLeaves::add
+				tree.valueIdOf("beta widget"), counting, "item".getBytes(StandardCharsets.UTF_8)
 			);
 			assertNull(rejected, "the value does not contain the pattern, so nothing comes back");
-			assertEquals(
-				1, reportedLeaves.size(),
-				"a rejected candidate contributes no record set, so its leaf must NOT widen the staleness set"
-			);
 			assertEquals(0, invocations[0], "and the rejection must have come from the bytes as well");
 		}
 
@@ -839,39 +827,34 @@ class BucketBPlusTreeValueIdTest {
 				invocations[0]++;
 				return value == 3;
 			};
-			final LongArrayList reportedLeaves = new LongArrayList();
 
 			final Bitmap matched = tree.recordsOfMatchingValueId(
-				tree.valueIdOf(3), counting, "3".getBytes(StandardCharsets.UTF_8), reportedLeaves::add
+				tree.valueIdOf(3), counting, "3".getBytes(StandardCharsets.UTF_8)
 			);
 
 			assertNotNull(matched, "the predicate accepts the value, so the bucket must come back");
 			assertArrayEquals(new int[]{4}, matched.getArray());
 			assertEquals(1, invocations[0], "the predicate must have been consulted exactly once, per candidate");
-			assertEquals(1, reportedLeaves.size());
 		}
 
 		@Test
-		@DisplayName("an id naming nothing live answers nothing and reports no leaf")
+		@DisplayName("an id naming nothing live answers nothing")
 		void shouldAnswerNothingForAnIdNamingNothingLive() {
 			// The trigram postings are keyed by value id and a value can die between the posting being read and this
-			// verification running, so an id that resolves to nothing is an ordinary race rather than a divergence -
-			// and it must not widen the staleness set on the way past.
+			// verification running, so an id that resolves to nothing is an ordinary race rather than a divergence.
 			final TransactionalBucketBPlusTree<Integer> tree = treeWithIds(LEAF_BLOCK_SIZE + 2);
 			tree.rebuildValueIdDirectory();
 			final int deadId = tree.valueIdOf(3);
 			tree.removeRecord(3, 4);
-			final LongArrayList reportedLeaves = new LongArrayList();
 
 			assertNull(
-				tree.recordsOfMatchingValueId(deadId, null, null, reportedLeaves::add),
+				tree.recordsOfMatchingValueId(deadId, null, null),
 				"the slot no longer carries that id, so the stale entry must not be believed"
 			);
 			assertNull(
-				tree.recordsOfMatchingValueId(Integer.MAX_VALUE, null, null, reportedLeaves::add),
+				tree.recordsOfMatchingValueId(Integer.MAX_VALUE, null, null),
 				"an id the directory has no entry for at all resolves to nothing"
 			);
-			assertTrue(reportedLeaves.isEmpty(), "nothing matched, so no leaf may enter the staleness set");
 		}
 
 		/**

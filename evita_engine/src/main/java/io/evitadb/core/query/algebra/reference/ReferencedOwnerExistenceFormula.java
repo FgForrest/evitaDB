@@ -23,19 +23,25 @@
 
 package io.evitadb.core.query.algebra.reference;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.algebra.identity.FormulaKey;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+
+import java.util.List;
 
 /**
  * Emits the primary keys of *owner* entities whose reference rows contain at least one referenced entity that survives
@@ -51,7 +57,7 @@ import javax.annotation.Nonnull;
  * The per-owner formulas are deliberately **not** inner formulas. They are positionally paired with
  * {@link #ownerPrimaryKeys}, and {@link io.evitadb.core.query.algebra.utils.visitor.FormulaCloner} is allowed to drop
  * children its mutator rejects - a dropped child would silently relabel every owner after it. They are kept as internal
- * state instead, and the hash, transactional ids and cost estimates below account for them explicitly.
+ * state instead, and the identity and cost estimates below account for them explicitly.
  *
  * The per-owner test is a short-circuiting {@link PersistentRoaringBitmap#intersects(PersistentRoaringBitmap,
  * PersistentRoaringBitmap)} - no intersection is ever materialised, because only emptiness matters.
@@ -67,7 +73,7 @@ import javax.annotation.Nonnull;
  */
 public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 7825194638201947355L;
 	/**
@@ -77,24 +83,19 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	/**
 	 * Primary keys of the candidate owner entities, ascending, positionally paired with {@link #perOwnerFormulas}.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final int[] ownerPrimaryKeys;
 	/**
 	 * One formula per candidate owner, producing the referenced entity primary keys that owner holds and that satisfy
 	 * the reference-attribute constraints.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 	private final Formula[] perOwnerFormulas;
-	/**
-	 * Transactional id of the counterpart type-level index the candidate owners were read from. The candidate set is
-	 * baked into this formula at planning time, so the formula becomes obsolete whenever anything in that index
-	 * changes, including changes to owners absent from the candidate set when the formula was planned.
-	 */
-	private final long counterpartTypeIndexTransactionalId;
 
 	public ReferencedOwnerExistenceFormula(
 		@Nonnull int[] ownerPrimaryKeys,
 		@Nonnull Formula[] perOwnerFormulas,
-		@Nonnull Formula referencedEntityFormula,
-		long counterpartTypeIndexTransactionalId
+		@Nonnull Formula referencedEntityFormula
 	) {
 		Assert.isPremiseValid(
 			ownerPrimaryKeys.length == perOwnerFormulas.length,
@@ -102,7 +103,6 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 		);
 		this.ownerPrimaryKeys = ownerPrimaryKeys;
 		this.perOwnerFormulas = perOwnerFormulas;
-		this.counterpartTypeIndexTransactionalId = counterpartTypeIndexTransactionalId;
 		this.initFields(referencedEntityFormula);
 	}
 
@@ -113,38 +113,6 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 		for (final Formula perOwnerFormula : this.perOwnerFormulas) {
 			perOwnerFormula.initialize(executionContext);
 		}
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// the owner keys and the per-owner formulas are part of the result but invisible through the inner formulas
-		final long[] additionalHashes = new long[this.perOwnerFormulas.length + 2];
-		additionalHashes[0] = this.counterpartTypeIndexTransactionalId;
-		additionalHashes[1] = hashFunction.hashInts(this.ownerPrimaryKeys);
-		for (int i = 0; i < this.perOwnerFormulas.length; i++) {
-			additionalHashes[i + 2] = this.perOwnerFormulas[i].getHash();
-		}
-		return hashFunction.hashLongs(additionalHashes);
-	}
-
-	@Nonnull
-	@Override
-	protected long[] gatherBitmapIdsInternal() {
-		final long[] innerIds = super.gatherBitmapIdsInternal();
-		int totalLength = innerIds.length;
-		final long[][] perOwnerIds = new long[this.perOwnerFormulas.length][];
-		for (int i = 0; i < this.perOwnerFormulas.length; i++) {
-			perOwnerIds[i] = this.perOwnerFormulas[i].gatherTransactionalIds();
-			totalLength += perOwnerIds[i].length;
-		}
-		final long[] result = new long[totalLength];
-		System.arraycopy(innerIds, 0, result, 0, innerIds.length);
-		int offset = innerIds.length;
-		for (final long[] perOwnerId : perOwnerIds) {
-			System.arraycopy(perOwnerId, 0, result, offset, perOwnerId.length);
-			offset += perOwnerId.length;
-		}
-		return result;
 	}
 
 	@Override
@@ -168,6 +136,17 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 			cost += perOwnerFormula.getCost();
 		}
 		return cost;
+	}
+
+	/** Captures the detached semantic inputs without evaluating the holder. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		final FormulaKey[] ownerKeys = new FormulaKey[this.perOwnerFormulas.length];
+		for (int i = 0; i < ownerKeys.length; i++) {
+			ownerKeys[i] = this.perOwnerFormulas[i].getKey();
+		}
+		return new Identity(IdentityToken.ofContent(this.ownerPrimaryKeys), List.of(ownerKeys));
 	}
 
 	@Override
@@ -223,16 +202,14 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 			return new ReferencedOwnerExistenceFormula(
 				this.ownerPrimaryKeys,
 				this.perOwnerFormulas,
-				EmptyFormula.INSTANCE,
-				this.counterpartTypeIndexTransactionalId
+				EmptyFormula.INSTANCE
 			);
 		}
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
 		return new ReferencedOwnerExistenceFormula(
 			this.ownerPrimaryKeys,
 			this.perOwnerFormulas,
-			innerFormulas[0],
-			this.counterpartTypeIndexTransactionalId
+			innerFormulas[0]
 		);
 	}
 
@@ -251,6 +228,36 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	@Override
 	public String toString() {
 		return "OWNERS REFERENCING MATCHED ENTITIES (candidates: " + this.ownerPrimaryKeys.length + ")";
+	}
+
+	/**
+	 * Detached semantic inputs of the holder.
+	 *
+	 * @param ownerPrimaryKeys ordered candidate owner keys
+	 * @param perOwnerFormulas ordered keys paired with the owners
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		@Nonnull IdentityToken ownerPrimaryKeys,
+		@Nonnull List<FormulaKey> perOwnerFormulas
+	) implements IdentityRecord {
+		/** Captures an immutable ordered association with candidate owners. */
+		public Identity {
+			perOwnerFormulas = List.copyOf(perOwnerFormulas);
+		}
+
+		/** Returns the holder's class identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every semantic input in the structural hash and retained weight. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.ownerPrimaryKeys);
+			accumulator.addKeys(this.perOwnerFormulas);
+		}
 	}
 
 }

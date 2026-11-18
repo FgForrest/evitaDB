@@ -1,7 +1,7 @@
 ---
 title: Mark members that are public only for cross-module reach with @Internal, and enforce it from bytecode
 date: 2026-09-23
-updated: 2026-10-20 09:00
+updated: 2026-11-14 00:50
 status: accepted
 kind: infrastructure
 issues: [1640]
@@ -15,7 +15,7 @@ areas:
   - evita_test/evita_functional_tests
 supersedes: []
 superseded-by: []
-relates: [2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
+relates: [2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-11-14-formula-cache-redesign]
 ---
 
 # `@Internal` marks what JPMS cannot: a member that is public only so a sibling module can reach it

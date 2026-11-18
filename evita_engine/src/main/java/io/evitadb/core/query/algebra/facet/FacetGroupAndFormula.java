@@ -28,17 +28,18 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import io.evitadb.core.query.algebra.identity.TokenList;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 
 /**
  * This formula has almost identical implementation as {@link AndFormula} but it accepts only set of
@@ -50,7 +51,7 @@ import java.util.Arrays;
  */
 public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 7601098585679511784L;
 	/**
@@ -152,39 +153,6 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	}
 
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		// count transactional bitmaps for pre-sizing
-		int transactionalCount = 0;
-		for (Bitmap bitmap : this.bitmaps) {
-			if (bitmap instanceof TransactionalBitmap) {
-				transactionalCount++;
-			}
-		}
-		// 1 (referenceName hash) + groupId (0 or 1) + facetIds count + transactional bitmap count
-		final int groupIdSize = this.facetGroupId == null ? 0 : 1;
-		final long[] hashes = new long[1 + groupIdSize + this.facetIds.size() + transactionalCount];
-		int idx = 0;
-		hashes[idx++] = hashFunction.hashChars(this.referenceName);
-		if (this.facetGroupId != null) {
-			hashes[idx++] = this.facetGroupId;
-		}
-		for (int facetId : this.facetIds) {
-			hashes[idx++] = facetId;
-		}
-		// collect transactional bitmap ids into a temporary array for sorting
-		final long[] txIds = new long[transactionalCount];
-		int txIdx = 0;
-		for (Bitmap bitmap : this.bitmaps) {
-			if (bitmap instanceof TransactionalBitmap) {
-				txIds[txIdx++] = ((TransactionalBitmap) bitmap).getId();
-			}
-		}
-		Arrays.sort(txIds);
-		System.arraycopy(txIds, 0, hashes, idx, txIds.length);
-		return hashFunction.hashLongs(hashes);
-	}
-
-	@Override
 	protected long getClassId() {
 		return CLASS_ID;
 	}
@@ -196,5 +164,48 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 			sum += bitmap.size();
 		}
 		return sum * getOperationCost();
+	}
+
+	/** Captures this formula's own computation inputs. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.referenceName,
+			this.facetGroupId == null ? NO_FACET_GROUP : this.facetGroupId.longValue(),
+			this.facetIds.size() > IdentityToken.CONTENT_LIMIT ? IdentityToken.OPAQUE :
+				IdentityToken.ofContent(this.facetIds.getArray()),
+			TokenList.ordered(this.bitmaps));
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param referenceName target reference
+	 * @param facetGroupId group identifier, or {@link FacetGroupFormula#NO_FACET_GROUP} for facets without a group
+	 * @param facetIds ascending facet identifiers, copied up to {@link IdentityToken#CONTENT_LIMIT} of them and an
+	 *                 opaque, query-local token above that limit
+	 * @param bitmaps operands paired with the facet identifiers
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(
+		@Nonnull String referenceName,
+		long facetGroupId,
+		@Nonnull IdentityToken facetIds,
+		@Nonnull TokenList bitmaps
+	) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.referenceName);
+			accumulator.add(this.facetGroupId);
+			accumulator.add(this.facetIds);
+			accumulator.add(this.bitmaps);
+		}
 	}
 }

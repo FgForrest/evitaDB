@@ -66,23 +66,6 @@ import static java.util.Optional.of;
  * Second contains direct array of prices and lacks access to the indexes - only prices in array are examined when
  * getting price for particular entity id.
  *
- * ## Hazard: this interface's static initialiser must never construct an implementation
- *
- * A field initialiser here runs inside this interface's static initialiser (`clinit`). Because it declares
- * a default method ({@link #prepareForFlattening()}), initialising **any** implementation also initialises
- * this interface first (JLS 12.4.1). An initialiser that constructs an implementation therefore closes
- * a two-edge class-initialisation cycle: interface → implementation and implementation → interface.
- * Single-threaded that is benign — a thread may re-enter a class it is already initialising — but two
- * threads entering from opposite ends while both classes are still uninitialised deadlock permanently on
- * the JVM's class-initialisation monitors. Neither `jstack` nor `jcmd` reports it (they detect monitor and
- * `AbstractQueuedSynchronizer` cycles only) and both threads show as `RUNNABLE`, so it presents as a silent
- * hang at zero CPU.
- *
- * The shared empty instance consequently lives on {@link ResolvedFilteredPriceRecords#EMPTY} and nothing
- * in this file may construct an implementation. Moving the construction into a nested holder class does
- * **not** help — the holder's own initialiser still runs from this interface's, so the cycle survives with
- * one extra hop.
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface FilteredPriceRecords extends Serializable {
@@ -501,16 +484,6 @@ public interface FilteredPriceRecords extends Serializable {
 	 */
 	@Nonnull
 	PriceRecordLookup getPriceRecordsLookup();
-
-	/**
-	 * Method is called when this instance is about to get into the cache.
-	 *
-	 * Keeping this method `default` is what makes this interface a *superinterface that declares a default
-	 * method*, which is the precondition of the class-initialisation hazard described on this interface's class
-	 * documentation. Do not add a field initialiser to this interface that constructs an implementation, directly
-	 * or through a holder class; the shared empty instance belongs on {@link ResolvedFilteredPriceRecords#EMPTY}.
-	 */
-	default void prepareForFlattening() {}
 
 	/**
 	 * Enumeration that describes ordering of the internal price record array.

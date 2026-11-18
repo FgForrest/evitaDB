@@ -65,6 +65,9 @@ The test suite is split across four sibling modules under `evita_test/`:
 
 ## Running tests
 
+- **Parallel runs on one machine** — pass different `-Devita.test.portBase=7000` values to Maven for each run.
+  The port manager reads the base once at construction; the default is `5560`, and valid bases are `1024..65000`.
+  Space bases far enough apart for all ports allocated by each run.
 - **Default fast loop** — the `unitAndFunctional` profile runs the functional tests; the long-running and documentation modules are skipped via their own surefire config:
   ```bash
   mvn -pl evita_test/evita_functional_tests test -P unitAndFunctional

@@ -65,6 +65,8 @@ import lombok.Getter;
 import lombok.Setter;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.TokenRole;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -194,10 +196,7 @@ public class HierarchyIndex
 	 *
 	 * Memoizing the bitmap keeps the expensive part — the `O(nodes)` walk in
 	 * {@link #createAllHierarchyNodesBitmap()} — and the {@link ConstantFormula} built around it per call is a
-	 * handful of bytes over the shared bitmap. It is cheap in CPU too, but only because the same instance is handed
-	 * out every time: the memo is a `BaseBitmap` with no transactional id, so the formula's cache key comes from
-	 * hashing its contents, and {@link io.evitadb.index.bitmap.Bitmap#getContentHash} memoizes that `O(nodes)` walk
-	 * on the bitmap. See `FilterIndex#memoizedAllRecords` for the measured figures.
+	 * handful of bytes over the shared bitmap. Its key is built lazily from the detached content identity.
 	 *
 	 * Do not turn this back into a `Formula` field.
 	 */
@@ -514,15 +513,14 @@ public class HierarchyIndex
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromRootFormula(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
-		final HierarchyNodeStore store = this.nodeStore;
-		if (store == null) {
-			// nothing to defer: an absent store provably answers empty, and owns no transactional id to key a memo
-			// on - the equivalence argument is on the nodeStore field
+		if (this.nodeStore == null) {
+			// nothing to defer: an absent store provably answers empty - the equivalence argument is on the nodeStore
+			// field
 			return EmptyFormula.INSTANCE;
 		}
 		return new DeferredFormula(
 			new HierarchyRootsDownBitmapSupplier(
-				this, new long[]{store.roots().getId(), store.levelIndex().getId()},
+				this,
 				hierarchyFilteringPredicate
 			)
 		);
@@ -597,16 +595,16 @@ public class HierarchyIndex
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromParentIncludingItselfFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		final HierarchyNodeStore store = this.nodeStore;
-		if (store == null) {
-			// nothing to defer: an absent store provably answers empty, and owns no transactional id to key a memo
-			// on - the equivalence argument is on the nodeStore field
+		if (this.nodeStore == null) {
+			// nothing to defer: an absent store provably answers empty - the equivalence argument is on the nodeStore
+			// field
 			return EmptyFormula.INSTANCE;
 		}
 		return new DeferredFormula(
 			new HierarchyByParentIncludingSelfBitmapSupplier(
-				this, new long[]{store.roots().getId(), store.levelIndex().getId()},
-				parentNode, excludedNodeTrees
+				this,
+				parentNode,
+				excludedNodeTrees
 			)
 		);
 	}
@@ -690,16 +688,16 @@ public class HierarchyIndex
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromParentFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		final HierarchyNodeStore store = this.nodeStore;
-		if (store == null) {
-			// nothing to defer: an absent store provably answers empty, and owns no transactional id to key a memo
-			// on - the equivalence argument is on the nodeStore field
+		if (this.nodeStore == null) {
+			// nothing to defer: an absent store provably answers empty - the equivalence argument is on the nodeStore
+			// field
 			return EmptyFormula.INSTANCE;
 		}
 		return new DeferredFormula(
 			new HierarchyByParentBitmapSupplier(
-				this, new long[]{store.roots().getId(), store.levelIndex().getId()},
-				parentNode, excludedNodeTrees
+				this,
+				parentNode,
+				excludedNodeTrees
 			)
 		);
 	}
@@ -768,16 +766,14 @@ public class HierarchyIndex
 	@Nonnull
 	@Override
 	public Formula getRootHierarchyNodesFormula(@Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		final HierarchyNodeStore store = this.nodeStore;
-		if (store == null) {
-			// nothing to defer: an absent store provably answers empty, and owns no transactional id to key a memo
-			// on - the equivalence argument is on the nodeStore field
+		if (this.nodeStore == null) {
+			// nothing to defer: an absent store provably answers empty - the equivalence argument is on the nodeStore
+			// field
 			return EmptyFormula.INSTANCE;
 		}
 		return new DeferredFormula(
 			new HierarchyRootsBitmapSupplier(
 				this,
-				new long[]{store.roots().getId(), store.levelIndex().getId()},
 				excludedNodeTrees
 			)
 		);
@@ -815,15 +811,14 @@ public class HierarchyIndex
 	@Nonnull
 	@Override
 	public Formula getHierarchyNodesForParentFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		final HierarchyNodeStore store = this.nodeStore;
-		if (store == null) {
-			// nothing to defer: an absent store provably answers empty, and owns no transactional id to key a memo
-			// on - the equivalence argument is on the nodeStore field
+		if (this.nodeStore == null) {
+			// nothing to defer: an absent store provably answers empty - the equivalence argument is on the nodeStore
+			// field
 			return EmptyFormula.INSTANCE;
 		}
 		return new DeferredFormula(
 			new HierarchyForParentBitmapSupplier(
-				this, new long[]{store.roots().getId(), store.levelIndex().getId()},
+				this,
 				parentNode,
 				excludedNodeTrees
 			)
@@ -1195,6 +1190,8 @@ public class HierarchyIndex
 	/**
 	 * Method returns formula that contains all nodes attached to the tree (i.e. every node except the `orphans`).
 	 *
+	 * The key is derived from the index version, so the node set is not copied into it.
+	 *
 	 * A **fresh** formula is returned on every call. What is memoized is the bitmap behind it — see
 	 * {@link #memoizedAllNodes} for why an index must never hand out the same formula instance twice.
 	 *
@@ -1203,7 +1200,8 @@ public class HierarchyIndex
 	@Nonnull
 	public Formula getAllHierarchyNodesFormula() {
 		final Bitmap allNodes = getAllHierarchyNodes();
-		return allNodes.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allNodes);
+		return allNodes.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(
+			allNodes, IdentityToken.derived(getId(), TokenRole.HIERARCHY_ALL_NODES));
 	}
 
 	/**

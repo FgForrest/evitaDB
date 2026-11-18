@@ -772,14 +772,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		return new DeferredFormula(
 			new FormulaWrapper(
 				formula,
-				(executionContext, inner) -> {
-					try {
-						executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
-						return inner.compute();
-					} finally {
-						executionContext.popStep();
-					}
-				}
+				stepDescriptionSupplier
 			)
 		);
 	}

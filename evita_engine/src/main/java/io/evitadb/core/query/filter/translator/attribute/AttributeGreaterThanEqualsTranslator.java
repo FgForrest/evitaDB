@@ -28,6 +28,7 @@ import io.evitadb.api.query.filter.AttributeGreaterThanEquals;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.attribute.ThresholdOperator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
@@ -50,7 +51,7 @@ public class AttributeGreaterThanEqualsTranslator extends AbstractAttributeCompa
 
 	public AttributeGreaterThanEqualsTranslator() {
 		super(
-			result -> result >= 0,
+			ThresholdOperator.GREATER_THAN_EQUALS,
 			FilterIndex::getRecordsGreaterThanEqFormula,
 			"greater than or equals"
 		);

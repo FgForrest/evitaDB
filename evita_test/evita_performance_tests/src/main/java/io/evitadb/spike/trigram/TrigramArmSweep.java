@@ -923,7 +923,7 @@ public final class TrigramArmSweep {
 				"The forced trigram arm declined!"
 			);
 		}
-		return sharedValueTree.toFormula(matched, TrigramSubstringSearch.versionIdsOf(trigramIndex)).compute();
+		return sharedValueTree.toFormula(matched).compute();
 	}
 
 	/**

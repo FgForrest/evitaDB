@@ -40,7 +40,7 @@ import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Tests for {@link UserFilterFormula} verifying AND-like computation, memoization, cloning,
- * hashing, interface contracts and edge case behavior.
+ * key identity, interface contracts and edge case behavior.
  *
  * @author evitaDB
  */
@@ -180,13 +180,19 @@ class UserFilterFormulaTest {
 		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticallyConstructedFormulas() {
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedFormulas() {
 			final UserFilterFormula formulaA = new UserFilterFormula(
 				new ConstantFormula(new ArrayBitmap(10, 20)),
 				new ConstantFormula(new ArrayBitmap(30, 40))
@@ -196,12 +202,13 @@ class UserFilterFormulaTest {
 				new ConstantFormula(new ArrayBitmap(30, 40))
 			);
 
-			assertEquals(formulaA.getHash(), formulaB.getHash());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce different hash for different inner formulas")
-		void shouldProduceDifferentHashForDifferentInnerFormulas() {
+		@DisplayName("should produce different key for different inner formulas")
+		void shouldProduceDifferentKeyForDifferentInnerFormulas() {
 			final UserFilterFormula formulaA = new UserFilterFormula(
 				new ConstantFormula(new ArrayBitmap(10, 20))
 			);
@@ -209,20 +216,21 @@ class UserFilterFormulaTest {
 				new ConstantFormula(new ArrayBitmap(30, 40))
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce same hash regardless of child order")
-		void shouldProduceSameHashRegardlessOfChildOrder() {
+		@DisplayName("should preserve child order in key")
+		void shouldPreserveChildOrderInKey() {
 			final ConstantFormula childA = new ConstantFormula(new ArrayBitmap(10, 20));
 			final ConstantFormula childB = new ConstantFormula(new ArrayBitmap(30, 40));
 
 			final UserFilterFormula formulaAB = new UserFilterFormula(childA, childB);
 			final UserFilterFormula formulaBA = new UserFilterFormula(childB, childA);
 
-			// AbstractFormula sorts inner formula hashes by default (isFormulaOrderSignificant returns false)
-			assertEquals(formulaAB.getHash(), formulaBA.getHash());
+			// Child positions are retained in the detached key.
+			assertNotEquals(formulaAB.getKey(), formulaBA.getKey());
 		}
 	}
 
@@ -251,5 +259,4 @@ class UserFilterFormulaTest {
 			assertEquals(0, formula.getEstimatedCardinality());
 		}
 	}
-
 }

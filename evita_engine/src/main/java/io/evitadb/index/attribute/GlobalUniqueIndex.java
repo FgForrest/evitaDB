@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeLongArray;
@@ -114,7 +113,6 @@ public class GlobalUniqueIndex implements
 	VoidTransactionMemoryProducer<GlobalUniqueIndex>,
 	IndexDataStructure
 {
-	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Constant representing the attribute has no locale assigned.
 	 */
@@ -659,9 +657,9 @@ public class GlobalUniqueIndex implements
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
 		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
-		// id, then the scope / attributeKey / type / dirty / plainType / normalizer / tree / pageStreamRegistry /
+		// the scope / attributeKey / type / dirty / plainType / normalizer / tree / pageStreamRegistry /
 		// localeToIdIndex / idToLocaleIndex / localePkSequence slots, then the indexedDecimalPlaces int
-		return layout.sizeOfObject(Long.BYTES + 11L * layout.referenceSize() + Integer.BYTES)
+		return layout.sizeOfObject(11L * layout.referenceSize() + Integer.BYTES)
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.tree.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
 			// Locale is interned by the JVM's LocaleObjectCache - only its slot is here, on either side

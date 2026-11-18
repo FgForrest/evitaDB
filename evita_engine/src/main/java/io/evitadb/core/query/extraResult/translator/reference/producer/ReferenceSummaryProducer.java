@@ -254,7 +254,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 					entityType, filterBy(entityLocaleEquals(ownLocale)), null, enrichedEntityFetch
 				);
 				return parentContext.getEntityCollectionOrThrowException(entityType, "fetch summary bodies")
-					.fetchEntities(facetIds, bodyRequest, parentContext.getEvitaSession())
+					.fetchEntities(facetIds, bodyRequest, parentContext)
 					.toArray(EntityClassifier[]::new);
 			};
 		}

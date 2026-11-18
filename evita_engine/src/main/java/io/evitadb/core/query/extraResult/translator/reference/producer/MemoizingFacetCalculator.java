@@ -92,7 +92,7 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	) {
 		// first optimize formula to a form that utilizes memoization the most while adding new facet filters
 		final Formula optimizedFormula = FilterFormulaFacetOptimizeVisitor.optimize(baseFormula);
-		// now replace common parts of the formula with cached counterparts
+		// bind eligible instances of the optimized base graph for result reuse
 		this.executionContext = queryContext;
 		this.baseFormula = queryContext.analyse(optimizedFormula);
 		this.ownerLocaleGuarded = FacetLocaleFormula.containsOwnerGuard(this.baseFormula);

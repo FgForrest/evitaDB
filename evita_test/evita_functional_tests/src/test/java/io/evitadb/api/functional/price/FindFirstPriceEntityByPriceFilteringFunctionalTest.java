@@ -428,16 +428,8 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 
 		// case 1: query without priceBetween — verify the basic per-inner-record expansion.
 		//
-		// `VERIFY_ALTERNATIVE_INDEX_RESULTS` and `VERIFY_POSSIBLE_CACHING_TREES` are enabled here on
-		// purpose. They used to be omitted because the alternative plans disagreed on
-		// `Histogram[overall=N]`: the accessor list of a rebuilt plan could differ enough to flip the
-		// old all-or-nothing capability gate, so one plan produced per-inner-record counts and another
-		// per-entity ones, and the verifier surfaced that as `InconsistentResultsException`. Deciding
-		// the granularity per accessor and topping up the uncovered entities from the per-entity
-		// collector (#1433) removed that degree of freedom — every plan now describes the same entity
-		// set at the same granularity. `VERIFY_POSSIBLE_CACHING_TREES` additionally substitutes the
-		// flagged LP with its cached `FlattenedFormulaWithFilteredPricesForHistogram` payload, which is
-		// what gives the cached form of the per-inner-record path its coverage.
+		// Verify histogram parity across alternative indexes with bitmap-favouring planning. Granularity is
+		// determined per accessor, with uncovered entities supplied by the per-entity collector.
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {

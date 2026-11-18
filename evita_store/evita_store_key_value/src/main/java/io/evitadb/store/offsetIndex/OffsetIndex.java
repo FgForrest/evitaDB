@@ -817,7 +817,11 @@ public class OffsetIndex {
 	 * @param <T>            the record type
 	 * @return the raw payload bytes for `primaryKey` at `catalogVersion`, or {@code null} if none exists
 	 * @throws RecordNotYetWrittenException if the record was written but not yet flushed and cannot be read back
+	 * @deprecated the engine decodes its records through {@link #get(long, long, Class)}; the method is kept only for
+	 * the tests of the 2026.3 storage migration, which prove that a record the migration must not touch keeps its stored
+	 * bytes, and is removed together with that migration
 	 */
+	@Deprecated(since = "2026.3", forRemoval = true)
 	@Nullable
 	public <T extends StoragePart> byte[] getBinary(
 		long catalogVersion, long primaryKey, @Nonnull Class<T> recordType) throws RecordNotYetWrittenException {

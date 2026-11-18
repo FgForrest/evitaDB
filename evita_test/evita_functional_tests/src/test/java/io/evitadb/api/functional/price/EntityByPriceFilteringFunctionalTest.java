@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -106,6 +107,7 @@ import static io.evitadb.test.TestTags.PRICE;
 @Tag(FILTER)
 public class EntityByPriceFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS_WITH_PRICES = "HundredProductsWithPrices";
+	private static final String SCOPED_PRODUCTS_WITH_PRICES = "ScopedProductsWithPrices";
 
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator.Builder()
@@ -652,6 +654,54 @@ public class EntityByPriceFilteringFunctionalTest {
 			return storedProducts.stream()
 				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), priceContentRespectingFilter()).orElseThrow())
 				.collect(Collectors.toList());
+		});
+	}
+
+	/** Creates matching and nonmatching price lists in both indexed scopes. */
+	@DataSet(value = SCOPED_PRODUCTS_WITH_PRICES, destroyAfterClass = true)
+	void setUpScopedPrices(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(Entities.PRODUCT)
+				.withoutGeneratedPrimaryKey()
+				.withPriceInCurrencyIndexedInScope(2, new Currency[]{CURRENCY_CZK}, Scope.LIVE, Scope.ARCHIVED)
+				.updateVia(session);
+			for (int primaryKey = 1; primaryKey <= 4; primaryKey++) {
+				final String priceList = primaryKey == 1 || primaryKey == 4 ? PRICE_LIST_BASIC : PRICE_LIST_VIP;
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, primaryKey)
+						.setPrice(1, priceList, CURRENCY_CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+				);
+			}
+		});
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.archiveEntity(Entities.PRODUCT, 2);
+			session.archiveEntity(Entities.PRODUCT, 4);
+		});
+	}
+
+	/** Reference-only queries resolve scoped pricing through indexes without a request-wide selling-price context. */
+	@Test
+	@DisplayName("Should return references with different price lists in each scope through indexes")
+	@UseDataSet(SCOPED_PRODUCTS_WITH_PRICES)
+	void shouldReturnReferencesForDifferentScopedPriceListsUsingIndexes(@Nonnull Evita evita) {
+		evita.queryCatalog(TEST_CATALOG, session -> {
+			final EvitaResponse<EntityReference> result = session.query(
+				query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						scope(Scope.LIVE, Scope.ARCHIVED),
+						inScope(Scope.LIVE, priceInPriceLists(PRICE_LIST_BASIC)),
+						inScope(Scope.ARCHIVED, priceInPriceLists(PRICE_LIST_VIP))
+					),
+					require(debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS))
+				),
+				EntityReference.class
+			);
+
+			assertArrayEquals(
+				new int[]{1, 2},
+				result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).toArray()
+			);
 		});
 	}
 

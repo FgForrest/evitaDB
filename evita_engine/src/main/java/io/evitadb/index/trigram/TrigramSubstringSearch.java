@@ -27,7 +27,6 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.index.bPlusTree.Wtf8;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex.MatchedBuckets;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -50,8 +49,8 @@ import java.util.function.LongUnaryOperator;
  * 4. price the cheapest posting, decide           8. hand the matched buckets back
  * ```
  *
- * Steps 6-8 belong to the shared value tree ({@link InvertedIndex#getRecordsOfValueIdsMatching}), because the buckets
- * and the leaf-version tokens beside them are the tree's to hand out.
+ * Steps 6-8 belong to the shared value tree ({@link InvertedIndex#getRecordsOfValueIdsMatching}), because it owns
+ * the buckets and resolves the matching record sets.
  *
  * It stops at the buckets rather than at a `Formula`: how they are folded into one - eagerly, or deferred behind a
  * `BitmapSupplier` - is the caller's decision, and nothing on this path depends on which is chosen.
@@ -199,7 +198,7 @@ public final class TrigramSubstringSearch {
 	 * "this path declines, use the scan", by being an answer rather than a refusal.
 	 */
 	private static final MatchedBuckets NO_MATCH = new MatchedBuckets(
-		MatchedBuckets.NO_RECORD_SETS, ArrayUtils.EMPTY_LONG_ARRAY
+		MatchedBuckets.NO_RECORD_SETS
 	);
 
 	private TrigramSubstringSearch() {
@@ -467,20 +466,6 @@ public final class TrigramSubstringSearch {
 		return shape == StringSearchShape.CONTAINMENT
 			&& normalizedPattern.codePointCount(0, normalizedPattern.length())
 			== TrigramCodec.MINIMAL_INDEXABLE_LENGTH;
-	}
-
-	/**
-	 * The staleness tokens an answer produced by {@link #match} depends on BEYOND the leaf pages it read - the trigram
-	 * index's own identity, which decides WHICH buckets were verified in the first place and which no leaf token can
-	 * express. A mutated index is a fresh instance with a fresh id, so a cached answer cannot survive a write that
-	 * changed the postings it was narrowed by.
-	 *
-	 * @param trigramIndex the accelerator the answer was narrowed by
-	 * @return the extra staleness tokens, for a caller assembling a cacheable result
-	 */
-	@Nonnull
-	public static long[] versionIdsOf(@Nonnull TrigramIndex trigramIndex) {
-		return new long[]{trigramIndex.getId()};
 	}
 
 	/**

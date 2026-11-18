@@ -52,8 +52,10 @@ import java.io.Serializable;
  * - the enabled external APIs together with their base URLs and endpoints, and the read-only flag -
  *   see {@link SystemStatus} and the server status endpoint
  *
- * All values originate from the configuration file and are therefore constant for the entire
- * lifetime of the server process - a client may safely cache the result until it reconnects.
+ * All values except `queryCacheEnabled` originate from the configuration file and are therefore
+ * constant for the entire lifetime of the server process - a client may safely cache them until it
+ * reconnects. `queryCacheEnabled` reports the current state of the engine's query result cache,
+ * which may switch itself off while the engine runs.
  *
  * @param conflictResolution       the engine-wide default conflict resolution applied to a
  *                                 transaction commit when neither the catalog schema nor the entity
@@ -64,8 +66,10 @@ import java.io.Serializable;
  * @param changeDataCaptureEnabled true when clients may subscribe to change data capture streams
  * @param trafficRecordingEnabled  true when the server records client traffic, so recordings can be
  *                                 started, inspected and exported
- * @param queryCacheEnabled        true when the engine caches computed query results; affects
- *                                 latency characteristics only, never query results
+ * @param queryCacheEnabled        true while this engine caches computed query results; a cache hit
+ *                                 never changes a returned result. When a sampled recomputation differs
+ *                                 from a cached result, the query that detected it fails and this
+ *                                 engine's cache stays switched off for the rest of the engine's lifetime
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record EngineSettings(

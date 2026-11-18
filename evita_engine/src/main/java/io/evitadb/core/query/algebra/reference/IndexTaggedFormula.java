@@ -25,10 +25,11 @@ package io.evitadb.core.query.algebra.reference;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -48,15 +49,15 @@ import javax.annotation.Nonnull;
  * straight delegation, so a tagged formula that somehow escaped would still compute the right answer - but its
  * presence downstream would mean the rebuild missed a branch.
  *
- * The tag also participates in the formula hash, which is not optional: two per-index formulas that differ only
- * in a captured value are indistinguishable to the hash function, and the engine would silently treat them as one
+ * The tag also participates in the formula key, which is not optional: two per-index formulas that differ only
+ * in a captured value would otherwise share one key, and the engine would silently treat them as one
  * computation and drop all but the first.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class IndexTaggedFormula extends AbstractFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -1041915437753523562L;
 	/**
@@ -105,9 +106,11 @@ public class IndexTaggedFormula extends AbstractFormula {
 		return "TAGGED BY INDEX " + this.indexPrimaryKey;
 	}
 
+	/** Captures the detached semantic inputs without evaluating the holder. */
+	@Nonnull
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return this.indexPrimaryKey;
+	protected IdentityRecord identity() {
+		return new Identity(this.indexPrimaryKey);
 	}
 
 	@Override
@@ -119,6 +122,26 @@ public class IndexTaggedFormula extends AbstractFormula {
 	@Override
 	protected Bitmap computeInternal() {
 		return this.innerFormulas[0].compute();
+	}
+
+	/**
+	 * Detached semantic inputs of the holder.
+	 *
+	 * @param indexPrimaryKey primary key of the producing index
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(int indexPrimaryKey) implements IdentityRecord {
+		/** Returns the holder's class identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every semantic input in the structural hash and retained weight. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.indexPrimaryKey);
+		}
 	}
 
 }

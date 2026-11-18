@@ -26,6 +26,9 @@ package io.evitadb.core.query.algebra.locale;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.filter.translator.entity.EntityLocaleEqualsTranslator;
 import io.evitadb.index.bitmap.Bitmap;
 
@@ -40,12 +43,19 @@ import javax.annotation.Nonnull;
  */
 public class LocaleFormula extends ConstantFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 6877689619565475680L;
 
 	public LocaleFormula(@Nonnull Bitmap delegate) {
 		super(delegate);
+	}
+
+	/** Returns the identity formed by the delegate bitmap's token, which this formula derives from the bitmap. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(getDelegateIdentityToken());
 	}
 
 	@Override
@@ -62,5 +72,25 @@ public class LocaleFormula extends ConstantFormula {
 	@Override
 	public String toStringVerbose() {
 		return "LOCALE: " + super.toStringVerbose();
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param delegateIdentity detached bitmap operand
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull IdentityToken delegateIdentity) implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every operand in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.delegateIdentity);
+		}
 	}
 }

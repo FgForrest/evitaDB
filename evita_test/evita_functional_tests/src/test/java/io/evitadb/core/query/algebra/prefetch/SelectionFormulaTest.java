@@ -29,19 +29,29 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
+import io.evitadb.core.query.filter.translator.entity.alternative.LocaleEntityToBitmapFilter;
+import io.evitadb.core.query.filter.translator.entity.alternative.ScopeEntityToBitmapFilter;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.bitmap.ArrayBitmap;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import org.junit.jupiter.api.Tag;
 
+import java.util.Locale;
+
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -51,8 +61,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link SelectionFormula} verifying computation delegation, memoization,
@@ -187,45 +195,43 @@ class SelectionFormulaTest {
 		}
 	}
 
+	/**
+	 * Equal detached keys for equal semantic inputs.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism")
-	class HashDeterminismTest {
+	@DisplayName("Key determinism")
+	class KeyDeterminismTest {
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should produce identical hash for identically constructed instances")
-		void shouldProduceIdenticalHashForIdenticallyConstructedInstances() {
+		@DisplayName("should produce identical key for identically constructed instances")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedInstances() {
 			final ConstantFormula delegate = new ConstantFormula(
 				new ArrayBitmap(new CompositeIntArray(1, 2, 3))
 			);
 			final SelectionFormula first = createFormula(delegate);
 			final SelectionFormula second = createFormula(delegate);
 
-			assertEquals(first.getHash(), second.getHash());
-		}
-
-		@Test
-		@DisplayName("should produce identical transactional id hash for same delegate")
-		void shouldProduceIdenticalTransactionalIdHashForSameDelegate() {
-			final ConstantFormula delegate = new ConstantFormula(
-				new ArrayBitmap(new CompositeIntArray(5, 10, 15))
-			);
-			final SelectionFormula first = createFormula(delegate);
-			final SelectionFormula second = createFormula(delegate);
-
-			assertEquals(
-				first.getTransactionalIdHash(),
-				second.getTransactionalIdHash()
-			);
+			assertEquals(first.getKey(), second.getKey());
+			assertEquals(first.getKey().getHash64(), second.getKey().getHash64());
 		}
 	}
 
+	/**
+	 * Sensitivity to every semantic input outside the formula children.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash sensitivity")
-	class HashSensitivityTest {
+	@DisplayName("Key sensitivity")
+	class KeySensitivityTest {
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should produce different hash for different delegates")
-		void shouldProduceDifferentHashForDifferentDelegates() {
+		@DisplayName("should produce different key for different delegates")
+		void shouldProduceDifferentKeyForDifferentDelegates() {
 			final SelectionFormula first = createFormula(
 				new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1, 2, 3)))
 			);
@@ -233,18 +239,68 @@ class SelectionFormulaTest {
 				new ConstantFormula(new ArrayBitmap(new CompositeIntArray(4, 5, 6)))
 			);
 
-			assertNotEquals(first.getHash(), second.getHash());
+			assertNotEquals(first.getKey(), second.getKey());
 		}
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should produce different hash between SelectionFormula and EmptyFormula delegate")
-		void shouldProduceDifferentHashBetweenDifferentDelegateTypes() {
+		@DisplayName("should produce different key between SelectionFormula and EmptyFormula delegate")
+		void shouldProduceDifferentKeyBetweenDifferentDelegateTypes() {
 			final SelectionFormula withConstant = createFormula(
 				new ConstantFormula(new ArrayBitmap(new CompositeIntArray(1)))
 			);
 			final SelectionFormula withEmpty = createFormula(EmptyFormula.INSTANCE);
 
-			assertNotEquals(withConstant.getHash(), withEmpty.getHash());
+			assertNotEquals(withConstant.getKey(), withEmpty.getKey());
+		}
+	}
+
+	/**
+	 * Identity of the alternative is independent of the delegate.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Alternative identity")
+	class AlternativeIdentityTest {
+		/** Distinguishes locales over an identical delegate. */
+		@Test
+		@DisplayName("Different locale alternatives produce different keys")
+		void shouldDistinguishLocaleAlternatives() {
+			final Formula delegate = new ConstantFormula(new BaseBitmap(1));
+			final SelectionFormula first = new SelectionFormula(delegate,
+				new LocaleEntityToBitmapFilter(Locale.ENGLISH));
+			final SelectionFormula second = new SelectionFormula(delegate,
+				new LocaleEntityToBitmapFilter(Locale.FRENCH));
+			assertNotEquals(first.getKey(), second.getKey());
+			assertNotEquals(first.getKey().getHash64(), second.getKey().getHash64());
+		}
+
+		/** Distinguishes scope while equal independently built alternatives remain equal. */
+		@Test
+		@DisplayName("Scope alternatives determine selection identity and survive cloning")
+		void shouldDistinguishScopeAlternativesAndPreserveEqualClones() {
+			final Formula delegate = new ConstantFormula(new BaseBitmap(1));
+			final SelectionFormula first = new SelectionFormula(delegate, new ScopeEntityToBitmapFilter(Scope.LIVE));
+			final SelectionFormula equal = new SelectionFormula(delegate, new ScopeEntityToBitmapFilter(Scope.LIVE));
+			final SelectionFormula other = new SelectionFormula(delegate,
+				new ScopeEntityToBitmapFilter(Scope.ARCHIVED));
+			assertEquals(first.getKey(), equal.getKey());
+			assertNotEquals(first.getKey(), other.getKey());
+			assertEquals(first.getKey(), first.getCloneWithInnerFormulas(delegate).getKey());
+		}
+
+		/** A shared opaque input still binds each selection to its own instance. */
+		@Test
+		@DisplayName("An opaque alternative makes a newly allocated selection clone unequal")
+		void shouldKeepOpaqueAlternativeSelectionsInstanceUnique() {
+			final Formula delegate = new ConstantFormula(new BaseBitmap(1));
+			final EntityToBitmapFilter alternative = new SelectionFormulaIdentityFixture.OpaqueBitmapFilter();
+			final SelectionFormula first = new SelectionFormula(delegate, alternative);
+			assertTrue(first.getKey().isOpaque());
+			assertTrue(first.getKey().isQueryLocal());
+			assertNotEquals(first.getKey(), new SelectionFormula(delegate, alternative).getKey());
+			assertNotEquals(first.getKey(), first.getCloneWithInnerFormulas(delegate).getKey());
 		}
 	}
 
@@ -374,6 +430,7 @@ class SelectionFormulaTest {
 		final QueryExecutionContext context = new QueryExecutionContext(
 			Mockito.mock(QueryPlanningContext.class),
 			false,
+			false,
 			null,
 			(aClass, sealedEntity) -> {
 				throw new UnsupportedOperationException();
@@ -387,7 +444,9 @@ class SelectionFormulaTest {
 	 * declares no entity requirements. Used for tests that exercise structural
 	 * behavior rather than actual entity filtering.
 	 */
-	private static class NoOpEntityToBitmapFilter implements EntityToBitmapFilter {
+	static class NoOpEntityToBitmapFilter implements EntityToBitmapFilter {
+		/** Unique identifier of the test alternative. */
+		private static final long CLASS_ID = 373611245603847280L;
 
 		@Nonnull
 		@Override
@@ -400,5 +459,37 @@ class SelectionFormulaTest {
 		public EntityFetchRequire getEntityRequire() {
 			return null;
 		}
+
+		/** Returns the declared identity of the constant result and requirements. */
+		@Nonnull
+		@Override
+		public IdentityRecord identity() {
+			return new Identity();
+		}
+
+		/** Returns the test alternative's class identifier. */
+		@Override
+		public long getClassId() {
+			return CLASS_ID;
+		}
+
+		/**
+		 * Identity of the constant empty alternative.
+		 *
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		public record Identity() implements IdentityRecord {
+			/** Returns the declaring alternative's identifier. */
+			@Override
+			public long classId() {
+				return CLASS_ID;
+			}
+
+			/** The result and requirement are constants without additional components. */
+			@Override
+			public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			}
+		}
 	}
+
 }

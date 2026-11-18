@@ -100,8 +100,6 @@ public interface FilteredPriceRecordAccessor {
 	 * - `LowestPriceTerminationFormula` returns `true` exactly when its `collectPerInnerRecordPrices`
 	 *   flag was set at construction (by the filter planner when histogram is requested AND the LP is
 	 *   built outside `userFilter` scope).
-	 * - `FlattenedFormulaWithFilteredPricesForHistogram` (the cached form of the above) always returns
-	 *   `true`.
 	 * - Wrapper accessors (e.g. `SelectionFormula`) propagate the capability from their inner
 	 *   accessors so the per-inner-record granularity survives prefetch wiring inserting a wrapper
 	 *   between the histogram and the histogram-aware termination formula.

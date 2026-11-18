@@ -178,6 +178,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	}
 
 	@Nullable
+	@Deprecated(since = "2026.3", forRemoval = true)
 	@Override
 	public <T extends StoragePart> byte[] getStoragePartAsBinary(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType) {
 		if (this.removedStoragePartKeys.contains(new RecordKey(this.offsetIndex.getIdForRecordType(containerType), storagePartPk))) {

@@ -24,10 +24,8 @@
 package io.evitadb.core.query.algebra.price.termination;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.price.model.PriceIndexKey;
-import net.openhft.hashing.LongHashFunction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -39,13 +37,16 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Currency;
+import java.util.List;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.PRICE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -68,15 +69,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PriceEvaluationContextTest {
 
 	/**
-	 * The hash function the cache actually keys with — {@code CacheSupervisor.createHashFunction()} — so a hash
-	 * assertion here is the one the cache would make.
-	 */
-	private static final LongHashFunction HASH_FUNCTION = CacheSupervisor.createHashFunction();
-
-	/**
-	 * The single target-index array every context in this class is built with. The record's generated {@code equals}
-	 * compares its reference components with {@code Objects.equals}, which is array identity — so the array is shared
-	 * deliberately, leaving `validIn` as the only thing that can make two contexts differ.
+	 * Shared target-index fixture for tests isolating validity discrimination.
 	 */
 	private static final PriceIndexKey[] TARGET_INDEXES = {
 		new PriceIndexKey("basic", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE)
@@ -111,10 +104,6 @@ class PriceEvaluationContextTest {
 				"the two keys must differ by exactly 500 milliseconds"
 			);
 			assertNotEquals(earlier, later, "two moments half a second apart must not share a memoized result");
-			assertNotEquals(
-				earlier.computeHash(HASH_FUNCTION), later.computeHash(HASH_FUNCTION),
-				"and the cache hash must separate them too"
-			);
 		}
 
 		@Test
@@ -129,7 +118,6 @@ class PriceEvaluationContextTest {
 
 			assertEquals(plain.validIn(), aNanosecondLater.validIn());
 			assertEquals(plain, aNanosecondLater, "two moments inside one millisecond are one cache key");
-			assertEquals(plain.computeHash(HASH_FUNCTION), aNanosecondLater.computeHash(HASH_FUNCTION));
 		}
 
 		@Test
@@ -205,4 +193,33 @@ class PriceEvaluationContextTest {
 			);
 		}
 	}
+
+	@Nested
+	@DisplayName("Target price indexes as an ordered value")
+	class TargetIndexesTest {
+
+		/** Checks list value equality and defensive copies from both constructor forms. */
+		@Test
+		@DisplayName("Compares independently constructed ordered index values and owns its list")
+		void shouldOwnOrderedIndexValues() {
+			final PriceIndexKey first = new PriceIndexKey(
+				"basic", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE
+			);
+			final PriceIndexKey second = new PriceIndexKey(
+				"sale", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE
+			);
+			final PriceIndexKey[] array = {first, second};
+			final PriceEvaluationContext context = new PriceEvaluationContext(7L, array);
+			array[0] = second;
+			final List<PriceIndexKey> list = new ArrayList<>(List.of(first, second));
+			final PriceEvaluationContext equal = new PriceEvaluationContext(7L, list);
+			list.clear();
+
+			assertEquals(context, equal);
+			assertEquals(context.hashCode(), equal.hashCode());
+			assertNotEquals(context, new PriceEvaluationContext(7L, second, first));
+			assertThrows(UnsupportedOperationException.class, () -> context.targetPriceIndexes().clear());
+		}
+	}
+
 }

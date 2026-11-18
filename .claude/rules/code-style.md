@@ -11,6 +11,9 @@ paths:
 - **Line Length**: Limit lines to 120 characters — the project hard wrap (`.editorconfig`, `max_line_length = 120`)
 - **Java modules**: Use Java modules to organize code
 - **JavaDoc**: Use Markdown syntax for formatting in JavaDoc - never use HTML tags
+- **JavaDoc tags**: every method and constructor JavaDoc (private ones included; `@Override` methods inherit theirs)
+  documents each parameter and type parameter with `@param` and a non-void result with `@return`, saying what the
+  signature does not: units, what `null` means, special return values. A one-line summary does not replace them.
 - **Data structures**: Prefer immutable classes / records for data structures
 - **Maps and sets**: create them through `io.evitadb.utils.CollectionUtils` — `createHashMap(n)`, `createLinkedHashMap(n)`, `createHashSet(n)`, `createLinkedHashSet(n)`, `createConcurrentHashMap(n)` — never `new HashMap<>(n)`. The JDK constructor takes a **bucket capacity**, not an expected element count, so `new HashMap<>(64)` rehashes once it passes 48 entries; the factories convert the count you actually know (`n / 0.75 + 1`) into the capacity the JDK wants. Two things are *not* covered and stay as they are: copy constructors (`new HashMap<>(otherMap)`), which the JDK already sizes from the source, and a genuinely unknown size, which stays `new HashMap<>()`.
 - **Annotations**: Automatically add `javax.annotation.Nullable` and `javax.annotation.Nonnull` annotations to method parameters and return types

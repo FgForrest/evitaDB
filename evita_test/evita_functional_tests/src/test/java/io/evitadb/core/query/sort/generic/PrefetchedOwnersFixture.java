@@ -520,7 +520,7 @@ public final class PrefetchedOwnersFixture {
 					new EvitaRequest(query(collection(OWNER_TYPE)), OffsetDateTime.now(), EntityReference.class, null),
 					createHashMap(4), createHashMap(4), NoCacheSupervisor.INSTANCE
 				),
-				true, null,
+				true, false, null,
 				(type, entity) -> {
 					throw new UnsupportedOperationException("No entity is converted in this test.");
 				}

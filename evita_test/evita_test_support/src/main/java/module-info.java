@@ -7,6 +7,7 @@ module evita.test.support {
 	exports io.evitadb.test.builder;
 	exports io.evitadb.test.diagnostics;
 	exports io.evitadb.test.upgrade;
+	exports io.evitadb.test.identity;
 
 	requires static lombok;
 	requires static jsr305;
@@ -19,6 +20,7 @@ module evita.test.support {
 	requires ch.qos.logback.core;
 	requires rest.assured;
 
+	requires com.thoughtworks.qdox;
 	requires evita.api;
 	requires evita.engine;
 	requires evita.common;

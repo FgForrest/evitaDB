@@ -491,10 +491,10 @@ final/sealed class. In such cases you have to implement these interfaces manuall
 
 ## Caching considerations
 
-If you're using embedded evitaDB and [don't disable the feature](../../operate/configure.md#cache-configuration),
-the evitaDB engine automatically caches intermediate calculation results and frequently used entity bodies up to the
-defined memory limit. Details about caching are [described here](../../deep-dive/cache.md). For embedded environments
-the implementation of an own cache on top of the evitaDB cache is not recommended.
+The [formula result cache](../../deep-dive/cache.md) is disabled by default. When
+[enabled](../../operate/configure.md#cache-configuration), it retains eligible intermediate computation results
+and attribute and price histograms within an estimated memory budget. It does not cache entity bodies or complete
+query responses. It therefore does not replace an application cache of fetched entities.
 
 If you are using
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>,
@@ -633,10 +633,10 @@ will be fully fetched again. However, we plan to optimize this scenario in the f
 
 ### Caching considerations
 
-If you're using embedded evitaDB and [don't disable the feature](../../operate/configure.md#cache-configuration),
-the evitaDB engine automatically caches intermediate calculation results and frequently used entity bodies up to the
-defined memory limit. Details about caching are [described here](../../deep-dive/cache.md). For embedded environments
-the implementation of an own cache on top of the evitaDB cache is not recommended.
+The [formula result cache](../../deep-dive/cache.md) is disabled by default. When
+[enabled](../../operate/configure.md#cache-configuration), it retains eligible intermediate computation results
+and attribute and price histograms within an estimated memory budget. It does not cache entity bodies or complete
+query responses. It therefore does not replace an application cache of fetched entities.
 
 If you are using <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass>, implementing the local cache may save you network costs and
 give you better latency. The problem is related to cache invalidation. You'd have to query only the entity references

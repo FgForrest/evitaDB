@@ -391,8 +391,8 @@ And you will get a list of all available event groups:
 [
   {
     "id": "io.evitadb.cache",
-    "name": "evitaDB - Cache",
-    "description": "evitaDB events relating to internal database cache."
+    "name": "evitaDB - Formula cache",
+    "description": "Formula result cache statistics and confirmed verification mismatches."
   },
   {
     "id": "io.evitadb.externalApi.graphql.instance",

@@ -24,15 +24,15 @@
 package io.evitadb.core.query.algebra.facet;
 
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
-import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.NonCacheableFormula;
-import io.evitadb.core.query.algebra.NonCacheableFormulaScope;
+import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.index.bitmap.Bitmap;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -47,15 +47,16 @@ import java.util.List;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class UserFilterFormula extends AbstractFormula implements NonCacheableFormula, NonCacheableFormulaScope, NonCollapsibleFormula {
+public class UserFilterFormula extends AbstractFormula implements NonCollapsibleFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = 6890499931556487481L;
 	/**
 	 * Lazily initialized list of inner formulas sorted by their estimated cost in ascending order, used to
 	 * short-circuit AND evaluation starting from the cheapest formula.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	@Nullable private List<Formula> sortedFormulasByComplexity;
 
 	public UserFilterFormula(@Nonnull Formula... innerFormulas) {
@@ -90,15 +91,6 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 		return computeSortedConjunctionCost(this.sortedFormulasByComplexity, getOperationCost());
 	}
 
-	@Override
-	protected long getCostToPerformanceInternal() {
-		if (this.sortedFormulasByComplexity == null) {
-			this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
-		}
-		return computeSortedConjunctionCostToPerformance(this.sortedFormulasByComplexity)
-			+ getCost() / Math.max(1, compute().size());
-	}
-
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
@@ -119,13 +111,32 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 	}
 
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
-	}
-
-	@Override
 	protected long getClassId() {
 		return CLASS_ID;
 	}
 
+	/** Captures this formula's own computation inputs. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity();
+	}
+
+	/**
+	 * Detached identity of the formula, whose inputs are its children.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity() implements IdentityRecord {
+		/** Returns the owning formula identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** The formula has no inputs outside its children. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+		}
+	}
 }

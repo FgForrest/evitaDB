@@ -52,7 +52,6 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Currency;
@@ -88,7 +87,7 @@ abstract class AbstractPriceRelatedConstraintTranslator<T extends FilterConstrai
 					priceListFormulas.add(translateFormula(initialFormula));
 				}
 			} else {
-				Serializable firstFormulaPriceList = null;
+				String firstFormulaPriceList = null;
 				Formula lastFormula = null;
 				for (String priceList : priceLists) {
 					//noinspection DataFlowIssue

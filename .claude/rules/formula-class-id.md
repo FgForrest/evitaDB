@@ -2,22 +2,23 @@
 paths:
   - "**/io/evitadb/core/query/algebra/**/*.java"
   - "**/io/evitadb/index/hierarchy/suppliers/**/*.java"
+  - "**/io/evitadb/index/hierarchy/predicate/**/*.java"
+  - "**/io/evitadb/core/query/extraResult/translator/histogram/producer/**/*.java"
+  - "**/io/evitadb/core/query/filter/translator/**/alternative/**/*.java"
 ---
 
 # Formula `CLASS_ID` constants
 
-Every concrete formula and bitmap supplier returns a `long` constant from `getClassId()`. It is
-`hashArray[0]` of the structural hash built in `AbstractFormula#initFields`, which keys the in-memory
-result cache (`CacheEden`, `CacheAnteroom`). Two classes sharing a value become indistinguishable to
-that cache whenever their remaining hash inputs agree, and the symptom is one formula answering with
-another's bitmap — a wrong result, arriving through a cache hit, that no read-time check will notice.
+Every concrete formula, bitmap supplier, hierarchy predicate, histogram computer and entity filtering alternative
+declares its own `long CLASS_ID`, returned from `getClassId()` and from its identity record's `classId()`.
+`FormulaKey` uses this value as the concrete holder discriminator alongside exact detached inputs and ordered
+child keys. Each holder declares both `identity()` and `getClassId()` itself.
 
-The contract (`AbstractFormula#getClassId`, and `documentation/developer/formula/formula_framework.md`)
-is three invariants and nothing else:
+The contract (`documentation/developer/formula/formula_framework.md`) has three invariants:
 
 - **unique** across every class that declares one,
 - **never changes** once the class exists,
-- **never inherited** — each leaf class declares its own.
+- **never inherited** — each concrete class declares its own.
 
 ## Minting a new one
 
@@ -40,11 +41,11 @@ copy, the `CLASS_ID` is the first line to replace.
 
 ## Changing an existing one
 
-Invariant #2 makes this a last resort, but the blast radius is worth knowing precisely: the structural
-hash never reaches `evita_store`, so there is nothing persisted to invalidate and no migration to write.
-The cost is confined to the running process's warm cache. That makes a change free for a class that has
-not yet been released, and a needless cache flush for one that has. Fixing a duplicate is worth it;
-tidying a value is not.
+Invariant #2 makes this a last resort. A formula key never leaves the process: it is never persisted or sent to
+another process. Its 64-bit hash is reported in the query plan telemetry, but only as a process-local diagnostic
+value that means nothing to another process or run. Changing a discriminator affects reuse within the running
+process; it needs no storage migration.
+Fixing a duplicate is worth it; tidying a value is not.
 
 ## The check
 

@@ -402,4 +402,88 @@ public class EntityByPrimaryKeyFilteringFunctionalTest {
 		);
 	}
 
+	/**
+	 * Intersects the ranges [1, 100] and [2, 69] over one superset. Both satisfy `31 * from + to == 131`, so they
+	 * stay distinct only as long as the range formula's hash does not fold its bounds linearly: the formula
+	 * deduplicator, which runs on every query, treats two formulas with the same hash and transactional id as one
+	 * and keeps the first it visits. The debug verification modes the sibling tests request are left out, so that
+	 * a wrong tree surfaces as a wrong result rather than as a verification failure.
+	 */
+	@DisplayName("Should intersect two nested primary key ranges to the narrower one")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldIntersectTwoNestedPrimaryKeyRanges(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// the wider range goes first: it is the one a merge would keep, which turns the answer into 1..100
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyBetween(1, 100),
+							entityPrimaryKeyBetween(2, 69)
+						),
+						require(
+							page(1, Integer.MAX_VALUE)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> {
+						final int pk = sealedEntity.getPrimaryKeyOrThrowException();
+						return pk >= 2 && pk <= 69;
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Subtracts the range [2, 69] from the range [1, 100] enclosing it - the same pair of ranges whose bounds fold to
+	 * one linear combination as in {@link #shouldIntersectTwoNestedPrimaryKeyRanges(Evita, List)}. Here both ranges
+	 * are operands of one subtraction, so treating them as one formula empties the result regardless of which of
+	 * them the deduplicator visits first.
+	 */
+	@DisplayName("Should subtract a negated primary key range from the range enclosing it")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldSubtractNegatedPrimaryKeyRangeFromEnclosingRange(
+		Evita evita,
+		List<SealedEntity> originalProductEntities
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// the subtraction holds both ranges as operands, so a merge empties it whichever is visited first
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyBetween(1, 100),
+							not(entityPrimaryKeyBetween(2, 69))
+						),
+						require(
+							page(1, Integer.MAX_VALUE)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> {
+						final int pk = sealedEntity.getPrimaryKeyOrThrowException();
+						return pk == 1 || pk >= 70;
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 }

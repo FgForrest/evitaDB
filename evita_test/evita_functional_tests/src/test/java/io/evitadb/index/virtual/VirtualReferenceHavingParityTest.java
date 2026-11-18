@@ -38,11 +38,9 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.core.collection.EntityCollection;
-import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.debug.CacheableVariantsGeneratingVisitor;
 import io.evitadb.core.query.algebra.reference.ReferencedOwnerExistenceFormula;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
@@ -119,26 +117,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * has a single owner in the row catalog - an equal answer of a case selecting no such partition would compare the
  * index objects with themselves.
  *
- * The two verification debug modes run on a representative subset only - the cases marked with the read routes they
- * represent (see {@link ParityCase#verifying(VerifiedRoute, VerifiedRoute...)}) and the routes of
- * {@link #ROUTES_OF_THE_TEST_METHODS}, together covering every {@link VerifiedRoute}; every other case is compared
- * plain. On the whole case list the modes cost several minutes and almost all of it is spent by a handful of negated
- * bodies over the generated catalog: the caching-tree verification re-executes the plan once per cacheable formula,
- * and such a body holds one per materialized partition. The modes run on the row catalog. What they add over the
- * plain comparison:
- *
- * - `VERIFY_POSSIBLE_CACHING_TREES` executes the plan once more for every cacheable formula of its filter tree, with
- *   that formula exchanged for a constant of its result: the formulas above it are recreated with the constant as
- *   their child and computed again, the rest of the tree keeps its results, and the answers are compared. A plain run
- *   recreates nothing - the cache of this test's engine is off. Each verified case must therefore leave the mode a
- *   cacheable formula in a plan reading registry rows, which a bare constant of the owners of the rows does not. A
- *   `facetHaving` is answered by a facet formula that is never cacheable, so no plan holding one has a variant to
- *   verify - the mode leaves the translation of partitions to targets behind it unverified.
- * - `VERIFY_ALTERNATIVE_INDEX_RESULTS` executes the plan of every eligible alternative index set, and in this class
- *   there is none: only a reference indexed for filtering gets registry rows, the reduced-index option of such a
- *   reference is never eligible for a plan of its own, and every reference the cases query is one - so each
- *   planning step, nested ones included, has the global index alone. The mode stays on the verified cases, where it
- *   costs one execution more.
+ * A representative subset runs alternative-index verification with bitmap-favouring planning, covering every
+ * {@link VerifiedRoute}. Every case compares the row catalog with its materialized twin; cases that require
+ * registry rows also assert that they select a single-owner partition.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -165,9 +146,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	 */
 	private static final int PAGED_SIZE = 97;
 	/**
-	 * The read routes a test method verifies under the debug modes rather than a case - the bidirectional rewrite,
-	 * whose plans over the generated catalog consist of the existence formula alone and hold no cacheable formula, is
-	 * verified by the owner reached through both representations, whose plan leaves a variant recreating it.
+	 * The read routes exercised under the debug modes by a test method rather than a parameterized case.
 	 */
 	private static final Set<VerifiedRoute> ROUTES_OF_THE_TEST_METHODS = Collections.unmodifiableSet(
 		EnumSet.of(VerifiedRoute.BIDIRECTIONAL_REWRITE)
@@ -185,9 +164,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	 * represented by a verified case or a test method (see `shouldVerifyEveryRouteUnderTheDebugModes`). The routes
 	 * this class leaves to others, with the reason:
 	 *
-	 * - the translation of partitions to their targets behind `facetHaving` - it is answered by a
-	 *   `FacetHavingFormula`, a `NonCacheableFormula`, so no plan holding it leaves the modes a variant, and no
-	 *   reference of the class has an alternative index set;
+	 * - the translation of partitions to targets behind `facetHaving` is covered by plain parity cases;
 	 * - the fetch routes - this filter class fetches no reference content;
 	 * - the hierarchy routes - no case filters or summarizes by a hierarchy;
 	 * - the ordering routes - the only ordering by a reference property is the paged case, which pages without them;
@@ -314,23 +291,6 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 		@Nullable FilterConstraint rowFilter,
 		@Nullable Locale locale
 	) {
-	}
-
-	/**
-	 * What the caching-tree verification has to work with in one plan - the plan the verification debug modes plan,
-	 * censused without executing a single variant.
-	 *
-	 * @param variants           the cacheable variants of the plan's filter tree, each one tree the verification
-	 *                           executes
-	 * @param carriers           the counterpart existence formulas of the bidirectional rewrite in the plan - one at
-	 *                           least when the rewrite answered the query
-	 * @param carrierFlattens    the variants exchanging a subtree that holds a counterpart existence formula of the
-	 *                           bidirectional rewrite - the existence formula answers through the constant of the
-	 *                           subtree's result
-	 * @param carrierRecreations the variants exchanging a formula inside a counterpart existence formula - the
-	 *                           existence formula is recreated over the constant and computed again
-	 */
-	private record VariantCensus(int variants, int carriers, int carrierFlattens, int carrierRecreations) {
 	}
 
 	@BeforeAll
@@ -850,7 +810,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			// both catalogs answer through the rewrite, so the rows and the objects compared are the product side's
 			for (final String catalog : new String[]{twin.rowCatalog(), twin.objectCatalog()}) {
 				assertTrue(
-					planCensus(catalog, parityCase.entityType(), scopes, parityCase.constraints()).carriers() > 0,
+					counterpartCarrierCount(catalog, parityCase.entityType(), scopes, parityCase.constraints()) > 0,
 					parityCase + " must be answered by the bidirectional rewrite in `" + catalog + "`"
 				);
 			}
@@ -893,7 +853,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			"Every singleton category must be a single-owner partition of the products"
 		);
 		assertTrue(
-			planCensus(twin.rowCatalog(), category, LIVE, referenceHaving).carriers() > 0,
+			counterpartCarrierCount(twin.rowCatalog(), category, LIVE, referenceHaving) > 0,
 			"The rewrite must answer the categories"
 		);
 	}
@@ -914,8 +874,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			"The archived partition of the shared category must be single-owner"
 		);
 		final FilterConstraint referenceHaving = referenceHaving(SingleOwnerPartitionFixture.REFERENCE_PRODUCTS);
-		long verifiedVariants = 0;
-		long carrierVariants = 0;
+		boolean selectedRows = false;
 		for (final Scope[] scopes : new Scope[][]{LIVE, BOTH}) {
 			final List<Integer> expected = twin.expectedAnswer(
 				category, queryPrimaryKeys(twin.objectCatalog(), category, scopes, false, referenceHaving)
@@ -925,25 +884,23 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 				referenceHaving + " in " + Arrays.toString(scopes)
 			);
 			assertTrue(expected.contains(SingleOwnerPartitionFixture.SHARED_CATEGORY), expected.toString());
-			final VariantCensus census = planCensus(twin.rowCatalog(), category, scopes, referenceHaving);
-			assertTrue(census.carriers() > 0, "The rewrite must answer the categories in " + Arrays.toString(scopes));
-			// the variants verify a plan reading rows only when the answer holds a category held by a single owner
+			assertTrue(
+				counterpartCarrierCount(twin.rowCatalog(), category, scopes, referenceHaving) > 0,
+				"The rewrite must answer the categories in " + Arrays.toString(scopes)
+			);
+			assertVerificationEngaged(
+				twin.rowCatalog(), category,
+				() -> queryPrimaryKeys(twin.rowCatalog(), category, scopes, false, referenceHaving),
+				() -> queryPrimaryKeys(twin.rowCatalog(), category, scopes, true, referenceHaving)
+			);
+			// The answer must include a category reached through a single-owner partition.
 			boolean readsRows = false;
 			for (final Scope scope : scopes) {
 				readsRows |= expected.stream().anyMatch(twin.singleOwnerTargets(categories, scope)::contains);
 			}
-			if (readsRows) {
-				verifiedVariants += census.variants();
-				carrierVariants += census.carrierFlattens() + census.carrierRecreations();
-			}
+			selectedRows |= readsRows;
 		}
-		assertTrue(verifiedVariants > 0, "The rewrite must leave the debug modes a cacheable variant to verify");
-		// the test verifies the rewrite for the class, so a variant must reach the existence formula it builds - the
-		// one formula of a reading of rows a planned tree tells apart
-		assertTrue(
-			carrierVariants > 0,
-			"The rewrite must leave the debug modes a variant exchanging or recreating its existence formula"
-		);
+		assertTrue(selectedRows, "The rewrite must read a single-owner partition in at least one scope set");
 	}
 
 	@ParameterizedTest(name = "{0}")
@@ -978,10 +935,10 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			pageNumber -> queryOrdered(twin.rowCatalog(), referenceHaving, ordering, pageNumber, PAGED_SIZE, false)
 		);
 		if (verified) {
-			// the ordering and the page leave the filter tree as it is, so the census of the filter alone stands for it
-			assertTrue(
-				planCensus(twin.rowCatalog(), product, BOTH, referenceHaving).variants() > 0,
-				"The pages must leave the debug modes a cacheable variant to verify"
+			assertVerificationEngaged(
+				twin.rowCatalog(), product,
+				() -> queryOrdered(twin.rowCatalog(), referenceHaving, ordering, 1, PAGE_SIZE, false),
+				() -> queryOrdered(twin.rowCatalog(), referenceHaving, ordering, 1, PAGE_SIZE, true)
 			);
 		}
 	}
@@ -1037,16 +994,14 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 
 	/**
 	 * Asserts a case answers from the rows what it answers from the index objects in each of its scope sets, and -
-	 * when it must - that it selects a single-owner partition and that some scope set matched an owner. A case verified
-	 * by the debug modes must also leave them a cacheable variant of a plan selecting a single-owner partition -
-	 * otherwise the modes verified nothing of the reading of rows the case represents.
+	 * when it must - that it selects a single-owner partition and that some scope set matched an owner. A verified case
+	 * must also have engaged the debug modes in each scope set (see {@link #assertVerificationEngaged}).
 	 *
 	 * @param parityCase the case
 	 */
 	private void assertParity(@Nonnull ParityCase parityCase) {
 		final MaterializedPartitionTwin twin = twinOf(parityCase.catalog(), parityCase.entityType());
 		final Selection selection = selectionOf(parityCase.constraints());
-		long verifiedVariants = 0;
 		boolean selectedRows = false;
 		boolean matchedAny = false;
 		for (final Scope[] scopes : parityCase.scopeSets()) {
@@ -1062,16 +1017,22 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 				parityCase + " in " + Arrays.toString(scopes) + " must answer from the rows what it answers from the " +
 					"index objects"
 			);
+			if (parityCase.isVerified()) {
+				assertVerificationEngaged(
+					twin.rowCatalog(), parityCase.entityType(),
+					() -> queryPrimaryKeys(
+						twin.rowCatalog(), parityCase.entityType(), scopes, false, parityCase.constraints()
+					),
+					() -> queryPrimaryKeys(
+						twin.rowCatalog(), parityCase.entityType(), scopes, true, parityCase.constraints()
+					)
+				);
+			}
 			matchedAny |= !expected.isEmpty();
 			final boolean selectsRow = selection != null && twin.selectsSingleOwnerRow(
 				scopes, selection.referenceName(), selection.rowFilter(), selection.locale()
 			);
 			selectedRows |= selectsRow;
-			if (parityCase.isVerified() && selectsRow) {
-				verifiedVariants += planCensus(
-					twin.rowCatalog(), parityCase.entityType(), scopes, parityCase.constraints()
-				).variants();
-			}
 		}
 		if (parityCase.selectsRows()) {
 			assertTrue(
@@ -1080,13 +1041,6 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 					"least one scope set"
 			);
 			assertTrue(matchedAny, parityCase + " must match an owner in at least one scope set");
-		}
-		if (parityCase.isVerified()) {
-			assertTrue(
-				verifiedVariants > 0,
-				parityCase + " is verified by the debug modes, so a plan of it selecting a single-owner partition " +
-					"must leave them a cacheable variant to verify"
-			);
 		}
 	}
 
@@ -1153,20 +1107,77 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Plans a query the way the verification debug modes plan it - under the planning policy they share with
-	 * `PREFER_INDEX_SCAN`, which favours bitmaps and bypasses the cache - computes its filter tree and runs the
-	 * engine's own generator of cacheable variants over it, without executing a variant. The planning context takes
-	 * the engine's own session only, which the engine hands to the logic of a read-write session; the session writes
-	 * nothing, so its transaction commits nothing and the catalog version stays.
+	 * Asserts the verification debug modes engaged on a query rather than letting it run plain. Alternative-index
+	 * verification executes the preferred plan before it builds the plan it returns, so the global indexes of the
+	 * collection count more queries than they count for the same query run without the debug modes. A verified case
+	 * whose query silently ran plain would otherwise pass as verified.
 	 *
-	 * @param catalog     the catalog
-	 * @param entityType  the collection
-	 * @param scopes      the scopes
-	 * @param constraints the filter constraints following the scope
-	 * @return the census of the plan
+	 * @param catalog       the catalog queried
+	 * @param entityType    the collection queried
+	 * @param plainQuery    runs the query without the debug modes
+	 * @param verifiedQuery runs the same query with the debug modes
 	 */
-	@Nonnull
-	private VariantCensus planCensus(
+	private void assertVerificationEngaged(
+		@Nonnull String catalog,
+		@Nonnull String entityType,
+		@Nonnull Runnable plainQuery,
+		@Nonnull Runnable verifiedQuery
+	) {
+		final long plainQueries = globalIndexQueriesDuring(catalog, entityType, plainQuery);
+		final long verifiedQueries = globalIndexQueriesDuring(catalog, entityType, verifiedQuery);
+		assertTrue(
+			verifiedQueries > plainQueries,
+			"The verified query counted " + verifiedQueries + " global index queries and the plain one " +
+				plainQueries + " - the debug modes did not engage, so the verified query ran plain"
+		);
+	}
+
+	/**
+	 * Counts the queries the global indexes of a collection, in every scope, record while an action runs.
+	 *
+	 * @param catalog    the catalog
+	 * @param entityType the collection
+	 * @param action     the action running the queries
+	 * @return the number of queries counted during the action
+	 */
+	private long globalIndexQueriesDuring(
+		@Nonnull String catalog,
+		@Nonnull String entityType,
+		@Nonnull Runnable action
+	) {
+		final long before = globalIndexQueryCount(catalog, entityType);
+		action.run();
+		return globalIndexQueryCount(catalog, entityType) - before;
+	}
+
+	/**
+	 * Sums the query counts of the global indexes of a collection in every scope.
+	 *
+	 * @param catalog    the catalog
+	 * @param entityType the collection
+	 * @return the summed query count
+	 */
+	private long globalIndexQueryCount(@Nonnull String catalog, @Nonnull String entityType) {
+		final EntityCollection entityCollection = (EntityCollection) this.evita.getCatalogInstance(catalog)
+			.orElseThrow()
+			.getCollectionForEntity(entityType)
+			.orElseThrow();
+		long queryCount = 0L;
+		for (final Scope scope : Scope.values()) {
+			final EntityIndex index = entityCollection.getIndexByKeyIfExists(
+				new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+			);
+			if (index != null) {
+				queryCount += index.getActivity().getQueryCount();
+			}
+		}
+		return queryCount;
+	}
+
+	/**
+	 * Counts counterpart existence formulas in the bitmap-favouring plan of a query.
+	 */
+	private int counterpartCarrierCount(
 		@Nonnull String catalog,
 		@Nonnull String entityType,
 		@Nonnull Scope[] scopes,
@@ -1188,31 +1199,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 					new EvitaRequest(planned.normalizeQuery(), OffsetDateTime.now(), EntityReference.class, null),
 					session
 				);
-				final Formula filter = QueryPlanner.planQuery(context).getFilter();
-				try (final QueryExecutionContext executionContext = context.createExecutionContext()) {
-					// the verification derives the variants from the computed tree of the plan it executed first
-					filter.initialize(executionContext);
-					filter.compute();
-					final CacheableVariantsGeneratingVisitor generator = new CacheableVariantsGeneratingVisitor();
-					filter.accept(generator);
-					final List<Formula> variants = generator.getFormulaVariants();
-					final Set<Formula> carriers = counterpartExistenceFormulasOf(filter);
-					int carrierFlattens = 0;
-					int carrierRecreations = 0;
-					if (!carriers.isEmpty()) {
-						for (final Formula variant : variants) {
-							// the cloner keeps every formula off the path to the exchanged one, so a variant
-							// missing an existence formula of the plan either left it out or recreated it
-							final Set<Formula> variantCarriers = counterpartExistenceFormulasOf(variant);
-							if (variantCarriers.size() < carriers.size()) {
-								carrierFlattens++;
-							} else if (!variantCarriers.containsAll(carriers)) {
-								carrierRecreations++;
-							}
-						}
-					}
-					return new VariantCensus(variants.size(), carriers.size(), carrierFlattens, carrierRecreations);
-				}
+				return counterpartExistenceFormulasOf(QueryPlanner.planQuery(context).getFilter()).size();
 			}
 		);
 	}
@@ -1267,7 +1254,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			collection(entityType),
 			filterBy(filterOf(scopes, constraints)),
 			verified ?
-				// every alternative index set and every cacheable subtree must answer the same
+				// Compare every eligible alternative index plan under bitmap-favouring planning.
 				require(
 					page(1, PAGE_SIZE),
 					debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)

@@ -29,13 +29,18 @@ import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.deferred.DeferredFormula;
+import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
-import net.openhft.hashing.LongHashFunction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -65,7 +70,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * The class keeps its candidate owner keys and its per-owner formulas **outside** {@link Formula#getInnerFormulas()},
  * which is exactly what makes it worth unit testing in isolation: everything the generic {@link AbstractFormula}
- * machinery derives from the inner formula array - the hash, the transactional ids, the cost estimates and the
+ * machinery derives from the inner formula array - the identity, the cost estimates and the
  * execution-context propagation - has to be re-implemented here, and each of those re-implementations is a place
  * where the formula can silently start serving one query's answer to another.
  *
@@ -82,11 +87,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(REFERENCE)
 class ReferencedOwnerExistenceFormulaTest {
 
-	/**
-	 * Transactional id of the counterpart type-level index used wherever the test does not vary it.
-	 */
-	private static final long COUNTERPART_TYPE_INDEX_ID = 42L;
-
 	@Nested
 	@DisplayName("Computation")
 	class ComputationTest {
@@ -97,8 +97,7 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20, 30},
 				new Formula[]{constant(1, 2), constant(5), constant(2, 9)},
-				constant(2, 7),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2, 7)
 			);
 
 			final Bitmap result = formula.compute();
@@ -115,8 +114,7 @@ class ReferencedOwnerExistenceFormulaTest {
 				// `EmptyFormula.INSTANCE` is what `BidirectionalReferenceRewriter#createPerOwnerFormulas` emits for
 				// an owner the counterpart type-level index announced but which carries no reduced index at all
 				new Formula[]{EmptyFormula.INSTANCE, constant(2), constant(2, 4)},
-				constant(2),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2)
 			);
 
 			final Bitmap result = formula.compute();
@@ -134,13 +132,12 @@ class ReferencedOwnerExistenceFormulaTest {
 		@Test
 		@DisplayName("should return empty bitmap when the narrowing set is empty")
 		void shouldReturnEmptyBitmapWhenNarrowingSetIsEmpty() {
-			final RecordingFormula firstOwner = recordingFormula(new int[]{1}, new long[0], 1L, 0L, 0L);
-			final RecordingFormula secondOwner = recordingFormula(new int[]{2}, new long[0], 2L, 0L, 0L);
+			final RecordingFormula firstOwner = recordingFormula(new int[]{1}, 0L, 0L);
+			final RecordingFormula secondOwner = recordingFormula(new int[]{2}, 0L, 0L);
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20},
 				new Formula[]{firstOwner, secondOwner},
-				EmptyFormula.INSTANCE,
-				COUNTERPART_TYPE_INDEX_ID
+				EmptyFormula.INSTANCE
 			);
 
 			assertSame(EmptyBitmap.INSTANCE, formula.compute());
@@ -160,8 +157,7 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1), constant(2)},
-				constant(2),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2)
 			);
 
 			final Formula clone = formula.getCloneWithInnerFormulas();
@@ -183,8 +179,7 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10},
 				new Formula[]{constant(1)},
-				constant(1),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(1)
 			);
 
 			final EvitaInvalidUsageException exception = assertThrows(
@@ -201,8 +196,7 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20, 30},
 				new Formula[]{constant(1, 2), constant(5), constant(2, 9)},
-				constant(2, 7),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2, 7)
 			);
 
 			final ReferencedOwnerExistenceFormula clone = assertInstanceOf(
@@ -219,120 +213,100 @@ class ReferencedOwnerExistenceFormulaTest {
 		}
 	}
 
+	/**
+	 * Equal detached keys for equal semantic inputs.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism")
-	class HashDeterminismTest {
+	@DisplayName("Key determinism")
+	class KeyDeterminismTest {
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticallyConstructedFormulas() {
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedFormulas() {
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1, 2), constant(3)},
-				constant(2, 7),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2, 7)
 			);
 			final ReferencedOwnerExistenceFormula formulaB = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1, 2), constant(3)},
-				constant(2, 7),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2, 7)
 			);
 
-			assertEquals(formulaA.getHash(), formulaB.getHash());
-			assertEquals(formulaA.getTransactionalIdHash(), formulaB.getTransactionalIdHash());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
+			assertEquals(formulaA.getKey().getHash64(), formulaB.getKey().getHash64());
 		}
 	}
 
 	/**
-	 * The cache-correctness invariant, from three sides. The candidate owner set and the per-owner formulas are baked
-	 * into the formula at planning time and are invisible through {@link Formula#getInnerFormulas()}, so a cache keyed
-	 * on {@link Formula#getHash()} would happily serve one query's answer to another unless every one of those
-	 * components reaches `includeAdditionalHash`. Each test below varies exactly one component.
+	 * Sensitivity to every semantic input outside the formula children.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
 	 */
 	@Nested
-	@DisplayName("Hash sensitivity")
-	class HashSensitivityTest {
+	@DisplayName("Key sensitivity")
+	class KeySensitivityTest {
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should change hash when the owner key set changes")
-		void shouldChangeHashWhenOwnerKeySetChanges() {
+		@DisplayName("should change key when the owner key set changes")
+		void shouldChangeKeyWhenOwnerKeySetChanges() {
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1), constant(2)},
-				constant(2),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2)
 			);
 			final ReferencedOwnerExistenceFormula formulaB = createFormula(
 				new int[]{10, 21},
 				new Formula[]{constant(1), constant(2)},
-				constant(2),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2)
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the corresponding detached key contract. */
 		@Test
-		@DisplayName("should change hash when any per-owner formula changes")
-		void shouldChangeHashWhenAnyPerOwnerFormulaChanges() {
+		@DisplayName("should change key when any per-owner formula changes")
+		void shouldChangeKeyWhenAnyPerOwnerFormulaChanges() {
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1), constant(2)},
-				constant(2),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2)
 			);
 			final ReferencedOwnerExistenceFormula formulaB = createFormula(
 				new int[]{10, 20},
 				new Formula[]{constant(1), constant(3)},
-				constant(2),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2)
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies that a deferred referenced entity formula contributes its detached key without being computed. */
 		@Test
-		@DisplayName("should change hash when the counterpart type index id changes")
-		void shouldChangeHashWhenCounterpartTypeIndexIdChanges() {
+		@DisplayName("should build key over a deferred referenced entity formula")
+		void shouldBuildKeyOverDeferredReferencedEntityFormula() {
+			final int[] owners = {10, 20};
+			final Formula[] perOwnerFormulas = {constant(1), constant(2)};
 			final ReferencedOwnerExistenceFormula formulaA = createFormula(
-				new int[]{10, 20},
-				new Formula[]{constant(1), constant(2)},
-				constant(2),
-				100L
+				owners, perOwnerFormulas, deferred(2)
 			);
 			final ReferencedOwnerExistenceFormula formulaB = createFormula(
-				new int[]{10, 20},
-				new Formula[]{constant(1), constant(2)},
-				constant(2),
-				200L
+				owners, perOwnerFormulas, deferred(2)
+			);
+			final ReferencedOwnerExistenceFormula formulaC = createFormula(
+				owners, perOwnerFormulas, deferred(3)
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
-		}
-	}
-
-	@Nested
-	@DisplayName("Transactional ids")
-	class TransactionalIdsTest {
-
-		@Test
-		@DisplayName("should gather transactional ids from per-owner formulas as well as inner ones")
-		void shouldGatherTransactionalIdsFromPerOwnerFormulasAsWellAsInnerOnes() {
-			final RecordingFormula innerFormula = recordingFormula(new int[]{2}, new long[]{1L}, 1L, 0L, 0L);
-			final RecordingFormula firstOwner = recordingFormula(new int[]{2}, new long[]{2L}, 2L, 0L, 0L);
-			final RecordingFormula secondOwner = recordingFormula(new int[]{3}, new long[]{3L, 4L}, 3L, 0L, 0L);
-
-			final ReferencedOwnerExistenceFormula formula = createFormula(
-				new int[]{10, 20},
-				new Formula[]{firstOwner, secondOwner},
-				innerFormula,
-				COUNTERPART_TYPE_INDEX_ID
-			);
-
-			// the same invariant as the hash rows, seen from the other side: a formula either declares
-			// a transactional id for every bitmap it depends on, or it hashes that bitmap's contents
-			assertArrayEquals(new long[]{1L, 2L, 3L, 4L}, formula.gatherTransactionalIds());
+			assertFalse(formulaA.getKey().isOpaque());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
+			assertEquals(formulaA.getKey().getHash64(), formulaB.getKey().getHash64());
+			assertNotEquals(formulaA.getKey(), formulaC.getKey());
 		}
 	}
 
@@ -346,8 +320,7 @@ class ReferencedOwnerExistenceFormulaTest {
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20, 30},
 				new Formula[]{constant(1), constant(2), constant(3)},
-				constant(2),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2)
 			);
 
 			// in the worst case every candidate owner survives
@@ -362,14 +335,13 @@ class ReferencedOwnerExistenceFormulaTest {
 		@Test
 		@DisplayName("should include per-owner formulas in the estimated base cost")
 		void shouldIncludePerOwnerFormulasInEstimatedBaseCost() {
-			final RecordingFormula firstOwner = recordingFormula(new int[]{2}, new long[0], 1L, 100L, 0L);
-			final RecordingFormula secondOwner = recordingFormula(new int[]{2}, new long[0], 2L, 250L, 0L);
+			final RecordingFormula firstOwner = recordingFormula(new int[]{2}, 100L, 0L);
+			final RecordingFormula secondOwner = recordingFormula(new int[]{2}, 250L, 0L);
 
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20},
 				new Formula[]{firstOwner, secondOwner},
-				constant(2),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2)
 			);
 
 			// the per-owner formulas are not reached by the inner formula walk in `getEstimatedCostInternal()`,
@@ -386,17 +358,16 @@ class ReferencedOwnerExistenceFormulaTest {
 		void shouldSaturateEstimatedBaseCostInsteadOfOverflowing() {
 			final long halfOfMaximumPlusOne = Long.MAX_VALUE / 2 + 1;
 			final RecordingFormula firstOwner = recordingFormula(
-				new int[]{2}, new long[0], 1L, halfOfMaximumPlusOne, 0L
+				new int[]{2}, halfOfMaximumPlusOne, 0L
 			);
 			final RecordingFormula secondOwner = recordingFormula(
-				new int[]{2}, new long[0], 2L, halfOfMaximumPlusOne, 0L
+				new int[]{2}, halfOfMaximumPlusOne, 0L
 			);
 
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20},
 				new Formula[]{firstOwner, secondOwner},
-				constant(2),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2)
 			);
 
 			// a wrapped-around (negative) cost would make this the cheapest plan on offer and the planner would
@@ -408,14 +379,13 @@ class ReferencedOwnerExistenceFormulaTest {
 		@Test
 		@DisplayName("should include per-owner formulas in the computed cost")
 		void shouldIncludePerOwnerFormulasInComputedCost() {
-			final RecordingFormula firstOwner = recordingFormula(new int[]{2}, new long[0], 1L, 0L, 700L);
-			final RecordingFormula secondOwner = recordingFormula(new int[]{2}, new long[0], 2L, 0L, 300L);
+			final RecordingFormula firstOwner = recordingFormula(new int[]{2}, 0L, 700L);
+			final RecordingFormula secondOwner = recordingFormula(new int[]{2}, 0L, 300L);
 
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20},
 				new Formula[]{firstOwner, secondOwner},
-				constant(2),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2)
 			);
 
 			// `getCost()` answers `Long.MAX_VALUE` until the result has been memoized - see `AbstractFormula#getCost`
@@ -435,14 +405,13 @@ class ReferencedOwnerExistenceFormulaTest {
 		@Test
 		@DisplayName("should propagate execution context to per-owner formulas")
 		void shouldPropagateExecutionContextToPerOwnerFormulas() {
-			final RecordingFormula firstOwner = recordingFormula(new int[]{2}, new long[0], 1L, 0L, 0L);
-			final RecordingFormula secondOwner = recordingFormula(new int[]{2}, new long[0], 2L, 0L, 0L);
+			final RecordingFormula firstOwner = recordingFormula(new int[]{2}, 0L, 0L);
+			final RecordingFormula secondOwner = recordingFormula(new int[]{2}, 0L, 0L);
 
 			final ReferencedOwnerExistenceFormula formula = createFormula(
 				new int[]{10, 20},
 				new Formula[]{firstOwner, secondOwner},
-				constant(2),
-				COUNTERPART_TYPE_INDEX_ID
+				constant(2)
 			);
 			final QueryExecutionContext executionContext = Mockito.mock(QueryExecutionContext.class);
 
@@ -500,8 +469,7 @@ class ReferencedOwnerExistenceFormulaTest {
 				() -> createFormula(
 					new int[]{10, 20},
 					new Formula[]{constant(1)},
-					constant(2),
-					COUNTERPART_TYPE_INDEX_ID
+					constant(2)
 				)
 			);
 		}
@@ -511,21 +479,19 @@ class ReferencedOwnerExistenceFormulaTest {
 	 * Creates the formula under test. Present only so the individual tests read as data rather than as constructor
 	 * calls - the constructor is public and takes no collaborators.
 	 *
-	 * @param ownerPrimaryKeys                     candidate owner primary keys, ascending
-	 * @param perOwnerFormulas                     one formula per candidate owner, positionally paired
-	 * @param referencedEntityFormula              the shared narrowing of the referenced entities
-	 * @param counterpartTypeIndexTransactionalId  transactional id of the counterpart type-level index
+	 * @param ownerPrimaryKeys        candidate owner primary keys, ascending
+	 * @param perOwnerFormulas        one formula per candidate owner, positionally paired
+	 * @param referencedEntityFormula the shared narrowing of the referenced entities
 	 * @return new formula instance
 	 */
 	@Nonnull
 	private static ReferencedOwnerExistenceFormula createFormula(
 		@Nonnull int[] ownerPrimaryKeys,
 		@Nonnull Formula[] perOwnerFormulas,
-		@Nonnull Formula referencedEntityFormula,
-		long counterpartTypeIndexTransactionalId
+		@Nonnull Formula referencedEntityFormula
 	) {
 		return new ReferencedOwnerExistenceFormula(
-			ownerPrimaryKeys, perOwnerFormulas, referencedEntityFormula, counterpartTypeIndexTransactionalId
+			ownerPrimaryKeys, perOwnerFormulas, referencedEntityFormula
 		);
 	}
 
@@ -542,11 +508,20 @@ class ReferencedOwnerExistenceFormulaTest {
 	}
 
 	/**
-	 * Creates a {@link RecordingFormula} stub with fully controlled transactional ids, hash contribution and costs.
+	 * Creates a {@link DeferredFormula} whose supplier wraps a {@link ConstantFormula} over the passed primary keys.
+	 *
+	 * @param primaryKeys primary keys the deferred computation returns, must not be empty
+	 * @return deferred formula over the passed primary keys
+	 */
+	@Nonnull
+	private static Formula deferred(@Nonnull int... primaryKeys) {
+		return new DeferredFormula(new FormulaWrapper(constant(primaryKeys), () -> "deferred constant"));
+	}
+
+	/**
+	 * Creates a {@link RecordingFormula} stub with a controlled result and costs.
 	 *
 	 * @param result          primary keys the stub returns from `compute()`
-	 * @param transactionalIds transactional ids the stub declares
-	 * @param additionalHash  the stub's contribution to its own hash
 	 * @param estimatedCost   value the stub answers from `getEstimatedCost()`
 	 * @param computedCost    value the stub answers from `getCost()` once it has been computed
 	 * @return new stub instance
@@ -554,75 +529,68 @@ class ReferencedOwnerExistenceFormulaTest {
 	@Nonnull
 	private static RecordingFormula recordingFormula(
 		@Nonnull int[] result,
-		@Nonnull long[] transactionalIds,
-		long additionalHash,
 		long estimatedCost,
 		long computedCost
 	) {
 		return new RecordingFormula(
-			new BaseBitmap(result), transactionalIds, additionalHash, estimatedCost, computedCost
+			new BaseBitmap(result), estimatedCost, computedCost
 		);
 	}
 
 	/**
 	 * A hand-written {@link Formula} stub used instead of a Mockito mock.
 	 * {@link AbstractFormula#initFields(Formula...)} runs from the constructor and calls back into
-	 * `getClassId()`, `includeAdditionalHash(...)`, `gatherBitmapIdsInternal()` and `getEstimatedCostInternal()`,
+	 * `getEstimatedCostInternal()`,
 	 * so a mock of a formula class would have to answer those calls before its own stubbing had been installed.
 	 * Writing the stub out is both shorter and honest.
 	 *
-	 * Every quantity the enclosing tests assert on - transactional ids, hash contribution, estimated cost, computed
+	 * Every quantity the enclosing tests assert on - result, estimated cost, computed
 	 * cost - is supplied at construction time, and the stub additionally records whether it was computed and which
 	 * {@link QueryExecutionContext} (if any) reached it.
 	 */
-	private static class RecordingFormula extends AbstractFormula {
+	static class RecordingFormula extends AbstractFormula {
 		/**
-		 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+		 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity
+		 * discriminator.
 		 */
 		private static final long CLASS_ID = 4611686018427387903L;
 		/**
 		 * Bitmap this stub answers with from {@link #computeInternal()}.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.DECOMPOSED)
 		private final Bitmap result;
-		/**
-		 * Transactional ids this stub declares from {@link #gatherBitmapIdsInternal()}.
-		 */
-		private final long[] declaredTransactionalIds;
-		/**
-		 * This stub's contribution to its own hash.
-		 */
-		private final long additionalHash;
 		/**
 		 * Value answered from {@link #getEstimatedCostInternal()}.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
 		private final long estimatedCost;
 		/**
 		 * Value answered from {@link #getCostInternal()}.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
 		private final long computedCost;
 		/**
 		 * Number of times {@link #initialize(QueryExecutionContext)} has been called on this stub.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
 		private int initializationCount;
 		/**
 		 * The execution context handed to {@link #initialize(QueryExecutionContext)}, `null` until that happens.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
 		private QueryExecutionContext capturedExecutionContext;
 		/**
 		 * TRUE once {@link #computeInternal()} has been entered.
 		 */
+		@IdentityExempt(IdentityExempt.Reason.STATE)
 		private boolean computed;
 
 		RecordingFormula(
 			@Nonnull Bitmap result,
-			@Nonnull long[] declaredTransactionalIds,
-			long additionalHash,
 			long estimatedCost,
 			long computedCost
 		) {
 			this.result = result;
-			this.declaredTransactionalIds = declaredTransactionalIds;
-			this.additionalHash = additionalHash;
 			this.estimatedCost = estimatedCost;
 			this.computedCost = computedCost;
 			this.initFields();
@@ -663,12 +631,6 @@ class ReferencedOwnerExistenceFormulaTest {
 			this.capturedExecutionContext = executionContext;
 		}
 
-		@Nonnull
-		@Override
-		protected long[] gatherBitmapIdsInternal() {
-			return this.declaredTransactionalIds;
-		}
-
 		@Override
 		protected long getEstimatedCostInternal() {
 			return this.estimatedCost;
@@ -679,9 +641,11 @@ class ReferencedOwnerExistenceFormulaTest {
 			return this.computedCost;
 		}
 
+		/** Captures the detached semantic inputs without evaluating the holder. */
+		@Nonnull
 		@Override
-		protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-			return this.additionalHash;
+		protected IdentityRecord identity() {
+			return new Identity(IdentityToken.of(this.result));
 		}
 
 		@Override
@@ -716,6 +680,27 @@ class ReferencedOwnerExistenceFormulaTest {
 		public String toString() {
 			return "RECORDING STUB (" + this.result.size() + " primary keys)";
 		}
+
+		/**
+		 * Detached semantic inputs of the holder.
+		 *
+		 * @param result detached result bitmap
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		public record Identity(@Nonnull IdentityToken result) implements IdentityRecord {
+			/** Returns the holder's class identifier. */
+			@Override
+			public long classId() {
+				return CLASS_ID;
+			}
+
+			/** Includes every semantic input in the structural hash and retained weight. */
+			@Override
+			public void describeTo(@Nonnull KeyAccumulator accumulator) {
+				accumulator.add(this.result);
+			}
+		}
+
 	}
 
 }

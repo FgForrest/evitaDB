@@ -1,7 +1,7 @@
 ---
 title: The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
 date: 2026-09-18
-updated: 2026-10-29 10:16
+updated: 2026-11-14 00:50
 status: accepted
 kind: optimization
 issues: [1539, 1546]
@@ -9,7 +9,7 @@ prs: [1602]
 areas: [evita_engine/core/query/algebra/base, evita_engine/index/range, evita_test/evita_performance_tests]
 supersedes: []
 superseded-by: []
-relates: [2026-11-03-release-catalog-upgrade-from-surviving-index-parts, 2026-09-10-simd-vector-api-feasibility, 2026-09-18-range-counting-kernel-per-operand-overhead]
+relates: [2026-11-03-release-catalog-upgrade-from-surviving-index-parts, 2026-09-10-simd-vector-api-feasibility, 2026-09-18-range-counting-kernel-per-operand-overhead, 2026-11-14-formula-cache-redesign]
 ---
 
 # The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
@@ -360,6 +360,10 @@ Sizing this work from the table alone would overstate what a steady-state read-o
 actually sees.
 
 ## Consequences & open follow-ups
+
+- **2026-11-14 update:** [Declared formula identity and result caching](2026-11-14-formula-cache-redesign.md)
+  replaces the legacy hash path and covers the read-only/ambient-transaction gate with counterfactual tests.
+  The untested-gate note below describes the implementation at this record's acceptance.
 
 - **2026-10-29 update:** The release upgrade rebuilds shared-border companions from surviving bucket memberships under
   the current counting semantics, preserving distinct scalar contributions and consolidating array contributions per

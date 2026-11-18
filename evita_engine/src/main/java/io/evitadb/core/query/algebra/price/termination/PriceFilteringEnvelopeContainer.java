@@ -23,9 +23,10 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
-
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
+import java.util.List;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
@@ -34,7 +35,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import lombok.Getter;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -42,7 +42,6 @@ import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Currency;
-import java.util.function.Consumer;
 
 /**
  * Formula container that behaves exactly as {@link OrFormula}, but carries information about price lists, currency and
@@ -53,7 +52,7 @@ import java.util.function.Consumer;
  */
 public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractCacheableFormula#getClassId()} for hash computation.
+	 * Stable discriminator returned by {@link AbstractCacheableFormula#getClassId()}.
 	 */
 	private static final long CLASS_ID = -1722354238488401487L;
 	/**
@@ -68,10 +67,6 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	 * Date and time used to filter prices by their validity period.
 	 */
 	@Nullable @Getter private final OffsetDateTime validIn;
-	/**
-	 * Callback operator invoked when the formula computation result is available for caching.
-	 */
-	@Nullable Consumer<CacheableFormula> selfOperator;
 
 	public PriceFilteringEnvelopeContainer(
 		@Nullable String[] priceLists,
@@ -79,22 +74,6 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 		@Nullable OffsetDateTime validIn,
 		@Nonnull Formula... innerFormulas
 	) {
-		super(null);
-		this.selfOperator = null;
-		this.priceLists = priceLists;
-		this.currency = currency;
-		this.validIn = validIn;
-		this.initFields(innerFormulas);
-	}
-
-	private PriceFilteringEnvelopeContainer(
-		@Nonnull Consumer<CacheableFormula> selfOperator,
-		@Nullable String[] priceLists,
-		@Nullable Currency currency,
-		@Nullable OffsetDateTime validIn,
-		@Nonnull Formula... innerFormulas
-	) {
-		super(selfOperator);
 		this.priceLists = priceLists;
 		this.currency = currency;
 		this.validIn = validIn;
@@ -123,23 +102,6 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	@Override
 	public long getOperationCost() {
 		return 11;
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		return new PriceFilteringEnvelopeContainer(
-			selfOperator,
-			this.priceLists,
-			this.currency,
-			this.validIn,
-			innerFormulas
-		);
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return 0L;
 	}
 
 	@Override
@@ -183,6 +145,46 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 			bitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(formulas[i].compute());
 		}
 		return bitmaps;
+	}
+
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.priceLists == null ? null : List.of(this.priceLists),
+			this.currency,
+			this.validIn);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param priceLists ordered price-list criteria, absent when unconstrained
+	 * @param currency currency criterion, absent when unconstrained
+	 * @param validIn validity criterion, absent when unconstrained
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nullable List<String> priceLists,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime validIn) implements IdentityRecord {
+		/** Copies present price-list criteria into an immutable ordered list. */
+		public Identity {
+			priceLists = priceLists == null ? null : List.copyOf(priceLists);
+		}
+
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.addStrings(this.priceLists);
+			accumulator.add(this.currency);
+			accumulator.add(this.validIn);
+		}
 	}
 
 }

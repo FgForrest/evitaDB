@@ -66,7 +66,7 @@ import java.util.concurrent.TimeUnit;
  *
  * The score of a cell is only meaningful next to the score of the same cell on the other arm; the interesting
  * quantity is always `SCAN / TRIGRAM`. The formula cache is disabled, so both arms plan and compute every invocation
- * in full - see `SubstringCacheRepeatBenchmark` for the question the cache answers.
+ * in full.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

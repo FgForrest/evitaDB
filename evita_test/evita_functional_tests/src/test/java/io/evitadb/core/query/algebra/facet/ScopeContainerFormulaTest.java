@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.facet;
 
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -41,7 +40,7 @@ import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link ScopeContainerFormula} verifying AND-like computation, scope metadata,
- * memoization, cloning, caching, hashing and edge case behavior.
+ * memoization, cloning, key identity and edge case behavior.
  *
  * @author evitaDB
  */
@@ -229,7 +228,7 @@ class ScopeContainerFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should keep standing for the whole scope through clones with inner formulas and callbacks")
+		@DisplayName("should keep standing for the whole scope through clones with inner formulas")
 		void shouldKeepStandingForWholeScopeThroughClones() {
 			final ScopeContainerFormula original = ScopeContainerFormula.restrictingScope(
 				Scope.LIVE,
@@ -242,15 +241,6 @@ class ScopeContainerFormulaTest {
 			assertArrayEquals(
 				new int[]{1, 2, 3, 4, 5},
 				withOtherChild.getCloneWithInnerFormulas().compute().getArray()
-			);
-
-			final CacheableFormula withCallback = original.getCloneWithComputationCallback(
-				formula -> {},
-				new ConstantFormula(new ArrayBitmap(2, 3))
-			);
-			assertArrayEquals(
-				new int[]{1, 2, 3, 4, 5},
-				withCallback.getCloneWithInnerFormulas().compute().getArray()
 			);
 		}
 
@@ -268,38 +258,21 @@ class ScopeContainerFormulaTest {
 
 			assertNotSame(original, clone);
 		}
-
-		@Test
-		@DisplayName("should create cacheable clone with computation callback")
-		void shouldCreateCacheableCloneWithComputationCallback() {
-			final ScopeContainerFormula original = new ScopeContainerFormula(
-				Scope.LIVE,
-				new ConstantFormula(new ArrayBitmap(10, 20))
-			);
-
-			final boolean[] callbackInvoked = {false};
-			final CacheableFormula clone = original.getCloneWithComputationCallback(
-				formula -> callbackInvoked[0] = true,
-				new ConstantFormula(new ArrayBitmap(10, 20))
-			);
-
-			assertInstanceOf(ScopeContainerFormula.class, clone);
-			final ScopeContainerFormula cloned = (ScopeContainerFormula) clone;
-			assertEquals(Scope.LIVE, cloned.getScope());
-
-			// trigger computation to invoke callback
-			cloned.compute();
-			assertTrue(callbackInvoked[0]);
-		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticallyConstructedFormulas() {
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticallyConstructedFormulas() {
 			final ScopeContainerFormula formulaA = new ScopeContainerFormula(
 				Scope.LIVE,
 				new ConstantFormula(new ArrayBitmap(10, 20))
@@ -309,12 +282,13 @@ class ScopeContainerFormulaTest {
 				new ConstantFormula(new ArrayBitmap(10, 20))
 			);
 
-			assertEquals(formulaA.getHash(), formulaB.getHash());
+			assertEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce different hash for different inner formulas")
-		void shouldProduceDifferentHashForDifferentInnerFormulas() {
+		@DisplayName("should produce different key for different inner formulas")
+		void shouldProduceDifferentKeyForDifferentInnerFormulas() {
 			final ScopeContainerFormula formulaA = new ScopeContainerFormula(
 				Scope.LIVE,
 				new ConstantFormula(new ArrayBitmap(10, 20))
@@ -324,13 +298,14 @@ class ScopeContainerFormulaTest {
 				new ConstantFormula(new ArrayBitmap(30, 40))
 			);
 
-			assertNotEquals(formulaA.getHash(), formulaB.getHash());
+			assertNotEquals(formulaA.getKey(), formulaB.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce same hash for different scopes with same children")
-		void shouldProduceSameHashForDifferentScopesWithSameChildren() {
-			// scope is not part of includeAdditionalHash (returns 0L)
+		@DisplayName("should produce different keys for different scopes with same children")
+		void shouldProduceDifferentKeysForDifferentScopesWithSameChildren() {
+			// The scope remains observable when a surviving container is inspected.
 			final ScopeContainerFormula formulaLive = new ScopeContainerFormula(
 				Scope.LIVE,
 				new ConstantFormula(new ArrayBitmap(10, 20))
@@ -340,7 +315,7 @@ class ScopeContainerFormulaTest {
 				new ConstantFormula(new ArrayBitmap(10, 20))
 			);
 
-			assertEquals(formulaLive.getHash(), formulaArchived.getHash());
+			assertNotEquals(formulaLive.getKey(), formulaArchived.getKey());
 		}
 	}
 
@@ -371,5 +346,4 @@ class ScopeContainerFormulaTest {
 			assertEquals(0, formula.getEstimatedCardinality());
 		}
 	}
-
 }

@@ -61,7 +61,12 @@ class LabTlsFunctionalTest {
 		return new DataCarrier("serverName", evita.getConfiguration().name());
 	}
 
-	/** Verifies the lab redirect over HTTPS and uses the shared HTTPS tester to request a missing route. */
+	/**
+	 * Verifies the lab redirect over HTTPS and uses the shared HTTPS tester to request a missing route.
+	 *
+	 * @param server embedded server exposing the lab
+	 * @param tester tester for the lab endpoint and its dedicated Armeria factory
+	 */
 	@Test
 	@UseDataSet("labTls")
 	@DisplayName("Should connect to lab using HTTPS with default embedded options")
@@ -71,7 +76,7 @@ class LabTlsFunctionalTest {
 			server.getExternalApiServer().getApiOptions().getEndpointConfiguration(LabProvider.CODE).getTlsMode(),
 			"TLS mode of the lab created by the host-only embedded options constructor"
 		);
-		try (ClientFactory factory = ClientFactory.builder().tlsNoVerify().build()) {
+		try (final ClientFactory factory = tester.createClientFactory()) {
 			final String baseUrl = server.getExternalApiServer().getApiOptions()
 				.getEndpointConfiguration(LabProvider.CODE).getBaseUrls()[0];
 			final AggregatedHttpResponse response = WebClient.builder(baseUrl).factory(factory).build()

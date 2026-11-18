@@ -843,7 +843,7 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	}
 
 	/**
-	 * Multi-scope union paths in `collectCandidateOwners` and `counterpartTypeIndexId`. Category 11's `products`
+	 * Multi-scope union paths in `collectCandidateOwners`. Category 11's `products`
 	 * rows come only from archived products and category 12 is archived itself, so both appear in the answer only
 	 * when both scopes are genuinely unioned on both sides of the pair.
 	 *

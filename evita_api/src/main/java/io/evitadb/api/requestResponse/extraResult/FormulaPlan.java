@@ -54,9 +54,9 @@ import java.util.List;
  *                       across its occurrences - it is what makes "computed once, reused twice" visible
  * @param refTo          `null` on the occurrence that describes the instance; equal to {@link #id} on every later
  *                       occurrence, which carries no detail and no children and means "see the node with this id"
- * @param hash           structural hash of the formula, i.e. what the cache keys on - two nodes with the same hash
- *                       are interchangeable computations, whereas two nodes with the same `id` are the same object.
- *                       The two answer different questions and can disagree
+ * @param hash           process-local structural hash of the formula key, useful for comparing plan nodes within
+ *                       one running process; equal hashes do not establish interchangeable computations, whereas
+ *                       equal `id` values identify the same formula instance
  * @param description    human readable description of the formula, `null` on a back-reference node
  * @param estimatedCost  cost the planner estimated for this formula before running anything
  * @param actualCost     cost the formula really incurred, or `null` when it was never computed

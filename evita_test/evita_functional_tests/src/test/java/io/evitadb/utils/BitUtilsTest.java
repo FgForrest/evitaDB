@@ -27,7 +27,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
-import static io.evitadb.utils.BitUtils.copyBitSetFrom;
 import static io.evitadb.utils.BitUtils.isBitSet;
 import static io.evitadb.utils.BitUtils.setBit;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -96,32 +95,5 @@ class BitUtilsTest {
 				setBit(encoded, (byte) 2, false), (byte) 2
 			)
 		);
-	}
-
-	@Test
-	void shouldCopyPartOfTheBitset() {
-		byte control = 0;
-
-		// 00100101
-		final byte encoded =
-			setBit(
-				setBit(
-					setBit(control, (byte) 7, true),
-					(byte) 5, true
-				),
-				(byte) 2, true
-			);
-
-		// 00101111
-		final byte copy = copyBitSetFrom((byte) 3, encoded);
-
-		assertFalse(isBitSet(copy, (byte) 0));
-		assertFalse(isBitSet(copy, (byte) 1));
-		assertTrue(isBitSet(copy, (byte) 2));
-		assertFalse(isBitSet(copy, (byte) 3));
-		assertTrue(isBitSet(copy, (byte) 4));
-		assertTrue(isBitSet(copy, (byte) 5));
-		assertTrue(isBitSet(copy, (byte) 6));
-		assertTrue(isBitSet(copy, (byte) 7));
 	}
 }

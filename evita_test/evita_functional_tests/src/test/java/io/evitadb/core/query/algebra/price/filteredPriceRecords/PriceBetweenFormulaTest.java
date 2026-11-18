@@ -58,8 +58,8 @@ import static io.evitadb.test.TestTags.PRICE;
  *   to the inner formula so the planner sees no overhead;
  * - re-wrap correctly through `getCloneWithInnerFormulas(...)` as a `PriceBetweenFormula` (so the
  *   PRICE_HISTOGRAM relaxer's `PriceBetweenFormula.class.isInstance(...)` check keeps matching);
- * - produce a deterministic hash that depends only on the inner formula's hash plus the wrapper's own
- *   class identity (so two wrappers around structurally identical subtrees cache-hit).
+ * - produce a deterministic key that depends only on the inner formula's key plus the wrapper's own
+ *   class identity (so two wrappers around structurally identical subtrees compare equal by key).
  *
  * These invariants matter because the price-histogram baseline relaxer locates price carriers **by type**
  * — any semantic change would either hide the wrapper from the relaxer or alter the planner's cost
@@ -81,7 +81,7 @@ class PriceBetweenFormulaTest {
 	private static final Bitmap REFERENCE_BITMAP = new ArrayBitmap(10, 20, 30);
 
 	/**
-	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Each test that asserts hash equality
+	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Each test that asserts key equality
 	 * or independence uses two freshly constructed wrappers so we avoid sharing memoised state.
 	 *
 	 * @return a {@link ConstantFormula} wrapping the shared reference bitmap
@@ -223,40 +223,48 @@ class PriceBetweenFormulaTest {
 		}
 	}
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash stability")
-	class HashStabilityTest {
+	@DisplayName("Key stability")
+	class KeyStabilityTest {
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce identical hash for two wrappers around identical children")
-		void shouldProduceIdenticalHashForTwoWrappersAroundIdenticalChildren() {
-			// stable hashing is what lets the formula cache recognise "two priceBetween wrappers around
+		@DisplayName("should produce identical key for two wrappers around identical children")
+		void shouldProduceIdenticalKeyForTwoWrappersAroundIdenticalChildren() {
+			// stable keying is what lets the formula cache recognise "two priceBetween wrappers around
 			// the same subtree" as equivalent — a drift here silently misses cache hits
 			final PriceBetweenFormula a = new PriceBetweenFormula(newInnerFormula());
 			final PriceBetweenFormula b = new PriceBetweenFormula(newInnerFormula());
 
-			assertEquals(a.getHash(), b.getHash());
+			assertEquals(a.getKey(), b.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for wrappers around different children")
-		void shouldProduceDifferentHashForWrappersAroundDifferentChildren() {
-			// hash must change when the child changes — otherwise sibling price-range picks would collide
+		@DisplayName("should produce different key for wrappers around different children")
+		void shouldProduceDifferentKeyForWrappersAroundDifferentChildren() {
+			// key must change when the child changes — otherwise sibling price-range picks would collide
 			final PriceBetweenFormula a = new PriceBetweenFormula(new ConstantFormula(new ArrayBitmap(1)));
 			final PriceBetweenFormula b = new PriceBetweenFormula(new ConstantFormula(new ArrayBitmap(2)));
 
-			assertNotEquals(a.getHash(), b.getHash());
+			assertNotEquals(a.getKey(), b.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce a hash distinct from the bare inner formula")
-		void shouldProduceHashDistinctFromBareInnerFormula() {
-			// the wrapper's own class ID must enter the hash — otherwise `priceBetween(x)` and `x` would
+		@DisplayName("should produce a key distinct from the bare inner formula")
+		void shouldProduceKeyDistinctFromBareInnerFormula() {
+			// the wrapper's own class ID must enter the key — otherwise `priceBetween(x)` and `x` would
 			// cache-collide and the relaxer's type-based lookup would see a false carrier
 			final Formula inner = newInnerFormula();
 			final PriceBetweenFormula wrapper = new PriceBetweenFormula(inner);
 
-			assertNotEquals(inner.getHash(), wrapper.getHash());
+			assertNotEquals(inner.getKey(), wrapper.getKey());
 		}
 	}
 

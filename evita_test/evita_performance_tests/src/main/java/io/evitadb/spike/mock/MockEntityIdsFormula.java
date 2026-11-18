@@ -23,14 +23,15 @@
 
 package io.evitadb.spike.mock;
 
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.IdentityToken;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.index.bitmap.Bitmap;
-import lombok.RequiredArgsConstructor;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -40,10 +41,9 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@RequiredArgsConstructor
 public class MockEntityIdsFormula extends AbstractFormula implements FilteredPriceRecordAccessor {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -8786720221479629134L;
 	/**
@@ -55,15 +55,28 @@ public class MockEntityIdsFormula extends AbstractFormula implements FilteredPri
 	 */
 	private final FilteredPriceRecords priceRecords;
 
+	/**
+	 * Creates an initialized leaf exposing pre-built entity IDs and their price records.
+	 *
+	 * @param entityIds pre-built bitmap returned by computation
+	 * @param priceRecords pre-built filtered price records
+	 */
+	public MockEntityIdsFormula(@Nonnull Bitmap entityIds, @Nonnull FilteredPriceRecords priceRecords) {
+		this.entityIds = entityIds;
+		this.priceRecords = priceRecords;
+		this.initFields();
+	}
+
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		throw new UnsupportedOperationException();
 	}
 
+	/** Returns the same unit cost as a constant formula exposing a pre-built bitmap. */
 	@Override
 	public long getOperationCost() {
-		throw new UnsupportedOperationException();
+		return 1L;
 	}
 
 	@Nonnull
@@ -79,11 +92,6 @@ public class MockEntityIdsFormula extends AbstractFormula implements FilteredPri
 	}
 
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
-	}
-
-	@Override
 	protected long getClassId() {
 		return CLASS_ID;
 	}
@@ -92,4 +100,35 @@ public class MockEntityIdsFormula extends AbstractFormula implements FilteredPri
 	public int getEstimatedCardinality() {
 		return this.entityIds.size();
 	}
+	/** Returns the bitmap operand token and an opaque price-record input. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(IdentityToken.of(this.entityIds),
+			IdentityToken.OPAQUE);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param entityIds entity bitmap operand token
+	 * @param priceRecords opaque marker for the supplied price records
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nonnull IdentityToken entityIds,
+		@Nonnull IdentityToken priceRecords) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every component in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.entityIds);
+			accumulator.add(this.priceRecords);
+		}
+	}
+
 }

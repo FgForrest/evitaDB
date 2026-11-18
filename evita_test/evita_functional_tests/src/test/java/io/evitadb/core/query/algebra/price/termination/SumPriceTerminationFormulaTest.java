@@ -23,12 +23,16 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
+import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
+import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexContainerFormula;
+import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
 import io.evitadb.index.bitmap.ArrayBitmap;
@@ -47,13 +51,8 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
 
 /**
- * Tests for {@link SumPriceTerminationFormula} verifying construction, hashing, cloning,
- * cardinality estimation, and cache behavior.
- *
- * Note: full computation tests for `compute()` require a subtree containing
- * {@link io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor} implementations
- * providing price records per entity, which cannot be constructed without mocking.
- * The contract tests below cover all aspects that don't require actual price record resolution.
+ * Tests for {@link SumPriceTerminationFormula} verifying construction, hashing, cloning
+ * and cardinality estimation.
  *
  * @author evitaDB
  */
@@ -66,13 +65,19 @@ class SumPriceTerminationFormulaTest {
 	private static final Currency CZK = Currency.getInstance("CZK");
 	private static final Currency EUR = Currency.getInstance("EUR");
 
+	/**
+	 * Verifies detached computation identity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash determinism and sensitivity")
-	class HashTest {
+	@DisplayName("Key determinism and sensitivity")
+	class KeyTest {
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce identical hash for identically constructed formulas")
-		void shouldProduceIdenticalHashForIdenticalFormulas() {
+		@DisplayName("should produce identical key for identically constructed formulas")
+		void shouldProduceIdenticalKeyForIdenticalFormulas() {
 			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2, 3));
 			final PriceEvaluationContext context = createContext("basic", CZK);
 			final PriceRecordPredicate predicate = PricePredicate.ALL_RECORD_FILTER;
@@ -84,12 +89,13 @@ class SumPriceTerminationFormulaTest {
 				inner, context, QueryPriceMode.WITH_TAX, predicate
 			);
 
-			assertEquals(f1.getHash(), f2.getHash());
+			assertEquals(f1.getKey(), f2.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different evaluation context")
-		void shouldProduceDifferentHashForDifferentEvaluationContext() {
+		@DisplayName("should produce different key for different evaluation context")
+		void shouldProduceDifferentKeyForDifferentEvaluationContext() {
 			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2));
 
 			final SumPriceTerminationFormula f1 = new SumPriceTerminationFormula(
@@ -101,12 +107,13 @@ class SumPriceTerminationFormulaTest {
 				QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER
 			);
 
-			assertNotEquals(f1.getHash(), f2.getHash());
+			assertNotEquals(f1.getKey(), f2.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different selling price predicate")
-		void shouldProduceDifferentHashForDifferentSellingPricePredicate() {
+		@DisplayName("should produce different key for different selling price predicate")
+		void shouldProduceDifferentKeyForDifferentSellingPricePredicate() {
 			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2));
 			final PriceEvaluationContext context = createContext("basic", CZK);
 
@@ -120,12 +127,13 @@ class SumPriceTerminationFormulaTest {
 				inner, context, QueryPriceMode.WITH_TAX, rangePredicate
 			);
 
-			assertNotEquals(f1.getHash(), f2.getHash());
+			assertNotEquals(f1.getKey(), f2.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different inner formulas")
-		void shouldProduceDifferentHashForDifferentInnerFormulas() {
+		@DisplayName("should produce different key for different inner formulas")
+		void shouldProduceDifferentKeyForDifferentInnerFormulas() {
 			final PriceEvaluationContext context = createContext("basic", CZK);
 
 			final SumPriceTerminationFormula f1 = new SumPriceTerminationFormula(
@@ -137,12 +145,13 @@ class SumPriceTerminationFormulaTest {
 				QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER
 			);
 
-			assertNotEquals(f1.getHash(), f2.getHash());
+			assertNotEquals(f1.getKey(), f2.getKey());
 		}
 
+		/** Verifies detached computation identity. */
 		@Test
-		@DisplayName("should produce different hash for different currency")
-		void shouldProduceDifferentHashForDifferentCurrency() {
+		@DisplayName("should produce different key for different currency")
+		void shouldProduceDifferentKeyForDifferentCurrency() {
 			final ConstantFormula inner = new ConstantFormula(new ArrayBitmap(1, 2));
 
 			final SumPriceTerminationFormula f1 = new SumPriceTerminationFormula(
@@ -154,7 +163,52 @@ class SumPriceTerminationFormulaTest {
 				QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER
 			);
 
-			assertNotEquals(f1.getHash(), f2.getHash());
+			assertNotEquals(f1.getKey(), f2.getKey());
+		}
+
+		/**
+		 * The query price mode decides which total the cumulated selling price carries - the sum of prices with tax
+		 * or the sum of prices without it - even with an unrestricted selling-price predicate, so it is a key input.
+		 */
+		@Test
+		@DisplayName("Distinguishes query price modes whose cumulated prices carry different totals")
+		void shouldProduceDifferentIdentityWhenPriceModeSumsDifferentTotal() {
+			final PriceIndexKey priceIndexKey = new PriceIndexKey("basic", CZK, PriceInnerRecordHandling.SUM);
+			final PriceListAndCurrencyPriceSuperIndex priceIndex =
+				new PriceListAndCurrencyPriceSuperIndex(priceIndexKey);
+			priceIndex.addPrice(new PriceRecordInnerRecordSpecific(1, 1, 1, 1, 12100, 10000), null);
+			priceIndex.addPrice(new PriceRecordInnerRecordSpecific(2, 2, 1, 2, 11000, 10500), null);
+			final PriceIndexContainerFormula container = new PriceIndexContainerFormula(
+				priceIndex, priceIndex, priceIndex.getIndexedPriceEntityIdsFormula()
+			);
+			final PriceEvaluationContext context = new PriceEvaluationContext(null, priceIndexKey);
+
+			final SumPriceTerminationFormula withTax = new SumPriceTerminationFormula(
+				container, context, QueryPriceMode.WITH_TAX, PricePredicate.ALL_RECORD_FILTER
+			);
+			final SumPriceTerminationFormula withoutTax = new SumPriceTerminationFormula(
+				container, context, QueryPriceMode.WITHOUT_TAX, PricePredicate.ALL_RECORD_FILTER
+			);
+			withTax.compute();
+			withoutTax.compute();
+
+			// the price records are resolved without an execution context, as `compute()` itself resolves them
+			final PriceRecordContract[] withTaxPrices =
+				((ResolvedFilteredPriceRecords) withTax.getFilteredPriceRecords(null)).getPriceRecords();
+			final PriceRecordContract[] withoutTaxPrices =
+				((ResolvedFilteredPriceRecords) withoutTax.getFilteredPriceRecords(null)).getPriceRecords();
+			assertEquals(1, withTaxPrices.length);
+			assertEquals(1, withoutTaxPrices.length);
+			// a cumulated record carries only the total of its own mode, the other one reads as zero
+			assertEquals(12100 + 11000, withTaxPrices[0].priceWithTax());
+			assertEquals(0, withTaxPrices[0].priceWithoutTax());
+			assertEquals(0, withoutTaxPrices[0].priceWithTax());
+			assertEquals(10000 + 10500, withoutTaxPrices[0].priceWithoutTax());
+			assertNotEquals(
+				withTax.getKey(),
+				withoutTax.getKey()
+			);
+			assertNotEquals(withTax.getKey().getHash64(), withoutTax.getKey().getHash64());
 		}
 	}
 
@@ -162,6 +216,7 @@ class SumPriceTerminationFormulaTest {
 	@DisplayName("Cloning")
 	class CloningTest {
 
+		/** Verifies that cloning retains the declared computation inputs. */
 		@Test
 		@DisplayName("should preserve context, price mode, and predicate when cloning")
 		void shouldPreserveAllConfigWhenCloning() {
@@ -179,7 +234,12 @@ class SumPriceTerminationFormulaTest {
 
 			assertInstanceOf(SumPriceTerminationFormula.class, clone);
 			final SumPriceTerminationFormula typedClone = (SumPriceTerminationFormula) clone;
-			assertSame(context, typedClone.getPriceEvaluationContext());
+			assertEquals(
+				new SumPriceTerminationFormula(
+					newInner, context, QueryPriceMode.WITHOUT_TAX, predicate
+				).getKey(),
+				typedClone.getKey()
+			);
 			assertSame(predicate, typedClone.getSellingPricePredicate());
 		}
 
@@ -202,9 +262,10 @@ class SumPriceTerminationFormulaTest {
 			);
 		}
 
+		/** Verifies that cloning retains the declared computation inputs. */
 		@Test
-		@DisplayName("should create clone with computation callback preserving all config")
-		void shouldCreateCloneWithComputationCallbackPreservingAllConfig() {
+		@DisplayName("should create clone with inner formulas preserving all config")
+		void shouldCreateCloneWithInnerFormulasPreservingAllConfig() {
 			final PriceEvaluationContext context = createContext("basic", CZK);
 			final PriceRecordPredicate predicate = PricePredicate.ALL_RECORD_FILTER;
 			final SumPriceTerminationFormula original = new SumPriceTerminationFormula(
@@ -213,34 +274,17 @@ class SumPriceTerminationFormulaTest {
 			);
 
 			final ConstantFormula newInner = new ConstantFormula(new ArrayBitmap(5, 6));
-			final CacheableFormula clone = original.getCloneWithComputationCallback(
-				f -> { /* no-op callback */ }, newInner
-			);
+			final Formula clone = original.getCloneWithInnerFormulas(newInner);
 
 			assertInstanceOf(SumPriceTerminationFormula.class, clone);
 			final SumPriceTerminationFormula typedClone = (SumPriceTerminationFormula) clone;
-			assertSame(context, typedClone.getPriceEvaluationContext());
+			assertEquals(
+				new SumPriceTerminationFormula(
+					newInner, context, QueryPriceMode.WITH_TAX, predicate
+				).getKey(),
+				typedClone.getKey()
+			);
 			assertSame(predicate, typedClone.getSellingPricePredicate());
-		}
-
-		@Test
-		@DisplayName("should create clone with price predicate filtered out results")
-		void shouldCreateCloneWithPricePredicateFilteredOutResults() {
-			final SumPriceTerminationFormula formula = new SumPriceTerminationFormula(
-				EmptyFormula.INSTANCE,
-				createContext("basic", CZK),
-				QueryPriceMode.WITH_TAX,
-				PricePredicate.ALL_RECORD_FILTER
-			);
-
-			// trigger computation on empty input - populates filtered out records
-			formula.compute();
-
-			final Formula clone = formula.getCloneWithPricePredicateFilteredOutResults();
-
-			assertInstanceOf(SumPriceTerminationFormula.class, clone);
-			final SumPriceTerminationFormula typedClone = (SumPriceTerminationFormula) clone;
-			assertSame(PricePredicate.ALL_RECORD_FILTER, typedClone.getSellingPricePredicate());
 		}
 	}
 
@@ -344,8 +388,6 @@ class SumPriceTerminationFormulaTest {
 			);
 
 			assertTrue(formula.compute().isEmpty());
-			assertNotNull(formula.getRecordsFilteredOutByPredicate());
-			assertTrue(formula.getRecordsFilteredOutByPredicate().isEmpty());
 		}
 	}
 
@@ -366,4 +408,5 @@ class SumPriceTerminationFormulaTest {
 			new PriceIndexKey(priceList, currency, PriceInnerRecordHandling.NONE)
 		);
 	}
+
 }

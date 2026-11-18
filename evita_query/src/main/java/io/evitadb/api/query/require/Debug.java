@@ -42,8 +42,9 @@ import java.util.EnumSet;
  *
  * - {@link DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} — forces the engine to evaluate all alternative index paths
  *   and asserts they produce identical results; significantly increases query execution time.
- * - {@link DebugMode#VERIFY_POSSIBLE_CACHING_TREES} — forces evaluation of all cacheable sub-tree variants and
- *   verifies that cached and non-cached paths agree on their results.
+ * - {@link DebugMode#VERIFY_POSSIBLE_CACHING_TREES} — selects bitmap-favouring planning, denies optional prefetch and
+ *   compares the response of a top-level query with a baseline computed without formula sharing or caching;
+ *   significantly increases query execution time.
  * - {@link DebugMode#PREFER_PREFETCHING} — always selects the prefetch strategy when the query allows it, bypassing
  *   the cost-based strategy selector; used to exercise the prefetch code path in integration tests.
  * - {@link DebugMode#PREFER_TREE_SORT} — forces sorted-page resolution onto the tree-direct path, bypassing the
@@ -61,6 +62,11 @@ import java.util.EnumSet;
 public class Debug extends AbstractRequireConstraintLeaf {
 	@Serial private static final long serialVersionUID = 5631043212500743575L;
 
+	/**
+	 * Creates a debug constraint from serialized arguments.
+	 *
+	 * @param arguments the serialized debug-mode values passed to the base constraint
+	 */
 	private Debug(@Nonnull Serializable[] arguments) {
 		super(arguments);
 	}

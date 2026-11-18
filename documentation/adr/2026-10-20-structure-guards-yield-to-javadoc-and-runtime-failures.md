@@ -1,7 +1,7 @@
 ---
 title: Tests that pin the code's structure by scanning sources or bytecode against hand-kept lists are removed; the rule goes into the javadoc of the type it constrains, the compiler where it can, and a runtime refusal where one exists
 date: 2026-10-20
-updated: 2026-10-20 08:58
+updated: 2026-11-14 00:50
 status: accepted
 kind: process
 issues: [1615]
@@ -16,7 +16,7 @@ areas:
   - documentation/developer/stm
 supersedes: []
 superseded-by: []
-relates: [2026-10-20-single-owner-partitions-as-registry-rows, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-09-23-internal-member-annotation, 2026-09-08-jdk21-safe-modernization]
+relates: [2026-10-20-single-owner-partitions-as-registry-rows, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-09-23-internal-member-annotation, 2026-09-08-jdk21-safe-modernization, 2026-11-14-formula-cache-redesign]
 ---
 
 # A rule about the code's structure lives in the javadoc of the type it constrains, not in a test that scans the code against a list

@@ -24,7 +24,9 @@
 package io.evitadb.api.functional.hierarchy;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityLocaleMissingException;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
@@ -88,6 +90,8 @@ import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
 import static io.evitadb.utils.AssertionUtils.assertResultIs;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -347,6 +351,80 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				return null;
 			}
 		);
+	}
+
+	/**
+	 * Subtracts the categories that `having` keeps for a node filter from the categories that `anyHaving` keeps for
+	 * the very same node filter. The two specifications select different nodes: `having` keeps a node only when the
+	 * node and all its ancestors match the filter, `anyHaving` keeps every matching node together with all its
+	 * ancestors. Both build their node predicate from the same node filter and read the same hierarchy index; only the
+	 * slot the filter sits in tells the two hierarchy formulas apart. The formula deduplicator, which runs on every
+	 * query, must keep them apart - treated as one, the subtraction would remove a node set from itself. The expected
+	 * answer is taken from the two constraints queried separately, and no debug verification is requested, so that a
+	 * wrong tree surfaces as a wrong result.
+	 */
+	@DisplayName("Should subtract categories having a node filter from categories any having the same node filter")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldSubtractCategoriesHavingNodeFilterFromCategoriesAnyHavingSameNodeFilter(
+		Evita evita,
+		List<SealedEntity> originalCategoryEntities
+	) {
+		// even primary keys do not form an ancestor-closed set, so `having` and `anyHaving` select different nodes
+		final Integer[] evenCategories = originalCategoryEntities.stream()
+			.map(EntityContract::getPrimaryKey)
+			.filter(pk -> pk % 2 == 0)
+			.toArray(Integer[]::new);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Set<Integer> anyHavingNodes = queryCategoryPrimaryKeys(
+					session, hierarchyWithinRootSelf(anyHaving(entityPrimaryKeyInSet(evenCategories)))
+				);
+				final Set<Integer> havingNodes = queryCategoryPrimaryKeys(
+					session, hierarchyWithinRootSelf(having(entityPrimaryKeyInSet(evenCategories)))
+				);
+				assertNotEquals(anyHavingNodes, havingNodes, "the two specifications must select different nodes");
+
+				final Set<Integer> expectedNodes = new HashSet<>(anyHavingNodes);
+				expectedNodes.removeAll(havingNodes);
+				assertFalse(expectedNodes.isEmpty(), "the subtraction must leave some nodes");
+
+				final Set<Integer> subtractedNodes = queryCategoryPrimaryKeys(
+					session,
+					hierarchyWithinRootSelf(anyHaving(entityPrimaryKeyInSet(evenCategories))),
+					not(hierarchyWithinRootSelf(having(entityPrimaryKeyInSet(evenCategories))))
+				);
+				assertEquals(expectedNodes, subtractedNodes);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the primary keys of all categories matching the passed filter constraints.
+	 *
+	 * @param session     the session to query in
+	 * @param constraints the constraints of the filter
+	 * @return the primary keys of the matching categories
+	 */
+	@Nonnull
+	private static Set<Integer> queryCategoryPrimaryKeys(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull FilterConstraint... constraints
+	) {
+		return session.query(
+				query(
+					collection(Entities.CATEGORY),
+					filterBy(constraints),
+					require(page(1, Integer.MAX_VALUE))
+				),
+				EntityReference.class
+			)
+			.getRecordData()
+			.stream()
+			.map(EntityReference::getPrimaryKey)
+			.collect(Collectors.toSet());
 	}
 
 	@DisplayName("Should return subcategories of lower category")

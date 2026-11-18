@@ -607,7 +607,6 @@ class FormulaOptimizerTest {
 			// which stores data in this.bitmaps and getInnerFormulas() returns empty array.
 			// DeMorgan must not produce EmptyFormula for this case.
 			final OrFormula bitmapOr = new OrFormula(
-				new long[]{1L},
 				new BaseBitmap(1, 2, 3),
 				new BaseBitmap(4, 5)
 			);

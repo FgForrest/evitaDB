@@ -37,7 +37,6 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Locale;
-import java.util.function.Predicate;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -51,8 +50,8 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
  * {@link AttributeRangeCarrierFormula} marker. The subclass must:
  *
  * - behave identically to its parent at runtime (compute, cost delegation, attribute-key routing);
- * - produce a hash distinct from a plain {@link AttributeFormula} built from the same arguments
- *   (so cache entries and dedup tables never conflate the two — the marker is load-bearing);
+ * - produce a key distinct from a plain {@link AttributeFormula} built from the same arguments
+ *   (so deduplication never conflates the two — the marker is load-bearing);
  * - preserve the {@link AttributeRangeCarrierFormula} marker and the optional requested-bucket predicate
  *   through {@link Formula#getCloneWithInnerFormulas(Formula...)}.
  *
@@ -70,7 +69,7 @@ class BetweenAttributeFormulaTest {
 
 	/**
 	 * Shared attribute key used across tests. A locale-agnostic key is sufficient — the locale contribution
-	 * to hashing is already exercised by {@link AttributeFormula}'s own tests.
+	 * to the key is already exercised by {@link AttributeFormula}'s own tests.
 	 */
 	@Nonnull
 	private static final AttributeKey ATTRIBUTE_KEY = new AttributeKey("price");
@@ -83,7 +82,7 @@ class BetweenAttributeFormulaTest {
 	private static final Bitmap REFERENCE_BITMAP = new ArrayBitmap(10, 20, 30);
 
 	/**
-	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Fresh instances let us test hash
+	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Fresh instances let us test key
 	 * stability without sharing memoised state.
 	 *
 	 * @return a {@link ConstantFormula} wrapping the shared reference bitmap
@@ -138,7 +137,8 @@ class BetweenAttributeFormulaTest {
 		void shouldExposeRequestedBucketPredicateUnchanged() {
 			// the predicate flags which histogram bucket the user's current slider falls into — losing it
 			// through the subclass would silently mislabel bucket marking on every attribute histogram
-			final Predicate<BigDecimal> predicate = value -> value.compareTo(BigDecimal.ONE) > 0;
+			final RequestedThresholdPredicate predicate = new ThresholdComparison(
+				ThresholdOperator.GREATER_THAN, BigDecimal.ONE);
 			final BetweenAttributeFormula formula = new BetweenAttributeFormula(
 				false, ATTRIBUTE_KEY, newInnerFormula(), predicate
 			);
@@ -192,7 +192,7 @@ class BetweenAttributeFormulaTest {
 		@Test
 		@DisplayName("should preserve requested-bucket predicate on clone")
 		void shouldPreserveRequestedBucketPredicateOnClone() {
-			final Predicate<BigDecimal> predicate = value -> true;
+			final RequestedThresholdPredicate predicate = new ThresholdRange(null, null);
 			final BetweenAttributeFormula original = new BetweenAttributeFormula(
 				false, ATTRIBUTE_KEY, newInnerFormula(), predicate
 			);
@@ -263,23 +263,30 @@ class BetweenAttributeFormulaTest {
 		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash stability")
-	class HashStabilityTest {
+	@DisplayName("Key stability")
+	class KeyTest {
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce identical hash for two subclass instances around identical children")
-		void shouldProduceIdenticalHashForTwoSubclassInstancesAroundIdenticalChildren() {
-			// stable hashing is what lets the formula cache recognise equivalent slider-range selections
+		@DisplayName("should produce identical key for two subclass instances around identical children")
+		void shouldProduceIdenticalKeyForTwoSubclassInstancesAroundIdenticalChildren() {
+			// stable keying is what lets the formula cache recognise equivalent slider-range selections
 			final BetweenAttributeFormula a = new BetweenAttributeFormula(false, ATTRIBUTE_KEY, newInnerFormula());
 			final BetweenAttributeFormula b = new BetweenAttributeFormula(false, ATTRIBUTE_KEY, newInnerFormula());
 
-			assertEquals(a.getHash(), b.getHash());
+			assertEquals(a.getKey(), b.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce different hash when inner formula differs")
-		void shouldProduceDifferentHashWhenInnerFormulaDiffers() {
+		@DisplayName("should produce different key when inner formula differs")
+		void shouldProduceDifferentKeyWhenInnerFormulaDiffers() {
 			final BetweenAttributeFormula a = new BetweenAttributeFormula(
 				false, ATTRIBUTE_KEY, new ConstantFormula(new ArrayBitmap(1))
 			);
@@ -287,15 +294,14 @@ class BetweenAttributeFormulaTest {
 				false, ATTRIBUTE_KEY, new ConstantFormula(new ArrayBitmap(2))
 			);
 
-			assertNotEquals(a.getHash(), b.getHash());
+			assertNotEquals(a.getKey(), b.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce different hash when attribute key differs")
-		void shouldProduceDifferentHashWhenAttributeKeyDiffers() {
-			// inherited includeAdditionalHash from AttributeFormula covers the attribute-name contribution;
-			// if the subclass ever re-introduces an overriding implementation that drops it, two
-			// BetweenAttributeFormula instances targeting *different* attributes would collide in cache
+		@DisplayName("should produce different key when attribute key differs")
+		void shouldProduceDifferentKeyWhenAttributeKeyDiffers() {
+			// The subclass identity includes the attribute name independently of the child's identity.
 			final BetweenAttributeFormula a = new BetweenAttributeFormula(
 				false, new AttributeKey("price"), newInnerFormula()
 			);
@@ -303,14 +309,15 @@ class BetweenAttributeFormulaTest {
 				false, new AttributeKey("weight"), newInnerFormula()
 			);
 
-			assertNotEquals(a.getHash(), b.getHash());
+			assertNotEquals(a.getKey(), b.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce different hash when attribute locale differs")
-		void shouldProduceDifferentHashWhenAttributeLocaleDiffers() {
-			// locale is part of the AttributeKey hash contribution — pins that the parent's locale-aware
-			// hashing still reaches the subclass
+		@DisplayName("should produce different key when attribute locale differs")
+		void shouldProduceDifferentKeyWhenAttributeLocaleDiffers() {
+			// locale is part of the AttributeKey key contribution — pins that the parent's locale-aware
+			// keying still reaches the subclass
 			final BetweenAttributeFormula a = new BetweenAttributeFormula(
 				false, new AttributeKey("name", Locale.ENGLISH), newInnerFormula()
 			);
@@ -318,19 +325,50 @@ class BetweenAttributeFormulaTest {
 				false, new AttributeKey("name", Locale.GERMAN), newInnerFormula()
 			);
 
-			assertNotEquals(a.getHash(), b.getHash());
+			assertNotEquals(a.getKey(), b.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce hash distinct from plain AttributeFormula around the same subtree")
-		void shouldProduceHashDistinctFromPlainAttributeFormulaAroundTheSameSubtree() {
+		@DisplayName("should produce key distinct from plain AttributeFormula around the same subtree")
+		void shouldProduceKeyDistinctFromPlainAttributeFormulaAroundTheSameSubtree() {
 			// this is the central tagging invariant — plain AttributeFormula and BetweenAttributeFormula
 			// must not collide; without a distinct class ID, `attributeEquals` and `attributeBetween` would
 			// cache-hit each other and the relaxer would see false carriers
 			final AttributeFormula plain = new AttributeFormula(false, ATTRIBUTE_KEY, newInnerFormula());
 			final BetweenAttributeFormula tagged = new BetweenAttributeFormula(false, ATTRIBUTE_KEY, newInnerFormula());
 
-			assertNotEquals(plain.getHash(), tagged.getHash());
+			assertNotEquals(plain.getKey(), tagged.getKey());
+		}
+	}
+
+	/**
+	 * Keys of the plain {@link AttributeFormula} the between formula specializes.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Plain attribute formula key")
+	class PlainAttributeFormulaKeyTest {
+
+		/** Keeps every plain attribute input observable independently of its result bitmap. */
+		@Test
+		@DisplayName("Includes global ownership, predicate and locale implication in attribute keys")
+		void shouldIncludeAttributeInputsInKey() {
+			final AttributeKey key = new AttributeKey("Aa", Locale.ENGLISH);
+			final AttributeFormula base = new AttributeFormula(false, key, newInnerFormula(), null, true);
+			assertNotEquals(base.getKey(), new AttributeFormula(true, key, newInnerFormula(), null, true).getKey());
+			final RequestedThresholdPredicate requested = new ThresholdRange(BigDecimal.ONE, BigDecimal.TEN);
+			final AttributeFormula requestedFormula =
+				new AttributeFormula(false, key, newInnerFormula(), requested, true);
+			assertNotEquals(base.getKey(), requestedFormula.getKey());
+			assertSame(requested, requestedFormula.getRequestedPredicate());
+			assertEquals(requestedFormula.getKey(),
+				new AttributeFormula(false, key, newInnerFormula(), new ThresholdRange(
+					new BigDecimal("1.00"), new BigDecimal("10.0")), true).getKey());
+			assertNotEquals(base.getKey(), new AttributeFormula(false, key, newInnerFormula(), null, false).getKey());
+			assertNotEquals(base.getKey(), new AttributeFormula(false,
+				new AttributeKey("BB", Locale.ENGLISH), newInnerFormula(), null, true).getKey());
 		}
 	}
 }

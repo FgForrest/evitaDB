@@ -58,8 +58,9 @@ import static io.evitadb.test.TestTags.FACET;
  *   to the inner formula so the planner sees no overhead;
  * - re-wrap correctly through `getCloneWithInnerFormulas(...)` as a `FacetHavingFormula` (so the
  *   FACET_IMPACT relaxer's `FacetHavingFormula.class.isInstance(...)` check keeps matching);
- * - produce a deterministic hash that depends only on the inner formula's hash plus the wrapper's own
- *   class identity (so two wrappers around structurally identical subtrees cache-hit).
+ * - produce a deterministic key that depends only on the inner formula's key plus the wrapper's own
+ *   identity - its class and reference name (so two wrappers around structurally identical subtrees compare
+ *   equal by key).
  *
  * These invariants matter because the facet-impact relaxer locates facet carriers **by type** — any
  * semantic change would either hide the wrapper from the relaxer or alter the planner's cost estimate.
@@ -80,13 +81,13 @@ class FacetHavingFormulaTest {
 	private static final Bitmap REFERENCE_BITMAP = new ArrayBitmap(10, 20, 30);
 	/**
 	 * Reference name passed to every wrapper under test — keeps construction sites short while still
-	 * exercising the active (non-{@code null}) branch of {@link FacetHavingFormula#includeAdditionalHash}.
+	 * exercising the active (non-{@code null}) bitmap operand.
 	 */
 	@Nonnull
 	private static final String REFERENCE_NAME = "brand";
 
 	/**
-	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Each test that asserts hash equality
+	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Each test that asserts key equality
 	 * or independence uses two freshly constructed wrappers so we avoid sharing memoised state.
 	 *
 	 * @return a {@link ConstantFormula} wrapping the shared reference bitmap
@@ -228,40 +229,48 @@ class FacetHavingFormulaTest {
 		}
 	}
 
+	/**
+	 * Detached key equality and input sensitivity.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
 	@Nested
-	@DisplayName("Hash stability")
-	class HashStabilityTest {
+	@DisplayName("Key stability")
+	class KeyTest {
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce identical hash for two wrappers around identical children")
-		void shouldProduceIdenticalHashForTwoWrappersAroundIdenticalChildren() {
-			// stable hashing is what lets the formula cache recognise "two facetHaving wrappers around
+		@DisplayName("should produce identical key for two wrappers around identical children")
+		void shouldProduceIdenticalKeyForTwoWrappersAroundIdenticalChildren() {
+			// stable keying is what lets the formula cache recognise "two facetHaving wrappers around
 			// the same subtree" as equivalent — a drift here silently misses cache hits
 			final FacetHavingFormula a = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula());
 			final FacetHavingFormula b = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula());
 
-			assertEquals(a.getHash(), b.getHash());
+			assertEquals(a.getKey(), b.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce different hash for wrappers around different children")
-		void shouldProduceDifferentHashForWrappersAroundDifferentChildren() {
-			// hash must change when the child changes — otherwise sibling facet picks would collide
+		@DisplayName("should produce different key for wrappers around different children")
+		void shouldProduceDifferentKeyForWrappersAroundDifferentChildren() {
+			// key must change when the child changes — otherwise sibling facet picks would collide
 			final FacetHavingFormula a = new FacetHavingFormula(REFERENCE_NAME, new ConstantFormula(new ArrayBitmap(1)));
 			final FacetHavingFormula b = new FacetHavingFormula(REFERENCE_NAME, new ConstantFormula(new ArrayBitmap(2)));
 
-			assertNotEquals(a.getHash(), b.getHash());
+			assertNotEquals(a.getKey(), b.getKey());
 		}
 
+		/** Verifies the stated equality or input distinction with real formulas. */
 		@Test
-		@DisplayName("should produce a hash distinct from the bare inner formula")
-		void shouldProduceHashDistinctFromBareInnerFormula() {
-			// the wrapper's own class ID must enter the hash — otherwise `facetHaving(x)` and `x` would
+		@DisplayName("should produce a key distinct from the bare inner formula")
+		void shouldProduceKeyDistinctFromBareInnerFormula() {
+			// the wrapper's own class ID must enter the key — otherwise `facetHaving(x)` and `x` would
 			// cache-collide and the relaxer's type-based lookup would see a false carrier
 			final Formula inner = newInnerFormula();
 			final FacetHavingFormula wrapper = new FacetHavingFormula(REFERENCE_NAME, inner);
 
-			assertNotEquals(inner.getHash(), wrapper.getHash());
+			assertNotEquals(inner.getKey(), wrapper.getKey());
 		}
 	}
 

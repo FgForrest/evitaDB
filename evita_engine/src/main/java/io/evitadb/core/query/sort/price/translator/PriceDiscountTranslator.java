@@ -463,6 +463,12 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			// initialize the selling price records
 			this.sellingPriceRecords = priceRecordsLookupResult.getPriceRecords();
 
+			// the terminations get a predicate factory rather than one predicate, because the predicate advances a
+			// cursor over the selling prices and every clone of a termination must start from the beginning; the
+			// factories read these locals, so the records assigned by a later call do not leak into these clones
+			final PriceRecordContract[] sellingPriceRecords = this.sellingPriceRecords;
+			final ToIntFunction<PriceRecordContract> priceExtractor = this.priceExtractor;
+
 			// now calculate the reference prices to be used for calculating the discount
 			final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = this.referencePriceFormulas
 				.stream()
@@ -472,12 +478,12 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 							it,
 							formula -> {
 								if (formula instanceof SumPriceTerminationFormula sptf) {
-									return sptf.withIndividualPricePredicate(
-										new InnerRecordInSellingPricesMatchingPredicate(this.sellingPriceRecords, this.priceExtractor)
+									return sptf.withIndividualPricePredicateFactory(
+										() -> new InnerRecordInSellingPricesMatchingPredicate(sellingPriceRecords, priceExtractor)
 									);
 								} else if (formula instanceof LowestPriceTerminationFormula fvptf) {
-									return fvptf.withIndividualPricePredicate(
-										new InnerRecordInSellingPricesMatchingPredicate(this.sellingPriceRecords, this.priceExtractor)
+									return fvptf.withIndividualPricePredicateFactory(
+										() -> new InnerRecordInSellingPricesMatchingPredicate(sellingPriceRecords, priceExtractor)
 									);
 								} else {
 									return formula;

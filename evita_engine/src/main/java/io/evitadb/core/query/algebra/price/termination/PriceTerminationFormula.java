@@ -23,8 +23,6 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
-import io.evitadb.core.query.algebra.NonCacheableFormula;
-import io.evitadb.core.query.algebra.NonCacheableFormulaScope;
 import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
@@ -36,6 +34,6 @@ import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHist
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface PriceTerminationFormula extends PriceWrappingFormula, FilteredOutPriceRecordAccessor, NonCacheableFormulaScope, NonCacheableFormula {
+public interface PriceTerminationFormula extends PriceWrappingFormula, FilteredOutPriceRecordAccessor {
 
 }

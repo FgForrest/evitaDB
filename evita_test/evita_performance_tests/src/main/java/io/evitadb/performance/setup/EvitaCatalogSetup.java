@@ -164,10 +164,7 @@ public interface EvitaCatalogSetup extends CatalogSetup, EvitaTestSupport {
 				.cache(
 					CacheOptions.builder()
 						.enabled(true)
-						.reevaluateEachSeconds(60)
-						.anteroomRecordCount(100_000)
 						.minimalComplexityThreshold(10_000)
-						.minimalUsageThreshold(2)
 						.cacheSizeInBytes(1_000_000_000L)
 						.build()
 				)

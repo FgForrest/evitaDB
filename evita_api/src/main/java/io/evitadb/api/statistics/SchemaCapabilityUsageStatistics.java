@@ -60,11 +60,11 @@ import java.util.Optional;
  * every candidate it considers, so a count taken where the translation happens would measure how many alternatives the
  * planner weighed rather than what the workload does.
  *
- * **The debug modes are the one caveat.** `VERIFY_ALTERNATIVE_INDEX_RESULTS` and `VERIFY_POSSIBLE_CACHING_TREES` make
- * the engine build and execute a query's alternative plans a second time to compare their results. That re-executes
- * genuine physical work - which the per-index counters see - but the capability is still counted **once**, because one
- * logical query was issued. A catalog running with those debug modes on therefore shows this surface and the per-index
- * one diverging further than usual, and this surface is the one that stayed faithful to the workload.
+ * **A debug mode is the one caveat.** `VERIFY_ALTERNATIVE_INDEX_RESULTS` makes the engine build and execute a query's
+ * alternative plans a second time to compare their results. That re-executes genuine physical work - which the
+ * per-index counters see - but the capability is still counted **once**, because one logical query was issued. A
+ * catalog running with that debug mode on therefore shows this surface and the per-index one diverging further than
+ * usual, and this surface is the one that stayed faithful to the workload.
  *
  * # What `updatedCount` counts
  *

@@ -1,7 +1,7 @@
 ---
 title: A warm-up schema change refused when its expression triggers are built raises the unpublishable barrier, and the inline DDL flush waits until they build
 date: 2026-11-16
-updated: 2026-11-16 18:45
+updated: 2026-11-17 14:58
 status: accepted
 kind: fix
 issues: [1922]
@@ -199,10 +199,15 @@ proved to be a real cost in imports and warm-up gained a journal of schema objec
   mutation's cascade is applied as a nested schema change and raises it from its own build. In `ALIVE` the session's
   transaction is marked rollback-only as before, and the commit replay runs in a transaction of its own; neither reaches
   the barrier.
-- **A failure of the marking is attached, not thrown.** `recordUnpublishableCause` sets the cause before it schedules
-  the deactivation, so the barrier stands even when scheduling is rejected; the rejection is added to the build's
-  exception as suppressed, and the operator log line is then missing. This path has no test: the only rejection is a
-  shut-down scheduler while a schema change still runs, which no public route reaches.
+- **The barrier stands even if scheduling fails.** `recordUnpublishableCause` sets the cause before scheduling
+  deactivation. An inactive engine suppresses deactivation failures, including shutdown scheduler rejections.
+  While the engine remains active, every non-conflict failure is logged as an ERROR, including scheduler rejections
+  and failures of accepted deactivations reported after the originating instance terminates. Admission conflicts
+  are retried every 200 ms without a fixed attempt budget. Pending retries stop when the engine becomes inactive;
+  an ended originating instance stops them with a stable DEBUG record. These lifetime checks precede name-based
+  admission and are separate from it. A refused `ModifyCatalogSchemaMutation` holds the very catalog conflict key
+  that refuses its deactivation until finalization, whose duration is unbounded under load. The retry lifecycle
+  is described in `2026-09-08-warm-up-invalid-schema-refuses-to-publish`.
 - **The inline DDL flush asks the build too.** `Catalog#canBuildPendingExpressionTriggers` builds the triggers of every
   entity type on every pending rebuild frame and discards them; the registry is not touched. It catches every
   `RuntimeException`, `EvitaInternalError` included, because the factories refuse user input with several exception

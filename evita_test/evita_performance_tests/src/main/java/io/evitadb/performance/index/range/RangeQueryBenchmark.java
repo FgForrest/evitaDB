@@ -335,8 +335,8 @@ public class RangeQueryBenchmark {
 			collect(endIndex, points.length - 1, points) : new StartsEnds();
 
 		final AndFormula envelopeFormula = new AndFormula(
-			countFormula(index.getId(), before.starts(), before.ends()),
-			countFormula(index.getId(), after.ends(), after.starts())
+			countFormula(before.starts(), before.ends()),
+			countFormula(after.ends(), after.starts())
 		);
 
 		if (thresholdFound) {
@@ -379,8 +379,8 @@ public class RangeQueryBenchmark {
 			unionFormula(between.starts()),
 			unionFormula(between.ends()),
 			new AndFormula(
-				countFormula(index.getId(), before.starts(), before.ends()),
-				countFormula(index.getId(), after.ends(), after.starts())
+				countFormula(before.starts(), before.ends()),
+				countFormula(after.ends(), after.starts())
 			)
 		);
 	}
@@ -446,9 +446,15 @@ public class RangeQueryBenchmark {
 	/**
 	 * The `createRangeCountFormulaIfNecessary` short-circuiting, reproduced so the baseline builds the same formula
 	 * shapes the engine used to build.
+	 *
+	 * @param plus the bitmap operands whose occurrences increase the per-record range count; empty operands are ignored
+	 * @param minus the bitmap operands whose occurrences decrease the per-record range count; empty operands are
+	 *     ignored
+	 * @return a formula selecting records with a positive net count, a union when no subtracting operands remain,
+	 *     or {@link EmptyFormula#INSTANCE} when no adding operands remain
 	 */
 	@Nonnull
-	private static Formula countFormula(long id, @Nonnull List<Bitmap> plus, @Nonnull List<Bitmap> minus) {
+	private static Formula countFormula(@Nonnull List<Bitmap> plus, @Nonnull List<Bitmap> minus) {
 		final Bitmap[] filteredPlus = withoutEmpty(plus);
 		if (filteredPlus.length == 0) {
 			return EmptyFormula.INSTANCE;
@@ -456,9 +462,9 @@ public class RangeQueryBenchmark {
 		final Bitmap[] filteredMinus = withoutEmpty(minus);
 		if (filteredMinus.length == 0) {
 			return filteredPlus.length == 1 ?
-				new ConstantFormula(filteredPlus[0]) : new OrFormula(new long[]{id}, filteredPlus);
+				new ConstantFormula(filteredPlus[0]) : new OrFormula(filteredPlus);
 		}
-		return new RangeCountFormula(id, filteredPlus, filteredMinus);
+		return new RangeCountFormula(filteredPlus, filteredMinus);
 	}
 
 	/**

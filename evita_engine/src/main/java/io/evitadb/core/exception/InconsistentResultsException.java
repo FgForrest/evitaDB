@@ -33,25 +33,61 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when the evitaDB produces different results for alternative index sources. The exception is
- * thrown only when {@link DebugMode} equal to {@link DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} is set in the query.
+ * Thrown when debug verification finds different responses from alternative indexes or from the key-free baseline
+ * and the preferred plan. These comparisons are enabled by {@link DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} and
+ * {@link DebugMode#VERIFY_POSSIBLE_CACHING_TREES}, respectively.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class InconsistentResultsException extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = 185377662501574496L;
 
+	/**
+	 * Describes a difference between the preferred index plan and an alternative.
+	 *
+	 * @param mainBuilder the preferred plan whose description identifies the first response
+	 * @param mainResult the preferred response rendered into the diagnostic message
+	 * @param alternativeBuilder the alternative plan whose description identifies the second response
+	 * @param alternativeResult the alternative response rendered into the diagnostic message
+	 */
 	public InconsistentResultsException(
 		@Nonnull QueryPlanBuilder mainBuilder,
 		@Nonnull EvitaResponse<EntityClassifier> mainResult,
 		@Nonnull QueryPlanBuilder alternativeBuilder,
 		@Nonnull EvitaResponse<EntityClassifier> alternativeResult
 	) {
+		this(mainBuilder.getDescription(), mainResult, alternativeBuilder.getDescription(), alternativeResult);
+	}
+
+	/**
+	 * Describes a difference between two named execution paths, rendering both responses for diagnosis.
+	 *
+	 * @param mainDescription the preferred execution path label included in both exception messages
+	 * @param mainResult the preferred response converted to text for the detailed message
+	 * @param alternativeDescription the compared execution path label included in both exception messages
+	 * @param alternativeResult the alternative response converted to text for the detailed message
+	 */
+	public InconsistentResultsException(
+		@Nonnull String mainDescription,
+		@Nonnull EvitaResponse<EntityClassifier> mainResult,
+		@Nonnull String alternativeDescription,
+		@Nonnull EvitaResponse<EntityClassifier> alternativeResult
+	) {
 		super(
-			"Results for `" + mainBuilder.getDescription() + "` and `" + alternativeBuilder.getDescription() + "` differ!"
-				+ "\n\n" +
-				mainResult + "\nvs.\n" + alternativeResult,
-			"Results for `" + mainBuilder.getDescription() + "` and `" + alternativeBuilder.getDescription() + "` differ!"
+			headline(mainDescription, alternativeDescription) + "\n\n" + mainResult + "\nvs.\n" + alternativeResult,
+			headline(mainDescription, alternativeDescription)
 		);
+	}
+
+	/**
+	 * Names both compared execution paths; shared by the detailed and the public message.
+	 *
+	 * @param mainDescription the label identifying the preferred execution path
+	 * @param alternativeDescription the label identifying the execution path with a differing response
+	 * @return a message naming both paths and stating that their results differ
+	 */
+	@Nonnull
+	private static String headline(@Nonnull String mainDescription, @Nonnull String alternativeDescription) {
+		return "Results for `" + mainDescription + "` and `" + alternativeDescription + "` differ!";
 	}
 }

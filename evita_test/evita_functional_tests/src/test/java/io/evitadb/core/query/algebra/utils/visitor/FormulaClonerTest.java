@@ -618,10 +618,6 @@ class FormulaClonerTest {
 	@Nested
 	@DisplayName("RangeCountFormula handling")
 	class RangeCountFormulaHandlingTest {
-		/**
-		 * Arbitrary non-zero index id - the staleness token a range count formula is required to carry.
-		 */
-		private static final long INDEX_ID = 77L;
 
 		/**
 		 * Builds a range count formula over three small operands, computing a non-empty result.
@@ -631,7 +627,6 @@ class FormulaClonerTest {
 		@Nonnull
 		private static RangeCountFormula rangeCountFormula() {
 			return new RangeCountFormula(
-				INDEX_ID,
 				new Bitmap[]{new BaseBitmap(1, 2, 3), new BaseBitmap(2, 3)},
 				new Bitmap[]{new BaseBitmap(3)}
 			);
@@ -686,7 +681,7 @@ class FormulaClonerTest {
 			// unify, and the cancellation is arithmetic: the formula survives the clone by identity and computes
 			// empty on its own.
 			final Bitmap[] family = {new BaseBitmap(1, 2, 3), new BaseBitmap(2, 5), new BaseBitmap(9)};
-			final RangeCountFormula rangeCount = new RangeCountFormula(INDEX_ID, family, family);
+			final RangeCountFormula rangeCount = new RangeCountFormula(family, family);
 			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(2, 3, 4));
 			final Formula tree = new AndFormula(rangeCount, keep);
 

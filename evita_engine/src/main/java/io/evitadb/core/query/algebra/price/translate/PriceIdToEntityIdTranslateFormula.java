@@ -23,20 +23,21 @@
 
 package io.evitadb.core.query.algebra.price.translate;
 
-import io.evitadb.core.cache.payload.FlattenedFormula;
-import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPrices;
+import io.evitadb.core.query.algebra.identity.IdentityExempt;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.cache.CachedResult;
+import io.evitadb.core.cache.CachedPriceRecordsResult;
+import io.evitadb.core.cache.CachedResultWeigher;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
-import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -46,19 +47,15 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
-import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.function.Consumer;
 
 /**
  * PriceIdToEntityIdTranslateFormula translates price ids to entity ids in its {@link Formula#compute()} method.
@@ -70,9 +67,9 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, CacheablePriceFormula, Formula {
+public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, Formula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -8575853054010280485L;
 
@@ -80,16 +77,10 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	 * Contains array of price records that links to the price ids produced by {@link Formula#compute()} method. This array
 	 * is available once the {@link Formula#compute()} method has been called.
 	 */
+	@IdentityExempt(IdentityExempt.Reason.STATE)
 	private FilteredPriceRecords filteredPriceRecords;
 
 	public PriceIdToEntityIdTranslateFormula(@Nonnull Formula delegate) {
-		super(null);
-		this.initFields(delegate);
-	}
-
-	private PriceIdToEntityIdTranslateFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull FilteredPriceRecords filteredPriceRecords, @Nonnull Formula delegate) {
-		super(computationCallback);
-		this.filteredPriceRecords = filteredPriceRecords;
 		this.initFields(delegate);
 	}
 
@@ -114,7 +105,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PriceIdToEntityIdTranslateFormula(
-			this.computationCallback, this.filteredPriceRecords, innerFormulas[0]
+			innerFormulas[0]
 		);
 	}
 
@@ -123,49 +114,25 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 		return 3527;
 	}
 
+	/** Freezes and measures all price outputs before publication. */
 	@Override
-	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
-		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
-		return new FlattenedFormulaWithFilteredPrices(
-			formulaHash,
-			getTransactionalIdHash(),
-			sortedDistinctIds,
-			compute(),
-			getFilteredPriceRecords(this.executionContext),
-			getPriceEvaluationContext()
-		);
+	protected long measurePayload(@Nonnull Bitmap computed) {
+		return CachedResultWeigher.measure(getKey(), computed, this.filteredPriceRecords, null);
 	}
 
-	@Nonnull
-	private PriceEvaluationContext getPriceEvaluationContext() {
-		final Collection<PriceIdContainerFormula> priceIdFormulas = FormulaFinder.find(
-			getDelegate(), PriceIdContainerFormula.class, LookUp.SHALLOW
-		);
-
-		final PriceIndexKey[] keys = new PriceIndexKey[priceIdFormulas.size()];
-		int idx = 0;
-		for (PriceIdContainerFormula formula : priceIdFormulas) {
-			keys[idx++] = formula.getPriceIndex().getPriceIndexKey();
-		}
-		return new PriceEvaluationContext(null, keys);
-	}
-
-	@Override
-	public int getSerializableFormulaSizeEstimate() {
-		return FlattenedFormulaWithFilteredPrices.estimateSize(
-			gatherTransactionalIds(),
-			compute(),
-			getPriceEvaluationContext()
-		);
-	}
-
+	/** Captures the bitmap and its price output from the same computation. */
 	@Nonnull
 	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
-		return new PriceIdToEntityIdTranslateFormula(
-			selfOperator, this.filteredPriceRecords, innerFormulas[0]
-		);
+	protected CachedResult toCachedResult(@Nonnull Bitmap computed, int weight) {
+		return CachedPriceRecordsResult.of(computed, this.filteredPriceRecords, null, weight);
+	}
+
+	/** Restores all side outputs before exposing the memoized bitmap. */
+	@Override
+	protected void restoreFromCache(@Nonnull CachedResult cached) {
+		final CachedPriceRecordsResult prices = (CachedPriceRecordsResult) cached;
+		this.filteredPriceRecords = prices.priceRecords();
+		restoreComputedResult(prices.result());
 	}
 
 	@Nonnull
@@ -251,13 +218,33 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	}
 
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
+	protected long getClassId() {
 		return CLASS_ID;
 	}
 
+	/** Returns detached computation inputs, with formula operands carried by the ordered child keys. */
+	@Nonnull
 	@Override
-	protected long getClassId() {
-		return CLASS_ID;
+	protected IdentityRecord identity() {
+		return new Identity();
+	}
+
+	/**
+	 * Detached identity of the formula, whose inputs are its child.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity() implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** The formula has no inputs outside its child. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+		}
 	}
 
 }

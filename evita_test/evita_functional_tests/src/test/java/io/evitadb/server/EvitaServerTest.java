@@ -23,6 +23,11 @@
 
 package io.evitadb.server;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.google.protobuf.Empty;
 import com.linecorp.armeria.client.ClientFactory;
 import com.linecorp.armeria.client.WebClient;
@@ -35,12 +40,14 @@ import com.linecorp.armeria.common.RequestHeaders;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.Route;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.certificate.LoadedCertificates;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
@@ -61,21 +68,26 @@ import io.evitadb.externalApi.lab.LabProvider;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.system.SystemProvider;
+import io.evitadb.server.yaml.UnknownPropertyProblemHandler;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils.Property;
+import io.evitadb.utils.ExceptionUtils;
 import io.evitadb.utils.NetworkUtils;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.FieldSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -113,6 +125,15 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 @Tag(MANAGEMENT)
 class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private static final String DIR_EVITA_SERVER_TEST = "evitaServerTest";
+	private static final List<String> REMOVED_CACHE_PROPERTIES = List.of(
+		"reevaluateEachSeconds", "anteroomRecordCount", "minimalUsageThreshold"
+	);
+	private static final String REMOVED_CACHE_PROPERTIES_YAML = """
+		cache:
+		  reevaluateEachSeconds: 60
+		  anteroomRecordCount: 100000
+		  minimalUsageThreshold: 2
+		""";
 	public static final int TIMEOUT_IN_MILLIS = 30_000;
 	/**
 	 * Time budget for polling a health probe (`readiness` / `liveness` / `status`) until it settles.
@@ -1413,6 +1434,152 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			// the constructor fails before anything is bound, so the reservation is returned at once - left behind, it
 			// would fail the next port allocation of this class
 			getPortManager().releasePorts(DIR_EVITA_SERVER_TEST);
+		}
+	}
+
+	@Test
+	@DisplayName("should share cache defaults with the shipped YAML")
+	void shouldShareCacheDefaultsWithShippedYaml() throws IOException {
+		assertEquals(new CacheOptions(), loadCacheOptions("", true));
+		assertEquals(CacheOptions.builder().build(), loadCacheOptions("cache:\n  enabled: false\n", true));
+	}
+
+	@ParameterizedTest
+	@CsvSource({"0, 0", "1048576, 1048576", "2M, 2000000"})
+	@DisplayName("should resolve explicit YAML cache budgets in bytes")
+	void shouldResolveYamlCacheBudgets(@Nonnull String value, long budget) throws IOException {
+		final CacheOptions options = loadCacheOptions("cache:\n  cacheSizeInBytes: " + value + "\n", true);
+		assertEquals(budget, options.cacheSizeInBytes());
+	}
+
+	/** Enabling the cache without a budget keeps the shipped default budget and every other shipped default. */
+	@Test
+	@DisplayName("should enable the YAML cache with the default budget")
+	void shouldEnableYamlCacheWithDefaultBudget() throws IOException {
+		final CacheOptions options = loadCacheOptions("cache:\n  enabled: true\n", true);
+		assertEquals(CacheOptions.builder().enabled(true).build(), options);
+	}
+
+	/**
+	 * A budget override set to an empty value substitutes nothing into the shipped placeholder, which YAML reads as
+	 * null, so the budget falls back to the default instead of turning the cache off. The non-empty override proves
+	 * the value reaches the placeholder at all.
+	 */
+	@Test
+	@DisplayName("should resolve an empty cache budget override to the default")
+	void shouldResolveEmptyCacheBudgetOverrideToDefault() throws IOException {
+		final CacheOptions overridden = loadCacheOptions("", true, Map.of("cache.cacheSizeInBytes", "1048576"));
+		final CacheOptions empty = loadCacheOptions("", true, Map.of("cache.cacheSizeInBytes", ""));
+
+		assertEquals(1_048_576L, overridden.cacheSizeInBytes());
+		assertEquals(new CacheOptions(), empty);
+	}
+
+	@Test
+	@DisplayName("should accept zero expiry and verification in YAML cache options")
+	void shouldAcceptZeroExpiryAndVerificationInYamlCacheOptions() throws IOException {
+		final CacheOptions options = loadCacheOptions(
+			"cache:\n  dropEntriesAfterSecondsOfInactivity: 0\n  verifyOneHitIn: 0\n", true
+		);
+		assertEquals(0, options.dropEntriesAfterSecondsOfInactivity());
+		assertEquals(0, options.verifyOneHitIn());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+		"minimalComplexityThreshold", "cacheSizeInBytes", "dropEntriesAfterSecondsOfInactivity", "verifyOneHitIn"
+	})
+	@DisplayName("should reject negative YAML cache limits")
+	void shouldRejectNegativeYamlCacheLimits(@Nonnull String property) {
+		final IllegalArgumentException exception = assertThrows(
+			IllegalArgumentException.class, () -> loadCacheOptions("cache:\n  " + property + ": -1\n", true)
+		);
+		assertInstanceOf(EvitaInvalidUsageException.class, ExceptionUtils.getRootCause(exception));
+	}
+
+	@ParameterizedTest
+	@FieldSource("REMOVED_CACHE_PROPERTIES")
+	@DisplayName("should reject each removed cache property in strict mode")
+	void shouldRejectRemovedCachePropertiesInStrictMode(@Nonnull String property) {
+		final IllegalArgumentException exception = assertThrows(
+			IllegalArgumentException.class, () -> loadCacheOptions("cache:\n  " + property + ": 1\n", true)
+		);
+		final UnrecognizedPropertyException cause = assertInstanceOf(
+			UnrecognizedPropertyException.class, ExceptionUtils.getRootCause(exception)
+		);
+		assertEquals(property, cause.getPropertyName());
+	}
+
+	@Test
+	@DisplayName("should warn and ignore removed cache properties in non-strict mode")
+	void shouldWarnAndIgnoreRemovedCachePropertiesInNonStrictMode() throws IOException {
+		final Logger logger = (Logger) LoggerFactory.getLogger(UnknownPropertyProblemHandler.class);
+		final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+		appender.start();
+		logger.addAppender(appender);
+		try {
+			assertEquals(new CacheOptions(), loadCacheOptions(
+				REMOVED_CACHE_PROPERTIES_YAML,
+				false
+			));
+			for (final String property : REMOVED_CACHE_PROPERTIES) {
+				assertEquals(1L, appender.list.stream().filter(
+					event -> event.getLevel() == Level.WARN &&
+						event.getFormattedMessage().contains("cache." + property)
+				).count());
+			}
+		} finally {
+			logger.detachAppender(appender);
+			appender.stop();
+		}
+	}
+
+	/**
+	 * Loads cache options through the server's YAML merge, substitution and deserialization path.
+	 * APIs are disabled so that configuration checks do not need listening sockets.
+	 */
+	@Nonnull
+	private CacheOptions loadCacheOptions(@Nonnull String yaml, boolean strict) throws IOException {
+		return loadCacheOptions(yaml, strict, Map.of());
+	}
+
+	/**
+	 * Loads cache options like {@link #loadCacheOptions(String, boolean)}, with `extraArguments` passed as program
+	 * arguments, the first source the server consults when it substitutes a placeholder in the shipped YAML.
+	 */
+	@Nonnull
+	private CacheOptions loadCacheOptions(
+		@Nonnull String yaml, boolean strict, @Nonnull Map<String, String> extraArguments
+	) throws IOException {
+		final Path directory = getPathInTargetDirectory(DIR_EVITA_SERVER_TEST);
+		Files.createDirectories(directory);
+		if (yaml.isEmpty()) {
+			Files.deleteIfExists(directory.resolve("cache.yaml"));
+		} else {
+			Files.writeString(directory.resolve("cache.yaml"), yaml);
+		}
+		final Map<String, String> arguments = createHashMap(4);
+		arguments.put("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString());
+		arguments.put("export.fileSystem.enabled", "true");
+		arguments.put(
+			"export.fileSystem.directory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST + "_export").toString()
+		);
+		for (ExternalApiProviderRegistrar<?> provider : ExternalApiServer.gatherExternalApiProviders()) {
+			arguments.put("api.endpoints." + provider.getExternalApiCode() + ".enabled", "false");
+		}
+		arguments.putAll(extraArguments);
+		final EvitaServer server = new EvitaServer(directory, strict, null, arguments);
+		try {
+			server.run();
+			return server.getEvita().getConfiguration().cache();
+		} finally {
+			try {
+				server.stop().join();
+			} finally {
+				if (server.getEvita() != null) {
+					server.getEvita().close();
+				}
+			}
 		}
 	}
 

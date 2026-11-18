@@ -26,7 +26,6 @@ package io.evitadb.core.query.algebra.hierarchy;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
@@ -35,7 +34,8 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -50,17 +50,11 @@ import javax.annotation.Nullable;
  * It enables downstream consumers — most notably the hierarchy-statistics planner — to selectively strip a single
  * hierarchy branch from a cloned filter formula tree without having to re-translate the original query constraints.
  *
- * Implements {@link NonCacheableFormula} so that any cacheable parent (e.g. an enclosing `AND`/`OR`) is forbidden
- * from being flattened into a {@link io.evitadb.core.cache.payload.FlattenedFormula}. Flattening would erase the
- * `HierarchyFormula` wrapper from the formula tree, which would break the hierarchy-statistics planner's filter
- * cloning — it relies on locating `HierarchyFormula` instances by type to selectively strip them per
- * {@link io.evitadb.api.query.require.StatisticsBase} mode.
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class HierarchyFormula extends AbstractFormula implements ChildrenDependentFormula, NonCacheableFormula {
+public class HierarchyFormula extends AbstractFormula implements ChildrenDependentFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} as the identity discriminator.
 	 */
 	private static final long CLASS_ID = -7910610363796304904L;
 	/**
@@ -128,11 +122,6 @@ public class HierarchyFormula extends AbstractFormula implements ChildrenDepende
 	}
 
 	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return this.referenceName == null ? 0L : hashFunction.hashChars(this.referenceName);
-	}
-
-	@Override
 	protected long getClassId() {
 		return CLASS_ID;
 	}
@@ -150,5 +139,33 @@ public class HierarchyFormula extends AbstractFormula implements ChildrenDepende
 		return this.referenceName == null
 			? "HIERARCHY: " + this.innerFormulas[0].toStringVerbose()
 			: "HIERARCHY (" + this.referenceName + "): " + this.innerFormulas[0].toStringVerbose();
+	}
+
+	/** Returns detached inputs without computing the bitmap. */
+	@Nonnull
+	@Override
+	protected IdentityRecord identity() {
+		return new Identity(this.referenceName);
+	}
+
+	/**
+	 * Detached computation inputs.
+	 *
+	 * @param referenceName name of the reference whose hierarchy is traversed, null for the queried entity's own
+	 *                      hierarchy
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public record Identity(@Nullable String referenceName) implements IdentityRecord {
+		/** Returns the declaring holder identifier. */
+		@Override
+		public long classId() {
+			return CLASS_ID;
+		}
+
+		/** Includes every input in declaration order. */
+		@Override
+		public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			accumulator.add(this.referenceName);
+		}
 	}
 }

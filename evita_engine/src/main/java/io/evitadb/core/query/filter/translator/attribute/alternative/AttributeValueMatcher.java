@@ -36,7 +36,9 @@ import javax.annotation.concurrent.Immutable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.time.OffsetDateTime;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -442,6 +444,38 @@ public sealed interface AttributeValueMatcher {
 			return this.predicate.test(toNfd((String) value), this.textToSearch);
 		}
 
+	}
+
+	/**
+	 * Keeps the immutable schema inputs and moment beside the matcher they constructed. In particular, a subsequent
+	 * lookup cannot replace the global schema used by the matcher with an entity-local definition.
+	 *
+	 * @param delegate executable matcher
+	 * @param schemaInputs detached schema traits used by the matcher
+	 * @param moment implicit moment read by matcher construction
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	record MainQueryMatcher(
+		@Nonnull AttributeValueMatcher delegate,
+		@Nonnull List<String> schemaInputs,
+		@Nullable OffsetDateTime moment
+	) implements AttributeValueMatcher {
+		/** Retains an immutable schema snapshot. */
+		public MainQueryMatcher {
+			schemaInputs = List.copyOf(schemaInputs);
+		}
+
+		/** Preserves the delegate's complete handling of missing values and arrays. */
+		@Override
+		public boolean matches(@Nullable Serializable value) {
+			return this.delegate.matches(value);
+		}
+
+		/** Preserves the delegate's scalar comparison. */
+		@Override
+		public boolean matchesElement(@Nonnull Object value) {
+			return this.delegate.matchesElement(value);
+		}
 	}
 
 }

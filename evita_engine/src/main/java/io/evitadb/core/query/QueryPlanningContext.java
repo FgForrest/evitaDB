@@ -62,6 +62,7 @@ import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -76,6 +77,8 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.cache.CacheSupervisor;
+import io.evitadb.core.cache.NoCacheSupervisor;
+import io.evitadb.core.cache.FormulaCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.metric.event.query.FinishedEvent;
@@ -180,9 +183,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull @Getter
 	private FetchRequirementCollector fetchRequirementCollector = new DefaultPrefetchRequirementCollector();
 	/**
-	 * Contains reference to the policy that controls the interaction with cache and drives the query planning strategy.
-	 * It is picked once for the outer query (debug modes may force a non-caching variant) and inherited unchanged by
-	 * every nested context, so a single query never mixes two policies.
+	 * Contains reference to the policy that decides about entity prefetch - whether the planner may prefetch at all
+	 * and what a prefetch is estimated to cost. It is picked once for the outer query (debug modes may force the
+	 * variant that denies prefetch) and inherited unchanged by every nested context, so a single query never mixes
+	 * two policies.
 	 */
 	@Nonnull private final PlanningPolicy planningPolicy;
 	/**
@@ -191,6 +195,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * the metrics point of view and must not be reported as one.
 	 */
 	@Nullable @Getter private final FinishedEvent queryFinishedEvent;
+	/** Shared execution state for plan verification and sampled cache recomputation; absent on ordinary bypassed roots. */
+	@Nullable private final VerificationState verificationState;
 	/**
 	 * Contains reference to the catalog that is targeted by {@link #evitaRequest}.
 	 */
@@ -244,11 +250,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull private final Map<Integer, Index<?>> indexesByPk;
 	/**
-	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified
-	 * by its {@link Formula#getHash()} method and when the supervisor identifies that certain
-	 * formula is frequently used in query formulas it moves its memoized results to the cache. The non-computed formula
-	 * of the same hash will be exchanged in next query that contains it with the cached formula that already contains
-	 * memoized result.
+	 * Effective supervisor of this context: the engine's `FormulaCacheSupervisor` when this planning root passed the
+	 * formula cache gate, otherwise `NoCacheSupervisor`. A nested context shares its parent's and a verification
+	 * sibling never caches.
+	 *
+	 * @return the effective supervisor shared with nested contexts; ineligible roots and verification siblings bypass
+	 *     caching
 	 */
 	@Getter
 	@Nonnull private final CacheSupervisor cacheSupervisor;
@@ -269,8 +276,18 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * names is asked for by anybody, so it records no schema capability at all - it neither mints the keys nor
 	 * resolves the holders, and the plans of the nested queries it builds count nothing. The value is inherited by the
 	 * derived contexts, so the decision is made once, where the evaluation starts, and no translator has to know.
+	 * Also false for a key-free verification sibling and for every body-fetch root planned during verification.
 	 */
 	private final boolean recordingRequestedCapabilities;
+	/**
+	 * True for a key-free verification sibling, its descendants and the body-fetch roots it creates. These contexts
+	 * never share formulas, collect telemetry, emit the finished event, record capabilities or index activity, or start
+	 * another verification; their effective supervisor always bypasses caching.
+	 *
+	 * @return whether this context belongs to a key-free verification tree whose accounting and caching are disabled
+	 */
+	@Getter
+	private final boolean verificationSibling;
 	/**
 	 * Internal execution context used for execution of formulas evaluated in planning phase.
 	 *
@@ -278,7 +295,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * hierarchy and facet group resolution, and everything memoized by
 	 * {@link #computeOnlyOnce(List, FilterConstraint, Supplier, long...)}. They all initialize their formulas with
 	 * this one context, so the memoized results stay valid for the whole planning phase instead of being
-	 * recomputed per candidate plan.
+	 * recomputed per candidate plan. It is created as an eager planning evaluation, so it never consults or fills the
+	 * formula result cache.
+	 *
+	 * @return the shared execution context used for eager planning evaluations, with formula result caching disabled
 	 */
 	@Getter @Nonnull
 	private final QueryExecutionContext internalExecutionContext;
@@ -419,12 +439,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nullable private PartitionKeyMemo partitionKeyMemo;
 
-
 	/**
 	 * Creates the context of a **top level** query - the one that produces the response handed back to the client.
 	 * This is the only constructor that fabricates the {@link FinishedEvent}, so exactly one metric event is
 	 * emitted per client query regardless of how many nested queries it spawns.
 	 *
+	 * @param <S> the key type identifying indexes available to this context
+	 * @param <T> the index type held in both lookup maps
 	 * @param catalog          the catalog the query is executed against
 	 * @param entityCollection collection targeted by the query, NULL for catalog-wide queries
 	 * @param evitaSession     the enveloping session, must be an {@link EvitaSession} instance
@@ -433,7 +454,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *                         passing NULL turns the whole telemetry collection into a no-op
 	 * @param indexes          indexes available for the query, keyed by their {@link IndexKey}
 	 * @param indexesByPk      the very same indexes keyed by their primary key
-	 * @param cacheSupervisor  supervisor deciding which formulas get their results memoized in the shared cache
+	 * @param cacheSupervisor  the engine's supervisor, from which this root resolves its formula cache gate
 	 */
 	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nonnull Catalog catalog,
@@ -455,7 +476,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				entityCollection == null ? null : entityCollection.getEntityType(),
 				evitaRequest.getLabels()
 			),
-			true
+			true, false, null
 		);
 		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
 	}
@@ -468,6 +489,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Passing NULL as `parentQueryContext` produces a top level context **without** the metric event, which is
 	 * what internal, non-client-facing evaluations want.
 	 *
+	 * @param <S> the key type identifying indexes available to this context
+	 * @param <T> the index type held in both lookup maps
 	 * @param parentQueryContext context of the enclosing query, NULL for a standalone internal evaluation
 	 * @param catalog            the catalog the query is executed against
 	 * @param entityCollection   collection targeted by the query, NULL for catalog-wide queries
@@ -477,7 +500,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param telemetry          root telemetry node of this nested tree, NULL when telemetry is not collected
 	 * @param indexes            indexes available for the query, keyed by their {@link IndexKey}
 	 * @param indexesByPk        the very same indexes keyed by their primary key
-	 * @param cacheSupervisor    supervisor deciding which formulas get their results memoized
+	 * @param cacheSupervisor    the engine's supervisor; a nested context uses its parent's effective supervisor
+	 *                           instead, a standalone one resolves its own formula cache gate from it
 	 */
 	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nullable QueryPlanningContext parentQueryContext,
@@ -493,7 +517,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this(
 			parentQueryContext, catalog, entityCollection,
 			evitaSession, evitaRequest, telemetry, indexes, indexesByPk,
-			cacheSupervisor, null, true
+			cacheSupervisor, null, true, false, null
 		);
 		// guard only when session is expected — nested contexts during session-less evaluation
 		// (WAL replay) inherit the null session from the parent and should not assert
@@ -538,7 +562,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	) {
 		this(
 			null, catalog, entityCollection, evitaSession, evitaRequest, null, indexes, indexesByPk, cacheSupervisor,
-			null, false
+			null, false, false, null
 		);
 	}
 
@@ -553,6 +577,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *   constructors assert against that, but the assertion can only run *after* this constructor completed
 	 *   (Java requires the `this(...)` call to come first), so this method must cope with the value on its own.
 	 *
+	 * @param <S> the key type identifying indexes available to this context
+	 * @param <T> the index type held in both lookup maps
 	 * @param parentQueryContext context of the enclosing query, NULL for a top level one
 	 * @param catalog            the catalog the query is executed against
 	 * @param entityCollection   collection targeted by the query, NULL for catalog-wide queries
@@ -561,12 +587,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param telemetry          root telemetry node, NULL disables telemetry collection entirely
 	 * @param indexes            indexes available for the query, keyed by their {@link IndexKey}
 	 * @param indexesByPk        the very same indexes keyed by their primary key
-	 * @param cacheSupervisor    supervisor deciding which formulas get their results memoized
+	 * @param cacheSupervisor    the supervisor the engine offers; ignored by a nested context, which takes its parent's,
+	 *                           and by a verification sibling, which never caches; a root resolves its formula cache
+	 *                           gate from a `FormulaCacheSupervisor`
 	 * @param event              metric event to be completed when the query finishes, NULL for nested and
 	 *                           internal evaluations that must not be reported as client queries
 	 * @param recordingRequestedCapabilities false for the context of an internal evaluation a write makes, which
 	 *                           records no schema capability request - ignored for a nested context, which inherits
 	 *                           the value of its parent, see {@link #recordingRequestedCapabilities}
+	 * @param verificationSibling true for a key-free verification root; nested contexts inherit their parent's value
+	 * @param verificationState execution state shared with an independent fetch root, NULL for a new query
 	 */
 	private <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nullable QueryPlanningContext parentQueryContext,
@@ -579,9 +609,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Map<Integer, T> indexesByPk,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nullable FinishedEvent event,
-		boolean recordingRequestedCapabilities
+		boolean recordingRequestedCapabilities,
+		boolean verificationSibling,
+		@Nullable VerificationState verificationState
 	) {
 		this.parentContext = parentQueryContext;
+		this.verificationSibling = parentQueryContext == null ?
+			verificationSibling : parentQueryContext.verificationSibling;
 		this.catalog = catalog;
 		this.entityCollection = entityCollection;
 		this.entityType = ofNullable(entityCollection)
@@ -591,10 +625,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this.evitaSession = evitaSession instanceof EvitaSession es ? es : null;
 		this.evitaRequest = evitaRequest;
 		if (parentQueryContext == null) {
-			// when debug mode is enabled we need to enforce the main plan to be non-cached
-			// the cached variants needs to be derived from it
-			// the same policy serves `PREFER_INDEX_SCAN`, which needs the prefetch denied so the query resolves
-			// the indexes - and gets the cache bypass along with it, which keeps that resolution observable
+			// These debug modes favour bitmap planning and suppress optional prefetch so the query resolves indexes.
 			this.planningPolicy = isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
 				|| isDebugModeEnabled(DebugMode.PREFER_INDEX_SCAN) ?
 				BitmapFavouringNoCachePolicy.INSTANCE : DefaultPolicy.INSTANCE;
@@ -605,15 +636,112 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			this.prefetchPossible = false;
 			this.recordingRequestedCapabilities = parentQueryContext.recordingRequestedCapabilities;
 		}
+		if (cacheSupervisor instanceof FormulaCacheSupervisor cache) {
+			this.cacheSupervisor = this.verificationSibling ? NoCacheSupervisor.INSTANCE :
+				parentQueryContext != null ? parentQueryContext.cacheSupervisor :
+				cache.resolveForRoot(this.evitaSession, evitaRequest.getEntityType());
+			this.verificationState = parentQueryContext != null ? parentQueryContext.verificationState :
+				verificationState != null ? verificationState :
+				this.cacheSupervisor instanceof FormulaCacheSupervisor || this.verificationSibling ||
+					isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) ||
+					isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) ? new VerificationState(null) : null;
+		} else {
+			this.cacheSupervisor = parentQueryContext != null ?
+				parentQueryContext.cacheSupervisor : NoCacheSupervisor.INSTANCE;
+			this.verificationState = parentQueryContext != null ? parentQueryContext.verificationState :
+				verificationState != null ? verificationState :
+				this.verificationSibling || isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) ||
+					isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) ? new VerificationState(null) : null;
+		}
 		this.telemetryStack = new ArrayDeque<>(16);
-		ofNullable(telemetry).ifPresent(this.telemetryStack::push);
+		// Runtime body fetching may plan more queries; dry-run planning must not attach to the real profile.
+		ofNullable(this.verificationSibling ||
+			isVerificationExecutionActive() ? null : telemetry
+		).ifPresent(this.telemetryStack::push);
 		//noinspection unchecked
 		this.indexes = (Map<IndexKey, Index<?>>) indexes;
 		//noinspection unchecked
 		this.indexesByPk = (Map<Integer, Index<?>>) indexesByPk;
-		this.cacheSupervisor = cacheSupervisor;
-		this.queryFinishedEvent = event;
-		this.internalExecutionContext = createExecutionContext();
+		this.queryFinishedEvent = this.verificationSibling ? null : event;
+		this.internalExecutionContext = createExecutionContext(false, null, true);
+	}
+
+	/**
+	 * Creates an independent root context that plans the key-free baseline of this top-level query over the same
+	 * request and pinned indexes. The sibling plans anew with formula sharing disabled and records no capabilities,
+	 * telemetry, index activity or finished event. Its descendants and body-fetch roots inherit this state even when
+	 * a collection supplies its own supervisor.
+	 *
+	 * @return the sibling, with formula sharing disabled and a supervisor that never requests computation keys
+	 */
+	@Nonnull
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	public QueryPlanningContext createVerificationSibling() {
+		return new QueryPlanningContext(
+			null, this.catalog, this.entityCollection, this.evitaSession, this.evitaRequest, null,
+			(Map) this.indexes, (Map) this.indexesByPk, NoCacheSupervisor.INSTANCE, null, false, true, null
+		);
+	}
+
+	/**
+	 * Creates an independent body-fetch root while retaining shared execution state and sibling policy.
+	 * Its planning policy, optional prefetch, capability accounting and memos belong to the fetch request alone.
+	 * The fetch records no telemetry, capabilities or finished event during verification; otherwise it records them
+	 * like an ordinary root. It resolves its own formula cache gate.
+	 *
+	 * @param <S> the key type identifying indexes available to the fetch request
+	 * @param <T> the index type held in both fetch lookup maps
+	 * @param collection the collection whose bodies this independent root fetches
+	 * @param request the fetch request that determines this root's policy, telemetry and capability accounting
+	 * @param indexes the pinned indexes retained for the fetch, keyed by their index keys
+	 * @param indexesByPk the same pinned indexes retained for lookup by primary key
+	 * @param supervisor the collection's supervisor from which the fetch root resolves its own cache gate
+	 * @return a fresh fetch root retaining this query's shared execution state and verification sibling policy
+	 */
+	@Nonnull
+	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext createFetchContext(
+		@Nonnull EntityCollection collection, @Nonnull EvitaRequest request,
+		@Nonnull Map<S, T> indexes, @Nonnull Map<Integer, T> indexesByPk,
+		@Nonnull CacheSupervisor supervisor
+	) {
+		final boolean verifying = this.verificationSibling || isVerificationExecutionActive();
+		return new QueryPlanningContext(
+			null, this.catalog, collection, this.evitaSession, request,
+			!verifying && request.isQueryTelemetryRequested() ? QueryTelemetry.root(QueryPhase.OVERALL) : null,
+			indexes, indexesByPk, supervisor,
+			verifying ? null : new FinishedEvent(this.catalog.getName(), collection.getEntityType(), request.getLabels()),
+			!verifying, this.verificationSibling, this.verificationState
+		);
+	}
+
+	/**
+	 * Returns whether this context may deduplicate formulas by their computation keys.
+	 *
+	 * @return `true` unless this context is a key-free verification sibling
+	 */
+	public boolean isFormulaSharingEnabled() {
+		return !this.verificationSibling;
+	}
+
+	/**
+	 * Returns whether alternative index plans are verified - the debug flag is on, outside any key-free sibling.
+	 *
+	 * @return whether alternative-index verification was requested and this context is not a verification sibling
+	 */
+	public boolean isAlternativeIndexVerificationRequired() {
+		return isDebugModeEnabled(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS) && !this.verificationSibling;
+	}
+
+	/**
+	 * Returns whether this context compares its response with a key-free baseline: a root context carrying the flag
+	 * that is no verification sibling. Only {@link QueryPlanner#planQuery(QueryPlanningContext)} asks, so body-fetch
+	 * roots, whose derived requests may carry the flag, never verify.
+	 *
+	 * @return whether the formula-sharing verification flag is set on this non-sibling root context
+	 */
+	public boolean isFormulaSharingVerificationRequired() {
+		return isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) &&
+			this.parentContext == null && !this.verificationSibling;
 	}
 
 	/**
@@ -887,7 +1015,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Hands over everything this query has requested and leaves the context holding nothing.
 	 *
 	 * **The emptying is the deduplication of last resort.** A logical query may build its preferred plan more than
-	 * once - the two verification debug modes build it again after executing every alternative - and a drain that left
+	 * once - alternative-index verification builds it again after executing every alternative - and a drain that left
 	 * the list behind would count that query twice. Because the accumulator is handed over rather than copied, the
 	 * second drain finds nothing and the second build counts nothing.
 	 *
@@ -896,20 +1024,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * {@link #drainRequestedCapabilitiesToCount()}, which also leaves out what another plan of the same logical query
 	 * counted already.
 	 *
-	 * # What that leaves standing, and why it is the honest reading
-	 *
-	 * A capability registered **after** a build has already drained is counted by the next build on the same context
-	 * only when the logical query has not counted it yet. One debug-only path registers such capabilities:
-	 * {@link io.evitadb.api.query.require.DebugMode#VERIFY_POSSIBLE_CACHING_TREES} equips each cacheable variant of
-	 * the formula with a sorter of its own *after* the preferred plan was built, and planning an ordering re-registers
-	 * what it names - which the record of the counted capabilities keeps from being counted twice.
-	 *
-	 * Suppressing everything registered after the first build with a one-way "already flushed" latch was deliberately
-	 * not done, and the asymmetry is the reason: this count exists to answer *"would dropping this flag break a
-	 * query?"*, where an over-count merely protects a flag a little too eagerly, while an under-count makes a used flag
-	 * look dead and invites somebody to drop it. A latch would silently discard the requests of any future caller that
-	 * legitimately plans further work on a context whose plan is already built; the record of the counted capabilities
-	 * discards only the repetition of a request the query has already counted.
+	 * A capability registered after a build has drained is counted by a later build only if this logical query
+	 * has not counted it yet. The record of counted capabilities discards repeated requests without discarding
+	 * newly requested capabilities.
 	 *
 	 * @return the distinct holders this query requested, in registration order; empty when it requested none
 	 */
@@ -1587,6 +1704,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Guards every telemetry step mutation, including runtime planning that holds the original context.
+	 *
+	 * @return whether telemetry has an open root and no verification execution is active
+	 */
+	private boolean isTelemetryRecording() {
+		return !this.telemetryStack.isEmpty() && !isVerificationExecutionActive();
+	}
+
+	/**
 	 * Adds new step of query evaluation.
 	 *
 	 * The new step becomes a child of the currently open one and the new innermost step, so the sequence of
@@ -1599,7 +1725,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param phase phase of the query evaluation the new step measures
 	 */
 	public void pushStep(@Nonnull QueryPhase phase) {
-		if (!this.telemetryStack.isEmpty()) {
+		if (isTelemetryRecording()) {
 			this.telemetryStack.push(
 				this.telemetryStack.peek().addStep(phase)
 			);
@@ -1618,7 +1744,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param messageSupplier description of the step, invoked only when telemetry is being collected
 	 */
 	public void pushStep(@Nonnull QueryPhase phase, @Nonnull Supplier<String> messageSupplier) {
-		if (!this.telemetryStack.isEmpty()) {
+		if (isTelemetryRecording()) {
 			this.telemetryStack.push(
 				this.telemetryStack.peek().addStep(phase, messageSupplier.get())
 			);
@@ -1635,7 +1761,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nullable
 	public QueryTelemetry getCurrentStep() {
-		if (!this.telemetryStack.isEmpty()) {
+		if (isTelemetryRecording()) {
 			return this.telemetryStack.peek();
 		}
 		return null;
@@ -1645,14 +1771,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Returns true when telemetry is being collected **and** the query asked for the formula plan - the guard a
 	 * caller must consult before walking a formula tree to describe it.
 	 *
-	 * Both halves are load-bearing. The stack test is what makes it false for a query without telemetry (and for
-	 * a dry run, whose planning context is never seeded with a root); the request test is what keeps plain
+	 * Both halves are load-bearing. The recording guard excludes absent telemetry, verification siblings and active
+	 * verification executions; execution callers additionally guard explicit dry runs through
+	 * {@link QueryExecutionContext#isTelemetryPlanCollected()}. The request test is what keeps plain
 	 * `queryTelemetry()` from paying for a structure it did not ask for.
 	 *
 	 * @return true when a plan recorded on the current step ends up in the response
 	 */
 	public boolean isTelemetryPlanCollected() {
-		return !this.telemetryStack.isEmpty() && this.evitaRequest.isQueryTelemetryPlanRequested();
+		return isTelemetryRecording() && this.evitaRequest.isQueryTelemetryPlanRequested();
 	}
 
 	/**
@@ -1661,7 +1788,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * unconditionally in a `finally` block.
 	 */
 	public void popStep() {
-		if (!this.telemetryStack.isEmpty()) {
+		if (isTelemetryRecording()) {
 			this.telemetryStack.pop().finish();
 		}
 	}
@@ -1677,7 +1804,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param messageSupplier description of the outcome, invoked only when telemetry is being collected
 	 */
 	public void popStep(@Nonnull Supplier<String> messageSupplier) {
-		if (!this.telemetryStack.isEmpty()) {
+		if (isTelemetryRecording()) {
 			this.telemetryStack.pop().finish(messageSupplier.get());
 		}
 	}
@@ -1845,15 +1972,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Analyzes the input formula for cacheable / cached formulas and replaces them with appropriate counterparts (only
-	 * if cache is enabled).
+	 * Binds eligible canonical instances after formula deduplication and preserves the supplied graph.
+	 * The effective supervisor is already resolved for this planning root; disabled and ineligible roots do no key work.
 	 *
-	 * The formula is returned untouched when there is no session or the query targets no particular entity type -
-	 * the cache is keyed per entity type and accounted per session, so neither can be skipped. Callers therefore
-	 * must not assume the returned tree differs from the input one.
-	 *
-	 * @param formula formula tree to be analysed
-	 * @return the same tree, or an equivalent one with cacheable / cached counterparts substituted in
+	 * @param formula canonical formula graph to analyse
+	 * @return the original formula graph
 	 */
 	@Nonnull
 	public Formula analyse(@Nonnull Formula formula) {
@@ -1866,21 +1989,21 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Analyzes the input extra result computer for cacheable / cached extra result computers and replaces them with
-	 * appropriate counterparts (only if cache is enabled).
+	 * Analyses a histogram computer under the actual calling execution context.
 	 *
-	 * Unlike {@link #analyse(Formula)}, the substitution is routed through the {@link PlanningPolicy}, which is what
-	 * lets a debug run force caching on or off for extra results. The computer is returned untouched when there is
-	 * no session or no target entity type.
-	 *
-	 * @param computer extra result computer to be analysed
-	 * @return the same computer, or its cacheable / cached counterpart
+	 * @param <U> the value produced by the extra-result computation
+	 * @param <T> the cacheable computer type accepted for analysis
+	 * @param computer extra-result computation
+	 * @param context execution context controlling planning, prefetch and sampling suspension
+	 * @return the original computer or a wrapper preserving its result contract
 	 */
 	@Nonnull
-	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
+	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
+		@Nonnull T computer, @Nonnull QueryExecutionContext context
+	) {
 		final String theEntityType = this.evitaRequest.getEntityType();
 		if (this.evitaSession != null && theEntityType != null) {
-			return this.planningPolicy.analyse(this.cacheSupervisor, this.evitaSession, theEntityType, computer);
+			return this.cacheSupervisor.analyse(this.evitaSession, theEntityType, computer, context);
 		} else {
 			return computer;
 		}
@@ -2251,7 +2374,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			return primaryKey;
 		}
 	}
-
 
 	/**
 	 * Publishes the hierarchy translator's memoized node formula for one scope. The formula is already initialized
@@ -2913,6 +3035,115 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns whether execution state must travel to an independent body-fetch root.
+	 *
+	 * @return whether shared cache or verification state is allocated for this query
+	 */
+	public boolean hasSharedExecutionState() {
+		return this.verificationState != null;
+	}
+
+	/**
+	 * Returns whether this planning root passed the formula cache gate.
+	 *
+	 * @return whether this context's effective supervisor is a formula cache supervisor
+	 */
+	public boolean isFormulaCacheEnabled() {
+		return this.cacheSupervisor instanceof FormulaCacheSupervisor;
+	}
+
+	/**
+	 * Returns the shared suspension flag without traversing the context ancestry.
+	 *
+	 * @return the query's shared cache suspension flag, or `false` when no shared state exists
+	 */
+	boolean isFormulaCacheSuspended() {
+		return this.verificationState != null && this.verificationState.formulaCacheSuspended;
+	}
+
+	/**
+	 * Exchanges suspension for all execution contexts in this query and its independent fetch roots.
+	 *
+	 * @param suspended the cache suspension flag to install in this query's shared execution state
+	 * @return the preceding flag, or `false` when no shared state exists and nothing is changed
+	 */
+	boolean exchangeFormulaCacheSuspension(boolean suspended) {
+		if (this.verificationState == null) return false;
+		final boolean previous = this.verificationState.formulaCacheSuspended;
+		this.verificationState.formulaCacheSuspended = suspended;
+		return previous;
+	}
+
+	/**
+	 * Returns the shared execution state in constant time, including for contexts captured before execution.
+	 *
+	 * @return the state object shared by this query's execution contexts, or `null` when none is allocated
+	 */
+	@Nullable
+	VerificationState getVerificationState() {
+		return this.verificationState;
+	}
+
+	/**
+	 * Returns whether a verification execution is currently running anywhere in this query.
+	 *
+	 * @return whether the shared state carries frozen randomness for an active verification execution
+	 */
+	public boolean isVerificationExecutionActive() {
+		return this.verificationState != null && this.verificationState.frozenRandom != null;
+	}
+
+	/**
+	 * Returns the active verification seed without traversing context ancestry.
+	 *
+	 * @return the shared serialized random state without copying, or `null` when verification is inactive
+	 */
+	@Nullable
+	byte[] getVerificationRandom() {
+		return this.verificationState == null ? null : this.verificationState.frozenRandom;
+	}
+
+	/**
+	 * Installs execution-scoped verification randomness and returns the state to restore in a finally block.
+	 *
+	 * @param frozenRandom serialized random state retained without copying for verification, or `null` to mark it
+	 *     inactive
+	 * @return the preceding array without copying, or `null` when it was inactive or no shared state exists;
+	 *     nothing is installed when no shared state exists
+	 */
+	@Nullable
+	byte[] exchangeVerificationRandom(@Nullable byte[] frozenRandom) {
+		if (this.verificationState == null) return null;
+		final byte[] previous = this.verificationState.frozenRandom;
+		this.verificationState.frozenRandom = frozenRandom;
+		return previous;
+	}
+
+	/**
+	 * Execution state shared in constant time by nested contexts and independent fetch roots: the frozen random of an
+	 * active verification execution and the suspension of the formula result cache during a sampled recomputation.
+	 * Allocated for verification or for a root that passed the formula cache gate; the owning query executes
+	 * sequentially.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	static final class VerificationState {
+		/** Non-null only while a verification execution is active. */
+		@Nullable byte[] frozenRandom;
+		/** Shared suspension seen by existing contexts and independent fetch roots. */
+		boolean formulaCacheSuspended;
+
+		/**
+		 * Captures either an explicit execution seed or the inactive query state.
+		 *
+		 * @param frozenRandom serialized random state retained without copying, or `null` for inactive verification
+		 */
+		VerificationState(@Nullable byte[] frozenRandom) {
+			this.frozenRandom = frozenRandom;
+		}
+	}
+
+	/**
 	 * Creates new {@link QueryExecutionContext} that can be used to execute the query plan.
 	 *
 	 * @return new query execution context
@@ -2940,12 +3171,27 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public QueryExecutionContext createExecutionContext(boolean prefetchExecution, @Nullable byte[] frozenRandom) {
-		return new QueryExecutionContext(
-			this, prefetchExecution, frozenRandom,
+		return createExecutionContext(prefetchExecution, frozenRandom, false);
+	}
+
+	/**
+	 * Creates an execution context with an explicit eager-planning marker.
+	 *
+	 * @param prefetchExecution whether filtering uses prefetched entities rather than indexes
+	 * @param frozenRandom serialized random state retained without copying for this execution, or `null` to use
+	 *     the query's shared execution state
+	 * @param planningEvaluation whether this context eagerly evaluates formulas during planning and bypasses the cache
+	 * @return a fresh execution context bound to this planning context
+	 */
+	@Nonnull
+	private QueryExecutionContext createExecutionContext(
+		boolean prefetchExecution, @Nullable byte[] frozenRandom, boolean planningEvaluation
+	) {
+		final BiFunction<Class<?>, SealedEntity, Object> converter =
 			this.evitaSession != null ? this.evitaSession::createEntityProxy : (type, entity) -> {
 				throw new GenericEvitaInternalError("Entity proxy creation is not available without a session.");
-			}
-		);
+			};
+		return new QueryExecutionContext(this, prefetchExecution, planningEvaluation, frozenRandom, converter);
 	}
 
 	/**

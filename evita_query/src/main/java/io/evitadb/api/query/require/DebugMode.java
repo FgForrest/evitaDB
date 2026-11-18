@@ -35,9 +35,9 @@ import io.evitadb.dataType.SupportedEnum;
  * - `VERIFY_ALTERNATIVE_INDEX_RESULTS` — exercises index redundancy by computing the query result through every
  *   available alternative index (e.g. both a sorted and an inverted index for the same attribute) and asserting
  *   that all paths produce bit-identical result sets. Detects inconsistencies between index implementations.
- * - `VERIFY_POSSIBLE_CACHING_TREES` — exercises the formula caching layer by materialising every possible variant
- *   of the query formula tree where sub-trees can be swapped with cached versions, and verifying that all
- *   variants produce identical results. Detects caching bugs.
+ * - `VERIFY_POSSIBLE_CACHING_TREES` — selects bitmap-favouring planning, denies optional prefetch and compares the
+ *   response of a top-level query with a baseline computed without formula sharing or caching; a difference fails
+ *   the query.
  * - `PREFER_PREFETCHING` — overrides the cost-based strategy selector and unconditionally uses the prefetch
  *   strategy whenever the query's filter constraints make prefetching feasible. Used to exercise the prefetch
  *   code path that would otherwise be skipped for large datasets where the index scan is cheaper.
@@ -54,16 +54,23 @@ public enum DebugMode {
 
 	/**
 	 * This option triggers verification of computation results for all possible indexes. This mode allows us to verify
-	 * that all alternative indexes produce the same results.
+	 * that all alternative indexes produce the same results. These executions use the query's ordinary result-cache
+	 * eligibility, admission and sampled verification; they suppress query recording.
 	 *
 	 * BEWARE: triggering this debug mode will slow down the query response because all alternative computation paths
 	 * needs to be computed along the way.
 	 */
 	VERIFY_ALTERNATIVE_INDEX_RESULTS,
 	/**
-	 * This option trigger creation and verification of all possible variants of computational tree where the results
-	 * are exchanged with cached variants. This mode allows us to verify that all variants of cacheable tree parts
-	 * produce the same results.
+	 * Selects bitmap-favouring planning and denies optional prefetch. For a top-level query, also compares the full
+	 * response of the preferred plan with an independently planned baseline that bypasses computation keys, formula
+	 * sharing and caching. Nested queries and fetched bodies are compared as part of that response, not on their own.
+	 * Both verification executions use the same frozen random state, so random ordering causes no difference. A
+	 * difference fails the query with an `InconsistentResultsException`. The preferred plan's verification execution
+	 * uses ordinary result-cache rules; the baseline never consults or populates the result cache.
+	 *
+	 * BEWARE: triggering this debug mode slows down the query, because it is planned a second time and executed twice
+	 * more before the normal execution.
 	 */
 	VERIFY_POSSIBLE_CACHING_TREES,
 	/**
@@ -96,9 +103,9 @@ public enum DebugMode {
 	 * - It cannot suppress the prefetch a query *requires*. When the filter addresses entities by reference (an
 	 *   `MultipleEntityFormula` contributing direct entity references), prefetching is the only way to answer it and
 	 *   happens regardless of this option.
-	 * - It does not preserve the formula cache. The option resolves to the same planning policy as
-	 *   {@link #VERIFY_POSSIBLE_CACHING_TREES}, which bypasses the cache, so the index path is exercised end to end
-	 *   rather than answered from a memoized formula result.
+	 * - It does not select a planning policy of its own. The option resolves to the same bitmap-favouring policy as
+	 *   {@link #VERIFY_POSSIBLE_CACHING_TREES}, but only that option also compares the response with a baseline
+	 *   computed without formula sharing or caching.
 	 *
 	 * When combined with {@link #PREFER_PREFETCHING} this option wins: the planning policy denies prefetch both when
 	 * the planner asks whether prefetch is possible at all and when it prices the prefetch, and neither decision

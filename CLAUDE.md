@@ -150,7 +150,8 @@ rather than its signature, and what changing an existing one costs: `.claude/rul
 ## Code Quality Requirements
 
 - Line coverage with unit tests must be >= 70%
-- All classes and methods must have comprehensible JavaDoc
+- All classes and methods must have comprehensible JavaDoc, with `@param` for every parameter and `@return` for every
+  non-void result (see `.claude/rules/code-style.md`)
 - No TODO statements in committed code
 - No commented out code
 - No production code without a production caller when the work merges. A method, constructor, field or class that

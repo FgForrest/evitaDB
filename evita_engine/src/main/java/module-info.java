@@ -29,8 +29,6 @@ module evita.engine {
 	exports io.evitadb.core;
 	exports io.evitadb.core.buffer;
 	exports io.evitadb.core.cache;
-	exports io.evitadb.core.cache.model;
-	exports io.evitadb.core.cache.payload;
 	exports io.evitadb.core.catalog;
 	exports io.evitadb.core.cdc;
 	exports io.evitadb.core.collection;
@@ -56,6 +54,7 @@ module evita.engine {
 	exports io.evitadb.core.query.algebra.price.predicate;
 	exports io.evitadb.core.query.algebra.price.termination;
 	exports io.evitadb.core.query.algebra;
+	exports io.evitadb.core.query.algebra.identity;
 	exports io.evitadb.core.query.extraResult.translator.histogram.cache;
 	exports io.evitadb.core.query.fetch;
 	exports io.evitadb.core.session;
@@ -128,6 +127,7 @@ module evita.engine {
 	requires evita.query;
 
 	requires jdk.jfr;
+	requires com.github.benmanes.caffeine;
 	requires com.carrotsearch.hppc;
 	requires com.esotericsoftware.kryo;
 	requires net.bytebuddy;
@@ -136,6 +136,7 @@ module evita.engine {
 	requires zero.allocation.hashing;
 
 	opens io.evitadb.core.metric.event to evita.common;
+	opens io.evitadb.core.metric.event.cache to jdk.jfr;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
 	opens io.evitadb.core.metric.event.storage to jdk.jfr;
 

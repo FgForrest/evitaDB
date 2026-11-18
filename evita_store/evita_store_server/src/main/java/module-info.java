@@ -26,7 +26,6 @@
  */
 module evita.store.server {
 
-	exports io.evitadb.store.cache;
 	exports io.evitadb.store.catalog;
 	exports io.evitadb.store.engine;
 	exports io.evitadb.store.index.serializer;

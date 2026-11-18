@@ -117,11 +117,13 @@ public final class IndexHeapSize {
 	 * Data a memo materializes that nothing else holds — the cloned bucket bitmaps of a range histogram, for one —
 	 * is NOT a formula and is charged in full by whoever holds it.
 	 *
-	 * The node is priced at its **upper bound**: twelve reference fields (the widest shape in play, an
-	 * {@link io.evitadb.core.query.algebra.base.OrFormula} — nine inherited plus a computation callback, a bitmap
-	 * array and a transactional-id array), all five boxed `Long` memos whether or not they have been computed, and a
-	 * one-element transactional-id array. Which of them are populated cannot be read from outside, so the higher of
-	 * the defensible figures is the answer — a fixed handful of bytes per memo, never a term that grows.
+	 * The node is priced at a fixed **upper bound**: twelve reference fields, five boxed `Long`s and a one-element
+	 * `long` array. That exceeds every node the subset's aggregation lambdas build - a
+	 * {@link io.evitadb.core.query.algebra.deferred.DeferredFormula}, a
+	 * {@link io.evitadb.core.query.algebra.base.ConstantFormula} or an
+	 * {@link io.evitadb.core.query.algebra.base.OrFormula}, none holding more than six references beside its
+	 * primitive memos. Which of a node's memos are populated cannot be read from outside, so the higher of the
+	 * defensible figures is the answer — a fixed handful of bytes per memo, never a term that grows.
 	 *
 	 * {@link EmptyFormula#INSTANCE} is a JVM-wide constant every empty index resolves to and contributes nothing.
 	 *

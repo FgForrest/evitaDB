@@ -29,31 +29,37 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.attribute.BetweenAttributeFormula;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.base.OrFormula;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.core.query.algebra.base.NotFormula;
+import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.facet.FacetLocaleFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
+import io.evitadb.core.query.algebra.identity.IdentityRecord;
+import io.evitadb.core.query.algebra.identity.KeyAccumulator;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.PriceBetweenFormula;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.index.bitmap.ArrayBitmap;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.util.Optional;
 import javax.annotation.Nullable;
-import org.junit.jupiter.api.Tag;
 
+import java.util.Optional;
+
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.FILTER;
+import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -61,9 +67,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Unit tests for {@link UserFilterRelaxer} — the shared helper that rebuilds a filter formula tree with one of
@@ -421,7 +424,6 @@ class UserFilterRelaxerTest {
 		}
 	}
 
-
 	/**
 	 * The shapes that reach the relaxer only because the planner folds provably-empty `attributeIs(NULL)`
 	 * subtractions during planning rather than resolving them during execution. Before that fold an `EmptyFormula`
@@ -467,7 +469,6 @@ class UserFilterRelaxerTest {
 			assertInstanceOf(UserFilterFormula.class, result.get());
 		}
 
-
 		@Test
 		@DisplayName("should still peel the carrier when the EmptyFormula sits in a LIVE disjunction")
 		void shouldStillPeelTheCarrierWhenTheEmptyFormulaSitsInALiveDisjunction() {
@@ -502,7 +503,6 @@ class UserFilterRelaxerTest {
 				"the live alternative must survive relaxation - it is a non-carrier and still constrains the result"
 			);
 		}
-
 
 		@Test
 		@DisplayName("should see through nested AND-in-OR when every alternative is conjunctively empty")
@@ -655,7 +655,9 @@ class UserFilterRelaxerTest {
 	 * prefetch machinery. The relaxer never calls `filter` or `getEntityRequire` — it only unwraps the delegate via
 	 * {@link SelectionFormula#getDelegate()} — so returning trivial values is safe.
 	 */
-	private static class NoOpEntityToBitmapFilter implements EntityToBitmapFilter {
+	static class NoOpEntityToBitmapFilter implements EntityToBitmapFilter {
+		/** Unique identifier of the test alternative. */
+		private static final long CLASS_ID = -3033136522646257230L;
 
 		@Nonnull
 		@Override
@@ -668,5 +670,37 @@ class UserFilterRelaxerTest {
 		public EntityFetchRequire getEntityRequire() {
 			return null;
 		}
+
+		/** Returns the declared identity of the constant result and requirements. */
+		@Nonnull
+		@Override
+		public IdentityRecord identity() {
+			return new Identity();
+		}
+
+		/** Returns the test alternative's class identifier. */
+		@Override
+		public long getClassId() {
+			return CLASS_ID;
+		}
+
+		/**
+		 * Identity of the constant empty alternative.
+		 *
+		 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+		 */
+		public record Identity() implements IdentityRecord {
+			/** Returns the declaring alternative's identifier. */
+			@Override
+			public long classId() {
+				return CLASS_ID;
+			}
+
+			/** The result and requirement are constants without additional components. */
+			@Override
+			public void describeTo(@Nonnull KeyAccumulator accumulator) {
+			}
+		}
 	}
+
 }

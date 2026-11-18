@@ -55,10 +55,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Guards the one invariant `getClassId()` cannot enforce for itself: **no two classes may return the same
  * `CLASS_ID`**.
  *
- * The constant is folded into the structural hash as `hashArray[0]`, so two classes sharing a value become
- * indistinguishable to {@link io.evitadb.core.cache.CacheEden} whenever the rest of their hash inputs agree -
- * and the symptom is a cache hit returning another formula's bitmap, which no read-time check would notice.
- * Nothing about a single declaration reveals the clash; only comparing all of them does.
+ * The constant discriminates the holder type in its detached key. Comparing declarations across the source
+ * inventory catches accidental copies of the discriminator.
  *
  * The scan reads **sources** rather than loading classes: the invariant is a source convention, a source hit
  * names the file to fix, and no class loading, module opening or reflective access is involved. New constants
@@ -83,11 +81,11 @@ class FormulaClassIdUniquenessTest implements EvitaTestSupport {
 	private static final Set<String> IGNORED_DIRECTORIES = Set.of("target", ".git", ".idea", "node_modules");
 	/**
 	 * Floor on the number of declarations the walk must find. Without it a scan that resolved the wrong root
-	 * would find nothing, report no duplicates and pass - proving the opposite of what it claims. The repository
-	 * held 45 declarations when this was written; the floor sits below that with room for classes to come and go,
-	 * and only has to be high enough that an empty or truncated walk fails.
+	 * would find nothing, report no duplicates and pass - proving the opposite of what it claims. The floor sits
+	 * below the repository's count with room for classes to come and go, yet above the count `evita_engine` alone
+	 * holds, so a walk rooted at a single module fails as well as an empty or truncated one.
 	 */
-	private static final int MINIMAL_EXPECTED_DECLARATIONS = 30;
+	private static final int MINIMAL_EXPECTED_DECLARATIONS = 70;
 
 	@DisplayName("No two classes declare the same CLASS_ID")
 	@Test
@@ -112,8 +110,9 @@ class FormulaClassIdUniquenessTest implements EvitaTestSupport {
 		}
 		if (!clashes.isEmpty()) {
 			fail(
-				"CLASS_ID must differ for every class - it is hashArray[0] of the structural hash, so a shared " +
-					"value lets one formula's cached result answer for another. Mint a replacement with " +
+				"CLASS_ID must differ for every class - it discriminates the holder type in the formula key, so a " +
+					"shared value can let formulas of two classes compare equal. " +
+					"Mint a replacement with " +
 					"`tools/generate-class-id.sh <fully.qualified.ClassName>`." + clashes
 			);
 		}
