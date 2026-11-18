@@ -28,6 +28,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -39,6 +40,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaEditor;
 import io.evitadb.api.requestResponse.schema.analysis.SynonymGroup;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
@@ -61,6 +63,7 @@ import io.evitadb.index.fulltext.analysis.IndexedTermConsumer;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -84,9 +87,15 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -690,6 +699,95 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 		}
 
 		/**
+		 * Nothing serializes termination with the healthy writer it finds registered, so the writer may change the
+		 * schema on its own thread while termination waits right after its registry lookup has returned the writer's
+		 * checks. Waiting before the lookup is the same interleaving: the writer stays registered and validation reads
+		 * the schema only afterwards. Termination therefore validates the changed schema - it publishes a valid change
+		 * together with the writer's unpublished item, and refuses a failing one, publishing nothing.
+		 * @param failing whether the writer's change declares an analyzer that fails the behaviour check
+		 * @throws IOException when the published storage cannot be copied
+		 */
+		@ParameterizedTest(name = "failing={0}")
+		@ValueSource(booleans = {false, true})
+		@DisplayName("A schema change at the termination's registry lookup is validated before it is published")
+		void shouldValidateSchemaChangedAtTerminationRegistryLookup(boolean failing) throws IOException {
+			final EvitaSessionContract session = openWriterWithUnpublishedItem();
+			final Catalog original = catalog();
+			final AtomicReference<Throwable> writerFailure = new AtomicReference<>();
+			final Runnable change = writerChange(session, failing, writerFailure);
+			final AtomicInteger lookups = new AtomicInteger();
+			final Map<String, SessionRegistry> registries = getNonnullFieldValue(engine, "catalogSessionRegistries");
+			final SessionRegistry observed = spy(registries.get(TEST_CATALOG));
+			doAnswer(invocation -> {
+				final Object checks = invocation.callRealMethod();
+				// the writer's own path may ask the same question, and only termination's first one pauses
+				if (lookups.incrementAndGet() == 1) {
+					assertNotNull(checks, "the writer is registered when termination looks it up");
+					change.run();
+				}
+				return checks;
+			}).when(observed).getWarmUpAnalyzerChecks(original);
+			registries.put(TEST_CATALOG, observed);
+
+			final List<ILoggingEvent> warnings = captureCatalogWarnings(original::terminate);
+
+			assertNull(writerFailure.get());
+			assertTrue(lookups.get() >= 1);
+			assertTrue(original.isTerminated());
+			assertTrue(original.getSchema().getFulltextAnalyzer(failing ? "failing" : "second").isPresent());
+			final PublishedState published = readPublishedState();
+			assertEquals(CatalogState.WARMING_UP, published.state());
+			assertFalse(published.failing());
+			if (failing) {
+				assertEquals(new PublishedState(CatalogState.WARMING_UP, false, false, false, 0), published);
+				assertTrue(warnings.stream().anyMatch(event -> event.getFormattedMessage().contains(TEST_CATALOG) &&
+					event.getFormattedMessage().contains("rule 1")));
+			} else {
+				assertEquals(new PublishedState(CatalogState.WARMING_UP, false, true, true, 1), published);
+			}
+		}
+
+		/**
+		 * Termination validates first and publishes afterwards, and the writer it finds registered may change the
+		 * schema in between - here once the behaviour check has passed and before the collections are flushed and the
+		 * header stored. The registry lookup cannot pause there, because it precedes validation; the behaviour check
+		 * is the last call of validation on the terminating thread. Whatever termination publishes of a valid change
+		 * must load, keep the analyzer and the field using it together, and answer queries.
+		 * @throws IOException when the published storage cannot be copied
+		 */
+		@Test
+		@DisplayName("A valid schema change after termination's validation is published whole or not at all")
+		void shouldPublishNothingTornWhenSchemaChangesAfterTerminationValidation() throws IOException {
+			final EvitaSessionContract session = openWriterWithUnpublishedItem();
+			final Catalog original = catalog();
+			final AtomicReference<Throwable> writerFailure = new AtomicReference<>();
+			final Runnable change = writerChange(session, false, writerFailure);
+			final AtomicInteger checks = new AtomicInteger();
+			// a static mock observes only the thread that opened it - the terminating one, which is this one
+			try (final MockedStatic<FulltextAnalyzerBehaviourCheck> check =
+				mockStatic(FulltextAnalyzerBehaviourCheck.class, CALLS_REAL_METHODS)) {
+				check.when(() -> FulltextAnalyzerBehaviourCheck.validate(any(), any(), any(), any()))
+					.thenAnswer(invocation -> {
+						invocation.callRealMethod();
+						checks.incrementAndGet();
+						change.run();
+						return null;
+					});
+				original.terminate();
+			}
+
+			assertNull(writerFailure.get());
+			assertEquals(1, checks.get());
+			assertTrue(original.isTerminated());
+			assertTrue(original.getSchema().getFulltextAnalyzer("second").isPresent());
+			final PublishedState published = readPublishedState();
+			assertEquals(CatalogState.WARMING_UP, published.state());
+			// either the state before the change or the one after it, and the fulltext query has run on it
+			assertFalse(published.failing(), "an analyzer failing the behaviour check was published");
+			assertEquals(published.second(), published.title(), "the analyzer and its field were torn apart");
+		}
+
+		/**
 		 * The bootstrap for each collection DDL in a batch must include the analyzer removal it just validated.
 		 * @param ddl operation creating, renaming or deleting a collection
 		 * @param compileInvalid whether the removed analyzer fails compilation instead of a behavior rule
@@ -809,6 +907,88 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 			} finally {
 				setFieldValue(catalog, "dataStoreBuffer", original);
 			}
+		}
+
+		/**
+		 * The cascade of a global attribute removal writes the catalog schema part of the batch so far - the analyzer
+		 * the batch declared included - before a later mutation fails. When the write of the restored schema fails as
+		 * well, that part is the newest one in the catalog file, and no probe has validated it: every route validates
+		 * the restored schema held in memory. Whichever route publishes next must store the schema it validated.
+		 * @param route the publication after the failed batch: the session close, the session go-live, or the
+		 *              catalog termination after a failed session drain
+		 * @param compileInvalid whether the batch's analyzer fails compilation instead of a behavior rule
+		 * @param failRestoreWrite whether the write of the restored schema fails, once
+		 */
+		@ParameterizedTest(name = "{0}, compile-invalid={1}, fail-restore-write={2}")
+		@CsvSource({
+			"close,false,false", "close,false,true", "close,true,true", "goLive,false,true", "goLive,true,true",
+			"termination,false,true", "termination,true,true"
+		})
+		@DisplayName("Publication after a failed batch stores the validated schema, not the part its cascade wrote")
+		void shouldPublishValidatedSchemaAfterFailedBatchCascade(
+			@Nonnull String route, boolean compileInvalid, boolean failRestoreWrite
+		) {
+			prepareCollections();
+			engine.updateCatalog(TEST_CATALOG, session -> {
+				session.getCatalogSchema().openForWrite().withAttribute("code", String.class).updateVia(session);
+				session.getEntitySchemaOrThrowException("Original").openForWrite().withGlobalAttribute("code")
+					.updateVia(session);
+			});
+			final Catalog catalog = catalog();
+			final DataStoreMemoryBuffer original = failRestoredSchemaWrite(catalog, failRestoreWrite);
+			final Consumer<FulltextAnalyzerSchemaEditor> analyzer = compileInvalid ?
+				a -> a.words(asciiFolding(), czechStemming()) : a -> a.words().samples("Upper");
+			final EvitaSessionContract session = engine.createReadWriteSession(TEST_CATALOG);
+			try {
+				final LocalCatalogSchemaMutation[] batch = ArrayUtils.mergeArrays(
+					session.getCatalogSchema().openForWrite().withFulltextAnalyzer("plain", analyzer)
+						.toMutation().orElseThrow().getSchemaMutations(),
+					new LocalCatalogSchemaMutation[]{
+						new RemoveAttributeSchemaMutation("code"), new CreateEntitySchemaMutation("Original")
+					}
+				);
+				final EntityTypeAlreadyPresentInCatalogSchemaException failure = assertThrows(
+					EntityTypeAlreadyPresentInCatalogSchemaException.class, () -> session.updateCatalogSchema(batch));
+				assertEquals(failRestoreWrite ? 1 : 0, failure.getSuppressed().length);
+				assertTrue(session.getCatalogSchema().getAttribute("code").isPresent());
+			} finally {
+				setFieldValue(catalog, "dataStoreBuffer", original);
+			}
+			switch (route) {
+				case "close" -> session.close();
+				case "goLive" -> session.goLiveAndClose();
+				case "termination" -> failSessionDrain();
+				default -> throw new IllegalArgumentException(route);
+			}
+			reopen();
+			assertEquals("goLive".equals(route) ? CatalogState.ALIVE : CatalogState.WARMING_UP,
+				engine.getCatalogState(TEST_CATALOG).orElseThrow());
+			assertTrue(catalog().getSchema().getFulltextAnalyzer("plain").isEmpty());
+			assertTrue(catalog().getSchema().getAttribute("code").isPresent());
+		}
+
+		/** The failed batch's prefix published mid-call is superseded even when the restored schema's write fails. */
+		@Test
+		@DisplayName("Close stores the restored schema after a mid-call publication when its own write failed")
+		void shouldPublishRestoredSchemaAfterPartlyPublishedBatchWhenItsWriteFailed() {
+			prepareCollections();
+			final Catalog catalog = catalog();
+			final DataStoreMemoryBuffer original = failRestoredSchemaWrite(catalog, true);
+			try (final EvitaSessionContract session = engine.createReadWriteSession(TEST_CATALOG)) {
+				final EntityTypeAlreadyPresentInCatalogSchemaException failure = assertThrows(
+					EntityTypeAlreadyPresentInCatalogSchemaException.class, () -> session.updateCatalogSchema(
+						new ModifyCatalogSchemaDescriptionMutation("Published prefix"),
+						new CreateEntitySchemaMutation("Created"),
+						new CreateEntitySchemaMutation("Original")
+					));
+				assertEquals(1, failure.getSuppressed().length);
+				assertNull(session.getCatalogSchema().getDescription());
+			} finally {
+				setFieldValue(catalog, "dataStoreBuffer", original);
+			}
+			reopen();
+			assertNull(catalog().getSchema().getDescription());
+			assertEquals(Set.of("Original", "Removable", "Created"), catalog().getEntityTypes());
 		}
 
 		/** Fixing an intermediate failure permits all pending collection changes to publish together. */
@@ -1212,6 +1392,31 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 		return events.list.stream().filter(event -> event.getLevel() == Level.WARN).toList();
 	}
 
+	/**
+	 * Replaces the catalog's data store buffer with a spy whose first write of the catalog schema at the version the
+	 * catalog holds now fails, as a storage write does. That is the write of the schema a failed batch restores; the
+	 * writes of the batch's own parts and every later write, a retry of the same one included, reach the real buffer.
+	 * @param catalog the warm-up catalog whose buffer is replaced
+	 * @param fail whether the write fails at all, so that a control takes the same path without the failure
+	 * @return the replaced buffer, for the caller to put back
+	 */
+	@Nonnull
+	private static DataStoreMemoryBuffer failRestoredSchemaWrite(@Nonnull Catalog catalog, boolean fail) {
+		final DataStoreMemoryBuffer original = getNonnullFieldValue(catalog, "dataStoreBuffer");
+		final int restoredVersion = catalog.getSchema().version();
+		final AtomicBoolean armed = new AtomicBoolean(fail);
+		final DataStoreMemoryBuffer failingWrite = spy(original);
+		doAnswer(invocation -> {
+			final CatalogSchemaStoragePart part = invocation.getArgument(1);
+			if (part.catalogSchema().version() == restoredVersion && armed.compareAndSet(true, false)) {
+				throw new UncheckedIOException(new IOException("Simulated storage write failure"));
+			}
+			return invocation.callRealMethod();
+		}).when(failingWrite).update(anyLong(), any(CatalogSchemaStoragePart.class));
+		setFieldValue(catalog, "dataStoreBuffer", failingWrite);
+		return original;
+	}
+
 	/** Injects the failure at the drain boundary while leaving shutdown, the writer and storage real. */
 	private void failSessionDrain() {
 		final Map<String, SessionRegistry> registries = getNonnullFieldValue(this.engine, "catalogSessionRegistries");
@@ -1262,6 +1467,24 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 	 */
 	private void assertStorageSnapshot(@Nonnull Set<String> collections, @Nullable String description)
 		throws IOException {
+		readStorageSnapshot(copy -> {
+			final var published = copy.getCatalogInstanceOrThrowException(TEST_CATALOG);
+			assertTrue(published.getSchema().getFulltextAnalyzer("plain").isEmpty());
+			assertEquals(collections, published.getEntityTypes());
+			assertEquals(description, published.getSchema().getDescription());
+			return null;
+		});
+	}
+
+	/**
+	 * Opens a copy of the storage in an engine of its own, which reads what was published independently of the live
+	 * engine, its sessions and any instance they still hold.
+	 * @param reader what to read from the copy's engine once it has loaded the catalogs
+	 * @return what the reader returned
+	 * @throws IOException when the catalog files cannot be copied
+	 */
+	@Nullable
+	private <T> T readStorageSnapshot(@Nonnull Function<Evita, T> reader) throws IOException {
 		final TestPaths snapshot = createTestPaths("AnalyzerWarmUpPublishedSnapshot");
 		try {
 			try (final Stream<Path> files = Files.walk(this.paths.storage())) {
@@ -1276,14 +1499,104 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 			}
 			try (final Evita copy = new Evita(configuration(snapshot))) {
 				copy.waitUntilFullyInitialized();
-				final var published = copy.getCatalogInstanceOrThrowException(TEST_CATALOG);
-				assertTrue(published.getSchema().getFulltextAnalyzer("plain").isEmpty());
-				assertEquals(collections, published.getEntityTypes());
-				assertEquals(description, published.getSchema().getDescription());
+				return reader.apply(copy);
 			}
 		} finally {
 			cleanupTestPaths(snapshot);
 		}
+	}
+
+	/**
+	 * Opens a writer over a published `Item` collection whose `name` field uses the valid analyzer `plain`, and gives
+	 * it unpublished work - one item - so that a termination finding it registered has something to publish.
+	 * @return the open warm-up writer
+	 */
+	@Nonnull
+	private EvitaSessionContract openWriterWithUnpublishedItem() {
+		this.engine.updateCatalog(TEST_CATALOG, session -> {
+			session.getCatalogSchema().openForWrite()
+				.withFulltextAnalyzer("plain", a -> a.words(lowercase()).samples("Upper")).updateVia(session);
+			session.defineEntitySchema("Item").withLocale(Locale.ENGLISH)
+				.withAttribute("name", String.class, a -> a.localized().searchable().analyzer("plain"))
+				.updateVia(session);
+		});
+		final EvitaSessionContract session = this.engine.createReadWriteSession(TEST_CATALOG);
+		session.upsertEntity(session.createNewEntity("Item", 1).setAttribute("name", Locale.ENGLISH, "Upper"));
+		return session;
+	}
+
+	/**
+	 * Builds the writer's schema change, applied once on a thread of its own while the caller waits for it. The
+	 * failing change declares an analyzer whose mixed-case sample fails the behaviour check; the valid one declares an
+	 * analyzer and a field that uses it, so that the catalog schema part and a collection header change together.
+	 * @param session the registered warm-up writer
+	 * @param failing whether the change fails the behaviour check
+	 * @param failure receives what the writer's change threw, if it threw
+	 * @return the change; every call after the first does nothing
+	 */
+	@Nonnull
+	private static Runnable writerChange(
+		@Nonnull EvitaSessionContract session, boolean failing, @Nonnull AtomicReference<Throwable> failure
+	) {
+		final AtomicBoolean pending = new AtomicBoolean(true);
+		return () -> {
+			if (!pending.compareAndSet(true, false)) {
+				return;
+			}
+			final Runnable change = failing ?
+				() -> session.getCatalogSchema().openForWrite()
+					.withFulltextAnalyzer("failing", a -> a.words().samples("Upper")).updateVia(session) :
+				() -> {
+					session.getCatalogSchema().openForWrite()
+						.withFulltextAnalyzer("second", a -> a.words(lowercase()).samples("Second")).updateVia(session);
+					session.getEntitySchemaOrThrowException("Item").openForWrite()
+						.withAttribute("title", String.class, a -> a.localized().searchable().analyzer("second"))
+						.updateVia(session);
+				};
+			try {
+				// a positive wait: the change completes in milliseconds, the bound only stops a hang
+				CompletableFuture.runAsync(change).get(30, TimeUnit.SECONDS);
+			} catch (Exception ex) {
+				failure.set(ex);
+			}
+		};
+	}
+
+	/**
+	 * Reads what a termination published while the writer changed the schema.
+	 * @return the state a copy of the storage loads
+	 * @throws IOException when the catalog files cannot be copied
+	 */
+	@Nonnull
+	private PublishedState readPublishedState() throws IOException {
+		return Objects.requireNonNull(readStorageSnapshot(copy -> {
+			final CatalogContract published = copy.getCatalogInstanceOrThrowException(TEST_CATALOG);
+			return new PublishedState(
+				copy.getCatalogState(TEST_CATALOG).orElseThrow(),
+				published.getSchema().getFulltextAnalyzer("failing").isPresent(),
+				published.getSchema().getFulltextAnalyzer("second").isPresent(),
+				published.getEntitySchema("Item").orElseThrow().getAttribute("title").isPresent(),
+				copy.queryCatalog(TEST_CATALOG, reader -> {
+					return reader.queryList(
+						query(collection("Item"), filterBy(entityLocaleEquals(Locale.ENGLISH), textMatches("upper "))),
+						EntityReference.class
+					).size();
+				})
+			);
+		}));
+	}
+
+	/**
+	 * What a copy of the storage loads after a termination that the writer's schema change overlapped.
+	 * @param state the state the copy loads the catalog in
+	 * @param failing whether the analyzer that fails the behaviour check is published
+	 * @param second whether the valid analyzer of the change is published
+	 * @param title whether the field that uses the valid analyzer is published
+	 * @param items how many items a fulltext query on the published `name` field finds
+	 */
+	private record PublishedState(
+		@Nonnull CatalogState state, boolean failing, boolean second, boolean title, int items
+	) {
 	}
 
 	/**

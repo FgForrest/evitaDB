@@ -498,6 +498,15 @@ public final class Catalog
 	 */
 	private long lastPersistedSchemaVersion;
 	/**
+	 * Set when a warm-up schema batch failed and the write of the catalog schema it restored failed too. The newest
+	 * catalog schema part in the catalog file may then be one the batch itself wrote - a cascade writes one - which no
+	 * publication probe validated and which the next bootstrap record would publish. {@link #flush()} and
+	 * {@link #terminateInternally()} therefore write the in-memory schema - the one their probes validate - before
+	 * they publish ({@link #bufferCurrentSchema()}). Volatile, because the batch fails on the thread applying it while
+	 * the publication runs on the thread closing the session or terminating the catalog.
+	 */
+	private volatile boolean restoredSchemaUnbuffered;
+	/**
 	 * Headers the latest {@link #flushCollections(long)} produced, by collection primary key, waiting for the merge of
 	 * the same round to consume them. The flush and the merge of a round run one after the other on the same thread
 	 * and the same instance; `null` whenever no flush is pending.
@@ -1407,11 +1416,13 @@ public final class Catalog
 				recording.finishWithException(ex);
 			}
 
-			// written last, so that a failing write neither skips the restoration above nor replaces the batch failure
+			// written last, so that a failing write neither skips the restoration above nor replaces the batch failure;
+			// the next publication writes the restored schema instead of the part a cascade of this batch wrote
 			if (bufferRestoredSchema) {
 				try {
 					this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(originalSchema));
 				} catch (RuntimeException writeFailure) {
+					this.restoredSchemaUnbuffered = true;
 					ex.addSuppressed(writeFailure);
 				}
 			}
@@ -3167,7 +3178,8 @@ public final class Catalog
 	 * ({@link CatalogState#ALIVE}) mode the very first statement fails its premise, because in that mode changes
 	 * reach storage through a transaction and never through here. It also refuses when an earlier warm-up failure
 	 * has made this instance's state unpublishable - see {@link #assertPublishable()} - and refuses **before** the
-	 * destructive collect rather than after it.
+	 * destructive collect rather than after it. A failed warm-up schema batch whose restored schema could not be
+	 * written has its in-memory schema written here, before the collect ({@link #restoredSchemaUnbuffered}).
 	 *
 	 * @return a future completing once every collection and the catalog header have been written. Its failure is
 	 *         terminal for this instance: an exceptional completion raises the refusal barrier through the
@@ -3188,6 +3200,10 @@ public final class Catalog
 		// index's change-detection baseline, so a flush that is going to be refused anyway must not consume state on
 		// its way to being refused
 		assertPublishable();
+		// before the collect as well, so that a failing write leaves nothing consumed and the next publication retries
+		if (this.restoredSchemaUnbuffered) {
+			bufferCurrentSchema();
+		}
 
 		// this pops the CATALOG's own trapped changes here and now, on this thread, before a single collection future is
 		// even constructed - while they are written only in the combine step below, once every collection has flushed.
@@ -3535,11 +3551,21 @@ public final class Catalog
 		if (!isWarmUpSchemaValid() || !canBuildPendingExpressionTriggers()) {
 			return;
 		}
-		this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(getInternalSchema()));
+		bufferCurrentSchema();
 		// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
 		final ProgressingFuture<Void> flushFuture = this.flush();
 		flushFuture.execute(ProgressingFuture.unrejectableExecutor(this.transactionalExecutor));
 		flushFuture.join();
+	}
+
+	/**
+	 * Writes the in-memory catalog schema into the data store buffer, so that the next bootstrap record publishes the
+	 * schema the publication probes validate rather than any part written before it, and clears
+	 * {@link #restoredSchemaUnbuffered}. A failed write leaves the flag set, so the next publication tries again.
+	 */
+	private void bufferCurrentSchema() {
+		this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(getInternalSchema()));
+		this.restoredSchemaUnbuffered = false;
 	}
 
 	/**
@@ -4550,7 +4576,8 @@ public final class Catalog
 	/**
 	 * Releases collection resources and publishes final warm-up headers when the publication probe passes
 	 * and every collection flush succeeds. The transaction manager is closed and every collection is terminated
-	 * whatever the probe decides.
+	 * whatever the probe decides. A publication writes the in-memory schema first when a failed warm-up schema batch
+	 * could not write the schema it restored ({@link #restoredSchemaUnbuffered}).
 	 */
 	private void terminateInternally() {
 		final String catalogName = getName();
@@ -4614,6 +4641,10 @@ public final class Catalog
 
 			// if any change occurred (this may happen only in warm up state)
 			if (flushBeforeTerminate && changeOccurred && everyCollectionFlushed) {
+				// a failing write skips the header below, through the catch at the end of this method
+				if (this.restoredSchemaUnbuffered) {
+					bufferCurrentSchema();
+				}
 				// store catalog header
 				this.persistenceService.storeHeader(
 					this.catalogId,

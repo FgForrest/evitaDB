@@ -260,6 +260,8 @@ public final class FulltextAnalyzerBehaviourCheck {
 	/**
 	 * Visits searchable field assignments and their current locales. Imported globals and effective reference
 	 * attributes use the same schema accessors as fulltext query planning.
+	 * Every field is used in the locales of its collection: schema validation, which runs before this check,
+	 * accepts only localized searchable fields.
 	 * @param catalog catalog providing collection primary keys across renames
 	 * @param schema catalog whose entity schemas declare fulltext places
 	 * @param consumer receiver of field identities and analyzer assignments
@@ -278,13 +280,13 @@ public final class FulltextAnalyzerBehaviourCheck {
 			for (final AttributeSchemaContract field : entity.getAttributes().values()) {
 				if (field.isSearchableInAnyScope()) {
 					consumer.accept(new FieldAddress(collectionId, FulltextFieldKey.attribute(field.getName())),
-						fieldUse(field.getAnalyzer(), field.isLocalized(), locales));
+						new FieldUse(field.getAnalyzer(), locales));
 				}
 			}
 			for (final AssociatedDataSchemaContract field : entity.getAssociatedData().values()) {
 				if (field.isSearchableInAnyScope()) {
 					consumer.accept(new FieldAddress(collectionId, FulltextFieldKey.associatedData(field.getName())),
-						fieldUse(field.getAnalyzer(), field.isLocalized(), locales));
+						new FieldUse(field.getAnalyzer(), locales));
 				}
 			}
 			for (final ReferenceSchemaContract reference : entity.getReferences().values()) {
@@ -294,24 +296,12 @@ public final class FulltextAnalyzerBehaviourCheck {
 						consumer.accept(
 							new FieldAddress(collectionId,
 								FulltextFieldKey.referenceAttribute(reference.getName(), field.getName())),
-							fieldUse(field.getAnalyzer(), field.isLocalized(), locales)
+							new FieldUse(field.getAnalyzer(), locales)
 						);
 					}
 				}
 			}
 		}
-	}
-
-	/**
-	 * Describes a searchable field's use of its analyzer.
-	 * @param analyzer the analyzer the field names
-	 * @param localized whether the field holds a value per locale
-	 * @param locales the locales of the owning collection
-	 * @return the collection's locales for a localized field, otherwise root alone
-	 */
-	@Nonnull
-	private static FieldUse fieldUse(@Nonnull String analyzer, boolean localized, @Nonnull Set<Locale> locales) {
-		return new FieldUse(analyzer, localized ? locales : Set.of(Locale.ROOT));
 	}
 
 	/**
