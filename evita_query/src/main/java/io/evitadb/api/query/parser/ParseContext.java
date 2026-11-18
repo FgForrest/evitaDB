@@ -188,50 +188,78 @@ public class ParseContext {
 			!(argument instanceof Iterable<?>) || argument instanceof Collection<?>,
 			() -> description + " is an `Iterable` that is not a `Collection`. Bind a list or an array instead."
 		);
-		Assert.isTrue(isArgumentDataTypeSupported(argument), () -> description + " has unsupported data type.");
+		final Class<?> unsupportedType = findUnsupportedArgumentType(argument);
+		if (unsupportedType != null) {
+			throw new EvitaInvalidUsageException(
+				description + " has unsupported data type `" + unsupportedType.getTypeName() + "`."
+			);
+		}
 		return argument instanceof Collection<?> collection && !(argument instanceof Serializable) ?
 			new ArrayList<>(collection) : argument;
 	}
 
 	/**
-	 * Supported argument data types are: evita data types, enums, arrays of evita data types and enums,
-	 * collections of evita data types or enums.
-	 * Null, and null items inside arrays and collections, are supported as undefined values; every defined item is
-	 * checked.
+	 * Finds the first unsupported type in a bound scalar, array or collection. Null and null list items
+	 * represent undefined values and pass through to the visitor.
 	 *
 	 * @param argument bound argument, null for an undefined value
-	 * @return true when the query language supports the argument's data type
+	 * @return the unsupported scalar, array component or list item type, or null when all values can be bound
 	 */
-	private static boolean isArgumentDataTypeSupported(@Nullable Object argument) {
+	@Nullable
+	private static Class<?> findUnsupportedArgumentType(@Nullable Object argument) {
 		if (argument != null && argument.getClass().isArray()) {
 			final Class<?> component = argument.getClass().getComponentType();
-			if (component != Object.class && component != Serializable.class
-				&& !EvitaDataTypes.isSupportedType(component) && !component.isEnum()) {
-				return false;
+			if (
+				component != Object.class && component != Serializable.class && !isArgumentValueTypeSupported(component)
+			) {
+				return component;
 			}
 			final int length = Array.getLength(argument);
 			for (int i = 0; i < length; i++) {
-				final Object item = Array.get(argument, i);
-				if (item != null && !EvitaDataTypes.isSupportedType(item.getClass()) && !item.getClass().isEnum()) {
-					return false;
+				final Class<?> unsupportedType = findUnsupportedArgumentValueType(Array.get(argument, i));
+				if (unsupportedType != null) {
+					return unsupportedType;
 				}
 			}
-			return true;
-		}
-		if (argument == null || EvitaDataTypes.isSupportedType(argument.getClass())) {
-			return true;
-		}
-		if (argument.getClass().isEnum()) {
-			return true;
-		}
-		if (argument instanceof final Collection<?> collection) {
+		} else if (argument instanceof Collection<?> collection) {
 			for (final Object item : collection) {
-				if (item != null && !EvitaDataTypes.isSupportedType(item.getClass()) && !item.getClass().isEnum()) {
-					return false;
+				final Class<?> unsupportedType = findUnsupportedArgumentValueType(item);
+				if (unsupportedType != null) {
+					return unsupportedType;
 				}
 			}
-			return true;
+		} else {
+			return findUnsupportedArgumentValueType(argument);
 		}
-		return false;
+		return null;
+	}
+
+	/**
+	 * Checks a scalar parameter value or a single item in a bound array or collection.
+	 *
+	 * @param value the value to check, null for an undefined value
+	 * @return the unsupported type, or null for a valid binding
+	 */
+	@Nullable
+	private static Class<?> findUnsupportedArgumentValueType(@Nullable Object value) {
+		if (value == null) {
+			return null;
+		}
+		final Class<?> type = value.getClass();
+		// the Java factories refuse a NaN or an infinity when they normalize a floating-point number to a decimal
+		final boolean nonFinite = value instanceof Double doubleValue && !Double.isFinite(doubleValue)
+			|| value instanceof Float floatValue && !Float.isFinite(floatValue);
+		return !isArgumentValueTypeSupported(type) || nonFinite ? type : null;
+	}
+
+	/**
+	 * Checks which types can reach the visitor for position-specific validation. Finite floats and doubles may be
+	 * bound where the constraint factory normalizes them to decimals.
+	 *
+	 * @param type the scalar or array component type
+	 * @return whether the type is eligible for binding
+	 */
+	private static boolean isArgumentValueTypeSupported(@Nonnull Class<?> type) {
+		return EvitaDataTypes.isSupportedType(type) || type.isEnum() || type == Float.class || type == Double.class;
 	}
 }

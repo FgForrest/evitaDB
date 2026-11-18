@@ -26,6 +26,7 @@ package io.evitadb.api.functional.attribute;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.parser.DefaultQueryParser;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.core.Evita;
@@ -42,15 +43,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 
 import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.attributeInSet;
 import static io.evitadb.api.query.QueryConstraints.attributeLessThan;
+import static io.evitadb.api.query.QueryConstraints.attributeLessThanEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeSetExact;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
@@ -79,6 +86,7 @@ public class EntityByAttributeFilteringFunctionalTest extends AbstractEntityByAt
 	 */
 	@Nonnull
 	private static final String CURRENCY_AND_LOCALE_PRODUCTS = "currencyAndLocaleProducts";
+	private static final String COMPARABLE_ATTRIBUTE_PRODUCTS = "comparableAttributeProducts";
 
 	/**
 	 * Seeds products so neither filter alone selects the expected primary key.
@@ -134,6 +142,108 @@ public class EntityByAttributeFilteringFunctionalTest extends AbstractEntityByAt
 			final List<Integer> actual = session.queryEntityReference(parsed).getRecordData().stream()
 				.map(EntityReferenceContract::getPrimaryKey).toList();
 			assertEquals(expected, actual);
+		}
+	}
+
+	/**
+	 * Seeds products with distinct enum names and decimal values.
+	 *
+	 * @param evita the embedded database
+	 * @return the dataset carrier
+	 */
+	@Nonnull
+	@DataSet(COMPARABLE_ATTRIBUTE_PRODUCTS)
+	DataCarrier setUpComparableAttributeProducts(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(Entities.PRODUCT).withoutGeneratedPrimaryKey()
+				.withAttribute("label", String.class, attribute -> attribute.filterable())
+				.withAttribute("amount", BigDecimal.class,
+					attribute -> attribute.indexDecimalPlaces(2).filterable().sortable())
+				.updateVia(session);
+			session.createNewEntity(Entities.PRODUCT, 1).setAttribute("label", "OPTIMIZED")
+				.setAttribute("amount", new BigDecimal("1.50")).upsertVia(session);
+			session.createNewEntity(Entities.PRODUCT, 2).setAttribute("label", "MONDAY")
+				.setAttribute("amount", new BigDecimal("2.00")).upsertVia(session);
+			session.createNewEntity(Entities.PRODUCT, 3).setAttribute("label", "OTHER")
+				.setAttribute("amount", new BigDecimal("3.00")).upsertVia(session);
+		});
+		return new DataCarrier();
+	}
+
+	/**
+	 * Compares enum filters made by the Java factory and parsed from positional or unsafe literal input.
+	 *
+	 * @param evita the embedded database containing the products
+	 */
+	@Test
+	@UseDataSet(COMPARABLE_ATTRIBUTE_PRODUCTS)
+	@Tag(QUERY)
+	@DisplayName("Return the same primary keys for Java enums and EvitaQL attribute values")
+	void shouldReturnSamePrimaryKeysForEnumAttributeValues(@Nonnull Evita evita) {
+		final HistogramBehavior enumValue = HistogramBehavior.OPTIMIZED;
+		assertPrimaryKeys(
+			evita, List.of(1),
+			query(collection(Entities.PRODUCT), filterBy(attributeEquals("label", enumValue))),
+			DefaultQueryParser.getInstance().parseQuery(
+				"query(collection(?), filterBy(attributeEquals(?, ?)))", Entities.PRODUCT, "label", enumValue
+			)
+		);
+		assertPrimaryKeys(
+			evita, List.of(2),
+			query(collection(Entities.PRODUCT), filterBy(attributeEquals("label", DayOfWeek.MONDAY))),
+			DefaultQueryParser.getInstance().parseQueryUnsafe(
+				"query(collection(?), filterBy(attributeEquals('label', MONDAY)))", Entities.PRODUCT
+			)
+		);
+	}
+
+	/**
+	 * Checks decimal filtering and exact ordering with the same double and float inputs in both query APIs.
+	 *
+	 * @param evita the embedded database containing the products
+	 */
+	@Test
+	@UseDataSet(COMPARABLE_ATTRIBUTE_PRODUCTS)
+	@Tag(QUERY)
+	@DisplayName("Return the same ordered primary keys for Java and EvitaQL floating-point values")
+	void shouldReturnSamePrimaryKeysForFloatingPointAttributeValues(@Nonnull Evita evita) {
+		assertPrimaryKeys(
+			evita, List.of(2, 1),
+			query(
+				collection(Entities.PRODUCT), filterBy(attributeInSet("amount", 1.5d, 2.0d)),
+				orderBy(attributeSetExact("amount", 2.0d, 1.5d))
+			),
+			DefaultQueryParser.getInstance().parseQuery(
+				"query(collection(?), filterBy(attributeInSet(?, ?)), orderBy(attributeSetExact(?, ?)))",
+				Entities.PRODUCT, "amount", List.of(1.5d, 2.0d), "amount", List.of(2.0d, 1.5d)
+			)
+		);
+		assertPrimaryKeys(
+			evita, List.of(1, 2),
+			query(collection(Entities.PRODUCT), filterBy(attributeLessThanEquals("amount", 2.0f))),
+			DefaultQueryParser.getInstance().parseQuery(
+				"query(collection(?), filterBy(attributeLessThanEquals(?, ?)))", Entities.PRODUCT, "amount", 2.0f
+			)
+		);
+	}
+
+	/**
+	 * Executes both forms on the same catalog and verifies their results in order.
+	 *
+	 * @param evita the embedded database
+	 * @param expectedKeys the expected primary keys
+	 * @param javaQuery the Java factory query
+	 * @param evitaQlQuery the parsed EvitaQL query
+	 */
+	private static void assertPrimaryKeys(
+		@Nonnull Evita evita, @Nonnull List<Integer> expectedKeys, @Nonnull Query javaQuery, @Nonnull Query evitaQlQuery
+	) {
+		assertEquals(javaQuery, evitaQlQuery);
+		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+			assertEquals(expectedKeys, session.queryEntityReference(javaQuery).getRecordData().stream()
+				.map(EntityReferenceContract::getPrimaryKey).toList());
+			assertEquals(expectedKeys, session.queryEntityReference(evitaQlQuery).getRecordData().stream()
+				.map(EntityReferenceContract::getPrimaryKey).toList());
 		}
 	}
 

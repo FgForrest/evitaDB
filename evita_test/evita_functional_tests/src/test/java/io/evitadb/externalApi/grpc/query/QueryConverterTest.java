@@ -56,6 +56,7 @@ import org.junit.jupiter.api.Test;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Currency;
@@ -66,10 +67,14 @@ import java.util.Map;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeInSet;
+import static io.evitadb.api.query.QueryConstraints.attributeLessThan;
+import static io.evitadb.api.query.QueryConstraints.attributeSetExact;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
+import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
@@ -296,6 +301,36 @@ class QueryConverterTest {
 			.toList();
 		assertTrue(encoded.stream().anyMatch(GrpcQueryParam::hasCurrencyValue));
 		assertTrue(encoded.stream().anyMatch(GrpcQueryParam::hasLocaleValue));
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
+	}
+
+	/**
+	 * Checks that both kinds of enum and normalized floating-point numbers retain the Java query over gRPC.
+	 */
+	@Test
+	@DisplayName("Round-trip enum and floating-point attribute values through the gRPC query converter")
+	void shouldRoundTripEnumAndFloatingPointAttributeValues() {
+		final Query original = query(
+			collection("product"),
+			filterBy(
+				attributeEquals("text", DayOfWeek.MONDAY),
+				attributeLessThan("amount", 2.5f),
+				attributeInSet("state", HistogramBehavior.OPTIMIZED, HistogramBehavior.EQUALIZED)
+			),
+			orderBy(attributeSetExact("decimalValue", 2.0d, 1.5d))
+		).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
+		assertTrue(encoded.stream().anyMatch(GrpcQueryParam::hasHistogramBehavior));
+		assertTrue(encoded.stream().anyMatch(GrpcQueryParam::hasBigDecimalValue));
+		assertTrue(encoded.stream().anyMatch(it -> it.getStringValue().equals("MONDAY")));
 
 		final QueryWithParameters parsed = QueryUtil.parseQuery(
 			extracted.query(), encoded, Map.of(), null,

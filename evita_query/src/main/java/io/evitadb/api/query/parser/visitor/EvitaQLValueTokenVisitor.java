@@ -112,12 +112,22 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
 	);
 
 	/**
-	 * Attribute value types accepted by filters and exact value ordering.
+	 * Attribute value types accepted by filters and exact value ordering. Floating-point numbers and enums are
+	 * accepted because the Java factories normalize them: a finite `Float` or `Double` to a `BigDecimal`, an
+	 * enum to its name unless it is a supported enum. An array is never a single attribute value, because the
+	 * engine would compare it by its identity rather than by its items.
 	 */
 	@Nonnull
 	private static final Set<Class<?>> ATTRIBUTE_VALUE_TYPES = Set.copyOf(
-		CollectionUtils.combine(COMPARABLE_TYPES, Set.of(Currency.class, Locale.class))
+		CollectionUtils.combine(
+			COMPARABLE_TYPES, Set.of(Currency.class, Locale.class, Float.class, Double.class, Enum.class)
+		)
 	);
+
+	/**
+	 * Whether an untyped enum literal represents its name as an attribute value.
+	 */
+	private final boolean enumLiteralsAsStrings;
 
     protected final EvitaQLParameterVisitor parameterVisitor = new EvitaQLParameterVisitor();
 
@@ -126,12 +136,25 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
      */
     protected final Set<Class<?>> allowedDataTypes;
 
-    /**
-     * Creates value token visitor with custom array of data types allowed for parsing.
-     */
-    private EvitaQLValueTokenVisitor(@Nonnull Set<Class<?>> allowedDataTypes) {
-        this.allowedDataTypes = allowedDataTypes;
-    }
+	/**
+	 * Creates a visitor that resolves enum literals through an enum wrapper.
+	 *
+	 * @param allowedDataTypes the types permitted in this position
+	 */
+	private EvitaQLValueTokenVisitor(@Nonnull Set<Class<?>> allowedDataTypes) {
+		this(allowedDataTypes, false);
+	}
+
+	/**
+	 * Creates a visitor with position-specific validation and enum literal handling.
+	 *
+	 * @param allowedDataTypes the types permitted in this position
+	 * @param enumLiteralsAsStrings whether enum literals represent their names as strings
+	 */
+	private EvitaQLValueTokenVisitor(@Nonnull Set<Class<?>> allowedDataTypes, boolean enumLiteralsAsStrings) {
+		this.allowedDataTypes = allowedDataTypes;
+		this.enumLiteralsAsStrings = enumLiteralsAsStrings;
+	}
 
     /**
      * Creates value token visitor with custom array of data types allowed for parsing.
@@ -188,13 +211,13 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
 	}
 
 	/**
-	 * Creates a visitor for attribute value positions that accept serializable values.
+	 * Creates a visitor for attribute values, including enum names and values normalized by the Java factories.
 	 *
-	 * @return the visitor configured for comparable types, currencies and locales
+	 * @return the visitor for attribute value positions
 	 */
 	@Nonnull
 	static EvitaQLValueTokenVisitor withAttributeValueTypesAllowed() {
-		return new EvitaQLValueTokenVisitor(ATTRIBUTE_VALUE_TYPES);
+		return new EvitaQLValueTokenVisitor(ATTRIBUTE_VALUE_TYPES, true);
 	}
 
     /**
@@ -368,15 +391,21 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         );
     }
 
-    @Override
-    public Value visitEnumValueToken(EnumValueTokenContext ctx) {
-        assertLiteralIsAllowed(ctx);
-        assertSubclassOfDataTypeIsAllowed(ctx, Enum.class);
+	/**
+	 * Parses an unsafe enum literal as an enum wrapper or, in attribute value positions, as its untyped name.
+	 *
+	 * @param ctx the enum literal token
+	 * @return the value represented by the token
+	 */
+	@Nonnull
+	@Override
+	public Value visitEnumValueToken(@Nonnull EnumValueTokenContext ctx) {
+		assertLiteralIsAllowed(ctx);
+		assertSubclassOfDataTypeIsAllowed(ctx, Enum.class);
 
-        return new Value(
-            EnumWrapper.fromString(ctx.getText())
-        );
-    }
+		final EnumWrapper literal = EnumWrapper.fromString(ctx.getText());
+		return new Value(this.enumLiteralsAsStrings ? literal.getValue() : literal);
+	}
 
     @Override
     public Value visitFloatNumberRangeValueToken(FloatNumberRangeValueTokenContext ctx) {
@@ -442,26 +471,24 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         );
     }
 
-    /**
-     * Checks if the data type is allowed as output type by caller.
-     *
-     * @param ctx context of literal being parsed
-     * @param dataType data type to check
-     */
-    protected void assertDataTypeIsAllowed(@Nonnull ParserRuleContext ctx, @Nonnull Class<?> dataType) {
-        if ((this.allowedDataTypes != null) && this.allowedDataTypes.stream().anyMatch(type -> type.isAssignableFrom(dataType))) {
-            return;
-        }
+	/**
+	 * Checks whether the supplied type is allowed in this value position.
+	 *
+	 * @param ctx the value or argument token being parsed
+	 * @param dataType the type to check
+	 * @throws EvitaSyntaxException when the type is forbidden in this position
+	 */
+	protected void assertDataTypeIsAllowed(@Nonnull ParserRuleContext ctx, @Nonnull Class<?> dataType) {
+		if (this.allowedDataTypes != null
+			&& this.allowedDataTypes.stream().anyMatch(type -> type.isAssignableFrom(dataType))) {
+			return;
+		}
 
-        throw new EvitaSyntaxException(
-            ctx,
-            String.format(
-                "Data type `%s` is not allowed in `%s`.",
-                dataType,
-                ctx.getText()
-            )
-        );
-    }
+		throw new EvitaSyntaxException(
+			ctx,
+			"Data type `" + dataType.getTypeName() + "` is not allowed in `" + ctx.getText() + "`."
+		);
+	}
 
     /**
      * Checks if the data type is allowed as output type by caller.
