@@ -35,16 +35,25 @@ import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.Currency;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -60,6 +69,61 @@ import static io.evitadb.test.TestTags.ORDER;
 @Tag(QUERY)
 @Tag(ORDER)
 class EvitaQLOrderConstraintVisitorTest {
+
+	/**
+	 * Verifies Java factory parity for exact ordering by currencies and locales.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Exact ordering by currency and locale")
+	class ExplicitAttributeOrderValues {
+
+		/**
+		 * Provides pairs of values in the exact order requested by the query.
+		 *
+		 * @return the currency and locale pairs
+		 */
+		@Nonnull
+		static Stream<Arguments> attributeValues() {
+			return Stream.of(
+				Arguments.of(Currency.getInstance("USD"), Currency.getInstance("EUR")),
+				Arguments.of(Locale.GERMAN, Locale.ENGLISH)
+			);
+		}
+
+		/**
+		 * Checks scalar, list and separately bound ordering values in both binding modes.
+		 *
+		 * @param first first attribute value
+		 * @param second second attribute value
+		 */
+		@ParameterizedTest
+		@MethodSource("attributeValues")
+		@DisplayName("Order by a bound scalar or a list of attribute values")
+		void shouldParseExactOrderWithBoundValues(@Nonnull Serializable first, @Nonnull Serializable second) {
+			final OrderConstraint single = attributeSetExact("a", first);
+			final OrderConstraint multiple = attributeSetExact("a", first, second);
+			final List<Serializable> values = List.of(first, second);
+			assertAll(
+				() -> assertEquals(single, parseOrderConstraint("attributeSetExact(?, ?)", "a", first)),
+				() -> assertEquals(
+					single, parseOrderConstraint("attributeSetExact(@name, @v)", Map.of("name", "a", "v", first))
+				),
+				() -> assertEquals(multiple, parseOrderConstraint("attributeSetExact(?, ?)", "a", values)),
+				() -> assertEquals(
+					multiple, parseOrderConstraint("attributeSetExact(@name, @v)", Map.of("name", "a", "v", values))
+				),
+				() -> assertEquals(multiple, parseOrderConstraint("attributeSetExact(?, ?, ?)", "a", first, second)),
+				() -> assertEquals(
+					multiple,
+					parseOrderConstraint(
+						"attributeSetExact(@name, @v1, @v2)", Map.of("name", "a", "v1", first, "v2", second)
+					)
+				)
+			);
+		}
+	}
 
     @Test
     void shouldParseOrderByConstraint() {

@@ -38,6 +38,7 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
 import org.antlr.v4.runtime.ParserRuleContext;
 
@@ -77,6 +78,46 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     private static final String EXPECTED_OFFSET_DATE_TIME_FORMAT = "yyyy-MM-ddTHH:mm:ss.sss+-HH:mm";
     private static final String EXPECTED_LOCAL_DATE_TIME_FORMAT = "yyyy-MM-ddTHH:mm:ss.sss";
     private static final String EXPECTED_LOCAL_TIME_FORMAT = "HH:mm:ss.sss";
+
+	/**
+	 * Comparable value types accepted by EvitaQL.
+	 */
+	@Nonnull
+	private static final Set<Class<?>> COMPARABLE_TYPES = Set.of(
+		String.class,
+		byte.class,
+		Byte.class,
+		short.class,
+		Short.class,
+		int.class,
+		Integer.class,
+		long.class,
+		Long.class,
+		boolean.class,
+		Boolean.class,
+		char.class,
+		Character.class,
+		BigDecimal.class,
+		OffsetDateTime.class,
+		LocalDateTime.class,
+		LocalDate.class,
+		LocalTime.class,
+		DateTimeRange.class,
+		BigDecimalNumberRange.class,
+		LongNumberRange.class,
+		IntegerNumberRange.class,
+		ShortNumberRange.class,
+		ByteNumberRange.class,
+		UUID.class
+	);
+
+	/**
+	 * Attribute value types accepted by filters and exact value ordering.
+	 */
+	@Nonnull
+	private static final Set<Class<?>> ATTRIBUTE_VALUE_TYPES = Set.copyOf(
+		CollectionUtils.combine(COMPARABLE_TYPES, Set.of(Currency.class, Locale.class))
+	);
 
     protected final EvitaQLParameterVisitor parameterVisitor = new EvitaQLParameterVisitor();
 
@@ -136,38 +177,25 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         );
     }
 
-    /**
-     * Creates value token visitor with all comparable types allowed for parsing.
-     */
-    public static EvitaQLValueTokenVisitor withComparableTypesAllowed() {
-        return new EvitaQLValueTokenVisitor(
-            String.class,
-            byte.class,
-            Byte.class,
-            short.class,
-            Short.class,
-            int.class,
-            Integer.class,
-            long.class,
-            Long.class,
-            boolean.class,
-            Boolean.class,
-            char.class,
-            Character.class,
-            BigDecimal.class,
-            OffsetDateTime.class,
-            LocalDateTime.class,
-            LocalDate.class,
-            LocalTime.class,
-            DateTimeRange.class,
-            BigDecimalNumberRange.class,
-            LongNumberRange.class,
-            IntegerNumberRange.class,
-            ShortNumberRange.class,
-            ByteNumberRange.class,
-            UUID.class
-        );
-    }
+	/**
+	 * Creates a visitor for comparable value positions.
+	 *
+	 * @return the visitor configured for comparable types
+	 */
+	@Nonnull
+	public static EvitaQLValueTokenVisitor withComparableTypesAllowed() {
+		return new EvitaQLValueTokenVisitor(COMPARABLE_TYPES);
+	}
+
+	/**
+	 * Creates a visitor for attribute value positions that accept serializable values.
+	 *
+	 * @return the visitor configured for comparable types, currencies and locales
+	 */
+	@Nonnull
+	static EvitaQLValueTokenVisitor withAttributeValueTypesAllowed() {
+		return new EvitaQLValueTokenVisitor(ATTRIBUTE_VALUE_TYPES);
+	}
 
     /**
      * Creates value token visitor with custom array of data types allowed for parsing.

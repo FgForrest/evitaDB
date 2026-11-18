@@ -46,6 +46,8 @@ import io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour;
 import io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.QueryParamCase;
+import io.evitadb.externalApi.grpc.utils.QueryUtil;
+import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -75,6 +77,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * This test verifies functionalities of methods in {@link QueryConverter} class.
@@ -268,6 +272,30 @@ class QueryConverterTest {
 		assertArrayEquals(orderDirectionValue, convertQueryParam(orderDirectionValue));
 		final Scope[] scopeValue = {Scope.ARCHIVED, Scope.LIVE};
 		assertArrayEquals(scopeValue, convertQueryParam(scopeValue));
+	}
+
+	/**
+	 * Checks the client extraction and encoding path and the server's decoding and parsing path.
+	 */
+	@Test
+	@DisplayName("Round-trip currency and locale attribute values through the gRPC query converter")
+	void shouldRoundTripCurrencyAndLocaleAttributeValues() {
+		final Query original = query(
+			collection("product"),
+			filterBy(attributeEquals("currency", Currency.getInstance("USD")), attributeEquals("lang", Locale.GERMAN))
+		).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
+		assertTrue(encoded.stream().anyMatch(GrpcQueryParam::hasCurrencyValue));
+		assertTrue(encoded.stream().anyMatch(GrpcQueryParam::hasLocaleValue));
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
 	}
 
 	/**

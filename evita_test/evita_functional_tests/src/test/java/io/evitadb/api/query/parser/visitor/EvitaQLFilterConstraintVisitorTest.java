@@ -35,8 +35,12 @@ import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -48,10 +52,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -73,6 +79,128 @@ import static io.evitadb.test.TestTags.FILTER;
 class EvitaQLFilterConstraintVisitorTest {
 
 	public static final Currency CZK = Currency.getInstance("CZK");
+
+	/**
+	 * Verifies Java factory parity for bound currency and locale attribute filters.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Currency and locale attribute filters")
+	class AttributeValueBindings {
+
+		/**
+		 * Provides a value for each attribute type.
+		 *
+		 * @return the currency and locale values
+		 */
+		@Nonnull
+		static Stream<Serializable> comparisonValues() {
+			return Stream.of(CZK, Locale.ENGLISH);
+		}
+
+		/**
+		 * Provides pairs of values for each attribute type.
+		 *
+		 * @return the currency and locale pairs
+		 */
+		@Nonnull
+		static Stream<Arguments> attributeValues() {
+			return Stream.of(
+				Arguments.of(Currency.getInstance("EUR"), Currency.getInstance("USD")),
+				Arguments.of(Locale.ENGLISH, Locale.GERMAN)
+			);
+		}
+
+		/**
+		 * Checks each comparison with a single value in both binding modes.
+		 *
+		 * @param value bound attribute value
+		 */
+		@ParameterizedTest
+		@MethodSource("comparisonValues")
+		@DisplayName("Compare a single bound attribute value")
+		void shouldParseComparisonsWithBoundValue(@Nonnull Serializable value) {
+			assertAll(
+				() -> assertBoundComparison(attributeEquals("a", value), value),
+				() -> assertBoundComparison(attributeLessThan("a", value), value),
+				() -> assertBoundComparison(attributeLessThanEquals("a", value), value),
+				() -> assertBoundComparison(attributeGreaterThan("a", value), value),
+				() -> assertBoundComparison(attributeGreaterThanEquals("a", value), value)
+			);
+		}
+
+		/**
+		 * Checks a single-value comparison in both binding modes.
+		 *
+		 * @param expected constraint from the Java factory
+		 * @param value value passed to that factory
+		 */
+		private void assertBoundComparison(@Nonnull FilterConstraint expected, @Nonnull Serializable value) {
+			assertAll(
+				expected.getName(),
+				() -> assertEquals(expected, parseFilterConstraint(expected.getName() + "(?, ?)", "a", value)),
+				() -> assertEquals(
+					expected,
+					parseFilterConstraint(expected.getName() + "(@name, @value)", Map.of("name", "a", "value", value))
+				)
+			);
+		}
+
+		/**
+		 * Checks both bounds of a between filter in both binding modes.
+		 *
+		 * @param from lower bound
+		 * @param to upper bound
+		 */
+		@ParameterizedTest
+		@MethodSource("attributeValues")
+		@DisplayName("Compare two bound attribute range limits")
+		void shouldParseBetweenWithBoundValues(@Nonnull Serializable from, @Nonnull Serializable to) {
+			final FilterConstraint expected = attributeBetween("a", from, to);
+			assertAll(
+				() -> assertEquals(expected, parseFilterConstraint("attributeBetween(?, ?, ?)", "a", from, to)),
+				() -> assertEquals(
+					expected,
+					parseFilterConstraint(
+						"attributeBetween(@name, @from, @to)", Map.of("name", "a", "from", from, "to", to)
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks scalar, list and separately bound membership arguments in both binding modes.
+		 *
+		 * @param first first attribute value
+		 * @param second second attribute value
+		 */
+		@ParameterizedTest
+		@MethodSource("attributeValues")
+		@DisplayName("Match a bound scalar or a list of attribute values")
+		void shouldParseInSetWithBoundValues(@Nonnull Serializable first, @Nonnull Serializable second) {
+			final FilterConstraint single = attributeInSet("a", first);
+			final FilterConstraint multiple = attributeInSet("a", first, second);
+			final List<Serializable> values = List.of(first, second);
+			assertAll(
+				() -> assertEquals(single, parseFilterConstraint("attributeInSet(?, ?)", "a", first)),
+				() -> assertEquals(
+					single, parseFilterConstraint("attributeInSet(@name, @v)", Map.of("name", "a", "v", first))
+				),
+				() -> assertEquals(multiple, parseFilterConstraint("attributeInSet(?, ?)", "a", values)),
+				() -> assertEquals(
+					multiple, parseFilterConstraint("attributeInSet(@name, @v)", Map.of("name", "a", "v", values))
+				),
+				() -> assertEquals(multiple, parseFilterConstraint("attributeInSet(?, ?, ?)", "a", first, second)),
+				() -> assertEquals(
+					multiple,
+					parseFilterConstraint(
+						"attributeInSet(@name, @v1, @v2)", Map.of("name", "a", "v1", first, "v2", second)
+					)
+				)
+			);
+		}
+	}
 
 	@Nested
 	@DisplayName("Logical constraints")

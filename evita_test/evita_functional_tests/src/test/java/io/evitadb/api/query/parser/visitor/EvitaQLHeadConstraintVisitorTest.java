@@ -29,15 +29,18 @@ import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.Currency;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.head;
 import static io.evitadb.api.query.QueryConstraints.label;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -51,6 +54,21 @@ import static io.evitadb.test.TestTags.QUERY;
 @Tag(CONTRACT)
 @Tag(QUERY)
 class EvitaQLHeadConstraintVisitorTest {
+
+	/**
+	 * Checks that the comparable label value rejects a currency in either binding mode.
+	 */
+	@Test
+	@DisplayName("Reject currency parameters in labels")
+	void shouldRejectBoundCurrencyInLabel() {
+		final Currency usd = Currency.getInstance("USD");
+		assertAll(
+			() -> assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("label(?, ?)", "currency", usd)),
+			() -> assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint(
+				"label(@key, @value)", Map.of("key", "currency", "value", usd)
+			))
+		);
+	}
 
     @Test
     void shouldParseCollectionConstraint() {
