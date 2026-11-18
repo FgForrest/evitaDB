@@ -2259,6 +2259,25 @@ class EvitaQLRequireConstraintVisitorTest {
 	}
 
 	/**
+	 * A list is the whole list only when it is bound to a lone parameter; as one of several separate price lists it is
+	 * an item of the wrong type, which is a syntax error rather than an internal error.
+	 */
+	@Test
+	@DisplayName("should refuse a list bound as one of several accompanying price lists")
+	void shouldRefuseListBoundAsOneOfSeveralAccompanyingPriceLists() {
+		assertAll(
+			() -> assertThrows(
+				EvitaSyntaxException.class,
+				() -> parseRequireConstraint("defaultAccompanyingPriceLists(?, ?)", List.of("vip"), "basic")
+			),
+			() -> assertThrows(
+				EvitaSyntaxException.class,
+				() -> parseRequireConstraint("priceContentRespectingFilter(?, ?)", "basic", new String[]{"vip"})
+			)
+		);
+	}
+
+	/**
 	 * The name of the accompanying price is a single value, so a list bound to it is a syntax error, like any other
 	 * value of a type the position does not allow, rather than an internal error.
 	 */

@@ -65,10 +65,13 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	protected final EvitaQLValueTokenVisitor attributeValueTokenVisitor =
 		EvitaQLValueTokenVisitor.withAttributeValueTypesAllowed();
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
+	/**
+	 * Parses a list of strings. A bound array or collection is the whole list only when it is bound to a lone
+	 * parameter, so it is not an allowed item of a longer sequence.
+	 */
+	@Nonnull
 	protected final EvitaQLValueTokenVisitor stringValueListTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-		String.class,
-		String[].class,
-		Iterable.class
+		String.class
 	);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,

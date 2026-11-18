@@ -1295,6 +1295,31 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceInPriceLists"));
 		}
 
+		/**
+		 * A list is the whole list only when it is bound to a lone parameter; as one of several separate values it is
+		 * an item of the wrong type, which is a syntax error rather than an internal error.
+		 */
+		@Test
+		@DisplayName("Should refuse a list bound as one of several price lists")
+		void shouldRefuseListBoundAsOneOfSeveralPriceLists() {
+			assertAll(
+				() -> assertThrows(
+					EvitaSyntaxException.class,
+					() -> parseFilterConstraint("priceInPriceLists(?, ?)", List.of("vip"), "basic")
+				),
+				() -> assertThrows(
+					EvitaSyntaxException.class,
+					() -> parseFilterConstraint("priceInPriceLists(?, ?)", "basic", new String[]{"vip"})
+				),
+				() -> assertThrows(
+					EvitaSyntaxException.class,
+					() -> parseFilterConstraint(
+						"priceInPriceLists(@first, @second)", Map.of("first", List.of("vip"), "second", "basic")
+					)
+				)
+			);
+		}
+
 		@Test
 		@DisplayName("Should parse priceValidInNow constraint")
 		void shouldParsePriceValidInNowConstraint() {
