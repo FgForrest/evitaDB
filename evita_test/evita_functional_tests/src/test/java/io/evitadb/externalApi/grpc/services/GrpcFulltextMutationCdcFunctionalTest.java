@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.services;
 
 import java.math.BigDecimal;
+import com.google.protobuf.StringValue;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
@@ -52,8 +53,11 @@ import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcCloseRequest;
+import io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
+import io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation;
+import io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
@@ -61,6 +65,8 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.VersionUtils.SemVer;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -89,7 +95,10 @@ import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Streams retained Java-origin fulltext mutation captures through the real gRPC service. */
 @ExtendWith(EvitaParameterResolver.class)
@@ -175,7 +184,59 @@ class GrpcFulltextMutationCdcFunctionalTest
 		history(evita, catalog, startVersion, testCase);
 	}
 
-	/** Reads equal Java schemas and queries owners through the searchable associated data of their shared target. */
+	/**
+	 * Refuses a blank sample sent on the wire without changing the catalog schema. The Java client refuses the sample
+	 * before sending it, so the request is built through the raw stubs.
+	 *
+	 * @param evita the engine used to verify that rejected input changes nothing
+	 * @param client the builder of raw stubs for the real gRPC server
+	 */
+	@DisplayName("Rejects a blank analyzer sample as an invalid argument")
+	@Test
+	@UseDataSet(DATA_SET)
+	void shouldRejectBlankAnalyzerSample(@Nonnull Evita evita, @Nonnull GrpcClientBuilder client) {
+		final String catalog = FulltextSchemaFunctionalTestSupport.prepare(evita);
+		final int version = evita.queryCatalog(catalog, session -> {
+			return session.getCatalogSchema().version();
+		});
+		final GrpcUpdateCatalogSchemaRequest request = GrpcUpdateCatalogSchemaRequest.newBuilder()
+			.addSchemaMutations(GrpcLocalCatalogSchemaMutation.newBuilder().setCreateFulltextAnalyzerSchemaMutation(
+				GrpcCreateFulltextAnalyzerSchemaMutation.newBuilder()
+					.setName("custom").setBasedOn(StringValue.of("text")).addSamples(" ")))
+			.build();
+		final EvitaServiceGrpc.EvitaServiceBlockingStub service = client.build(
+			EvitaServiceGrpc.EvitaServiceBlockingStub.class);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub session = client.build(
+			EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+		final GrpcEvitaSessionResponse opened = service.createReadWriteSession(
+			GrpcEvitaSessionRequest.newBuilder().setCatalogName(catalog).build());
+		SessionIdHolder.setSessionId(opened.getSessionId());
+		try {
+			final StatusRuntimeException exception = assertThrows(
+				StatusRuntimeException.class, () -> session.updateCatalogSchema(request));
+
+			assertEquals(Status.Code.INVALID_ARGUMENT, exception.getStatus().getCode());
+			assertTrue(exception.getMessage().contains("blank"), exception.getMessage());
+		} finally {
+			try {
+				session.close(GrpcCloseRequest.getDefaultInstance());
+			} finally {
+				SessionIdHolder.reset();
+			}
+		}
+		evita.queryCatalog(catalog, local -> {
+			assertEquals(version, local.getCatalogSchema().version());
+			assertFalse(local.getCatalogSchema().getFulltextAnalyzers().containsKey("custom"));
+			return null;
+		});
+	}
+
+	/**
+	 * Reads equal Java schemas with author samples and queries composition through shared target text.
+	 *
+	 * @param evita the embedded engine providing the Java-side schema
+	 * @param client the real gRPC Java client
+	 */
 	@DisplayName("Declares and reads fulltext schema mirrors and queries composition over gRPC")
 	@Test
 	@UseDataSet(DATA_SET)
@@ -197,6 +258,12 @@ class GrpcFulltextMutationCdcFunctionalTest
 				assertEquals(expected.getFulltextLanguages(), actual.getFulltextLanguages());
 				assertEquals(expected.getFulltextResources(), actual.getFulltextResources());
 				assertEquals(expected.getFulltextAnalyzers(), actual.getFulltextAnalyzers());
+				final List<String> samples = actual.getFulltextAnalyzers().get("custom").getSamples();
+				assertEquals(100, samples.size());
+				assertEquals("Příliš žluťoučký kůň 東京", samples.getFirst());
+				assertEquals("ž".repeat(1_000), samples.get(1));
+				assertEquals("sample 99", samples.getLast());
+				assertEquals(List.of(), actual.getFulltextAnalyzers().get("standalone").getSamples());
 				assertEquals(valueOf(0), actual.getAttributes().get("globalText").getSearchWeight());
 				assertEquals("html-text", actual.getAttributes().get("globalText").getAnalyzer());
 				assertEquals(List.of("standard", "word-number-split"), actual.getFulltextLanguages().get("en")

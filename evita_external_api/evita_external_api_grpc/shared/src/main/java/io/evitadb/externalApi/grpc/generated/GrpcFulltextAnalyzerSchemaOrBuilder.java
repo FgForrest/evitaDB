@@ -166,4 +166,49 @@ io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases defaultValue);
    */
   io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases getLanguagesOrThrow(
       java.lang.String key);
+
+  /**
+   * <pre>
+   * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+   * of at most 1,000 UTF-16 code units each; omitted means no samples.
+   * </pre>
+   *
+   * <code>repeated string samples = 5;</code>
+   * @return A list containing the samples.
+   */
+  java.util.List<java.lang.String>
+      getSamplesList();
+  /**
+   * <pre>
+   * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+   * of at most 1,000 UTF-16 code units each; omitted means no samples.
+   * </pre>
+   *
+   * <code>repeated string samples = 5;</code>
+   * @return The count of samples.
+   */
+  int getSamplesCount();
+  /**
+   * <pre>
+   * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+   * of at most 1,000 UTF-16 code units each; omitted means no samples.
+   * </pre>
+   *
+   * <code>repeated string samples = 5;</code>
+   * @param index The index of the element to return.
+   * @return The samples at the given index.
+   */
+  java.lang.String getSamples(int index);
+  /**
+   * <pre>
+   * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+   * of at most 1,000 UTF-16 code units each; omitted means no samples.
+   * </pre>
+   *
+   * <code>repeated string samples = 5;</code>
+   * @param index The index of the value to return.
+   * @return The bytes of the samples at the given index.
+   */
+  com.google.protobuf.ByteString
+      getSamplesBytes(int index);
 }

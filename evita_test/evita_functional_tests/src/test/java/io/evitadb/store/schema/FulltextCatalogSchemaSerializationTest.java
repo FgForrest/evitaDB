@@ -86,6 +86,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
+import static io.evitadb.externalApi.FulltextMutationTestSupport.analyzerSamples;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.SERIALIZATION;
@@ -129,6 +130,7 @@ class FulltextCatalogSchemaSerializationTest {
 			.withFulltextAnalyzer(
 				"names",
 				a -> a
+					.samples(analyzerSamples().toArray(String[]::new))
 					.allLanguages(l -> l.text().words(lowercase(), stopWords(resource("brands"))))
 					.language("cs", l -> l.words(lowercase(), czechStemming(protectedWords(resource("brands")))))
 					.language("en", l -> l.words(lowercase(), synonyms(resource("phones"))))
@@ -226,12 +228,13 @@ class FulltextCatalogSchemaSerializationTest {
 			new CreateFulltextResourceSchemaMutation("brands", wordList("puma", "nike")),
 			new ModifyFulltextResourceSchemaMutation("phones", synonymList(synonymGroup("mobil", "telefon"))),
 			new RemoveFulltextResourceSchemaMutation("brands"),
-			new CreateFulltextAnalyzerSchemaMutation("names", null, phases, languages),
+			new CreateFulltextAnalyzerSchemaMutation("names", null, phases, languages, analyzerSamples()),
 			new ModifyFulltextAnalyzerSchemaMutation(
 				"html-title",
 				FulltextAnalyzerSchemaContract.TEXT,
 				new FulltextAnalysisPhases(List.of(htmlStrip()), null),
-				Map.of()
+				Map.of(),
+				analyzerSamples()
 			),
 			new RemoveFulltextAnalyzerSchemaMutation("names"),
 			// the fields carry the analyzer and the pivot - set, and left to the current value

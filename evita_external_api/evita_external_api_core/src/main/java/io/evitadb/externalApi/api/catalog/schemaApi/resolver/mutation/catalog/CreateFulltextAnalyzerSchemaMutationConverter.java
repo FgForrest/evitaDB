@@ -29,6 +29,9 @@ import io.evitadb.externalApi.api.catalog.schemaApi.resolver.FulltextSchemaConve
 import io.evitadb.externalApi.api.resolver.mutation.*;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Objects;
 
 /**
  * Converts the mutation that declares a catalog fulltext analyzer between API input and capture output.
@@ -57,22 +60,44 @@ public class CreateFulltextAnalyzerSchemaMutationConverter
 		return CreateFulltextAnalyzerSchemaMutation.class;
 	}
 
+	/**
+	 * Reads the complete declaration. An omitted or `null` sample list means no samples. A `null` entry is refused
+	 * here as an invalid argument, because the generic array conversion would report it as an internal error; the
+	 * mutation constructor then refuses blank, too long and too many samples.
+	 *
+	 * @param input the API mutation input
+	 * @return the mutation with validated, ordered samples
+	 */
 	@Nonnull
 	@Override
 	protected CreateFulltextAnalyzerSchemaMutation convertFromInput(@Nonnull Input input) {
+		final Object rawSamples = input.getOptionalProperty("samples");
+		if (rawSamples instanceof final Collection<?> samples && samples.stream().anyMatch(Objects::isNull)) {
+			throw getExceptionFactory().createInvalidArgumentException(
+				"Fulltext analyzer samples must not contain null entries."
+			);
+		}
 		return new CreateFulltextAnalyzerSchemaMutation(input.getRequiredProperty("name", String.class),
 			input.getOptionalProperty("basedOn", String.class),
 			input.getOptionalProperty("allLanguages", new PropertyObjectMapper<>(
 				getMutationName(), getExceptionFactory(), "allLanguages",
 				nested -> FulltextSchemaConverter.readPhases(nested, getExceptionFactory())),
 				FulltextAnalysisPhases.UNDEFINED),
-			FulltextSchemaConverter.readLanguages(input, getExceptionFactory()));
+			FulltextSchemaConverter.readLanguages(input, getExceptionFactory()),
+			Arrays.asList(input.getOptionalProperty("samples", String[].class, new String[0])));
 	}
 
+	/**
+	 * Writes phases and author samples before reflective mutation serialization.
+	 *
+	 * @param mutation the Java declaration carried by the capture
+	 * @param output the transport output receiving the declaration
+	 */
 	@Override
 	protected void convertToOutput(@Nonnull CreateFulltextAnalyzerSchemaMutation mutation, @Nonnull Output output) {
 		output.setProperty("allLanguages", FulltextSchemaConverter.phases(mutation.getAllLanguages()));
 		output.setProperty("languages", FulltextSchemaConverter.languages(mutation.getLanguages()));
+		output.setProperty("samples", mutation.getSamples());
 		super.convertToOutput(mutation, output);
 	}
 }

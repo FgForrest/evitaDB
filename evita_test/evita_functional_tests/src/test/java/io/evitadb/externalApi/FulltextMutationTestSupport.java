@@ -164,7 +164,25 @@ public class FulltextMutationTestSupport {
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT, new String[0], modes, weight)
 		);
 	}
-	/** Supplies all nine catalog mutation families with non-default declared content and analyzer phases. */
+	/**
+	 * Supplies both exact sample bounds and non-ASCII content for transport and persistence fixtures.
+	 *
+	 * @return 100 distinct texts in declaration order, including a 1,000-character text
+	 */
+	@Nonnull
+	public static List<String> analyzerSamples() {
+		return java.util.stream.IntStream.range(0, 100).mapToObj(index -> switch (index) {
+			case 0 -> "Příliš žluťoučký kůň 東京";
+			case 1 -> "ž".repeat(1_000);
+			default -> "sample " + index;
+		}).toList();
+	}
+
+	/**
+	 * Supplies all nine catalog mutation families with non-default declared content, phases and author samples.
+	 *
+	 * @return declaration mutations including analyzer samples at both inclusive bounds
+	 */
 	@Nonnull
 	public static Stream<SchemaMutation> catalogMutations() {
 		final AnalysisStep[] splitting = {standardTokenizer(), wordNumberSplit()};
@@ -181,13 +199,17 @@ public class FulltextMutationTestSupport {
 			new ModifyFulltextResourceSchemaMutation("terms", synonymList(
 				synonymGroup("quick", "fast"), synonymGroup("bright", "light"))),
 			new RemoveFulltextResourceSchemaMutation("terms"),
-			new CreateFulltextAnalyzerSchemaMutation("custom", "text", phases, languages),
-			new ModifyFulltextAnalyzerSchemaMutation("custom", "text", phases, languages),
+			new CreateFulltextAnalyzerSchemaMutation("custom", "text", phases, languages, analyzerSamples()),
+			new ModifyFulltextAnalyzerSchemaMutation("custom", "text", phases, languages, analyzerSamples()),
 			new RemoveFulltextAnalyzerSchemaMutation("custom")
 		);
 	}
 
-	/** Keeps empty content, undefined phases, an absent base analyzer and empty language overrides distinct. */
+	/**
+	 * Keeps empty content, undefined phases, an absent base analyzer and empty language overrides distinct.
+	 *
+	 * @return sparse catalog mutations with empty author sample lists
+	 */
 	@Nonnull
 	public static Stream<SchemaMutation> sparseCatalogMutations() {
 		return Stream.of(
@@ -197,9 +219,10 @@ public class FulltextMutationTestSupport {
 			new CreateFulltextResourceSchemaMutation("terms", wordList()),
 			new ModifyFulltextResourceSchemaMutation("terms", synonymList()),
 			new RemoveFulltextResourceSchemaMutation("terms"),
-			new CreateFulltextAnalyzerSchemaMutation("custom", null, FulltextAnalysisPhases.UNDEFINED, Map.of()),
+			new CreateFulltextAnalyzerSchemaMutation(
+				"custom", null, FulltextAnalysisPhases.UNDEFINED, Map.of(), List.of()),
 			new ModifyFulltextAnalyzerSchemaMutation(
-				"custom", null, new FulltextAnalysisPhases(List.of(), List.of()), Map.of()),
+				"custom", null, new FulltextAnalysisPhases(List.of(), List.of()), Map.of(), List.of()),
 			new RemoveFulltextAnalyzerSchemaMutation("custom")
 		);
 	}

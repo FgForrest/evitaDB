@@ -49,6 +49,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -58,6 +59,7 @@ import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readAna
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextAnalysisPhases;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextAnalyzerBasedOn;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextAnalyzerLanguages;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextAnalyzerSamples;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextResourceContent;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeAnalysisSteps;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextAnalyzerDefinition;
@@ -70,8 +72,15 @@ import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFu
  */
 public class CatalogSchemaSerializer extends Serializer<CatalogSchema> {
 
+	/**
+	 * Writes catalog declarations, including the samples of each declared analyzer.
+	 *
+	 * @param kryo the catalog serialization context
+	 * @param output the schema record destination
+	 * @param catalogSchema the complete catalog schema to persist
+	 */
 	@Override
-	public void write(Kryo kryo, Output output, CatalogSchema catalogSchema) {
+	public void write(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull CatalogSchema catalogSchema) {
 		output.writeInt(catalogSchema.version());
 		output.writeString(
 			Optional.ofNullable(CatalogSchemaStoragePart.getSerializationCatalogName())
@@ -110,13 +119,25 @@ public class CatalogSchemaSerializer extends Serializer<CatalogSchema> {
 		for (FulltextAnalyzerSchemaContract analyzer : analyzers.values()) {
 			output.writeString(analyzer.getName());
 			writeFulltextAnalyzerDefinition(
-				kryo, output, analyzer.getBasedOn().orElse(null), analyzer.getAllLanguages(), analyzer.getLanguages()
+				kryo, output, analyzer.getBasedOn().orElse(null), analyzer.getAllLanguages(), analyzer.getLanguages(),
+				analyzer.getSamples()
 			);
 		}
 	}
 
+	/**
+	 * Reads the current catalog layout with each analyzer's own author samples.
+	 *
+	 * @param kryo the catalog serialization context
+	 * @param input the schema record source
+	 * @param aClass the registered catalog schema type
+	 * @return the reconstructed catalog declaration
+	 */
+	@Nonnull
 	@Override
-	public CatalogSchema read(Kryo kryo, Input input, Class<? extends CatalogSchema> aClass) {
+	public CatalogSchema read(
+		@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends CatalogSchema> aClass
+	) {
 		final int version = input.readInt();
 		final String catalogName = input.readString();
 		final int nameVariantCount = input.readVarInt(true);
@@ -155,8 +176,9 @@ public class CatalogSchemaSerializer extends Serializer<CatalogSchema> {
 			final String basedOn = readFulltextAnalyzerBasedOn(input);
 			final FulltextAnalysisPhases allLanguages = readFulltextAnalysisPhases(kryo, input);
 			final Map<String, FulltextAnalysisPhases> analyzerLanguages = readFulltextAnalyzerLanguages(kryo, input);
+			final List<String> samples = readFulltextAnalyzerSamples(input);
 			analyzers.put(
-				name, FulltextAnalyzerSchema._internalBuild(name, basedOn, allLanguages, analyzerLanguages)
+				name, FulltextAnalyzerSchema._internalBuild(name, basedOn, allLanguages, analyzerLanguages, samples)
 			);
 		}
 		final CatalogContract theCatalog = CatalogSchemaStoragePart.getDeserializationContextCatalog();

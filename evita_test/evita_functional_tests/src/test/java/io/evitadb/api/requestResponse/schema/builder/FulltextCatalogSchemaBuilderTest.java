@@ -400,10 +400,10 @@ class FulltextCatalogSchemaBuilderTest {
 					new CreateFulltextResourceSchemaMutation("brands", wordList("puma")),
 					new ModifyFulltextResourceSchemaMutation("brands", wordList("nike")),
 					new CreateFulltextAnalyzerSchemaMutation(
-						"codes", null, new FulltextAnalysisPhases(null, List.of(lowercase())), Map.of()
+						"codes", null, new FulltextAnalysisPhases(null, List.of(lowercase())), Map.of(), List.of()
 					),
 					new ModifyFulltextAnalyzerSchemaMutation(
-						"codes", null, new FulltextAnalysisPhases(null, List.of(asciiFolding())), Map.of()
+						"codes", null, new FulltextAnalysisPhases(null, List.of(asciiFolding())), Map.of(), List.of()
 					)
 				)
 			);

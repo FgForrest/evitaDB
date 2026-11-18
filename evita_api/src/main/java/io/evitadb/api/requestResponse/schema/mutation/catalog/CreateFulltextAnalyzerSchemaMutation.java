@@ -50,6 +50,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Stream;
@@ -88,18 +89,28 @@ public class CreateFulltextAnalyzerSchemaMutation implements CombinableCatalogSc
 	@Nonnull @Getter private final Map<String, FulltextAnalysisPhases> languages;
 
 	/**
+	 * The author's samples, independent of the base analyzer, in declaration order.
+	 */
+	@Nonnull @Getter private final List<String> samples;
+
+	/**
 	 * Creates the mutation.
 	 *
 	 * @param name the name searchable fields refer to the analyzer by
 	 * @param basedOn the name of the analyzer this one is based on, or `null` when it is based on none
 	 * @param allLanguages the phases defined for every language
 	 * @param languages the per-language overrides keyed by ISO 639 language code
+	 * @param samples author samples in declaration order; duplicates keep their first occurrence
+	 * @throws InvalidSchemaMutationException when the list or a sample is `null`, a sample is blank or longer than
+	 * {@link FulltextAnalyzerSchemaContract#MAX_SAMPLE_LENGTH} UTF-16 code units, or there are more than
+	 * {@link FulltextAnalyzerSchemaContract#MAX_SAMPLES} distinct samples
 	 */
 	public CreateFulltextAnalyzerSchemaMutation(
 		@Nonnull String name,
 		@Nullable String basedOn,
 		@Nonnull FulltextAnalysisPhases allLanguages,
-		@Nonnull Map<String, FulltextAnalysisPhases> languages
+		@Nonnull Map<String, FulltextAnalysisPhases> languages,
+		@Nonnull List<String> samples
 	) {
 		Assert.notNull(name, "Fulltext analyzer name must not be null.");
 		this.name = name;
@@ -108,6 +119,7 @@ public class CreateFulltextAnalyzerSchemaMutation implements CombinableCatalogSc
 		this.basedOn = basedOn;
 		this.allLanguages = allLanguages;
 		this.languages = Collections.unmodifiableMap(new TreeMap<>(languages));
+		this.samples = FulltextAnalyzerSchema._internalNormalizeSamples(samples);
 	}
 
 	@Nullable
@@ -120,6 +132,15 @@ public class CreateFulltextAnalyzerSchemaMutation implements CombinableCatalogSc
 		return null;
 	}
 
+	/**
+	 * Applies the complete analyzer declaration, including its samples.
+	 *
+	 * @param catalogSchema the catalog being changed
+	 * @param entitySchemaAccessor access to the catalog's entity schemas
+	 * @return the changed catalog, or the existing instance when the declaration is unchanged
+	 * @throws InvalidSchemaMutationException when the name belongs to a built-in analyzer, or the catalog already
+	 * declares the analyzer with a different definition
+	 */
 	@Nullable
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(
@@ -137,7 +158,9 @@ public class CreateFulltextAnalyzerSchemaMutation implements CombinableCatalogSc
 			)
 		);
 		final FulltextAnalyzerSchemaContract newSchema =
-			FulltextAnalyzerSchema._internalBuild(this.name, this.basedOn, this.allLanguages, this.languages);
+			FulltextAnalyzerSchema._internalBuild(
+				this.name, this.basedOn, this.allLanguages, this.languages, this.samples
+			);
 		final Map<String, FulltextAnalyzerSchemaContract> current = catalogSchema.getFulltextAnalyzers();
 		final FulltextAnalyzerSchemaContract existing = current.get(this.name);
 		if (existing != null) {
@@ -177,12 +200,17 @@ public class CreateFulltextAnalyzerSchemaMutation implements CombinableCatalogSc
 		return Stream.of(new CatalogConflictKey(context.getCatalogName()));
 	}
 
+	/**
+	 * Describes the complete declaration carried by this mutation.
+	 *
+	 * @return the analyzer members, including its ordered author samples
+	 */
 	@Nonnull
 	@Override
 	public String toString() {
 		return "Create fulltext analyzer: " +
 			"name=" + this.name + ", basedOn=" + this.basedOn +
-				", allLanguages=" + this.allLanguages + ", languages=" + this.languages;
+				", allLanguages=" + this.allLanguages + ", languages=" + this.languages + ", samples=" + this.samples;
 	}
 
 }

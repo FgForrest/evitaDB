@@ -25,16 +25,20 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
 import java.math.BigDecimal;
+import io.evitadb.api.requestResponse.schema.analysis.FulltextAnalysisPhases;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextAnalyzerSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.FulltextMutationTestSupport;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -57,6 +61,25 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag(FULLTEXT)
 @DisplayName("Fulltext mutation core round trips")
 class FulltextMutationConverterTest {
+	/** Omitting the additive input member keeps old GraphQL and REST analyzer declarations valid. */
+	@DisplayName("defaults omitted analyzer samples to an empty list")
+	@Test
+	void shouldReadOmittedSamples() {
+		for (final LocalCatalogSchemaMutation mutation : List.of(
+			new CreateFulltextAnalyzerSchemaMutation(
+				"custom", "text", FulltextAnalysisPhases.UNDEFINED, Map.of(), List.of()),
+			new ModifyFulltextAnalyzerSchemaMutation(
+				"custom", "text", FulltextAnalysisPhases.UNDEFINED, Map.of(), List.of()))) {
+			final Map<String, Object> declaration = CollectionUtils.createLinkedHashMap(5);
+			declaration.put("name", "custom");
+			declaration.put("basedOn", "text");
+			final String type = mutation.getClass().getSimpleName();
+			assertEquals(List.of(mutation), new LocalCatalogSchemaMutationInputAggregateConverter(
+				PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE
+			).convertFromInput(Map.of(Character.toLowerCase(type.charAt(0)) + type.substring(1), declaration)));
+		}
+	}
+
 	/** Checks every create and set family with absent, zero and positive weights. */
 	@DisplayName("Preserves every declared fulltext setting through conversion")
 	@ParameterizedTest

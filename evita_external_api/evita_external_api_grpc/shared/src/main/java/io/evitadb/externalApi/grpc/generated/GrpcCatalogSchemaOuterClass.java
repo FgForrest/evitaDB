@@ -224,7 +224,7 @@ public final class GrpcCatalogSchemaOuterClass {
       "pc.generated.GrpcAnalysisStep\"\177\n\032GrpcFul" +
       "ltextResourceSchema\022\014\n\004name\030\001 \001(\t\022S\n\007con" +
       "tent\030\002 \001(\0132B.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcFulltextResourceContent\"\214" +
+      ".generated.GrpcFulltextResourceContent\"\235" +
       "\003\n\032GrpcFulltextAnalyzerSchema\022\014\n\004name\030\001 " +
       "\001(\t\022-\n\007basedOn\030\002 \001(\0132\034.google.protobuf.S" +
       "tringValue\022W\n\014allLanguages\030\003 \001(\0132A.io.ev" +
@@ -232,10 +232,10 @@ public final class GrpcCatalogSchemaOuterClass {
       "ltextAnalysisPhases\022c\n\tlanguages\030\004 \003(\0132P" +
       ".io.evitadb.externalApi.grpc.generated.G" +
       "rpcFulltextAnalyzerSchema.LanguagesEntry" +
-      "\032s\n\016LanguagesEntry\022\013\n\003key\030\001 \001(\t\022P\n\005value" +
-      "\030\002 \001(\0132A.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcFulltextAnalysisPhases:\0028\001B\014P" +
-      "\001\252\002\007EvitaDBb\006proto3"
+      "\022\017\n\007samples\030\005 \003(\t\032s\n\016LanguagesEntry\022\013\n\003k" +
+      "ey\030\001 \001(\t\022P\n\005value\030\002 \001(\0132A.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcFulltextAnal" +
+      "ysisPhases:\0028\001B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -333,7 +333,7 @@ public final class GrpcCatalogSchemaOuterClass {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFulltextAnalyzerSchema_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcFulltextAnalyzerSchema_descriptor,
-        new java.lang.String[] { "Name", "BasedOn", "AllLanguages", "Languages", });
+        new java.lang.String[] { "Name", "BasedOn", "AllLanguages", "Languages", "Samples", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFulltextAnalyzerSchema_LanguagesEntry_descriptor =
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcFulltextAnalyzerSchema_descriptor.getNestedTypes().get(0);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFulltextAnalyzerSchema_LanguagesEntry_fieldAccessorTable = new

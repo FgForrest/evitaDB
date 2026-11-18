@@ -154,7 +154,8 @@ class FulltextCatalogSchemaMutationTest {
 		return switch (part) {
 			case LANGUAGE -> new CreateFulltextLanguageSchemaMutation(name, wordSplitting(alternative));
 			case RESOURCE -> new CreateFulltextResourceSchemaMutation(name, wordList(alternative ? "nike" : "puma"));
-			case ANALYZER -> new CreateFulltextAnalyzerSchemaMutation(name, null, phases(alternative), Map.of());
+			case ANALYZER -> new CreateFulltextAnalyzerSchemaMutation(
+				name, null, phases(alternative), Map.of(), List.of());
 		};
 	}
 
@@ -171,7 +172,8 @@ class FulltextCatalogSchemaMutationTest {
 		return switch (part) {
 			case LANGUAGE -> new ModifyFulltextLanguageSchemaMutation(name, wordSplitting(alternative));
 			case RESOURCE -> new ModifyFulltextResourceSchemaMutation(name, wordList(alternative ? "nike" : "puma"));
-			case ANALYZER -> new ModifyFulltextAnalyzerSchemaMutation(name, null, phases(alternative), Map.of());
+			case ANALYZER -> new ModifyFulltextAnalyzerSchemaMutation(
+				name, null, phases(alternative), Map.of(), List.of());
 		};
 	}
 

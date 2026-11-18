@@ -25,31 +25,47 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation;
 
 import java.math.BigDecimal;
+import com.google.protobuf.StringValue;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.analysis.FulltextAnalysisPhases;
+import io.evitadb.api.requestResponse.schema.dto.FulltextAnalyzerSchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextAnalyzerSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextAnalyzerSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.FulltextMutationTestSupport;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture;
+import io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation;
+import io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation;
+import io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.FulltextSchemaConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static io.evitadb.test.TestTags.CDC;
@@ -58,6 +74,7 @@ import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Exercises protobuf bytes, dispatcher registration and Java-origin CDC payloads for fulltext mutations. */
@@ -68,6 +85,58 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(CDC)
 @DisplayName("Fulltext mutation gRPC round trips and CDC")
 class FulltextMutationConverterTest {
+	/** Empty repeated fields preserve the exact pre-samples wire bytes for the schema and both mutations. */
+	@DisplayName("adds no wire bytes when no author samples are supplied")
+	@Test
+	void shouldKeepWireBytesWithoutSamples() {
+		final String headBytes = "0a06637573746f6d12060a04746578741a00";
+		final FulltextAnalyzerSchema schema = FulltextAnalyzerSchema._internalBuild(
+			"custom", "text", FulltextAnalysisPhases.UNDEFINED, Map.of(), List.of());
+		final CreateFulltextAnalyzerSchemaMutation create = new CreateFulltextAnalyzerSchemaMutation(
+			"custom", "text", FulltextAnalysisPhases.UNDEFINED, Map.of(), List.of());
+		final ModifyFulltextAnalyzerSchemaMutation modify = new ModifyFulltextAnalyzerSchemaMutation(
+			"custom", "text", FulltextAnalysisPhases.UNDEFINED, Map.of(), List.of());
+		assertEquals(headBytes, HexFormat.of().formatHex(FulltextSchemaConverter.toGrpcAnalyzer(schema).toByteArray()));
+		assertEquals(headBytes, HexFormat.of().formatHex(
+			CreateFulltextAnalyzerSchemaMutationConverter.INSTANCE.convert(create).toByteArray()));
+		assertEquals(headBytes, HexFormat.of().formatHex(
+			ModifyFulltextAnalyzerSchemaMutationConverter.INSTANCE.convert(modify).toByteArray()));
+	}
+
+	/** Wire input reaches the same construction-time sample limits as a Java declaration. */
+	@DisplayName("Refuses blank and excessive author samples received on the wire")
+	@Test
+	void shouldRefuseInvalidSamplesFromWire() {
+		final List<String> tooMany = new ArrayList<>(FulltextMutationTestSupport.analyzerSamples());
+		tooMany.add("overflow");
+
+		assertWireSamplesRefused(List.of(" "), "null or blank");
+		assertWireSamplesRefused(tooMany, "more than 100 distinct");
+	}
+
+	/**
+	 * Converts the samples through the analyzer schema converter and both mutation converters, each of which must
+	 * refuse them with the same reason.
+	 */
+	private static void assertWireSamplesRefused(@Nonnull List<String> samples, @Nonnull String reason) {
+		final StringValue basedOn = StringValue.of("text");
+		final List<Executable> conversions = List.of(
+			() -> FulltextSchemaConverter.toAnalyzer(GrpcFulltextAnalyzerSchema.newBuilder()
+				.setName("custom").setBasedOn(basedOn).addAllSamples(samples).build()),
+			() -> CreateFulltextAnalyzerSchemaMutationConverter.INSTANCE.convert(
+				GrpcCreateFulltextAnalyzerSchemaMutation.newBuilder()
+					.setName("custom").setBasedOn(basedOn).addAllSamples(samples).build()),
+			() -> ModifyFulltextAnalyzerSchemaMutationConverter.INSTANCE.convert(
+				GrpcModifyFulltextAnalyzerSchemaMutation.newBuilder()
+					.setName("custom").setBasedOn(basedOn).addAllSamples(samples).build())
+		);
+
+		for (final Executable conversion : conversions) {
+			final String message = assertThrows(InvalidSchemaMutationException.class, conversion).getMessage();
+			assertTrue(message.contains(reason), message);
+		}
+	}
+
 	/** Verifies actual wire serialization for all create and set mutation families. */
 	@DisplayName("Preserves every declared fulltext setting through conversion")
 	@ParameterizedTest

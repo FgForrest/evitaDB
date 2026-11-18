@@ -74,7 +74,11 @@ public class FulltextSchemaFunctionalTestSupport {
 		return catalog;
 	}
 
-	/** Declares every fulltext schema kind, including inherited reference metadata and reference attributes. */
+	/**
+	 * Declares every fulltext schema kind, including reference metadata, reference attributes and author samples.
+	 *
+	 * @return the schema mutation declarations sent through each transport
+	 */
 	@Nonnull
 	public static List<LocalCatalogSchemaMutation> declarations() {
 		final List<SchemaMutation> fields = FulltextMutationTestSupport.mutations(valueOf(0)).toList();
@@ -109,7 +113,7 @@ public class FulltextSchemaFunctionalTestSupport {
 				new SynonymList(List.of(new SynonymGroup(List.of("quick", "fast")),
 				new SynonymGroup(List.of("bright", "light"))))),
 			new CreateFulltextAnalyzerSchemaMutation("standalone", null,
-				new FulltextAnalysisPhases(List.of(), List.of()), Map.of())),
+				new FulltextAnalysisPhases(List.of(), List.of()), Map.of(), List.of())),
 				FulltextMutationTestSupport.catalogMutations()
 			.filter(mutation -> mutation.getClass().getSimpleName().startsWith("Create"))
 			.map(LocalCatalogSchemaMutation.class::cast)).toList();
@@ -155,7 +159,11 @@ public class FulltextSchemaFunctionalTestSupport {
 		assertEquals("0", reference.path("searchableThroughWeight").asText());
 	}
 
-	/** Literal catalog declarations expected independently of the production serializers. */
+	/**
+	 * Checks catalog declarations independently of production serializers, including sample order and empty output.
+	 *
+	 * @param catalog the catalog schema response from GraphQL or REST
+	 */
 	public static void assertCatalog(@Nonnull JsonNode catalog) {
 		assertEquals(read("""
 			[{"language":"en","wordSplitting":[{"step":"standard","parameters":{}},
@@ -176,8 +184,13 @@ public class FulltextSchemaFunctionalTestSupport {
 		assertFalse(standalone.hasNonNull("basedOn"));
 		assertEquals(read("{\"text\":[],\"words\":[]}"), standalone.path("allLanguages"));
 		assertEquals(read("[]"), standalone.path("languages"));
+		assertEquals(read("[]"), standalone.path("samples"));
 		final JsonNode analyzer = catalog.path("fulltextAnalyzers").path(0);
 		assertEquals("custom", analyzer.path("name").asText());
+		assertEquals(100, analyzer.path("samples").size());
+		assertEquals("Příliš žluťoučký kůň 東京", analyzer.path("samples").path(0).asText());
+		assertEquals("ž".repeat(1_000), analyzer.path("samples").path(1).asText());
+		assertEquals("sample 99", analyzer.path("samples").path(99).asText());
 		assertEquals("text", analyzer.path("basedOn").asText());
 		assertEquals(read("[{\"step\":\"html-strip\",\"parameters\":{}}]"), analyzer.path("allLanguages").path("text"));
 		assertEquals(read("""

@@ -54,6 +54,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
@@ -67,6 +68,7 @@ import static io.evitadb.externalApi.FulltextMutationFunctionalTestSupport.*;
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -92,6 +94,72 @@ class CatalogRestFulltextMutationsFunctionalTest extends RestEndpointFunctionalT
 	@Nonnull
 	protected DataCarrier setUp(@Nonnull Evita evita, @Nonnull EvitaServer evitaServer) {
 		return new DataCarrier();
+	}
+
+	/**
+	 * Supplies a null entry and a blank text for both the declaring and the replacing mutation; the blank text is
+	 * refused by the mutation built from the input.
+	 *
+	 * @return whether to modify, the JSON literal of the sample list and a fragment of the expected error
+	 */
+	@Nonnull
+	private static Stream<Arguments> invalidSampleCases() {
+		return Stream.of(
+			Arguments.of(false, "[null]", "null"),
+			Arguments.of(true, "[null]", "null"),
+			Arguments.of(false, "[\" \"]", "blank"),
+			Arguments.of(true, "[\" \"]", "blank")
+		);
+	}
+
+	/**
+	 * Refuses a null or blank sample at the endpoint without changing the declaration or schema version.
+	 *
+	 * @param modify whether to replace an existing analyzer rather than create one
+	 * @param samples the JSON literal of the refused sample list
+	 * @param error a fragment of the expected error message
+	 * @param evita the engine used to verify that rejected input changes nothing
+	 * @param tester the endpoint client sending the refused sample list
+	 */
+	@DisplayName("Rejects null and blank analyzer samples as client input errors")
+	@ParameterizedTest
+	@MethodSource("invalidSampleCases")
+	@UseDataSet(DATA_SET)
+	void shouldRejectInvalidAnalyzerSample(
+		boolean modify,
+		@Nonnull String samples,
+		@Nonnull String error,
+		@Nonnull Evita evita,
+		@Nonnull RestTester tester
+	) {
+		final String catalog = FulltextSchemaFunctionalTestSupport.prepare(evita);
+		if (modify) {
+			evita.updateCatalog(catalog, session -> {
+				session.getCatalogSchema().openForWrite()
+					.withFulltextAnalyzer("custom", analyzer -> analyzer.basedOn("text").samples("old"))
+					.updateVia(session);
+			});
+		}
+		final int version = evita.queryCatalog(catalog, session -> {
+			return session.getCatalogSchema().version();
+		});
+		final String mutation = (modify ? "modify" : "create") + "FulltextAnalyzerSchemaMutation";
+		tester.test(catalog).urlPathSuffix("/schema").httpMethod(Request.METHOD_PUT)
+			.requestBody("{\"mutations\":[{\"" + mutation + "\":{\"name\":\"custom\",\"basedOn\":\"text\"," +
+				"\"samples\":" + samples + "}}]}")
+			.executeAndExpectBadRequestAndThen()
+			.body("message", containsString("samples"))
+			.body("message", containsString(error));
+		evita.queryCatalog(catalog, session -> {
+			assertEquals(version, session.getCatalogSchema().version());
+			if (modify) {
+				assertEquals(List.of("old"), session.getCatalogSchema().getFulltextAnalyzer("custom")
+					.orElseThrow().getSamples());
+			} else {
+				assertFalse(session.getCatalogSchema().getFulltextAnalyzers().containsKey("custom"));
+			}
+			return null;
+		});
 	}
 
 	/** Exercises optional fulltext fields through a real schema endpoint and verifies the Java mutation event. */
@@ -137,7 +205,12 @@ class CatalogRestFulltextMutationsFunctionalTest extends RestEndpointFunctionalT
 			}, Duration.ofSeconds(30)), "Expected all fulltext mutation captures");
 		}, captures.size() + 1, events -> assertCapture(events, testCase));
 	}
-	/** Declares every mirror through REST and checks the catalog and both collection schema read routes. */
+	/**
+	 * Reads every declaration through REST, including samples and the exact no-samples member serialization.
+	 *
+	 * @param evita the embedded engine receiving the declarations
+	 * @param tester the real REST endpoint client
+	 */
 	@DisplayName("Reads every fulltext schema setting declared through REST")
 	@Test
 	@UseDataSet(DATA_SET)
@@ -150,6 +223,9 @@ class CatalogRestFulltextMutationsFunctionalTest extends RestEndpointFunctionalT
 		final JsonNode schema = FulltextSchemaFunctionalTestSupport.read(tester.test(catalog).urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_GET).executeAndExpectOkAndThen().extract().asString());
 		FulltextSchemaFunctionalTestSupport.assertCatalog(schema);
+		assertEquals("{\"allLanguages\":{\"text\":[],\"words\":[]}," +
+			"\"basedOn\":null,\"languages\":[],\"name\":\"standalone\"}",
+			schema.path("fulltextAnalyzers").path(1).toString().replace(",\"samples\":[]", ""));
 		FulltextSchemaFunctionalTestSupport.assertKeys(schema.path("attributes"), "globalText");
 		FulltextSchemaFunctionalTestSupport.assertField(schema.path("attributes").path("globalText"), false);
 		for (final String type : List.of("owner", "target")) {

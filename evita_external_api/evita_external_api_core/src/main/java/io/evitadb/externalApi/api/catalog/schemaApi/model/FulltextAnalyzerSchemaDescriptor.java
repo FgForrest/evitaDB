@@ -62,13 +62,20 @@ public interface FulltextAnalyzerSchemaDescriptor {
 		.description("Declared per-language phase overrides.")
 		.type(nonNullListRef(FulltextLanguageAnalysisPhasesDescriptor.THIS))
 		.build();
+	/** Author samples of this declaration, without inheritance from the base analyzer. */
+	PropertyDescriptor SAMPLES = PropertyDescriptor.builder()
+		.name("samples")
+		.description("Author samples in declaration order, independent of the base analyzer; at most 100 distinct, " +
+			"non-blank texts of at most 1,000 UTF-16 code units each. Empty when none were supplied.")
+		.type(nonNull(String[].class))
+		.build();
 	/** A named analyzer as the catalog declares it, before inheritance is resolved. */
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("FulltextAnalyzerSchema")
 		.description("""
 			A named analyzer as the catalog declares it, before inheritance is resolved: the phases it declares for
-			every language, its per-language overrides and the analyzer it is based on.
+			every language, its per-language overrides, the analyzer it is based on and its author samples.
 			""")
-		.staticProperties(List.of(NAME, BASED_ON, ALL_LANGUAGES, LANGUAGES))
+		.staticProperties(List.of(NAME, BASED_ON, ALL_LANGUAGES, LANGUAGES, SAMPLES))
 		.build();
 }

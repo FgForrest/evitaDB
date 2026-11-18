@@ -171,6 +171,7 @@ public class FulltextSchemaConverter {
 	public static GrpcFulltextAnalyzerSchema toGrpcAnalyzer(@Nonnull FulltextAnalyzerSchemaContract schema) {
 		final GrpcFulltextAnalyzerSchema.Builder analyzer = GrpcFulltextAnalyzerSchema.newBuilder()
 			.setName(schema.getName())
+			.addAllSamples(schema.getSamples())
 			.setAllLanguages(toGrpcPhases(schema.getAllLanguages()));
 		schema.getBasedOn().ifPresent(value -> analyzer.setBasedOn(StringValue.of(value)));
 		schema.getLanguages().forEach((language, phases) -> analyzer.putLanguages(language, toGrpcPhases(phases)));
@@ -189,6 +190,7 @@ public class FulltextSchemaConverter {
 			schema.hasBasedOn() ? schema.getBasedOn().getValue() : null,
 			toPhases(schema.getAllLanguages()),
 			schema.getLanguagesMap().entrySet().stream().collect(Collectors.toMap(
-				Entry::getKey, language -> toPhases(language.getValue()))));
+				Entry::getKey, language -> toPhases(language.getValue()))),
+			schema.getSamplesList());
 	}
 }

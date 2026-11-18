@@ -31,11 +31,14 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextAnalysisPhases;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextAnalyzerSchemaMutation;
 
+import javax.annotation.Nonnull;
+import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextAnalysisPhases;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextAnalyzerBasedOn;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextAnalyzerLanguages;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readFulltextAnalyzerSamples;
 import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFulltextAnalyzerDefinition;
 
 /**
@@ -43,23 +46,43 @@ import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeFu
  */
 public class CreateFulltextAnalyzerSchemaMutationSerializer extends Serializer<CreateFulltextAnalyzerSchemaMutation> {
 
+	/**
+	 * Writes the complete declaration, ending with its ordered author samples.
+	 *
+	 * @param kryo the WAL serialization context
+	 * @param output the mutation record destination
+	 * @param mutation the declaration to persist
+	 */
 	@Override
-	public void write(Kryo kryo, Output output, CreateFulltextAnalyzerSchemaMutation mutation) {
+	public void write(
+		@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull CreateFulltextAnalyzerSchemaMutation mutation
+	) {
 		output.writeString(mutation.getName());
 		writeFulltextAnalyzerDefinition(
-			kryo, output, mutation.getBasedOn(), mutation.getAllLanguages(), mutation.getLanguages()
+			kryo, output, mutation.getBasedOn(), mutation.getAllLanguages(), mutation.getLanguages(),
+			mutation.getSamples()
 		);
 	}
 
+	/**
+	 * Reads the declaration and its author samples from the current WAL format.
+	 *
+	 * @param kryo the WAL serialization context
+	 * @param input the mutation record source
+	 * @param type the registered mutation type
+	 * @return the reconstructed mutation with immutable author samples
+	 */
+	@Nonnull
 	@Override
 	public CreateFulltextAnalyzerSchemaMutation read(
-		Kryo kryo, Input input, Class<? extends CreateFulltextAnalyzerSchemaMutation> type
+		@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Class<? extends CreateFulltextAnalyzerSchemaMutation> type
 	) {
 		final String name = input.readString();
 		final String basedOn = readFulltextAnalyzerBasedOn(input);
 		final FulltextAnalysisPhases allLanguages = readFulltextAnalysisPhases(kryo, input);
 		final Map<String, FulltextAnalysisPhases> languages = readFulltextAnalyzerLanguages(kryo, input);
-		return new CreateFulltextAnalyzerSchemaMutation(name, basedOn, allLanguages, languages);
+		final List<String> samples = readFulltextAnalyzerSamples(input);
+		return new CreateFulltextAnalyzerSchemaMutation(name, basedOn, allLanguages, languages, samples);
 	}
 
 }

@@ -141,7 +141,13 @@ public class FulltextMutationFunctionalTestSupport {
 		return FulltextMutationTestSupport.catalogMutations().map(mutation -> new MutationCase(mutation, true));
 	}
 
-	/** Creates an isolated catalog with only the prerequisites of the mutation under test. */
+	/**
+	 * Creates an isolated catalog with only the prerequisites of the mutation under test.
+	 *
+	 * @param evita the embedded engine behind the tested API
+	 * @param testCase the mutation whose prerequisites must exist
+	 * @return the catalog containing those prerequisites
+	 */
 	@Nonnull
 	public static String prepare(@Nonnull Evita evita, @Nonnull MutationCase testCase) {
 		final String catalog = "fulltext" + UUID.randomUUID().toString().replace("-", "");
@@ -163,7 +169,7 @@ public class FulltextMutationFunctionalTestSupport {
 			} else if (mutation instanceof ModifyFulltextAnalyzerSchemaMutation ||
 				mutation instanceof RemoveFulltextAnalyzerSchemaMutation) {
 				session.updateCatalogSchema(new CreateFulltextAnalyzerSchemaMutation(
-					"custom", "text", FulltextAnalysisPhases.UNDEFINED, Map.of()));
+					"custom", "text", FulltextAnalysisPhases.UNDEFINED, Map.of(), List.of()));
 			} else if (testCase.global() && mutation instanceof SetAttributeSchemaSearchableMutation) {
 				session.getCatalogSchema().openForWrite()
 					.withAttribute("text", String.class, attribute -> attribute.localized().nullable())
@@ -351,7 +357,11 @@ public class FulltextMutationFunctionalTestSupport {
 			"""));
 	}
 
-	/** Literal analyzer values, including undefined and explicitly empty phase overrides. */
+	/**
+	 * Provides analyzer values including undefined phases, empty overrides and bounded author samples.
+	 *
+	 * @return the expected captured analyzer members
+	 */
 	@Nonnull
 	private static Map<String, JsonNode> analyzerFields() {
 		return Map.of("name", TextNode.valueOf("custom"), "basedOn", TextNode.valueOf("text"),
@@ -361,6 +371,7 @@ public class FulltextMutationFunctionalTestSupport {
 				{"step":"stop-words","parameters":{"words":["english-stop-words"]}},
 				{"step":"english-stemming","parameters":{"protected-words":["english-stop-words"]}}]}
 				"""),
+			"samples", MAPPER.valueToTree(FulltextMutationTestSupport.analyzerSamples()),
 			"languages", readExpected("""
 				[{"language":"de","phases":{"text":[],"words":null}},
 				 {"language":"en","phases":{"text":null,"words":[]}}]

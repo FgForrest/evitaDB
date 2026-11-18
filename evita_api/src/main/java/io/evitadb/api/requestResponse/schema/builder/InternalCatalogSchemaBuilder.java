@@ -243,6 +243,16 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 		return this;
 	}
 
+	/**
+	 * Validates the definition at once, so an invalid one - samples included - throws at this call. Queues a creation
+	 * when the analyzer is not declared yet, a replacement of the whole declaration when any member differs, samples
+	 * included, and nothing when the declaration is equal.
+	 *
+	 * @param name the catalog analyzer to declare or replace
+	 * @param whichIs defines its phases, base analyzer and author samples, which are not inherited from the base
+	 * analyzer
+	 * @return this catalog builder
+	 */
 	@Nonnull
 	@Override
 	public CatalogSchemaBuilder withFulltextAnalyzer(
@@ -261,7 +271,8 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 					name,
 					analyzerBuilder.getBasedOn(),
 					analyzerBuilder.getAllLanguages(),
-					analyzerBuilder.getLanguages()
+					analyzerBuilder.getLanguages(),
+					analyzer.getSamples()
 				)
 			);
 		} else if (!existing.equals(analyzer)) {
@@ -270,7 +281,8 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 					name,
 					analyzerBuilder.getBasedOn(),
 					analyzerBuilder.getAllLanguages(),
-					analyzerBuilder.getLanguages()
+					analyzerBuilder.getLanguages(),
+					analyzer.getSamples()
 				)
 			);
 		}

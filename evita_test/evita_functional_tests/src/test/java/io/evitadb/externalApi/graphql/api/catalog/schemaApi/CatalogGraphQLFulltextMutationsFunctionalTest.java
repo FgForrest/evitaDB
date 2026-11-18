@@ -64,6 +64,8 @@ import static io.evitadb.externalApi.FulltextMutationFunctionalTestSupport.*;
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -89,6 +91,73 @@ class CatalogGraphQLFulltextMutationsFunctionalTest extends GraphQLEndpointFunct
 	@Nonnull
 	protected DataCarrier setUp(@Nonnull Evita evita) {
 		return new DataCarrier();
+	}
+
+	/**
+	 * Supplies a null entry and a blank text for both the declaring and the replacing mutation; the blank text passes
+	 * the GraphQL input type and is refused by the mutation built from the input.
+	 *
+	 * @return whether to modify, the GraphQL literal of the sample list and a fragment of the expected error
+	 */
+	@Nonnull
+	private static Stream<Arguments> invalidSampleCases() {
+		return Stream.of(
+			Arguments.of(false, "[null]", "must not be null"),
+			Arguments.of(true, "[null]", "must not be null"),
+			Arguments.of(false, "[\" \"]", "blank"),
+			Arguments.of(true, "[\" \"]", "blank")
+		);
+	}
+
+	/**
+	 * Refuses a null or blank sample at the endpoint without changing the declaration or schema version.
+	 *
+	 * @param modify whether to replace an existing analyzer rather than create one
+	 * @param samples the GraphQL literal of the refused sample list
+	 * @param error a fragment of the expected error message
+	 * @param evita the engine used to verify that rejected input changes nothing
+	 * @param tester the endpoint client sending the refused sample list
+	 */
+	@DisplayName("Rejects null and blank analyzer samples as client input errors")
+	@ParameterizedTest
+	@MethodSource("invalidSampleCases")
+	@UseDataSet(DATA_SET)
+	void shouldRejectInvalidAnalyzerSample(
+		boolean modify,
+		@Nonnull String samples,
+		@Nonnull String error,
+		@Nonnull Evita evita,
+		@Nonnull GraphQLTester tester
+	) {
+		final String catalog = FulltextSchemaFunctionalTestSupport.prepare(evita);
+		if (modify) {
+			evita.updateCatalog(catalog, session -> {
+				session.getCatalogSchema().openForWrite()
+					.withFulltextAnalyzer("custom", analyzer -> analyzer.basedOn("text").samples("old"))
+					.updateVia(session);
+			});
+		}
+		final int version = evita.queryCatalog(catalog, session -> {
+			return session.getCatalogSchema().version();
+		});
+		final String mutation = (modify ? "modify" : "create") + "FulltextAnalyzerSchemaMutation";
+		tester.test(catalog).urlPathSuffix("/schema").document(
+			"mutation { updateCatalogSchema(mutations: [{ " + mutation +
+			" : { name: \"custom\", basedOn: \"text\", samples: " + samples + " } }]) { version } }")
+			.executeAndExpectErrorsAndThen()
+			.body("data", nullValue())
+			.body("errors[0].message", containsString("samples"))
+			.body("errors[0].message", containsString(error));
+		evita.queryCatalog(catalog, session -> {
+			assertEquals(version, session.getCatalogSchema().version());
+			if (modify) {
+				assertEquals(List.of("old"), session.getCatalogSchema().getFulltextAnalyzer("custom")
+					.orElseThrow().getSamples());
+			} else {
+				assertFalse(session.getCatalogSchema().getFulltextAnalyzers().containsKey("custom"));
+			}
+			return null;
+		});
 	}
 
 	/** Exercises optional fulltext fields through a real schema endpoint and verifies the Java mutation event. */
@@ -166,11 +235,15 @@ class CatalogGraphQLFulltextMutationsFunctionalTest extends GraphQLEndpointFunct
 			references + " } " +
 			"... on SetReferenceSchemaSearchableThroughMutation { searchableThroughInScopes { scope mode } weight }";
 	}
-	/** Selects catalog-only bodies through the catalog mutation union. */
+	/**
+	 * Selects catalog-only bodies through the catalog mutation union, including analyzer samples.
+	 *
+	 * @return the selection shared by typed catalog and system subscriptions
+	 */
 	@Nonnull
 	public static String catalogTypedSelection() {
 		final String phases = "text { step parameters } words { step parameters }";
-		final String analyzer = "name basedOn allLanguages { " + phases +
+		final String analyzer = "name basedOn samples allLanguages { " + phases +
 			" } languages { language phases { " + phases + " } }";
 		final String resource = "name content { kind words groups { words } }";
 		final String attributes = "searchableInScopes analyzer lengthPivot searchWeight";
@@ -225,7 +298,12 @@ class CatalogGraphQLFulltextMutationsFunctionalTest extends GraphQLEndpointFunct
 		}
 	}
 
-	/** Declares all schema mirrors through GraphQL and reads literal values through generic and specific objects. */
+	/**
+	 * Declares all schema mirrors through GraphQL and reads their literal values, including author samples.
+	 *
+	 * @param evita the engine receiving the declarations
+	 * @param tester the real GraphQL endpoint client
+	 */
 	@DisplayName("Reads every fulltext schema setting declared through GraphQL")
 	@Test
 	@UseDataSet(DATA_SET)
@@ -243,7 +321,7 @@ class CatalogGraphQLFulltextMutationsFunctionalTest extends GraphQLEndpointFunct
 			"{ getCatalogSchema { allAttributes { " + fields + " } " +
 			"fulltextLanguages { language wordSplitting { step parameters } } " +
 			"fulltextResources { name content { kind words groups { words } } } " +
-			"fulltextAnalyzers { name basedOn allLanguages { " + phases +
+			"fulltextAnalyzers { name basedOn samples allLanguages { " + phases +
 			" } languages { language phases { " + phases + " } } } " +
 			"allEntitySchemas { name allAttributes { ... on EntityAttributeSchema { " + fields +
 			" } ... on GlobalAttributeSchema { " + fields + " } } " +
@@ -253,6 +331,9 @@ class CatalogGraphQLFulltextMutationsFunctionalTest extends GraphQLEndpointFunct
 		final JsonNode schema = FulltextSchemaFunctionalTestSupport.read(response)
 			.path("data").path("getCatalogSchema");
 		FulltextSchemaFunctionalTestSupport.assertCatalog(schema);
+		assertEquals("{\"name\":\"standalone\",\"basedOn\":null,\"allLanguages\":{\"text\":[],\"words\":[]}," +
+			"\"languages\":[]}",
+			schema.path("fulltextAnalyzers").path(1).toString().replace(",\"samples\":[]", ""));
 		FulltextSchemaFunctionalTestSupport.assertNames(schema.path("allAttributes"), "globalText");
 		FulltextSchemaFunctionalTestSupport.assertField(schema.path("allAttributes").path(0), false);
 		FulltextSchemaFunctionalTestSupport.assertNames(schema.path("allEntitySchemas"), "owner", "target");

@@ -50,6 +50,12 @@ public class ModifyFulltextAnalyzerSchemaMutationConverter
 	public static final ModifyFulltextAnalyzerSchemaMutationConverter INSTANCE =
 		new ModifyFulltextAnalyzerSchemaMutationConverter();
 
+	/**
+	 * Reads the complete wire declaration, retaining the author's sample order.
+	 *
+	 * @param mutation the wire mutation, with absent samples represented by an empty list
+	 * @return the Java mutation with its own immutable author samples
+	 */
 	@Nonnull
 	@Override
 	public ModifyFulltextAnalyzerSchemaMutation convert(@Nonnull GrpcModifyFulltextAnalyzerSchemaMutation mutation) {
@@ -57,15 +63,23 @@ public class ModifyFulltextAnalyzerSchemaMutationConverter
 			mutation.hasBasedOn() ? mutation.getBasedOn().getValue() : null,
 			FulltextSchemaConverter.toPhases(mutation.getAllLanguages()),
 			mutation.getLanguagesMap().entrySet().stream().collect(Collectors.toMap(
-				Map.Entry::getKey, entry -> FulltextSchemaConverter.toPhases(entry.getValue()))));
+				Map.Entry::getKey, entry -> FulltextSchemaConverter.toPhases(entry.getValue()))),
+			mutation.getSamplesList());
 	}
 
+	/**
+	 * Writes all declared analyzer members, including author samples, without resolving inheritance.
+	 *
+	 * @param mutation the Java mutation to send or capture
+	 * @return the complete wire mutation
+	 */
 	@Nonnull
 	@Override
 	public GrpcModifyFulltextAnalyzerSchemaMutation convert(@Nonnull ModifyFulltextAnalyzerSchemaMutation mutation) {
 		final GrpcModifyFulltextAnalyzerSchemaMutation.Builder builder =
 			GrpcModifyFulltextAnalyzerSchemaMutation.newBuilder()
 			.setName(mutation.getName())
+			.addAllSamples(mutation.getSamples())
 			.setAllLanguages(FulltextSchemaConverter.toGrpcPhases(mutation.getAllLanguages()))
 			.putAllLanguages(mutation.getLanguages().entrySet().stream().collect(Collectors.toMap(
 				Map.Entry::getKey, entry -> FulltextSchemaConverter.toGrpcPhases(entry.getValue()))));

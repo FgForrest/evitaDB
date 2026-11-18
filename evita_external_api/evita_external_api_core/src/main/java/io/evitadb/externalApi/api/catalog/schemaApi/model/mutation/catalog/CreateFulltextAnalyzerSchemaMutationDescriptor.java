@@ -29,6 +29,7 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.*;
 
 /** Describes the catalog fulltext analyzer mutation input and capture output. */
@@ -41,6 +42,8 @@ public interface CreateFulltextAnalyzerSchemaMutationDescriptor extends Mutation
 	PropertyDescriptor ALL_LANGUAGES = FulltextAnalyzerSchemaDescriptor.ALL_LANGUAGES;
 	/** Shares the description of {@link FulltextAnalyzerSchemaDescriptor#LANGUAGES}. */
 	PropertyDescriptor LANGUAGES = FulltextAnalyzerSchemaDescriptor.LANGUAGES;
+	/** Shares the description of {@link FulltextAnalyzerSchemaDescriptor#SAMPLES}. */
+	PropertyDescriptor SAMPLES = FulltextAnalyzerSchemaDescriptor.SAMPLES;
 	/** Capture body of the declaring mutation; the input form below is derived from it. */
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(CreateFulltextAnalyzerSchemaMutation.class)
@@ -52,10 +55,11 @@ public interface CreateFulltextAnalyzerSchemaMutationDescriptor extends Mutation
 		.staticProperty(BASED_ON)
 		.staticProperty(ALL_LANGUAGES)
 		.staticProperty(LANGUAGES)
+		.staticProperty(SAMPLES)
 		.build();
 	/**
 	 * Mutation input; an omitted `allLanguages` leaves both phases undeclared and omitted `languages` declare no
-	 * override.
+	 * override. Omitted `samples` supplies no author samples.
 	 */
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateFulltextAnalyzerSchemaMutationInput")
@@ -63,5 +67,6 @@ public interface CreateFulltextAnalyzerSchemaMutationDescriptor extends Mutation
 			.type(nullableRef(FulltextAnalysisPhasesDescriptor.THIS_INPUT)).build())
 		.staticProperty(PropertyDescriptor.from(LANGUAGES)
 			.type(nullableListRef(FulltextLanguageAnalysisPhasesDescriptor.THIS_INPUT)).build())
+		.staticProperty(PropertyDescriptor.from(SAMPLES).type(nullable(String[].class)).build())
 		.build();
 }

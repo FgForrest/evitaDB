@@ -103,10 +103,13 @@ message GrpcCreateFulltextAnalyzerSchemaMutation {
   // Per-language phase overrides keyed by ISO 639 language code; each phase declared there replaces the
   // all-languages one for that language.
   map<string, GrpcFulltextAnalysisPhases> languages = 4;
+  // Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+  // of at most 1,000 UTF-16 code units each; omitted means no samples.
+  repeated string samples = 5;
 }
 
-// Mutation replaces the whole definition of a declared analyzer: its base analyzer, its phases for every language and
-// its per-language overrides. The analyzer must already be declared.
+// Mutation replaces the whole definition of a declared analyzer: its base analyzer, its phases for every language,
+// its per-language overrides and its author samples. The analyzer must already be declared.
 message GrpcModifyFulltextAnalyzerSchemaMutation {
   // Name of the declared analyzer.
   string name = 1;
@@ -118,6 +121,9 @@ message GrpcModifyFulltextAnalyzerSchemaMutation {
   // Per-language phase overrides keyed by ISO 639 language code; each phase declared there replaces the
   // all-languages one for that language.
   map<string, GrpcFulltextAnalysisPhases> languages = 4;
+  // Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+  // of at most 1,000 UTF-16 code units each; omitted means no samples.
+  repeated string samples = 5;
 }
 
 // Mutation removes a declared analyzer. Removing one that is not declared changes nothing. References to the analyzer

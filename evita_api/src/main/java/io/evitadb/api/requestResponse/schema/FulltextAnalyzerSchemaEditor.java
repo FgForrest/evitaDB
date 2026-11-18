@@ -24,6 +24,7 @@
 
 package io.evitadb.api.requestResponse.schema;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.analysis.TextAnalysisStep;
 import io.evitadb.api.requestResponse.schema.analysis.WordsAnalysisStep;
 
@@ -49,7 +50,7 @@ public interface FulltextAnalyzerSchemaEditor {
 
 	/**
 	 * Bases the analyzer on another one: every phase this analyzer leaves undefined is taken from it, for every
-	 * language.
+	 * language. Samples of that analyzer are not inherited.
 	 *
 	 * @param analyzerName the name of a built-in or declared analyzer
 	 * @return this editor
@@ -74,6 +75,20 @@ public interface FulltextAnalyzerSchemaEditor {
 	 */
 	@Nonnull
 	FulltextAnalyzerSchemaEditor words(@Nonnull WordsAnalysisStep... steps);
+
+	/**
+	 * Replaces the author's sample texts. Samples belong to this declaration; they are not inherited through
+	 * {@link #basedOn(String)}. Duplicates keep their first occurrence. The samples are validated by this call.
+	 *
+	 * @param samples non-blank texts in declaration order, each at most
+	 * {@link FulltextAnalyzerSchemaContract#MAX_SAMPLE_LENGTH} UTF-16 code units long and at most
+	 * {@link FulltextAnalyzerSchemaContract#MAX_SAMPLES} of them distinct; no arguments clears the list
+	 * @return this editor
+	 * @throws InvalidSchemaMutationException when the array or a sample is `null`, a sample is blank or too long, or
+	 * there are too many distinct samples
+	 */
+	@Nonnull
+	FulltextAnalyzerSchemaEditor samples(@Nonnull String... samples);
 
 	/**
 	 * Defines phases for all languages.

@@ -45,6 +45,8 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcFulltextAnalyzerSchema() {
     name_ = "";
+    samples_ =
+        com.google.protobuf.LazyStringArrayList.emptyList();
   }
 
   @java.lang.Override
@@ -305,6 +307,63 @@ io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases defaultValue) {
     return map.get(key);
   }
 
+  public static final int SAMPLES_FIELD_NUMBER = 5;
+  @SuppressWarnings("serial")
+  private com.google.protobuf.LazyStringArrayList samples_ =
+      com.google.protobuf.LazyStringArrayList.emptyList();
+  /**
+   * <pre>
+   * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+   * of at most 1,000 UTF-16 code units each; omitted means no samples.
+   * </pre>
+   *
+   * <code>repeated string samples = 5;</code>
+   * @return A list containing the samples.
+   */
+  public com.google.protobuf.ProtocolStringList
+      getSamplesList() {
+    return samples_;
+  }
+  /**
+   * <pre>
+   * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+   * of at most 1,000 UTF-16 code units each; omitted means no samples.
+   * </pre>
+   *
+   * <code>repeated string samples = 5;</code>
+   * @return The count of samples.
+   */
+  public int getSamplesCount() {
+    return samples_.size();
+  }
+  /**
+   * <pre>
+   * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+   * of at most 1,000 UTF-16 code units each; omitted means no samples.
+   * </pre>
+   *
+   * <code>repeated string samples = 5;</code>
+   * @param index The index of the element to return.
+   * @return The samples at the given index.
+   */
+  public java.lang.String getSamples(int index) {
+    return samples_.get(index);
+  }
+  /**
+   * <pre>
+   * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+   * of at most 1,000 UTF-16 code units each; omitted means no samples.
+   * </pre>
+   *
+   * <code>repeated string samples = 5;</code>
+   * @param index The index of the value to return.
+   * @return The bytes of the samples at the given index.
+   */
+  public com.google.protobuf.ByteString
+      getSamplesBytes(int index) {
+    return samples_.getByteString(index);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -334,6 +393,9 @@ io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases defaultValue) {
         internalGetLanguages(),
         LanguagesDefaultEntryHolder.defaultEntry,
         4);
+    for (int i = 0; i < samples_.size(); i++) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 5, samples_.getRaw(i));
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -364,6 +426,14 @@ io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases defaultValue) {
       size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(4, languages__);
     }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < samples_.size(); i++) {
+        dataSize += computeStringSizeNoTag(samples_.getRaw(i));
+      }
+      size += dataSize;
+      size += 1 * getSamplesList().size();
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -393,6 +463,8 @@ io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases defaultValue) {
     }
     if (!internalGetLanguages().equals(
         other.internalGetLanguages())) return false;
+    if (!getSamplesList()
+        .equals(other.getSamplesList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -417,6 +489,10 @@ io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases defaultValue) {
     if (!internalGetLanguages().getMap().isEmpty()) {
       hash = (37 * hash) + LANGUAGES_FIELD_NUMBER;
       hash = (53 * hash) + internalGetLanguages().hashCode();
+    }
+    if (getSamplesCount() > 0) {
+      hash = (37 * hash) + SAMPLES_FIELD_NUMBER;
+      hash = (53 * hash) + getSamplesList().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -594,6 +670,8 @@ io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases defaultValue) {
         allLanguagesBuilder_ = null;
       }
       internalGetMutableLanguages().clear();
+      samples_ =
+          com.google.protobuf.LazyStringArrayList.emptyList();
       return this;
     }
 
@@ -645,6 +723,10 @@ io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases defaultValue) {
       }
       if (((from_bitField0_ & 0x00000008) != 0)) {
         result.languages_ = internalGetLanguages().build(LanguagesDefaultEntryHolder.defaultEntry);
+      }
+      if (((from_bitField0_ & 0x00000010) != 0)) {
+        samples_.makeImmutable();
+        result.samples_ = samples_;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -707,6 +789,16 @@ io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases defaultValue) {
       internalGetMutableLanguages().mergeFrom(
           other.internalGetLanguages());
       bitField0_ |= 0x00000008;
+      if (!other.samples_.isEmpty()) {
+        if (samples_.isEmpty()) {
+          samples_ = other.samples_;
+          bitField0_ |= 0x00000010;
+        } else {
+          ensureSamplesIsMutable();
+          samples_.addAll(other.samples_);
+        }
+        onChanged();
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -761,6 +853,12 @@ io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases defaultValue) {
               bitField0_ |= 0x00000008;
               break;
             } // case 34
+            case 42: {
+              java.lang.String s = input.readStringRequireUtf8();
+              ensureSamplesIsMutable();
+              samples_.add(s);
+              break;
+            } // case 42
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1386,6 +1484,162 @@ io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases defaultValue) {
         builderMap.put(key, entry);
       }
       return (io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalysisPhases.Builder) entry;
+    }
+
+    private com.google.protobuf.LazyStringArrayList samples_ =
+        com.google.protobuf.LazyStringArrayList.emptyList();
+    private void ensureSamplesIsMutable() {
+      if (!samples_.isModifiable()) {
+        samples_ = new com.google.protobuf.LazyStringArrayList(samples_);
+      }
+      bitField0_ |= 0x00000010;
+    }
+    /**
+     * <pre>
+     * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+     * of at most 1,000 UTF-16 code units each; omitted means no samples.
+     * </pre>
+     *
+     * <code>repeated string samples = 5;</code>
+     * @return A list containing the samples.
+     */
+    public com.google.protobuf.ProtocolStringList
+        getSamplesList() {
+      samples_.makeImmutable();
+      return samples_;
+    }
+    /**
+     * <pre>
+     * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+     * of at most 1,000 UTF-16 code units each; omitted means no samples.
+     * </pre>
+     *
+     * <code>repeated string samples = 5;</code>
+     * @return The count of samples.
+     */
+    public int getSamplesCount() {
+      return samples_.size();
+    }
+    /**
+     * <pre>
+     * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+     * of at most 1,000 UTF-16 code units each; omitted means no samples.
+     * </pre>
+     *
+     * <code>repeated string samples = 5;</code>
+     * @param index The index of the element to return.
+     * @return The samples at the given index.
+     */
+    public java.lang.String getSamples(int index) {
+      return samples_.get(index);
+    }
+    /**
+     * <pre>
+     * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+     * of at most 1,000 UTF-16 code units each; omitted means no samples.
+     * </pre>
+     *
+     * <code>repeated string samples = 5;</code>
+     * @param index The index of the value to return.
+     * @return The bytes of the samples at the given index.
+     */
+    public com.google.protobuf.ByteString
+        getSamplesBytes(int index) {
+      return samples_.getByteString(index);
+    }
+    /**
+     * <pre>
+     * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+     * of at most 1,000 UTF-16 code units each; omitted means no samples.
+     * </pre>
+     *
+     * <code>repeated string samples = 5;</code>
+     * @param index The index to set the value at.
+     * @param value The samples to set.
+     * @return This builder for chaining.
+     */
+    public Builder setSamples(
+        int index, java.lang.String value) {
+      if (value == null) { throw new NullPointerException(); }
+      ensureSamplesIsMutable();
+      samples_.set(index, value);
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+     * of at most 1,000 UTF-16 code units each; omitted means no samples.
+     * </pre>
+     *
+     * <code>repeated string samples = 5;</code>
+     * @param value The samples to add.
+     * @return This builder for chaining.
+     */
+    public Builder addSamples(
+        java.lang.String value) {
+      if (value == null) { throw new NullPointerException(); }
+      ensureSamplesIsMutable();
+      samples_.add(value);
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+     * of at most 1,000 UTF-16 code units each; omitted means no samples.
+     * </pre>
+     *
+     * <code>repeated string samples = 5;</code>
+     * @param values The samples to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllSamples(
+        java.lang.Iterable<java.lang.String> values) {
+      ensureSamplesIsMutable();
+      com.google.protobuf.AbstractMessageLite.Builder.addAll(
+          values, samples_);
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+     * of at most 1,000 UTF-16 code units each; omitted means no samples.
+     * </pre>
+     *
+     * <code>repeated string samples = 5;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearSamples() {
+      samples_ =
+        com.google.protobuf.LazyStringArrayList.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000010);;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+     * of at most 1,000 UTF-16 code units each; omitted means no samples.
+     * </pre>
+     *
+     * <code>repeated string samples = 5;</code>
+     * @param value The bytes of the samples to add.
+     * @return This builder for chaining.
+     */
+    public Builder addSamplesBytes(
+        com.google.protobuf.ByteString value) {
+      if (value == null) { throw new NullPointerException(); }
+      checkByteStringIsUtf8(value);
+      ensureSamplesIsMutable();
+      samples_.add(value);
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

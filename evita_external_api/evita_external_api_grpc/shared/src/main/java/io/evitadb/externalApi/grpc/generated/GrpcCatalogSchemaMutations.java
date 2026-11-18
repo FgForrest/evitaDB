@@ -156,7 +156,7 @@ public final class GrpcCatalogSchemaMutations {
       "e\030\001 \001(\t\022S\n\007content\030\002 \001(\0132B.io.evitadb.ex" +
       "ternalApi.grpc.generated.GrpcFulltextRes" +
       "ourceContent\"8\n(GrpcRemoveFulltextResour" +
-      "ceSchemaMutation\022\014\n\004name\030\001 \001(\t\"\250\003\n(GrpcC" +
+      "ceSchemaMutation\022\014\n\004name\030\001 \001(\t\"\271\003\n(GrpcC" +
       "reateFulltextAnalyzerSchemaMutation\022\014\n\004n" +
       "ame\030\001 \001(\t\022-\n\007basedOn\030\002 \001(\0132\034.google.prot" +
       "obuf.StringValue\022W\n\014allLanguages\030\003 \001(\0132A" +
@@ -164,23 +164,23 @@ public final class GrpcCatalogSchemaMutations {
       "rpcFulltextAnalysisPhases\022q\n\tlanguages\030\004" +
       " \003(\0132^.io.evitadb.externalApi.grpc.gener" +
       "ated.GrpcCreateFulltextAnalyzerSchemaMut" +
-      "ation.LanguagesEntry\032s\n\016LanguagesEntry\022\013" +
-      "\n\003key\030\001 \001(\t\022P\n\005value\030\002 \001(\0132A.io.evitadb." +
-      "externalApi.grpc.generated.GrpcFulltextA" +
-      "nalysisPhases:\0028\001\"\250\003\n(GrpcModifyFulltext" +
-      "AnalyzerSchemaMutation\022\014\n\004name\030\001 \001(\t\022-\n\007" +
-      "basedOn\030\002 \001(\0132\034.google.protobuf.StringVa" +
-      "lue\022W\n\014allLanguages\030\003 \001(\0132A.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcFulltextAn" +
-      "alysisPhases\022q\n\tlanguages\030\004 \003(\0132^.io.evi" +
-      "tadb.externalApi.grpc.generated.GrpcModi" +
-      "fyFulltextAnalyzerSchemaMutation.Languag" +
-      "esEntry\032s\n\016LanguagesEntry\022\013\n\003key\030\001 \001(\t\022P" +
-      "\n\005value\030\002 \001(\0132A.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcFulltextAnalysisPhases" +
-      ":\0028\001\"8\n(GrpcRemoveFulltextAnalyzerSchema" +
-      "Mutation\022\014\n\004name\030\001 \001(\tB\014P\001\252\002\007EvitaDBb\006pr" +
-      "oto3"
+      "ation.LanguagesEntry\022\017\n\007samples\030\005 \003(\t\032s\n" +
+      "\016LanguagesEntry\022\013\n\003key\030\001 \001(\t\022P\n\005value\030\002 " +
+      "\001(\0132A.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcFulltextAnalysisPhases:\0028\001\"\271\003\n(G" +
+      "rpcModifyFulltextAnalyzerSchemaMutation\022" +
+      "\014\n\004name\030\001 \001(\t\022-\n\007basedOn\030\002 \001(\0132\034.google." +
+      "protobuf.StringValue\022W\n\014allLanguages\030\003 \001" +
+      "(\0132A.io.evitadb.externalApi.grpc.generat" +
+      "ed.GrpcFulltextAnalysisPhases\022q\n\tlanguag" +
+      "es\030\004 \003(\0132^.io.evitadb.externalApi.grpc.g" +
+      "enerated.GrpcModifyFulltextAnalyzerSchem" +
+      "aMutation.LanguagesEntry\022\017\n\007samples\030\005 \003(" +
+      "\t\032s\n\016LanguagesEntry\022\013\n\003key\030\001 \001(\t\022P\n\005valu" +
+      "e\030\002 \001(\0132A.io.evitadb.externalApi.grpc.ge" +
+      "nerated.GrpcFulltextAnalysisPhases:\0028\001\"8" +
+      "\n(GrpcRemoveFulltextAnalyzerSchemaMutati" +
+      "on\022\014\n\004name\030\001 \001(\tB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -255,7 +255,7 @@ public final class GrpcCatalogSchemaMutations {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateFulltextAnalyzerSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateFulltextAnalyzerSchemaMutation_descriptor,
-        new java.lang.String[] { "Name", "BasedOn", "AllLanguages", "Languages", });
+        new java.lang.String[] { "Name", "BasedOn", "AllLanguages", "Languages", "Samples", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateFulltextAnalyzerSchemaMutation_LanguagesEntry_descriptor =
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateFulltextAnalyzerSchemaMutation_descriptor.getNestedTypes().get(0);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateFulltextAnalyzerSchemaMutation_LanguagesEntry_fieldAccessorTable = new
@@ -267,7 +267,7 @@ public final class GrpcCatalogSchemaMutations {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyFulltextAnalyzerSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyFulltextAnalyzerSchemaMutation_descriptor,
-        new java.lang.String[] { "Name", "BasedOn", "AllLanguages", "Languages", });
+        new java.lang.String[] { "Name", "BasedOn", "AllLanguages", "Languages", "Samples", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyFulltextAnalyzerSchemaMutation_LanguagesEntry_descriptor =
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyFulltextAnalyzerSchemaMutation_descriptor.getNestedTypes().get(0);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyFulltextAnalyzerSchemaMutation_LanguagesEntry_fieldAccessorTable = new

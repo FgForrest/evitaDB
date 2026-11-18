@@ -242,4 +242,7 @@ message GrpcFulltextAnalyzerSchema {
   // Per-language phase overrides keyed by ISO 639 language code; each phase declared there replaces the
   // all-languages one for that language.
   map<string, GrpcFulltextAnalysisPhases> languages = 4;
+  // Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+  // of at most 1,000 UTF-16 code units each; omitted means no samples.
+  repeated string samples = 5;
 }

@@ -202,15 +202,16 @@ public class FulltextSchemaConverter {
 	 * Serializes the analyzer contract before inheritance, preserving an absent base analyzer.
 	 *
 	 * @param schema catalog analyzer declaration
-	 * @return name, base analyzer and declared phase overrides
+	 * @return name, base analyzer, declared phase overrides and author samples
 	 */
 	@Nonnull
 	public static Map<String, Object> analyzer(@Nonnull FulltextAnalyzerSchemaContract schema) {
-		final Map<String, Object> result = CollectionUtils.createLinkedHashMap(4);
+		final Map<String, Object> result = CollectionUtils.createLinkedHashMap(5);
 		result.put("name", schema.getName());
 		result.put("basedOn", schema.getBasedOn().orElse(null));
 		result.put("allLanguages", phases(schema.getAllLanguages()));
 		result.put("languages", languages(schema.getLanguages()));
+		result.put("samples", schema.getSamples());
 		return result;
 	}
 }

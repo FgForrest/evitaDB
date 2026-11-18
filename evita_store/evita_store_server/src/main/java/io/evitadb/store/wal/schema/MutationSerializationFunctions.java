@@ -189,20 +189,22 @@ public interface MutationSerializationFunctions {
 
 	/**
 	 * Writes the definition of a fulltext analyzer: the analyzer it is based on, its all-languages phases and its
-	 * per-language overrides in the order of the map.
+	 * per-language overrides in the order of the map, then the author samples.
 	 *
 	 * @param kryo         the Kryo instance used to serialize step parameter values
 	 * @param output       the destination
 	 * @param basedOn      the name of the analyzer it is based on, or `null`
 	 * @param allLanguages the phases defined for every language
 	 * @param languages    the per-language overrides keyed by ISO 639 language code
+	 * @param samples      author samples in declaration order
 	 */
 	static void writeFulltextAnalyzerDefinition(
 		@Nonnull Kryo kryo,
 		@Nonnull Output output,
 		@Nullable String basedOn,
 		@Nonnull FulltextAnalysisPhases allLanguages,
-		@Nonnull Map<String, FulltextAnalysisPhases> languages
+		@Nonnull Map<String, FulltextAnalysisPhases> languages,
+		@Nonnull List<String> samples
 	) {
 		output.writeString(basedOn);
 		writeFulltextAnalysisPhases(kryo, output, allLanguages);
@@ -211,11 +213,12 @@ public interface MutationSerializationFunctions {
 			output.writeString(entry.getKey());
 			writeFulltextAnalysisPhases(kryo, output, entry.getValue());
 		}
+		writeStrings(output, samples);
 	}
 
 	/**
 	 * Reads the name of the analyzer a fulltext analyzer is based on, the first part written by
-	 * {@link #writeFulltextAnalyzerDefinition(Kryo, Output, String, FulltextAnalysisPhases, Map)}.
+	 * {@link #writeFulltextAnalyzerDefinition(Kryo, Output, String, FulltextAnalysisPhases, Map, List)}.
 	 *
 	 * @param input the source
 	 * @return the name of the analyzer it is based on, or `null`
@@ -256,8 +259,8 @@ public interface MutationSerializationFunctions {
 	}
 
 	/**
-	 * Reads the per-language overrides of a fulltext analyzer, the last part written by
-	 * {@link #writeFulltextAnalyzerDefinition(Kryo, Output, String, FulltextAnalysisPhases, Map)}.
+	 * Reads the per-language overrides of a fulltext analyzer, the phase overrides written by
+	 * {@link #writeFulltextAnalyzerDefinition(Kryo, Output, String, FulltextAnalysisPhases, Map, List)}.
 	 *
 	 * @param kryo  the Kryo instance used to deserialize step parameter values
 	 * @param input the source
@@ -272,6 +275,17 @@ public interface MutationSerializationFunctions {
 			languages.put(language, readFulltextAnalysisPhases(kryo, input));
 		}
 		return languages;
+	}
+
+	/**
+	 * Reads the author samples following an analyzer's per-language overrides.
+	 *
+	 * @param input the source positioned after the overrides
+	 * @return author samples in stored order
+	 */
+	@Nonnull
+	static List<String> readFulltextAnalyzerSamples(@Nonnull Input input) {
+		return readStrings(input);
 	}
 
 	/**

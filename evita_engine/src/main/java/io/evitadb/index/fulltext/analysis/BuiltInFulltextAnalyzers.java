@@ -63,13 +63,13 @@ final class BuiltInFulltextAnalyzers {
 				"ro", words(lowercase(), romanianNormalization(), stopWords(romanianStopWords()), romanianStemming()),
 				"en", words(englishPossessive(), lowercase(), stopWords(englishStopWords()), englishStemming()),
 				"de", words(lowercase(), stopWords(germanStopWords()), germanStemming())
-			)
+			), List.of()
 		),
 		FulltextAnalyzerSchema._internalBuild(
 			FulltextAnalyzerSchemaContract.HTML_TEXT,
 			FulltextAnalyzerSchemaContract.TEXT,
 			new FulltextAnalysisPhases(List.of(htmlStrip()), null),
-			Map.of()
+			Map.of(), List.of()
 		)
 	);
 

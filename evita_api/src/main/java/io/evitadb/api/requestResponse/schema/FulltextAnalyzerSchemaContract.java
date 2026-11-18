@@ -24,10 +24,12 @@
 
 package io.evitadb.api.requestResponse.schema;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextAnalysisPhases;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -68,6 +70,19 @@ public interface FulltextAnalyzerSchemaContract extends Serializable {
 	Set<String> BUILT_IN_ANALYZERS = Set.of(TEXT, HTML_TEXT);
 
 	/**
+	 * Maximum number of distinct author samples of one declaration. Constructing a declaration or a mutation with
+	 * more raises {@link InvalidSchemaMutationException}; the limit bounds the work of a later behaviour check that
+	 * reads the samples.
+	 */
+	int MAX_SAMPLES = 100;
+	/**
+	 * Maximum length of an author sample in UTF-16 code units, as `String#length()` counts them. Constructing a
+	 * declaration or a mutation with a longer sample raises {@link InvalidSchemaMutationException}; the limit bounds
+	 * the work of a later behaviour check that reads the samples.
+	 */
+	int MAX_SAMPLE_LENGTH = 1_000;
+
+	/**
 	 * Returns the name searchable fields refer to the analyzer by.
 	 *
 	 * @return the name, unique among the analyzers of the catalog
@@ -100,5 +115,15 @@ public interface FulltextAnalyzerSchemaContract extends Serializable {
 	 */
 	@Nonnull
 	Map<String, FulltextAnalysisPhases> getLanguages();
+
+	/**
+	 * Returns the author's sample texts in declaration order, keeping the first occurrence of each text.
+	 * Samples belong to this declaration and are never inherited from the analyzer named by {@link #getBasedOn()}.
+	 * There are at most {@link #MAX_SAMPLES} of them, each at most {@link #MAX_SAMPLE_LENGTH} UTF-16 code units long.
+	 *
+	 * @return an immutable ordered list of distinct, non-blank samples, empty when none were supplied
+	 */
+	@Nonnull
+	List<String> getSamples();
 
 }

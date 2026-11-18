@@ -24,6 +24,7 @@
 
 package io.evitadb.api.requestResponse.schema.builder;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.FulltextAnalysisPhasesEditor;
 import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaEditor;
 import io.evitadb.api.requestResponse.schema.analysis.FulltextAnalysisPhases;
@@ -37,6 +38,8 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
@@ -60,6 +63,11 @@ final class FulltextAnalyzerSchemaBuilder implements FulltextAnalyzerSchemaEdito
 	 */
 	@Nonnull private final Map<String, FulltextAnalysisPhasesBuilder> languages = CollectionUtils.createLinkedHashMap(4);
 
+	/**
+	 * Author samples of this declaration; the base analyzer does not supply them.
+	 */
+	@Nonnull private List<String> samples = List.of();
+
 	@Nonnull
 	@Override
 	public FulltextAnalyzerSchemaEditor basedOn(@Nonnull String analyzerName) {
@@ -79,6 +87,23 @@ final class FulltextAnalyzerSchemaBuilder implements FulltextAnalyzerSchemaEdito
 	@Override
 	public FulltextAnalyzerSchemaEditor words(@Nonnull WordsAnalysisStep... steps) {
 		this.allLanguages.words(steps);
+		return this;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param samples texts replacing the previous list; no arguments clears it
+	 * @return this editor after validating and copying the samples
+	 * @throws InvalidSchemaMutationException when {@link FulltextAnalyzerSchema#_internalNormalizeSamples(List)}
+	 * refuses the samples
+	 */
+	@Nonnull
+	@Override
+	public FulltextAnalyzerSchemaEditor samples(@Nonnull String... samples) {
+		this.samples = FulltextAnalyzerSchema._internalNormalizeSamples(
+			samples == null ? null : Arrays.asList(samples)
+		);
 		return this;
 	}
 
@@ -144,7 +169,9 @@ final class FulltextAnalyzerSchemaBuilder implements FulltextAnalyzerSchemaEdito
 	 */
 	@Nonnull
 	FulltextAnalyzerSchema toSchema(@Nonnull String name) {
-		return FulltextAnalyzerSchema._internalBuild(name, this.basedOn, getAllLanguages(), getLanguages());
+		return FulltextAnalyzerSchema._internalBuild(
+			name, this.basedOn, getAllLanguages(), getLanguages(), this.samples
+		);
 	}
 
 }
