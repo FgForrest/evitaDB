@@ -205,6 +205,10 @@ class TextPlaceWeightsTest {
 				() -> referenceWeight(invalid, attributeWeight("a", BigDecimal.ONE)));
 			assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight("a", BigDecimal.ONE)
 				.cloneWithArguments(new Serializable[]{invalid, BigDecimal.ONE}));
+			assertThrows(EvitaInvalidUsageException.class, () -> associatedDataWeight("a", BigDecimal.ONE)
+				.cloneWithArguments(new Serializable[]{invalid, BigDecimal.ONE}));
+			assertThrows(EvitaInvalidUsageException.class, () -> referenceWeight("links")
+				.cloneWithArguments(new Serializable[]{invalid}));
 		}
 		assertThrows(EvitaInvalidUsageException.class, () -> attributeWeight("name", null));
 		assertThrows(EvitaInvalidUsageException.class, () -> associatedDataWeight("body", null));

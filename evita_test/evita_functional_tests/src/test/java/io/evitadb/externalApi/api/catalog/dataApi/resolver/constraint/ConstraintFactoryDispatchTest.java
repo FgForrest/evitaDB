@@ -79,7 +79,9 @@ class ConstraintFactoryDispatchTest {
 				}
 			}
 			assertEquals(Set.of("AttributeInRange", "SegmentLimit", "HierarchyDistance", "HierarchyLevel",
-				"ReferenceSummary", "ReferenceSummaryOfReference", "ReferenceSummaryOfReference:withHistograms"),
+				"ReferenceSummary", "ReferenceSummaryOfReference", "ReferenceSummaryOfReference:withHistograms",
+				"AttributeIn", "AttributeIn:all", "AssociatedDataIn", "AssociatedDataIn:all",
+				"ReferenceIn", "EntityIn"),
 				fallbacks);
 			assertEquals(Set.of("HistogramHaving", "Segment"), adapters);
 		}
@@ -180,6 +182,16 @@ class ConstraintFactoryDispatchTest {
 		if (type == OffsetDateTime.class) return OffsetDateTime.of(2026, 1, position + 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		if (type == Expression.class) return ExpressionFactory.parse("true");
 		if (type.isEnum()) return type.getEnumConstants()[occurrence % type.getEnumConstants().length];
+		if (type == TextMatchesEntitySpecificationFilterConstraint.class ||
+			type == TextMatchesReferenceSpecificationFilterConstraint.class ||
+			type == TextMatchesTargetSpecificationFilterConstraint.class) {
+			return inAttribute("text" + position);
+		}
+		if (type == RelevanceTextEntitySpecificationOrderConstraint.class ||
+			type == RelevanceTextReferenceSpecificationOrderConstraint.class ||
+			type == RelevanceTextTargetSpecificationOrderConstraint.class) {
+			return attributeWeight("text" + position, BigDecimal.valueOf(position + 1));
+		}
 		if (type == HeadConstraint.class) return collection("collection" + position);
 		if (type == FilterConstraint.class) return attributeEquals("filter" + position, position + 1);
 		if (type == OrderConstraint.class) return entityPrimaryKeyNatural(ASC);

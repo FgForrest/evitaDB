@@ -65,6 +65,7 @@ import lombok.Getter;
  * - `{@link #HIERARCHY}`: Hierarchical placement and traversal rules
  * - `{@link #FACET}`: Facet-specific filtering and summarization
  * - `{@link #SEGMENT}`: Result segmentation for pagination or grouping
+ * - `{@link #TEXT}`: Searchable places selected or weighted inside `textMatches` and `relevanceText`
  *
  * **Example Usage**
  *
@@ -291,7 +292,12 @@ public enum ConstraintDomain {
 	 * Segments are containers within the main result set. Each segment has independent ordering logic but shares
 	 * the same base filtering.
 	 */
-	SEGMENT;
+	SEGMENT,
+	/**
+	 * Domain of the children of `textMatches` and `relevanceText`, shared by filtering and ordering.
+	 * Only searchable places are offered in this domain.
+	 */
+	TEXT;
 
 	/**
 	 * Indicates whether this domain is dynamic (requires runtime resolution to determine the actual domain).

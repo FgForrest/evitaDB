@@ -181,9 +181,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 *
 	 * - {@link AttributeIs} asks whether the attribute holds any value at all, not whether one value satisfies a test
 	 *   of it, so there is no per-value matcher to create.
+	 * - {@link AttributeIn} selects fulltext places; its enclosing {@link TextMatches} performs matching.
 	 */
 	private static final Set<Class<? extends FilterConstraint>> ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER =
-		Set.of(AttributeIs.class);
+		Set.of(AttributeIs.class, AttributeIn.class);
 	/**
 	 * Contains set of formulas that are considered conjunctive for purpose of this visitor.
 	 */

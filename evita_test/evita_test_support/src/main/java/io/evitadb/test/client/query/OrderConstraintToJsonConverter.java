@@ -26,10 +26,13 @@ package io.evitadb.test.client.query;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
+import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -41,20 +44,47 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class OrderConstraintToJsonConverter extends ConstraintToJsonConverter {
 
+	/**
+	 * Creates an ordering converter whose segment predicates use the matching filter converter.
+	 *
+	 * @param catalogSchema schema used to resolve both ordering and segment-filter classifiers
+	 */
 	public OrderConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema) {
 		super(
 			catalogSchema,
-			createHashMap(0) // currently, we don't support any filter constraint with additional children
+			createAdditionalConverters(catalogSchema)
 		);
 	}
 
+	/**
+	 * Creates an ordering converter restricted to the selected order constraints, with segment-filter support.
+	 *
+	 * @param catalogSchema schema used to resolve ordering and segment-filter classifiers
+	 * @param constraintPredicate order constraints to include in the generated query
+	 */
 	public OrderConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,
 	                                      @Nonnull Predicate<Class<? extends Constraint<?>>> constraintPredicate) {
 		super(
 			catalogSchema,
 			constraintPredicate,
-			createHashMap(0) // currently, we don't support any filter constraint with additional children
+			createAdditionalConverters(catalogSchema)
 		);
+	}
+
+	/**
+	 * Provides the filter converter needed by a segment's entityHaving predicate.
+	 *
+	 * @param catalogSchema schema shared with the ordering converter
+	 * @return additional converters indexed by constraint type
+	 */
+	@Nonnull
+	private static Map<ConstraintType, AtomicReference<? extends ConstraintToJsonConverter>> createAdditionalConverters(
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
+		final Map<ConstraintType, AtomicReference<? extends ConstraintToJsonConverter>> converters = createHashMap(1);
+		converters.put(ConstraintType.FILTER,
+			new AtomicReference<>(new FilterConstraintToJsonConverter(catalogSchema)));
+		return converters;
 	}
 
 	@Nonnull

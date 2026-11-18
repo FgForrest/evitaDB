@@ -23,11 +23,12 @@
 
 package io.evitadb.api.query.order;
 
-import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -66,10 +67,11 @@ import java.math.BigDecimal;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(
-	name = "attributeWeight", shortDescription = "Replaces one searchable place weight.",
-	userDocsLink = "/documentation/query/ordering/relevance#relevance-text", supportedIn = ConstraintDomain.ENTITY
+	name = "weight", shortDescription = "Replaces one searchable place weight.",
+	userDocsLink = "/documentation/query/ordering/relevance#relevance-text", supportedIn = ConstraintDomain.TEXT,
+	supportedValues = @ConstraintSupportedValues(supportedTypes = String.class, arraysSupported = true)
 )
-public class AttributeWeight extends AbstractOrderConstraintLeaf implements GenericConstraint<OrderConstraint>,
+public class AttributeWeight extends AbstractOrderConstraintLeaf implements AttributeConstraint<OrderConstraint>,
 	RelevanceTextEntitySpecificationOrderConstraint,
 	RelevanceTextReferenceSpecificationOrderConstraint,
 	RelevanceTextTargetSpecificationOrderConstraint {
@@ -104,6 +106,7 @@ public class AttributeWeight extends AbstractOrderConstraintLeaf implements Gene
 	 * @return the non-blank attribute name
 	 */
 	@Nonnull
+	@Override
 	public String getAttributeName() {
 		return (String) getArguments()[0];
 	}

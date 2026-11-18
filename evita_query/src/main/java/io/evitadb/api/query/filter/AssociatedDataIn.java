@@ -25,10 +25,13 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.ConstraintWithSuffix;
-import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.AssociatedDataConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -74,14 +77,17 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(
-	name = "inAssociatedData",
+	name = "in",
 	shortDescription = "The constraint restricts the enclosing `textMatches` fulltext search to one or more " +
 		"searchable associated data.",
 	userDocsLink = "/documentation/query/filtering/fulltext#in-associated-data",
-	supportedIn = ConstraintDomain.ENTITY
+	supportedIn = ConstraintDomain.TEXT,
+	supportedValues = @ConstraintSupportedValues(
+		supportedTypes = { String.class, ComplexDataObject.class }, arraysSupported = true
+	)
 )
 public class AssociatedDataIn extends AbstractFilterConstraintLeaf
-	implements GenericConstraint<FilterConstraint>, ConstraintWithSuffix,
+	implements AssociatedDataConstraint<FilterConstraint>, ConstraintWithSuffix,
 	TextMatchesEntitySpecificationFilterConstraint,
 	TextMatchesTargetSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 4215369447123180912L;
@@ -102,7 +108,7 @@ public class AssociatedDataIn extends AbstractFilterConstraintLeaf
 	 * @param associatedDataName searchable associated data name, must not be null or blank
 	 */
 	@Creator
-	public AssociatedDataIn(@Nonnull String associatedDataName) {
+	public AssociatedDataIn(@Nonnull @Classifier String associatedDataName) {
 		this(new String[]{associatedDataName});
 	}
 

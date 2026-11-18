@@ -25,7 +25,7 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Child;
@@ -56,13 +56,13 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(
-	name = "inEntity",
+	name = "in",
 	shortDescription = "Selects searchable target places of the enclosing reference.",
 	userDocsLink = "/documentation/query/filtering/fulltext#in-entity",
-	supportedIn = ConstraintDomain.ENTITY
+	supportedIn = ConstraintDomain.TEXT
 )
 public class EntityIn extends AbstractFilterConstraintContainer
-	implements GenericConstraint<FilterConstraint>, TextMatchesReferenceSpecificationFilterConstraint {
+	implements EntityConstraint<FilterConstraint>, TextMatchesReferenceSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 4215369447123180914L;
 	private static final String CONSTRAINT_NAME = "inEntity";
 
@@ -73,7 +73,8 @@ public class EntityIn extends AbstractFilterConstraintContainer
 	 */
 	@Creator
 	public EntityIn(
-		@Nullable @Child TextMatchesTargetSpecificationFilterConstraint... in
+		@Nullable @Child(domain = ConstraintDomain.TEXT, uniqueChildren = true)
+		TextMatchesTargetSpecificationFilterConstraint... in
 	) {
 		this(NO_ARGS, in == null ? new FilterConstraint[0] : in);
 	}

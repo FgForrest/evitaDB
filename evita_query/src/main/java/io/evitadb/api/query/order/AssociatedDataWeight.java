@@ -23,14 +23,16 @@
 
 package io.evitadb.api.query.order;
 
-import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.AssociatedDataConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.TextPlaceWeightSupport;
 
@@ -64,10 +66,14 @@ import java.math.BigDecimal;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(
-	name = "associatedDataWeight", shortDescription = "Replaces one searchable place weight.",
-	userDocsLink = "/documentation/query/ordering/relevance#relevance-text", supportedIn = ConstraintDomain.ENTITY
+	name = "weight", shortDescription = "Replaces one searchable place weight.",
+	userDocsLink = "/documentation/query/ordering/relevance#relevance-text", supportedIn = ConstraintDomain.TEXT,
+	supportedValues = @ConstraintSupportedValues(
+		supportedTypes = { String.class, ComplexDataObject.class }, arraysSupported = true
+	)
 )
-public class AssociatedDataWeight extends AbstractOrderConstraintLeaf implements GenericConstraint<OrderConstraint>,
+public class AssociatedDataWeight extends AbstractOrderConstraintLeaf
+	implements AssociatedDataConstraint<OrderConstraint>,
 	RelevanceTextEntitySpecificationOrderConstraint,
 	RelevanceTextTargetSpecificationOrderConstraint {
 	@Serial private static final long serialVersionUID = 5675195514389518083L;

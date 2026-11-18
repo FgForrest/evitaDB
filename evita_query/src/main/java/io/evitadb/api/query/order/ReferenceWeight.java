@@ -24,7 +24,7 @@
 package io.evitadb.api.query.order;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
@@ -69,10 +69,10 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(
-	name = "referenceWeight", shortDescription = "Overrides weights at one reference level.",
-	userDocsLink = "/documentation/query/ordering/relevance#relevance-text", supportedIn = ConstraintDomain.ENTITY
+	name = "weight", shortDescription = "Overrides weights at one reference level.",
+	userDocsLink = "/documentation/query/ordering/relevance#relevance-text", supportedIn = ConstraintDomain.TEXT
 )
-public class ReferenceWeight extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint>,
+public class ReferenceWeight extends AbstractOrderConstraintContainer implements ReferenceConstraint<OrderConstraint>,
 	RelevanceTextEntitySpecificationOrderConstraint {
 	@Serial private static final long serialVersionUID = -710055817985495992L;
 
@@ -85,8 +85,10 @@ public class ReferenceWeight extends AbstractOrderConstraintContainer implements
 	 * @throws EvitaInvalidUsageException when the name is blank
 	 */
 	@Creator
-	public ReferenceWeight(@Nonnull @Classifier String referenceName,
-		@Nullable @Child RelevanceTextReferenceSpecificationOrderConstraint... weights) {
+	public ReferenceWeight(
+		@Nonnull @Classifier String referenceName,
+		@Nullable @Child(domain = ConstraintDomain.TEXT) RelevanceTextReferenceSpecificationOrderConstraint... weights
+	) {
 		this(new Serializable[]{referenceName}, weights == null ? new OrderConstraint[0] : weights);
 	}
 

@@ -25,7 +25,7 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Child;
@@ -55,13 +55,13 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(
-	name = "inReference",
+	name = "in",
 	shortDescription = "Selects searchable reference attributes and composed target places.",
 	userDocsLink = "/documentation/query/filtering/fulltext#in-reference",
-	supportedIn = ConstraintDomain.ENTITY
+	supportedIn = ConstraintDomain.TEXT
 )
 public class ReferenceIn extends AbstractFilterConstraintContainer
-	implements GenericConstraint<FilterConstraint>, TextMatchesEntitySpecificationFilterConstraint {
+	implements ReferenceConstraint<FilterConstraint>, TextMatchesEntitySpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 4215369447123180913L;
 	private static final String CONSTRAINT_NAME = "inReference";
 
@@ -74,7 +74,8 @@ public class ReferenceIn extends AbstractFilterConstraintContainer
 	@Creator
 	public ReferenceIn(
 		@Nonnull @Classifier String referenceName,
-		@Nullable @Child TextMatchesReferenceSpecificationFilterConstraint... in
+		@Nullable @Child(domain = ConstraintDomain.TEXT, uniqueChildren = true)
+		TextMatchesReferenceSpecificationFilterConstraint... in
 	) {
 		this(new Serializable[]{referenceName}, in == null ? new FilterConstraint[0] : in);
 	}

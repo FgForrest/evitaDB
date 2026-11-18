@@ -120,7 +120,7 @@ import java.io.Serializable;
 	name = "relevanceText",
 	shortDescription = "The constraint sorts entities by the fulltext relevance computed by the `textMatches` filter.",
 	userDocsLink = "/documentation/query/ordering/relevance#relevance-text",
-	supportedIn = ConstraintDomain.ENTITY
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class RelevanceText extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 2860118207357049441L;
@@ -132,7 +132,9 @@ public class RelevanceText extends AbstractOrderConstraintContainer implements G
 	 * @throws GenericEvitaInternalError when a child is not a place weight allowed directly in `relevanceText`
 	 */
 	@Creator
-	public RelevanceText(@Nullable @Child RelevanceTextEntitySpecificationOrderConstraint... weights) {
+	public RelevanceText(
+		@Nullable @Child(domain = ConstraintDomain.TEXT) RelevanceTextEntitySpecificationOrderConstraint... weights
+	) {
 		this(weights == null ? new OrderConstraint[0] : weights);
 	}
 

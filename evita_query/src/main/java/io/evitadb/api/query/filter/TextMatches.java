@@ -102,7 +102,7 @@ import java.io.Serializable;
 	shortDescription = "The constraint matches entities whose searchable fields contain every word of the searched " +
 		"text (fulltext search).",
 	userDocsLink = "/documentation/query/filtering/fulltext#text-matches",
-	supportedIn = ConstraintDomain.ENTITY
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class TextMatches extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -6412785527930563170L;
@@ -129,7 +129,8 @@ public class TextMatches extends AbstractFilterConstraintContainer implements Ge
 	@Creator
 	public TextMatches(
 		@Nonnull String text,
-		@Nullable @Child TextMatchesEntitySpecificationFilterConstraint... in
+		@Nullable @Child(domain = ConstraintDomain.TEXT, uniqueChildren = true)
+		TextMatchesEntitySpecificationFilterConstraint... in
 	) {
 		super(
 			CONSTRAINT_NAME,

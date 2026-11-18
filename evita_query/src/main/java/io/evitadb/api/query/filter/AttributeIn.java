@@ -25,9 +25,11 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.ConstraintWithSuffix;
-import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.Assert;
 
@@ -73,17 +75,15 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(
-	name = "inAttribute",
+	name = "in",
 	shortDescription = "The constraint restricts the enclosing `textMatches` fulltext search to one or more " +
 		"searchable attributes.",
 	userDocsLink = "/documentation/query/filtering/fulltext#in-attribute",
-	// the ENTITY domain would also offer `inAttribute` inside every logical container of the external APIs, so it needs
-	// a domain only `textMatches` switches into before the constraint is registered
-	//TODO JNO change it at the end of #258
-	supportedIn = ConstraintDomain.ENTITY
+	supportedIn = ConstraintDomain.TEXT,
+	supportedValues = @ConstraintSupportedValues(supportedTypes = String.class, arraysSupported = true)
 )
 public class AttributeIn extends AbstractFilterConstraintLeaf
-	implements GenericConstraint<FilterConstraint>, ConstraintWithSuffix,
+	implements AttributeConstraint<FilterConstraint>, ConstraintWithSuffix,
 	TextMatchesEntitySpecificationFilterConstraint, TextMatchesReferenceSpecificationFilterConstraint,
 	TextMatchesTargetSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 4215369447123180911L;
@@ -104,7 +104,7 @@ public class AttributeIn extends AbstractFilterConstraintLeaf
 	 * @param attributeName searchable attribute name, must not be null or blank
 	 */
 	@Creator
-	public AttributeIn(@Nonnull String attributeName) {
+	public AttributeIn(@Nonnull @Classifier String attributeName) {
 		this(new String[]{attributeName});
 	}
 
@@ -123,6 +123,7 @@ public class AttributeIn extends AbstractFilterConstraintLeaf
 	 * @return the searchable attribute names, empty for the wildcard `inAttributeAll()`
 	 */
 	@Nonnull
+	@Override
 	public String[] getAttributeNames() {
 		final Serializable[] arguments = getArguments();
 		final String[] names = new String[arguments.length];

@@ -29,6 +29,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.And;
+import io.evitadb.api.query.filter.AttributeIn;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
@@ -632,14 +633,17 @@ public class BidirectionalReferenceRewriter {
 	 *   ("some row does not satisfy A"), which the single available query could not distinguish from "not applied".
 	 *   Treat the excluded-shape reasoning here as measured only where a named test is cited.
 	 *
+	 * @param constraint the reference-body subtree considered for rewriting
+	 * @param attributeNames destination for names of predicates reproducible on the counterpart
 	 * @return TRUE when the subtree is a reference-attribute constraint the rewrite reproduces exactly
 	 */
 	private static boolean collectAttributeNames(
 		@Nonnull FilterConstraint constraint,
 		@Nonnull List<String> attributeNames
 	) {
-		if (constraint instanceof TextMatches) {
+		if (constraint instanceof TextMatches || constraint instanceof AttributeIn) {
 			// Direct body text belongs to this reference's dictionary and score place, not the counterpart's.
+			// Place selectors are consumed by that search; stray selectors must reach their placement guard.
 			// Nested entityHaving is handled separately and keeps its existing fulltext translation.
 			return false;
 		}

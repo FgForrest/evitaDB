@@ -63,6 +63,8 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
+import static io.evitadb.api.query.QueryConstraints.inAttribute;
+import static io.evitadb.api.query.QueryConstraints.inAttributeAll;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
@@ -157,6 +159,18 @@ class BidirectionalReferenceRewriterTest {
 		assertFalse(fixture.isApplicableFor(referenceHaving(OWNER_REFERENCE_NAME, not(textMatches("winter")))));
 		assertFalse(fixture.isApplicableFor(referenceHaving(OWNER_REFERENCE_NAME,
 			or(attributeEquals(ATTRIBUTE_NAME, 7L), textMatches("winter")))));
+	}
+
+	/** Place selectors must reach their placement guard rather than be rewritten as attribute predicates. */
+	@Test
+	@DisplayName("Should decline attribute place selectors including wildcard and disjunction forms")
+	void shouldDeclineAttributePlaceSelectors() {
+		final RewriteFixture fixture = RewriteFixture.baseline(Set.of(Scope.LIVE));
+		assertTrue(fixture.isApplicable(), "The baseline must otherwise qualify for rewriting");
+		assertFalse(fixture.isApplicableFor(referenceHaving(OWNER_REFERENCE_NAME, inAttribute(ATTRIBUTE_NAME))));
+		assertFalse(fixture.isApplicableFor(referenceHaving(OWNER_REFERENCE_NAME, inAttributeAll())));
+		assertFalse(fixture.isApplicableFor(referenceHaving(OWNER_REFERENCE_NAME,
+			or(attributeEquals(ATTRIBUTE_NAME, 7L), inAttribute(ATTRIBUTE_NAME)))));
 	}
 
 	/**

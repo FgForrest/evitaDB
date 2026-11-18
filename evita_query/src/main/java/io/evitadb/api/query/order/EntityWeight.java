@@ -24,7 +24,7 @@
 package io.evitadb.api.query.order;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
@@ -64,10 +64,10 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(
-	name = "entityWeight", shortDescription = "Overrides composed weights of the reference's target places.",
-	userDocsLink = "/documentation/query/ordering/relevance#relevance-text", supportedIn = ConstraintDomain.ENTITY
+	name = "weight", shortDescription = "Overrides composed weights of the reference's target places.",
+	userDocsLink = "/documentation/query/ordering/relevance#relevance-text", supportedIn = ConstraintDomain.TEXT
 )
-public class EntityWeight extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint>,
+public class EntityWeight extends AbstractOrderConstraintContainer implements EntityConstraint<OrderConstraint>,
 	RelevanceTextReferenceSpecificationOrderConstraint {
 	@Serial private static final long serialVersionUID = 2901444609450427932L;
 
@@ -78,7 +78,9 @@ public class EntityWeight extends AbstractOrderConstraintContainer implements Ge
 	 *                planning refuses
 	 */
 	@Creator
-	public EntityWeight(@Nullable @Child RelevanceTextTargetSpecificationOrderConstraint... weights) {
+	public EntityWeight(
+		@Nullable @Child(domain = ConstraintDomain.TEXT) RelevanceTextTargetSpecificationOrderConstraint... weights
+	) {
 		this(NO_ARGS, weights == null ? new OrderConstraint[0] : weights);
 	}
 
