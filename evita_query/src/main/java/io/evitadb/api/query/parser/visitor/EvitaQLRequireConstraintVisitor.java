@@ -1595,11 +1595,11 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			() -> {
 				if (ctx.args.values == null) {
 					return QueryConstraints.accompanyingPriceContent(
-						ctx.args.classifier.accept(this.stringValueListTokenVisitor).asString()
+						ctx.args.classifier.accept(this.stringValueTokenVisitor).asString()
 					);
 				} else {
 					return QueryConstraints.accompanyingPriceContent(
-						ctx.args.classifier.accept(this.stringValueListTokenVisitor).asString(),
+						ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 						ctx.args.values.accept(this.stringValueListTokenVisitor).asStringArray()
 					);
 				}

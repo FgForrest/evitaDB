@@ -54,6 +54,7 @@ import static io.evitadb.api.query.require.FacetStatisticsDepth.IMPACT;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -2255,6 +2256,32 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint9 = parseRequireConstraint("accompanyingPriceContent(@name)", Map.of("name", "myCalculatedPrice"));
 		assertEquals(accompanyingPriceContent("myCalculatedPrice"), constraint9);
+	}
+
+	/**
+	 * The name of the accompanying price is a single value, so a list bound to it is a syntax error, like any other
+	 * value of a type the position does not allow, rather than an internal error.
+	 */
+	@Test
+	@DisplayName("should refuse a list bound to the accompanying price name")
+	void shouldRefuseListBoundToAccompanyingPriceName() {
+		assertAll(
+			() -> assertThrows(
+				EvitaSyntaxException.class,
+				() -> parseRequireConstraint("accompanyingPriceContent(?)", List.of("myCalculatedPrice"))
+			),
+			() -> assertThrows(
+				EvitaSyntaxException.class,
+				() -> parseRequireConstraint("accompanyingPriceContent(?, ?)", new String[]{"myCalculatedPrice"}, "basic")
+			),
+			() -> assertThrows(
+				EvitaSyntaxException.class,
+				() -> parseRequireConstraint(
+					"accompanyingPriceContent(@name, @priceList)",
+					Map.of("name", List.of("myCalculatedPrice"), "priceList", "basic")
+				)
+			)
+		);
 	}
 
 	@Test
