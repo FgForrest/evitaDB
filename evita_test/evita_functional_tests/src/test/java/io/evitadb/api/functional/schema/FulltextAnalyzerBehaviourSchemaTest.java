@@ -96,6 +96,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -782,8 +783,8 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 			assertTrue(original.getSchema().getFulltextAnalyzer("second").isPresent());
 			final PublishedState published = readPublishedState();
 			assertEquals(CatalogState.WARMING_UP, published.state());
-			// either the state before the change or the one after it, and the fulltext query has run on it
-			assertFalse(published.failing(), "an analyzer failing the behaviour check was published");
+			// either the state before the change or the one after it; the writer's item is published in both
+			assertEquals(1, published.items(), "the published catalog does not find the writer's item");
 			assertEquals(published.second(), published.title(), "the analyzer and its field were torn apart");
 		}
 
@@ -954,6 +955,8 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 			} finally {
 				setFieldValue(catalog, "dataStoreBuffer", original);
 			}
+			// unpublished work of the same writer: the stored catalog holds it only when the route did publish
+			session.upsertEntity(session.createNewEntity("Removable", 1));
 			switch (route) {
 				case "close" -> session.close();
 				case "goLive" -> session.goLiveAndClose();
@@ -965,6 +968,137 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 				engine.getCatalogState(TEST_CATALOG).orElseThrow());
 			assertTrue(catalog().getSchema().getFulltextAnalyzer("plain").isEmpty());
 			assertTrue(catalog().getSchema().getAttribute("code").isPresent());
+			assertTrue(
+				engine.queryCatalog(TEST_CATALOG, reader -> {
+					return reader.getEntity("Removable", 1);
+				}).isPresent(),
+				"the route published nothing, so the stored schema proves nothing about it"
+			);
+		}
+
+		/**
+		 * The write of the restored schema can fail with an {@link Error} as well as with an exception. The part the
+		 * batch's cascade wrote is then the newest one in the catalog file just the same, so the close must store the
+		 * restored schema it validated instead of publishing that part.
+		 */
+		@Test
+		@DisplayName("Close stores the validated schema when the write of the restored schema throws an error")
+		void shouldPublishValidatedSchemaWhenRestoredSchemaWriteThrowsError() {
+			prepareCollections();
+			engine.updateCatalog(TEST_CATALOG, session -> {
+				session.getCatalogSchema().openForWrite().withAttribute("code", String.class).updateVia(session);
+				session.getEntitySchemaOrThrowException("Original").openForWrite().withGlobalAttribute("code")
+					.updateVia(session);
+			});
+			final Catalog catalog = catalog();
+			final DataStoreMemoryBuffer original =
+				failRestoredSchemaWrite(catalog, new AtomicInteger(1), SimulatedWriteError::new);
+			final EvitaSessionContract session = engine.createReadWriteSession(TEST_CATALOG);
+			try {
+				final LocalCatalogSchemaMutation[] batch = ArrayUtils.mergeArrays(
+					session.getCatalogSchema().openForWrite()
+						.withFulltextAnalyzer("plain", a -> a.words().samples("Upper"))
+						.toMutation().orElseThrow().getSchemaMutations(),
+					new LocalCatalogSchemaMutation[]{
+						new RemoveAttributeSchemaMutation("code"), new CreateEntitySchemaMutation("Original")
+					}
+				);
+				final Throwable failure = assertThrows(Throwable.class, () -> session.updateCatalogSchema(batch));
+				assertTrue(
+					Stream.iterate(failure, Objects::nonNull, Throwable::getCause)
+						.anyMatch(SimulatedWriteError.class::isInstance),
+					() -> "the batch failed for another reason: " + failure
+				);
+				assertTrue(session.getCatalogSchema().getAttribute("code").isPresent());
+			} finally {
+				setFieldValue(catalog, "dataStoreBuffer", original);
+			}
+			// unpublished work of the same writer: the stored catalog holds it only when the close did publish
+			session.upsertEntity(session.createNewEntity("Removable", 1));
+			session.close();
+			reopen();
+			assertEquals(CatalogState.WARMING_UP, engine.getCatalogState(TEST_CATALOG).orElseThrow());
+			assertTrue(catalog().getSchema().getFulltextAnalyzer("plain").isEmpty());
+			assertTrue(catalog().getSchema().getAttribute("code").isPresent());
+			assertTrue(
+				engine.queryCatalog(TEST_CATALOG, reader -> {
+					return reader.getEntity("Removable", 1);
+				}).isPresent(),
+				"the close published nothing, so the stored schema proves nothing about it"
+			);
+		}
+
+		/**
+		 * Termination writes the restored schema once more before it publishes. When that write fails as well, the
+		 * newest catalog schema part is still the one the batch's cascade wrote, so termination must keep the last
+		 * published state rather than publish that part.
+		 */
+		@Test
+		@DisplayName("Termination publishes nothing when the write of the restored schema fails again")
+		void shouldPublishNothingWhenRestoredSchemaWriteFailsAgainAtTermination() {
+			prepareCollections();
+			engine.updateCatalog(TEST_CATALOG, session -> {
+				session.getCatalogSchema().openForWrite().withAttribute("code", String.class).updateVia(session);
+				session.getEntitySchemaOrThrowException("Original").openForWrite().withGlobalAttribute("code")
+					.updateVia(session);
+			});
+			final AtomicInteger failures = new AtomicInteger(2);
+			// the failing buffer stays installed, so that the write termination repeats fails too
+			failRestoredSchemaWrite(catalog(), failures,
+				() -> new UncheckedIOException(new IOException("Simulated storage write failure")));
+			final EvitaSessionContract session = engine.createReadWriteSession(TEST_CATALOG);
+			final LocalCatalogSchemaMutation[] batch = ArrayUtils.mergeArrays(
+				session.getCatalogSchema().openForWrite()
+					.withFulltextAnalyzer("plain", a -> a.words().samples("Upper"))
+					.toMutation().orElseThrow().getSchemaMutations(),
+				new LocalCatalogSchemaMutation[]{
+					new RemoveAttributeSchemaMutation("code"), new CreateEntitySchemaMutation("Original")
+				}
+			);
+			final EntityTypeAlreadyPresentInCatalogSchemaException failure = assertThrows(
+				EntityTypeAlreadyPresentInCatalogSchemaException.class, () -> session.updateCatalogSchema(batch));
+			assertEquals(1, failure.getSuppressed().length);
+			// unpublished work of the same writer, so that termination has a change to publish
+			session.upsertEntity(session.createNewEntity("Removable", 1));
+			failSessionDrain();
+			reopen();
+			assertEquals(0, failures.get(), "termination did not write the restored schema again");
+			assertEquals(CatalogState.WARMING_UP, engine.getCatalogState(TEST_CATALOG).orElseThrow());
+			assertTrue(catalog().getSchema().getFulltextAnalyzer("plain").isEmpty());
+			assertTrue(catalog().getSchema().getAttribute("code").isPresent());
+			assertTrue(
+				engine.queryCatalog(TEST_CATALOG, reader -> {
+					return reader.getEntity("Removable", 1);
+				}).isEmpty(),
+				"termination published although the write of the restored schema failed"
+			);
+		}
+
+		/** A later successful schema write supersedes the failed batch's part, so no repair write stays pending. */
+		@Test
+		@DisplayName("A successful schema change after a failed restored-schema write leaves no rewrite pending")
+		void shouldNotRewriteSchemaAfterLaterSuccessfulChange() {
+			prepareCollections();
+			final Catalog catalog = catalog();
+			final DataStoreMemoryBuffer original = failRestoredSchemaWrite(catalog, true);
+			final EvitaSessionContract session = engine.createReadWriteSession(TEST_CATALOG);
+			try {
+				final EntityTypeAlreadyPresentInCatalogSchemaException failure = assertThrows(
+					EntityTypeAlreadyPresentInCatalogSchemaException.class, () -> session.updateCatalogSchema(
+						new ModifyCatalogSchemaDescriptionMutation("Failed"),
+						new CreateEntitySchemaMutation("Original")
+					));
+				assertEquals(1, failure.getSuppressed().length);
+				session.updateCatalogSchema(new ModifyCatalogSchemaDescriptionMutation("Later"));
+			} finally {
+				setFieldValue(catalog, "dataStoreBuffer", original);
+			}
+			final DataStoreMemoryBuffer observed = spy(original);
+			setFieldValue(catalog, "dataStoreBuffer", observed);
+			session.close();
+			verify(observed, never()).update(anyLong(), any(CatalogSchemaStoragePart.class));
+			reopen();
+			assertEquals("Later", catalog().getSchema().getDescription());
 		}
 
 		/** The failed batch's prefix published mid-call is superseded even when the restored schema's write fails. */
@@ -1402,14 +1536,32 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private static DataStoreMemoryBuffer failRestoredSchemaWrite(@Nonnull Catalog catalog, boolean fail) {
+		return failRestoredSchemaWrite(catalog, new AtomicInteger(fail ? 1 : 0),
+			() -> new UncheckedIOException(new IOException("Simulated storage write failure")));
+	}
+
+	/**
+	 * Replaces the catalog's data store buffer with a spy whose writes of the catalog schema at the version the catalog
+	 * holds now fail while failures remain. The first such write is the one of the schema a failed batch restores, the
+	 * next one the write of the same schema a publication repeats; the writes of the batch's own parts and every write
+	 * after the last failure reach the real buffer.
+	 * @param catalog the warm-up catalog whose buffer is replaced
+	 * @param failures how many of those writes fail, counted down as they do; zero for a control without the failure
+	 * @param failure creates what each failing write throws
+	 * @return the replaced buffer, for the caller to put back
+	 */
+	@Nonnull
+	private static DataStoreMemoryBuffer failRestoredSchemaWrite(
+		@Nonnull Catalog catalog, @Nonnull AtomicInteger failures, @Nonnull Supplier<? extends Throwable> failure
+	) {
 		final DataStoreMemoryBuffer original = getNonnullFieldValue(catalog, "dataStoreBuffer");
 		final int restoredVersion = catalog.getSchema().version();
-		final AtomicBoolean armed = new AtomicBoolean(fail);
 		final DataStoreMemoryBuffer failingWrite = spy(original);
 		doAnswer(invocation -> {
 			final CatalogSchemaStoragePart part = invocation.getArgument(1);
-			if (part.catalogSchema().version() == restoredVersion && armed.compareAndSet(true, false)) {
-				throw new UncheckedIOException(new IOException("Simulated storage write failure"));
+			if (part.catalogSchema().version() == restoredVersion &&
+				failures.getAndUpdate(remaining -> Math.max(remaining - 1, 0)) > 0) {
+				throw failure.get();
 			}
 			return invocation.callRealMethod();
 		}).when(failingWrite).update(anyLong(), any(CatalogSchemaStoragePart.class));
@@ -1597,6 +1749,17 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 	private record PublishedState(
 		@Nonnull CatalogState state, boolean failing, boolean second, boolean title, int items
 	) {
+	}
+
+	/**
+	 * A storage write failure thrown as an {@link Error} rather than an exception, so that it passes every catch that
+	 * handles exceptions only. Deliberately not an `OutOfMemoryError`, which JUnit rethrows and aborts the run on.
+	 */
+	private static final class SimulatedWriteError extends Error {
+		/** Creates the error with a message naming the simulation. */
+		SimulatedWriteError() {
+			super("Simulated storage write error");
+		}
 	}
 
 	/**

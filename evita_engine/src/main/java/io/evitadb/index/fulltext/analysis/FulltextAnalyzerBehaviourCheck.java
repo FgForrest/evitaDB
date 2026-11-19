@@ -314,7 +314,7 @@ public final class FulltextAnalyzerBehaviourCheck {
 	/**
 	 * Captures a field's analyzer and the locales it can use at validation time.
 	 * @param analyzer field's analyzer name
-	 * @param locales possible value locales, with root for a nonlocalized field
+	 * @param locales locales of the owning collection, in which the localized field holds its values
 	 */
 	private record FieldUse(@Nonnull String analyzer, @Nonnull Set<Locale> locales) {}
 

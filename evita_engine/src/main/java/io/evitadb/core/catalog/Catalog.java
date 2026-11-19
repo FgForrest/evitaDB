@@ -502,8 +502,9 @@ public final class Catalog
 	 * catalog schema part in the catalog file may then be one the batch itself wrote - a cascade writes one - which no
 	 * publication probe validated and which the next bootstrap record would publish. {@link #flush()} and
 	 * {@link #terminateInternally()} therefore write the in-memory schema - the one their probes validate - before
-	 * they publish ({@link #bufferCurrentSchema()}). Volatile, because the batch fails on the thread applying it while
-	 * the publication runs on the thread closing the session or terminating the catalog.
+	 * they publish ({@link #bufferCurrentSchema()}). Any later successful write of the catalog schema part clears it,
+	 * because the newest part then equals memory again. Volatile, because the batch fails on the thread applying it
+	 * while the publication runs on the thread closing the session or terminating the catalog.
 	 */
 	private volatile boolean restoredSchemaUnbuffered;
 	/**
@@ -1382,7 +1383,7 @@ public final class Catalog
 			// store the updated catalog schema inside the try, so that a failed write is handled like any refusal
 			final CatalogSchema schemaToStore = getInternalSchema();
 			if (schemaToStore.version() > originalSchema.version()) {
-				this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(schemaToStore));
+				bufferCurrentSchema();
 			}
 		} catch (RuntimeException | Error ex) {
 			// Earlier collection changes cannot be undone here, and registered mutations must not reach the shared WAL.
@@ -1416,13 +1417,16 @@ public final class Catalog
 				recording.finishWithException(ex);
 			}
 
-			// written last, so that a failing write neither skips the restoration above nor replaces the batch failure;
-			// the next publication writes the restored schema instead of the part a cascade of this batch wrote
+			// written last, so that a failing write neither skips the restoration above nor, unless it throws an
+			// `Error`, replaces the batch failure; the next publication writes the restored schema instead of the part
+			// a cascade of this batch wrote
 			if (bufferRestoredSchema) {
+				// set before the write, so that a write failing in any way - an `Error` included - leaves the flag set
+				this.restoredSchemaUnbuffered = true;
 				try {
 					this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(originalSchema));
+					this.restoredSchemaUnbuffered = false;
 				} catch (RuntimeException writeFailure) {
-					this.restoredSchemaUnbuffered = true;
 					ex.addSuppressed(writeFailure);
 				}
 			}
