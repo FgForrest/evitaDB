@@ -64,6 +64,7 @@ module evita.engine {
 	exports io.evitadb.core.traffic;
 	exports io.evitadb.core.transaction;
 	exports io.evitadb.core.transaction.conflict;
+	exports io.evitadb.core.transaction.engine;
 	exports io.evitadb.core.transaction.memory;
 	exports io.evitadb.core.transaction.stage.mutation;
 	exports io.evitadb.index;
@@ -128,6 +129,7 @@ module evita.engine {
 	requires evita.query;
 
 	requires jdk.jfr;
+	requires com.github.benmanes.caffeine;
 	requires com.carrotsearch.hppc;
 	requires com.esotericsoftware.kryo;
 	requires net.bytebuddy;

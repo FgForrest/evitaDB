@@ -73,7 +73,10 @@ public class GraphQLExecutable extends JsonExecutable implements Executable, Evi
 	/**
 	 * Pattern of keywords for identify system instance.
 	 */
-	private static final Pattern SYSTEM_INSTANCE_KEYWORDS_PATTERN = Pattern.compile("(createCatalog|switchCatalogToAliveState)");
+	private static final Pattern SYSTEM_INSTANCE_KEYWORDS_PATTERN = Pattern.compile(
+		"(createNewCatalog|activateCatalog|deactivateCatalog|deleteCatalogIfExists|duplicateCatalog|makeCatalogAlive|" +
+			"makeCatalogImmutable|makeCatalogMutable|renameCatalog|replaceCatalog|onEngineMutationProgressChange)"
+	);
 	/**
 	 * Pattern of keywords for identify schema instance.
 	 */

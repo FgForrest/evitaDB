@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.system.resolver.serializer;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
@@ -50,9 +51,14 @@ import java.util.Map;
 public class CatalogJsonSerializer {
 
 	private final ObjectJsonSerializer objectJsonSerializer;
+	/**
+	 * Source of the read-only flag of catalogs: the engine state knows it also for inactive catalogs.
+	 */
+	private final Evita evita;
 
 	public CatalogJsonSerializer(@Nonnull RestHandlingContext restHandlingContext) {
 		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
+		this.evita = restHandlingContext.getEvita();
 	}
 
 	@Nonnull
@@ -82,6 +88,7 @@ public class CatalogJsonSerializer {
 		rootNode.putIfAbsent(CatalogDescriptor.NAME_VARIANTS.name(), serializeNameVariants(catalog.getSchema().getNameVariants()));
 		rootNode.putIfAbsent(CatalogDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(catalog.getVersion()));
 		rootNode.putIfAbsent(CatalogDescriptor.CATALOG_STATE.name(), this.objectJsonSerializer.serializeObject(catalog.getCatalogState()));
+		rootNode.put(CatalogDescriptor.READ_ONLY.name(), this.evita.getEngineState().isReadOnly(catalog.getName()));
 		rootNode.putIfAbsent(CatalogDescriptor.SUPPORTS_TRANSACTION.name(), this.objectJsonSerializer.serializeObject(catalog.supportsTransaction()));
 		rootNode.putIfAbsent(CatalogDescriptor.UNUSABLE.name(), this.objectJsonSerializer.serializeObject(false));
 
@@ -98,6 +105,9 @@ public class CatalogJsonSerializer {
 		rootNode.putIfAbsent(UnusableCatalogDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getName()));
 		rootNode.putIfAbsent(UnusableCatalogDescriptor.CAUSE.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getRepresentativeException()));
 		rootNode.putIfAbsent(UnusableCatalogDescriptor.CATALOG_STATE.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getCatalogState()));
+		rootNode.put(
+			UnusableCatalogDescriptor.READ_ONLY.name(), this.evita.getEngineState().isReadOnly(unusableCatalog.getName())
+		);
 		rootNode.putIfAbsent(UnusableCatalogDescriptor.UNUSABLE.name(), this.objectJsonSerializer.serializeObject(true));
 
 		return rootNode;

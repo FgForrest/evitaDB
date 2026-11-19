@@ -25,8 +25,10 @@ package io.evitadb.externalApi.rest.api.system;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.core.Evita;
@@ -51,6 +53,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -58,6 +61,7 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -76,6 +80,8 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 	private static final String SYSTEM_URL = "system";
 	private static final String REST_EMPTY_SYSTEM_FOR_SYSTEM_API = "RESTEmptySystemForSystemApi";
 	private static final String SYSTEM_CHANGE_CAPTURE_URL_PATH = "/" + SystemRootDescriptor.CHANGE_SYSTEM_CAPTURE.urlPathItem();
+	private static final String ENGINE_MUTATION_PROGRESS_URL_PATH =
+		"/" + SystemRootDescriptor.ENGINE_MUTATION_PROGRESS.urlPathItem() + "/progress";
 
 	private static final String SYSTEM_CHANGE_CAPTURE_PATH = "payload.data";
 
@@ -547,6 +553,74 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 						it -> it.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
 							.isEqualTo("CreateCatalogSchemaMutation")
 					);
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(REST_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should deliver the outcome of an engine operation to a subscriber by its progress id")
+	void shouldDeliverOutcomeOfEngineOperationByProgressId(Evita evita, RestTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String catalogName = "progressCatalog" + subscriptionId;
+		evita.defineCatalog(catalogName);
+		// the registry is shared by every API: an id issued to any client (here the Java API) is observable via REST
+		final Progress<CommitVersions> progress = evita.makeCatalogAliveWithProgress(catalogName);
+		final String progressId = progress.progressId().orElseThrow().toString();
+		progress.onCompletion().toCompletableFuture().join();
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			ENGINE_MUTATION_PROGRESS_URL_PATH,
+			ctx -> {
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
+					subscriptionId, "{\"progressId\": \"" + progressId + "\"}"
+				));
+			},
+			3, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.node(SYSTEM_CHANGE_CAPTURE_PATH + ".progressId")
+					.isEqualTo(progressId);
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.node(SYSTEM_CHANGE_CAPTURE_PATH + ".finished")
+					.isEqualTo(true);
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.node(SYSTEM_CHANGE_CAPTURE_PATH + ".percentCompleted")
+					.isEqualTo(100);
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.node(SYSTEM_CHANGE_CAPTURE_PATH + ".catalogVersion")
+					.isNotNull();
+				assertThatJson(receivedEvents.get(2)).node("type").isEqualTo("complete");
+			}
+		);
+		evita.deleteCatalogIfExists(catalogName);
+	}
+
+	@Test
+	@UseDataSet(REST_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should end a subscription to an unknown progress id with an error")
+	void shouldEndSubscriptionToUnknownProgressIdWithError(RestTester tester) {
+		final String subscriptionId = createSubscriptionId();
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			ENGINE_MUTATION_PROGRESS_URL_PATH,
+			ctx -> {
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
+					subscriptionId, "{\"progressId\": \"" + UUID.randomUUID() + "\"}"
+				));
+				ctx.tryAwaitEvents(3, REFUSED_SUBSCRIPTION_QUIET_WINDOW);
+			},
+			2, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertErrorEvent(receivedEvents.get(1), subscriptionId)
+					.node("payload.error.message")
+					.isString()
+					.contains("unknown or its outcome has already expired");
+				assertEquals(2, receivedEvents.size(), "No event may follow the error: " + receivedEvents);
 			}
 		);
 	}

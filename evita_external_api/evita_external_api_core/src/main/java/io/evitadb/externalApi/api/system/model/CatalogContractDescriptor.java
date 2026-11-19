@@ -48,6 +48,15 @@ public interface CatalogContractDescriptor {
             """)
 		.type(nonNull(CatalogState.class))
 		.build();
+	PropertyDescriptor READ_ONLY = PropertyDescriptor.builder()
+		.name("readOnly")
+		.description("""
+			Whether the catalog is read-only, i.e. it refuses all write operations. A catalog is switched to read-only
+			by `makeCatalogImmutable` and back by `makeCatalogMutable`. The flag is kept also for an inactive
+			catalog. It is independent of the read-only mode of the whole server.
+			""")
+		.type(nonNull(Boolean.class))
+		.build();
 	PropertyDescriptor UNUSABLE = PropertyDescriptor.builder()
 		.name("unusable")
 		.description("""

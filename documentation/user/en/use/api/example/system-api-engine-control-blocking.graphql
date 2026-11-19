@@ -1,0 +1,14 @@
+mutation {
+  createNewCatalog(name: "exampleCatalog") {
+    ... on Catalog {
+      name
+      catalogState
+    }
+  }
+  deactivateCatalog(name: "exampleCatalog") {
+    ... on UnusableCatalog {
+      name
+      catalogState
+    }
+  }
+}

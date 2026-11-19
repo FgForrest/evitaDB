@@ -34,6 +34,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -732,6 +734,7 @@ class ProgressRecordTest implements EvitaTestSupport {
 				);
 
 			new ProgressRecord<>(
+				null,
 				"op",
 				null,
 				future,
@@ -769,6 +772,7 @@ class ProgressRecordTest implements EvitaTestSupport {
 				);
 
 			new ProgressRecord<>(
+				null,
 				"op",
 				null,
 				future,
@@ -783,6 +787,24 @@ class ProgressRecordTest implements EvitaTestSupport {
 				+ " when the future completes"
 			);
 			assertEquals("result", future.getNow(null));
+		}
+
+		@Test
+		@DisplayName("Should expose the progress id it was created with")
+		void shouldExposeProgressId() {
+			final UUID progressId = UUID.randomUUID();
+			final ProgressRecord<String> tracked = new ProgressRecord<>(
+				progressId,
+				"op",
+				null,
+				new ProgressingFuture<>(1, theFuture -> "result"),
+				pr -> {},
+				pr -> {},
+				Runnable::run
+			);
+
+			assertEquals(Optional.of(progressId), tracked.progressId());
+			assertTrue(new ProgressRecord<String>("op", null).progressId().isEmpty());
 		}
 	}
 

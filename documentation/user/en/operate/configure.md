@@ -35,6 +35,8 @@ server:                                           # [see Server configuration](#
   readOnly: false
   quiet: false
   usageStatisticsTracking: true
+  engineMutationProgressRetentionInSeconds: 300
+  engineMutationProgressRetentionLimit: 100
   trafficRecording:
     enabled: false
     sourceQueryTracking: false
@@ -506,6 +508,26 @@ This section contains general settings for the evitaDB server. It allows configu
            what changes is that each row reports itself as **not measured** instead of reporting zeros. Treat that
            distinction as load-bearing: a zero request count against a live observation window reads as *"nothing uses
            this flag, drop it"*, which is a destructive conclusion to draw when the truth is that nobody was counting.</p>
+    </dd>
+    <dt>engineMutationProgressRetentionInSeconds</dt>
+    <dd>
+        <p>**Default:** `300` (5 minutes); `0` forgets the outcome immediately</p>
+        <p>Every engine-level operation (creating, renaming, replacing, duplicating, activating, deactivating, deleting
+           a catalog, switching it alive or changing its mutability) is tracked under a progress id. The GraphQL and
+           REST system APIs hand the id to the client of a `...WithProgress` / asynchronous call, and the client
+           subscribes to the progress of the operation with it. This setting specifies how long, counted from its
+           completion, the outcome of a finished operation stays available, so that a client which subscribes after
+           the operation has finished still learns how it ended. Running operations are never forgotten.</p>
+        <p>The outcomes are kept in memory only: after a server restart, or on another node of a cluster, the id is
+           unknown and the client has to read the state of the catalog instead.</p>
+    </dd>
+    <dt>engineMutationProgressRetentionLimit</dt>
+    <dd>
+        <p>**Default:** `100`; `0` retains no outcome</p>
+        <p>Maximum number of finished operation outcomes retained at once (see
+           `engineMutationProgressRetentionInSeconds`). Running operations never count towards the limit. The limit is
+           shared by all clients and all APIs (including gRPC and the Java API), so a burst of engine operations issued by
+           other clients may evict an outcome before a slow client subscribes to it.</p>
     </dd>
 </dl>
 

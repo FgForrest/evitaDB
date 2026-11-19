@@ -23,6 +23,8 @@ server:
   readOnly: ${server.readOnly:false}
   quiet: ${server.quiet:false}
   usageStatisticsTracking: ${server.usageStatisticsTracking:true}
+  engineMutationProgressRetentionInSeconds: ${server.engineMutationProgressRetentionInSeconds:300}
+  engineMutationProgressRetentionLimit: ${server.engineMutationProgressRetentionLimit:100}
   trafficRecording:
     enabled: ${server.trafficRecording.enabled:false}
     sourceQueryTracking: ${server.trafficRecording.sourceQueryTracking:false}
