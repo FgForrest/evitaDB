@@ -3840,10 +3840,18 @@ public class DefaultCatalogPersistenceService
 	 * A compaction runs inside a collection write, and the termination of a warming-up catalog does not wait for the
 	 * collection writes of a flush still in progress - so a compaction can finish after {@link #close()} has closed
 	 * and dropped every registered collection storage, and a storage registered then would keep its file handles open
-	 * for the life of the process. The new storage is therefore opened outside any lock and registered under
+	 * for the life of the process. The new storage is therefore opened and registered under
 	 * {@link #historyHorizonLock}, which `close()` flips {@link #closed} under: either it is registered before the
-	 * flip and `close()` closes it with the rest, or the flip came first and it is closed here. No published record
-	 * names the compacted file in either case, so a refused compaction leaves only unreferenced bytes behind.
+	 * flip and `close()` closes it with the rest, or the flip came first and nothing is opened at all. The refusal
+	 * throws before the caller parks the retirement of the old file, which stays where the published record names
+	 * it; no published record names the compacted file, so a refused compaction leaves only unreferenced bytes.
+	 *
+	 * The storage is opened under the lock rather than opened first and closed when it turns out not to be needed:
+	 * every storage of one file shares that file's output in {@link #observableOutputKeeper}, so closing a second
+	 * storage would close the output of the one already registered, even in the middle of its write. The price is
+	 * that the open, which reads the offset index of the compacted file, delays the version pins and releases of
+	 * sessions once per compaction. It adds no lock order: the constructor takes only locks of the objects it
+	 * creates, and nothing that holds a bin of {@link #entityCollectionPersistenceServices} waits for the lock.
 	 *
 	 * @param compactedReference the file reference of the compacted collection storage
 	 * @param catalogVersion     the catalog version the compaction ran at
@@ -3857,39 +3865,28 @@ public class DefaultCatalogPersistenceService
 		long catalogVersion,
 		@Nonnull EntityCollectionFileHeader compactedHeader
 	) {
-		final DefaultEntityCollectionPersistenceService compacted = new DefaultEntityCollectionPersistenceService(
-			catalogVersion,
-			this.catalogName,
-			this.catalogStoragePath,
-			compactedHeader,
-			this.storageSettings,
-			this.offHeapMemoryManager,
-			this.observableOutputKeeper,
-			this.recordTypeRegistry,
-			this.checkpointCoordinator
-		);
-		final boolean refused;
-		DefaultEntityCollectionPersistenceService registered = compacted;
 		this.historyHorizonLock.lock();
 		try {
-			refused = this.closed;
-			if (!refused) {
-				final DefaultEntityCollectionPersistenceService existing =
-					this.entityCollectionPersistenceServices.putIfAbsent(compactedReference, compacted);
-				if (existing != null) {
-					registered = existing;
-				}
+			if (this.closed) {
+				throw new InstanceTerminatedException("catalog `" + this.catalogName + "` storage");
 			}
+			return this.entityCollectionPersistenceServices.computeIfAbsent(
+				compactedReference,
+				reference -> new DefaultEntityCollectionPersistenceService(
+					catalogVersion,
+					this.catalogName,
+					this.catalogStoragePath,
+					compactedHeader,
+					this.storageSettings,
+					this.offHeapMemoryManager,
+					this.observableOutputKeeper,
+					this.recordTypeRegistry,
+					this.checkpointCoordinator
+				)
+			);
 		} finally {
 			this.historyHorizonLock.unlock();
 		}
-		if (refused || registered != compacted) {
-			compacted.close();
-		}
-		if (refused) {
-			throw new InstanceTerminatedException("catalog `" + this.catalogName + "` storage");
-		}
-		return registered;
 	}
 
 	@Override
