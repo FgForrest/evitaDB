@@ -1,10 +1,10 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-11-19 21:54
+updated: 2026-11-19 23:00
 status: accepted
 kind: fix
-issues: [1466, 2014, 2032, 2033]
+issues: [1466, 2014, 2032, 2033, 2040]
 prs: [1520, 2015, 2037]
 areas: [evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/core/transaction/engine, evita_api/src/main/java/io/evitadb/api]
 supersedes: []
@@ -314,6 +314,19 @@ both reached the disk.
   publishers now end in `Catalog#publishWarmUpState`, which writes the catalog's trapped changes and then stores the
   header. Declined: copying the missing write into termination - two hand-maintained copies of the publication recipe
   are how the gap arose.
+- **Go-live and a warm-up rename are serialized with the termination too, and so is a compaction's registration
+  (#2040).** Both handovers write a bootstrap record of their own outside any flush - go-live the ALIVE record,
+  a rename the relabelled one before it reopens the storage - and engine shutdown can terminate a catalog while an
+  accepted one still runs on the engine executor. `Catalog#goLive()` and the handover of `Catalog#replace` now run
+  under `warmUpPublicationLock` and refuse once the termination bit is set, exactly as a flush's last step does, so
+  the termination either waits for the handover or the handover writes nothing. A go-live that finishes bars the
+  instance it supersedes, without scheduling a deactivation, so a termination of that instance can never store a
+  warm-up header after the ALIVE record. When shutdown captured the go-live's placeholder instead of the catalog,
+  the go-live outlives the engine state and its undo cannot put the catalog back behind the name; it now terminates
+  the real catalog - and the ALIVE successor, when there is one - rather than leaving their storage open. Separately,
+  a compaction finishing inside a collection write that the termination did not wait for registered its new storage on
+  the closed catalog service; `DefaultCatalogPersistenceService` now registers a compacted storage under the lock
+  `close()` flips `closed` under, and closes it again and fails the write when the service is closed.
 
 ## Verification
 
@@ -396,7 +409,7 @@ termination releases the lock, the idle-writer control fails on its own `isPubli
 closes - a queued call resuming between the unlock and the close of the persistence service - has no deterministic
 reproduction.
 
-`CatalogWarmUpTerminationBesideFlushTest` (10 tests) drives the flush a warm-up close starts - `Catalog#flush()`
+`CatalogWarmUpTerminationBesideFlushTest` (11 tests) drives the flush a warm-up close starts - `Catalog#flush()`
 executed on an executor that holds its collection writes back, the one seam there is, because the close dispatches to
 the engine's own transaction executor - and, where the termination itself must be held, a spy that pauses it once it
 has begun. One test per transition, each failing on its own counterfactual:
@@ -428,6 +441,19 @@ has begun. One test per transition, each failing on its own counterfactual:
   flush followed by a termination. Before the count-out moved into a `finally` in the failure handler and in the
   cancellation backstop, both terminations still found the flush in progress and warned that its work was dropped;
 - a flush finishing before termination, the control, publishes the write whole.
+
+`CatalogWarmUpTerminationBesideHandoverTest` (5 tests) calls `Catalog#goLive()` and `Catalog#replace` directly and
+holds each inside its bootstrap write - go-live through a spy on its last publishability check, the rename through the
+progress consumer of its future, which it reports to once its relabel is published. Before the change, a termination
+meeting either finished without queuing on the publication lock (`expected: <false> but was: <true>`), a go-live
+starting after the termination began threw nothing, and such a rename relabelled the catalog (`ended with: null`). A
+fifth case drives a real go-live through the engine, pauses it through its client progress observer, and closes the
+engine meanwhile: the go-live failed on the cleared engine state, its undo could not restore the catalog, and the
+catalog stayed open (`expected: <true> but was: <false>` on `isTerminated()`). The compaction case of
+`CatalogWarmUpTerminationBesideFlushTest` restarts the engine with eager compaction and pauses a compaction through
+the header supplier it asks after copying the records; before the change the closed catalog service held the
+compacted collection storage registered afterwards (`CollectionFileReference[entityType=CATEGORY, ... fileIndex=1
+...]`).
 
 `CatalogWarmUpTerminationCatalogIndexTest` (6 tests) covers the catalog index. Before the shared publication tail, both
 idle-writer tests failed - an inserted product missed by both lookups of its globally unique value (`expected:
@@ -471,12 +497,10 @@ but was: <false>`).
   drain undrained, so their sessions stay usable while their catalogs terminate. A session close's flush that is
   already running is covered since #2033 - see *Termination racing a running warm-up call*.
 - **What the warm-up publication guard does not cover.** Each read from the code, none reproduced:
-  - *Rename racing termination.* A warm-up rename replaces the bootstrap record through
-    `CatalogPersistenceService#replaceWith`, and nothing serializes that with a termination closing the same service.
-  - *Go-live's ALIVE bootstrap write.* `Catalog#goLive()` writes it after the go-live flush has completed, outside the
-    publication lock, so a shutdown overlapping a go-live that has already flushed is not serialized with it.
-  - *A compaction finishing after teardown.* A collection write that compacts registers its new storage service with
-    the catalog's service even when termination has closed that service meanwhile, and nothing closes the late one.
+  - *A rename of an ALIVE catalog racing termination.* The handover of `Catalog#replace` runs under the warm-up
+    publication lock, but the termination of an ALIVE catalog never takes it, so an ALIVE rename's relabel can still
+    meet the close of the same storage service. The remedy belongs to the storage layer -
+    `DefaultCatalogPersistenceService#close` waiting for the header and bootstrap writers - not to this lock.
   - *Two overlapping direct `Catalog#flush()` calls.* The count tolerates them, but a flush's last step does not look
     for another flush, so one can publish while the other's popped changes are still unwritten. Not reachable through
     sessions: warm-up admits one session at a time, and its mid-session flushes are joined.
@@ -529,4 +553,6 @@ but was: <false>`).
   through one atomic word plus a lock around the header write, the refusal was chosen over a bounded wait, and both
   publishers were given one publication tail. A review of the change then found a flush failing after its pop and a
   flush the session close could not submit leaving the barrier down, and a failed termination publication skipping
-  the release of the collection map - each fixed with a test - and the uncovered paths listed in the consequences
+  the release of the collection map - each fixed with a test - and the uncovered paths listed in the consequences.
+  Go-live, a warm-up rename and a compaction's registration were then serialized with the termination as well
+  (#2040), each reproduced first
