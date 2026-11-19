@@ -24,9 +24,7 @@
 package io.evitadb.index.mutation.local;
 
 import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
@@ -91,7 +89,6 @@ import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -102,10 +99,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.index.mutation.local.HistogramWithdrawalLogCapture.captureEvents;
+import static io.evitadb.index.mutation.local.HistogramWithdrawalLogCapture.captureReports;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.WAL;
@@ -124,10 +124,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Verifies the behavior on the presence check of the reference-histogram withdrawal, chosen by the hidden system
  * property `evitadb.referenceHistogram.missingValueBehavior` when the engine starts: `REFUSE` fails a write whose
  * withdrawal misses a value, `REPORT` logs the missing value at error level, skips its withdrawal and lets the write
- * go on.
+ * go on. An absent or blank property selects `REPORT`.
  *
  * The missing value is manufactured directly - removed from the index through the engine's own objects - rather than
- * borrowed from an open defect, so the cells keep a missing value when those defects are fixed. Every engine cell
+ * borrowed from an open defect, so the cells keep a missing value when those defects are fixed. Most engine cells
  * boots through {@link #boot}, which sets the property for the start and flips it to the opposite value right after,
  * so session writes must keep the value the engine started with. Committed WAL replay reports independently
  * of that value. The executor cells hand the behavior to the executor
@@ -245,15 +245,15 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	class SystemPropertyTest {
 
 		/**
-		 * An absent or blank value refuses, which is what an engine started without the property does.
+		 * An absent or blank value selects the reporting policy.
 		 */
 		@Test
-		@DisplayName("Refuse when the value is absent or blank")
-		void shouldRefuseWhenValueIsAbsentOrBlank() {
+		@DisplayName("Report when the value is absent or blank")
+		void shouldReportWhenValueIsAbsentOrBlank() {
 			assertAll(
-				() -> assertEquals(MissingHistogramValueBehavior.REFUSE, MissingHistogramValueBehavior.resolve(null)),
-				() -> assertEquals(MissingHistogramValueBehavior.REFUSE, MissingHistogramValueBehavior.resolve("")),
-				() -> assertEquals(MissingHistogramValueBehavior.REFUSE, MissingHistogramValueBehavior.resolve("  "))
+				() -> assertEquals(MissingHistogramValueBehavior.REPORT, MissingHistogramValueBehavior.resolve(null)),
+				() -> assertEquals(MissingHistogramValueBehavior.REPORT, MissingHistogramValueBehavior.resolve("")),
+				() -> assertEquals(MissingHistogramValueBehavior.REPORT, MissingHistogramValueBehavior.resolve("  "))
 			);
 		}
 
@@ -317,7 +317,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 
 		/**
 		 * An engine started with a value of the property that names no behavior refuses to start, naming the
-		 * property, the value and the values it accepts, rather than silently falling back to refusing. The refused
+		 * property, the value and the values it accepts. The refused
 		 * start keeps no lock on the storage folder: an engine starts on the same directories afterwards.
 		 */
 		@Test
@@ -354,59 +354,57 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		}
 
 		/**
-		 * An engine started with `REPORT` warns once, naming the property, so that an operator sees the escape hatch
-		 * is open; an engine started without the property warns nothing.
+		 * Verifies that start-up logs the selected behavior when it is set explicitly.
+		 *
+		 * @param behavior the explicitly configured policy
 		 */
-		@Test
-		@DisplayName("Announce the reporting behavior once when the engine starts")
-		void shouldAnnounceReportingModeWhenEngineStarts() {
-			final TestPaths paths = createTestPaths("missingHistogramValueAnnounced");
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(MissingHistogramValueBehavior.class)
+		@DisplayName("Announce an explicitly selected behavior once at INFO on engine start")
+		void shouldAnnounceExplicitBehaviorWhenEngineStarts(@Nonnull MissingHistogramValueBehavior behavior) {
+			final TestPaths paths = createTestPaths("missingHistogramValueAnnounced_" + behavior);
 			try {
-				final EvitaConfiguration configuration = configuration(paths, null);
-
-				final List<String> reporting = startWarnings(
-					() -> boot(configuration, MissingHistogramValueBehavior.REPORT).close()
+				final List<ILoggingEvent> events = captureEvents(
+					MissingHistogramValueBehavior.class, () -> boot(configuration(paths, null), behavior).close()
 				);
-				final List<String> refusing = startWarnings(() -> boot(configuration, null).close());
-
+				assertEquals(1, events.size());
+				final ILoggingEvent event = events.getFirst();
+				final String message = event.getFormattedMessage();
 				assertAll(
-					() -> assertEquals(1, reporting.size(), reporting::toString),
-					() -> assertTrue(
-						reporting.stream().allMatch(line -> line.contains(PROPERTY_NAME)), reporting::toString
-					),
-					() -> assertEquals(List.of(), refusing)
+					() -> assertEquals(Level.INFO, event.getLevel()),
+					() -> assertTrue(message.contains(PROPERTY_NAME), message),
+					() -> assertTrue(message.contains("`" + behavior.name() + "`"), message)
 				);
 			} finally {
+				restoreProperty();
 				cleanupTestPaths(paths);
 			}
 		}
 
 		/**
-		 * Runs the action with a list appender on the logger of {@link MissingHistogramValueBehavior} and returns the
-		 * warn-level messages it logged.
+		 * Verifies silent engine start when the property is absent or blank.
 		 *
-		 * @param action the action to run
-		 * @return the warn-level messages, in order
+		 * @param blank whether to set a blank property value
 		 */
-		@Nonnull
-		private static List<String> startWarnings(@Nonnull Runnable action) {
-			final Logger logger = (Logger) LoggerFactory.getLogger(MissingHistogramValueBehavior.class);
-			final ListAppender<ILoggingEvent> appender = new ListAppender<>();
-			appender.start();
-			logger.addAppender(appender);
+		@ParameterizedTest(name = "blank {0}")
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Start silently when the property is absent or blank")
+		void shouldStartSilentlyWhenPropertyIsAbsentOrBlank(boolean blank) {
+			final TestPaths paths = createTestPaths("missingHistogramValueSilent_" + blank);
 			try {
-				action.run();
-			} finally {
-				logger.detachAppender(appender);
-				appender.stop();
-			}
-			final List<String> warnings = new ArrayList<>(2);
-			for (final ILoggingEvent event : List.copyOf(appender.list)) {
-				if (event.getLevel() == Level.WARN) {
-					warnings.add(event.getFormattedMessage());
+				if (blank) {
+					System.setProperty(PROPERTY_NAME, "  ");
+				} else {
+					System.clearProperty(PROPERTY_NAME);
 				}
+				final List<ILoggingEvent> events = captureEvents(
+					MissingHistogramValueBehavior.class, () -> new Evita(configuration(paths, null)).close()
+				);
+				assertEquals(List.of(), events);
+			} finally {
+				restoreProperty();
+				cleanupTestPaths(paths);
 			}
-			return warnings;
 		}
 	}
 
@@ -419,7 +417,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	class ThroughEvitaTest {
 
 		/**
-		 * The engine started without the property refuses, and keeps refusing after the property says `REPORT`: it
+		 * The engine started with `REFUSE` keeps refusing after the property says `REPORT`. It
 		 * fails the write whose withdrawal misses the old value, naming the owner, the histogram and the value, and
 		 * logs no report.
 		 *
@@ -431,7 +429,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		void shouldRefuseWriteWhenValueToWithdrawIsMissing(boolean grouped) {
 			final String histogram = histogramName("refused", grouped);
 			final TestPaths paths = createTestPaths("missingHistogramValueRefused_" + grouped);
-			try (final Evita evita = boot(configuration(paths, null), null)) {
+			try (final Evita evita = boot(configuration(paths, null), MissingHistogramValueBehavior.REFUSE)) {
 				prepareProductWithMissingValue(evita, grouped, histogram);
 
 				final Outcome outcome = capture(histogram, () -> updateShare(evita, grouped, NEW_SHARE));
@@ -452,19 +450,18 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		}
 
 		/**
-		 * The engine started with `REPORT` completes the write, after the property has turned to `REFUSE`, and logs
-		 * one error line identifying the missing value. The final add of the write then leaves the histogram holding
-		 * the new value and not the old one.
+		 * An engine started without the property reports one error and completes the write after the property has
+		 * turned to `REFUSE`. The final add leaves the histogram holding the new value.
 		 *
 		 * @param grouped whether the reference belongs to a group, so the value lives in the group's histogram store
 		 */
 		@ParameterizedTest(name = "grouped {0}")
 		@ValueSource(booleans = {false, true})
-		@DisplayName("Report the missing value and complete the write")
-		void shouldReportMissingValueAndCompleteWrite(boolean grouped) {
+		@DisplayName("Report the missing value by default and complete the write")
+		void shouldReportMissingValueByDefaultAndCompleteWrite(boolean grouped) {
 			final String histogram = histogramName("reported", grouped);
 			final TestPaths paths = createTestPaths("missingHistogramValueReported_" + grouped);
-			try (final Evita evita = boot(configuration(paths, null), MissingHistogramValueBehavior.REPORT)) {
+			try (final Evita evita = boot(configuration(paths, null), null)) {
 				prepareProductWithMissingValue(evita, grouped, histogram);
 
 				final Outcome outcome = capture(histogram, () -> updateShare(evita, grouped, NEW_SHARE));
@@ -682,14 +679,14 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	class ReplayTest {
 
 		/**
-		 * Applies one mutation against the same missing value through both entry points under the refusing default.
+		 * Applies one mutation against the same missing value through both entry points with `REFUSE` selected.
 		 */
 		@Test
 		@DisplayName("Refuse the session mutation and report the same missing value through the replay entry")
 		void shouldRefuseSessionWriteAndReportThroughReplayEntry() {
 			final String histogram = "sharesByEntryPoint";
 			final TestPaths paths = createTestPaths("missingHistogramValueEntryPoint");
-			try (final Evita evita = boot(configuration(paths, null), null)) {
+			try (final Evita evita = boot(configuration(paths, null), MissingHistogramValueBehavior.REFUSE)) {
 				prepareProductWithMissingValue(evita, true, histogram);
 				final EntityUpsertMutation mutation = newShareMutation();
 				final Outcome sessionWrite = capture(histogram, () -> evita.updateCatalog(
@@ -730,7 +727,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 			final String histogram = "sharesReflected";
 			final TestPaths paths = createTestPaths("missingHistogramValueReflected");
 			final String productSite = "entity type `" + PRODUCT + "`";
-			try (final Evita evita = boot(configuration(paths, null), null)) {
+			try (final Evita evita = boot(configuration(paths, null), MissingHistogramValueBehavior.REFUSE)) {
 				prepareReflectedProductWithMissingValue(evita, histogram);
 				final EntityUpsertMutation mutation = newReflectedShareMutation();
 
@@ -772,11 +769,11 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		 * Only the entity mutation enters the WAL, so the alive trunk still encounters and reports the missing value.
 		 */
 		@Test
-		@DisplayName("Report a missing value during live trunk incorporation under the refusing default")
-		void shouldReportDuringLiveTrunkIncorporationWithRefusingDefault() {
+		@DisplayName("Report a missing value during live trunk incorporation with REFUSE selected")
+		void shouldReportDuringLiveTrunkIncorporationWithRefuseSelected() {
 			final String histogram = "sharesLiveReplay";
 			final TestPaths paths = createTestPaths("missingHistogramValueLiveReplay");
-			try (final Evita evita = boot(configuration(paths, null), null)) {
+			try (final Evita evita = boot(configuration(paths, null), MissingHistogramValueBehavior.REFUSE)) {
 				prepareAliveCatalogWithStoredMissingValue(evita, histogram);
 				assertStoredMissingValue(evita, histogram);
 				assertEquals(CatalogState.ALIVE, catalog(evita).getCatalogState());
@@ -875,7 +872,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 				assertImageLoaded(
 					reportImage, MissingHistogramValueBehavior.REPORT, deferredCheckpoint, histogram, appliedVersion, 1
 				);
-				// startup reports under the refusing default; the next clean restart has no tail left
+				// startup reports with `REFUSE` selected; the next clean restart has no tail left
 				assertImageLoaded(
 					refuseImage, MissingHistogramValueBehavior.REFUSE, deferredCheckpoint, histogram, appliedVersion, 1
 				);
@@ -886,7 +883,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 				assertImageLoaded(
 					refuseImage, MissingHistogramValueBehavior.REPORT, deferredCheckpoint, histogram, appliedVersion, 0
 				);
-				// the ordinary refusing behavior remains the engine's default
+				// switching back to REFUSE leaves the recovered state intact
 				assertImageLoaded(
 					refuseImage, MissingHistogramValueBehavior.REFUSE, deferredCheckpoint, histogram, appliedVersion, 0
 				);
@@ -917,7 +914,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 					paths, deferredCheckpoint, histogram, reportImage, refuseImage
 				);
 
-				// startup reports under the refusing default; the next clean restart has no tail left
+				// startup reports with `REFUSE` selected; the next clean restart has no tail left
 				assertImageLoaded(
 					refuseImage, MissingHistogramValueBehavior.REFUSE, deferredCheckpoint, histogram, appliedVersion, 1
 				);
@@ -1204,27 +1201,15 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private static Outcome capture(@Nonnull String histogram, @Nonnull Runnable action) {
-		final Logger logger = (Logger) LoggerFactory.getLogger(ReferenceIndexMutator.class);
-		final ListAppender<ILoggingEvent> appender = new ListAppender<>();
-		appender.start();
-		logger.addAppender(appender);
-		Throwable failure = null;
-		try {
-			action.run();
-		} catch (RuntimeException ex) {
-			failure = ex;
-		} finally {
-			logger.detachAppender(appender);
-			appender.stop();
-		}
-		final String histogramFragment = "histogram `" + histogram + "`";
-		final List<String> reports = new ArrayList<>(4);
-		for (final ILoggingEvent event : List.copyOf(appender.list)) {
-			if (event.getLevel() == Level.ERROR && event.getFormattedMessage().contains(histogramFragment)) {
-				reports.add(event.getFormattedMessage());
+		final AtomicReference<RuntimeException> failure = new AtomicReference<>();
+		final List<String> reports = captureReports(histogram, () -> {
+			try {
+				action.run();
+			} catch (RuntimeException ex) {
+				failure.set(ex);
 			}
-		}
-		return new Outcome(failure, reports);
+		});
+		return new Outcome(failure.get(), reports);
 	}
 
 	/**
@@ -1341,16 +1326,15 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the behavior opposite to the one an engine started with: `REFUSE` for `REPORT`, and `REPORT` for
-	 * `REFUSE` or an absent property, which refuses.
+	 * Returns the behavior opposite to the one an engine started with. An absent property selects `REPORT`.
 	 *
 	 * @param behavior the behavior at the start, or `null` for an absent property
 	 * @return the opposite behavior
 	 */
 	@Nonnull
 	private static MissingHistogramValueBehavior opposite(@Nullable MissingHistogramValueBehavior behavior) {
-		return behavior == MissingHistogramValueBehavior.REPORT ?
-			MissingHistogramValueBehavior.REFUSE : MissingHistogramValueBehavior.REPORT;
+		return behavior == MissingHistogramValueBehavior.REFUSE ?
+			MissingHistogramValueBehavior.REPORT : MissingHistogramValueBehavior.REFUSE;
 	}
 
 	/**

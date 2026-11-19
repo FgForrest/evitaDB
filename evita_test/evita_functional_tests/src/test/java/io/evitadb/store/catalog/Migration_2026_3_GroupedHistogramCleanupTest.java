@@ -23,10 +23,8 @@
 
 package io.evitadb.store.catalog;
 
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.index.EntityIndexType;
@@ -52,7 +50,6 @@ import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.LocalizedHistogramIndex;
 import io.evitadb.index.SimpleHistogramIndex;
 import io.evitadb.index.component.loader.VirtualReferencePartitionLoader;
-import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.index.virtual.CatalogReloadTestSupport;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
@@ -65,14 +62,12 @@ import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -89,12 +84,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.index.mutation.local.HistogramWithdrawalLogCapture.captureReports;
 import static io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramLeafStreamKey.StreamKind.*;
 import static io.evitadb.store.catalog.OfflineCatalogImages.*;
 import static io.evitadb.test.TestTags.HISTOGRAM;
@@ -130,27 +125,14 @@ class Migration_2026_3_GroupedHistogramCleanupTest implements EvitaTestSupport {
 	private static final TransactionOptions DEFERRED = TransactionOptions.builder()
 		.checkpointIntervalInMillis(3_600_000L).build();
 	private final List<TestPaths> paths = new ArrayList<>(4);
-	@Nullable private String originalProperty;
 
-	/** Remembers the property and makes every ordinary cell start with the refusing default. */
-	@BeforeEach
-	void rememberProperty() {
-		this.originalProperty = System.getProperty(PROPERTY);
-		System.clearProperty(PROPERTY);
-	}
-
-	/** Restores the property and removes every generated image after its engine has closed. */
+	/** Removes every generated image after its engine has closed. */
 	@AfterEach
 	void cleanUp() {
-		if (this.originalProperty == null) {
-			System.clearProperty(PROPERTY);
-		} else {
-			System.setProperty(PROPERTY, this.originalProperty);
-		}
 		this.paths.forEach(this::cleanupTestPaths);
 	}
 
-	/** Verifies one publication, both grouped manifest kinds and every part, keeping ungrouped histograms intact. */
+	/** Verifies one publication, the surviving ungrouped histogram and the default policy on a grouped update. */
 	@Test
 	@DisplayName("one publication removes grouped roots, counters and both leaf streams and keeps ungrouped values")
 	void shouldCleanGroupedHistogramsWithOnePublication() {
@@ -162,15 +144,20 @@ class Migration_2026_3_GroupedHistogramCleanupTest implements EvitaTestSupport {
 		assertEquals(before + 1, bootstrapRecords(configuration, CATALOG).size());
 		assertEquals(PROTOCOL, lastBootstrap(configuration, CATALOG).storageProtocolVersion());
 
-		try (Evita evita = new Evita(configuration)) {
+		try (Evita evita = boot(configuration, null)) {
 			evita.waitUntilFullyInitialized();
 			assertNull(readHistogram(evita, BRAND, 1));
 			assertHistogram(readHistogram(evita, TAG, null), 5, 9, 2, "the kept ungrouped histogram");
-			final RuntimeException refusal = assertThrows(RuntimeException.class, () -> updateShare(evita, 1, 7));
-			assertTrue(messages(refusal).contains("Cannot withdraw histogram value"), messages(refusal));
+			final List<String> reports = evita.updateCatalog(CATALOG, session -> {
+				return captureReports(HISTOGRAM_NAME, () -> updateShare(session, 1, 7));
+			});
+			assertEquals(1, reports.size(), reports::toString);
+			assertTrue(reports.getFirst().startsWith("Cannot withdraw histogram value"), reports::toString);
+			assertHistogram(readHistogram(evita, BRAND, 1), 7, 7, 1, "the updated grouped histogram");
+			assertHistogram(readHistogram(evita, TAG, null), 5, 9, 2, "the kept ungrouped histogram");
 		}
 		final EvitaConfiguration rebuilt = writeImage("rebuilt");
-		try (Evita evita = new Evita(rebuilt)) {
+		try (Evita evita = boot(rebuilt, null)) {
 			evita.waitUntilFullyInitialized();
 			assertHistogram(readHistogram(evita, BRAND, 1), 5, 9, 2, "the rebuilt grouped oracle");
 		}
@@ -197,10 +184,11 @@ class Migration_2026_3_GroupedHistogramCleanupTest implements EvitaTestSupport {
 		makeLegacyImage(configuration, null);
 		stamp(configuration, CATALOG, 6, 6);
 		withOfflineCatalog(configuration, CATALOG, service -> Boolean.TRUE);
-		System.setProperty(PROPERTY, "REPORT");
-		try (Evita evita = new Evita(configuration)) {
+		try (final Evita evita = boot(configuration, "REPORT")) {
 			evita.waitUntilFullyInitialized();
-			updateShare(evita, 1, 7);
+			evita.updateCatalog(CATALOG, session -> {
+				updateShare(session, 1, 7);
+			});
 			assertEquals(7, requireNonNull(readHistogram(evita, BRAND, 1)).getMin().intValue());
 		}
 	}
@@ -213,7 +201,7 @@ class Migration_2026_3_GroupedHistogramCleanupTest implements EvitaTestSupport {
 		final EvitaConfiguration configuration = writeImage("reload_" + kind);
 		makeLegacyImage(configuration, kind);
 		stamp(configuration, CATALOG, PROTOCOL, PROTOCOL);
-		try (Evita evita = new Evita(configuration)) {
+		try (Evita evita = boot(configuration, null)) {
 			final CompletionException refusal =
 				assertThrows(CompletionException.class, evita::waitUntilFullyInitialized);
 			assertTrue(messages(refusal).contains("histogram keys"), messages(refusal));
@@ -232,13 +220,15 @@ class Migration_2026_3_GroupedHistogramCleanupTest implements EvitaTestSupport {
 		final TestPaths source = allocate("tailSource");
 		final TestPaths crash = allocate("tailImage");
 		final EvitaConfiguration sourceConfiguration = configuration(source);
-		try (Evita evita = new Evita(sourceConfiguration)) {
+		try (Evita evita = boot(sourceConfiguration, null)) {
 			populate(evita);
 		}
 		final long tailVersion;
-		try (Evita evita = new Evita(sourceConfiguration)) {
+		try (Evita evita = boot(sourceConfiguration, null)) {
 			evita.waitUntilFullyInitialized();
-			updateShare(evita, 1, 7);
+			evita.updateCatalog(CATALOG, session -> {
+				updateShare(session, 1, 7);
+			});
 			await().atMost(30, TimeUnit.SECONDS).until(() -> {
 				final Catalog catalog = catalog(evita);
 				return catalog.getVersion() == catalog.getLastCatalogVersionInMutationStream();
@@ -254,25 +244,49 @@ class Migration_2026_3_GroupedHistogramCleanupTest implements EvitaTestSupport {
 		final EvitaConfiguration configuration = configuration(crash);
 		makeLegacyImage(configuration, null);
 		stamp(configuration, CATALOG, 6, 6);
-		System.setProperty(PROPERTY, "REFUSE");
-		final Logger logger = (Logger) LoggerFactory.getLogger(ReferenceIndexMutator.class);
-		final ListAppender<ILoggingEvent> appender = new ListAppender<>();
-		appender.list = new CopyOnWriteArrayList<>();
-		appender.start();
-		logger.addAppender(appender);
-		try (Evita evita = new Evita(configuration)) {
-			evita.waitUntilFullyInitialized();
-			assertEquals(CatalogState.ALIVE, evita.getCatalogState(CATALOG).orElseThrow());
-			assertEquals(tailVersion, catalog(evita).getVersion());
-			assertTrue(appender.list.stream().anyMatch(event -> event.getFormattedMessage()
-				.contains("Cannot withdraw histogram value") && event.getFormattedMessage().contains(HISTOGRAM_NAME)));
-			// the cleanup emptied the grouped histogram, so only the replayed value of owner 1 is in it
-			assertHistogram(readHistogram(evita, BRAND, 1), 7, 7, 1, "the grouped histogram after replay");
-			final RuntimeException refusal = assertThrows(RuntimeException.class, () -> updateShare(evita, 2, 11));
-			assertTrue(messages(refusal).contains("Cannot withdraw histogram value"), messages(refusal));
+		final List<String> reports = captureReports(HISTOGRAM_NAME, () -> {
+			try (final Evita evita = boot(configuration, "REFUSE")) {
+				evita.waitUntilFullyInitialized();
+				assertEquals(CatalogState.ALIVE, evita.getCatalogState(CATALOG).orElseThrow());
+				assertEquals(tailVersion, catalog(evita).getVersion());
+				// the cleanup emptied the grouped histogram, so only the replayed value of owner 1 is in it
+				assertHistogram(readHistogram(evita, BRAND, 1), 7, 7, 1, "the grouped histogram after replay");
+				final RuntimeException refusal = assertThrows(RuntimeException.class, () ->
+					evita.updateCatalog(CATALOG, session -> {
+						updateShare(session, 2, 11);
+					})
+				);
+				assertTrue(messages(refusal).contains("Cannot withdraw histogram value"), messages(refusal));
+			}
+		});
+		assertTrue(
+			reports.stream().anyMatch(line -> line.startsWith("Cannot withdraw histogram value")), reports::toString
+		);
+	}
+
+	/**
+	 * Boots the engine with the selected policy and restores the system property after construction.
+	 *
+	 * @param configuration the engine configuration
+	 * @param behavior the explicit policy name, or null for the default
+	 * @return the engine over the configured image
+	 */
+	@Nonnull
+	private static Evita boot(@Nonnull EvitaConfiguration configuration, @Nullable String behavior) {
+		final String originalProperty = System.getProperty(PROPERTY);
+		try {
+			if (behavior == null) {
+				System.clearProperty(PROPERTY);
+			} else {
+				System.setProperty(PROPERTY, behavior);
+			}
+			return new Evita(configuration);
 		} finally {
-			logger.detachAppender(appender);
-			appender.stop();
+			if (originalProperty == null) {
+				System.clearProperty(PROPERTY);
+			} else {
+				System.setProperty(PROPERTY, originalProperty);
+			}
 		}
 	}
 
@@ -454,7 +468,7 @@ class Migration_2026_3_GroupedHistogramCleanupTest implements EvitaTestSupport {
 	@Nonnull
 	private EvitaConfiguration writeImage(@Nonnull String name) {
 		final EvitaConfiguration configuration = configuration(allocate(name));
-		try (Evita evita = new Evita(configuration)) {
+		try (Evita evita = boot(configuration, null)) {
 			populate(evita);
 		}
 		return configuration;
@@ -500,16 +514,13 @@ class Migration_2026_3_GroupedHistogramCleanupTest implements EvitaTestSupport {
 	}
 
 	/** Applies a reference-attribute change to one existing owner without replacing the reference. */
-	private static void updateShare(@Nonnull Evita evita, int owner, int value) {
-		evita.updateCatalog(CATALOG, session -> {
-			final ReferenceKey key = session.getEntity(PRODUCT, owner, entityFetchAllContent()).orElseThrow()
-				.getReferences(BRAND).iterator().next().getReferenceKey();
-			session.upsertEntity(new EntityUpsertMutation(
-				PRODUCT, owner, EntityExistence.MUST_EXIST,
-				new ReferenceAttributeMutation(key,
-					new UpsertAttributeMutation(SHARE, value))
-			));
-		});
+	private static void updateShare(@Nonnull EvitaSessionContract session, int owner, int value) {
+		final ReferenceKey key = session.getEntity(PRODUCT, owner, entityFetchAllContent()).orElseThrow()
+			.getReferences(BRAND).iterator().next().getReferenceKey();
+		session.upsertEntity(new EntityUpsertMutation(
+			PRODUCT, owner, EntityExistence.MUST_EXIST,
+			new ReferenceAttributeMutation(key, new UpsertAttributeMutation(SHARE, value))
+		));
 	}
 
 	/** Queries the grouped or ungrouped reference histogram from the public summary. */

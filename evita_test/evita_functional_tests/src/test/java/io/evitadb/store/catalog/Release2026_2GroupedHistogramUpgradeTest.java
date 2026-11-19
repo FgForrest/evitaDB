@@ -23,6 +23,7 @@
 
 package io.evitadb.store.catalog;
 
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
@@ -52,7 +53,6 @@ import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.upgrade.ReleaseFixtureWriter;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -75,6 +75,7 @@ import java.util.function.Function;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.index.mutation.local.HistogramWithdrawalLogCapture.captureReports;
 import static io.evitadb.store.catalog.OfflineCatalogImages.withOfflineCatalog;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -90,8 +91,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * Upgrades grouped histograms actually persisted by release 2026.2.18, inspecting the original storage parts
  * before any migration. Cleanup publishes once, removes the grouped histograms from the group membership indexes
  * without filling any group store, and preserves the ungrouped histogram. An ordinary update withdrawing a grouped
- * value the release recorded is therefore refused; replacing the catalog from the recipe's source data builds the
- * group stores and allows the same update.
+ * value the release recorded reports the missing value by default. Replacing the catalog from the recipe's source data
+ * builds the group stores with all values.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -111,7 +112,7 @@ class Release2026_2GroupedHistogramUpgradeTest implements EvitaTestSupport {
 		"5|9|2|5:1:50.00,6:0:0.00,7:0:0.00,8:0:0.00,9:1:50.00";
 	/**
 	 * System property {@link io.evitadb.index.mutation.local.MissingHistogramValueBehavior} reads once when an engine
-	 * starts: unset, a write withdrawing a missing histogram value is refused; `REPORT` logs it and continues.
+	 * starts. An absent setting selects `REPORT`, and `REFUSE` can be selected explicitly.
 	 */
 	private static final String PROPERTY = "evitadb.referenceHistogram.missingValueBehavior";
 	/** The two group membership index kinds whose manifests the release filled with grouped histogram keys. */
@@ -120,27 +121,9 @@ class Release2026_2GroupedHistogramUpgradeTest implements EvitaTestSupport {
 	private final ReleaseFixtureHarness harness = new ReleaseFixtureHarness(this);
 	/** Fixture copies and replacement catalogs the test created, deleted after it. */
 	private final List<TestPaths> paths = new ArrayList<>(2);
-	/** Value of {@link #PROPERTY} before the test, restored after it; `null` when it was unset. */
-	@Nullable private String originalProperty;
-
-	/** Uses the ordinary refusing policy independently of the invoking environment. */
-	@BeforeEach
-	void rememberProperty() {
-		this.originalProperty = System.getProperty(PROPERTY);
-		System.clearProperty(PROPERTY);
-	}
-
-	/**
-	 * Restores {@link #PROPERTY} to its value before the test, or clears it when it was unset, and deletes all
-	 * private fixture copies.
-	 */
+	/** Deletes all private fixture copies after the test. */
 	@AfterEach
 	void cleanUp() {
-		if (this.originalProperty == null) {
-			System.clearProperty(PROPERTY);
-		} else {
-			System.setProperty(PROPERTY, this.originalProperty);
-		}
 		this.paths.forEach(this.harness::cleanup);
 	}
 
@@ -199,8 +182,8 @@ class Release2026_2GroupedHistogramUpgradeTest implements EvitaTestSupport {
 		assertEquals(before.size() + 1, after.size(), "exactly one upgrade publication");
 		assertEquals(before, after.subList(0, before.size()));
 		assertEquals(9, after.getLast().storageProtocolVersion());
-		for (int boot = 0; boot < 2; boot++) {
-			try (Evita evita = this.harness.boot(copy)) {
+		for (int attempt = 0; attempt < 2; attempt++) {
+			try (Evita evita = boot(copy, null)) {
 				ReleaseFixtureHarness.requireAlive(evita, FIXTURE);
 				assertEquals(9, ReleaseFixtureHarness.headerStorageProtocol(evita, FIXTURE));
 				assertNull(ReleaseFixtureHarness.entityCollection(evita, FIXTURE, PRODUCT)
@@ -215,19 +198,54 @@ class Release2026_2GroupedHistogramUpgradeTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * The upgrade removed the grouped histograms the release recorded and filled no group store, so changing owner
-	 * 1's share from 5 to 7 withdraws value 5 from a group store that does not exist. An ordinary update refuses
-	 * with the exact missing contribution and leaves the stored share and both histogram answers as the upgrade left
-	 * them, also after reload.
+	 * The upgraded catalog starts without a group store. The default policy reports the missing value as the session
+	 * changes the share from 5 to 7. The new value is persisted, while the ungrouped histogram stays intact.
 	 */
 	@Test
-	@DisplayName("a missing grouped contribution refuses the update and preserves the stored share")
-	void shouldRefuseMissingGroupedWithdrawalAndPreserveStoredValue() {
+	@DisplayName("the default policy reports the missing grouped value and commits the update")
+	void shouldReportMissingGroupedWithdrawalByDefaultAndPersistUpdate() {
 		final TestPaths copy = copy();
-		try (Evita evita = this.harness.boot(copy)) {
+		try (final Evita evita = boot(copy, null)) {
 			ReleaseFixtureHarness.requireAlive(evita, FIXTURE);
 			assertStoredShare(evita, 5);
-			final RuntimeException refusal = assertThrows(RuntimeException.class, () -> updateGroupedShare(evita));
+			assertNull(histogram(evita, BRAND, 10));
+			final List<String> reports = evita.updateCatalog(
+				FIXTURE, session -> {
+					return captureReports("shares", () -> updateGroupedShare(session));
+				}
+			);
+			assertEquals(1, reports.size(), reports::toString);
+			assertTrue(reports.getFirst().startsWith("Cannot withdraw histogram value"), reports::toString);
+			assertUpdatedUpgradeCatalog(evita);
+		}
+		try (final Evita evita = boot(copy, null)) {
+			ReleaseFixtureHarness.requireAlive(evita, FIXTURE);
+			assertUpdatedUpgradeCatalog(evita);
+		}
+	}
+
+	/** Checks the stored update, the newly indexed value and the retained ungrouped histogram. */
+	private static void assertUpdatedUpgradeCatalog(@Nonnull Evita evita) {
+		assertStoredShare(evita, 7);
+		assertHistogramMatchesValues(requireNonNull(histogram(evita, BRAND, 10)), Map.of(7, List.of(1)));
+		assertEquals(RELEASE_UNGROUPED_ANSWER, histogramAnswer(requireNonNull(histogram(evita, "tag", null))));
+	}
+
+	/**
+	 * The upgrade removed the grouped histograms the release recorded and filled no group store, so changing owner
+	 * 1's share from 5 to 7 withdraws value 5 from a group store that does not exist. With `REFUSE` configured, the
+	 * error identifies the missing contribution. The stored share and both histogram answers survive reload.
+	 */
+	@Test
+	@DisplayName("explicit REFUSE preserves the stored share when the grouped contribution is missing")
+	void shouldRefuseMissingGroupedWithdrawalAndPreserveStoredValue() {
+		final TestPaths copy = copy();
+		try (final Evita evita = boot(copy, "REFUSE")) {
+			ReleaseFixtureHarness.requireAlive(evita, FIXTURE);
+			assertStoredShare(evita, 5);
+			final RuntimeException refusal = assertThrows(RuntimeException.class, () ->
+				evita.updateCatalog(FIXTURE, Release2026_2GroupedHistogramUpgradeTest::updateGroupedShare)
+			);
 			final GenericEvitaInternalError missingContribution =
 				findInCauseChain(refusal, GenericEvitaInternalError.class);
 			assertNotNull(missingContribution, "the refusal must identify a missing histogram contribution");
@@ -242,7 +260,7 @@ class Release2026_2GroupedHistogramUpgradeTest implements EvitaTestSupport {
 			assertNull(histogram(evita, BRAND, 10));
 			assertEquals(RELEASE_UNGROUPED_ANSWER, histogramAnswer(requireNonNull(histogram(evita, "tag", null))));
 		}
-		try (Evita evita = this.harness.boot(copy)) {
+		try (final Evita evita = boot(copy, "REFUSE")) {
 			ReleaseFixtureHarness.requireAlive(evita, FIXTURE);
 			assertStoredShare(evita, 5);
 			assertNull(histogram(evita, BRAND, 10));
@@ -252,7 +270,8 @@ class Release2026_2GroupedHistogramUpgradeTest implements EvitaTestSupport {
 
 	/**
 	 * Replaces the catalog from source in a new catalog directory, not the upgraded copy, and applies the same 5-to-7
-	 * update the upgraded copy refuses. The replacement's group store, grouped values and unchanged ungrouped answer
+	 * update exercised on the upgraded copy. The update runs under an explicit `REFUSE`, so a withdrawal that misses
+	 * its value fails it instead of being reported. The replacement's group store, grouped values and ungrouped answer
 	 * must survive reload.
 	 */
 	@Test
@@ -260,16 +279,17 @@ class Release2026_2GroupedHistogramUpgradeTest implements EvitaTestSupport {
 	void shouldAllowSameUpdateAfterReplacingCatalogFromSource() {
 		final TestPaths replacement = createTestPaths("ReleaseGroupedHistogramReplacedFromSource");
 		this.paths.add(replacement);
-		try (Evita evita = this.harness.boot(replacement)) {
+		try (Evita evita = boot(replacement, "REFUSE")) {
 			ReleaseFixtureWriter.replay(evita, ReleaseFixtureHarness.recipe(FIXTURE));
 			ReleaseFixtureHarness.requireAlive(evita, FIXTURE);
 			assertStoredShare(evita, 5);
 			assertHistogramMatchesValues(
 				requireNonNull(histogram(evita, BRAND, 10)), Map.of(5, List.of(1), 9, List.of(2)));
-			assertDoesNotThrow(() -> updateGroupedShare(evita));
+			assertDoesNotThrow(() ->
+				evita.updateCatalog(FIXTURE, Release2026_2GroupedHistogramUpgradeTest::updateGroupedShare));
 			assertUpdatedSourceCatalog(evita);
 		}
-		try (Evita evita = this.harness.boot(replacement)) {
+		try (Evita evita = boot(replacement, null)) {
 			ReleaseFixtureHarness.requireAlive(evita, FIXTURE);
 			assertNotNull(ReleaseFixtureHarness.entityCollection(evita, FIXTURE, PRODUCT)
 					.getIndexByKeyIfExists(GroupHistogramEntityIndex.keyOf(BRAND, 10, Scope.LIVE)),
@@ -292,12 +312,10 @@ class Release2026_2GroupedHistogramUpgradeTest implements EvitaTestSupport {
 		});
 	}
 
-	/** Applies the identical grouped share update in both the refusal and source-replacement cells. */
-	private static void updateGroupedShare(@Nonnull Evita evita) {
-		evita.updateCatalog(FIXTURE, session -> {
-			session.getEntity(PRODUCT, 1, entityFetchAllContent()).orElseThrow().openForWrite()
-				.updateReference(BRAND, 1, ref -> ref.setAttribute("share", 7)).upsertVia(session);
-		});
+	/** Applies the grouped share update used on both upgraded and source-replacement catalogs. */
+	private static void updateGroupedShare(@Nonnull EvitaSessionContract session) {
+		session.getEntity(PRODUCT, 1, entityFetchAllContent()).orElseThrow().openForWrite()
+			.updateReference(BRAND, 1, ref -> ref.setAttribute("share", 7)).upsertVia(session);
 	}
 
 	/** Checks the source replacement after the update, including its independent ungrouped histogram. */
@@ -313,6 +331,32 @@ class Release2026_2GroupedHistogramUpgradeTest implements EvitaTestSupport {
 		final TestPaths result = this.harness.copy(FIXTURE);
 		this.paths.add(result);
 		return result;
+	}
+
+	/**
+	 * Boots the engine with the selected policy and restores the system property after construction.
+	 *
+	 * @param paths the private fixture directories
+	 * @param behavior the explicit policy name, or null for the default
+	 * @return the engine over the fixture
+	 */
+	@Nonnull
+	private Evita boot(@Nonnull TestPaths paths, @Nullable String behavior) {
+		final String originalProperty = System.getProperty(PROPERTY);
+		try {
+			if (behavior == null) {
+				System.clearProperty(PROPERTY);
+			} else {
+				System.setProperty(PROPERTY, behavior);
+			}
+			return this.harness.boot(paths);
+		} finally {
+			if (originalProperty == null) {
+				System.clearProperty(PROPERTY);
+			} else {
+				System.setProperty(PROPERTY, originalProperty);
+			}
+		}
 	}
 
 	/** Provides configuration for offline storage readers using the same private image directories. */

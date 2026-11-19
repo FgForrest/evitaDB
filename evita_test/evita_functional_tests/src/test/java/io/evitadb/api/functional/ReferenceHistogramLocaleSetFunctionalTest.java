@@ -111,8 +111,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   which changes a value and no locale.
  *
  * Every scenario runs with the catalog in warm-up and alive, checks the histograms after a restart too, and ends
- * with a follow-up change of the same references, so a value left behind or missing shows as a wrong histogram or as
- * a refused withdrawal.
+ * with a follow-up change of the same references. Assertions on the histogram contents detect missing or stale values.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -986,7 +985,7 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 				recordLocaleSetState(evita, "after the upsert and restart", scenario.afterUpsert(), checks);
 				recordGermanLabels(evita, "after the upsert and restart", scenario.germanLabels(), checks);
 
-				// the follow-up withdraws what the upsert left: a missing value is refused, a stale one stays
+				// the follow-up withdraws what the upsert left for the current locales
 				applyUpdate(evita, "the follow-up", checks, scenario.followUp());
 				recordLocaleSetState(evita, "after the follow-up", scenario.afterFollowUp(), checks);
 				evita = restart(evita, configuration);
