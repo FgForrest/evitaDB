@@ -74,6 +74,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -485,6 +486,36 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 	}
 
 	@Nested
+	@DisplayName("when the session close cannot submit the writes of its flush")
+	class RejectedFlushSubmission {
+
+		@Test
+		@DisplayName("should bar every later publication")
+		void shouldBarPublicationWhenSessionCloseCannotSubmitItsFlush() {
+			final CatalogWarmUpTerminationBesideFlushTest test = CatalogWarmUpTerminationBesideFlushTest.this;
+			test.restartWithTransactionPool();
+			final Catalog catalog = test.catalog();
+			final EvitaSessionContract writer = test.evita.createReadWriteSession(TEST_CATALOG);
+			writeProductAndCategory(writer);
+			test.saturateTransactionPool();
+
+			final RuntimeException refusal = assertThrows(
+				RuntimeException.class,
+				() -> writer.closeNow(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION),
+				"a close whose flush cannot be submitted must fail"
+			);
+			assertInstanceOf(
+				RejectedExecutionException.class, rootCause(refusal),
+				"the close must fail on the refused submission, but it failed with: " + refusal
+			);
+			assertFalse(
+				catalog.isPublishable(),
+				"the refused flush has popped changes no later flush can recover, so the catalog must not publish again"
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("when the termination runs right behind a flush that published")
 	class TerminationBehindPublishedFlush {
 
@@ -796,6 +827,25 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 			);
 		}
 		awaitLatch(held, "the transaction workers were never all held");
+	}
+
+	/**
+	 * Holds every worker of the restarted engine's transaction pool and fills its backlog, so that the next plain
+	 * submission to the pool is refused.
+	 */
+	private void saturateTransactionPool() {
+		holdTransactionWorkers();
+		try {
+			for (int i = 0; i <= TRANSACTION_QUEUE_SIZE; i++) {
+				this.evita.getTransactionExecutor().execute(
+					() -> awaitLatch(this.releaseTransactionWorkers, "the transaction workers were never released")
+				);
+			}
+		} catch (RejectedExecutionException full) {
+			// the backlog is full - the next plain submission is refused too
+			return;
+		}
+		fail("the transaction pool accepted more tasks than its backlog holds");
 	}
 
 	/**
