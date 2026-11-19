@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint;
 
 import graphql.schema.GraphQLInputObjectField;
+import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInputType;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
@@ -86,7 +87,7 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 	);
 
 	protected RequireConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
-	                                         @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintSchemaBuilder<GraphQLConstraintSchemaBuildingContext, GraphQLInputType, GraphQLInputType, GraphQLInputObjectField>>> additionalBuilders,
+	                                         @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintSchemaBuilder<GraphQLConstraintSchemaBuildingContext, GraphQLInputType, GraphQLInputObjectType, GraphQLInputObjectField>>> additionalBuilders,
 	                                         @Nonnull Set<Class<? extends Constraint<?>>> allowedConstraints) {
 		super(
 			sharedContext, additionalBuilders, allowedConstraints, Set.of());
