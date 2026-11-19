@@ -32,6 +32,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -186,6 +188,26 @@ class ParserExecutorTest {
 
 			assertTrue(thrown.getMessage().contains("Result of parse execution is null"));
 		}
+
+		/**
+		 * Every parser entry point goes through this method, so the check for positional arguments that no
+		 * placeholder used runs here, after the whole input was parsed, and the context is cleared even then.
+		 */
+		@Test
+		@DisplayName("should refuse positional arguments the supplier left unused and clear the context")
+		void shouldRefuseUnusedPositionalArgumentsAndClearContext() {
+			final ParseContext context = new ParseContext(1, 2);
+
+			assertThrows(
+				EvitaSyntaxException.class,
+				() -> ParserExecutor.execute(context, () -> {
+					ParserExecutor.getContext().getNextPositionalArgument();
+					return "parsed";
+				})
+			);
+
+			assertThrows(EvitaInternalError.class, ParserExecutor::getContext);
+		}
 	}
 
 	@Nested
@@ -195,7 +217,7 @@ class ParserExecutorTest {
 		@Test
 		@DisplayName("should return context during execution")
 		void shouldReturnContextDuringExecution() {
-			final ParseContext context = new ParseContext("arg1");
+			final ParseContext context = new ParseContext(Map.of("name", "value"));
 
 			final ParseContext result = ParserExecutor.execute(context, ParserExecutor::getContext);
 

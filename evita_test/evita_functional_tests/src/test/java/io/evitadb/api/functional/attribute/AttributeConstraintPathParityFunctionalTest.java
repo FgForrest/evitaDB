@@ -301,13 +301,6 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 	 * The case must select no owner on any arm.
 	 */
 	private static final Expectation NOTHING = new Expectation("[]");
-	/**
-	 * The refusal of an array passed as the value of a constraint over a scalar attribute. The message goes on with the
-	 * list of the supported types, which this test does not pin.
-	 */
-	private static final Expectation UNSUPPORTED_ARRAY = new Expectation(
-		"ERR UnsupportedDataTypeException: Type [Ljava.lang.Integer; is not supported.", true
-	);
 	private static final String FROM_TO_REFUSAL = "ERR EvitaInvalidUsageException: From must be lower than to: ";
 	private static final String PREFETCHED_MARK = " [prefetched]";
 	private static final String NOT_PREFETCHED_MARK = " [NOT-prefetched]";
@@ -1259,7 +1252,9 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Lists every case.
+	 * Lists the cases that reach at least one engine execution path.
+	 *
+	 * @return the path parity cases
 	 */
 	@Nonnull
 	private static List<Case> cases() {
@@ -1532,12 +1527,6 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 
 		// Integer[]: {1,2,3} {4,5} {} {2,9}
 		cases.add(new Case(INTEGER_ARRAY, "equals(2)", a -> attributeEquals(a, 2), SELECTS));
-		cases.add(
-			new Case(
-				INTEGER_ARRAY, "equals(new Integer[]{4,5})",
-				a -> attributeEquals(a, new Integer[]{4, 5}), UNSUPPORTED_ARRAY
-			)
-		);
 		cases.add(new Case(INTEGER_ARRAY, "inSet(5,9)", a -> attributeInSet(a, new Integer[]{5, 9}), SELECTS));
 		cases.add(new Case(INTEGER_ARRAY, "lessThan(2)", a -> attributeLessThan(a, 2), SELECTS));
 		cases.add(new Case(INTEGER_ARRAY, "lessThanEquals(1)", a -> attributeLessThanEquals(a, 1), SELECTS));
@@ -1587,56 +1576,6 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 			new Case(
 				DECIMAL, "between(1.004,1.001) bounds equal once rounded",
 				a -> attributeBetween(a, new BigDecimal("1.004"), new BigDecimal("1.001")), SELECTS
-			)
-		);
-
-		// the array a client may pass as the value of a scalar constraint
-		cases.add(
-			new Case(
-				INTEGER, "equals(new Integer[]{1,5})",
-				a -> attributeEquals(a, new Integer[]{1, 5}), UNSUPPORTED_ARRAY
-			)
-		);
-		cases.add(
-			new Case(
-				INTEGER, "equals(new Integer[]{10})",
-				a -> attributeEquals(a, new Integer[]{10}), UNSUPPORTED_ARRAY
-			)
-		);
-		cases.add(
-			new Case(
-				INTEGER, "equals(new Integer[0])",
-				a -> attributeEquals(a, new Integer[0]), UNSUPPORTED_ARRAY
-			)
-		);
-		cases.add(
-			new Case(
-				INTEGER, "lessThan(new Integer[]{10})", a -> attributeLessThan(a, new Integer[]{10}), UNSUPPORTED_ARRAY
-			)
-		);
-		cases.add(
-			new Case(
-				INTEGER, "lessThan(new Integer[0])",
-				a -> attributeLessThan(a, new Integer[0]), UNSUPPORTED_ARRAY
-			)
-		);
-		cases.add(
-			new Case(
-				STRING, "equals(new String[]{NFC cafe,bar})",
-				a -> attributeEquals(a, new String[]{NFC_CAFE, "bar"}), NOTHING
-			)
-		);
-		cases.add(new Case(STRING, "equals(new String[0])", a -> attributeEquals(a, new String[0]), NOTHING));
-		cases.add(
-			new Case(
-				STRING, "greaterThan(new String[]{bar})", a -> attributeGreaterThan(a, new String[]{"bar"}),
-				expect("[1, 2, 3, 4, 5]")
-			)
-		);
-		cases.add(
-			new Case(
-				STRING, "greaterThan(new String[0])",
-				a -> attributeGreaterThan(a, new String[0]), expect("[1, 2, 3, 4, 5]")
 			)
 		);
 

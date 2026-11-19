@@ -30,10 +30,12 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.List;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
@@ -84,6 +86,27 @@ class HistogramHavingTest {
 	@Nested
 	@DisplayName("Construction")
 	class ConstructionTest {
+
+		/** Checks both bound positions and every factory arity for non-finite floats and doubles. */
+		@Test
+		@DisplayName("Reject non-finite histogram bounds with a usage error naming the type")
+		void shouldRejectNonFiniteBounds() {
+			for (final Number bound : List.of(
+				Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY,
+				Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY
+			)) {
+				final List<Executable> queries = List.of(
+					() -> histogramHaving("parameterValues", bound, 5),
+					() -> histogramHaving("parameterValues", "value", 1, bound),
+					() -> histogramHaving("parameterValues", bound, 5, groupSelector("weight")),
+					() -> histogramHaving("parameterValues", "value", 1, bound, groupSelector("weight"))
+				);
+				assertAll(queries.stream().map(query -> () -> {
+					final EvitaInvalidUsageException error = assertThrows(EvitaInvalidUsageException.class, query);
+					assertTrue(error.getMessage().contains(bound.getClass().getTypeName()), error::getMessage);
+				}));
+			}
+		}
 
 		@Test
 		@DisplayName("should build via 3-arg factory with classifier and bounds only")

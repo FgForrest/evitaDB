@@ -148,7 +148,8 @@ requireConstraint
     | 'referenceContentAllWithAttributes'   (emptyArgs | args = allRefsWithAttributesReferenceContent1Args) # allRefsWithAttributesReferenceContent1Constraint
     | 'referenceContentAllWithAttributes'   args = allRefsWithAttributesReferenceContent2Args               # allRefsWithAttributesReferenceContent2Constraint
     | 'referenceContentAllWithAttributes'   args = allRefsWithAttributesReferenceContent3Args               # allRefsWithAttributesReferenceContent3Constraint
-    | 'referenceContentWithAttributes'      args = singleRefReferenceContent1Args                           # singleRefReferenceContentWithAttributes1Constraint
+    | 'referenceContentWithAttributes' args = singleRefReferenceContentWithAttributeNamesArgs
+        # singleRefReferenceContentWithAttributes1Constraint
     | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes0Args             # singleRefReferenceContentWithAttributes0Constraint
     | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes1Args             # singleRefReferenceContentWithAttributes2Constraint
     | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes2Args             # singleRefReferenceContentWithAttributes3Constraint
@@ -427,7 +428,15 @@ referenceSummaryRequirementsArgs :                  requirements += requireConst
 
 histogramStatistics1Args :                          argsOpening requestedBucketCount = valueToken ARGS_DELIMITER values = variadicValueTokens argsClosing ;
 
-histogramStatistics2Args :                          argsOpening requestedBucketCount = valueToken ARGS_DELIMITER entityFetch = requireConstraint ARGS_DELIMITER values = variadicValueTokens argsClosing ;
+histogramStatistics2Args
+	: argsOpening requestedBucketCount = valueToken ARGS_DELIMITER
+	(
+		(behavior = valueToken ARGS_DELIMITER)? fetchBeforeValues = requireConstraint ARGS_DELIMITER
+			values = variadicValueTokens
+		| values = variadicValueTokens ARGS_DELIMITER fetchAfterValues = requireConstraint
+	)
+	argsClosing
+	;
 
 attributeHistogramArgs :                            argsOpening requestedBucketCount = valueToken ARGS_DELIMITER values = variadicValueTokens argsClosing ;
 
@@ -497,6 +506,11 @@ valueToken
     | DATE_TIME_RANGE                                                                                     # dateTimeRangeValueToken
     | UUID                                                                                                # uuidValueToken
     | ENUM                                                                                                # enumValueToken
+    ;
+
+// The first value can be the reference name or a managed-references behaviour, including when it is a parameter.
+singleRefReferenceContentWithAttributeNamesArgs
+    : argsOpening first = valueToken (ARGS_DELIMITER values += valueToken)* argsClosing
     ;
 
 

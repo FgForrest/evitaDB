@@ -43,6 +43,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Objects;
@@ -77,6 +78,24 @@ public class Value {
 	 */
 	@Nonnull
 	private final Class<?> type;
+
+	/**
+	 * Whether a list position received one literal or one scalar binding (including a bound null) rather than a bound
+	 * array, a bound iterable or several arguments. The filter visitors use it to call the single-value factory
+	 * overload, as javac does for a single Java argument.
+	 */
+	private final boolean singleVariadicArgument;
+
+	/**
+	 * Wraps a single value in a list position for the usual array conversions while retaining its argument shape.
+	 *
+	 * @param argument single literal or bound value, including null
+	 * @return a value that represents one argument in a list position
+	 */
+	@Nonnull
+	public static Value singleVariadicArgument(@Nullable Object argument) {
+		return new Value(Collections.singletonList(argument), true);
+	}
 
 	/**
 	 * Casts a variadic value item to the expected type, throwing if the type does not match.
@@ -137,8 +156,28 @@ public class Value {
 	 * @param actualValue parsed value, or null for an undefined bound parameter, whose type is then `Void`
 	 */
 	public Value(@Nullable Object actualValue) {
+		this(actualValue, false);
+	}
+
+	/**
+	 * Wraps a parsed value and records whether a list position received a single value.
+	 *
+	 * @param actualValue parsed value, or null for an undefined scalar
+	 * @param singleVariadicArgument whether the value wraps one argument in a list position
+	 */
+	private Value(@Nullable Object actualValue, boolean singleVariadicArgument) {
 		this.actualValue = actualValue;
 		this.type = actualValue == null ? Void.class : actualValue.getClass();
+		this.singleVariadicArgument = singleVariadicArgument;
+	}
+
+	/**
+	 * Reports whether a list position was supplied one scalar argument, including a bound null.
+	 *
+	 * @return true for one literal or scalar binding, false for a bound array or iterable or multiple arguments
+	 */
+	public boolean isSingleVariadicArgument() {
+		return this.singleVariadicArgument;
 	}
 
 	/**
@@ -147,14 +186,6 @@ public class Value {
 	@Nullable
 	public Serializable asSerializable() {
 		return asSpecificType(this.actualValue, Serializable.class);
-	}
-
-	/**
-	 * Returns the value cast to {@link Comparable}.
-	 */
-	@Nullable
-	public Comparable<?> asComparable() {
-		return asSpecificType(this.actualValue, Comparable.class);
 	}
 
 	/**
