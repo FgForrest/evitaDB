@@ -485,6 +485,15 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 			test.releaseParked.countDown();
 			awaitCompletion(writes);
 
+			// the paused write is the first one the flush dispatched, so the flush fails with its failure - and that
+			// must be the registration's: a write failing earlier would leave the storage empty without the
+			// registration ever being decided
+			final Throwable flushFailure = flush.future().handle((result, ex) -> ex).join();
+			assertTrue(
+				isRefusalOfClosedStorage(flushFailure),
+				() -> "the compaction must reach the refusal of the closed storage, but the flush failed with: " +
+					flushFailure
+			);
 			final Map<?, ?> registered = registeredCollectionStorages(catalog);
 			assertTrue(
 				registered.isEmpty(),
@@ -937,6 +946,23 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 		} catch (ReflectiveOperationException ex) {
 			throw new IllegalStateException("The collection storages of the catalog are not readable.", ex);
 		}
+	}
+
+	/**
+	 * Returns whether the failure, or any of its causes, is the refusal of the closed catalog storage to register a
+	 * compacted collection storage - told apart by its message from the termination refusing the publication.
+	 *
+	 * @param failure the failure, or `null`
+	 * @return true when the closed storage refused the registration
+	 */
+	private static boolean isRefusalOfClosedStorage(@Nullable Throwable failure) {
+		final String refusal = new InstanceTerminatedException("catalog `" + TEST_CATALOG + "` storage").getMessage();
+		for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+			if (cause instanceof InstanceTerminatedException && refusal.equals(cause.getMessage())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

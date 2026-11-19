@@ -322,15 +322,23 @@ class CatalogWarmUpTerminationBesideHandoverTest implements EvitaTestSupport {
 			awaitCompletion(renaming);
 			awaitCompletion(termination);
 
-			assertFalse(
-				terminatedDuringRename,
-				"the termination must wait for a rename under way rather than close the storage it is relabelling"
-			);
-			assertTrue(
-				renaming.isDone() && failureOf(renaming) == null,
-				() -> "the rename the termination waited for must complete, but it failed with: " +
-					failureOf(renaming)
-			);
+			try {
+				assertFalse(
+					terminatedDuringRename,
+					"the termination must wait for a rename under way rather than close the storage it is relabelling"
+				);
+				assertTrue(
+					renaming.isDone() && failureOf(renaming) == null,
+					() -> "the rename the termination waited for must complete, but it failed with: " +
+						failureOf(renaming)
+				);
+			} finally {
+				// the renamed catalog holds the storage the rename reopened, and no engine state names it, so the
+				// fixture's teardown would never close it
+				if (renaming.isDone() && !renaming.isCompletedExceptionally()) {
+					renaming.join().terminate();
+				}
+			}
 		}
 	}
 
