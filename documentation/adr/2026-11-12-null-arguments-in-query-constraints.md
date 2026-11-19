@@ -5,7 +5,7 @@ updated: 2026-11-19 09:29
 status: accepted
 kind: fix
 issues: [1943, 2013]
-prs: [1965]
+prs: [1965, 2016]
 areas: [evita_query, evita_query/src/main/java/io/evitadb/api/query/parser, evita_external_api/evita_external_api_core, evita_engine/src/main/java/io/evitadb/core/query]
 supersedes: []
 superseded-by: []
