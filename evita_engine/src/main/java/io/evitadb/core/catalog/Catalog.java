@@ -1522,8 +1522,9 @@ public final class Catalog
 	 * round in its schema notification may still be running, since that writes nothing to storage.
 	 *
 	 * The handover runs under {@link #warmUpPublicationLock}: a termination of a warming-up instance either begins
-	 * first - and the returned future fails with {@link InstanceTerminatedException} before anything is relabelled -
-	 * or waits for the handover to finish.
+	 * first - and the returned future fails before anything is relabelled, with {@link InstanceTerminatedException},
+	 * or with the {@link CatalogUnpublishableException} of a barrier raised earlier - or waits for the handover to
+	 * finish.
 	 *
 	 * @param updatedSchema schema carrying the resulting name
 	 * @param catalogToBeReplaced optional catalog whose contents are discarded
@@ -1544,11 +1545,12 @@ public final class Catalog
 				// to finish, and never closes the storage the rename is relabelling.
 				this.warmUpPublicationLock.lock();
 				try {
-					assertWarmUpTerminationNotBegun();
 					// `replaceWith` writes a bootstrap record of its own, so a catalog whose in-memory state can no
 					// longer be published must not reach it - and the refusal has to happen before the irreversible
-					// handover below rather than in the middle of it
+					// handover below rather than in the middle of it. Checked before the termination for the reason
+					// `goLive()` gives: the barrier's deactivation terminates this instance, and the barrier names why
 					assertPublishable();
+					assertWarmUpTerminationNotBegun();
 					final long catalogVersion = getVersion();
 					// Read before the handover, because `exchangeCatalogSchema` below rewrites what `getName()`
 					// answers - so a failure past that point would otherwise report the new name as the old one.
@@ -1678,9 +1680,10 @@ public final class Catalog
 	 * warm-up header after the ALIVE record.
 	 *
 	 * @return the ALIVE catalog instance that supersedes this one
-	 * @throws InstanceTerminatedException  when the termination of this instance has begun
 	 * @throws CatalogUnpublishableException when an earlier warm-up failure already bars this instance from
-	 *                                      publishing anything
+	 *                                      publishing anything - even once the deactivation that failure scheduled
+	 *                                      has terminated it
+	 * @throws InstanceTerminatedException  when the termination of this instance has begun and nothing bars it
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException
 	 *                                      when this catalog is already alive, or another `goLive` call is in
 	 *                                      progress on it
@@ -1696,11 +1699,13 @@ public final class Catalog
 			);
 
 			Assert.isTrue(this.state == CatalogState.WARMING_UP, "Catalog has already alive state!");
-			assertWarmUpTerminationNotBegun();
 			// go-live publishes a bootstrap record of its own and then mints an ALIVE catalog that SHARES these
 			// indexes, which would carry untrustworthy state past every warm-up guard there is. The flush the
-			// go-live operator runs first is a no-op when nothing changed, so it cannot be relied on to refuse here
+			// go-live operator runs first is a no-op when nothing changed, so it cannot be relied on to refuse here.
+			// Checked before the termination, because the barrier schedules a deactivation that terminates this
+			// instance: a caller still holding it must be told about the failure, not only about its consequence
 			assertPublishable();
+			assertWarmUpTerminationNotBegun();
 			final List<EntityCollection> newCollections = this.entityCollections
 				.values()
 				.stream()
@@ -3087,6 +3092,8 @@ public final class Catalog
 	) {
 		this.warmUpPublicationLock.lock();
 		try {
+			// the termination first here, unlike in `goLive()` and the rename: a barrier raised before this flush
+			// began was refused at its entry, and a termination meeting it in progress raises the barrier itself
 			assertWarmUpTerminationNotBegun();
 			assertPublishable();
 			final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(collectionOfHeaders.size());
