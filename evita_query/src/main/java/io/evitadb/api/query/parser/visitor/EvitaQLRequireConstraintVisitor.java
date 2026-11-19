@@ -1753,10 +1753,13 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final HistogramBehavior behavior;
 				consumeLeadingNullEnumDefault(ctx.args.values, args);
 				final Serializable secondArgument = args.peekFirst();
-				if (secondArgument instanceof HistogramBehavior) {
-					behavior = castArgument(ctx, args.pop(), HistogramBehavior.class);
-				} else if (secondArgument instanceof EnumWrapper enumWrapper && enumWrapper.canBeMappedTo(HistogramBehavior.class)) {
-					behavior = castArgument(ctx, args.pop(), EnumWrapper.class).toEnum(HistogramBehavior.class);
+				if (secondArgument instanceof HistogramBehavior histogramBehavior) {
+					behavior = histogramBehavior;
+					args.pop();
+				} else if (secondArgument instanceof EnumWrapper enumWrapper &&
+					enumWrapper.canBeMappedTo(HistogramBehavior.class)) {
+					behavior = enumWrapper.toEnum(HistogramBehavior.class);
+					args.pop();
 				} else {
 					behavior = null;
 				}
