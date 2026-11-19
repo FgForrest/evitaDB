@@ -137,6 +137,7 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 	/**
 	 * Validates named attributes against the given request - used by callers that derive the request of the body
 	 * themselves, such as the summary translators, whose bodies take their locale from the summary filter.
+	 * The uniqueness exemption uses the processing scopes, which below the main fetch are the query's searched scopes.
 	 *
 	 * @param entitySchema               the entity schema for attribute validation
 	 * @param referenceSchema            the optional reference schema
@@ -165,7 +166,7 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 
 	/**
 	 * Checks named attributes without deriving a body request or allocating on a successful lookup.
-	 * A localized attribute unique in any root processing scope can supply an implicit locale.
+	 * A localized attribute unique in any of the supplied scopes can supply an implicit locale.
 	 *
 	 * @param entitySchema the owning entity schema
 	 * @param referenceSchema the reference schema, or NULL for entity attributes
@@ -173,7 +174,7 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 	 * @param attributeContent the client content requirement as written
 	 * @param localeAvailable whether a locale is available at this level - the body's own, one inherited from an
 	 *                        enclosing fetch, or one resolved from the reference filter
-	 * @param scopes the root processing scopes used for the uniqueness exemption
+	 * @param scopes the scopes checked for a uniqueness index
 	 * @throws AttributeNotFoundException when a named attribute is unknown
 	 * @throws EntityLocaleMissingException when named localized attributes require a locale
 	 */
