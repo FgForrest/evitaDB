@@ -525,7 +525,8 @@ public final class Catalog
 	 *   progress ({@link #beginWarmUpTermination(String)});
 	 * - a flush whose collections are written publishes only when the bit is still clear, checked and written under
 	 *   {@link #warmUpPublicationLock};
-	 * - every flush counts itself out when its future completes, whether it succeeded, failed or was cancelled.
+	 * - every flush counts itself out exactly once: still under that lock at the end of a publication that succeeded,
+	 *   after the barrier stands when it failed, and when its future completes if it was cancelled.
 	 *
 	 * A count rather than a flag, so that nothing here leans on warm-up admitting one session at a time.
 	 */
@@ -2891,6 +2892,13 @@ public final class Catalog
 		// counted in before anything is popped, and refused once the termination of this instance has begun: a flush
 		// either started before the termination began, which then sees it in progress, or it pops nothing at all
 		beginWarmUpFlush();
+		// counts this flush out exactly once, on whichever completion path gets there first
+		final AtomicBoolean countedOut = new AtomicBoolean();
+		final Runnable countOut = () -> {
+			if (countedOut.compareAndSet(false, true)) {
+				this.warmUpFlushState.decrementAndGet();
+			}
+		};
 
 		final ProgressingFuture<Void> flushFuture;
 		try {
@@ -2911,7 +2919,7 @@ public final class Catalog
 					.toList(),
 				// when all entity collections are flushed, we can update the catalog header
 				(progress, collectionOfHeaders) -> {
-					publishFlushedCollections(progress, collectionOfHeaders, changeOccurred, trappedChanges);
+					publishFlushedCollections(progress, collectionOfHeaders, changeOccurred, trappedChanges, countOut);
 					return null;
 				},
 				// Whether a collection's write failed or the combine step itself did, this catalog's own collected
@@ -2928,12 +2936,17 @@ public final class Catalog
 				// missing, and a session admitted in that window would write to a catalog whose changes are already
 				// lost. The handler itself can run more than once - two exceptional completions both invoke it before
 				// `super.completeExceptionally` no-ops - but the mark behind it is compare-and-set guarded, so MARKING
-				// twice is impossible and the first cause is the one that survives.
-				this::markUnpublishable
+				// twice is impossible and the first cause is the one that survives. The failed flush is counted out
+				// only once the barrier stands: a termination that finds no flush in progress must never find the
+				// barrier still missing for one that failed.
+				failure -> {
+					markUnpublishable(failure);
+					countOut.run();
+				}
 			);
 		} catch (RuntimeException | Error ex) {
 			// no future exists that could count this flush out once it completes
-			this.warmUpFlushState.decrementAndGet();
+			countOut.run();
 			throw ex;
 		}
 		// **The second half of the same barrier, and not a duplicate of the handler above.** The failure handler
@@ -2945,14 +2958,16 @@ public final class Catalog
 		// barrier whose correctness rests on "nobody currently cancels this" is one refactor away from silently not
 		// existing. `markUnpublishable` is compare-and-set guarded, so the pair cannot mark twice.
 		//
-		// The flush is counted out here too, on every completion, and only after the barrier stands: a termination
-		// that finds no flush in progress must never find the barrier still missing for one that failed.
+		// The flush is counted out here only as the backstop for a cancellation, which reaches neither the last step
+		// nor the failure handler - and only after the barrier stands. A flush that succeeded is counted out by its
+		// last step, before the future completes: the dependents of the future run before this one, the session close
+		// among them, and a termination right behind that close must not count a flush that has already published.
 		flushFuture.whenComplete(
 			(result, ex) -> {
 				if (ex != null) {
 					markUnpublishable(ex);
 				}
-				this.warmUpFlushState.decrementAndGet();
+				countOut.run();
 			}
 		);
 		return flushFuture;
@@ -2987,11 +3002,14 @@ public final class Catalog
 	 * the end of the header write, so a termination either begins first - and this step publishes nothing - or waits
 	 * for the header write to end before it releases the collections and closes the storage. The check comes before
 	 * the collections are installed too, so a step that lost the race touches nothing the termination is releasing.
+	 * A step that succeeds counts the flush out before it lets the lock go, so the termination that waited for it
+	 * finds no flush in progress; one that throws leaves that to the flush's failure handler.
 	 *
 	 * @param progress            the flush future, which the written trapped changes are reported to
 	 * @param collectionOfHeaders the header of every collection as its write left it, with the collection to install
 	 * @param changeOccurred      whether the catalog schema changed since the last publication
 	 * @param catalogChanges      the catalog's own trapped changes, popped when the flush started
+	 * @param countOut            counts the flush out of {@link #warmUpFlushState}, at most once
 	 * @throws InstanceTerminatedException   when the termination of this instance has begun - what the flush wrote then
 	 *                                       stays unreferenced, and the last published state stays the catalog's state,
 	 *                                       which a reload recovers completely
@@ -3002,7 +3020,8 @@ public final class Catalog
 		@Nonnull ProgressingFuture<Void> progress,
 		@Nonnull Collection<EntityCollectionHeaderWithCollection> collectionOfHeaders,
 		boolean changeOccurred,
-		@Nonnull TrappedChanges catalogChanges
+		@Nonnull TrappedChanges catalogChanges,
+		@Nonnull Runnable countOut
 	) {
 		this.warmUpPublicationLock.lock();
 		try {
@@ -3023,6 +3042,7 @@ public final class Catalog
 			if (resolvedChangeOccurred) {
 				publishWarmUpState(catalogChanges, entityHeaders, progress::updateProgress);
 			}
+			countOut.run();
 		} finally {
 			this.warmUpPublicationLock.unlock();
 		}

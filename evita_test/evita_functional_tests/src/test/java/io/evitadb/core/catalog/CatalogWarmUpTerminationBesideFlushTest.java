@@ -70,6 +70,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -384,10 +385,11 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 			awaitLatch(headerWriteEntered, "the flush never reached its header write");
 
 			final CountDownLatch terminated = new CountDownLatch(1);
+			final AtomicReference<List<ILoggingEvent>> terminationWarnings = new AtomicReference<>(List.of());
 			final Future<?> termination = test.fixtureThreads.submit(
 				() -> {
 					try {
-						catalog.terminate();
+						terminationWarnings.set(captureCatalogWarnings(catalog::terminate));
 					} finally {
 						terminated.countDown();
 					}
@@ -408,11 +410,55 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 				flush.future().isDone() && !flush.future().isCompletedExceptionally(),
 				"the flush whose header write the termination waited for must complete"
 			);
+			assertTrue(
+				terminationWarnings.get().isEmpty(),
+				() -> "the termination that waited for the header write must find the flush published rather than in " +
+					"progress, but it warned: " +
+					terminationWarnings.get().stream().map(ILoggingEvent::getFormattedMessage).toList()
+			);
 			final Map<String, Boolean> published = test.readPublishedWrite(List.of());
 			assertTrue(
 				published.values().stream().allMatch(Boolean::booleanValue),
 				() -> "the header write the termination waited for must be published whole, but the published " +
 					"state holds: " + published
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("when the termination runs right behind a flush that published")
+	class TerminationBehindPublishedFlush {
+
+		@Test
+		@DisplayName("should not count the flush as in progress")
+		void shouldNotCountPublishedFlushAsInProgressWhenTerminationRunsBehindIt() throws IOException {
+			final CatalogWarmUpTerminationBesideFlushTest test = CatalogWarmUpTerminationBesideFlushTest.this;
+			final Catalog catalog = test.catalog();
+			final EvitaSessionContract writer = test.evita.createReadWriteSession(TEST_CATALOG);
+			writeProductAndCategory(writer);
+			final InFlightFlush flush = startFlush(catalog::flush);
+			// registered on the flush the way the session close registers the completion the drain waits for, after
+			// which the engine terminates the catalog
+			final CompletableFuture<List<ILoggingEvent>> terminationBehindFlush = flush.future()
+				.handle((result, ex) -> captureCatalogWarnings(catalog::terminate));
+
+			flush.heldBack().runRemaining();
+			final List<ILoggingEvent> warnings = terminationBehindFlush.join();
+			assertTrue(
+				flush.future().isDone() && !flush.future().isCompletedExceptionally(), "the flush must have completed"
+			);
+			assertTrue(catalog.isTerminated());
+			test.snapshotStorage();
+
+			assertTrue(
+				warnings.isEmpty(),
+				() -> "a termination behind a flush that published must not report its work as dropped, but it " +
+					"warned: " + warnings.stream().map(ILoggingEvent::getFormattedMessage).toList()
+			);
+			final Map<String, Boolean> published = test.readPublishedWrite(List.of());
+			assertTrue(
+				published.values().stream().allMatch(Boolean::booleanValue),
+				() -> "the write of the flush must be published whole, but the published state holds: " + published
 			);
 		}
 	}

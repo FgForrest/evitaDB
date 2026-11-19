@@ -1,7 +1,7 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-11-19 19:09
+updated: 2026-11-19 19:35
 status: accepted
 kind: fix
 issues: [1466, 2014, 2032, 2033]
@@ -275,14 +275,16 @@ both reached the disk.
   still meet that flush with some collections written and others not. Its own flush then found nothing trapped in the
   unwritten ones, because the flush in progress had already popped them, and it stored a header naming indexes whose
   parts only the held-back write would have stored. Measured before the change: the published state did not load
-  (`Entity index with PK `1` was unexpectedly not found in the persistent storage!`), which a restart answers by
-  marking the catalog `CORRUPTED` - the one write-side hazard of the durability model, a bootstrap record published
-  from an in-memory state the files cannot back.
+  (`Entity index with PK `1` was unexpectedly not found in the persistent storage!`). Read from the code rather than
+  run: a restart answers that by marking the catalog `CORRUPTED`. It is the one write-side hazard of the durability
+  model - a bootstrap record published from an in-memory state the files cannot back.
   `Catalog#warmUpFlushState` makes the two exclusive in one atomic word: the bits below `WARM_UP_TERMINATION_BEGUN`
   count the warm-up flushes in progress, and that bit says termination has begun. `Catalog#flush()` counts itself in
   by compare-and-set before it pops anything, and is refused with `InstanceTerminatedException` once the bit is set;
-  it counts itself out when its future completes - failed and cancelled included, and only after a failure has raised
-  the barrier. Termination sets the bit and reads the count in one step; when a flush is in progress it records the
+  it counts itself out exactly once - still under the lock below at the end of a publication that succeeded, after the
+  barrier stands when it failed, and on completion when it was cancelled. Counting out on completion alone was not
+  enough: the dependents of the flush future run before the one registered first, so the session close - and a
+  termination right behind it - would still have found a flush that had already published. Termination sets the bit and reads the count in one step; when a flush is in progress it records the
   barrier cause and publishes nothing, with a WARN saying that the flushing session's unpublished work is dropped.
   `Catalog#warmUpPublicationLock` covers a flush's last step from its check that the bit is clear to the end of its
   header write, and termination takes it to set the bit, so a flush publishes either completely before termination
@@ -387,7 +389,7 @@ termination releases the lock, the idle-writer control fails on its own `isPubli
 closes - a queued call resuming between the unlock and the close of the persistence service - has no deterministic
 reproduction.
 
-`CatalogWarmUpTerminationBesideFlushTest` (5 tests) drives the flush a warm-up close starts - `Catalog#flush()`
+`CatalogWarmUpTerminationBesideFlushTest` (6 tests) drives the flush a warm-up close starts - `Catalog#flush()`
 executed on an executor that holds its collection writes back, the one seam there is, because the close dispatches to
 the engine's own transaction executor - and, where the termination itself must be held, a spy that pauses it once it
 has begun. One test per transition, each failing on its own counterfactual:
@@ -402,6 +404,9 @@ has begun. One test per transition, each failing on its own counterfactual:
 - a flush starting after termination began: without the compare-and-set refusal, `nothing was thrown`;
 - a header write under way: with termination taking no lock it finishes inside the 250 ms negative window (`expected:
   <false> but was: <true>`);
+- a termination right behind a flush that published - run from a dependent of the flush future, as the session close
+  registers one: with the flush counted out on completion only, the termination still counted it and warned that its
+  work was dropped;
 - a flush finishing before termination, the control, publishes the write whole.
 
 `CatalogWarmUpTerminationCatalogIndexTest` (4 tests) covers the catalog index. Before the shared publication tail, both
