@@ -124,6 +124,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -429,6 +430,17 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public long getCatalogVersion() {
 		assertActive();
 		return this.catalog.getVersion();
+	}
+
+	/**
+	 * Returns the lock a call of this session holds while the catalog it is bound to is warming up, so that the
+	 * catalog's termination cannot publish while the call is still running - see `Catalog#getWarmUpCallLock()`.
+	 *
+	 * @return the lock of the warming-up catalog this session is bound to, or `null` when that catalog is alive
+	 */
+	@Nullable
+	ReentrantLock getWarmUpCallLock() {
+		return this.catalog.getWarmUpCallLock();
 	}
 
 	@Override
