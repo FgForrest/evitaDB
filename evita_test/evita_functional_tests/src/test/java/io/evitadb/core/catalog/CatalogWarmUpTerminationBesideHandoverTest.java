@@ -23,8 +23,12 @@
 
 package io.evitadb.core.catalog;
 
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -50,6 +54,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
@@ -71,28 +76,33 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
 /**
- * Pins how {@link Catalog#terminate()} of a `WARMING_UP` catalog meets its go-live, which writes a bootstrap record of
- * its own: it publishes the ALIVE record and supersedes the warm-up instance.
+ * Pins how {@link Catalog#terminate()} of a `WARMING_UP` catalog meets the two handovers that write a bootstrap record
+ * of their own: go-live, which publishes the ALIVE record and supersedes the warm-up instance, and a rename, which
+ * relabels the catalog's folder and reopens its storage under the new name.
  *
- * Go-live is not a flush, so it was not serialized with the termination: engine shutdown terminates the catalogs it
- * captured while an accepted go-live can still be running on the engine executor, and the termination closed the
- * storage beneath the ALIVE bootstrap write. Go-live now runs under the lock the termination takes to begin, and is
- * refused once the termination has begun - the termination either waits for the go-live to finish, or the go-live
- * writes nothing.
+ * Neither is a flush, so neither was serialized with the termination: engine shutdown terminates the catalogs it
+ * captured while an accepted go-live or rename can still be running on the engine executor, and the termination closed
+ * the storage beneath a bootstrap write in progress. Each handover now runs under the lock the termination takes to
+ * begin, and is refused once the termination has begun - the termination either waits for the handover to finish, or
+ * the handover writes nothing.
  *
- * The tests call {@link Catalog#goLive()}, which the go-live operator calls, directly, and hold it inside its bootstrap
- * write through the one seam it offers: it asks whether it may still publish right before it writes, which a spy
- * pauses. Where the termination itself must be held, a spy pauses it once it has begun, at the point where it asks
- * whether it may publish - the spy shares every mutable holder of the catalog. Every assertion about what was
- * published reads a fresh engine opened over a copy of the storage taken right after the termination.
+ * The tests call the two methods the operators call, {@link Catalog#goLive()} and {@link Catalog#replace}, directly,
+ * and hold each inside its bootstrap write through the one seam it offers: go-live asks whether it may still publish
+ * right before it writes, which a spy pauses, and the rename reports its progress once its relabel is published,
+ * which the progress consumer of its future pauses. Where the termination itself must be held, a spy pauses it once it
+ * has begun, at the point where it asks whether it may publish - the spy shares every mutable holder of the catalog.
+ * Every assertion about what was published reads a fresh engine opened over a copy of the storage taken right after
+ * the termination.
  */
-@DisplayName("Termination of a warming-up catalog beside its go-live")
+@DisplayName("Termination of a warming-up catalog beside its go-live or rename")
 @Tag(ENGINE)
 @Tag(STORAGE)
 @Tag(SESSION)
 @Tag(SCHEMA)
 class CatalogWarmUpTerminationBesideHandoverTest implements EvitaTestSupport {
 
+	/** The name the rename gives the catalog. */
+	private static final String RENAMED_CATALOG = "renamedCatalog";
 	/** Primary key of the product published by the set-up session. */
 	private static final int PUBLISHED_PRODUCT_PK = 1;
 	/** Bound of every positive wait of this test. */
@@ -224,6 +234,96 @@ class CatalogWarmUpTerminationBesideHandoverTest implements EvitaTestSupport {
 				"the refused go-live must leave the catalog at its last published, warming-up state"
 			);
 		}
+	}
+
+	@Nested
+	@DisplayName("when a rename is relabelling the catalog")
+	class RenameUnderWay {
+
+		@Test
+		@DisplayName("should let the termination wait for the rename")
+		void shouldWaitForRenameUnderWayBeforeTerminating() {
+			final CatalogWarmUpTerminationBesideHandoverTest test = CatalogWarmUpTerminationBesideHandoverTest.this;
+			final Catalog catalog = test.catalog();
+			final ProgressingFuture<CatalogContract> renaming = catalog.replace(renamedSchema(catalog), null);
+			// the rename reports its progress once, synchronously, as soon as its relabelled bootstrap record is
+			// published and before it reopens the storage - the progress consumer pauses that report
+			final CountDownLatch relabelPublished = new CountDownLatch(1);
+			final AtomicBoolean reported = new AtomicBoolean();
+			renaming.setProgressConsumer(
+				(done, total) -> {
+					if (reported.compareAndSet(false, true)) {
+						relabelPublished.countDown();
+						awaitLatch(test.releaseParked, "the rename was never released");
+					}
+				}
+			);
+			final Future<?> rename = test.fixtureThreads.submit(() -> renaming.execute(Runnable::run));
+			awaitLatch(relabelPublished, "the rename never published its relabel");
+
+			final CountDownLatch terminated = new CountDownLatch(1);
+			final Future<?> termination = test.fixtureThreads.submit(terminating(catalog, terminated));
+			final boolean terminatedDuringRename = queuedOnPublicationLockOrTerminated(catalog, terminated);
+			test.releaseParked.countDown();
+			awaitCompletion(rename);
+			awaitCompletion(renaming);
+			awaitCompletion(termination);
+
+			assertFalse(
+				terminatedDuringRename,
+				"the termination must wait for a rename under way rather than close the storage it is relabelling"
+			);
+			assertTrue(
+				renaming.isDone() && failureOf(renaming) == null,
+				() -> "the rename the termination waited for must complete, but it failed with: " +
+					failureOf(renaming)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("when a rename starts after the termination began")
+	class RenameAfterTerminationBegan {
+
+		@Test
+		@DisplayName("should refuse the rename before it relabels anything")
+		void shouldRefuseRenameStartingAfterTerminationBegan() throws IOException {
+			final CatalogWarmUpTerminationBesideHandoverTest test = CatalogWarmUpTerminationBesideHandoverTest.this;
+			final Catalog catalog = test.catalog();
+			final Future<?> termination = test.fixtureThreads.submit(test.parkingTermination(catalog)::terminate);
+			awaitLatch(test.terminationParked, "the termination never reached its publication decision");
+
+			final ProgressingFuture<CatalogContract> renaming = catalog.replace(renamedSchema(catalog), null);
+			renaming.execute(Runnable::run);
+			final Throwable failure = failureOf(renaming);
+			test.releaseParked.countDown();
+			awaitCompletion(termination);
+			assertTrue(catalog.isTerminated());
+			test.snapshotStorage();
+
+			assertInstanceOf(
+				InstanceTerminatedException.class, rootCause(failure),
+				"a rename starting after the termination began must be refused, but it ended with: " + failure
+			);
+			assertEquals(
+				Optional.of(CatalogState.WARMING_UP), test.readSnapshotCatalogState(TEST_CATALOG),
+				"the refused rename must leave the catalog under its own name"
+			);
+		}
+	}
+
+	/**
+	 * Returns the schema the rename of the catalog to {@link #RENAMED_CATALOG} installs, built the way the rename
+	 * operator builds it.
+	 *
+	 * @param catalog the catalog to rename
+	 * @return the renamed catalog schema
+	 */
+	@Nonnull
+	private static CatalogSchemaContract renamedSchema(@Nonnull Catalog catalog) {
+		return new ModifyCatalogSchemaNameMutation(TEST_CATALOG, RENAMED_CATALOG, false)
+			.mutate(catalog.getSchema())
+			.updatedCatalogSchema();
 	}
 
 	/**
