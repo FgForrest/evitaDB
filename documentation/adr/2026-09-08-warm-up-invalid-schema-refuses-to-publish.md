@@ -1,11 +1,11 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-11-20 00:29
+updated: 2026-11-20 00:55
 status: accepted
 kind: fix
 issues: [1466, 2014, 2032, 2033, 2040]
-prs: [1520, 2015, 2037]
+prs: [1520, 2015, 2037, 2041]
 areas: [evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/core/transaction/engine, evita_api/src/main/java/io/evitadb/api, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog]
 supersedes: []
 superseded-by: []
