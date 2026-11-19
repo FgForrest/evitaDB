@@ -1,4 +1,6 @@
-FROM index.docker.io/azul/zulu-openjdk:17-latest
+# Pinned rather than 17-latest: 17.0.21.1 is the first Zulu 17 build fixing CVE-2026-114938 (heap overflow in the
+# AVX-512 Base64 decode intrinsic), and a pin guarantees no image is ever built on an older, affected JDK.
+FROM index.docker.io/azul/zulu-openjdk:17.0.21.1
 
 ## input arguments for the build
 ARG EVITA_JAR_NAME
