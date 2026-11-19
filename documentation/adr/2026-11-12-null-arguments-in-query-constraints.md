@@ -1,7 +1,7 @@
 ---
 title: Null arguments in query constraints follow one rule set in Java, EvitaQL and REST
 date: 2026-11-12
-updated: 2026-11-19 07:16
+updated: 2026-11-19 07:34
 status: accepted
 kind: fix
 issues: [1943, 2013]
@@ -385,6 +385,8 @@ new explicit constraint, not a change of these rules).
   `Double` bounds and `label` with floating-point numbers and enums, embedded and through the gRPC conversion: the
   first two run in Java and now in EvitaQL (14 cases failed before, again with the two types taken out), `label`
   refuses them in Java, so EvitaQL keeps refusing.
+- **Final gate (#2013):** the whole non-slow functional suite with its upstream modules and the release upgrade
+  fixtures, 39,387 tests, 0 failures (70 skipped); the whole reactor compiles with `-P full`.
 
 ## Consequences & open follow-ups
 
