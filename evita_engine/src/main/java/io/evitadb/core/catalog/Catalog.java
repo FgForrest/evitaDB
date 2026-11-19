@@ -532,11 +532,12 @@ public final class Catalog
 	 */
 	@Nonnull private final AtomicInteger warmUpFlushState = new AtomicInteger();
 	/**
-	 * Makes the publication of a warm-up flush and the beginning of this instance's termination exclusive. A flush
-	 * holds it from its check that the termination has not begun to the end of its header write; the termination takes
-	 * it to set {@link #WARM_UP_TERMINATION_BEGUN}. The termination therefore either begins first - and the flush
-	 * publishes nothing - or begins once the header write is over, and never closes the storage in the middle of a
-	 * bootstrap write. Held within one thread at a time, never across the hand-off to the executor.
+	 * Makes every bootstrap write of this warming-up instance and the beginning of its termination exclusive. The last
+	 * step of a flush holds it from its check that the termination has not begun to the end of its header write, and
+	 * {@link #goLive()} holds it through its ALIVE bootstrap write; the termination takes it to set
+	 * {@link #WARM_UP_TERMINATION_BEGUN}. The termination therefore either begins first - and the write is refused
+	 * before it starts - or begins once the write is over, and never closes the storage in the middle of a bootstrap
+	 * write. Held within one thread at a time, never across the hand-off to the executor.
 	 */
 	@Nonnull private final ReentrantLock warmUpPublicationLock = new ReentrantLock();
 
@@ -1655,7 +1656,15 @@ public final class Catalog
 	 * catalog's name (the go-live operator's undo) therefore gets a catalog that serves readers but refuses every
 	 * write and every flush, until the deactivation that mark schedules settles the name.
 	 *
+	 * **It runs under {@link #warmUpPublicationLock}, from the check that the termination of this instance has not
+	 * begun to the end of the method**, so a termination either begins first - and the go-live is refused before it
+	 * writes anything - or waits for the go-live to finish, and never closes the storage in the middle of the ALIVE
+	 * bootstrap write. A go-live that finishes bars the instance it supersedes from publishing again, without
+	 * scheduling a deactivation: a termination of that instance, which engine shutdown may still run, must not store a
+	 * warm-up header after the ALIVE record.
+	 *
 	 * @return the ALIVE catalog instance that supersedes this one
+	 * @throws InstanceTerminatedException  when the termination of this instance has begun
 	 * @throws CatalogUnpublishableException when an earlier warm-up failure already bars this instance from
 	 *                                      publishing anything
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException
@@ -1665,6 +1674,7 @@ public final class Catalog
 	@Nonnull
 	@Override
 	public Catalog goLive() {
+		this.warmUpPublicationLock.lock();
 		try {
 			Assert.isTrue(
 				this.goingLive.compareAndSet(false, true),
@@ -1672,6 +1682,7 @@ public final class Catalog
 			);
 
 			Assert.isTrue(this.state == CatalogState.WARMING_UP, "Catalog has already alive state!");
+			assertWarmUpTerminationNotBegun();
 			// go-live publishes a bootstrap record of its own and then mints an ALIVE catalog that SHARES these
 			// indexes, which would carry untrustworthy state past every warm-up guard there is. The flush the
 			// go-live operator runs first is a no-op when nothing changed, so it cannot be relied on to refuse here
@@ -1722,6 +1733,13 @@ public final class Catalog
 				} else {
 					log.info("Catalog `{}` is now alive!", newCatalog.getName());
 				}
+				// superseded for good - see this method's documentation
+				this.unpublishableCause.compareAndSet(
+					null,
+					new EvitaInvalidUsageException(
+						"Catalog `" + newCatalog.getName() + "` went live; its warm-up instance publishes nothing more."
+					)
+				);
 				return newCatalog;
 			} catch (Throwable ex) {
 				// `Throwable`, because an `Error` past the publication leaves exactly the same superseded instance
@@ -1753,6 +1771,7 @@ public final class Catalog
 			}
 		} finally {
 			this.goingLive.set(false);
+			this.warmUpPublicationLock.unlock();
 		}
 	}
 
@@ -3009,6 +3028,20 @@ public final class Catalog
 	}
 
 	/**
+	 * Refuses the caller once the termination of this warming-up instance has begun. Every step that writes a
+	 * bootstrap record of a warming-up instance calls it under {@link #warmUpPublicationLock} - the last step of a
+	 * flush and go-live - so that a termination either begins before the step and the step writes nothing, or waits
+	 * for the step to finish.
+	 *
+	 * @throws InstanceTerminatedException when the termination has begun
+	 */
+	private void assertWarmUpTerminationNotBegun() {
+		if ((this.warmUpFlushState.get() & WARM_UP_TERMINATION_BEGUN) != 0) {
+			throw new InstanceTerminatedException("catalog `" + getName() + "`");
+		}
+	}
+
+	/**
 	 * The step {@link #flush()} ends with once every collection has been written: installs the collections whose write
 	 * replaced them and, when anything changed, publishes through
 	 * {@link #publishWarmUpState(TrappedChanges, List, IntConsumer)}.
@@ -3040,9 +3073,7 @@ public final class Catalog
 	) {
 		this.warmUpPublicationLock.lock();
 		try {
-			if ((this.warmUpFlushState.get() & WARM_UP_TERMINATION_BEGUN) != 0) {
-				throw new InstanceTerminatedException("catalog `" + getName() + "`");
-			}
+			assertWarmUpTerminationNotBegun();
 			assertPublishable();
 			final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(collectionOfHeaders.size());
 			// start with the changeOccurred flag, which is true is schema was changed or if we are going live
@@ -4411,8 +4442,9 @@ public final class Catalog
 	}
 
 	/**
-	 * Begins the termination of this warming-up instance as far as its warm-up flushes are concerned: once this
-	 * returns, no flush starts and none still in progress publishes - see {@link #warmUpFlushState}.
+	 * Begins the termination of this warming-up instance as far as its bootstrap writes are concerned: once this
+	 * returns, no flush starts and none still in progress publishes - see {@link #warmUpFlushState} - and no go-live
+	 * starts either.
 	 *
 	 * Taken under {@link #warmUpPublicationLock}, so it waits for a header write already under way rather than letting
 	 * the storage be closed beneath it. When a flush is in progress the instance is barred from publishing here, under

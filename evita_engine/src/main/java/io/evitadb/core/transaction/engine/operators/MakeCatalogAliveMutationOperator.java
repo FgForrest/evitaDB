@@ -158,10 +158,11 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 					// has already recorded the unpublishable cause and scheduled the deactivation, so the restored
 					// instance serves readers and refuses every write and every flush at `assertPublishable()` straight
 					// away. Or one of the two `CommitVersions` reads threw with `goLive()` already returned: the
-					// restored instance is still publishable in memory, and its next flush refuses on the header-state
-					// premise - the stored header now says ALIVE - with `markUnpublishable` following through the flush
-					// future's failure handler. Both end the same way, with a reload recovering the catalog in its
-					// published ALIVE state. Nothing on disk is damaged on any of these paths.
+					// restored instance is barred as well, because a go-live that finishes bars the instance it
+					// supersedes, so it refuses every write and every flush at `assertPublishable()` too - without a
+					// deactivation, so it is a restart rather than an activation that settles the name. Both end the
+					// same way, with a reload recovering the catalog in its published ALIVE state. Nothing on disk is
+					// damaged on any of these paths.
 					transitionEngineStateUpdater.accept(
 						new AbstractEngineStateUpdater(transactionId, mutation) {
 							@Override
