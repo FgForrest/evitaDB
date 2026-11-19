@@ -5,6 +5,8 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "GrpcEnums.proto";
+import "GrpcCatalogSchema.proto";
+import "GrpcEvitaDataTypes.proto";
 import "google/protobuf/wrappers.proto";
 
 // Mutation is responsible for setting value to a `CatalogSchema.description` in `CatalogSchema`.
@@ -35,4 +37,99 @@ message GrpcDisallowEvolutionModeInCatalogSchemaMutation {
   // presented to her for the first time. When no evolution mode is set, each violation of the `CatalogSchema` is
   // reported by an error. This behaviour can be changed by this evolution mode, however.
   repeated GrpcCatalogEvolutionMode evolutionModes = 1;
+}
+
+// Mutation declares how text in one language is split into words. Applying it again with the same definition changes
+// nothing; a language already declared with a different definition is refused - modify it instead.
+message GrpcCreateFulltextLanguageSchemaMutation {
+  // ISO 639 code of the language, such as `en`.
+  string language = 1;
+  // Splitting steps in execution order, the tokenizer first. The schema refuses an empty list, because a language
+  // needs at least its tokenizer.
+  repeated GrpcAnalysisStep wordSplitting = 2;
+}
+
+// Mutation replaces the whole word splitting of a declared language. The language must already be declared.
+message GrpcModifyFulltextLanguageSchemaMutation {
+  // ISO 639 code of the declared language, such as `en`.
+  string language = 1;
+  // New splitting steps in execution order, the tokenizer first. The schema refuses an empty list, because a
+  // language needs at least its tokenizer.
+  repeated GrpcAnalysisStep wordSplitting = 2;
+}
+
+// Mutation removes the word splitting declared for a language; its text is then split by the `standard` tokenizer
+// alone. Removing a language that is not declared changes nothing.
+message GrpcRemoveFulltextLanguageSchemaMutation {
+  // ISO 639 code of the language to remove, such as `en`.
+  string language = 1;
+}
+
+// Mutation declares a named word list or synonym list that analysis steps read. Applying it again with the same
+// content changes nothing; a resource already declared with different content is refused - modify it instead.
+message GrpcCreateFulltextResourceSchemaMutation {
+  // Name analysis steps refer to the resource by.
+  string name = 1;
+  // Content of the resource; required.
+  GrpcFulltextResourceContent content = 2;
+}
+
+// Mutation replaces the whole content of a declared resource. The resource must already be declared.
+message GrpcModifyFulltextResourceSchemaMutation {
+  // Name of the declared resource.
+  string name = 1;
+  // New content of the resource; required.
+  GrpcFulltextResourceContent content = 2;
+}
+
+// Mutation removes a declared resource. Removing one that is not declared changes nothing. References to the
+// resource are checked on the schema the whole update produces, so one update may re-point them and remove the
+// resource together.
+message GrpcRemoveFulltextResourceSchemaMutation {
+  // Name of the resource to remove.
+  string name = 1;
+}
+
+// Mutation declares a named analyzer searchable fields can refer to. Applying it again with the same definition
+// changes nothing; an analyzer already declared with a different definition is refused - modify it instead.
+message GrpcCreateFulltextAnalyzerSchemaMutation {
+  // Name searchable fields refer to the analyzer by; `text` and `html-text` are reserved for the built-in analyzers.
+  string name = 1;
+  // Analyzer supplying every phase this one leaves undefined, built-in (`text`, `html-text`) or declared. Unset when
+  // the analyzer is based on none; its undefined phases then have no steps.
+  google.protobuf.StringValue basedOn = 2;
+  // Phases declared for every language. Unset leaves both phases undefined.
+  GrpcFulltextAnalysisPhases allLanguages = 3;
+  // Per-language phase overrides keyed by ISO 639 language code; each phase declared there replaces the
+  // all-languages one for that language.
+  map<string, GrpcFulltextAnalysisPhases> languages = 4;
+  // Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+  // of at most 1,000 UTF-16 code units each; omitted means no samples.
+  repeated string samples = 5;
+}
+
+// Mutation replaces the whole definition of a declared analyzer: its base analyzer, its phases for every language,
+// its per-language overrides and its author samples. The analyzer must already be declared.
+message GrpcModifyFulltextAnalyzerSchemaMutation {
+  // Name of the declared analyzer.
+  string name = 1;
+  // Analyzer supplying every phase this one leaves undefined, built-in (`text`, `html-text`) or declared. Unset when
+  // the analyzer is based on none; its undefined phases then have no steps.
+  google.protobuf.StringValue basedOn = 2;
+  // Phases declared for every language. Unset leaves both phases undefined.
+  GrpcFulltextAnalysisPhases allLanguages = 3;
+  // Per-language phase overrides keyed by ISO 639 language code; each phase declared there replaces the
+  // all-languages one for that language.
+  map<string, GrpcFulltextAnalysisPhases> languages = 4;
+  // Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+  // of at most 1,000 UTF-16 code units each; omitted means no samples.
+  repeated string samples = 5;
+}
+
+// Mutation removes a declared analyzer. Removing one that is not declared changes nothing. References to the analyzer
+// are checked on the schema the whole update produces, so one update may re-point them and remove the analyzer
+// together.
+message GrpcRemoveFulltextAnalyzerSchemaMutation {
+  // Name of the analyzer to remove.
+  string name = 1;
 }

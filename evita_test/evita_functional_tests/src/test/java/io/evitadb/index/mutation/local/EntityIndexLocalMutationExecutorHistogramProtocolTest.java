@@ -54,6 +54,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -88,6 +89,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.requestResponse.schema.ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -116,7 +118,8 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 	 * A real schema with no component-index writes in these protocol-only tests.
 	 */
 	private static final ReferenceSchema REFERENCE_SCHEMA = ReferenceSchema._internalBuild(
-		"brand", "brand", false, Cardinality.ZERO_OR_MORE, null, false, null, null
+		"brand", "brand", false, Cardinality.ZERO_OR_MORE, null, false, null, null,
+		java.util.Map.of(), DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 	);
 	/**
 	 * The owning entity schema.
@@ -742,7 +745,9 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 				}
 			},
 			new SchemaCapabilityUsageRegistry(), new SchemaCapabilityUsageRegistry(),
-				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD, true,
+				new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
+				() -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
+				AttributeNormalizationResolver.LEGACY_NFD, true,
 			MissingHistogramValueBehavior.REFUSE, new PartitionReservations()
 		);
 	}

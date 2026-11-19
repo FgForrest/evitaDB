@@ -43,6 +43,7 @@ import io.evitadb.utils.NamingConvention;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -79,6 +80,48 @@ public interface ReferenceSchemaContract extends
 	SortableAttributeCompoundSchemaProvider<AttributeSchemaContract, SortableAttributeCompoundSchemaContract>,
 	ConflictResolutionOverrideAwareSchemaContract
 {
+	/** Default ranking strength of text composed through a reference, shared by all scopes. */
+	BigDecimal DEFAULT_SEARCHABLE_THROUGH_WEIGHT = new BigDecimal("0.5");
+
+	/**
+	 * Returns the search mode in the default scope. Reflected references declare their own mode.
+	 *
+	 * @return the mode, or null when this reference is not searched through
+	 */
+	@Nullable
+	default ReferenceSearchMode getSearchableThrough() {
+		return getSearchableThrough(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns the mode in a scope. Composition is query-time metadata and never rebuilds an index.
+	 * The scope must index the referenced entity component and the target must be managed by evitaDB.
+	 *
+	 * @param scope scope to inspect
+	 * @return the mode, or null when this reference is not searched through there
+	 */
+	@Nullable
+	ReferenceSearchMode getSearchableThrough(@Nonnull Scope scope);
+
+	/**
+	 * Returns the declared search modes; absent scopes are not searched through.
+	 *
+	 * @return immutable map of scopes to modes
+	 */
+	@Nonnull
+	Map<Scope, ReferenceSearchMode> getSearchableThroughInScopes();
+
+	/**
+	 * Returns the ranking weight shared by all scopes. Zero preserves matches without adding rank strength.
+	 *
+	 * Equal decimal values share one representation. Weights must be non-negative, use at most 100 significant
+	 * digits and have a stripped scale within [-100, 100]. Nonzero values must convert to a finite, nonzero float.
+	 *
+	 * @return shared weight, defaulting to 0.5
+	 */
+	@Nonnull
+	BigDecimal getSearchableThroughWeight();
+
 
 	/**
 	 * Name of the reference is propagated to the client API schemas and distinguish multiple different relations that

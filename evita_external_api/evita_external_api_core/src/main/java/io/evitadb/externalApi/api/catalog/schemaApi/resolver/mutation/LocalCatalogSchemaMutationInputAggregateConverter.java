@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.*;
 import io.evitadb.externalApi.api.resolver.mutation.MutationInputAggregateConverter;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
@@ -67,6 +68,24 @@ public class LocalCatalogSchemaMutationInputAggregateConverter extends
 		registerConverter(MODIFY_CATALOG_SCHEMA_DESCRIPTION_MUTATION.name(), new ModifyCatalogSchemaDescriptionMutationConverter(objectParser, exceptionFactory));
 		registerConverter(MODIFY_CATALOG_SCHEMA_CONFLICT_RESOLUTION_MUTATION.name(), new ModifyCatalogSchemaConflictResolutionMutationConverter(objectParser, exceptionFactory));
 		registerConverter(ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION.name(), new AllowEvolutionModeInCatalogSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(REMOVE_FULLTEXT_ANALYZER_SCHEMA_MUTATION.name(),
+			new RemoveFulltextAnalyzerSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_FULLTEXT_ANALYZER_SCHEMA_MUTATION.name(),
+			new ModifyFulltextAnalyzerSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(CREATE_FULLTEXT_ANALYZER_SCHEMA_MUTATION.name(),
+			new CreateFulltextAnalyzerSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(REMOVE_FULLTEXT_RESOURCE_SCHEMA_MUTATION.name(),
+			new RemoveFulltextResourceSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_FULLTEXT_RESOURCE_SCHEMA_MUTATION.name(),
+			new ModifyFulltextResourceSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(CREATE_FULLTEXT_RESOURCE_SCHEMA_MUTATION.name(),
+			new CreateFulltextResourceSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(REMOVE_FULLTEXT_LANGUAGE_SCHEMA_MUTATION.name(),
+			new RemoveFulltextLanguageSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_FULLTEXT_LANGUAGE_SCHEMA_MUTATION.name(),
+			new ModifyFulltextLanguageSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(CREATE_FULLTEXT_LANGUAGE_SCHEMA_MUTATION.name(),
+			new CreateFulltextLanguageSchemaMutationConverter(objectParser, exceptionFactory));
 		registerConverter(DISALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION.name(), new DisallowEvolutionModeInCatalogSchemaMutationConverter(objectParser, exceptionFactory));
 
 		// global attribute schema mutations
@@ -85,6 +104,10 @@ public class LocalCatalogSchemaMutationInputAggregateConverter extends
 		registerConverter(
 			SET_ATTRIBUTE_SCHEMA_NORMALIZED_MUTATION.name(),
 			new SetAttributeSchemaNormalizedMutationConverter(objectParser, exceptionFactory)
+		);
+		registerConverter(
+			SET_ATTRIBUTE_SCHEMA_SEARCHABLE_MUTATION.name(),
+			new SetAttributeSchemaSearchableMutationConverter(objectParser, exceptionFactory)
 		);
 		registerConverter(SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION.name(), new SetAttributeSchemaLocalizedMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION.name(), new SetAttributeSchemaNullableMutationConverter(objectParser, exceptionFactory));

@@ -27,9 +27,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.RollbackException;
-import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.EvitaTestSupport;
@@ -42,12 +40,15 @@ import org.mockito.MockedStatic;
 
 import javax.annotation.Nonnull;
 
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.wordList;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mockStatic;
 
 /**
@@ -56,12 +57,11 @@ import static org.mockito.Mockito.mockStatic;
  * nor by making a WARMING_UP catalog go live.
  *
  * Every refusal `validate()` is known to raise belongs to the `EvitaInvalidUsageException` family, so the failure is
- * injected: a static mock makes {@link ReferenceSchema}, whose static helper `CatalogSchema#validate()` reaches through
- * every reference of every entity schema, throw a plain {@link IllegalStateException} - the shape an engine defect
- * uncovered by the validation walk would take. Static mocks are bound to the thread that opens them, and both the
- * session close and the go-live operator validate on the calling thread, so the mock is opened around that call alone:
- * the schema change before it applies unaffected, and the asynchronous deactivation and the reads after it run against
- * the real validator.
+ * injected: a static mock makes `FulltextSchemaValidator`, which `CatalogSchema#validate()` always calls, throw a
+ * plain {@link IllegalStateException} - the shape an engine defect uncovered by the validation walk would take.
+ * Static mocks are bound to the thread that opens them, and both the session close and the go-live operator validate
+ * on the calling thread, so the mock is opened around that call alone: the schema change before it applies
+ * unaffected, and the asynchronous deactivation and the reads after it run against the real validator.
  *
  * Each case reads its outcome where it would have been published: the ALIVE case after a later commit that waits for
  * its changes to become visible (commits are applied in order, so an earlier commit would be visible by then - and
@@ -72,18 +72,14 @@ import static org.mockito.Mockito.mockStatic;
 @Tag(STORAGE)
 @Tag(SCHEMA)
 class SchemaValidationFailureOnCloseTest implements EvitaTestSupport {
-	/** Entity type whose reference makes the validation walk reach {@link ReferenceSchema}. */
-	private static final String ENTITY_TYPE = "Product";
-	/** Name of the reference of {@link #ENTITY_TYPE}. */
-	private static final String REFERENCE_NAME = "brand";
-	/** Entity type the reference points to. */
-	private static final String REFERENCED_ENTITY_TYPE = "Brand";
+	/** Fully qualified name of the package-private validator every `CatalogSchema#validate()` call reaches. */
+	private static final String VALIDATOR_CLASS = "io.evitadb.api.requestResponse.schema.dto.FulltextSchemaValidator";
 	/** Message of the injected validation failure, so the assertions know the failure is the injected one. */
 	private static final String INJECTED_FAILURE = "validation broke";
-	/** Catalog description set by the session whose validation fails. */
-	private static final String REFUSED_DESCRIPTION = "refused";
-	/** Catalog description set by a session that closes normally. */
-	private static final String ACCEPTED_DESCRIPTION = "accepted";
+	/** Resource declared by the session whose validation fails. */
+	private static final String REFUSED_RESOURCE = "refused";
+	/** Resource declared by a session that closes normally. */
+	private static final String ACCEPTED_RESOURCE = "accepted";
 
 	private TestPaths paths;
 	private Evita evita;
@@ -93,14 +89,6 @@ class SchemaValidationFailureOnCloseTest implements EvitaTestSupport {
 		this.paths = createTestPaths("SchemaValidationFailureOnClose");
 		this.evita = new Evita(configuration());
 		this.evita.defineCatalog(TEST_CATALOG);
-		this.evita.updateCatalog(
-			TEST_CATALOG,
-			(EvitaSessionContract session) -> {
-				session.defineEntitySchema(ENTITY_TYPE)
-					.withReferenceTo(REFERENCE_NAME, REFERENCED_ENTITY_TYPE, Cardinality.ZERO_OR_MORE)
-					.updateVia(session);
-			}
-		);
 	}
 
 	@AfterEach
@@ -117,15 +105,15 @@ class SchemaValidationFailureOnCloseTest implements EvitaTestSupport {
 		this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::goLiveAndClose);
 
 		final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG);
-		describeCatalog(session, REFUSED_DESCRIPTION);
+		declareResource(session, REFUSED_RESOURCE);
 		// the rollback is reported the way a refused schema is - as a rollback carrying the failure as its cause
 		final RollbackException exception = assertThrows(
 			RollbackException.class, () -> withFailingValidation(session::close)
 		);
 		assertInjectedFailure(exception);
 
-		this.evita.updateCatalog(TEST_CATALOG, (EvitaSessionContract it) -> describeCatalog(it, ACCEPTED_DESCRIPTION));
-		assertOnlyTheAcceptedDescription(
+		this.evita.updateCatalog(TEST_CATALOG, (EvitaSessionContract it) -> declareResource(it, ACCEPTED_RESOURCE));
+		assertOnlyTheAcceptedResource(
 			this.evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema)
 		);
 	}
@@ -133,45 +121,45 @@ class SchemaValidationFailureOnCloseTest implements EvitaTestSupport {
 	@Test
 	@DisplayName("should raise the unpublishable barrier of a WARMING_UP catalog on close")
 	void shouldRaiseTheUnpublishableBarrierOfAWarmingUpCatalogOnClose() {
-		this.evita.updateCatalog(TEST_CATALOG, (EvitaSessionContract it) -> describeCatalog(it, ACCEPTED_DESCRIPTION));
+		this.evita.updateCatalog(TEST_CATALOG, (EvitaSessionContract it) -> declareResource(it, ACCEPTED_RESOURCE));
 
 		final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG);
-		describeCatalog(session, REFUSED_DESCRIPTION);
+		declareResource(session, REFUSED_RESOURCE);
 		final GenericEvitaInternalError exception = CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
 			this.evita, TEST_CATALOG, GenericEvitaInternalError.class, () -> withFailingValidation(session::close)
 		);
 		assertInjectedFailure(exception);
 
-		assertOnlyTheAcceptedDescription(reopenAndReadCatalogSchema());
+		assertOnlyTheAcceptedResource(reopenAndReadCatalogSchema());
 	}
 
 	@Test
 	@DisplayName("should raise the unpublishable barrier when a WARMING_UP catalog goes live")
 	void shouldRaiseTheUnpublishableBarrierWhenAWarmingUpCatalogGoesLive() {
-		this.evita.updateCatalog(TEST_CATALOG, (EvitaSessionContract it) -> describeCatalog(it, ACCEPTED_DESCRIPTION));
+		this.evita.updateCatalog(TEST_CATALOG, (EvitaSessionContract it) -> declareResource(it, ACCEPTED_RESOURCE));
 
 		final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG);
-		describeCatalog(session, REFUSED_DESCRIPTION);
+		declareResource(session, REFUSED_RESOURCE);
 		final GenericEvitaInternalError exception = CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
 			this.evita, TEST_CATALOG, GenericEvitaInternalError.class,
 			() -> withFailingValidation(session::goLiveAndClose)
 		);
 		assertEquals("Unexpected internal Evita error occurred: " + INJECTED_FAILURE, exception.getMessage());
 
-		assertOnlyTheAcceptedDescription(reopenAndReadCatalogSchema());
+		assertOnlyTheAcceptedResource(reopenAndReadCatalogSchema());
 	}
 
 	/**
-	 * Describes the catalog - a catalog-level change, so the catalog schema version moves and the publication validates
-	 * it.
+	 * Declares a word-list resource in the catalog schema - a catalog-level change, so the catalog schema version
+	 * moves and the publication validates it.
 	 *
-	 * @param session     the read-write session to change the description in
-	 * @param description the description of the catalog
+	 * @param session the read-write session to declare the resource in
+	 * @param name    the name of the resource
 	 */
-	private static void describeCatalog(@Nonnull EvitaSessionContract session, @Nonnull String description) {
+	private static void declareResource(@Nonnull EvitaSessionContract session, @Nonnull String name) {
 		session.getCatalogSchema()
 			.openForWrite()
-			.withDescription(description)
+			.withFulltextResource(name, wordList("puma"))
 			.updateVia(session);
 	}
 
@@ -183,7 +171,7 @@ class SchemaValidationFailureOnCloseTest implements EvitaTestSupport {
 	private static void withFailingValidation(@Nonnull Runnable action) {
 		try (
 			MockedStatic<?> ignored = mockStatic(
-				ReferenceSchema.class,
+				validatorClass(),
 				invocation -> {
 					throw new IllegalStateException(INJECTED_FAILURE);
 				}
@@ -205,17 +193,31 @@ class SchemaValidationFailureOnCloseTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts that the catalog schema holds the description of the session that closed normally, not the one of the
-	 * session whose validation failed - which also proves the schema was read from where it was published.
+	 * Asserts that the catalog schema holds the resource of the session that closed normally and not the one of the
+	 * session whose validation failed - the first proves the schema was read from where it was published.
 	 *
 	 * @param catalogSchema the catalog schema as published
 	 */
-	private static void assertOnlyTheAcceptedDescription(@Nonnull CatalogSchemaContract catalogSchema) {
-		assertEquals(
-			ACCEPTED_DESCRIPTION,
-			catalogSchema.getDescription(),
+	private static void assertOnlyTheAcceptedResource(@Nonnull CatalogSchemaContract catalogSchema) {
+		assertTrue(catalogSchema.getFulltextResource(ACCEPTED_RESOURCE).isPresent());
+		assertFalse(
+			catalogSchema.getFulltextResource(REFUSED_RESOURCE).isPresent(),
 			"The schema change whose validation failed must not have been published"
 		);
+	}
+
+	/**
+	 * Loads the package-private validator class by name.
+	 *
+	 * @return the validator class
+	 */
+	@Nonnull
+	private static Class<?> validatorClass() {
+		try {
+			return Class.forName(VALIDATOR_CLASS);
+		} catch (ClassNotFoundException ex) {
+			throw new IllegalStateException("Validator class `" + VALIDATOR_CLASS + "` was not found.", ex);
+		}
 	}
 
 	/**

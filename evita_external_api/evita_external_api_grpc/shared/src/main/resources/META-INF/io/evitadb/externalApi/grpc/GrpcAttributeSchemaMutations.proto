@@ -77,6 +77,15 @@ message GrpcCreateAttributeSchemaMutation {
   // normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
   // A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
   repeated GrpcAnalysisStep normalization = 18;
+  // Replacement searchable scopes.
+  repeated GrpcEntityScope searchableInScopes = 19;
+  // Optional fulltext analyzer name.
+  google.protobuf.StringValue analyzer = 20;
+  // Optional fulltext length pivot.
+  google.protobuf.Int32Value lengthPivot = 21;
+  // Optional ranking weight; explicit zero is preserved.
+  GrpcBigDecimal searchWeight = 22;
+
 }
 
 // Mutation is responsible for setting up a new `GlobalAttributeSchema` in the `CatalogSchema`.
@@ -155,6 +164,15 @@ message GrpcCreateGlobalAttributeSchemaMutation {
   // normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
   // A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
   repeated GrpcAnalysisStep normalization = 20;
+  // Replacement searchable scopes.
+  repeated GrpcEntityScope searchableInScopes = 21;
+  // Optional fulltext analyzer name.
+  google.protobuf.StringValue analyzer = 22;
+  // Optional fulltext length pivot.
+  google.protobuf.Int32Value lengthPivot = 23;
+  // Optional ranking weight; explicit zero is preserved.
+  GrpcBigDecimal searchWeight = 24;
+
 }
 
 // Mutation is responsible for setting value to a `AttributeSchema.defaultValue` in `EntitySchema`.
@@ -381,5 +399,22 @@ message GrpcAttributeSchemaMutation {
     GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;
     // Replaces the declared normalization chain; an empty chain removes normalization.
     GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 19;
+    // Fulltext schema declaration.
+    GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 20;
+
   }
+}
+
+// Replaces searchable scopes and optionally updates analysis and ranking settings.
+message GrpcSetAttributeSchemaSearchableMutation {
+  // Name of the schema item.
+  string name = 1;
+  // Replacement searchable scopes.
+  repeated GrpcEntityScope searchableInScopes = 2;
+  // Optional fulltext analyzer name.
+  google.protobuf.StringValue analyzer = 3;
+  // Optional fulltext length pivot.
+  google.protobuf.Int32Value lengthPivot = 4;
+  // Optional ranking weight; explicit zero is preserved.
+  GrpcBigDecimal searchWeight = 5;
 }

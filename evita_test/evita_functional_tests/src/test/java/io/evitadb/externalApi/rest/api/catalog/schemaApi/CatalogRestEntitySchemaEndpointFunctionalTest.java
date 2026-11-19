@@ -283,6 +283,11 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);
 	}
 
+	/**
+	 * Edits an attribute and checks its canonical decimal ranking default in REST output.
+	 * @param evita engine supplying the committed schema for comparison
+	 * @param tester client sending schema mutations and reading REST responses
+	 */
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should change attribute schema")
@@ -348,6 +353,10 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AttributeSchemaDescriptor.FILTERABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.ACCELERATED.name(), list())
 						.e(AttributeSchemaDescriptor.NORMALIZED.name(), list())
+						.e(AttributeSchemaDescriptor.SEARCHABLE.name(), list())
+						.e(AttributeSchemaDescriptor.ANALYZER.name(), "text")
+						.e(AttributeSchemaDescriptor.LENGTH_PIVOT.name(), 25)
+						.e(AttributeSchemaDescriptor.SEARCH_WEIGHT.name(), "1")
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)
@@ -402,6 +411,10 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AttributeSchemaDescriptor.FILTERABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.ACCELERATED.name(), list())
 						.e(AttributeSchemaDescriptor.NORMALIZED.name(), list())
+						.e(AttributeSchemaDescriptor.SEARCHABLE.name(), list())
+						.e(AttributeSchemaDescriptor.ANALYZER.name(), "text")
+						.e(AttributeSchemaDescriptor.LENGTH_PIVOT.name(), 25)
+						.e(AttributeSchemaDescriptor.SEARCH_WEIGHT.name(), "1")
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)
@@ -617,6 +630,11 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);
 	}
 
+	/**
+	 * Edits associated data and checks its canonical decimal ranking default in REST output.
+	 * @param evita engine supplying the committed schema for comparison
+	 * @param tester client sending schema mutations and reading REST responses
+	 */
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should change associated data schema")
@@ -674,6 +692,10 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AssociatedDataSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AssociatedDataSchemaDescriptor.LOCALIZED.name(), true)
 						.e(AssociatedDataSchemaDescriptor.NULLABLE.name(), false)
+						.e(AssociatedDataSchemaDescriptor.SEARCHABLE.name(), list())
+						.e(AssociatedDataSchemaDescriptor.ANALYZER.name(), "text")
+						.e(AssociatedDataSchemaDescriptor.LENGTH_PIVOT.name(), 25)
+						.e(AssociatedDataSchemaDescriptor.SEARCH_WEIGHT.name(), "1")
 						.e(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.build()
 				)
@@ -721,6 +743,10 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AssociatedDataSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AssociatedDataSchemaDescriptor.LOCALIZED.name(), true)
 						.e(AssociatedDataSchemaDescriptor.NULLABLE.name(), false)
+						.e(AssociatedDataSchemaDescriptor.SEARCHABLE.name(), list())
+						.e(AssociatedDataSchemaDescriptor.ANALYZER.name(), "text")
+						.e(AssociatedDataSchemaDescriptor.LENGTH_PIVOT.name(), 25)
+						.e(AssociatedDataSchemaDescriptor.SEARCH_WEIGHT.name(), "1")
 						.e(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.build()
 				)
@@ -849,6 +875,8 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), list())
 						.e(ReferenceSchemaDescriptor.BUCKETED.name(), list())
 						.e(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), list())
+						.e(ReferenceSchemaDescriptor.SEARCHABLE_THROUGH.name(), list())
+						.e(ReferenceSchemaDescriptor.SEARCHABLE_THROUGH_WEIGHT.name(), "0.5")
 						.e(ReferenceSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 						.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map())
 						.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())

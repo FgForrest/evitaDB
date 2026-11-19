@@ -627,3 +627,14 @@ message GrpcAnalysisStep {
   // and values incompatible with the installed step's parameter descriptors are rejected by the server.
   map<string, GrpcEvitaValue> parameters = 2;
 }
+
+// Reference fulltext composition mode in one scope.
+message GrpcScopedReferenceSearchMode {
+  GrpcEntityScope scope = 1;
+  GrpcReferenceSearchMode mode = 2;
+}
+
+// Presence distinguishes an omitted declaration from an explicit empty replacement.
+message GrpcReferenceSearchModes {
+  repeated GrpcScopedReferenceSearchMode modes = 1;
+}

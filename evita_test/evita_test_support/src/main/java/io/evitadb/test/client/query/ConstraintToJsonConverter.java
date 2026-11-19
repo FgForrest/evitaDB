@@ -40,6 +40,8 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.descriptor.ConstraintValueStructure;
+import io.evitadb.api.query.filter.AssociatedDataIn;
+import io.evitadb.api.query.filter.AttributeIn;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -252,6 +254,15 @@ public abstract class ConstraintToJsonConverter {
 			.map(this.objectJsonSerializer::serializeObject);
 	}
 
+	/**
+	 * Converts one creator child parameter, expanding multi-name fulltext selectors before resolving classifiers.
+	 *
+	 * @param convertContext current constraint's resolved data context
+	 * @param constraint source constraint whose children are read
+	 * @param parsedConstraintDescriptor descriptor defining the source constraint's parameter layout
+	 * @param parameterDescriptor child parameter and its domain, array and uniqueness rules
+	 * @return converted child container, absent when an optional child has no value
+	 */
 	@Nonnull
 	private Optional<JsonConstraint> convertChildParameter(@Nonnull ConstraintToJsonConvertContext convertContext,
 	                                                       @Nonnull Constraint<?> constraint,
@@ -309,7 +320,8 @@ public abstract class ConstraintToJsonConverter {
 			}
 
 			final Stream<? extends Constraint<?>> children = Arrays.stream((Object[]) parameterValue.get())
-				.map(it -> (Constraint<?>) it);
+				.map(it -> (Constraint<?>) it)
+				.flatMap(ConstraintToJsonConverter::splitTextSelector);
 
 			if (isChildrenUnique(parameterDescriptor)) {
 				// if unique children are needed, single wrapping container is expected from client, listing unique constraints
@@ -373,6 +385,24 @@ public abstract class ConstraintToJsonConverter {
 				.ifPresent(jsonConstraint -> wrapperContainer.putIfAbsent(jsonConstraint.key(), jsonConstraint.value()));
 			return Optional.of(new JsonConstraint(parameterDescriptor.name(), wrapperContainer));
 		}
+	}
+
+	/**
+	 * Expands multi-name Java selectors into one API key per classifier without changing the original query.
+	 * Wildcards retain their suffix creator and never call a singular classifier getter.
+	 *
+	 * @param constraint child constraint before descriptor/classifier resolution
+	 * @return the original constraint or its single-name selectors
+	 */
+	@Nonnull
+	private static Stream<? extends Constraint<?>> splitTextSelector(@Nonnull Constraint<?> constraint) {
+		if (constraint instanceof AttributeIn selector && !selector.isAllRequested()) {
+			return Arrays.stream(selector.getAttributeNames()).map(AttributeIn::new);
+		}
+		if (constraint instanceof AssociatedDataIn selector && !selector.isAllRequested()) {
+			return Arrays.stream(selector.getAssociatedDataNames()).map(AssociatedDataIn::new);
+		}
+		return Stream.of(constraint);
 	}
 
 	@Nonnull

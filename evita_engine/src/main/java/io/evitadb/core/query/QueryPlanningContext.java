@@ -47,6 +47,7 @@ import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.Or;
+import io.evitadb.api.query.order.RelevanceText;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -69,6 +70,8 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -93,12 +96,18 @@ import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.*;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.facet.FacetIndex;
+import io.evitadb.index.fulltext.FulltextFieldDefinition;
+import io.evitadb.index.fulltext.FulltextFieldKey;
+import io.evitadb.index.fulltext.FulltextScoringPolicy;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.usage.SchemaCapabilityKey;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
@@ -419,7 +428,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * resolution and never shared with another context, so it never outlives the index snapshots this context reads.
 	 */
 	@Nullable private PartitionKeyMemo partitionKeyMemo;
-
+	/** Immutable schema defaults per processing entity type, including targets reached through composition. */
+	@Nullable private Map<String, FulltextScoringPolicy> fulltextScoringPolicies;
+	/** Independently validated immutable overrides, keyed by each relevance ordering's structural value. */
+	@Nullable private Map<RelevanceText, Map<FulltextScoringPolicy.Place, Float>> fulltextWeights;
 
 	/**
 	 * Creates the context of a **top level** query - the one that produces the response handed back to the client.
@@ -1775,6 +1787,108 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns the catalog's installed analysis step providers for query fragment normalization.
+	 * @return the catalog's analysis step registry
+	 */
+	@Nonnull
+	public AnalysisStepRegistry getAnalysisStepRegistry() {
+		return this.catalog.getAnalysisStepRegistry();
+	}
+
+	/** Validates each relevance ordering before index selection without changing search preparation. */
+	void validateFulltextOrderings() {
+		this.fulltextWeights = FulltextWeightResolver.validate(this);
+	}
+
+	/** Returns this collection's schema defaults; ordering weights travel only with scoring requests. */
+	@Nonnull
+	public FulltextScoringPolicy getFulltextScoringPolicy() {
+		return getFulltextSchemaScoringPolicy(getSchema());
+	}
+
+	/**
+	 * Returns the independently validated weights of one relevance ordering in its processing scopes.
+	 *
+	 * @param relevance the relevance ordering whose weights its sorter supplies to every scoring request
+	 * @return immutable overrides keyed by place, empty when the ordering states no weight
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the planner has not validated this ordering
+	 */
+	@Nonnull
+	public Map<FulltextScoringPolicy.Place, Float> getFulltextWeights(
+		@Nonnull RelevanceText relevance
+	) {
+		final Map<FulltextScoringPolicy.Place, Float> weights =
+			this.fulltextWeights == null ? null : this.fulltextWeights.get(relevance);
+		Assert.isPremiseValid(weights != null, "Relevance ordering weights must be validated before index selection!");
+		return weights;
+	}
+
+	/**
+	 * Returns the schema defaults of the given collection, built once per entity type and cached in this context.
+	 * Query place weights never apply here, so composition reads target weights from here, also when a collection
+	 * composes itself. Reference attributes come from
+	 * {@link FulltextFieldDefinition#availableReferenceAttributes(ReferenceSchemaContract)}, the set field discovery
+	 * searches, so an unbound reflected reference weighs only its locally declared attributes.
+	 * @param schema schema whose search weights are read
+	 * @return the schema defaults; their weights and coefficient are immutable, their caches belong to this query
+	 */
+	@Nonnull
+	public FulltextScoringPolicy getFulltextSchemaScoringPolicy(@Nonnull EntitySchemaContract schema) {
+		if (this.fulltextScoringPolicies == null) {
+			this.fulltextScoringPolicies = CollectionUtils.createHashMap(2);
+		}
+		final FulltextScoringPolicy existing = this.fulltextScoringPolicies.get(schema.getName());
+		if (existing != null) {
+			return existing;
+		}
+		final Map<FulltextFieldKey, Float> weights = CollectionUtils.createHashMap(16);
+		final Map<String, Float> referenceWeights = CollectionUtils.createHashMap(schema.getReferences().size());
+		for (final AttributeSchemaContract attribute : schema.getAttributes().values()) {
+			if (attribute.isSearchableInAnyScope()) {
+				weights.put(FulltextFieldKey.attribute(attribute.getName()), attribute.getSearchWeight().floatValue());
+			}
+		}
+		for (final AssociatedDataSchemaContract data : schema.getAssociatedData().values()) {
+			if (data.isSearchableInAnyScope()) {
+				weights.put(FulltextFieldKey.associatedData(data.getName()), data.getSearchWeight().floatValue());
+			}
+		}
+		for (final ReferenceSchemaContract reference : schema.getReferences().values()) {
+			referenceWeights.put(reference.getName(), reference.getSearchableThroughWeight().floatValue());
+			for (final AttributeSchemaContract attribute :
+				FulltextFieldDefinition.availableReferenceAttributes(reference).values()) {
+				if (attribute.isSearchableInAnyScope()) {
+					weights.put(FulltextFieldKey.referenceAttribute(reference.getName(), attribute.getName()),
+						attribute.getSearchWeight().floatValue());
+				}
+			}
+		}
+		final FulltextScoringPolicy policy = new FulltextScoringPolicy(weights, referenceWeights);
+		this.fulltextScoringPolicies.put(schema.getName(), policy);
+		return policy;
+	}
+
+	/**
+	 * Returns the configured submitted-search policy of this query's engine.
+	 * @return the immutable runtime fulltext policy
+	 */
+	@Nonnull
+	public FulltextTypoParameters getFulltextTypoParameters() {
+		return this.catalog.getFulltextTypoParameters();
+	}
+
+	/**
+	 * Returns the analyzer registry of the catalog targeted by this query - the one the fulltext indexes of its
+	 * collections were built with, through which the text of a fulltext query is analyzed.
+	 *
+	 * @return the catalog's analyzer registry
+	 */
+	@Nonnull
+	public FulltextAnalyzerRegistry getFulltextAnalyzerRegistry() {
+		return this.catalog.getFulltextAnalyzerRegistry();
+	}
+
+	/**
 	 * Returns the entity-type name ↔ compact primary key resolver backed by the catalog targeted by this query.
 	 * Used by the globally-unique attribute filter translators to decode the entity type stored inside the
 	 * global unique index's packed tuples.
@@ -1958,6 +2072,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * context already plans in it, otherwise a nested context whose request carries `locale` as an explicit
 	 * override. The locale becomes context only - no predicate is added to the filter. A nested context collects
 	 * the schema capabilities its planning requests on its own; the caller drains them into this context.
+	 * A locale context carries no relevance ordering weights: they travel with the sorter's scoring requests, never
+	 * with search preparation. Referenced-entity query contexts are created separately and keep their existing
+	 * target defaults and fixed source factor.
 	 *
 	 * @param entityType the entity type the nested context plans
 	 * @param filterBy   the filter of the nested request, NULL when it has none
@@ -1977,11 +2094,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		if (locale == null || locale.equals(getLocale())) {
 			return this;
 		}
-		return getEntityCollectionOrThrowException(entityType, reason).createQueryContext(
-			this,
-			this.evitaRequest.deriveCopyWith(entityType, filterBy, null, locale, scopes),
-			this.evitaSession
-		);
+		final QueryPlanningContext localized = getEntityCollectionOrThrowException(entityType, reason)
+			.createQueryContext(
+				this,
+				this.evitaRequest.deriveCopyWith(entityType, filterBy, null, locale, scopes),
+				this.evitaSession
+			);
+		return localized;
 	}
 
 	/**

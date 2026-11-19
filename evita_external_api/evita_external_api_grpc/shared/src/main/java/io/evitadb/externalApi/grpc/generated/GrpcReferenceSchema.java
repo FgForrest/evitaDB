@@ -344,7 +344,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.entityTypeRelatesToEntity is deprecated.
-   *     See GrpcEntitySchema.proto;l=347
+   *     See GrpcEntitySchema.proto;l=376
    * @return The entityTypeRelatesToEntity.
    */
   @java.lang.Override
@@ -403,7 +403,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.groupTypeRelatesToEntity is deprecated.
-   *     See GrpcEntitySchema.proto;l=353
+   *     See GrpcEntitySchema.proto;l=382
    * @return The groupTypeRelatesToEntity.
    */
   @java.lang.Override
@@ -428,7 +428,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool indexed = 9 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexed is deprecated.
-   *     See GrpcEntitySchema.proto;l=363
+   *     See GrpcEntitySchema.proto;l=392
    * @return The indexed.
    */
   @java.lang.Override
@@ -453,7 +453,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool faceted = 10 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.faceted is deprecated.
-   *     See GrpcEntitySchema.proto;l=373
+   *     See GrpcEntitySchema.proto;l=402
    * @return The faceted.
    */
   @java.lang.Override
@@ -1129,7 +1129,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=425
+   *     See GrpcEntitySchema.proto;l=454
    * @return A list containing the indexedInScopes.
    */
   @java.lang.Override
@@ -1152,7 +1152,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=425
+   *     See GrpcEntitySchema.proto;l=454
    * @return The count of indexedInScopes.
    */
   @java.lang.Override
@@ -1174,7 +1174,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=425
+   *     See GrpcEntitySchema.proto;l=454
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
@@ -1197,7 +1197,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=425
+   *     See GrpcEntitySchema.proto;l=454
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
   @java.lang.Override
@@ -1220,7 +1220,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=425
+   *     See GrpcEntitySchema.proto;l=454
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */
@@ -1702,6 +1702,91 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.UNRECOGNIZED : result;
   }
 
+  public static final int SEARCHABLETHROUGHINSCOPES_FIELD_NUMBER = 35;
+  private io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes_;
+  /**
+   * <pre>
+   * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+   * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+   * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+   * @return Whether the searchableThroughInScopes field is set.
+   */
+  @java.lang.Override
+  public boolean hasSearchableThroughInScopes() {
+    return ((bitField0_ & 0x00000010) != 0);
+  }
+  /**
+   * <pre>
+   * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+   * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+   * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+   * @return The searchableThroughInScopes.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes getSearchableThroughInScopes() {
+    return searchableThroughInScopes_ == null ? io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.getDefaultInstance() : searchableThroughInScopes_;
+  }
+  /**
+   * <pre>
+   * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+   * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+   * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder getSearchableThroughInScopesOrBuilder() {
+    return searchableThroughInScopes_ == null ? io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.getDefaultInstance() : searchableThroughInScopes_;
+  }
+
+  public static final int SEARCHABLETHROUGHWEIGHT_FIELD_NUMBER = 36;
+  private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight_;
+  /**
+   * <pre>
+   * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+   * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+   * @return Whether the searchableThroughWeight field is set.
+   */
+  @java.lang.Override
+  public boolean hasSearchableThroughWeight() {
+    return ((bitField0_ & 0x00000020) != 0);
+  }
+  /**
+   * <pre>
+   * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+   * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+   * @return The searchableThroughWeight.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchableThroughWeight() {
+    return searchableThroughWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchableThroughWeight_;
+  }
+  /**
+   * <pre>
+   * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+   * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchableThroughWeightOrBuilder() {
+    return searchableThroughWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchableThroughWeight_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1832,6 +1917,12 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
     }
     if (conflictResolutionOverride_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED.getNumber()) {
       output.writeEnum(34, conflictResolutionOverride_);
+    }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      output.writeMessage(35, getSearchableThroughInScopes());
+    }
+    if (((bitField0_ & 0x00000020) != 0)) {
+      output.writeMessage(36, getSearchableThroughWeight());
     }
     getUnknownFields().writeTo(output);
   }
@@ -2008,6 +2099,14 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(34, conflictResolutionOverride_);
     }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(35, getSearchableThroughInScopes());
+    }
+    if (((bitField0_ & 0x00000020) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(36, getSearchableThroughWeight());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -2098,6 +2197,16 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
     if (!getBucketedPartiallyList()
         .equals(other.getBucketedPartiallyList())) return false;
     if (conflictResolutionOverride_ != other.conflictResolutionOverride_) return false;
+    if (hasSearchableThroughInScopes() != other.hasSearchableThroughInScopes()) return false;
+    if (hasSearchableThroughInScopes()) {
+      if (!getSearchableThroughInScopes()
+          .equals(other.getSearchableThroughInScopes())) return false;
+    }
+    if (hasSearchableThroughWeight() != other.hasSearchableThroughWeight()) return false;
+    if (hasSearchableThroughWeight()) {
+      if (!getSearchableThroughWeight()
+          .equals(other.getSearchableThroughWeight())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -2223,6 +2332,14 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
     }
     hash = (37 * hash) + CONFLICTRESOLUTIONOVERRIDE_FIELD_NUMBER;
     hash = (53 * hash) + conflictResolutionOverride_;
+    if (hasSearchableThroughInScopes()) {
+      hash = (37 * hash) + SEARCHABLETHROUGHINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + getSearchableThroughInScopes().hashCode();
+    }
+    if (hasSearchableThroughWeight()) {
+      hash = (37 * hash) + SEARCHABLETHROUGHWEIGHT_FIELD_NUMBER;
+      hash = (53 * hash) + getSearchableThroughWeight().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -2411,6 +2528,8 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
         getFacetedPartiallyFieldBuilder();
         getBucketedFieldBuilder();
         getBucketedPartiallyFieldBuilder();
+        getSearchableThroughInScopesFieldBuilder();
+        getSearchableThroughWeightFieldBuilder();
       }
     }
     @java.lang.Override
@@ -2519,6 +2638,16 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
       }
       bitField1_ = (bitField1_ & ~0x00000001);
       conflictResolutionOverride_ = 0;
+      searchableThroughInScopes_ = null;
+      if (searchableThroughInScopesBuilder_ != null) {
+        searchableThroughInScopesBuilder_.dispose();
+        searchableThroughInScopesBuilder_ = null;
+      }
+      searchableThroughWeight_ = null;
+      if (searchableThroughWeightBuilder_ != null) {
+        searchableThroughWeightBuilder_.dispose();
+        searchableThroughWeightBuilder_ = null;
+      }
       return this;
     }
 
@@ -2730,6 +2859,20 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
       if (((from_bitField1_ & 0x00000002) != 0)) {
         result.conflictResolutionOverride_ = conflictResolutionOverride_;
       }
+      int to_bitField0_ = 0;
+      if (((from_bitField1_ & 0x00000004) != 0)) {
+        result.searchableThroughInScopes_ = searchableThroughInScopesBuilder_ == null
+            ? searchableThroughInScopes_
+            : searchableThroughInScopesBuilder_.build();
+        to_bitField0_ |= 0x00000010;
+      }
+      if (((from_bitField1_ & 0x00000008) != 0)) {
+        result.searchableThroughWeight_ = searchableThroughWeightBuilder_ == null
+            ? searchableThroughWeight_
+            : searchableThroughWeightBuilder_.build();
+        to_bitField0_ |= 0x00000020;
+      }
+      result.bitField0_ |= to_bitField0_;
     }
 
     @java.lang.Override
@@ -3087,6 +3230,12 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
       if (other.conflictResolutionOverride_ != 0) {
         setConflictResolutionOverrideValue(other.getConflictResolutionOverrideValue());
       }
+      if (other.hasSearchableThroughInScopes()) {
+        mergeSearchableThroughInScopes(other.getSearchableThroughInScopes());
+      }
+      if (other.hasSearchableThroughWeight()) {
+        mergeSearchableThroughWeight(other.getSearchableThroughWeight());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -3388,6 +3537,20 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
               bitField1_ |= 0x00000002;
               break;
             } // case 272
+            case 282: {
+              input.readMessage(
+                  getSearchableThroughInScopesFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField1_ |= 0x00000004;
+              break;
+            } // case 282
+            case 290: {
+              input.readMessage(
+                  getSearchableThroughWeightFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField1_ |= 0x00000008;
+              break;
+            } // case 290
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -4052,7 +4215,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.entityTypeRelatesToEntity is deprecated.
-     *     See GrpcEntitySchema.proto;l=347
+     *     See GrpcEntitySchema.proto;l=376
      * @return The entityTypeRelatesToEntity.
      */
     @java.lang.Override
@@ -4067,7 +4230,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.entityTypeRelatesToEntity is deprecated.
-     *     See GrpcEntitySchema.proto;l=347
+     *     See GrpcEntitySchema.proto;l=376
      * @param value The entityTypeRelatesToEntity to set.
      * @return This builder for chaining.
      */
@@ -4086,7 +4249,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.entityTypeRelatesToEntity is deprecated.
-     *     See GrpcEntitySchema.proto;l=347
+     *     See GrpcEntitySchema.proto;l=376
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearEntityTypeRelatesToEntity() {
@@ -4271,7 +4434,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.groupTypeRelatesToEntity is deprecated.
-     *     See GrpcEntitySchema.proto;l=353
+     *     See GrpcEntitySchema.proto;l=382
      * @return The groupTypeRelatesToEntity.
      */
     @java.lang.Override
@@ -4286,7 +4449,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.groupTypeRelatesToEntity is deprecated.
-     *     See GrpcEntitySchema.proto;l=353
+     *     See GrpcEntitySchema.proto;l=382
      * @param value The groupTypeRelatesToEntity to set.
      * @return This builder for chaining.
      */
@@ -4305,7 +4468,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.groupTypeRelatesToEntity is deprecated.
-     *     See GrpcEntitySchema.proto;l=353
+     *     See GrpcEntitySchema.proto;l=382
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearGroupTypeRelatesToEntity() {
@@ -4331,7 +4494,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool indexed = 9 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexed is deprecated.
-     *     See GrpcEntitySchema.proto;l=363
+     *     See GrpcEntitySchema.proto;l=392
      * @return The indexed.
      */
     @java.lang.Override
@@ -4353,7 +4516,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool indexed = 9 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexed is deprecated.
-     *     See GrpcEntitySchema.proto;l=363
+     *     See GrpcEntitySchema.proto;l=392
      * @param value The indexed to set.
      * @return This builder for chaining.
      */
@@ -4379,7 +4542,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool indexed = 9 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexed is deprecated.
-     *     See GrpcEntitySchema.proto;l=363
+     *     See GrpcEntitySchema.proto;l=392
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearIndexed() {
@@ -4405,7 +4568,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool faceted = 10 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.faceted is deprecated.
-     *     See GrpcEntitySchema.proto;l=373
+     *     See GrpcEntitySchema.proto;l=402
      * @return The faceted.
      */
     @java.lang.Override
@@ -4427,7 +4590,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool faceted = 10 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.faceted is deprecated.
-     *     See GrpcEntitySchema.proto;l=373
+     *     See GrpcEntitySchema.proto;l=402
      * @param value The faceted to set.
      * @return This builder for chaining.
      */
@@ -4453,7 +4616,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>bool faceted = 10 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.faceted is deprecated.
-     *     See GrpcEntitySchema.proto;l=373
+     *     See GrpcEntitySchema.proto;l=402
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearFaceted() {
@@ -6580,7 +6743,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=425
+     *     See GrpcEntitySchema.proto;l=454
      * @return A list containing the indexedInScopes.
      */
     @java.lang.Deprecated public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
@@ -6602,7 +6765,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=425
+     *     See GrpcEntitySchema.proto;l=454
      * @return The count of indexedInScopes.
      */
     @java.lang.Deprecated public int getIndexedInScopesCount() {
@@ -6623,7 +6786,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=425
+     *     See GrpcEntitySchema.proto;l=454
      * @param index The index of the element to return.
      * @return The indexedInScopes at the given index.
      */
@@ -6645,7 +6808,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=425
+     *     See GrpcEntitySchema.proto;l=454
      * @param index The index to set the value at.
      * @param value The indexedInScopes to set.
      * @return This builder for chaining.
@@ -6675,7 +6838,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=425
+     *     See GrpcEntitySchema.proto;l=454
      * @param value The indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -6703,7 +6866,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=425
+     *     See GrpcEntitySchema.proto;l=454
      * @param values The indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -6731,7 +6894,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=425
+     *     See GrpcEntitySchema.proto;l=454
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearIndexedInScopes() {
@@ -6755,7 +6918,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=425
+     *     See GrpcEntitySchema.proto;l=454
      * @return A list containing the enum numeric values on the wire for indexedInScopes.
      */
     @java.lang.Deprecated public java.util.List<java.lang.Integer>
@@ -6777,7 +6940,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=425
+     *     See GrpcEntitySchema.proto;l=454
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of indexedInScopes at the given index.
      */
@@ -6799,7 +6962,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=425
+     *     See GrpcEntitySchema.proto;l=454
      * @param index The index to set the value at.
      * @param value The enum numeric value on the wire for indexedInScopes to set.
      * @return This builder for chaining.
@@ -6826,7 +6989,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=425
+     *     See GrpcEntitySchema.proto;l=454
      * @param value The enum numeric value on the wire for indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -6851,7 +7014,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-     *     See GrpcEntitySchema.proto;l=425
+     *     See GrpcEntitySchema.proto;l=454
      * @param values The enum numeric values on the wire for indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -8856,6 +9019,347 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
       conflictResolutionOverride_ = 0;
       onChanged();
       return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes, io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder> searchableThroughInScopesBuilder_;
+    /**
+     * <pre>
+     * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+     * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+     * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+     * @return Whether the searchableThroughInScopes field is set.
+     */
+    public boolean hasSearchableThroughInScopes() {
+      return ((bitField1_ & 0x00000004) != 0);
+    }
+    /**
+     * <pre>
+     * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+     * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+     * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+     * @return The searchableThroughInScopes.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes getSearchableThroughInScopes() {
+      if (searchableThroughInScopesBuilder_ == null) {
+        return searchableThroughInScopes_ == null ? io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.getDefaultInstance() : searchableThroughInScopes_;
+      } else {
+        return searchableThroughInScopesBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+     * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+     * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+     */
+    public Builder setSearchableThroughInScopes(io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes value) {
+      if (searchableThroughInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        searchableThroughInScopes_ = value;
+      } else {
+        searchableThroughInScopesBuilder_.setMessage(value);
+      }
+      bitField1_ |= 0x00000004;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+     * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+     * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+     */
+    public Builder setSearchableThroughInScopes(
+        io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.Builder builderForValue) {
+      if (searchableThroughInScopesBuilder_ == null) {
+        searchableThroughInScopes_ = builderForValue.build();
+      } else {
+        searchableThroughInScopesBuilder_.setMessage(builderForValue.build());
+      }
+      bitField1_ |= 0x00000004;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+     * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+     * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+     */
+    public Builder mergeSearchableThroughInScopes(io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes value) {
+      if (searchableThroughInScopesBuilder_ == null) {
+        if (((bitField1_ & 0x00000004) != 0) &&
+          searchableThroughInScopes_ != null &&
+          searchableThroughInScopes_ != io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.getDefaultInstance()) {
+          getSearchableThroughInScopesBuilder().mergeFrom(value);
+        } else {
+          searchableThroughInScopes_ = value;
+        }
+      } else {
+        searchableThroughInScopesBuilder_.mergeFrom(value);
+      }
+      if (searchableThroughInScopes_ != null) {
+        bitField1_ |= 0x00000004;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+     * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+     * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+     */
+    public Builder clearSearchableThroughInScopes() {
+      bitField1_ = (bitField1_ & ~0x00000004);
+      searchableThroughInScopes_ = null;
+      if (searchableThroughInScopesBuilder_ != null) {
+        searchableThroughInScopesBuilder_.dispose();
+        searchableThroughInScopesBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+     * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+     * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.Builder getSearchableThroughInScopesBuilder() {
+      bitField1_ |= 0x00000004;
+      onChanged();
+      return getSearchableThroughInScopesFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+     * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+     * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder getSearchableThroughInScopesOrBuilder() {
+      if (searchableThroughInScopesBuilder_ != null) {
+        return searchableThroughInScopesBuilder_.getMessageOrBuilder();
+      } else {
+        return searchableThroughInScopes_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.getDefaultInstance() : searchableThroughInScopes_;
+      }
+    }
+    /**
+     * <pre>
+     * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+     * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+     * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes, io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder> 
+        getSearchableThroughInScopesFieldBuilder() {
+      if (searchableThroughInScopesBuilder_ == null) {
+        searchableThroughInScopesBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes, io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder>(
+                getSearchableThroughInScopes(),
+                getParentForChildren(),
+                isClean());
+        searchableThroughInScopes_ = null;
+      }
+      return searchableThroughInScopesBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> searchableThroughWeightBuilder_;
+    /**
+     * <pre>
+     * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+     * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+     * @return Whether the searchableThroughWeight field is set.
+     */
+    public boolean hasSearchableThroughWeight() {
+      return ((bitField1_ & 0x00000008) != 0);
+    }
+    /**
+     * <pre>
+     * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+     * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+     * @return The searchableThroughWeight.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchableThroughWeight() {
+      if (searchableThroughWeightBuilder_ == null) {
+        return searchableThroughWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchableThroughWeight_;
+      } else {
+        return searchableThroughWeightBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+     * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+     */
+    public Builder setSearchableThroughWeight(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
+      if (searchableThroughWeightBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        searchableThroughWeight_ = value;
+      } else {
+        searchableThroughWeightBuilder_.setMessage(value);
+      }
+      bitField1_ |= 0x00000008;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+     * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+     */
+    public Builder setSearchableThroughWeight(
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
+      if (searchableThroughWeightBuilder_ == null) {
+        searchableThroughWeight_ = builderForValue.build();
+      } else {
+        searchableThroughWeightBuilder_.setMessage(builderForValue.build());
+      }
+      bitField1_ |= 0x00000008;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+     * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+     */
+    public Builder mergeSearchableThroughWeight(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
+      if (searchableThroughWeightBuilder_ == null) {
+        if (((bitField1_ & 0x00000008) != 0) &&
+          searchableThroughWeight_ != null &&
+          searchableThroughWeight_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance()) {
+          getSearchableThroughWeightBuilder().mergeFrom(value);
+        } else {
+          searchableThroughWeight_ = value;
+        }
+      } else {
+        searchableThroughWeightBuilder_.mergeFrom(value);
+      }
+      if (searchableThroughWeight_ != null) {
+        bitField1_ |= 0x00000008;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+     * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+     */
+    public Builder clearSearchableThroughWeight() {
+      bitField1_ = (bitField1_ & ~0x00000008);
+      searchableThroughWeight_ = null;
+      if (searchableThroughWeightBuilder_ != null) {
+        searchableThroughWeightBuilder_.dispose();
+        searchableThroughWeightBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+     * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getSearchableThroughWeightBuilder() {
+      bitField1_ |= 0x00000008;
+      onChanged();
+      return getSearchableThroughWeightFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+     * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchableThroughWeightOrBuilder() {
+      if (searchableThroughWeightBuilder_ != null) {
+        return searchableThroughWeightBuilder_.getMessageOrBuilder();
+      } else {
+        return searchableThroughWeight_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchableThroughWeight_;
+      }
+    }
+    /**
+     * <pre>
+     * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+     * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
+        getSearchableThroughWeightFieldBuilder() {
+      if (searchableThroughWeightBuilder_ == null) {
+        searchableThroughWeightBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
+                getSearchableThroughWeight(),
+                getParentForChildren(),
+                isClean());
+        searchableThroughWeight_ = null;
+      }
+      return searchableThroughWeightBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

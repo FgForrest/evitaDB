@@ -176,4 +176,161 @@ public interface GrpcCreateAssociatedDataSchemaMutationOrBuilder extends
    * @return The conflictResolutionOverride.
    */
   io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride();
+
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 8;</code>
+   * @return A list containing the searchableInScopes.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getSearchableInScopesList();
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 8;</code>
+   * @return The count of searchableInScopes.
+   */
+  int getSearchableInScopesCount();
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 8;</code>
+   * @param index The index of the element to return.
+   * @return The searchableInScopes at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getSearchableInScopes(int index);
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 8;</code>
+   * @return A list containing the enum numeric values on the wire for searchableInScopes.
+   */
+  java.util.List<java.lang.Integer>
+  getSearchableInScopesValueList();
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 8;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of searchableInScopes at the given index.
+   */
+  int getSearchableInScopesValue(int index);
+
+  /**
+   * <pre>
+   * Optional fulltext analyzer name.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 9;</code>
+   * @return Whether the analyzer field is set.
+   */
+  boolean hasAnalyzer();
+  /**
+   * <pre>
+   * Optional fulltext analyzer name.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 9;</code>
+   * @return The analyzer.
+   */
+  com.google.protobuf.StringValue getAnalyzer();
+  /**
+   * <pre>
+   * Optional fulltext analyzer name.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 9;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getAnalyzerOrBuilder();
+
+  /**
+   * <pre>
+   * Optional fulltext length pivot.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 10;</code>
+   * @return Whether the lengthPivot field is set.
+   */
+  boolean hasLengthPivot();
+  /**
+   * <pre>
+   * Optional fulltext length pivot.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 10;</code>
+   * @return The lengthPivot.
+   */
+  com.google.protobuf.Int32Value getLengthPivot();
+  /**
+   * <pre>
+   * Optional fulltext length pivot.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 10;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getLengthPivotOrBuilder();
+
+  /**
+   * <pre>
+   * Optional ranking weight; explicit zero is preserved.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 11;</code>
+   * @return Whether the searchWeight field is set.
+   */
+  boolean hasSearchWeight();
+  /**
+   * <pre>
+   * Optional ranking weight; explicit zero is preserved.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 11;</code>
+   * @return The searchWeight.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchWeight();
+  /**
+   * <pre>
+   * Optional ranking weight; explicit zero is preserved.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 11;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchWeightOrBuilder();
+
+  /**
+   * <pre>
+   * Raw expression selecting the searchable text.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue textExpression = 12;</code>
+   * @return Whether the textExpression field is set.
+   */
+  boolean hasTextExpression();
+  /**
+   * <pre>
+   * Raw expression selecting the searchable text.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue textExpression = 12;</code>
+   * @return The textExpression.
+   */
+  com.google.protobuf.StringValue getTextExpression();
+  /**
+   * <pre>
+   * Raw expression selecting the searchable text.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue textExpression = 12;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getTextExpressionOrBuilder();
 }

@@ -107,8 +107,7 @@ public class CreateAttributeSchemaMutationConverter
 			uniqueInScopes,
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES),
 			acceleratorsInScopes,
-			// searchability has no GraphQL/REST mirror, so a mutation arriving this way never declares it
-			null,
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.SEARCHABLE_IN_SCOPES),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.LOCALIZED, false),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.NULLABLE, false),
@@ -116,15 +115,22 @@ public class CreateAttributeSchemaMutationConverter
 			valueType,
 			input.getOptionalProperty(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0),
-			input.getProperty(CreateAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE, ConflictResolutionOverride.INHERITED),
-			readNormalization(input)
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE,
+				ConflictResolutionOverride.INHERITED),
+			readNormalization(input),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.ANALYZER),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.LENGTH_PIVOT),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.SEARCH_WEIGHT)
 		);
 	}
 
-	/** Serializes the custom normalization descriptions before the generic mutation properties. */
+	/** Serializes the normalization descriptions and the search weight before the generic mutation properties. */
 	@Override
 	protected void convertToOutput(@Nonnull CreateAttributeSchemaMutation mutation, @Nonnull Output output) {
 		writeNormalization(mutation.getNormalization(), output);
+		writeSearchWeight(
+			CreateAttributeSchemaMutationDescriptor.SEARCH_WEIGHT.name(), mutation.getSearchWeight(), output
+		);
 		super.convertToOutput(mutation, output);
 	}
 }

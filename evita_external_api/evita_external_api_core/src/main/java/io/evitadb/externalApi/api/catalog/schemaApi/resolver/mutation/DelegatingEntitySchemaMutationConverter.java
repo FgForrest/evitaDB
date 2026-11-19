@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssoc
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaSearchableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.*;
 import io.evitadb.api.requestResponse.schema.mutation.entity.AllowCurrencyInEntitySchemaMutation;
@@ -58,6 +59,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associated
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.RemoveAssociatedDataSchemaMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.SetAssociatedDataSchemaNullableMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.*;
@@ -115,6 +117,10 @@ public class DelegatingEntitySchemaMutationConverter extends
 		registerConverter(ModifyAssociatedDataSchemaTypeMutation.class, new ModifyAssociatedDataSchemaTypeMutationConverter(objectMapper, exceptionFactory));
 		registerConverter(RemoveAssociatedDataSchemaMutation.class, new RemoveAssociatedDataSchemaMutationConverter(objectMapper, exceptionFactory));
 		registerConverter(SetAssociatedDataSchemaLocalizedMutation.class, new SetAssociatedDataSchemaLocalizedMutationConverter(objectMapper, exceptionFactory));
+		registerConverter(
+			SetAssociatedDataSchemaSearchableMutation.class,
+			new SetAssociatedDataSchemaSearchableMutationConverter(objectMapper, exceptionFactory)
+		);
 		registerConverter(SetAssociatedDataSchemaNullableMutation.class, new SetAssociatedDataSchemaNullableMutationConverter(objectMapper, exceptionFactory));
 		registerConverter(SetAssociatedDataSchemaConflictResolutionOverrideMutation.class, new SetAssociatedDataSchemaConflictResolutionOverrideMutationConverter(objectMapper, exceptionFactory));
 
@@ -134,6 +140,10 @@ public class DelegatingEntitySchemaMutationConverter extends
 		registerConverter(
 			SetAttributeSchemaNormalizedMutation.class,
 			new SetAttributeSchemaNormalizedMutationConverter(objectMapper, exceptionFactory)
+		);
+		registerConverter(
+			SetAttributeSchemaSearchableMutation.class,
+			new SetAttributeSchemaSearchableMutationConverter(objectMapper, exceptionFactory)
 		);
 		registerConverter(SetAttributeSchemaLocalizedMutation.class, new SetAttributeSchemaLocalizedMutationConverter(objectMapper, exceptionFactory));
 		registerConverter(SetAttributeSchemaNullableMutation.class, new SetAttributeSchemaNullableMutationConverter(objectMapper, exceptionFactory));
@@ -166,6 +176,10 @@ public class DelegatingEntitySchemaMutationConverter extends
 		registerConverter(SetReferenceSchemaBucketedMutation.class, new SetReferenceSchemaBucketedMutationConverter(objectMapper, exceptionFactory));
 		registerConverter(SetReferenceSchemaFacetedMutation.class, new SetReferenceSchemaFacetedMutationConverter(objectMapper, exceptionFactory));
 		registerConverter(SetReferenceSchemaIndexedMutation.class, new SetReferenceSchemaIndexedMutationConverter(objectMapper, exceptionFactory));
+		registerConverter(
+			SetReferenceSchemaSearchableThroughMutation.class,
+			new SetReferenceSchemaSearchableThroughMutationConverter(objectMapper, exceptionFactory)
+		);
 		registerConverter(SetReferenceSchemaConflictResolutionOverrideMutation.class, new SetReferenceSchemaConflictResolutionOverrideMutationConverter(objectMapper, exceptionFactory));
 	}
 

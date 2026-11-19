@@ -157,7 +157,11 @@ import io.evitadb.index.analysis.AttributeNormalizationReconciler;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.analysis.BuiltWithAttributeNormalizationResolver;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerBehaviourCheck;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerBehaviourCheck.SessionChecks;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerValidator;
+import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
@@ -495,6 +499,16 @@ public final class Catalog
 	 */
 	private long lastPersistedSchemaVersion;
 	/**
+	 * Set when a warm-up schema batch failed and the write of the catalog schema it restored failed too. The newest
+	 * catalog schema part in the catalog file may then be one the batch itself wrote - a cascade writes one - which no
+	 * publication probe validated and which the next bootstrap record would publish. {@link #flush()} and
+	 * {@link #terminateInternally()} therefore write the in-memory schema - the one their probes validate - before
+	 * they publish ({@link #bufferCurrentSchema()}). Any later successful write of the catalog schema part clears it,
+	 * because the newest part then equals memory again. Volatile, because the batch fails on the thread applying it
+	 * while the publication runs on the thread closing the session or terminating the catalog.
+	 */
+	private volatile boolean restoredSchemaUnbuffered;
+	/**
 	 * Headers the latest {@link #flushCollections(long)} produced, by collection primary key, waiting for the merge of
 	 * the same round to consume them. The flush and the merge of a round run one after the other on the same thread
 	 * and the same instance; `null` whenever no flush is pending.
@@ -709,7 +723,6 @@ public final class Catalog
 										globalIndex = entityCollectionPersistenceService.readEntityIndex(
 											catalogVersion, globalIndexPk, indexSchema,
 											initBulk.catalog().isUsageStatisticsTracked(),
-											initBulk.catalog().getFulltextAnalyzerRegistry(),
 											entityCollection.getAttributeNormalizationResolver()
 										);
 										initBulk.addGlobalIndex(entityCollection.getEntityType(), globalIndex);
@@ -737,7 +750,6 @@ public final class Catalog
 														.readEntityIndex(
 															catalogVersion, eid, indexSchema,
 															initBulk.catalog().isUsageStatisticsTracked(),
-															initBulk.catalog().getFulltextAnalyzerRegistry(),
 															entityCollection.getAttributeNormalizationResolver()
 														);
 													if (loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL) {
@@ -788,6 +800,11 @@ public final class Catalog
 				}
 				// after all schemas are resolved, build the expression trigger registry
 				catalog.buildInitialExpressionTriggerRegistry();
+				// the published schema compiled when the session publishing it closed; it may not any more when an
+				// analysis step it uses is no longer installed or now refuses its parameters - checked like the
+				// normalization steps above, and only now, because the analyzers are checked in the locales of the
+				// entities using them
+				FulltextAnalyzerValidator.validate(catalog.getAnalysisStepRegistry(), catalog.getSchema());
 				// derived state that is not persisted and has to come back with the collection: the reverse
 				// lookup the cross-entity facet trigger uses instead of walking every reduced index. Built
 				// here because it is the one moment that has every index in place, every schema resolved, and
@@ -934,7 +951,7 @@ public final class Catalog
 		// nothing today; it is here so that a future constructor accepting a populated schema cannot skip it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(internalCatalogSchema);
-		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry();
+		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry(this.analysisStepRegistry);
 		this.proxyFactory = proxyFactory;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -1054,7 +1071,7 @@ public final class Catalog
 		// has its row before the first query arrives rather than from whenever one first names it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(catalogSchema);
-		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry();
+		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry(this.analysisStepRegistry);
 		this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
 			.ifPresent(this.archiveCatalogIndex::set);
@@ -1387,7 +1404,7 @@ public final class Catalog
 			// store the updated catalog schema inside the try, so that a failed write is handled like any refusal
 			final CatalogSchema schemaToStore = getInternalSchema();
 			if (schemaToStore.version() > originalSchema.version()) {
-				this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(schemaToStore));
+				bufferCurrentSchema();
 			}
 		} catch (RuntimeException | Error ex) {
 			// Earlier collection changes cannot be undone here, and registered mutations must not reach the shared WAL.
@@ -1398,6 +1415,20 @@ public final class Catalog
 			// Restore the catalog schema; collection changes may remain until the transaction rolls back, and in
 			// warm-up they remain for good - the barrier, not a revert, protects the disk when the build refused them.
 			this.schema.set(new CatalogSchemaDecorator(originalSchema));
+			// A cascade may have buffered a schema from this batch. Keep the next warm-up flush aligned with memory.
+			final boolean bufferRestoredSchema =
+				transactionRef.isEmpty() && mutationRegistered && getCatalogState() == CatalogState.WARMING_UP;
+			if (bufferRestoredSchema) {
+				final SessionChecks writer = getWarmUpAnalyzerChecks();
+				if (writer != null) {
+					writer.markFailedWarmUpSchemaBatch();
+				}
+				// a flush inside the batch published a version the successors of the restored schema reach again,
+				// so version equality no longer proves the published schema matches memory
+				if (this.lastPersistedSchemaVersion > originalSchema.version()) {
+					this.lastPersistedSchemaVersion = -1L;
+				}
+			}
 			adoptGlobalNormalizationRows(originalNormalizationRows);
 			originalCollectionPolicies.forEach(EntityCollection::adoptNormalizationPolicy);
 
@@ -1407,6 +1438,19 @@ public final class Catalog
 				recording.finishWithException(ex);
 			}
 
+			// written last, so that a failing write neither skips the restoration above nor, unless it throws an
+			// `Error`, replaces the batch failure; the next publication writes the restored schema instead of the part
+			// a cascade of this batch wrote
+			if (bufferRestoredSchema) {
+				// set before the write, so that a write failing in any way - an `Error` included - leaves the flag set
+				this.restoredSchemaUnbuffered = true;
+				try {
+					this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(originalSchema));
+					this.restoredSchemaUnbuffered = false;
+				} catch (RuntimeException writeFailure) {
+					ex.addSuppressed(writeFailure);
+				}
+			}
 			throw ex;
 		} finally {
 			// always pop our own frame; if no exception was thrown the frame was already drained and is empty. If an
@@ -2777,6 +2821,15 @@ public final class Catalog
 	}
 
 	/**
+	 * Returns the engine-wide submitted-search policy shared by catalog generations.
+	 * @return the policy mapped at engine startup
+	 */
+	@Nonnull
+	public FulltextTypoParameters getFulltextTypoParameters() {
+		return this.evita.getFulltextTypoParameters();
+	}
+
+	/**
 	 * Whether this catalog counts how often its indexes and schema capabilities are queried against how often they are
 	 * maintained - the server-wide `server.usageStatisticsTracking` switch, answered here so that the index-creation
 	 * sites and the query and write paths all read the one value rather than each reaching for the configuration.
@@ -3163,7 +3216,8 @@ public final class Catalog
 	 * ({@link CatalogState#ALIVE}) mode the very first statement fails its premise, because in that mode changes
 	 * reach storage through a transaction and never through here. It also refuses when an earlier warm-up failure
 	 * has made this instance's state unpublishable - see {@link #assertPublishable()} - and refuses **before** the
-	 * destructive collect rather than after it.
+	 * destructive collect rather than after it. A failed warm-up schema batch whose restored schema could not be
+	 * written has its in-memory schema written here, before the collect ({@link #restoredSchemaUnbuffered}).
 	 *
 	 * @return a future completing once every collection and the catalog header have been written. Its failure is
 	 *         terminal for this instance: an exceptional completion raises the refusal barrier through the
@@ -3184,6 +3238,10 @@ public final class Catalog
 		// index's change-detection baseline, so a flush that is going to be refused anyway must not consume state on
 		// its way to being refused
 		assertPublishable();
+		// before the collect as well, so that a failing write leaves nothing consumed and the next publication retries
+		if (this.restoredSchemaUnbuffered) {
+			bufferCurrentSchema();
+		}
 
 		// this pops the CATALOG's own trapped changes here and now, on this thread, before a single collection future is
 		// even constructed - while they are written only in the combine step below, once every collection has flushed.
@@ -3394,14 +3452,51 @@ public final class Catalog
 	}
 
 	/**
-	 * Tells whether the catalog schema as it currently stands would survive
-	 * {@link CatalogSchemaContract#validate()}.
+	 * Validates the catalog schema as it currently stands: first the checks {@link CatalogSchemaContract#validate()}
+	 * makes without a server, then those of {@link FulltextAnalyzerValidator}, which compile every fulltext analyzer
+	 * through the installed analysis steps. Load, final validation and both warm-up publication probes share
+	 * these checks. The publication routes also check against the authoring session's analyzer baseline in
+	 * {@link #validateFinalSchema(SessionChecks)}.
 	 *
-	 * Exists for the publications that happen while a warm-up session is **still open**, which the barrier cannot
-	 * help with: the barrier is raised when a session closes and validation refuses it, or when the trigger build at
-	 * the end of a schema change refuses it, so anything publishing earlier in that same session publishes before
-	 * there is a barrier to consult. Those callers ask this instead; the build condition of those publications is
-	 * {@link #canBuildPendingExpressionTriggers()}.
+	 * The analyzers are checked second because the first check settles what they refer to: the analyzers they are
+	 * based on and the resources the built-in steps read.
+	 *
+	 * @throws SchemaAlteringException   when a rule of the schema is broken
+	 * @throws EvitaInvalidUsageException when a half-built schema cannot even be walked
+	 */
+	public void validateSchema() throws SchemaAlteringException {
+		final SealedCatalogSchema catalogSchema = getSchema();
+		catalogSchema.validate();
+		FulltextAnalyzerValidator.validate(this.analysisStepRegistry, catalogSchema);
+	}
+
+	/**
+	 * Validates the current schema for publication: {@link #validateSchema()} first, then - only when an authoring
+	 * baseline is given and the schema declares fulltext analyzers or languages - the behaviour check of the
+	 * analyzers that baseline shows as touched ({@link FulltextAnalyzerBehaviourCheck}). Otherwise it equals
+	 * {@link #validateSchema()}. Session close and go-live propagate a refusal. The warm-up DDL probe leaves pending
+	 * changes available for repair, and termination logs a refusal before releasing resources.
+	 *
+	 * @param analyzerChecks authoring session's starting inputs and cached verdict, or null without a writer
+	 * @throws SchemaAlteringException when schema rules, compilation or a touched analyzer's samples fail
+	 * @throws EvitaInvalidUsageException when a half-built schema cannot even be walked
+	 */
+	public void validateFinalSchema(@Nullable SessionChecks analyzerChecks) throws SchemaAlteringException {
+		validateSchema();
+		final SealedCatalogSchema schema = getSchema();
+		if (analyzerChecks != null &&
+			(!schema.getFulltextAnalyzers().isEmpty() || !schema.getFulltextLanguages().isEmpty())) {
+			FulltextAnalyzerBehaviourCheck.validate(
+				this.analysisStepRegistry, this.fulltextAnalyzerRegistry, analyzerChecks, this
+			);
+		}
+	}
+
+	/**
+	 * Tells whether the warm-up DDL probe may publish the current schema: it passes
+	 * {@link #validateFinalSchema(SessionChecks)} with the registered writer's baseline. Before the writer closes,
+	 * an intermediate failure defers publication until the change is repaired. The additional build condition for
+	 * DDL is {@link #canBuildPendingExpressionTriggers()}.
 	 *
 	 * It is deliberately a question rather than an assertion. A schema that does not validate mid-session is not an
 	 * error - building one across several steps whose intermediate states do not validate is supported, a reflected
@@ -3409,22 +3504,33 @@ public final class Catalog
 	 * publication and leaves the decision to the session close, which is the point at which the state is final.
 	 *
 	 * **The catch is {@link EvitaInvalidUsageException}, not {@link SchemaAlteringException}, and the difference is
-	 * load-bearing.** `validate()` does not report every refusal in the schema-altering vocabulary: walking a
+	 * load-bearing.** `validateSchema()` does not report every refusal in the schema-altering vocabulary: walking a
 	 * half-built schema reaches getters that refuse to answer at all, and `ReflectedReferenceSchema#isIndexedInScope`
 	 * throwing "the reflected reference is not available" for a reflected reference whose target is not wired yet is
 	 * exactly the intermediate state this method exists to tolerate. Catching only the narrower type turned that
 	 * legitimate state into a failed DDL operation. {@link io.evitadb.exception.EvitaInternalError} stays outside
 	 * the catch deliberately - an engine bug uncovered by the walk must still surface.
 	 *
-	 * @return true when the current catalog schema validates
+	 * @return true when this route may publish the current schema, false when the schema is refused or a touched
+	 *         analyzer fails its behaviour check
 	 */
-	private boolean isSchemaValid() {
+	private boolean isWarmUpSchemaValid() {
 		try {
-			getSchema().validate();
+			validateFinalSchema(getWarmUpAnalyzerChecks());
 			return true;
 		} catch (EvitaInvalidUsageException ex) {
 			return false;
 		}
+	}
+
+	/**
+	 * Finds the baseline and verdict cache of this catalog's registered warm-up writer.
+	 * @return writer checks or null after the writer has left
+	 */
+	@Nullable
+	private SessionChecks getWarmUpAnalyzerChecks() {
+		final SessionRegistry sessions = this.evita.getCatalogSessionRegistry(getName()).orElse(null);
+		return sessions == null ? null : sessions.getWarmUpAnalyzerChecks(this);
 	}
 
 	/**
@@ -3442,8 +3548,8 @@ public final class Catalog
 	 * change - a histogram defined before the attribute it reads, in the same change, is the worked example - so the
 	 * caller skips its publication, and the build at the end of the change gives the verdict. **Every
 	 * {@link RuntimeException} is caught, {@link io.evitadb.exception.EvitaInternalError} included**, unlike in
-	 * {@link #isSchemaValid()}: the factories refuse user input with several exception types, an internal error among
-	 * them, and an engine defect swallowed here is thrown again by the build at the end of the change once the change
+	 * {@link #isWarmUpSchemaValid()}: the factories refuse user input with several exception types, including an
+	 * internal error. A defect swallowed here is thrown again by the build at the end of the change once the change
 	 * reaches it, provided the entity type still has a schema then. A change that fails before its build discards the
 	 * frame unbuilt, so what it kept is published later without that verdict - a known limitation of the warm-up
 	 * barrier, explained in the `finally` of {@link #updateSchema}. An {@link Error} is not a verdict on the schema and
@@ -3466,8 +3572,10 @@ public final class Catalog
 
 	/**
 	 * Performs the warm-up flush that a collection-level DDL operation runs while its session is still open, unless
-	 * the catalog schema would be refused by validation as it currently stands, or an entity type the running schema
-	 * change has touched does not build its expression triggers yet ({@link #canBuildPendingExpressionTriggers()}).
+	 * the schema or a touched analyzer fails the publication probe, or an entity type the running schema change
+	 * has touched does not build its expression triggers yet ({@link #canBuildPendingExpressionTriggers()}).
+	 * Buffers the validated catalog schema before flushing, including changes already exchanged by an enclosing
+	 * schema batch or cascade whose final schema part has not been buffered yet.
 	 *
 	 * Skipping is not a lost write. The changes stay in the data store buffer and are published by the session
 	 * close, which validates first - so a schema that is merely half-built at this moment still reaches the disk,
@@ -3478,9 +3586,10 @@ public final class Catalog
 	 * {@link #canBuildPendingExpressionTriggers()} names.
 	 */
 	private void flushMidSessionIfSchemaValid() {
-		if (!isSchemaValid() || !canBuildPendingExpressionTriggers()) {
+		if (!isWarmUpSchemaValid() || !canBuildPendingExpressionTriggers()) {
 			return;
 		}
+		bufferCurrentSchema();
 		// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
 		final ProgressingFuture<Void> flushFuture = this.flush();
 		flushFuture.execute(ProgressingFuture.unrejectableExecutor(this.transactionalExecutor));
@@ -3488,11 +3597,21 @@ public final class Catalog
 	}
 
 	/**
+	 * Writes the in-memory catalog schema into the data store buffer, so that the next bootstrap record publishes the
+	 * schema the publication probes validate rather than any part written before it, and clears
+	 * {@link #restoredSchemaUnbuffered}. A failed write leaves the flag set, so the next publication tries again.
+	 */
+	private void bufferCurrentSchema() {
+		this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(getInternalSchema()));
+		this.restoredSchemaUnbuffered = false;
+	}
+
+	/**
 	 * Tells whether this catalog may still publish its in-memory state.
 	 *
-	 * Exists for the one caller that must NOT throw on a barrier it finds set - {@link #terminateInternally()} skips
-	 * the flush loop and the header write, and then goes on to release every resource. Everything else uses
-	 * {@link #assertPublishable()}.
+	 * The non-throwing counterpart of {@link #assertPublishable()}, for termination, which has to release every
+	 * resource even after a refusal: {@link #canPublishWarmUpOnTermination()} asks it before and after it validates
+	 * the schema. Everything else uses {@link #assertPublishable()}.
 	 *
 	 * @return true when nothing - neither a warm-up engine failure nor a schema change refused by validation or by the
 	 *         build of its expression triggers - has made this catalog's state unpublishable
@@ -4456,12 +4575,47 @@ public final class Catalog
 	}
 
 	/**
-	 * Handles the termination operations for the internal state of the catalog object.
-	 * This method performs a cleanup of resources and ensures that any necessary persistence
-	 * operations are completed, specifically during the catalog's warming up state.
-	 * The termination process involves flushing and updating entity collections, storing
-	 * headers if applicable, and preparing the system for garbage collection.
-	 * Logs relevant information or errors during the lifecycle of this operation.
+	 * Tests the warm-up publication barrier and validates the schema against any still-registered writer's
+	 * baseline. The writer lookup comes first because a failing close raises the barrier before deregistering.
+	 * A refusal or a raised barrier is only logged as a WARN: termination skips the flush and the header write and
+	 * still releases every resource, and the last published bootstrap record keeps naming the state it named.
+	 * @return whether this warm-up catalog may flush its changes during termination
+	 */
+	private boolean canPublishWarmUpOnTermination() {
+		final SessionChecks writer = getWarmUpAnalyzerChecks();
+		if (isPublishable()) {
+			try {
+				validateFinalSchema(writer);
+			} catch (RuntimeException ex) {
+				logSkippedWarmUpPublication(ex.getMessage(), ex);
+				return false;
+			}
+			if (isPublishable()) {
+				return true;
+			}
+		}
+		logSkippedWarmUpPublication(this.unpublishableCause.get().getMessage(), null);
+		return false;
+	}
+
+	/**
+	 * Logs that termination keeps the last published state instead of publishing this catalog's warm-up changes.
+	 * @param reason the message of the refusal or of the barrier's cause
+	 * @param refusal the validation refusal to log with its stack trace, or null when the barrier's cause decided
+	 */
+	private void logSkippedWarmUpPublication(@Nullable String reason, @Nullable Throwable refusal) {
+		log.warn(
+			"Skipping warm-up publication for catalog `{}` during termination: {}. " +
+				"The last published state is intact.",
+			getName(), reason, refusal
+		);
+	}
+
+	/**
+	 * Releases collection resources and publishes final warm-up headers when no call of the writer is running, the
+	 * publication probe passes and every collection flush succeeds. The transaction manager is closed and every
+	 * collection is terminated whatever is decided. A publication writes the in-memory schema first when a failed
+	 * warm-up schema batch could not write the schema it restored ({@link #restoredSchemaUnbuffered}).
 	 *
 	 * **A warming-up catalog is published only when no call of its writer is running.** The decision and everything
 	 * after it run under {@link #warmUpCallLock}, taken without waiting: when a call holds it, the call can still be
@@ -4469,7 +4623,8 @@ public final class Catalog
 	 * warning, and the instance is barred from publishing at once, because the call's own session close would
 	 * otherwise flush a catalog whose collections this method is releasing. The last published state stays the
 	 * catalog's state, which is the state a reload finds. A termination that holds the lock bars the instance just
-	 * before releasing it, for the call queued behind it.
+	 * before releasing it, for the call queued behind it. Holding the lock is also what makes the publication probe
+	 * sound: the schema it validates cannot change before the header that publishes it is stored.
 	 */
 	private void terminateInternally() {
 		final String catalogName = getName();
@@ -4483,10 +4638,11 @@ public final class Catalog
 			// flush all entity collections and store their headers
 			final List<EntityCollectionHeader> entityHeaders;
 			boolean changeOccurred = this.lastPersistedSchemaVersion != getInternalSchema().version();
-			// Only a warming-up catalog persists anything at close, and only one that may still publish has anything
-			// to gain from doing so - for the rest the header write would be refused anyway, so skip straight to
-			// releasing the resources. This is the one barrier site that must NOT throw: shutdown has to finish.
-			final boolean flushBeforeTerminate = callLockHeld && isPublishable();
+			// Only a warming-up catalog persists anything at close, and only when no call of its writer is running, the
+			// barrier is clear and the schema passes the publication probe - otherwise the flush and the header write
+			// are skipped, the last published state stays, and the loop goes straight to releasing the resources. This
+			// is the one barrier site that must NOT throw: shutdown has to finish.
+			final boolean flushBeforeTerminate = callLockHeld && canPublishWarmUpOnTermination();
 			if (warmingUp && !callLockHeld && isPublishable()) {
 				log.warn(
 					"Catalog `{}` is being terminated while a call of its warm-up session is still running, so its " +
@@ -4524,11 +4680,10 @@ public final class Catalog
 						// isolated per collection deliberately: a failure here must not cost the remaining
 						// collections their termination, which is the only thing this method still owes them
 						everyCollectionFlushed = false;
-						log.error(
-							"Failed to flush entity collection `{}` of catalog `{}` while terminating it - the " +
-								"catalog header will not be stored, so the catalog stays at its last published " +
-								"version.",
-							entityCollection.getEntityType(), catalogName, ex
+						log.warn(
+							"Skipping warm-up publication for catalog `{}` during termination: flushing entity " +
+								"collection `{}` failed with {}. The last published state is intact.",
+							catalogName, entityCollection.getEntityType(), ex.getMessage(), ex
 						);
 					}
 				}
@@ -4550,6 +4705,10 @@ public final class Catalog
 
 			// if any change occurred (this may happen only in warm up state)
 			if (flushBeforeTerminate && changeOccurred && everyCollectionFlushed) {
+				// a failing write skips the header below, through the catch at the end of this method
+				if (this.restoredSchemaUnbuffered) {
+					bufferCurrentSchema();
+				}
 				// store catalog header
 				this.persistenceService.storeHeader(
 					this.catalogId,

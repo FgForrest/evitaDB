@@ -95,6 +95,17 @@ import static io.evitadb.test.TestTags.QUERY;
 @Tag(STORAGE)
 @Tag(QUERY)
 public class QuerySerializationTest {
+	/** Pins the unreleased appended weight ids while retaining the existing relevance container id. */
+	@Test
+	@DisplayName("Retains existing fulltext ids and appends the four weight constraints")
+	void shouldKeepFulltextRegistrationIds() {
+		assertEquals(1460, this.kryo.getRegistration(io.evitadb.api.query.order.RelevanceText.class).getId());
+		assertEquals(1464, this.kryo.getRegistration(io.evitadb.api.query.order.AttributeWeight.class).getId());
+		assertEquals(1465, this.kryo.getRegistration(io.evitadb.api.query.order.AssociatedDataWeight.class).getId());
+		assertEquals(1466, this.kryo.getRegistration(io.evitadb.api.query.order.ReferenceWeight.class).getId());
+		assertEquals(1467, this.kryo.getRegistration(io.evitadb.api.query.order.EntityWeight.class).getId());
+	}
+
 	/**
 	 * Fully-qualified name of the {@code HistogramHavingSerializer} class. The serializer lives
 	 * in a non-exported sub-package of the {@code evita_store_server} module
@@ -424,6 +435,47 @@ public class QuerySerializationTest {
 		}
 
 		@Nested
+		@DisplayName("fulltext")
+		class Fulltext {
+			@ParameterizedTest(name = "{0}")
+			@MethodSource("variants")
+			void shouldRoundTrip(@Nonnull String desc, @Nonnull Object constraint) {
+				assertSerializationRound(constraint);
+			}
+
+			@Nonnull
+			static Stream<Arguments> variants() {
+				return Stream.of(
+					arguments("textMatches without attribute restriction",
+						textMatches("black leather jacket")),
+					arguments("textMatches with one searchable attribute",
+						textMatches("jacket", inAttribute("name"))),
+					arguments("textMatches with two searchable attributes",
+						textMatches("jacket", inAttribute("name"), inAttribute("description"))),
+					arguments("textMatches with diacritics",
+						textMatches("černá kožená bunda", inAttribute("name"))),
+					arguments("inAttribute",
+						inAttribute("name")),
+					arguments("inAttributeAll", inAttributeAll()),
+					arguments("inAssociatedData", inAssociatedData("a", "b")),
+					arguments("inAssociatedData single", inAssociatedData("a")),
+					arguments("inAssociatedDataAll", inAssociatedDataAll()),
+					arguments("inReference empty", inReference("links")),
+					arguments("inReference attributes", inReference("links", inAttribute("a", "b"))),
+					arguments("inReference wildcard", inReference("links", inAttributeAll())),
+					arguments("inEntity empty", inEntity()),
+					arguments("inEntity selected", inEntity(inAttribute("a"), inAssociatedData("b"))),
+					arguments("inEntity wildcards", inEntity(inAttributeAll(), inAssociatedDataAll())),
+					arguments("inReference target", inReference("links", inEntity())),
+					arguments("textMatches all selectors", textMatches("term", inAttributeAll(), inAssociatedDataAll(),
+						inReference("links", inAttributeAll(), inEntity()))),
+					arguments("inAttribute with several searchable attributes",
+						inAttribute("name", "description"))
+				);
+			}
+		}
+
+		@Nested
 		@DisplayName("facet")
 		class Facet {
 			@ParameterizedTest(name = "{0}")
@@ -600,6 +652,36 @@ public class QuerySerializationTest {
 					random()),
 				arguments("randomWithSeed",
 					randomWithSeed(42)),
+				arguments("attributeWeight",
+					attributeWeight("a", BigDecimal.valueOf(3))),
+				arguments("associatedDataWeight",
+					associatedDataWeight("a", new BigDecimal("0.5"))),
+				arguments("attributeWeight precise decimal",
+					attributeWeight("a", new BigDecimal("0.123456789123456789"))),
+				arguments("associatedDataWeight small decimal",
+					associatedDataWeight("a", new BigDecimal("1E-7"))),
+				arguments("attributeWeight large decimal",
+					attributeWeight("a", new BigDecimal("12345678.5"))),
+				arguments("associatedDataWeight large integer",
+					associatedDataWeight("a", new BigDecimal("1E+100"))),
+				arguments("referenceWeight",
+					referenceWeight("r", attributeWeight("a", BigDecimal.valueOf(2)))),
+				arguments("entityWeight",
+					entityWeight(attributeWeight("a", BigDecimal.valueOf(4)),
+						associatedDataWeight("a", BigDecimal.ZERO))),
+				arguments("empty referenceWeight",
+					referenceWeight("r")),
+				arguments("empty entityWeight",
+					entityWeight()),
+				arguments("relevanceText weights",
+					relevanceText(attributeWeight("a", BigDecimal.valueOf(3)),
+						associatedDataWeight("a", new BigDecimal("0.5")),
+						referenceWeight("r", attributeWeight("a", BigDecimal.valueOf(2)),
+							entityWeight(attributeWeight("a", BigDecimal.valueOf(4)))))),
+				arguments("relevanceText",
+					relevanceText()),
+				arguments("orderBy with relevanceText",
+					orderBy(relevanceText(), attributeNatural("a", OrderDirection.ASC))),
 				arguments("referenceProperty",
 					referenceProperty("d", attributeNatural("a", OrderDirection.ASC))),
 				arguments("limit",

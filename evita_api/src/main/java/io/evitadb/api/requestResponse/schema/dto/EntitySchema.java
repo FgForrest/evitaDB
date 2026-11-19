@@ -529,7 +529,9 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getDefaultValue(),
 				attributeSchemaContract.getIndexedDecimalPlaces(),
 				attributeSchemaContract.getConflictResolutionOverride(),
-				attributeSchemaContract.getNormalization()
+				attributeSchemaContract.getNormalization(),
+				attributeSchemaContract.getAnalyzer(), attributeSchemaContract.getLengthPivot(),
+				attributeSchemaContract.getSearchWeight()
 			);
 		}
 	}
@@ -570,7 +572,9 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getDefaultValue(),
 				attributeSchemaContract.getIndexedDecimalPlaces(),
 				attributeSchemaContract.getConflictResolutionOverride(),
-				attributeSchemaContract.getNormalization()
+				attributeSchemaContract.getNormalization(),
+				attributeSchemaContract.getAnalyzer(), attributeSchemaContract.getLengthPivot(),
+				attributeSchemaContract.getSearchWeight()
 			);
 	}
 
@@ -612,7 +616,11 @@ public final class EntitySchema implements EntitySchemaContract {
 				associatedDataSchemaContract.getType(),
 				associatedDataSchemaContract.isLocalized(),
 				associatedDataSchemaContract.isNullable(),
-				associatedDataSchemaContract.getConflictResolutionOverride()
+				associatedDataSchemaContract.getSearchableInScopes(),
+				associatedDataSchemaContract.getTextExpression(),
+				associatedDataSchemaContract.getConflictResolutionOverride(),
+				associatedDataSchemaContract.getAnalyzer(), associatedDataSchemaContract.getLengthPivot(),
+				associatedDataSchemaContract.getSearchWeight()
 			);
 	}
 
@@ -675,7 +683,9 @@ public final class EntitySchema implements EntitySchemaContract {
 					.toArray(ScopedBucketedPartially[]::new),
 				referenceSchemaContract.getAttributes(),
 				referenceSchemaContract.getSortableAttributeCompounds(),
-				referenceSchemaContract.getConflictResolutionOverride()
+				referenceSchemaContract.getConflictResolutionOverride(),
+				referenceSchemaContract.getSearchableThroughInScopes(),
+				referenceSchemaContract.getSearchableThroughWeight()
 			);
 	}
 
@@ -1019,6 +1029,27 @@ public final class EntitySchema implements EntitySchemaContract {
 			// accumulated rather than thrown, so that a schema with several broken attributes reports all of them
 			// in one exception alongside the reference errors gathered below
 			attributeErrors = Stream.concat(attributeErrors, attribute.validate());
+			// the analyzer is a reference into the catalog schema, checked on the schema an update produces as a
+			// whole - which is what refuses removing an analyzer a field still uses
+			attributeErrors = Stream.concat(
+				attributeErrors,
+				FulltextSchemaValidator.validateAnalyzerReference(
+					"Attribute `" + attribute.getName() + "`", attribute.getAnalyzer(),
+					catalogSchema.getFulltextAnalyzers()
+				)
+			);
+		}
+		// associated data follow the same accumulating shape - searchability and the analyzer are their only
+		// cross-field rules
+		for (AssociatedDataSchema associatedData : this.associatedData.values()) {
+			attributeErrors = Stream.concat(attributeErrors, associatedData.validate());
+			attributeErrors = Stream.concat(
+				attributeErrors,
+				FulltextSchemaValidator.validateAnalyzerReference(
+					"Associated data `" + associatedData.getName() + "`", associatedData.getAnalyzer(),
+					catalogSchema.getFulltextAnalyzers()
+				)
+			);
 		}
 		final List<String> errors = Stream.concat(
 				attributeErrors,

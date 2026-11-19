@@ -45,6 +45,7 @@ import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.Or;
+import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
@@ -80,10 +81,11 @@ import java.util.Set;
  * body made of them alone the virtual part of the answer is `E = C ∩ V`, translated to the owners of `E`, without
  * re-evaluating anything: the split carries the owner of every virtual candidate.
  *
- * Row-exact: `and`, `or`, the attribute comparisons, `entityHaving` (the nested result holds only existing targets, so
- * the type-level existence intersection is a no-op) and a positive `entityPrimaryKeyInSet` (the type-level existence
- * intersection drops a missing target, and the reduced-index path only ever evaluates candidates, so both readings
- * drop it alike).
+ * Row-exact: `and`, `or`, the attribute comparisons, `textMatches` (its type-level discovery already tests each
+ * virtual candidate's own owner and target, never the target's pooled values), `entityHaving` (the nested result
+ * holds only existing targets, so the type-level existence intersection is a no-op) and a positive
+ * `entityPrimaryKeyInSet` (the type-level existence intersection drops a missing target, and the reduced-index path
+ * only ever evaluates candidates, so both readings drop it alike).
  *
  * The other leaves admitted in a reference body - `not`, `attributeIs`, `groupHaving`, `entityLocaleEquals` and
  * `inScope` - answer differently at the two levels, so a body holding one is **answered exactly** instead:
@@ -120,6 +122,7 @@ final class VirtualPartitionBodyEvaluator {
 		FilterBy.class,
 		And.class,
 		Or.class,
+		TextMatches.class,
 		AttributeEquals.class,
 		AttributeInSet.class,
 		AttributeBetween.class,

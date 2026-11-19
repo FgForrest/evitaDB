@@ -79,6 +79,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 					"` by entity `" + referencedEntityType + "` having: " + filterConstraint;
 
 			return HavingTranslatorHelper.translateHavingConstraint(
+				entityHaving,
 				filterConstraint,
 				filterByVisitor,
 				entitySchema,

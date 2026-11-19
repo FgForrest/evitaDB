@@ -56,6 +56,7 @@ private static final long serialVersionUID = 0L;
     conflictResolutionOverride_ = 0;
     acceleratorsInScopes_ = java.util.Collections.emptyList();
     normalization_ = java.util.Collections.emptyList();
+    searchableInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -219,7 +220,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=95
+   *     See GrpcAttributeSchemaMutations.proto;l=104
    * @return The enum numeric value on the wire for unique.
    */
   @java.lang.Override @java.lang.Deprecated public int getUniqueValue() {
@@ -234,7 +235,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=95
+   *     See GrpcAttributeSchemaMutations.proto;l=104
    * @return The unique.
    */
   @java.lang.Override @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
@@ -253,7 +254,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=99
+   *     See GrpcAttributeSchemaMutations.proto;l=108
    * @return The enum numeric value on the wire for uniqueGlobally.
    */
   @java.lang.Override @java.lang.Deprecated public int getUniqueGloballyValue() {
@@ -268,7 +269,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=99
+   *     See GrpcAttributeSchemaMutations.proto;l=108
    * @return The uniqueGlobally.
    */
   @java.lang.Override @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally() {
@@ -288,7 +289,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool filterable = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=104
+   *     See GrpcAttributeSchemaMutations.proto;l=113
    * @return The filterable.
    */
   @java.lang.Override
@@ -308,7 +309,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool sortable = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=109
+   *     See GrpcAttributeSchemaMutations.proto;l=118
    * @return The sortable.
    */
   @java.lang.Override
@@ -928,6 +929,198 @@ private static final long serialVersionUID = 0L;
     return normalization_.get(index);
   }
 
+  public static final int SEARCHABLEINSCOPES_FIELD_NUMBER = 21;
+  @SuppressWarnings("serial")
+  private java.util.List<java.lang.Integer> searchableInScopes_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope> searchableInScopes_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcEntityScope convert(java.lang.Integer from) {
+              io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.forNumber(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+   * @return A list containing the searchableInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getSearchableInScopesList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(searchableInScopes_, searchableInScopes_converter_);
+  }
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+   * @return The count of searchableInScopes.
+   */
+  @java.lang.Override
+  public int getSearchableInScopesCount() {
+    return searchableInScopes_.size();
+  }
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+   * @param index The index of the element to return.
+   * @return The searchableInScopes at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getSearchableInScopes(int index) {
+    return searchableInScopes_converter_.convert(searchableInScopes_.get(index));
+  }
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+   * @return A list containing the enum numeric values on the wire for searchableInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getSearchableInScopesValueList() {
+    return searchableInScopes_;
+  }
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of searchableInScopes at the given index.
+   */
+  @java.lang.Override
+  public int getSearchableInScopesValue(int index) {
+    return searchableInScopes_.get(index);
+  }
+  private int searchableInScopesMemoizedSerializedSize;
+
+  public static final int ANALYZER_FIELD_NUMBER = 22;
+  private com.google.protobuf.StringValue analyzer_;
+  /**
+   * <pre>
+   * Optional fulltext analyzer name.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 22;</code>
+   * @return Whether the analyzer field is set.
+   */
+  @java.lang.Override
+  public boolean hasAnalyzer() {
+    return ((bitField0_ & 0x00000008) != 0);
+  }
+  /**
+   * <pre>
+   * Optional fulltext analyzer name.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 22;</code>
+   * @return The analyzer.
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getAnalyzer() {
+    return analyzer_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : analyzer_;
+  }
+  /**
+   * <pre>
+   * Optional fulltext analyzer name.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 22;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getAnalyzerOrBuilder() {
+    return analyzer_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : analyzer_;
+  }
+
+  public static final int LENGTHPIVOT_FIELD_NUMBER = 23;
+  private com.google.protobuf.Int32Value lengthPivot_;
+  /**
+   * <pre>
+   * Optional fulltext length pivot.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+   * @return Whether the lengthPivot field is set.
+   */
+  @java.lang.Override
+  public boolean hasLengthPivot() {
+    return ((bitField0_ & 0x00000010) != 0);
+  }
+  /**
+   * <pre>
+   * Optional fulltext length pivot.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+   * @return The lengthPivot.
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32Value getLengthPivot() {
+    return lengthPivot_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : lengthPivot_;
+  }
+  /**
+   * <pre>
+   * Optional fulltext length pivot.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32ValueOrBuilder getLengthPivotOrBuilder() {
+    return lengthPivot_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : lengthPivot_;
+  }
+
+  public static final int SEARCHWEIGHT_FIELD_NUMBER = 24;
+  private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight_;
+  /**
+   * <pre>
+   * Optional ranking weight; explicit zero is preserved.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+   * @return Whether the searchWeight field is set.
+   */
+  @java.lang.Override
+  public boolean hasSearchWeight() {
+    return ((bitField0_ & 0x00000020) != 0);
+  }
+  /**
+   * <pre>
+   * Optional ranking weight; explicit zero is preserved.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+   * @return The searchWeight.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchWeight() {
+    return searchWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchWeight_;
+  }
+  /**
+   * <pre>
+   * Optional ranking weight; explicit zero is preserved.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchWeightOrBuilder() {
+    return searchWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchWeight_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1010,6 +1203,22 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < normalization_.size(); i++) {
       output.writeMessage(20, normalization_.get(i));
+    }
+    if (getSearchableInScopesList().size() > 0) {
+      output.writeUInt32NoTag(170);
+      output.writeUInt32NoTag(searchableInScopesMemoizedSerializedSize);
+    }
+    for (int i = 0; i < searchableInScopes_.size(); i++) {
+      output.writeEnumNoTag(searchableInScopes_.get(i));
+    }
+    if (((bitField0_ & 0x00000008) != 0)) {
+      output.writeMessage(22, getAnalyzer());
+    }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      output.writeMessage(23, getLengthPivot());
+    }
+    if (((bitField0_ & 0x00000020) != 0)) {
+      output.writeMessage(24, getSearchWeight());
     }
     getUnknownFields().writeTo(output);
   }
@@ -1115,6 +1324,30 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(20, normalization_.get(i));
     }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < searchableInScopes_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(searchableInScopes_.get(i));
+      }
+      size += dataSize;
+      if (!getSearchableInScopesList().isEmpty()) {  size += 2;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }searchableInScopesMemoizedSerializedSize = dataSize;
+    }
+    if (((bitField0_ & 0x00000008) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(22, getAnalyzer());
+    }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(23, getLengthPivot());
+    }
+    if (((bitField0_ & 0x00000020) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(24, getSearchWeight());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1173,6 +1406,22 @@ private static final long serialVersionUID = 0L;
         .equals(other.getAcceleratorsInScopesList())) return false;
     if (!getNormalizationList()
         .equals(other.getNormalizationList())) return false;
+    if (!searchableInScopes_.equals(other.searchableInScopes_)) return false;
+    if (hasAnalyzer() != other.hasAnalyzer()) return false;
+    if (hasAnalyzer()) {
+      if (!getAnalyzer()
+          .equals(other.getAnalyzer())) return false;
+    }
+    if (hasLengthPivot() != other.hasLengthPivot()) return false;
+    if (hasLengthPivot()) {
+      if (!getLengthPivot()
+          .equals(other.getLengthPivot())) return false;
+    }
+    if (hasSearchWeight() != other.hasSearchWeight()) return false;
+    if (hasSearchWeight()) {
+      if (!getSearchWeight()
+          .equals(other.getSearchWeight())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -1246,6 +1495,22 @@ private static final long serialVersionUID = 0L;
     if (getNormalizationCount() > 0) {
       hash = (37 * hash) + NORMALIZATION_FIELD_NUMBER;
       hash = (53 * hash) + getNormalizationList().hashCode();
+    }
+    if (getSearchableInScopesCount() > 0) {
+      hash = (37 * hash) + SEARCHABLEINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + searchableInScopes_.hashCode();
+    }
+    if (hasAnalyzer()) {
+      hash = (37 * hash) + ANALYZER_FIELD_NUMBER;
+      hash = (53 * hash) + getAnalyzer().hashCode();
+    }
+    if (hasLengthPivot()) {
+      hash = (37 * hash) + LENGTHPIVOT_FIELD_NUMBER;
+      hash = (53 * hash) + getLengthPivot().hashCode();
+    }
+    if (hasSearchWeight()) {
+      hash = (37 * hash) + SEARCHWEIGHT_FIELD_NUMBER;
+      hash = (53 * hash) + getSearchWeight().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -1389,6 +1654,9 @@ private static final long serialVersionUID = 0L;
         getUniqueGloballyInScopesFieldBuilder();
         getAcceleratorsInScopesFieldBuilder();
         getNormalizationFieldBuilder();
+        getAnalyzerFieldBuilder();
+        getLengthPivotFieldBuilder();
+        getSearchWeightFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1453,6 +1721,23 @@ private static final long serialVersionUID = 0L;
         normalizationBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00080000);
+      searchableInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00100000);
+      analyzer_ = null;
+      if (analyzerBuilder_ != null) {
+        analyzerBuilder_.dispose();
+        analyzerBuilder_ = null;
+      }
+      lengthPivot_ = null;
+      if (lengthPivotBuilder_ != null) {
+        lengthPivotBuilder_.dispose();
+        lengthPivotBuilder_ = null;
+      }
+      searchWeight_ = null;
+      if (searchWeightBuilder_ != null) {
+        searchWeightBuilder_.dispose();
+        searchWeightBuilder_ = null;
+      }
       return this;
     }
 
@@ -1532,6 +1817,11 @@ private static final long serialVersionUID = 0L;
       } else {
         result.normalization_ = normalizationBuilder_.build();
       }
+      if (((bitField0_ & 0x00100000) != 0)) {
+        searchableInScopes_ = java.util.Collections.unmodifiableList(searchableInScopes_);
+        bitField0_ = (bitField0_ & ~0x00100000);
+      }
+      result.searchableInScopes_ = searchableInScopes_;
     }
 
     private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation result) {
@@ -1587,6 +1877,24 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00020000) != 0)) {
         result.conflictResolutionOverride_ = conflictResolutionOverride_;
+      }
+      if (((from_bitField0_ & 0x00200000) != 0)) {
+        result.analyzer_ = analyzerBuilder_ == null
+            ? analyzer_
+            : analyzerBuilder_.build();
+        to_bitField0_ |= 0x00000008;
+      }
+      if (((from_bitField0_ & 0x00400000) != 0)) {
+        result.lengthPivot_ = lengthPivotBuilder_ == null
+            ? lengthPivot_
+            : lengthPivotBuilder_.build();
+        to_bitField0_ |= 0x00000010;
+      }
+      if (((from_bitField0_ & 0x00800000) != 0)) {
+        result.searchWeight_ = searchWeightBuilder_ == null
+            ? searchWeight_
+            : searchWeightBuilder_.build();
+        to_bitField0_ |= 0x00000020;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -1803,6 +2111,25 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
+      if (!other.searchableInScopes_.isEmpty()) {
+        if (searchableInScopes_.isEmpty()) {
+          searchableInScopes_ = other.searchableInScopes_;
+          bitField0_ = (bitField0_ & ~0x00100000);
+        } else {
+          ensureSearchableInScopesIsMutable();
+          searchableInScopes_.addAll(other.searchableInScopes_);
+        }
+        onChanged();
+      }
+      if (other.hasAnalyzer()) {
+        mergeAnalyzer(other.getAnalyzer());
+      }
+      if (other.hasLengthPivot()) {
+        mergeLengthPivot(other.getLengthPivot());
+      }
+      if (other.hasSearchWeight()) {
+        mergeSearchWeight(other.getSearchWeight());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -1991,6 +2318,44 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 162
+            case 168: {
+              int tmpRaw = input.readEnum();
+              ensureSearchableInScopesIsMutable();
+              searchableInScopes_.add(tmpRaw);
+              break;
+            } // case 168
+            case 170: {
+              int length = input.readRawVarint32();
+              int oldLimit = input.pushLimit(length);
+              while(input.getBytesUntilLimit() > 0) {
+                int tmpRaw = input.readEnum();
+                ensureSearchableInScopesIsMutable();
+                searchableInScopes_.add(tmpRaw);
+              }
+              input.popLimit(oldLimit);
+              break;
+            } // case 170
+            case 178: {
+              input.readMessage(
+                  getAnalyzerFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00200000;
+              break;
+            } // case 178
+            case 186: {
+              input.readMessage(
+                  getLengthPivotFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00400000;
+              break;
+            } // case 186
+            case 194: {
+              input.readMessage(
+                  getSearchWeightFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00800000;
+              break;
+            } // case 194
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2442,7 +2807,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=95
+     *     See GrpcAttributeSchemaMutations.proto;l=104
      * @return The enum numeric value on the wire for unique.
      */
     @java.lang.Override @java.lang.Deprecated public int getUniqueValue() {
@@ -2457,7 +2822,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=95
+     *     See GrpcAttributeSchemaMutations.proto;l=104
      * @param value The enum numeric value on the wire for unique to set.
      * @return This builder for chaining.
      */
@@ -2476,7 +2841,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=95
+     *     See GrpcAttributeSchemaMutations.proto;l=104
      * @return The unique.
      */
     @java.lang.Override
@@ -2493,7 +2858,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=95
+     *     See GrpcAttributeSchemaMutations.proto;l=104
      * @param value The unique to set.
      * @return This builder for chaining.
      */
@@ -2515,7 +2880,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=95
+     *     See GrpcAttributeSchemaMutations.proto;l=104
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearUnique() {
@@ -2535,7 +2900,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=99
+     *     See GrpcAttributeSchemaMutations.proto;l=108
      * @return The enum numeric value on the wire for uniqueGlobally.
      */
     @java.lang.Override @java.lang.Deprecated public int getUniqueGloballyValue() {
@@ -2550,7 +2915,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=99
+     *     See GrpcAttributeSchemaMutations.proto;l=108
      * @param value The enum numeric value on the wire for uniqueGlobally to set.
      * @return This builder for chaining.
      */
@@ -2569,7 +2934,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=99
+     *     See GrpcAttributeSchemaMutations.proto;l=108
      * @return The uniqueGlobally.
      */
     @java.lang.Override
@@ -2586,7 +2951,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=99
+     *     See GrpcAttributeSchemaMutations.proto;l=108
      * @param value The uniqueGlobally to set.
      * @return This builder for chaining.
      */
@@ -2608,7 +2973,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=99
+     *     See GrpcAttributeSchemaMutations.proto;l=108
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearUniqueGlobally() {
@@ -2629,7 +2994,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=104
+     *     See GrpcAttributeSchemaMutations.proto;l=113
      * @return The filterable.
      */
     @java.lang.Override
@@ -2646,7 +3011,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=104
+     *     See GrpcAttributeSchemaMutations.proto;l=113
      * @param value The filterable to set.
      * @return This builder for chaining.
      */
@@ -2667,7 +3032,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=104
+     *     See GrpcAttributeSchemaMutations.proto;l=113
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearFilterable() {
@@ -2688,7 +3053,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool sortable = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=109
+     *     See GrpcAttributeSchemaMutations.proto;l=118
      * @return The sortable.
      */
     @java.lang.Override
@@ -2705,7 +3070,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool sortable = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=109
+     *     See GrpcAttributeSchemaMutations.proto;l=118
      * @param value The sortable to set.
      * @return This builder for chaining.
      */
@@ -2726,7 +3091,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool sortable = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=109
+     *     See GrpcAttributeSchemaMutations.proto;l=118
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearSortable() {
@@ -5029,6 +5394,665 @@ private static final long serialVersionUID = 0L;
         normalization_ = null;
       }
       return normalizationBuilder_;
+    }
+
+    private java.util.List<java.lang.Integer> searchableInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensureSearchableInScopesIsMutable() {
+      if (!((bitField0_ & 0x00100000) != 0)) {
+        searchableInScopes_ = new java.util.ArrayList<java.lang.Integer>(searchableInScopes_);
+        bitField0_ |= 0x00100000;
+      }
+    }
+    /**
+     * <pre>
+     * Replacement searchable scopes.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+     * @return A list containing the searchableInScopes.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getSearchableInScopesList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(searchableInScopes_, searchableInScopes_converter_);
+    }
+    /**
+     * <pre>
+     * Replacement searchable scopes.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+     * @return The count of searchableInScopes.
+     */
+    public int getSearchableInScopesCount() {
+      return searchableInScopes_.size();
+    }
+    /**
+     * <pre>
+     * Replacement searchable scopes.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+     * @param index The index of the element to return.
+     * @return The searchableInScopes at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getSearchableInScopes(int index) {
+      return searchableInScopes_converter_.convert(searchableInScopes_.get(index));
+    }
+    /**
+     * <pre>
+     * Replacement searchable scopes.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+     * @param index The index to set the value at.
+     * @param value The searchableInScopes to set.
+     * @return This builder for chaining.
+     */
+    public Builder setSearchableInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureSearchableInScopesIsMutable();
+      searchableInScopes_.set(index, value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Replacement searchable scopes.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+     * @param value The searchableInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addSearchableInScopes(io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureSearchableInScopesIsMutable();
+      searchableInScopes_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Replacement searchable scopes.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+     * @param values The searchableInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllSearchableInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
+      ensureSearchableInScopesIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
+        searchableInScopes_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Replacement searchable scopes.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearSearchableInScopes() {
+      searchableInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00100000);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Replacement searchable scopes.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+     * @return A list containing the enum numeric values on the wire for searchableInScopes.
+     */
+    public java.util.List<java.lang.Integer>
+    getSearchableInScopesValueList() {
+      return java.util.Collections.unmodifiableList(searchableInScopes_);
+    }
+    /**
+     * <pre>
+     * Replacement searchable scopes.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of searchableInScopes at the given index.
+     */
+    public int getSearchableInScopesValue(int index) {
+      return searchableInScopes_.get(index);
+    }
+    /**
+     * <pre>
+     * Replacement searchable scopes.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+     * @param index The index to set the value at.
+     * @param value The enum numeric value on the wire for searchableInScopes to set.
+     * @return This builder for chaining.
+     */
+    public Builder setSearchableInScopesValue(
+        int index, int value) {
+      ensureSearchableInScopesIsMutable();
+      searchableInScopes_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Replacement searchable scopes.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+     * @param value The enum numeric value on the wire for searchableInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addSearchableInScopesValue(int value) {
+      ensureSearchableInScopesIsMutable();
+      searchableInScopes_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Replacement searchable scopes.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+     * @param values The enum numeric values on the wire for searchableInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllSearchableInScopesValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureSearchableInScopesIsMutable();
+      for (int value : values) {
+        searchableInScopes_.add(value);
+      }
+      onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.StringValue analyzer_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> analyzerBuilder_;
+    /**
+     * <pre>
+     * Optional fulltext analyzer name.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 22;</code>
+     * @return Whether the analyzer field is set.
+     */
+    public boolean hasAnalyzer() {
+      return ((bitField0_ & 0x00200000) != 0);
+    }
+    /**
+     * <pre>
+     * Optional fulltext analyzer name.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 22;</code>
+     * @return The analyzer.
+     */
+    public com.google.protobuf.StringValue getAnalyzer() {
+      if (analyzerBuilder_ == null) {
+        return analyzer_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : analyzer_;
+      } else {
+        return analyzerBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Optional fulltext analyzer name.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 22;</code>
+     */
+    public Builder setAnalyzer(com.google.protobuf.StringValue value) {
+      if (analyzerBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        analyzer_ = value;
+      } else {
+        analyzerBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00200000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional fulltext analyzer name.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 22;</code>
+     */
+    public Builder setAnalyzer(
+        com.google.protobuf.StringValue.Builder builderForValue) {
+      if (analyzerBuilder_ == null) {
+        analyzer_ = builderForValue.build();
+      } else {
+        analyzerBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00200000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional fulltext analyzer name.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 22;</code>
+     */
+    public Builder mergeAnalyzer(com.google.protobuf.StringValue value) {
+      if (analyzerBuilder_ == null) {
+        if (((bitField0_ & 0x00200000) != 0) &&
+          analyzer_ != null &&
+          analyzer_ != com.google.protobuf.StringValue.getDefaultInstance()) {
+          getAnalyzerBuilder().mergeFrom(value);
+        } else {
+          analyzer_ = value;
+        }
+      } else {
+        analyzerBuilder_.mergeFrom(value);
+      }
+      if (analyzer_ != null) {
+        bitField0_ |= 0x00200000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional fulltext analyzer name.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 22;</code>
+     */
+    public Builder clearAnalyzer() {
+      bitField0_ = (bitField0_ & ~0x00200000);
+      analyzer_ = null;
+      if (analyzerBuilder_ != null) {
+        analyzerBuilder_.dispose();
+        analyzerBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional fulltext analyzer name.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 22;</code>
+     */
+    public com.google.protobuf.StringValue.Builder getAnalyzerBuilder() {
+      bitField0_ |= 0x00200000;
+      onChanged();
+      return getAnalyzerFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Optional fulltext analyzer name.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 22;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getAnalyzerOrBuilder() {
+      if (analyzerBuilder_ != null) {
+        return analyzerBuilder_.getMessageOrBuilder();
+      } else {
+        return analyzer_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : analyzer_;
+      }
+    }
+    /**
+     * <pre>
+     * Optional fulltext analyzer name.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 22;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        getAnalyzerFieldBuilder() {
+      if (analyzerBuilder_ == null) {
+        analyzerBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
+                getAnalyzer(),
+                getParentForChildren(),
+                isClean());
+        analyzer_ = null;
+      }
+      return analyzerBuilder_;
+    }
+
+    private com.google.protobuf.Int32Value lengthPivot_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> lengthPivotBuilder_;
+    /**
+     * <pre>
+     * Optional fulltext length pivot.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+     * @return Whether the lengthPivot field is set.
+     */
+    public boolean hasLengthPivot() {
+      return ((bitField0_ & 0x00400000) != 0);
+    }
+    /**
+     * <pre>
+     * Optional fulltext length pivot.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+     * @return The lengthPivot.
+     */
+    public com.google.protobuf.Int32Value getLengthPivot() {
+      if (lengthPivotBuilder_ == null) {
+        return lengthPivot_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : lengthPivot_;
+      } else {
+        return lengthPivotBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Optional fulltext length pivot.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+     */
+    public Builder setLengthPivot(com.google.protobuf.Int32Value value) {
+      if (lengthPivotBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        lengthPivot_ = value;
+      } else {
+        lengthPivotBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00400000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional fulltext length pivot.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+     */
+    public Builder setLengthPivot(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (lengthPivotBuilder_ == null) {
+        lengthPivot_ = builderForValue.build();
+      } else {
+        lengthPivotBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00400000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional fulltext length pivot.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+     */
+    public Builder mergeLengthPivot(com.google.protobuf.Int32Value value) {
+      if (lengthPivotBuilder_ == null) {
+        if (((bitField0_ & 0x00400000) != 0) &&
+          lengthPivot_ != null &&
+          lengthPivot_ != com.google.protobuf.Int32Value.getDefaultInstance()) {
+          getLengthPivotBuilder().mergeFrom(value);
+        } else {
+          lengthPivot_ = value;
+        }
+      } else {
+        lengthPivotBuilder_.mergeFrom(value);
+      }
+      if (lengthPivot_ != null) {
+        bitField0_ |= 0x00400000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional fulltext length pivot.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+     */
+    public Builder clearLengthPivot() {
+      bitField0_ = (bitField0_ & ~0x00400000);
+      lengthPivot_ = null;
+      if (lengthPivotBuilder_ != null) {
+        lengthPivotBuilder_.dispose();
+        lengthPivotBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional fulltext length pivot.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getLengthPivotBuilder() {
+      bitField0_ |= 0x00400000;
+      onChanged();
+      return getLengthPivotFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Optional fulltext length pivot.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getLengthPivotOrBuilder() {
+      if (lengthPivotBuilder_ != null) {
+        return lengthPivotBuilder_.getMessageOrBuilder();
+      } else {
+        return lengthPivot_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : lengthPivot_;
+      }
+    }
+    /**
+     * <pre>
+     * Optional fulltext length pivot.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        getLengthPivotFieldBuilder() {
+      if (lengthPivotBuilder_ == null) {
+        lengthPivotBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getLengthPivot(),
+                getParentForChildren(),
+                isClean());
+        lengthPivot_ = null;
+      }
+      return lengthPivotBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> searchWeightBuilder_;
+    /**
+     * <pre>
+     * Optional ranking weight; explicit zero is preserved.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+     * @return Whether the searchWeight field is set.
+     */
+    public boolean hasSearchWeight() {
+      return ((bitField0_ & 0x00800000) != 0);
+    }
+    /**
+     * <pre>
+     * Optional ranking weight; explicit zero is preserved.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+     * @return The searchWeight.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchWeight() {
+      if (searchWeightBuilder_ == null) {
+        return searchWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchWeight_;
+      } else {
+        return searchWeightBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Optional ranking weight; explicit zero is preserved.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+     */
+    public Builder setSearchWeight(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
+      if (searchWeightBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        searchWeight_ = value;
+      } else {
+        searchWeightBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00800000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional ranking weight; explicit zero is preserved.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+     */
+    public Builder setSearchWeight(
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
+      if (searchWeightBuilder_ == null) {
+        searchWeight_ = builderForValue.build();
+      } else {
+        searchWeightBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00800000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional ranking weight; explicit zero is preserved.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+     */
+    public Builder mergeSearchWeight(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
+      if (searchWeightBuilder_ == null) {
+        if (((bitField0_ & 0x00800000) != 0) &&
+          searchWeight_ != null &&
+          searchWeight_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance()) {
+          getSearchWeightBuilder().mergeFrom(value);
+        } else {
+          searchWeight_ = value;
+        }
+      } else {
+        searchWeightBuilder_.mergeFrom(value);
+      }
+      if (searchWeight_ != null) {
+        bitField0_ |= 0x00800000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional ranking weight; explicit zero is preserved.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+     */
+    public Builder clearSearchWeight() {
+      bitField0_ = (bitField0_ & ~0x00800000);
+      searchWeight_ = null;
+      if (searchWeightBuilder_ != null) {
+        searchWeightBuilder_.dispose();
+        searchWeightBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional ranking weight; explicit zero is preserved.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getSearchWeightBuilder() {
+      bitField0_ |= 0x00800000;
+      onChanged();
+      return getSearchWeightFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Optional ranking weight; explicit zero is preserved.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchWeightOrBuilder() {
+      if (searchWeightBuilder_ != null) {
+        return searchWeightBuilder_.getMessageOrBuilder();
+      } else {
+        return searchWeight_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchWeight_;
+      }
+    }
+    /**
+     * <pre>
+     * Optional ranking weight; explicit zero is preserved.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
+        getSearchWeightFieldBuilder() {
+      if (searchWeightBuilder_ == null) {
+        searchWeightBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
+                getSearchWeight(),
+                getParentForChildren(),
+                isClean());
+        searchWeight_ = null;
+      }
+      return searchWeightBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

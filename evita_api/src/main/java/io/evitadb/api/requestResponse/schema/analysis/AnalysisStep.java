@@ -23,116 +23,57 @@
 
 package io.evitadb.api.requestResponse.schema.analysis;
 
-import io.evitadb.utils.Assert;
-import io.evitadb.utils.CollectionUtils;
-
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
- * Immutable description of an analysis step, without any executable implementation.
- * Step availability and step-specific parameter semantics are validated by the server.
+ * Immutable description of an analysis step, without any executable implementation: a step name and its named
+ * parameters. Step availability and step-specific parameter semantics are validated by the server.
  *
- * @param name nonblank step name
- * @param parameters named parameters using supported evitaDB data types
+ * **A description says where it may be used.** The factories in {@link AnalysisSteps} return the type of the place a
+ * step belongs to - {@link TextAnalysisStep}, {@link TokenizerAnalysisStep}, {@link SplittingAnalysisStep} or
+ * {@link WordsAnalysisStep} for the parts of a fulltext analyzer, {@link NormalizingAnalysisStep} for an attribute's
+ * normalization - and every schema editor accepts only the type of its slot, so a step placed where it cannot run
+ * does not compile. A step serving two places, such as `lowercase`, is of both types. A step of another provider is
+ * described by the generic factory of the place it goes to ({@link AnalysisSteps#wordsStep}, ...): its author states
+ * the place and the server verifies it.
+ *
+ * A description read back from storage or received over an external API carries no such type ({@link #of}); the
+ * server checks it like any other. Two descriptions are equal when their names and parameters are, whatever their
+ * type.
  */
-public record AnalysisStep(
-	@Nonnull String name,
-	@Nonnull Map<String, Serializable> parameters
-) implements Serializable {
+public sealed interface AnalysisStep extends Serializable
+	permits TextAnalysisStep, TokenizerAnalysisStep, SplittingAnalysisStep, WordsAnalysisStep, NormalizingAnalysisStep,
+	AnalysisStepDescription {
 
 	/**
-	 * Validates names and parameter types and defensively copies the supplied map and its array values.
-	 */
-	public AnalysisStep {
-		Assert.notNull(name, "Analysis step name must not be null.");
-		Assert.isTrue(!name.isBlank(), "Analysis step name must not be blank.");
-		Assert.notNull(parameters, "Analysis step parameters must not be null.");
-		final Map<String, Serializable> copy = CollectionUtils.createLinkedHashMap(parameters.size());
-		parameters.forEach((key, value) -> {
-			final AnalysisStepParameter parameter = new AnalysisStepParameter(key, value);
-			copy.put(parameter.name(), parameter.value());
-		});
-		parameters = Collections.unmodifiableMap(copy);
-	}
-
-	/**
-	 * Returns unmodifiable parameters, defensively copying any array values.
-	 */
-	@Nonnull
-	@Override
-	public Map<String, Serializable> parameters() {
-		final Map<String, Serializable> copy = CollectionUtils.createLinkedHashMap(this.parameters.size());
-		this.parameters.forEach((key, value) -> copy.put(key, AnalysisStepParameter.copyValue(value)));
-		return Collections.unmodifiableMap(copy);
-	}
-
-	/**
-	 * Compares step descriptions, including array parameter contents.
-	 */
-	@Override
-	public boolean equals(@Nullable Object object) {
-		if (this == object) {
-			return true;
-		}
-		if (!(object instanceof AnalysisStep that) || !this.name.equals(that.name) ||
-			!this.parameters.keySet().equals(that.parameters.keySet())) {
-			return false;
-		}
-		for (final Map.Entry<String, Serializable> entry : this.parameters.entrySet()) {
-			if (!Objects.deepEquals(entry.getValue(), that.parameters.get(entry.getKey()))) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	/**
-	 * Hashes the description consistently with array-aware equality.
-	 */
-	@Override
-	public int hashCode() {
-		int parametersHash = 0;
-		for (final Map.Entry<String, Serializable> entry : this.parameters.entrySet()) {
-			parametersHash += entry.getKey().hashCode() ^
-				(Arrays.deepHashCode(new Object[]{entry.getValue()}) - 31);
-		}
-		return 31 * this.name.hashCode() + parametersHash;
-	}
-
-	/**
-	 * Renders a concise description, for example `remove-characters(characters='- ')`.
-	 */
-	@Nonnull
-	@Override
-	public String toString() {
-		return this.parameters.isEmpty() ? this.name : this.name + "(" + this.parameters.entrySet().stream()
-			.map(entry -> entry.getKey() + "=" + formatValue(entry.getValue()))
-			.collect(Collectors.joining(", ")) + ")";
-	}
-
-	/**
-	 * Quotes textual values and renders array contents for diagnostics.
+	 * Returns the stable name of the provider the step resolves to on the server.
 	 *
-	 * @param value parameter value to render, never `null`
-	 * @return the value in the form used by {@link #toString()}: quoted and escaped for strings and characters,
-	 *         bracketed for arrays, otherwise its plain string form
+	 * @return nonblank step name, such as `lowercase` or `stop-words`
 	 */
 	@Nonnull
-	private static String formatValue(@Nonnull Serializable value) {
-		if (value instanceof String || value instanceof Character) {
-			return "'" + value.toString().replace("\\", "\\\\").replace("'", "\\'") + "'";
-		}
-		if (value.getClass().isArray()) {
-			final String wrapped = Arrays.deepToString(new Object[]{value});
-			return wrapped.substring(1, wrapped.length() - 1);
-		}
-		return value.toString();
+	String name();
+
+	/**
+	 * Returns the named parameters, defensively copied.
+	 *
+	 * @return unmodifiable parameters in declaration order
+	 */
+	@Nonnull
+	Map<String, Serializable> parameters();
+
+	/**
+	 * Describes a step without saying where it may be used - the form of a description read back from storage or
+	 * received over an external API, whose place the server checks.
+	 *
+	 * @param name       nonblank step name
+	 * @param parameters named parameters using supported evitaDB data types; copied, array values included
+	 * @return the description
+	 */
+	@Nonnull
+	static AnalysisStep of(@Nonnull String name, @Nonnull Map<String, Serializable> parameters) {
+		return new AnalysisStepDescription.Untyped(name, parameters);
 	}
+
 }

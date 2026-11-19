@@ -42,6 +42,16 @@ message GrpcCatalogSchema {
   // Contains the catalog-level conflict resolution setting. When not set (absent), the catalog schema inherits the
   // resolved conflict resolution from the transaction options.
   GrpcConflictResolution conflictResolution = 7;
+  // How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+  // are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+  // fulltext.
+  map<string, GrpcFulltextLanguageSchema> fulltextLanguages = 8;
+  // Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+  // lists are not present. Empty when the server predates fulltext.
+  map<string, GrpcFulltextResourceSchema> fulltextResources = 9;
+  // Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+  // and `html-text` are not present. Empty when the server predates fulltext.
+  map<string, GrpcFulltextAnalyzerSchema> fulltextAnalyzers = 10;
 }
 
 // This is the definition object for attributes that are stored along with
@@ -151,4 +161,88 @@ message GrpcGlobalAttributeSchema {
   // normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
   // A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
   repeated GrpcAnalysisStep normalized = 21;
+  // Scopes in which the attribute contributes words to the fulltext index. Empty when it is not searchable in any
+  // scope, and when the server predates fulltext.
+  repeated GrpcEntityScope searchableInScopes = 22;
+  // Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+  // catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+  google.protobuf.StringValue analyzer = 23;
+  // Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+  // one less. Unset when the server predates fulltext; clients then use the default 25.
+  google.protobuf.Int32Value lengthPivot = 24;
+  // Fulltext ranking weight of the attribute, shared by every scope; zero preserves matches while contributing no
+  // ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+  // differs from an unset wrapper.
+  GrpcBigDecimal searchWeight = 25;
+}
+
+// Ordered steps of one analyzer phase. Wrapping the list in a message lets an unset phase (undefined, inherited)
+// differ from a phase declared with no steps (a set message with an empty list).
+message GrpcAnalysisSteps {
+  // Steps of the phase in execution order.
+  repeated GrpcAnalysisStep steps = 1;
+}
+// The two phases of an analyzer as it declares them, for every language or for one, before inheritance is resolved.
+message GrpcFulltextAnalysisPhases {
+  // Text phase: steps changing characters before the text is split into words. Unset when the phase is not declared
+  // here, so it is inherited; set with no steps when it is declared empty, which overrides.
+  GrpcAnalysisSteps text = 1;
+  // Words phase: steps changing each word after splitting. Unset when the phase is not declared here, so it is
+  // inherited; set with no steps when it is declared empty, which overrides.
+  GrpcAnalysisSteps words = 2;
+}
+// Content of a word list, such as a stop list or a list of protected words.
+message GrpcWordList {
+  // Words of the list in declaration order.
+  repeated string words = 1;
+}
+// Words a query treats as equal: a query word of the group also finds the other words of the group.
+message GrpcSynonymGroup {
+  // Words of the group in declaration order; at least two.
+  repeated string words = 1;
+}
+// Content of a synonym list.
+message GrpcSynonymList {
+  // Synonym groups in declaration order.
+  repeated GrpcSynonymGroup groups = 1;
+}
+// Content of a fulltext resource, one of the resource kinds.
+message GrpcFulltextResourceContent {
+  // Exactly one member must be set: the content of the resource's kind.
+  oneof content {
+    // Content of a word list.
+    GrpcWordList wordList = 1;
+    // Content of a synonym list.
+    GrpcSynonymList synonymList = 2;
+  }
+}
+// How text in one language is split into words.
+message GrpcFulltextLanguageSchema {
+  // ISO 639 code of the language, such as `en`.
+  string language = 1;
+  // Splitting steps in execution order, the tokenizer first; never empty.
+  repeated GrpcAnalysisStep wordSplitting = 2;
+}
+// A named list that analysis steps read by its name.
+message GrpcFulltextResourceSchema {
+  // Name analysis steps refer to the resource by.
+  string name = 1;
+  // Content of the resource.
+  GrpcFulltextResourceContent content = 2;
+}
+// A named analyzer as the catalog declares it, before inheritance is resolved.
+message GrpcFulltextAnalyzerSchema {
+  // Name searchable fields refer to the analyzer by.
+  string name = 1;
+  // Analyzer supplying every phase this one leaves undefined, built-in (`text`, `html-text`) or declared. Unset when
+  // the analyzer is based on none; its undefined phases then have no steps.
+  google.protobuf.StringValue basedOn = 2;
+  // Phases declared for every language.
+  GrpcFulltextAnalysisPhases allLanguages = 3;
+  // Per-language phase overrides keyed by ISO 639 language code; each phase declared there replaces the
+  // all-languages one for that language.
+  map<string, GrpcFulltextAnalysisPhases> languages = 4;
+  // Author samples in declaration order, independent of the base analyzer. At most 100 distinct, non-blank texts
+  // of at most 1,000 UTF-16 code units each; omitted means no samples.
+  repeated string samples = 5;
 }

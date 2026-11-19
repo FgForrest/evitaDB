@@ -64,6 +64,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexSt
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -1262,7 +1263,9 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				BigDecimal.class, null,
 				indexedDecimalPlaces,
 				ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 		}
 
@@ -1507,7 +1510,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 	 * {@link AttributeIndex#getModifiedStorageParts} diffs the pre-drop per-family leaf-page snapshot against the
 	 * surviving keys and emits the matching leaf-page removal for every orphaned page — else those pages leak forever in
 	 * the append-only OffsetIndex. The FILTER range companion shares the identical mechanism (a
-	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval} per orphaned range
+	 * {@link RangeIndexLeafPageRemoval} per orphaned range
 	 * leaf), driven by the same {@code persistedFilterRangeLeafPages} snapshot.
 	 */
 	@Nested

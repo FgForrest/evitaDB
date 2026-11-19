@@ -107,7 +107,10 @@ final class SchemaContentComparator {
 			Objects.equals(baseSchema.getDescription(), updatedSchema.getDescription()) &&
 			Objects.equals(baseSchema.getConflictResolution(), updatedSchema.getConflictResolution()) &&
 			Objects.equals(baseSchema.getCatalogEvolutionMode(), updatedSchema.getCatalogEvolutionMode()) &&
-			Objects.equals(baseSchema.getAttributes(), updatedSchema.getAttributes());
+			Objects.equals(baseSchema.getAttributes(), updatedSchema.getAttributes()) &&
+			Objects.equals(baseSchema.getFulltextLanguages(), updatedSchema.getFulltextLanguages()) &&
+			Objects.equals(baseSchema.getFulltextResources(), updatedSchema.getFulltextResources()) &&
+			Objects.equals(baseSchema.getFulltextAnalyzers(), updatedSchema.getFulltextAnalyzers());
 	}
 
 }

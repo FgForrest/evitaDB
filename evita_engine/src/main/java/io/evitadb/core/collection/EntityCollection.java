@@ -4338,6 +4338,7 @@ public final class EntityCollection implements
 			// their counters belong to the catalog rather than to whichever collection happened to write one
 			this.catalog.getUsageRegistry(),
 			this.catalog.getFulltextAnalyzerRegistry(),
+			() -> this.catalog.getSchema(),
 			getAttributeNormalizationResolver(),
 			this.catalog.isUsageStatisticsTracked(),
 			this.entityIndexCreator.getMissingHistogramValueBehavior(),

@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The Polish instance of the {@link LexiconCoverageSweep}: verifies over the whole `pl_PL` Hunspell lexicon
- * that the production {@link PolishVariantStemmer} — the query half of the `polish`/`polish-search` built-in
+ * that the production {@link PolishVariantStemmer} — the query half of the `text` index/query built-in
  * pair — always emits the term the index half wrote.
  *
  * The index side is the production shape: the vendored Snowball stemmer ({@link PolishSnowballStemmer})

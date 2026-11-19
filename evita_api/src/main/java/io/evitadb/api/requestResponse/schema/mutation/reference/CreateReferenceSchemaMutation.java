@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -56,6 +57,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
@@ -80,8 +82,12 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 public class CreateReferenceSchemaMutation
 	extends AbstractReferenceDataSchemaMutation
 	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = -4158068801437475007L;
+	@Serial private static final long serialVersionUID = -4158068801437475006L;
 
+	/** Complete composition declaration; null means none is declared. */
+	@Getter @Nullable private final ScopedReferenceSearchMode[] searchableThroughInScopes;
+	/** Single ranking weight shared by all scopes; null means the default weight. */
+	@Getter @Nullable private final BigDecimal searchableThroughWeight;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final Cardinality cardinality;
@@ -100,6 +106,17 @@ public class CreateReferenceSchemaMutation
 	/**
 	 * Creates mutation that sets up a new reference schema with the given properties using simple boolean
 	 * flags for indexed/faceted configuration (applied to the default scope only).
+	 *
+	 * @param name reference name
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param referencedEntityTypeManaged whether the referenced type is managed by evitaDB
+	 * @param referencedGroupType referenced group type, or null
+	 * @param referencedGroupTypeManaged whether the group type is managed
+	 * @param indexed whether to index the default scope
+	 * @param faceted whether to facet the default scope
 	 */
 	public CreateReferenceSchemaMutation(
 		@Nonnull String name,
@@ -114,6 +131,43 @@ public class CreateReferenceSchemaMutation
 		boolean faceted
 	) {
 		this(
+			name, description, deprecationNotice, cardinality, referencedEntityType, referencedEntityTypeManaged,
+			referencedGroupType, referencedGroupTypeManaged, indexed, faceted, null, null
+		);
+	}
+
+	/**
+	 * Creates mutation that sets up a new reference schema using simple boolean flags for indexed/faceted
+	 * configuration (applied to the default scope only) and declares its text composition.
+	 *
+	 * @param name reference name
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param referencedEntityTypeManaged whether the referenced type is managed by evitaDB
+	 * @param referencedGroupType referenced group type, or null
+	 * @param referencedGroupTypeManaged whether the group type is managed
+	 * @param indexed whether to index the default scope
+	 * @param faceted whether to facet the default scope
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight shared ranking weight, or null for the default 0.5
+	 */
+	public CreateReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		boolean referencedGroupTypeManaged,
+		boolean indexed,
+		boolean faceted,
+		@Nullable ScopedReferenceSearchMode[] searchableThroughInScopes,
+		@Nullable BigDecimal searchableThroughWeight
+	) {
+		this(
 			name, description, deprecationNotice, cardinality,
 			referencedEntityType, referencedEntityTypeManaged,
 			referencedGroupType, referencedGroupTypeManaged,
@@ -124,7 +178,8 @@ public class CreateReferenceSchemaMutation
 				? ScopedReferenceIndexedComponents.DEFAULT
 				: ScopedReferenceIndexedComponents.EMPTY,
 			faceted ? Scope.DEFAULT_SCOPES : NO_SCOPE,
-			null, null, null
+			null, null, null,
+			searchableThroughInScopes, searchableThroughWeight
 		);
 	}
 
@@ -132,6 +187,21 @@ public class CreateReferenceSchemaMutation
 	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration
 	 * including per-scope facetedPartially and bucketed histogram expressions. The conflict resolution override
 	 * defaults to {@link ConflictResolutionOverride#INHERITED}.
+	 *
+	 * @param name reference name
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param referencedEntityTypeManaged whether the referenced type is managed by evitaDB
+	 * @param referencedGroupType referenced group type, or null
+	 * @param referencedGroupTypeManaged whether the group type is managed
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
 	 */
 	public CreateReferenceSchemaMutation(
 		@Nonnull String name,
@@ -150,13 +220,61 @@ public class CreateReferenceSchemaMutation
 		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes
 	) {
 		this(
+			name, description, deprecationNotice, cardinality, referencedEntityType, referencedEntityTypeManaged,
+			referencedGroupType, referencedGroupTypeManaged, indexedInScopes, indexedComponentsInScopes,
+			facetedInScopes, facetedPartiallyInScopes, bucketedInScopes, bucketedPartiallyInScopes, null, null
+		);
+	}
+
+	/**
+	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration
+	 * including per-scope facetedPartially and bucketed histogram expressions, and declares its text composition.
+	 * The conflict resolution override defaults to {@link ConflictResolutionOverride#INHERITED}.
+	 *
+	 * @param name reference name
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param referencedEntityTypeManaged whether the referenced type is managed by evitaDB
+	 * @param referencedGroupType referenced group type, or null
+	 * @param referencedGroupTypeManaged whether the group type is managed
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight shared ranking weight, or null for the default 0.5
+	 */
+	public CreateReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		boolean referencedGroupTypeManaged,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes,
+		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
+		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
+		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes,
+		@Nullable ScopedReferenceSearchMode[] searchableThroughInScopes,
+		@Nullable BigDecimal searchableThroughWeight
+	) {
+		this(
 			name, description, deprecationNotice, cardinality,
 			referencedEntityType, referencedEntityTypeManaged,
 			referencedGroupType, referencedGroupTypeManaged,
 			indexedInScopes, indexedComponentsInScopes,
 			facetedInScopes, facetedPartiallyInScopes,
 			bucketedInScopes, bucketedPartiallyInScopes,
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			searchableThroughInScopes, searchableThroughWeight
 		);
 	}
 
@@ -164,8 +282,23 @@ public class CreateReferenceSchemaMutation
 	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration
 	 * including per-scope facetedPartially and bucketed histogram expressions and a per-reference conflict
 	 * resolution override.
+	 *
+	 * @param name reference name
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param referencedEntityTypeManaged whether the referenced type is managed by evitaDB
+	 * @param referencedGroupType referenced group type, or null
+	 * @param referencedGroupTypeManaged whether the group type is managed
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param conflictResolutionOverride conflict resolution override
 	 */
-	@SerializableCreator
 	public CreateReferenceSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -183,7 +316,62 @@ public class CreateReferenceSchemaMutation
 		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
+		this(
+			name, description, deprecationNotice, cardinality, referencedEntityType, referencedEntityTypeManaged,
+			referencedGroupType, referencedGroupTypeManaged, indexedInScopes, indexedComponentsInScopes,
+			facetedInScopes, facetedPartiallyInScopes, bucketedInScopes, bucketedPartiallyInScopes,
+			conflictResolutionOverride,
+			null, null
+		);
+	}
+
+	/**
+	 * Creates mutation that sets up a new reference schema with detailed per-scope configuration, a per-reference
+	 * conflict resolution override and its text composition.
+	 *
+	 * @param name reference name
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param referencedEntityTypeManaged whether the referenced type is managed by evitaDB
+	 * @param referencedGroupType referenced group type, or null
+	 * @param referencedGroupTypeManaged whether the group type is managed
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param conflictResolutionOverride conflict resolution override
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight shared ranking weight, or null for the default 0.5
+	 */
+	@SerializableCreator
+	public CreateReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		boolean referencedGroupTypeManaged,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes,
+		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
+		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
+		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable ScopedReferenceSearchMode[] searchableThroughInScopes,
+		@Nullable BigDecimal searchableThroughWeight
+	) {
 		super(name);
+		this.searchableThroughInScopes = searchableThroughInScopes == null
+			? null : searchableThroughInScopes.clone();
+		this.searchableThroughWeight = searchableThroughWeight == null
+			? null : AttributeSchemaContract.normalizeSearchWeight(searchableThroughWeight, "Reference `" + name + "`");
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
 		this.description = description;
@@ -259,6 +447,12 @@ public class CreateReferenceSchemaMutation
 					null,
 					Stream.of(
 							Stream.of(
+								(!existingVersion.getSearchableThroughInScopes().isEmpty() &&
+									!createdVersion.getSearchableThroughInScopes()
+										.equals(existingVersion.getSearchableThroughInScopes())) ?
+									new SetReferenceSchemaSearchableThroughMutation(
+										this.name, ScopedReferenceSearchMode.EMPTY, null
+									) : null,
 								makeMutationIfDifferent(
 									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
@@ -364,7 +558,18 @@ public class CreateReferenceSchemaMutation
 									createdVersion.getBucketedPartiallyInScopes().entrySet().stream()
 										.map(e -> new ScopedBucketedPartially(e.getKey(), e.getValue()))
 										.toArray(ScopedBucketedPartially[]::new)
-								)
+								),
+								(createdVersion.getSearchableThroughInScopes()
+									.equals(existingVersion.getSearchableThroughInScopes()) &&
+									createdVersion.getSearchableThroughWeight().equals(
+										existingVersion.getSearchableThroughWeight())) ? null :
+									new SetReferenceSchemaSearchableThroughMutation(
+										this.name,
+										ReferenceSchema.toScopedSearchModes(
+											createdVersion.getSearchableThroughInScopes()
+										),
+										createdVersion.getSearchableThroughWeight()
+									)
 							),
 							existingVersion.getAttributes()
 								.values()
@@ -404,7 +609,7 @@ public class CreateReferenceSchemaMutation
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull ConsistencyChecks consistencyChecks
 	) {
-		return ReferenceSchema._internalBuild(
+		final ReferenceSchema result = ReferenceSchema._internalBuild(
 			this.name, NamingConvention.generate(this.name),
 			this.description, this.deprecationNotice,
 			this.referencedEntityType,
@@ -423,8 +628,15 @@ public class CreateReferenceSchemaMutation
 			this.bucketedInScopes, this.bucketedPartiallyInScopes,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
-			this.conflictResolutionOverride
+			this.conflictResolutionOverride,
+			ReferenceSchema.toSearchableThroughMap(this.searchableThroughInScopes),
+			this.searchableThroughWeight == null ? ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
+				: this.searchableThroughWeight
 		);
+		if (consistencyChecks == ConsistencyChecks.APPLY) {
+			SetReferenceSchemaSearchableThroughMutation.verifyRequirements(entitySchema, result);
+		}
+		return result;
 	}
 
 	@Nonnull
@@ -449,7 +661,9 @@ public class CreateReferenceSchemaMutation
 	@Override
 	public String toString() {
 		return "Create entity reference schema: " +
-			"name='" + this.name + '\'' +
+			"searchableThrough=" + Arrays.toString(this.searchableThroughInScopes) +
+			", searchableThroughWeight=" + this.searchableThroughWeight +
+			", name='" + this.name + '\'' +
 			", description='" + this.description + '\'' +
 			", deprecationNotice='" + this.deprecationNotice + '\'' +
 			", cardinality=" + this.cardinality +

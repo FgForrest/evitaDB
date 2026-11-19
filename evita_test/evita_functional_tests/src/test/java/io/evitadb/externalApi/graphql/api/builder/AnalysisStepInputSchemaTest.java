@@ -24,6 +24,7 @@
 
 package io.evitadb.externalApi.graphql.api.builder;
 
+import graphql.Directives;
 import graphql.ExecutionInput;
 import graphql.ExecutionResult;
 import graphql.GraphQL;
@@ -32,10 +33,17 @@ import graphql.schema.GraphQLInputObjectField;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLNonNull;
 import graphql.schema.GraphQLSchema;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.DualPurposeAnalysisStepTestSupport;
+import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepInputDescriptors;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepInputDescriptors.StepInput;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.AnalysisStepConverter;
+import io.evitadb.externalApi.api.resolver.mutation.Input;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -46,6 +54,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import javax.annotation.Nonnull;
+import java.util.List;
 import java.util.Map;
 
 import static graphql.Scalars.GraphQLBoolean;
@@ -148,4 +157,112 @@ class AnalysisStepInputSchemaTest implements EvitaTestSupport {
 			(GraphQLInputObjectType) this.schema.getType("InputRemoveCharactersAnalysisStepParameters");
 		assertEquals("String!", parameters.getField("characters").getType().toString());
 	}
+	/** A dual-purpose provider must retain normalization spelling and expose a distinct fulltext parameter type. */
+	@Test
+	@DisplayName("keeps dual-purpose provider parameter types distinct")
+	void shouldGenerateDistinctDualPurposeParameterTypes() {
+		final AnalysisStepRegistry registry = DualPurposeAnalysisStepTestSupport.registry("KeepOriginal");
+		final TestPaths paths = createTestPaths("DualPurposeGraphQLInput");
+		try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
+			final GraphQLSchemaBuildingContext context = new GraphQLSchemaBuildingContext(new GraphQLOptions(), evita);
+			final GraphQLSchemaBuilder<GraphQLSchemaBuildingContext> builder = new GraphQLSchemaBuilder<>(context) { };
+			builder.registerAnalysisStepInputTypes(phase -> AnalysisStepInputDescriptors.getSteps(registry, phase));
+			context.registerQueryField(new BuiltFieldDescriptor(newFieldDefinition().name("accept").type(GraphQLBoolean)
+				.argument(newArgument().name("step").type(typeRef("InputFulltextWordsStep")))
+				.argument(newArgument().name("normalization").type(typeRef("InputAnalysisStep"))).build(),
+				environment -> {
+					final AnalysisStep step = AnalysisStepConverter.fromInput(new Input("step",
+						environment.getArgument("step"), TestMutationResolvingExceptionFactory.INSTANCE, Map.of()),
+						TestMutationResolvingExceptionFactory.INSTANCE,
+						AnalysisStepInputDescriptors.Context.WORDS, registry);
+					assertEquals(Map.of("KeepOriginal", "x"), step.parameters());
+					final AnalysisStep normalization = AnalysisStepConverter.fromInput(new Input("normalization",
+						environment.getArgument("normalization"), TestMutationResolvingExceptionFactory.INSTANCE,
+						Map.of()), TestMutationResolvingExceptionFactory.INSTANCE,
+						AnalysisStepInputDescriptors.Context.NORMALIZATION, registry);
+					assertEquals(AnalysisStep.of("custom", Map.of("KeepOriginal", "x")), normalization);
+					return true;
+				}));
+			final GraphQLSchema customSchema = context.buildGraphQLSchema();
+			final GraphQLInputObjectType normalization =
+				(GraphQLInputObjectType) customSchema.getType("InputCustomAnalysisStepParameters");
+			final GraphQLInputObjectType fulltext =
+				(GraphQLInputObjectType) customSchema.getType("InputFulltextCustomAnalysisStepParameters");
+			assertEquals(List.of("KeepOriginal"), normalization.getFields().stream()
+				.map(GraphQLInputObjectField::getName).toList());
+			assertEquals(List.of("keepOriginal"), fulltext.getFields().stream()
+				.map(GraphQLInputObjectField::getName).toList());
+			final ExecutionResult result = GraphQL.newGraphQL(customSchema).build().execute(
+				"{ accept(step: {custom: {keepOriginal: \"x\"}}, normalization: {custom: {KeepOriginal: \"x\"}}) }");
+			assertEquals(List.of(), result.getErrors());
+			assertEquals(Map.of("accept", true), result.getData());
+		} finally {
+			cleanupTestPaths(paths);
+		}
+	}
+
+	/**
+	 * Two provider parameters that camel-case to the same fulltext input name would merge into one field, and the
+	 * value sent for it would reach only one of them; the metadata must refuse the provider instead.
+	 */
+	@Test
+	@DisplayName("refuses fulltext parameters whose camel-case input names collide")
+	void shouldRefuseFulltextParametersCollidingAfterCamelCase() {
+		final AnalysisStepRegistry registry =
+			DualPurposeAnalysisStepTestSupport.registry("keep-original", "keepOriginal");
+
+		assertThrows(ExternalApiInternalError.class, () -> AnalysisStepInputDescriptors.getSteps(
+			registry, AnalysisStepInputDescriptors.Context.WORDS));
+	}
+
+	/**
+	 * Exercises a hyphenated provider key on the fulltext GraphQL input. The normalization metadata retains the raw
+	 * key; GraphQL's identifier grammar cannot expose that normalization field without changing its existing contract.
+	 */
+	@Test
+	@DisplayName("generates and parses camel-case fulltext input for a hyphenated dual-purpose provider key")
+	void shouldGenerateHyphenatedDualPurposeFulltextInput() {
+		final AnalysisStepRegistry registry = DualPurposeAnalysisStepTestSupport.registry("keep-original");
+		final StepInput normalization = AnalysisStepInputDescriptors.getSteps(registry).stream()
+			.filter(step -> step.stepName().equals("custom")).findFirst().orElseThrow();
+		final StepInput fulltext = AnalysisStepInputDescriptors.getSteps(registry,
+			AnalysisStepInputDescriptors.Context.WORDS).stream()
+			.filter(step -> step.stepName().equals("custom")).findFirst().orElseThrow();
+		assertEquals("InputCustomAnalysisStepParameters", normalization.parameters().name());
+		assertEquals(List.of("keep-original"), normalization.parameters().staticProperties().stream()
+			.map(property -> property.name()).toList());
+		assertEquals("InputFulltextCustomAnalysisStepParameters", fulltext.parameters().name());
+		final TestPaths paths = createTestPaths("HyphenatedGraphQLInput");
+		try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
+			final GraphQLSchemaBuildingContext context = new GraphQLSchemaBuildingContext(new GraphQLOptions(), evita);
+			final GraphQLSchemaBuilder<GraphQLSchemaBuildingContext> builder = new GraphQLSchemaBuilder<>(context) { };
+			final GraphQLInputObjectType parameters =
+				fulltext.parameters().to(builder.inputObjectBuilderTransformer).build();
+			assertEquals(List.of("keepOriginal"), parameters.getFields().stream()
+				.map(GraphQLInputObjectField::getName).toList());
+			assertEquals("String!", parameters.getField("keepOriginal").getType().toString());
+			context.registerType(parameters);
+			context.registerType(AnalysisStepInputDescriptors.getInputDescriptor(
+				AnalysisStepInputDescriptors.Context.WORDS, List.of(fulltext))
+				.to(builder.inputObjectBuilderTransformer)
+				.withAppliedDirective(Directives.OneOfDirective.toAppliedDirective()).build());
+			context.registerQueryField(new BuiltFieldDescriptor(newFieldDefinition().name("accept").type(GraphQLBoolean)
+				.argument(newArgument().name("step").type(typeRef("InputFulltextWordsStep"))).build(), environment -> {
+					final AnalysisStep step = AnalysisStepConverter.fromInput(new Input("step",
+						environment.getArgument("step"), TestMutationResolvingExceptionFactory.INSTANCE, Map.of()),
+						TestMutationResolvingExceptionFactory.INSTANCE,
+						AnalysisStepInputDescriptors.Context.WORDS, registry);
+					assertEquals(Map.of("keep-original", "x"), step.parameters());
+					registry.resolveFulltext(step);
+					return true;
+				}));
+			final ExecutionResult result = GraphQL.newGraphQL(context.buildGraphQLSchema()).build()
+				.execute("{ accept(step: {custom: {keepOriginal: \"x\"}}) }");
+			assertEquals(List.of(), result.getErrors());
+			assertEquals(Map.of("accept", true), result.getData());
+		} finally {
+			cleanupTestPaths(paths);
+		}
+	}
+
 }

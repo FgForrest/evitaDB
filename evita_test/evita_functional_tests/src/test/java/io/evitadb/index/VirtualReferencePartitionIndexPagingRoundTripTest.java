@@ -45,7 +45,6 @@ import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.LoadedComponentBundle.VirtualReferencePartitions;
 import io.evitadb.index.component.loader.VirtualReferencePartitionLoader;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
@@ -1167,21 +1166,9 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			ENTITY_INDEX_PK, 1, ENTITY_INDEX_KEY, Set.of(), Set.of(), false, Set.of(), Set.of(), Set.of()
 		);
 		final LoadedComponentBundle bundle = new VirtualReferencePartitionLoader().load(
-			new LoadContext(
-				this.version,
-				ENTITY_INDEX_PK,
-				EntitySchema._internalBuild(ENTITY_TYPE),
-				ENTITY_INDEX_KEY,
-				manifest,
-				manifest.getVersion(),
-				EmptyBitmap.INSTANCE,
-				Map.of(),
-				new OffsetIndexReadService(this.offsetIndex),
-				null,
-				true,
-				new FulltextAnalyzerRegistry(),
-				AttributeNormalizationResolver.LEGACY_NFD
-			)
+			new LoadContext(this.version, ENTITY_INDEX_PK, EntitySchema._internalBuild(ENTITY_TYPE),
+				ENTITY_INDEX_KEY, manifest, manifest.getVersion(), EmptyBitmap.INSTANCE, Map.of(),
+				new OffsetIndexReadService(this.offsetIndex), null, true, AttributeNormalizationResolver.LEGACY_NFD)
 		);
 		return assertInstanceOf(VirtualReferencePartitions.class, bundle).virtualReferencePartitionIndex();
 	}
@@ -1202,21 +1189,10 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			this.offsetIndex.get(this.version, ENTITY_INDEX_PK, EntityIdsStoragePart.class);
 		assertNotNull(entityIds, "The type index must have persisted its entity ids");
 		final EntityIndex reloaded = ReferencedTypeEntityIndex.reloadPlan().run(
-			new LoadContext(
-				this.version,
-				ENTITY_INDEX_PK,
-				EntitySchema._internalBuild(ENTITY_TYPE),
-				manifest.getEntityIndexKey(),
-				manifest,
-				Math.max(manifest.getVersion(), entityIds.getVersion()),
-				entityIds.getEntityIds(),
-				entityIds.getEntityIdsByLanguage(),
-				new OffsetIndexReadService(this.offsetIndex),
-				null,
-				true,
-				new FulltextAnalyzerRegistry(),
-				AttributeNormalizationResolver.LEGACY_NFD
-			)
+			new LoadContext(this.version, ENTITY_INDEX_PK, EntitySchema._internalBuild(ENTITY_TYPE),
+				manifest.getEntityIndexKey(), manifest, Math.max(manifest.getVersion(), entityIds.getVersion()),
+				entityIds.getEntityIds(), entityIds.getEntityIdsByLanguage(),
+				new OffsetIndexReadService(this.offsetIndex), null, true, AttributeNormalizationResolver.LEGACY_NFD)
 		);
 		return assertInstanceOf(ReferencedTypeEntityIndex.class, reloaded);
 	}

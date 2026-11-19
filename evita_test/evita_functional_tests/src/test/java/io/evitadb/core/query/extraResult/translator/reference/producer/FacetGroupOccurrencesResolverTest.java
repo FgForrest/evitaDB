@@ -76,7 +76,8 @@ class FacetGroupOccurrencesResolverTest {
 		REFERENCE_NAME, "tagEntity", true, Cardinality.ZERO_OR_MORE,
 		"tagGroup", true,
 		new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)},
-		new Scope[]{Scope.LIVE}
+		new Scope[]{Scope.LIVE},
+		null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 	);
 	/**
 	 * The facet referenced under each of {@link #GROUPS}.

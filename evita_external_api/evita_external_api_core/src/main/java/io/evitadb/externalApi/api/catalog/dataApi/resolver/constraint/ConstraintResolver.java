@@ -384,20 +384,36 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		return descriptor.constraintClass() == HistogramHaving.class || descriptor.constraintClass() == Segment.class;
 	}
 
+	/**
+	 * Resolves creator arguments, using Boolean gates for valueless constraints and classified TEXT selectors.
+	 * Existing classified non-TEXT variants retain their historical dispatch behavior.
+	 *
+	 * @param resolveContext current transport and entity context
+	 * @param parsedConstraintDescriptor registered creator and parsed classifier
+	 * @param value non-null transport value
+	 * @return creator arguments, or null when a Boolean gate omits the constraint
+	 */
 	@Nullable
 	private List<Object> resolveValueToInstantiationArgs(@Nonnull ConstraintResolveContext resolveContext,
 	                                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                                     @Nonnull Object value) {
 		final ConstraintValueStructure valueStructure = parsedConstraintDescriptor.constraintDescriptor().creator().valueStructure();
 
+		final ConstraintDescriptor descriptor = parsedConstraintDescriptor.constraintDescriptor();
 		if (valueStructure == ConstraintValueStructure.NONE &&
-			!parsedConstraintDescriptor.constraintDescriptor().creator().hasClassifierParameter()) {
-			return resolveNoneParameter(parsedConstraintDescriptor, value) ? new ArrayList<>(0) : null;
+			(!descriptor.creator().hasClassifierParameter() ||
+				descriptor.supportedIn().contains(ConstraintDomain.TEXT))) {
+			if (!resolveNoneParameter(parsedConstraintDescriptor, value)) {
+				return null;
+			}
+			if (!descriptor.creator().hasClassifierParameter()) {
+				return new ArrayList<>(0);
+			}
 		}
 
 		final List<Object> instantiationArgs = new LinkedList<>();
 		final List<ParameterDescriptor> parameters = parsedConstraintDescriptor.constraintDescriptor().creator().parameters();
-		for (ParameterDescriptor parameter : parameters) {
+		for (final ParameterDescriptor parameter : parameters) {
 			final Object argument;
 			if (parameter instanceof ClassifierParameterDescriptor) {
 				argument = resolveClassifierParameter(parsedConstraintDescriptor);

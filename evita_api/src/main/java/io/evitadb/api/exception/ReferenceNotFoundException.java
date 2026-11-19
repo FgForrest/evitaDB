@@ -102,4 +102,18 @@ public class ReferenceNotFoundException extends EvitaInvalidUsageException {
 		);
 	}
 
+	/**
+	 * Creates a missing-place diagnostic naming the complete query constraint that requested it.
+	 *
+	 * @param referenceName the reference the constraint names
+	 * @param entitySchema schema of the entity that should hold the reference
+	 * @param constraint the complete constraint as the query states it
+	 */
+	public ReferenceNotFoundException(
+		@Nonnull String referenceName, @Nonnull EntitySchemaContract entitySchema, @Nonnull String constraint
+	) {
+		super("Constraint `" + constraint + "`: reference `" + referenceName +
+			"` is not present in schema of `" + entitySchema.getName() + "` entity.");
+	}
+
 }

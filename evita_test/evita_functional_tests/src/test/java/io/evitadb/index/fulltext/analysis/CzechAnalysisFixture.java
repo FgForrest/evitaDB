@@ -23,12 +23,10 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-
-import javax.annotation.Nonnull;
 import java.util.List;
 
 /**
- * The Czech vocabulary {@link LanguageAnalyzerPairRecallTest} measures the `czech`/`czech-search` analyzer pair
+ * The Czech vocabulary {@link LanguageAnalyzerPairRecallTest} measures the `text` index/query analyzer pair
  * against. Keeping the vocabulary out of the test is what makes the four languages comparable — a mechanism
  * that scores better on its own vocabulary has not been shown to score better at all.
  *

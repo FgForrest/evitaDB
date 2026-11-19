@@ -40,6 +40,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -81,6 +82,9 @@ public class CatalogSchemaSerializer_2026_1 extends Serializer<CatalogSchema> {
 			version,
 			catalogName, nameVariants, description, null, catalogEvolutionMode,
 			attributeSchema,
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
 			new DeserializedEntitySchemaAccessor(theCatalog)
 		);
 	}

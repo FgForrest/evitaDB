@@ -751,5 +751,275 @@ public interface GrpcLocalCatalogSchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutationOrBuilder getSetAttributeSchemaNormalizedMutationOrBuilder();
 
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+   * @return Whether the setAttributeSchemaSearchableMutation field is set.
+   */
+  boolean hasSetAttributeSchemaSearchableMutation();
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+   * @return The setAttributeSchemaSearchableMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation getSetAttributeSchemaSearchableMutation();
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder getSetAttributeSchemaSearchableMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation declares how text in one language is split into words.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+   * @return Whether the createFulltextLanguageSchemaMutation field is set.
+   */
+  boolean hasCreateFulltextLanguageSchemaMutation();
+  /**
+   * <pre>
+   * Mutation declares how text in one language is split into words.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+   * @return The createFulltextLanguageSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation getCreateFulltextLanguageSchemaMutation();
+  /**
+   * <pre>
+   * Mutation declares how text in one language is split into words.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutationOrBuilder getCreateFulltextLanguageSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation replaces the whole word splitting of a declared language.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+   * @return Whether the modifyFulltextLanguageSchemaMutation field is set.
+   */
+  boolean hasModifyFulltextLanguageSchemaMutation();
+  /**
+   * <pre>
+   * Mutation replaces the whole word splitting of a declared language.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+   * @return The modifyFulltextLanguageSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation getModifyFulltextLanguageSchemaMutation();
+  /**
+   * <pre>
+   * Mutation replaces the whole word splitting of a declared language.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutationOrBuilder getModifyFulltextLanguageSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation removes the word splitting declared for a language.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+   * @return Whether the removeFulltextLanguageSchemaMutation field is set.
+   */
+  boolean hasRemoveFulltextLanguageSchemaMutation();
+  /**
+   * <pre>
+   * Mutation removes the word splitting declared for a language.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+   * @return The removeFulltextLanguageSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation getRemoveFulltextLanguageSchemaMutation();
+  /**
+   * <pre>
+   * Mutation removes the word splitting declared for a language.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutationOrBuilder getRemoveFulltextLanguageSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation declares a named word list or synonym list that analysis steps read.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+   * @return Whether the createFulltextResourceSchemaMutation field is set.
+   */
+  boolean hasCreateFulltextResourceSchemaMutation();
+  /**
+   * <pre>
+   * Mutation declares a named word list or synonym list that analysis steps read.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+   * @return The createFulltextResourceSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation getCreateFulltextResourceSchemaMutation();
+  /**
+   * <pre>
+   * Mutation declares a named word list or synonym list that analysis steps read.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutationOrBuilder getCreateFulltextResourceSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation replaces the whole content of a declared fulltext resource.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+   * @return Whether the modifyFulltextResourceSchemaMutation field is set.
+   */
+  boolean hasModifyFulltextResourceSchemaMutation();
+  /**
+   * <pre>
+   * Mutation replaces the whole content of a declared fulltext resource.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+   * @return The modifyFulltextResourceSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation getModifyFulltextResourceSchemaMutation();
+  /**
+   * <pre>
+   * Mutation replaces the whole content of a declared fulltext resource.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutationOrBuilder getModifyFulltextResourceSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation removes a declared fulltext resource.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+   * @return Whether the removeFulltextResourceSchemaMutation field is set.
+   */
+  boolean hasRemoveFulltextResourceSchemaMutation();
+  /**
+   * <pre>
+   * Mutation removes a declared fulltext resource.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+   * @return The removeFulltextResourceSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation getRemoveFulltextResourceSchemaMutation();
+  /**
+   * <pre>
+   * Mutation removes a declared fulltext resource.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutationOrBuilder getRemoveFulltextResourceSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation declares a named fulltext analyzer searchable fields can refer to.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+   * @return Whether the createFulltextAnalyzerSchemaMutation field is set.
+   */
+  boolean hasCreateFulltextAnalyzerSchemaMutation();
+  /**
+   * <pre>
+   * Mutation declares a named fulltext analyzer searchable fields can refer to.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+   * @return The createFulltextAnalyzerSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation getCreateFulltextAnalyzerSchemaMutation();
+  /**
+   * <pre>
+   * Mutation declares a named fulltext analyzer searchable fields can refer to.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutationOrBuilder getCreateFulltextAnalyzerSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation replaces the whole definition of a declared fulltext analyzer.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+   * @return Whether the modifyFulltextAnalyzerSchemaMutation field is set.
+   */
+  boolean hasModifyFulltextAnalyzerSchemaMutation();
+  /**
+   * <pre>
+   * Mutation replaces the whole definition of a declared fulltext analyzer.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+   * @return The modifyFulltextAnalyzerSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation getModifyFulltextAnalyzerSchemaMutation();
+  /**
+   * <pre>
+   * Mutation replaces the whole definition of a declared fulltext analyzer.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutationOrBuilder getModifyFulltextAnalyzerSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation removes a declared fulltext analyzer.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+   * @return Whether the removeFulltextAnalyzerSchemaMutation field is set.
+   */
+  boolean hasRemoveFulltextAnalyzerSchemaMutation();
+  /**
+   * <pre>
+   * Mutation removes a declared fulltext analyzer.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+   * @return The removeFulltextAnalyzerSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation getRemoveFulltextAnalyzerSchemaMutation();
+  /**
+   * <pre>
+   * Mutation removes a declared fulltext analyzer.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutationOrBuilder getRemoveFulltextAnalyzerSchemaMutationOrBuilder();
+
   io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.MutationCase getMutationCase();
 }

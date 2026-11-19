@@ -23,9 +23,11 @@
 
 package io.evitadb.core.query;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap;
@@ -63,9 +65,9 @@ import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.primaryKey.sorter.TranslatedPrimaryKeySorter;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.Index;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.chunk.ExpressionBasedSlicer;
@@ -167,6 +169,7 @@ public class QueryPlanner {
 			// index short-cut
 			context.assertDefaultFacetRelationsEffective();
 			context.assertFacetGroupFiltersEvaluable();
+			validateFulltextOrderings(context);
 
 			// determine the indexes that should be used for filtering
 			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
@@ -248,6 +251,8 @@ public class QueryPlanner {
 	) {
 		context.pushStep(QueryPhase.PLANNING_NESTED_QUERY, nestedQueryDescription);
 		try {
+			validateFulltextOrderings(context);
+
 			// determine the indexes that should be used for filtering
 			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
 
@@ -286,6 +291,25 @@ public class QueryPlanner {
 
 		} finally {
 			context.popStep();
+		}
+	}
+
+	/**
+	 * Validates each relevance ordering's weights and scoring reachability against schemas before index selection
+	 * and empty-index shortcuts. Search preparation always uses schema defaults; sorters carry their own weights.
+	 *
+	 * @throws EvitaInvalidUsageException when weights lack a collection or violate schema or scoring requirements
+	 */
+	private static void validateFulltextOrderings(@Nonnull QueryPlanningContext context) {
+		final boolean weights = FulltextWeightResolver.hasWeights(context.getEvitaRequest().getQuery());
+		if (weights && !context.isEntityTypeKnown()) {
+			throw new EvitaInvalidUsageException(
+				"Fulltext place weights require the queried entity collection to be specified!");
+		}
+		if (context.isEntityTypeKnown() && (weights || FulltextWeightResolver.hasRelevance(
+			context.getEvitaRequest().getQuery()) || !QueryUtils.findFilters(
+			context.getEvitaRequest().getQuery(), TextMatches.class).isEmpty())) {
+			context.validateFulltextOrderings();
 		}
 	}
 

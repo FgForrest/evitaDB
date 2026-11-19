@@ -67,6 +67,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
@@ -124,6 +125,12 @@ public abstract class SchemaJsonSerializer {
 			serializeAccelerators(attributeSchema)
 		);
 		attributeSchemaNode.set(AttributeSchemaDescriptor.NORMALIZED.name(), serializeNormalization(attributeSchema));
+		attributeSchemaNode.set(AttributeSchemaDescriptor.SEARCHABLE.name(),
+			serializeFlagInScopes(attributeSchema::isSearchableInScope));
+		attributeSchemaNode.put(AttributeSchemaDescriptor.ANALYZER.name(), attributeSchema.getAnalyzer());
+		attributeSchemaNode.put(AttributeSchemaDescriptor.LENGTH_PIVOT.name(), attributeSchema.getLengthPivot());
+		attributeSchemaNode.set(AttributeSchemaDescriptor.SEARCH_WEIGHT.name(),
+			serializeWeight(attributeSchema.getSearchWeight()));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(attributeSchema::isSortableInScope));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isLocalized()));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isNullable()));
@@ -231,6 +238,17 @@ public abstract class SchemaJsonSerializer {
 			acceleratorsArray.add(acceleratorNode);
 		}
 		return acceleratorsArray;
+	}
+
+	/**
+	 * Serializes a decimal fulltext ranking weight using the REST decimal string representation.
+	 *
+	 * @param weight canonical decimal ranking weight
+	 * @return decimal string JSON value
+	 */
+	@Nonnull
+	protected JsonNode serializeWeight(@Nonnull BigDecimal weight) {
+		return this.objectJsonSerializer.serializeObject(weight);
 	}
 
 	/**

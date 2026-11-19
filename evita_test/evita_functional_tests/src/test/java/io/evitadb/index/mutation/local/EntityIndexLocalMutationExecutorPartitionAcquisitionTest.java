@@ -44,6 +44,7 @@ import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
@@ -57,6 +58,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -127,14 +129,9 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 
 	{
 		final AtomicInteger sequencer = new AtomicInteger(1);
-		this.partitionExecutor = new EntityIndexLocalMutationExecutor(
-			this.containerAccessor,
-			1,
-			this.indexMaintainer,
-			new MockEntityIndexCreator<>(this.catalogIndex),
-			() -> this.productSchema,
-			sequencer::getAndIncrement,
-			() -> {
+		this.partitionExecutor = new EntityIndexLocalMutationExecutor(this.containerAccessor, 1,
+			this.indexMaintainer, new MockEntityIndexCreator<>(this.catalogIndex), () -> this.productSchema,
+			sequencer::getAndIncrement, () -> {
 				throw new UnsupportedOperationException("Not supported in the test.");
 			},
 			null,
@@ -143,7 +140,9 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			this.classifierResolver,
 			this.usageRegistry,
 			this.catalogUsageRegistry,
-			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
+			new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
+			() -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
+			AttributeNormalizationResolver.LEGACY_NFD,
 			true,
 			MissingHistogramValueBehavior.REFUSE,
 			new PartitionReservations()

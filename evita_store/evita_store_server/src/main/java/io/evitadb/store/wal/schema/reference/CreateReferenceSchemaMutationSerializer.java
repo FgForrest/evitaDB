@@ -30,14 +30,18 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceSearchMode;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
+import java.math.BigDecimal;
+
+import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaSearchableThroughMutationSerializer.*;
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.readScopedHistogramIndexDefinitionArray;
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.readScopedBucketedPartiallyArray;
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.writeScopedHistogramIndexDefinitionArray;
@@ -74,6 +78,8 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		// write bucketedPartially expressions
 		writeScopedBucketedPartiallyArray(kryo, output, mutation.getBucketedPartiallyInScopes());
 		kryo.writeObject(output, mutation.getConflictResolutionOverride());
+		writeSearchModes(kryo, output, mutation.getSearchableThroughInScopes());
+		kryo.writeObjectOrNull(output, mutation.getSearchableThroughWeight(), BigDecimal.class);
 	}
 
 	@Override
@@ -100,6 +106,9 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		final ScopedBucketedPartially[] bucketedPartiallyInScopes = readScopedBucketedPartiallyArray(kryo, input);
 		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
 
+		final ScopedReferenceSearchMode[] searchModes = readSearchModes(kryo, input);
+		final BigDecimal searchWeight = kryo.readObjectOrNull(input, BigDecimal.class);
+
 		return new CreateReferenceSchemaMutation(
 			name,
 			description,
@@ -115,7 +124,7 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 			facetedPartiallyInScopes,
 			bucketedInScopes,
 			bucketedPartiallyInScopes,
-			conflictResolutionOverride
+			conflictResolutionOverride, searchModes, searchWeight
 		);
 	}
 

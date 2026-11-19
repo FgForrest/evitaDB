@@ -27,13 +27,17 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
+import io.evitadb.index.fulltext.FulltextScoringPolicy.Place;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -42,6 +46,7 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
@@ -68,7 +73,7 @@ import java.util.function.UnaryOperator;
  */
 public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	extends AbstractFormula
-	implements ChildrenDependentFormula
+	implements ChildrenDependentFormula, FulltextScoreAccessor
 {
 
 	/**
@@ -316,6 +321,31 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	@Override
 	public String toString() {
 		return "TRANSLATE TO REFERENCED ENTITY INDEX PRIMARY KEYS";
+	}
+
+	/**
+	 * Never provides fulltext scores. The inner formula speaks primary keys of another space than this formula's
+	 * result - a fulltext formula of the referenced collection inside it scores referenced entities, not the entities
+	 * this formula yields - so this formula answers the accessor lookup itself and stops a `relevanceText()` sorter
+	 * from descending into it. The owners' relevance arrives through `ReferenceOwnerFulltextScoreAccessor` instead.
+	 *
+	 * @return always false
+	 */
+	@Override
+	public boolean providesFulltextScores() {
+		return false;
+	}
+
+	/** Refuses scoring in translated key space; only mapped owner-space sources provide these scores. */
+	@Nonnull
+	@Override
+	public Result getFulltextScores(
+		@Nonnull int[] candidates,
+		@Nonnull Map<Place, Float> weights
+	) {
+		throw new GenericEvitaInternalError(
+			"Formula `" + getClass().getSimpleName() + "` translates primary keys and provides no fulltext scores!"
+		);
 	}
 
 }

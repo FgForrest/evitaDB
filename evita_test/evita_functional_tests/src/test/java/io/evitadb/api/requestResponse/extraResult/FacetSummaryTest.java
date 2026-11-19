@@ -373,7 +373,8 @@ class FacetSummaryTest implements EvitaTestSupport {
 			"parameter", false, Cardinality.ZERO_OR_MORE,
 			"parameterGroup", false,
 			new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)},
-			new Scope[]{Scope.LIVE}
+			new Scope[]{Scope.LIVE},
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

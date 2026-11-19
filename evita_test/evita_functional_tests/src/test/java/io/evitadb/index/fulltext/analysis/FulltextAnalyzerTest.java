@@ -24,6 +24,9 @@
 package io.evitadb.index.fulltext.analysis;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.test.fulltext.AnalyzedTerm;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +36,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,6 +48,7 @@ import java.util.Locale;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -81,7 +86,7 @@ class FulltextAnalyzerTest {
 
 	@BeforeEach
 	void setUp() {
-		this.registry = new FulltextAnalyzerRegistry();
+		this.registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 	}
 
 	@AfterEach
@@ -98,7 +103,8 @@ class FulltextAnalyzerTest {
 	 */
 	@Nonnull
 	private List<AnalyzedTerm> analyze(@Nonnull Locale locale, @Nonnull String text) {
-		return this.registry.getIndexAnalyzer(ENTITY_TYPE, locale).getTerms(text);
+		return collectTerms(this.registry.getCompiledAnalyzer(
+			FulltextAnalysisTestSupport.SCHEMA, "text", locale).indexSurface(), text);
 	}
 
 	/**
@@ -127,7 +133,7 @@ class FulltextAnalyzerTest {
 	 */
 	@Nonnull
 	private List<AnalyzedTerm> analyzeQuery(@Nonnull Locale locale, @Nonnull String text) {
-		return this.registry.getSearchAnalyzer(ENTITY_TYPE, locale).getTerms(text);
+		return collectTerms(FulltextAnalysisTestSupport.queryAnalyzer(locale), text);
 	}
 
 	/**
@@ -246,8 +252,8 @@ class FulltextAnalyzerTest {
 			// guards the Lucene stream protocol: a missing reset() between two runs over one reused component
 			// set yields empty or truncated output on the second run rather than an error
 			final FulltextAnalyzer analyzer = czechAnalyzer();
-			final List<AnalyzedTerm> firstRun = analyzer.getTerms("Česká Republika");
-			final List<AnalyzedTerm> secondRun = analyzer.getTerms("Česká Republika");
+			final List<AnalyzedTerm> firstRun = collectTerms(analyzer, "Česká Republika");
+			final List<AnalyzedTerm> secondRun = collectTerms(analyzer, "Česká Republika");
 			assertIterableEquals(firstRun, secondRun);
 			assertEquals(2, secondRun.size());
 		}
@@ -265,7 +271,8 @@ class FulltextAnalyzerTest {
 		 */
 		@Nonnull
 		private FulltextAnalyzer czechAnalyzer() {
-			return FulltextAnalyzerTest.this.registry.getIndexAnalyzer(ENTITY_TYPE, CZECH);
+			return FulltextAnalyzerTest.this.registry.getCompiledAnalyzer(
+				FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).indexSurface();
 		}
 
 	}
@@ -424,7 +431,7 @@ class FulltextAnalyzerTest {
 		@DisplayName("Drops stop words on both sides from evitaDB's own copy of the list")
 		void shouldDropPolishStopWords() {
 			// the list is shipped as an evita_engine resource rather than reached through `PolishAnalyzer`, whose
-			// defaults holder loads Stempel's 2.2 MB stemmer table as a side effect - see `BuiltInAnalyzers`
+			// defaults holder loads Stempel's 2.2 MB stemmer table as a side effect - see `BuiltInFulltextResources`
 			assertTrue(terms(POLISH, "i").isEmpty());
 			assertTrue(terms(POLISH, "oraz").isEmpty());
 			assertTrue(terms(POLISH, "się").isEmpty());
@@ -444,7 +451,7 @@ class FulltextAnalyzerTest {
 			// a partial copy would not fail any behavioural test above - it would merely stop dropping the words
 			// it lost - so the count of the resource itself is asserted. 182 is what Lucene 9.12.3 ships.
 			try (
-				final InputStream stream = BuiltInAnalyzers.class.getResourceAsStream("polish-stopwords.txt");
+				final InputStream stream = FulltextAnalyzer.class.getResourceAsStream("polish-stopwords.txt");
 				final BufferedReader reader = new BufferedReader(
 					new InputStreamReader(requireNonNull(stream, "polish-stopwords.txt is missing"), UTF_8)
 				)
@@ -657,16 +664,17 @@ class FulltextAnalyzerTest {
 		@Test
 		@DisplayName("A handle kept past its registry's close reports a usage error, not a Lucene internal")
 		void shouldReportClosedAnalyzerAsUsageError() {
-			final FulltextAnalyzerRegistry ownRegistry = new FulltextAnalyzerRegistry();
-			final FulltextAnalyzer analyzer = ownRegistry.getIndexAnalyzer(ENTITY_TYPE, CZECH);
-			assertFalse(analyzer.getTerms("Česká Republika").isEmpty());
+			final FulltextAnalyzerRegistry ownRegistry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
+			final FulltextAnalyzer analyzer = ownRegistry.getCompiledAnalyzer(
+				FulltextAnalysisTestSupport.SCHEMA, "text", CZECH).indexSurface();
+			assertFalse(collectTerms(analyzer, "Česká Republika").isEmpty());
 
 			ownRegistry.close();
 
 			// Lucene answers a released CloseableThreadLocal with AlreadyClosedException, an
 			// IllegalStateException that says nothing about what the caller did wrong
 			final EvitaInvalidUsageException exception = assertThrows(
-				EvitaInvalidUsageException.class, () -> analyzer.getTerms("Česká Republika")
+				EvitaInvalidUsageException.class, () -> collectTerms(analyzer, "Česká Republika")
 			);
 			assertTrue(
 				exception.getMessage().contains("already been closed"),
@@ -685,8 +693,9 @@ class FulltextAnalyzerTest {
 		void shouldTokenizeAndLowercaseOnly() {
 			final Locale finnish = new Locale("fi");
 			assertEquals(
-				BuiltInAnalyzers.GENERIC_ANALYZER_NAME,
-				FulltextAnalyzerTest.this.registry.getIndexAnalyzer(ENTITY_TYPE, finnish).getAnalyzerName()
+				ResolvedFulltextAnalyzer.resolve(FulltextAnalysisTestSupport.SCHEMA, "text", finnish).analyzer(),
+				FulltextAnalyzerTest.this.registry.getCompiledAnalyzer(
+					FulltextAnalysisTestSupport.SCHEMA, "text", finnish).indexSurface().getAnalyzerName()
 			);
 			// no stemming - the two forms stay apart - and no folding either
 			assertIterableEquals(List.of("kirjat", "kirja"), terms(finnish, "Kirjat kirja"));

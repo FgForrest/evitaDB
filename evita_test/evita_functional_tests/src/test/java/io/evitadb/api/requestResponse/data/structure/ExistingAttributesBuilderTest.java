@@ -40,6 +40,8 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -272,7 +274,9 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					false, false, false,
 					Integer.class, null,
 					0, ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema("int")
 					.orElse(null)
@@ -284,7 +288,9 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					false, false, false,
 					Short.class, null,
 					0, ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema("short")
 					.orElse(null)
@@ -296,7 +302,9 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					false, false, false,
 					IntegerNumberRange.class, null,
 					0, ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema("range")
 					.orElse(null)
@@ -308,7 +316,9 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					false, false, false,
 					BigDecimal.class, null,
 					0, ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema(
 					"bigDecimal"
@@ -321,7 +331,9 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 					true, false, false,
 					String.class, null,
 					0, ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				attributes.getAttributeSchema(
 					"greetings"

@@ -38,6 +38,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Optional;
@@ -80,6 +81,13 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		Iterable.class
 	);
 	protected final EvitaQLValueTokenVisitor scopeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(Scope.class);
+	protected final EvitaQLValueTokenVisitor weightValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		Byte.class,
+		Short.class,
+		Integer.class,
+		Long.class,
+		BigDecimal.class
+	);
 
 	@Override
 	public OrderConstraint visitOrderByConstraint(EvitaQLParser.OrderByConstraintContext ctx) {
@@ -228,6 +236,68 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 			ctx,
 			() -> QueryConstraints.randomWithSeed(ctx.args.value.accept(this.intValueTokenVisitor).asRequiredLong())
 		);
+	}
+
+	@Override
+	public OrderConstraint visitRelevanceTextConstraint(RelevanceTextConstraintContext ctx) {
+		return parse(ctx, () -> QueryConstraints.relevanceText(ctx.args == null ? null : ctx.args.constraints.stream()
+			.map(c -> visitChildConstraint(c, RelevanceTextEntitySpecificationOrderConstraint.class))
+			.toArray(RelevanceTextEntitySpecificationOrderConstraint[]::new)));
+	}
+
+	/** Parses a single named place weight as a decimal using the supported numeric query types. */
+	@Nonnull
+	@Override
+	public OrderConstraint visitAttributeWeightConstraint(@Nonnull AttributeWeightConstraintContext ctx) {
+		return parse(ctx, () -> QueryConstraints.attributeWeight(
+			ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+			parseWeight(ctx.args.value)));
+	}
+
+	/** Parses a single named place weight as a decimal using the supported numeric query types. */
+	@Nonnull
+	@Override
+	public OrderConstraint visitAssociatedDataWeightConstraint(@Nonnull AssociatedDataWeightConstraintContext ctx) {
+		return parse(ctx, () -> QueryConstraints.associatedDataWeight(
+			ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+			parseWeight(ctx.args.value)));
+	}
+
+	/**
+	 * Reads integer literals directly as decimals so plain weights are not limited to the long range.
+	 * Bound values retain the numeric query-type whitelist, and literals retain the unsafe-mode requirement.
+	 *
+	 * @param ctx the weight argument: an integer or decimal literal, or a bound parameter
+	 * @return the weight as a decimal, NULL when a bound parameter carries no value - the weight constraint then
+	 *         refuses it like any other missing weight
+	 */
+	@Nullable
+	private BigDecimal parseWeight(@Nonnull ValueTokenContext ctx) {
+		if (ctx instanceof IntValueTokenContext) {
+			this.weightValueTokenVisitor.assertLiteralIsAllowed(ctx);
+			return new BigDecimal(ctx.getText());
+		}
+		return ctx.accept(this.weightValueTokenVisitor).asNumber(BigDecimal.class);
+	}
+
+	/** Parses reference weights with reference-level children. */
+	@Nonnull
+	@Override
+	public OrderConstraint visitReferenceWeightConstraint(@Nonnull ReferenceWeightConstraintContext ctx) {
+		return parse(ctx, () -> QueryConstraints.referenceWeight(
+			ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+			ctx.args.constraints.stream()
+				.map(c -> visitChildConstraint(c, RelevanceTextReferenceSpecificationOrderConstraint.class))
+				.toArray(RelevanceTextReferenceSpecificationOrderConstraint[]::new)));
+	}
+
+	/** Parses target weights with target-level children. */
+	@Nonnull
+	@Override
+	public OrderConstraint visitEntityWeightConstraint(@Nonnull EntityWeightConstraintContext ctx) {
+		return parse(ctx, () -> QueryConstraints.entityWeight(ctx.args == null ? null : ctx.args.constraints.stream()
+			.map(c -> visitChildConstraint(c, RelevanceTextTargetSpecificationOrderConstraint.class))
+			.toArray(RelevanceTextTargetSpecificationOrderConstraint[]::new)));
 	}
 
 	@Override

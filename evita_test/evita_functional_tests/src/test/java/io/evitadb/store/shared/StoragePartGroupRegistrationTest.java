@@ -140,6 +140,8 @@ class StoragePartGroupRegistrationTest {
 			Map.entry("FulltextIndexStoragePart", StoragePartGroup.FULLTEXT_INDEX),
 			Map.entry("FulltextDictionaryLeafPagePart", StoragePartGroup.FULLTEXT_INDEX),
 			Map.entry("FulltextFieldLengthBlockPart", StoragePartGroup.FULLTEXT_INDEX),
+			Map.entry("FulltextSurfaceFormLeafPagePart", StoragePartGroup.FULLTEXT_INDEX),
+			Map.entry("FulltextReferenceValueLeafPagePart", StoragePartGroup.FULLTEXT_INDEX),
 			Map.entry("AttributeNormalizationStoragePart", StoragePartGroup.ATTRIBUTE_INDEX),
 			Map.entry("GlobalAttributeNormalizationStoragePart", StoragePartGroup.ATTRIBUTE_INDEX)
 		)

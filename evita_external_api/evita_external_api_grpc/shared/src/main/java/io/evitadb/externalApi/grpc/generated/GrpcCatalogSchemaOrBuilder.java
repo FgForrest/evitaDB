@@ -325,4 +325,186 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue);
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcConflictResolution conflictResolution = 7;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOrBuilder getConflictResolutionOrBuilder();
+
+  /**
+   * <pre>
+   * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+   * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+   * fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+   */
+  int getFulltextLanguagesCount();
+  /**
+   * <pre>
+   * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+   * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+   * fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+   */
+  boolean containsFulltextLanguages(
+      java.lang.String key);
+  /**
+   * Use {@link #getFulltextLanguagesMap()} instead.
+   */
+  @java.lang.Deprecated
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema>
+  getFulltextLanguages();
+  /**
+   * <pre>
+   * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+   * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+   * fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+   */
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema>
+  getFulltextLanguagesMap();
+  /**
+   * <pre>
+   * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+   * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+   * fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+   */
+  /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema getFulltextLanguagesOrDefault(
+      java.lang.String key,
+      /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema defaultValue);
+  /**
+   * <pre>
+   * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+   * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+   * fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema getFulltextLanguagesOrThrow(
+      java.lang.String key);
+
+  /**
+   * <pre>
+   * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+   * lists are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+   */
+  int getFulltextResourcesCount();
+  /**
+   * <pre>
+   * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+   * lists are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+   */
+  boolean containsFulltextResources(
+      java.lang.String key);
+  /**
+   * Use {@link #getFulltextResourcesMap()} instead.
+   */
+  @java.lang.Deprecated
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema>
+  getFulltextResources();
+  /**
+   * <pre>
+   * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+   * lists are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+   */
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema>
+  getFulltextResourcesMap();
+  /**
+   * <pre>
+   * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+   * lists are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+   */
+  /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema getFulltextResourcesOrDefault(
+      java.lang.String key,
+      /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema defaultValue);
+  /**
+   * <pre>
+   * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+   * lists are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema getFulltextResourcesOrThrow(
+      java.lang.String key);
+
+  /**
+   * <pre>
+   * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+   * and `html-text` are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+   */
+  int getFulltextAnalyzersCount();
+  /**
+   * <pre>
+   * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+   * and `html-text` are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+   */
+  boolean containsFulltextAnalyzers(
+      java.lang.String key);
+  /**
+   * Use {@link #getFulltextAnalyzersMap()} instead.
+   */
+  @java.lang.Deprecated
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema>
+  getFulltextAnalyzers();
+  /**
+   * <pre>
+   * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+   * and `html-text` are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+   */
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema>
+  getFulltextAnalyzersMap();
+  /**
+   * <pre>
+   * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+   * and `html-text` are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+   */
+  /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema getFulltextAnalyzersOrDefault(
+      java.lang.String key,
+      /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema defaultValue);
+  /**
+   * <pre>
+   * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+   * and `html-text` are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema getFulltextAnalyzersOrThrow(
+      java.lang.String key);
 }

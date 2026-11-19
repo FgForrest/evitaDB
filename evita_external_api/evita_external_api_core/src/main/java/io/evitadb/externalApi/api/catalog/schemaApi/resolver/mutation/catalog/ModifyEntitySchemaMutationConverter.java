@@ -104,7 +104,11 @@ public class ModifyEntitySchemaMutationConverter
 	protected void convertToOutput(@Nonnull ModifyEntitySchemaMutation mutation, @Nonnull Output output) {
 		output.setProperty(
 			ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS,
-			this.delegatingEntitySchemaMutationConverter.convertToOutput(mutation.getSchemaMutations())
+			// the nested converter returns the API's serialized form (a JSON tree for REST); parse it back into
+			// plain values, which the output can embed
+			getObjectMapper().parse(
+				this.delegatingEntitySchemaMutationConverter.convertToOutput(mutation.getSchemaMutations())
+			)
 		);
 		super.convertToOutput(mutation, output);
 	}

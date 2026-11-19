@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
+import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
@@ -73,8 +74,7 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 			uniqueGloballyInScopes,
 			filterableInScopes,
 			acceleratorsInScopes,
-			// searchability has no gRPC mirror, so a mutation arriving this way never declares it
-			null,
+			mutation.getSearchableInScopesList().stream().map(EvitaEnumConverter::toScope).toArray(Scope[]::new),
 			sortableInScopes,
 			mutation.getLocalized(),
 			mutation.getNullable(),
@@ -84,7 +84,10 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 			mutation.getIndexedDecimalPlaces(),
 			toConflictResolutionOverride(mutation.getConflictResolutionOverride()),
 			mutation.getNormalizationCount() == 0 ? null :
-				toAnalysisSteps(mutation.getNormalizationList()).toArray(AnalysisStep[]::new)
+				toAnalysisSteps(mutation.getNormalizationList()).toArray(AnalysisStep[]::new),
+			mutation.hasAnalyzer() ? mutation.getAnalyzer().getValue() : null,
+			mutation.hasLengthPivot() ? mutation.getLengthPivot().getValue() : null,
+			mutation.hasSearchWeight() ? EvitaDataTypesConverter.toBigDecimal(mutation.getSearchWeight()) : null
 		);
 	}
 
@@ -145,6 +148,18 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 		}
 		if (mutation.getDefaultValue() != null) {
 			builder.setDefaultValue(EvitaDataTypesConverter.toGrpcEvitaValue(mutation.getDefaultValue()));
+		}
+
+		builder.addAllSearchableInScopes(
+			Arrays.stream(mutation.getSearchableInScopes()).map(EvitaEnumConverter::toGrpcScope).toList());
+		if (mutation.getAnalyzer() != null) {
+			builder.setAnalyzer(StringValue.of(mutation.getAnalyzer()));
+		}
+		if (mutation.getLengthPivot() != null) {
+			builder.setLengthPivot(Int32Value.of(mutation.getLengthPivot()));
+		}
+		if (mutation.getSearchWeight() != null) {
+			builder.setSearchWeight(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getSearchWeight()));
 		}
 
 		return builder.build();

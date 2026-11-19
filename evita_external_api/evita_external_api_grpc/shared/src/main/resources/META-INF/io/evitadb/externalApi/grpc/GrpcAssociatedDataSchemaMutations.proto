@@ -5,6 +5,7 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "GrpcEnums.proto";
+import "GrpcEvitaDataTypes.proto";
 import "google/protobuf/wrappers.proto";
 
 // Mutation is responsible for setting up a new `AssociatedDataSchema` in the `EntitySchema`.
@@ -31,6 +32,17 @@ message GrpcCreateAssociatedDataSchemaMutation {
   bool nullable = 6;
   // The per-associated-data override of the conflict resolution granularity.
   GrpcConflictResolutionOverride conflictResolutionOverride = 7;
+  // Replacement searchable scopes.
+  repeated GrpcEntityScope searchableInScopes = 8;
+  // Optional fulltext analyzer name.
+  google.protobuf.StringValue analyzer = 9;
+  // Optional fulltext length pivot.
+  google.protobuf.Int32Value lengthPivot = 10;
+  // Optional ranking weight; explicit zero is preserved.
+  GrpcBigDecimal searchWeight = 11;
+  // Raw expression selecting the searchable text.
+  google.protobuf.StringValue textExpression = 12;
+
 }
 
 // Mutation is responsible for setting value to a `AssociatedDataSchemaContract.deprecationNotice`
@@ -118,4 +130,19 @@ message GrpcSetAssociatedDataSchemaConflictResolutionOverrideMutation {
   string name = 1;
   // The per-associated-data override of the conflict resolution granularity.
   GrpcConflictResolutionOverride conflictResolutionOverride = 2;
+}
+// Replaces searchable scopes and optionally updates analysis and ranking settings.
+message GrpcSetAssociatedDataSchemaSearchableMutation {
+  // Name of the schema item.
+  string name = 1;
+  // Replacement searchable scopes.
+  repeated GrpcEntityScope searchableInScopes = 2;
+  // Optional fulltext analyzer name.
+  google.protobuf.StringValue analyzer = 3;
+  // Optional fulltext length pivot.
+  google.protobuf.Int32Value lengthPivot = 4;
+  // Optional ranking weight; explicit zero is preserved.
+  GrpcBigDecimal searchWeight = 5;
+  // Raw expression selecting the searchable text.
+  google.protobuf.StringValue textExpression = 6;
 }

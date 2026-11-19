@@ -35,8 +35,23 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintPropertyType;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.descriptor.ConstraintValueStructure;
+import io.evitadb.api.query.filter.AssociatedDataIn;
+import io.evitadb.api.query.filter.AttributeIn;
+import io.evitadb.api.query.filter.EntityIn;
+import io.evitadb.api.query.filter.ReferenceIn;
+import io.evitadb.api.query.filter.TextMatches;
+import io.evitadb.api.query.filter.TextMatchesTargetSpecificationFilterConstraint;
+import io.evitadb.api.query.order.AssociatedDataWeight;
+import io.evitadb.api.query.order.AttributeWeight;
+import io.evitadb.api.query.order.EntityWeight;
+import io.evitadb.api.query.order.ReferenceWeight;
+import io.evitadb.api.query.order.RelevanceTextEntitySpecificationOrderConstraint;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSearchMode;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
@@ -330,11 +345,22 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	/**
 	 * Builds fields representing children of constraint container from constraint descriptors of these children.
 	 * This is shortcut method for building all children of {@link ConstraintPropertyType#ENTITY} property type.
+	 *
+	 * In TEXT, only an indexed composition reference to a managed target permits an entity transition.
+	 * The descriptor guard then checks the target places allowed by its child marker.
+	 *
+	 * @param buildContext context of the reference or entity offering these children
+	 * @param allowedChildrenPredicate constraints permitted by the enclosing creator
+	 * @return fields targeting the entity, or no TEXT fields when composition is unavailable
 	 */
 	@Nonnull
 	protected List<OBJECT_FIELD> buildEntityChildren(@Nonnull ConstraintBuildContext buildContext,
 	                                                 @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
 		final DataLocator parentDataLocator = buildContext.dataLocator();
+		if (parentDataLocator.targetDomain() == ConstraintDomain.TEXT &&
+			!hasEntityTransition(parentDataLocator)) {
+			return List.of();
+		}
 		final DataLocator childDataLocator;
 		if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
 			final Optional<ReferenceSchemaContract> referenceSchema = ofNullable(dataLocatorWithReference.referenceName())
@@ -407,13 +433,15 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		final List<OBJECT_FIELD> fields = new LinkedList<>();
 
 		// build constraints without dynamic classifier
+		final boolean wildcardsOffered = canOfferWildcards(buildContext.dataLocator(), allowedChildrenPredicate,
+			ConstraintSchemaBuildingContext.TextPlaces::attributes);
 		final Set<ConstraintDescriptor> constraintDescriptorsWithoutClassifier = ConstraintDescriptorProvider.getConstraints(
 				getConstraintType(),
 				ConstraintPropertyType.ATTRIBUTE,
 				buildContext.dataLocator().targetDomain()
 			)
 			.stream()
-			.filter(cd -> !cd.creator().hasClassifierParameter())
+			.filter(cd -> wildcardsOffered && !cd.creator().hasClassifierParameter())
 			.collect(Collectors.toUnmodifiableSet());
 		fields.addAll(
 			buildChildren(
@@ -499,26 +527,34 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * Builds fields representing children of constraint container from constraint descriptors of these children.
 	 * This is shortcut method for building all children of {@link ConstraintPropertyType#ASSOCIATED_DATA} property type.
 	 *
-	 * Note: This method does not support building as. data constraints based on schemas because currently there is no need
-	 * for it.
+	 * In TEXT, expands classifier constraints for searchable entity associated data.
+	 * References have no associated data.
+	 *
+	 * @param buildContext context containing the entity or reference locator
+	 * @param allowedChildrenPredicate constraints permitted by the enclosing creator
+	 * @return associated-data fields available in this context
 	 */
 	@Nonnull
 	protected List<OBJECT_FIELD> buildAssociatedDataChildren(@Nonnull ConstraintBuildContext buildContext,
 	                                                         @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
-		if (buildContext.dataLocator().entityTypePointer() instanceof ExternalEntityTypePointer) {
+		final DataLocator dataLocator = buildContext.dataLocator();
+		if (dataLocator.entityTypePointer() instanceof ExternalEntityTypePointer ||
+			(dataLocator.targetDomain() == ConstraintDomain.TEXT && dataLocator instanceof DataLocatorWithReference)) {
 			return List.of();
 		}
 
 		final List<OBJECT_FIELD> fields = new LinkedList<>();
 
 		// build constraints without dynamic classifier
+		final boolean wildcardsOffered = canOfferWildcards(dataLocator, allowedChildrenPredicate,
+			ConstraintSchemaBuildingContext.TextPlaces::associatedData);
 		final Set<ConstraintDescriptor> constraintDescriptorsWithoutClassifier = ConstraintDescriptorProvider.getConstraints(
 				getConstraintType(),
 				ConstraintPropertyType.ASSOCIATED_DATA,
 				buildContext.dataLocator().targetDomain()
 			)
 			.stream()
-			.filter(cd -> !cd.creator().hasClassifierParameter())
+			.filter(cd -> wildcardsOffered && !cd.creator().hasClassifierParameter())
 			.collect(Collectors.toUnmodifiableSet());
 		fields.addAll(
 			buildChildren(
@@ -533,6 +569,24 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			)
 		);
 
+		if (dataLocator.targetDomain() == ConstraintDomain.TEXT) {
+			fields.addAll(findSearchableAssociatedDataSchemas(dataLocator).stream()
+				.flatMap(schema -> {
+					final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(
+						getConstraintType(), ConstraintPropertyType.ASSOCIATED_DATA, ConstraintDomain.TEXT,
+						schema.getPlainType(),
+						schema.getType().isArray(), schema.isNullable()
+					).stream().filter(it -> it.creator().hasClassifierParameter())
+						.collect(Collectors.toUnmodifiableSet());
+					return buildChildren(allowedChildrenPredicate, descriptors, descriptor ->
+						buildFieldFromConstraintDescriptor(
+							buildContext, descriptor,
+							() -> schema.getNameVariant(CLASSIFIER_NAMING_CONVENTION),
+							parameter -> schema.getType()
+						)
+					).stream();
+				}).toList());
+		}
 		return fields;
 	}
 
@@ -558,6 +612,14 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		);
 	}
 
+	/**
+	 * Expands reference constraints over indexed references, or searchable reference places in TEXT.
+	 *
+	 * @param buildContext entity context whose reference fields are expanded
+	 * @param allowedChildrenPredicate constraints permitted by the enclosing creator
+	 * @param referenceSchemas references declared by the current collection
+	 * @return reference fields with searchable-place suppression applied to TEXT containers
+	 */
 	@Nonnull
 	protected List<OBJECT_FIELD> buildReferenceChildren(@Nonnull ConstraintBuildContext buildContext,
 	                                                    @Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
@@ -603,7 +665,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		fields.addAll(
 			referenceSchemas
 				.stream()
-				.filter(ReferenceSchemaContract::isIndexedInAnyScope)
+				.filter(referenceSchema -> buildContext.dataLocator().targetDomain() == ConstraintDomain.TEXT ||
+					referenceSchema.isIndexedInAnyScope())
 				.flatMap(referenceSchema -> {
 					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
 						buildContext.switchToChildContext(new ReferenceDataLocator(
@@ -1010,18 +1073,23 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 	/**
 	 * Find attribute schemas for specific data locator.
+	 *
+	 * TEXT uses searchable attributes in any scope, for both entities and reference bodies.
+	 *
+	 * @param dataLocator entity or reference whose attributes are requested
+	 * @return attribute schemas permitted by the current domain and builder
 	 */
 	@Nonnull
 	protected Collection<? extends AttributeSchemaContract> findAttributeSchemas(@Nonnull DataLocator dataLocator) {
 		if (dataLocator.entityTypePointer() instanceof ExternalEntityTypePointer) {
 			return Collections.emptyList();
 		}
-		if (dataLocator instanceof final EntityDataLocator entityDataLocator) {
-			return this.sharedContext.getEntitySchemaOrThrowException(entityDataLocator.entityType())
+		if (dataLocator instanceof EntityDataLocator || dataLocator instanceof TextDataLocator) {
+			return this.sharedContext.getEntitySchemaOrThrowException(dataLocator.entityType())
 				.getAttributes()
 				.values()
 				.stream()
-				.filter(getAttributeSchemaFilter())
+				.filter(attributeSchemaFilter(dataLocator))
 				.toList();
 		}
 		if (dataLocator instanceof final AbstractReferenceDataLocator referenceDataLocator) {
@@ -1032,7 +1100,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 					     reference.getAttributes()
 							.values()
 							.stream()
-							.filter(getAttributeSchemaFilter())
+							.filter(attributeSchemaFilter(dataLocator))
 							.toList()
 				)
 				.orElseGet(Collections::emptyList);
@@ -1064,13 +1132,17 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 	/**
 	 * Find reference schemas for specific data locator
+	 *
+	 * @param dataLocator context in which named reference constraints are expanded
+	 * @return entity references, or no references when already inside a reference or on an external entity
 	 */
 	@Nonnull
 	protected Collection<ReferenceSchemaContract> findReferenceSchemas(@Nonnull DataLocator dataLocator) {
 		if (dataLocator.entityTypePointer() instanceof ExternalEntityTypePointer) {
 			return Collections.emptyList();
 		}
-		if (dataLocator instanceof GenericDataLocator || dataLocator instanceof EntityDataLocator) {
+		if (dataLocator instanceof GenericDataLocator || dataLocator instanceof EntityDataLocator ||
+			dataLocator instanceof TextDataLocator) {
 			return this.sharedContext
 				.getCatalog()
 				.getCollectionForEntityOrThrowException(dataLocator.entityType())
@@ -1083,11 +1155,197 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	}
 
 	/**
+	 * Finds searchable associated data only on managed entity contexts.
+	 *
+	 * @param dataLocator context whose associated data is requested
+	 * @return associated data searchable in any declared scope, or no data on references/external entities
+	 */
+	@Nonnull
+	private Collection<AssociatedDataSchemaContract> findSearchableAssociatedDataSchemas(
+		@Nonnull DataLocator dataLocator
+	) {
+		if (dataLocator instanceof DataLocatorWithReference ||
+			dataLocator.entityTypePointer() instanceof ExternalEntityTypePointer) {
+			return List.of();
+		}
+		return this.sharedContext.getEntitySchemaOrThrowException(dataLocator.entityType())
+			.getAssociatedData().values().stream()
+			.filter(AssociatedDataSchemaContract::isSearchableInAnyScope)
+			.toList();
+	}
+
+	/**
+	 * Selects the attributes offered in the locator's domain. TEXT offers searchable attributes, independently of
+	 * filterability and sortability and of the builder; every other domain uses the builder's own predicate.
+	 *
+	 * @param dataLocator context in which attributes are offered
+	 * @return attribute selection predicate for this context
+	 */
+	@Nonnull
+	private Predicate<AttributeSchemaContract> attributeSchemaFilter(@Nonnull DataLocator dataLocator) {
+		return dataLocator.targetDomain() == ConstraintDomain.TEXT ?
+			AttributeSchemaContract::isSearchableInAnyScope : getAttributeSchemaFilter();
+	}
+
+	/**
+	 * Discovers direct places once per locator. Entity discovery visits reference bodies, never their targets.
+	 *
+	 * @param locator managed entity or reference text context
+	 * @return direct places, keeping target-reference attributes distinct from addressable overrides
+	 */
+	@Nonnull
+	private ConstraintSchemaBuildingContext.TextPlaces findTextPlaces(@Nonnull DataLocator locator) {
+		return this.sharedContext.getTextPlaces(locator, () -> new ConstraintSchemaBuildingContext.TextPlaces(
+			!findAttributeSchemas(locator).isEmpty(),
+			!findSearchableAssociatedDataSchemas(locator).isEmpty(),
+			findReferenceSchemas(locator).stream().anyMatch(reference -> findTextPlaces(
+				new ReferenceTextDataLocator(locator.entityTypePointer(), reference.getName())).attributes())
+		));
+	}
+
+	/**
+	 * Decides whether a container may offer the classifier-less variants of a property type, which in TEXT are the
+	 * wildcard selectors. The engine refuses a wildcard that selects no searchable place at its level, so in TEXT it
+	 * is offered only with a place of its kind. The target container of `entityIn` over a target whose only places are
+	 * reference attributes keeps both wildcards: they are its only fields, and dropping them would turn `entityIn`
+	 * into the Boolean placeholder. The decision depends only on what the container's cache key holds.
+	 *
+	 * @param locator context of the container whose children are built
+	 * @param allowed child marker and restrictions of that container
+	 * @param ownPlace selects the kind of place the wildcard expands to
+	 * @return true outside TEXT, otherwise whether the wildcard can select a place or must keep the container
+	 */
+	private boolean canOfferWildcards(@Nonnull DataLocator locator, @Nonnull AllowedConstraintPredicate allowed,
+	                                  @Nonnull Predicate<ConstraintSchemaBuildingContext.TextPlaces> ownPlace) {
+		if (locator.targetDomain() != ConstraintDomain.TEXT) {
+			return true;
+		}
+		final ConstraintSchemaBuildingContext.TextPlaces places = findTextPlaces(locator);
+		return ownPlace.test(places) ||
+			(allowed.getBaseConstraintType() == TextMatchesTargetSpecificationFilterConstraint.class &&
+				!places.attributes() && !places.associatedData());
+	}
+
+	/**
+	 * Tests the same indexed composition transition used by fulltext source discovery, in any declared scope.
+	 *
+	 * @param locator reference whose target would be searched
+	 * @return whether one composition hop to an available managed target is legal
+	 */
+	private boolean hasEntityTransition(@Nonnull DataLocator locator) {
+		if (locator.entityTypePointer() instanceof ExternalEntityTypePointer ||
+			!(locator instanceof DataLocatorWithReference referenceLocator) ||
+			referenceLocator.referenceName() == null) {
+			return false;
+		}
+		final ReferenceSchemaContract reference = this.sharedContext
+			.getEntitySchemaOrThrowException(locator.entityType())
+			.getReferenceOrThrowException(referenceLocator.referenceName());
+		return reference.isReferencedEntityTypeManaged() &&
+			(!(reference instanceof ReflectedReferenceSchemaContract reflected) ||
+				reflected.isReflectedReferenceAvailable()) &&
+			this.sharedContext.getEntitySchema(reference.getReferencedEntityType()).isPresent() &&
+			reference.getSearchableThroughInScopes().entrySet().stream().anyMatch(entry ->
+				entry.getValue() == ReferenceSearchMode.COMPOSITION && reference.isIndexedInScope(entry.getKey()) &&
+					reference.getIndexedComponents(entry.getKey())
+						.contains(ReferenceIndexedComponents.REFERENCED_ENTITY));
+	}
+
+	/**
+	 * Checks marker-specific searchable places, following at most one composition hop. Direct metadata and eligibility
+	 * are cached in the shared build context, so converging reference paths do not rediscover target schemas.
+	 * Target filters include reference bodies through their empty form; target weights require addressable children.
+	 *
+	 * @param locator entity or reference text context
+	 * @param allowed child marker and annotation restrictions of the container being offered
+	 * @return whether the container can search or address an eligible place
+	 */
+	private boolean hasSearchablePlace(@Nonnull DataLocator locator, @Nonnull AllowedConstraintPredicate allowed) {
+		if (locator.entityTypePointer() instanceof ExternalEntityTypePointer) {
+			return false;
+		}
+		return this.sharedContext.hasTextPlace(new ContainerKey(getConstraintType(), locator, allowed), () -> {
+			final ConstraintSchemaBuildingContext.TextPlaces places = findTextPlaces(locator);
+			if (places.attributes() && (allows(allowed, AttributeIn.class) || allows(allowed, AttributeWeight.class)) ||
+				places.associatedData() && (allows(allowed, AssociatedDataIn.class) ||
+					allows(allowed, AssociatedDataWeight.class)) ||
+				places.referenceAttributes() &&
+					allowed.getBaseConstraintType() == TextMatchesTargetSpecificationFilterConstraint.class) {
+				return true;
+			}
+			if (locator instanceof DataLocatorWithReference referenceLocator) {
+				if ((!allows(allowed, EntityIn.class) && !allows(allowed, EntityWeight.class)) ||
+					!hasEntityTransition(locator)) {
+					return false;
+				}
+				final ReferenceSchemaContract reference = this.sharedContext
+					.getEntitySchemaOrThrowException(locator.entityType())
+					.getReferenceOrThrowException(referenceLocator.referenceName());
+				return hasSearchablePlace(
+					new TextDataLocator(new ManagedEntityTypePointer(reference.getReferencedEntityType())),
+					textChildren(allows(allowed, EntityIn.class) ? EntityIn.class : EntityWeight.class));
+			}
+			// default relevance needs no addressable weight, only a place `textMatches` could search here
+			final boolean defaultRelevance =
+				allowed.getBaseConstraintType() == RelevanceTextEntitySpecificationOrderConstraint.class;
+			if (defaultRelevance) {
+				return hasSearchablePlace(locator, textChildren(TextMatches.class));
+			}
+			if (!allows(allowed, ReferenceIn.class) && !allows(allowed, ReferenceWeight.class)) {
+				return false;
+			}
+			final AllowedConstraintPredicate referenceChildren = textChildren(
+				allows(allowed, ReferenceIn.class) ? ReferenceIn.class : ReferenceWeight.class);
+			return findReferenceSchemas(locator).stream().anyMatch(reference -> hasSearchablePlace(
+				new ReferenceTextDataLocator(locator.entityTypePointer(), reference.getName()), referenceChildren));
+		});
+	}
+
+	/**
+	 * Tests a registered fulltext variant against a container's child restrictions.
+	 *
+	 * @param allowed marker and annotation restrictions
+	 * @param constraint registered fulltext constraint class
+	 * @return whether the child is permitted
+	 */
+	private boolean allows(@Nonnull AllowedConstraintPredicate allowed,
+	                       @Nonnull Class<? extends Constraint<?>> constraint) {
+		return ConstraintDescriptorProvider.getConstraints(constraint).stream().anyMatch(allowed);
+	}
+
+	/**
+	 * Resolves child restrictions from the registered container's creator.
+	 *
+	 * @param constraint fulltext container with one TEXT child parameter
+	 * @return child marker and its local restrictions
+	 */
+	@Nonnull
+	private AllowedConstraintPredicate textChildren(@Nonnull Class<? extends Constraint<?>> constraint) {
+		return new AllowedConstraintPredicate(ConstraintDescriptorProvider.getConstraint(constraint)
+			.creator().childParameters().get(0), this.allowedConstraints, this.forbiddenConstraints);
+	}
+
+	/**
 	 * Decides if this constraint descriptor should be used and field created from it.
 	 * This should contain only generic checks, it shouldn't contain any checks specific to e.g. property type.
+	 *
+	 * Constraints with TEXT children are suppressed before creating their child types when no searchable place exists.
+	 *
+	 * @param buildContext resolved context of the descriptor whose field is considered
+	 * @param constraintDescriptor constraint variant whose children and values are inspected
+	 * @return whether the field can be represented in this context
 	 */
 	protected boolean canFieldBeCreatedFromConstraintDescriptor(@Nonnull ConstraintBuildContext buildContext,
 	                                                            @Nonnull ConstraintDescriptor constraintDescriptor) {
+		for (final ChildParameterDescriptor child : constraintDescriptor.creator().childParameters()) {
+			if (child.domain() == ConstraintDomain.TEXT &&
+				!this.dataLocatorResolver.resolveChildParameterDataLocator(buildContext.dataLocator(), child.domain())
+					.map(locator -> hasSearchablePlace(locator,
+						new AllowedConstraintPredicate(child, this.allowedConstraints, this.forbiddenConstraints)))
+					.orElse(false)) {
+				return false;
+			}
+		}
 		final boolean isLocalized = constraintDescriptor.creator().valueParameters()
 			.stream()
 			.anyMatch(p -> {

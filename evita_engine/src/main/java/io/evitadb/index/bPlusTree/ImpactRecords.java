@@ -441,8 +441,7 @@ final class ImpactRecords {
 	 * that costs one merge, paid only by a reader of a bucket the open transaction touched.
 	 *
 	 * Every shape answers a fresh array the caller owns and may keep or write - a clone, a concatenation or a new
-	 * alignment, never the stored slot - which is what lets {@link TransactionalBucketBPlusTree#impactsOf} promise a
-	 * copy.
+	 * alignment, never the stored slot.
 	 *
 	 * @param impacts the bucket's impact slot
 	 * @param records the bucket's record slot - `null` for a single-record bucket

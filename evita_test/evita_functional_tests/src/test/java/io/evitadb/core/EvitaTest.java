@@ -3943,8 +3943,8 @@ class EvitaTest implements EvitaTestSupport {
 			);
 			final long sizeOnDisk2 = statistics2.storageSize().sizeOnDiskInBytes();
 			assertTrue(
-				sizeOnDisk2 > 1000L && sizeOnDisk2 < 1800L,
-				"Expected size on disk to be between 1000 and 1800 bytes, but was " + sizeOnDisk2
+				sizeOnDisk2 > 1000L && sizeOnDisk2 < 2000L,
+				"Expected size on disk to be between 1000 and 2000 bytes, but was " + sizeOnDisk2
 			);
 
 			final EntityCollectionStatistics productStatistics = catalog2
@@ -6068,9 +6068,8 @@ class EvitaTest implements EvitaTestSupport {
 
 		final ServerOptions formerServerOptions = formerConfiguration.server();
 		final Evita reinstantiatedEvita = new Evita(
-			new EvitaConfiguration(
-				formerConfiguration.name(),
-				new ServerOptions(
+			EvitaConfiguration.builder(formerConfiguration)
+				.server(new ServerOptions(
 					formerServerOptions.requestThreadPool(),
 					formerServerOptions.transactionThreadPool(),
 					formerServerOptions.serviceThreadPool(),
@@ -6083,12 +6082,8 @@ class EvitaTest implements EvitaTestSupport {
 					formerServerOptions.readOnly(),
 					formerServerOptions.quiet(),
 					formerServerOptions.usageStatisticsTracking()
-				),
-				formerConfiguration.storage(),
-				formerConfiguration.transaction(),
-				formerConfiguration.cache(),
-				formerConfiguration.export()
-			),
+				))
+				.build(),
 			true,
 			null,
 			null,

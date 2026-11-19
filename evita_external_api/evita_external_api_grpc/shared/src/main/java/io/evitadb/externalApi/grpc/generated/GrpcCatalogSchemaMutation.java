@@ -57,7 +57,7 @@ public final class GrpcCatalogSchemaMutation {
       "tributeSchemaMutations.proto\032 GrpcCatalo" +
       "gSchemaMutations.proto\032\037GrpcEntitySchema" +
       "Mutations.proto\032\036GrpcEntitySchemaMutatio" +
-      "n.proto\"\342\031\n\036GrpcLocalCatalogSchemaMutati" +
+      "n.proto\"\354#\n\036GrpcLocalCatalogSchemaMutati" +
       "on\022\203\001\n&modifyCatalogSchemaDescriptionMut" +
       "ation\030\001 \001(\0132Q.io.evitadb.externalApi.grp" +
       "c.generated.GrpcModifyCatalogSchemaDescr" +
@@ -139,8 +139,40 @@ public final class GrpcCatalogSchemaMutation {
       "ationH\000\022\177\n$setAttributeSchemaNormalizedM" +
       "utation\030% \001(\0132O.io.evitadb.externalApi.g" +
       "rpc.generated.GrpcSetAttributeSchemaNorm" +
-      "alizedMutationH\000B\n\n\010mutationB\014P\001\252\002\007Evita" +
-      "DBb\006proto3"
+      "alizedMutationH\000\022\177\n$setAttributeSchemaSe" +
+      "archableMutation\030& \001(\0132O.io.evitadb.exte" +
+      "rnalApi.grpc.generated.GrpcSetAttributeS" +
+      "chemaSearchableMutationH\000\022\177\n$createFullt" +
+      "extLanguageSchemaMutation\030\' \001(\0132O.io.evi" +
+      "tadb.externalApi.grpc.generated.GrpcCrea" +
+      "teFulltextLanguageSchemaMutationH\000\022\177\n$mo" +
+      "difyFulltextLanguageSchemaMutation\030( \001(\013" +
+      "2O.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcModifyFulltextLanguageSchemaMutatio" +
+      "nH\000\022\177\n$removeFulltextLanguageSchemaMutat" +
+      "ion\030) \001(\0132O.io.evitadb.externalApi.grpc." +
+      "generated.GrpcRemoveFulltextLanguageSche" +
+      "maMutationH\000\022\177\n$createFulltextResourceSc" +
+      "hemaMutation\030* \001(\0132O.io.evitadb.external" +
+      "Api.grpc.generated.GrpcCreateFulltextRes" +
+      "ourceSchemaMutationH\000\022\177\n$modifyFulltextR" +
+      "esourceSchemaMutation\030+ \001(\0132O.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcModifyFu" +
+      "lltextResourceSchemaMutationH\000\022\177\n$remove" +
+      "FulltextResourceSchemaMutation\030, \001(\0132O.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cRemoveFulltextResourceSchemaMutationH\000\022" +
+      "\177\n$createFulltextAnalyzerSchemaMutation\030" +
+      "- \001(\0132O.io.evitadb.externalApi.grpc.gene" +
+      "rated.GrpcCreateFulltextAnalyzerSchemaMu" +
+      "tationH\000\022\177\n$modifyFulltextAnalyzerSchema" +
+      "Mutation\030. \001(\0132O.io.evitadb.externalApi." +
+      "grpc.generated.GrpcModifyFulltextAnalyze" +
+      "rSchemaMutationH\000\022\177\n$removeFulltextAnaly" +
+      "zerSchemaMutation\030/ \001(\0132O.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcRemoveFullte" +
+      "xtAnalyzerSchemaMutationH\000B\n\n\010mutationB\014" +
+      "P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -155,7 +187,7 @@ public final class GrpcCatalogSchemaMutation {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalCatalogSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalCatalogSchemaMutation_descriptor,
-        new java.lang.String[] { "ModifyCatalogSchemaDescriptionMutation", "AllowEvolutionModeInCatalogSchemaMutation", "DisallowEvolutionModeInCatalogSchemaMutation", "CreateGlobalAttributeSchemaMutation", "ModifyAttributeSchemaDefaultValueMutation", "ModifyAttributeSchemaDeprecationNoticeMutation", "ModifyAttributeSchemaDescriptionMutation", "ModifyAttributeSchemaNameMutation", "ModifyAttributeSchemaTypeMutation", "RemoveAttributeSchemaMutation", "SetAttributeSchemaFilterableMutation", "SetAttributeSchemaLocalizedMutation", "SetAttributeSchemaNullableMutation", "SetAttributeSchemaRepresentativeMutation", "SetAttributeSchemaSortableMutation", "SetAttributeSchemaUniqueMutation", "SetAttributeSchemaGloballyUniqueMutation", "CreateEntitySchemaMutation", "ModifyEntitySchemaMutation", "ModifyEntitySchemaNameMutation", "RemoveEntitySchemaMutation", "SetAttributeSchemaConflictResolutionOverrideMutation", "ModifyCatalogSchemaConflictResolutionMutation", "SetAttributeSchemaAcceleratedMutation", "SetAttributeSchemaNormalizedMutation", "Mutation", });
+        new java.lang.String[] { "ModifyCatalogSchemaDescriptionMutation", "AllowEvolutionModeInCatalogSchemaMutation", "DisallowEvolutionModeInCatalogSchemaMutation", "CreateGlobalAttributeSchemaMutation", "ModifyAttributeSchemaDefaultValueMutation", "ModifyAttributeSchemaDeprecationNoticeMutation", "ModifyAttributeSchemaDescriptionMutation", "ModifyAttributeSchemaNameMutation", "ModifyAttributeSchemaTypeMutation", "RemoveAttributeSchemaMutation", "SetAttributeSchemaFilterableMutation", "SetAttributeSchemaLocalizedMutation", "SetAttributeSchemaNullableMutation", "SetAttributeSchemaRepresentativeMutation", "SetAttributeSchemaSortableMutation", "SetAttributeSchemaUniqueMutation", "SetAttributeSchemaGloballyUniqueMutation", "CreateEntitySchemaMutation", "ModifyEntitySchemaMutation", "ModifyEntitySchemaNameMutation", "RemoveEntitySchemaMutation", "SetAttributeSchemaConflictResolutionOverrideMutation", "ModifyCatalogSchemaConflictResolutionMutation", "SetAttributeSchemaAcceleratedMutation", "SetAttributeSchemaNormalizedMutation", "SetAttributeSchemaSearchableMutation", "CreateFulltextLanguageSchemaMutation", "ModifyFulltextLanguageSchemaMutation", "RemoveFulltextLanguageSchemaMutation", "CreateFulltextResourceSchemaMutation", "ModifyFulltextResourceSchemaMutation", "RemoveFulltextResourceSchemaMutation", "CreateFulltextAnalyzerSchemaMutation", "ModifyFulltextAnalyzerSchemaMutation", "RemoveFulltextAnalyzerSchemaMutation", "Mutation", });
     io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutations.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaMutations.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutations.getDescriptor();

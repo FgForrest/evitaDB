@@ -34,7 +34,8 @@ import javax.annotation.Nonnull;
  * Handler for `RemoveAssociatedDataMutation`. The removal of localized associated data may take its locale from the
  * entity, so it first withdraws the references whose local histogram reads a localized reference attribute with a
  * `??` default (`EntityLocaleFanOut`); a removal is not examined further, because whether the locale survives depends
- * on every other value of the entity. Then the same deferred facet re-evaluation as the upsert branch — see
+ * on every other value of the entity. Then the same side-effects as the upsert branch - the fulltext index of
+ * searchable associated data and the deferred facet re-evaluation — see
  * `UpsertAssociatedDataMutationHandler` and `AssociatedDataMutationFanOut`.
  */
 public final class RemoveAssociatedDataMutationHandler implements LocalMutationHandler<RemoveAssociatedDataMutation> {
@@ -60,7 +61,7 @@ public final class RemoveAssociatedDataMutationHandler implements LocalMutationH
 		EntityLocaleFanOut.withdrawBeforeLocalizedValueChange(
 			executor, mutation.getAssociatedDataKey().locale(), LocalizedValueChange.REMOVAL
 		);
-		AssociatedDataMutationFanOut.apply(mutation.getAssociatedDataKey().associatedDataName(), executor, globalIndex);
+		AssociatedDataMutationFanOut.apply(mutation, executor, globalIndex);
 	}
 
 }

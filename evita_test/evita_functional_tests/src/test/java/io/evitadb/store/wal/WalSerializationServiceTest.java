@@ -44,6 +44,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaSearchableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
@@ -51,13 +52,17 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeU
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaAcceleratedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNormalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaConflictResolutionOverrideMutation;
+import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
@@ -278,6 +283,17 @@ class WalSerializationServiceTest {
 		);
 	}
 
+	/** Existing WAL ids must survive independently appended fulltext mutations. */
+	@Test
+	@Tag(SERIALIZATION)
+	@Tag(SCHEMA)
+	@DisplayName("should preserve the normalization WAL id when adding searchable associated data")
+	void shouldPreserveNormalizationRegistrationId() {
+		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+		assertEquals(519, walKryo.getRegistration(SetAttributeSchemaNormalizedMutation.class).getId());
+		assertEquals(520, walKryo.getRegistration(SetAssociatedDataSchemaSearchableMutation.class).getId());
+	}
+
 	@Test
 	@Tag(SERIALIZATION)
 	@Tag(SCHEMA)
@@ -316,6 +332,43 @@ class WalSerializationServiceTest {
 		assertArrayEquals(bothScopes, globalRoundTrip.getSearchableInScopes());
 		assertArrayEquals(substringInLive, globalRoundTrip.getAcceleratorsInScopes());
 		assertEquals(globalAttributeMutation, globalRoundTrip);
+	}
+
+	@Test
+	@Tag(SERIALIZATION)
+	@Tag(SCHEMA)
+	@DisplayName("should round-trip the searchable scopes and the text expression of associated data")
+	void shouldRoundTripSearchableAssociatedDataMutations() {
+		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+		final Scope[] bothScopes = {Scope.LIVE, Scope.ARCHIVED};
+		final Expression textExpression = ExpressionFactory.parse("$value.blocks.*[$.text]");
+
+		final SetAssociatedDataSchemaSearchableMutation setSearchable =
+			new SetAssociatedDataSchemaSearchableMutation("article", bothScopes, textExpression);
+		final SetAssociatedDataSchemaSearchableMutation setRoundTrip = roundTrip(walKryo, setSearchable);
+		assertArrayEquals(bothScopes, setRoundTrip.getSearchableInScopes());
+		assertEquals(textExpression, setRoundTrip.getTextExpression());
+		assertEquals(setSearchable, setRoundTrip);
+
+		final SetAssociatedDataSchemaSearchableMutation withdrawal =
+			new SetAssociatedDataSchemaSearchableMutation("article", false);
+		assertEquals(withdrawal, roundTrip(walKryo, withdrawal));
+
+		final CreateAssociatedDataSchemaMutation create = new CreateAssociatedDataSchemaMutation(
+			"article", "description", null, ComplexDataObject.class, true, false, bothScopes, textExpression,
+			ConflictResolutionOverride.GRANULAR,
+			null, null, null
+		);
+		final CreateAssociatedDataSchemaMutation createRoundTrip = roundTrip(walKryo, create);
+		assertArrayEquals(bothScopes, createRoundTrip.getSearchableInScopes());
+		assertEquals(textExpression, createRoundTrip.getTextExpression());
+		assertEquals(ConflictResolutionOverride.GRANULAR, createRoundTrip.getConflictResolutionOverride());
+		assertEquals(create, createRoundTrip);
+
+		final CreateAssociatedDataSchemaMutation plainCreate = new CreateAssociatedDataSchemaMutation(
+			"body", null, null, String.class, true, false
+		);
+		assertEquals(plainCreate, roundTrip(walKryo, plainCreate));
 	}
 
 	@Test

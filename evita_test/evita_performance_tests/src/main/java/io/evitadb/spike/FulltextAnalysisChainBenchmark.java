@@ -23,10 +23,11 @@
 
 package io.evitadb.spike;
 
-import io.evitadb.index.fulltext.analysis.AnalyzerSlot;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spike.footprint.FootprintSpikeSupport;
+import io.evitadb.test.fulltext.FulltextAnalysisTestSupport;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -43,13 +44,16 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import javax.annotation.Nonnull;
+
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static io.evitadb.test.fulltext.FulltextAnalysisTestSupport.collectTerms;
+
 /**
- * Cost census of the shipped full-text analysis chains: what one `getIndexAnalyzer` / `getSearchAnalyzer`
+ * Cost census of the shipped full-text analysis chains: what one compiled index / query analysis
  * call costs, per language and per side of the pipeline, in time, allocation and retained footprint.
  *
  * This is a **decision instrument kept for re-measurement**, not a guard. The number to re-check when a stemmer
@@ -85,8 +89,8 @@ import java.util.concurrent.TimeUnit;
 public class FulltextAnalysisChainBenchmark {
 
 	/**
-	 * Entity type the registry resolves against; no schema override is registered, so every lookup lands on the
-	 * language default.
+	 * Entity type the registry is asked for; the built-in choice depends on the locale alone, the entity type only
+	 * names the request in an error.
 	 */
 	private static final String ENTITY_TYPE = "PRODUCT";
 
@@ -161,10 +165,11 @@ public class FulltextAnalysisChainBenchmark {
 		 */
 		@Setup(Level.Trial)
 		public void setUp() {
-			this.registry = new FulltextAnalyzerRegistry();
+			this.registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 			final Locale locale = new Locale(this.language);
-			this.index = this.registry.getIndexAnalyzer(ENTITY_TYPE, locale);
-			this.search = this.registry.getSearchAnalyzer(ENTITY_TYPE, locale);
+			this.index = this.registry.getCompiledAnalyzer(
+				FulltextAnalysisTestSupport.SCHEMA, "html-text", locale).indexSurface();
+			this.search = FulltextAnalysisTestSupport.queryAnalyzer(locale);
 			this.text = switch (this.textKind) {
 				case "QUERY" -> QUERY_TEXT.get(this.language);
 				case "DESCRIPTION" -> DESCRIPTION_TEXT.get(this.language);
@@ -224,9 +229,10 @@ public class FulltextAnalysisChainBenchmark {
 		final Map<String, Integer> emittedTerms = new LinkedHashMap<>(16);
 		for (final String language : new String[]{"cs", "sk", "pl", "ro"}) {
 			final Locale locale = new Locale(language);
-			try (final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry()) {
-				final FulltextAnalyzer index = registry.getIndexAnalyzer(ENTITY_TYPE, locale);
-				final FulltextAnalyzer search = registry.getSearchAnalyzer(ENTITY_TYPE, locale);
+			try (final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry())) {
+				final FulltextAnalyzer index = registry.getCompiledAnalyzer(
+					FulltextAnalysisTestSupport.SCHEMA, "html-text", locale).indexSurface();
+				final FulltextAnalyzer search = FulltextAnalysisTestSupport.queryAnalyzer(locale);
 				// measure BEFORE the first analyze call: once a chain is used, Lucene's CloseableThreadLocal
 				// maps the components under the Thread itself, and a graph walk from either analyzer then
 				// swallows the whole thread-locals closure - both graphs collapse into one ~10 MB blob and the
@@ -234,18 +240,18 @@ public class FulltextAnalysisChainBenchmark {
 				// retains for life; the per-thread stream components created on first use are excluded and are
 				// near-identical between the two sides anyway
 				FootprintSpikeSupport.observation(
-					language + " " + AnalyzerSlot.INDEX, FootprintSpikeSupport.ownedSize(index)
+					language + " INDEX", FootprintSpikeSupport.ownedSize(index)
 				);
 				FootprintSpikeSupport.observation(
-					language + " " + AnalyzerSlot.SEARCH, FootprintSpikeSupport.ownedSize(search)
+					language + " SEARCH", FootprintSpikeSupport.ownedSize(search)
 				);
-				emittedTerms.put(language + " index/query", index.getTerms(QUERY_TEXT.get(language)).size());
-				emittedTerms.put(language + " search/query", search.getTerms(QUERY_TEXT.get(language)).size());
+				emittedTerms.put(language + " index/query", collectTerms(index, QUERY_TEXT.get(language)).size());
+				emittedTerms.put(language + " search/query", collectTerms(search, QUERY_TEXT.get(language)).size());
 				emittedTerms.put(
-					language + " index/description", index.getTerms(DESCRIPTION_TEXT.get(language)).size()
+					language + " index/description", collectTerms(index, DESCRIPTION_TEXT.get(language)).size()
 				);
 				emittedTerms.put(
-					language + " search/description", search.getTerms(DESCRIPTION_TEXT.get(language)).size()
+					language + " search/description", collectTerms(search, DESCRIPTION_TEXT.get(language)).size()
 				);
 			}
 		}

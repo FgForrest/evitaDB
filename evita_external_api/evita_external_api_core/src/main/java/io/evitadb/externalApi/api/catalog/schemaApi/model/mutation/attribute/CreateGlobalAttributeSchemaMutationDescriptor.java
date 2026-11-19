@@ -208,6 +208,15 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 		.type(nullable(ConflictResolutionOverride.class))
 		.build();
 
+	/** Same creation semantics as an entity attribute: omission means searchable nowhere. */
+	PropertyDescriptor SEARCHABLE_IN_SCOPES = CreateAttributeSchemaMutationDescriptor.SEARCHABLE_IN_SCOPES;
+	/** Same creation semantics as an entity attribute: omission means the default analyzer. */
+	PropertyDescriptor ANALYZER = CreateAttributeSchemaMutationDescriptor.ANALYZER;
+	/** Same creation semantics as an entity attribute: omission means the default length pivot. */
+	PropertyDescriptor LENGTH_PIVOT = CreateAttributeSchemaMutationDescriptor.LENGTH_PIVOT;
+	/** Same creation semantics as an entity attribute: omission means the default weight. */
+	PropertyDescriptor SEARCH_WEIGHT = CreateAttributeSchemaMutationDescriptor.SEARCH_WEIGHT;
+
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(CreateGlobalAttributeSchemaMutation.class)
 		.description("""
@@ -215,6 +224,10 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 			Mutation can be used for altering also the existing `GlobalAttributeSchema` alone.
 			""")
 		.staticProperty(NAME)
+		.staticProperty(SEARCHABLE_IN_SCOPES)
+		.staticProperty(ANALYZER)
+		.staticProperty(LENGTH_PIVOT)
+		.staticProperty(SEARCH_WEIGHT)
 		.staticProperty(DESCRIPTION)
 		.staticProperty(DEPRECATION_NOTICE)
 		.staticProperty(UNIQUE_IN_SCOPES)
@@ -225,6 +238,7 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 		.staticProperty(SORTABLE_IN_SCOPES)
 		.staticProperty(LOCALIZED)
 		.staticProperty(NULLABLE)
+		.staticProperty(REPRESENTATIVE)
 		.staticProperty(TYPE)
 		.staticProperty(DEFAULT_VALUE)
 		.staticProperty(INDEXED_DECIMAL_PLACES)

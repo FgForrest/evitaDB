@@ -33,6 +33,8 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
@@ -135,7 +137,9 @@ class CatalogSchemaConverterTest {
 					null,
 					0,
 					ConflictResolutionOverride.ENTITY,
-					List.of(lowercase(), asciiFolding(), removeCharacters("- "), trim())
+					List.of(lowercase(), asciiFolding(), removeCharacters("- "), trim()),
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				"priority", GlobalAttributeSchema._internalBuild(
 					"code",
@@ -145,6 +149,9 @@ class CatalogSchemaConverterTest {
 					null
 				)
 			),
+			Map.of(),
+			Map.of(),
+			Map.of(),
 			EmptyEntitySchemaAccessor.INSTANCE
 		);
 		assertCatalogSchema(
@@ -176,7 +183,8 @@ class CatalogSchemaConverterTest {
 			(ScopedAttributeUniquenessType[]) null, (ScopedGlobalAttributeUniquenessType[]) null, (Scope[]) null,
 			null, (Scope[]) null, (Scope[]) null, false, false, false,
 			BigDecimalNumberRange.class, defaultValue, 0, ConflictResolutionOverride.INHERITED,
-			null
+			null, FulltextAnalyzerSchemaContract.TEXT,
+			AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			1,
@@ -186,6 +194,7 @@ class CatalogSchemaConverterTest {
 			null,
 			EnumSet.noneOf(CatalogEvolutionMode.class),
 			Map.of("range", sent),
+			Map.of(), Map.of(), Map.of(),
 			EmptyEntitySchemaAccessor.INSTANCE
 		);
 

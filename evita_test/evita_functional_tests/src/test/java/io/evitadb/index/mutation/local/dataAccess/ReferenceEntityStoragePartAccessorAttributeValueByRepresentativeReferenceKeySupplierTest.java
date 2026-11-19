@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -568,7 +569,8 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 			ScopedReferenceIndexType.EMPTY, null,
 			Scope.NO_SCOPE, null, null, null,
 			attributes, Map.of(),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -590,7 +592,9 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 			name, null, null, (ScopedAttributeUniquenessType[]) null, null, null, null, null,
 			localized, false, representative,
 			String.class, null, 0, ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

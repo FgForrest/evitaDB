@@ -25,13 +25,16 @@ package io.evitadb.api.query;
 
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.*;
+import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.*;
+import io.evitadb.api.query.order.RelevanceText;
 import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -345,7 +348,7 @@ public interface QueryConstraints {
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/logical#not)
 	 *
-	 * @see io.evitadb.api.query.filter.Not
+	 * @see Not
 	 */
 	@SourceHash("2d5dbbbf09209b01bd0b1f3adb3626eb")
 	@Nullable
@@ -1641,6 +1644,366 @@ public interface QueryConstraints {
 		return ArrayUtils.isEmptyOrItsValuesNull(scope) ? null : new EntityScope(scope);
 	}
 
+	/**
+	 * The `textMatches` constraint is the fulltext search filter. It accepts the text the user typed into a search box
+	 * and matches entities whose searchable fields contain every word of that text — after the text has been analyzed
+	 * by the same analyzer that indexed the fields (tokenization, normalization, stemming).
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * **Syntax**
+	 *
+	 * ```evitaql
+	 * textMatches(
+	 *     argument:string!,
+	 *     filterConstraint:placeSelector*
+	 * )
+	 * ```
+	 *
+	 * **Arguments**
+	 *
+	 * - `argument:string!`: the text to search for, mandatory and non-blank
+	 * - `filterConstraint:placeSelector*`: optional selectors restricting attributes, associated data or references;
+	 *   without any child, every searchable place of the queried collection is searched
+	 *
+	 * **Examples**
+	 *
+	 * ```evitaql
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         entityLocaleEquals("en"),
+	 *         textMatches("black leather jacket")
+	 *     ),
+	 *     orderBy(
+	 *         relevanceText()
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * ```evitaql
+	 * textMatches(
+	 *     "black leather jacket",
+	 *     inAttribute("name"),
+	 *     inAttribute("description")
+	 * )
+	 * ```
+	 *
+	 * **Constraints on usage**
+	 *
+	 * - the fulltext index is maintained per locale, so the query must declare its locale by `entityLocaleEquals`
+	 * - the constraint is forbidden inside {@link UserFilter}: it has no relaxation semantics a facet or histogram
+	 *   computation could peel off, and facet counts are expected to describe the search result
+	 * - only entity-level place selectors are accepted
+	 *
+	 * The constraint has no `attribute` prefix, because a searchable field is not necessarily an entity attribute.
+	 * The order of the matched entities is controlled by the {@link io.evitadb.api.query.order.RelevanceText} ordering
+	 * constraint, which reads the relevance this filter computes.
+	 *
+	 * @param text the text to search for, must not be blank
+	 * @param in place selectors
+	 * @return the fulltext search constraint, or null for null or blank text
+	 * @see io.evitadb.api.query.filter.TextMatches
+	 */
+	@Nullable
+	static TextMatches textMatches(
+		@Nullable String text,
+		@Nullable TextMatchesEntitySpecificationFilterConstraint... in
+	) {
+		return text == null || text.isBlank() ? null : new TextMatches(text, in);
+	}
+
+	/**
+	 * The `inAttribute` constraint restricts the enclosing {@link TextMatches} fulltext search to one or more
+	 * searchable attributes of its level: of the queried collection directly under `textMatches`, of the reference
+	 * under `inReference` and inside `referenceHaving`, and of the target collection under `inEntity`. Several
+	 * selectors search the union of their named attributes, with the same matches and scores as a single selector
+	 * naming them all. Repeated names are ignored when searching and scoring. Without a selector, `textMatches`
+	 * searches every searchable place, including reference attributes, associated data and text reached through
+	 * composition. Outside `inEntity`, an attribute selector selects no composed places.
+	 * The wildcard `inAttributeAll()` selects every searchable attribute of the current level; `inAttribute()`
+	 * without names is refused.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * Searchable attribute names are application settings, so neither the constructors nor the factory ever omit the
+	 * selector: a null or empty array, and a null or blank name, are refused. Omitting the selector would widen the
+	 * search to every searchable place.
+	 *
+	 * **Syntax**
+	 *
+	 * ```evitaql
+	 * inAttribute('name', 'description')
+	 * ```
+	 *
+	 * **Arguments**
+	 *
+	 * - one or more searchable attribute names, each mandatory and non-blank
+	 *
+	 * **Example**
+	 *
+	 * ```evitaql
+	 * textMatches('black leather jacket', inAttribute('name', 'description'))
+	 * ```
+	 *
+	 * @param attributeNames searchable attribute names, at least one and none null or blank
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.AttributeIn
+	 */
+	@Nonnull
+	static AttributeIn inAttribute(@Nonnull String... attributeNames) {
+		return new AttributeIn(attributeNames);
+	}
+
+	/**
+	 * The `inAttribute` constraint restricts the enclosing {@link TextMatches} fulltext search to one or more
+	 * searchable attributes of its level: of the queried collection directly under `textMatches`, of the reference
+	 * under `inReference` and inside `referenceHaving`, and of the target collection under `inEntity`. Several
+	 * selectors search the union of their named attributes, with the same matches and scores as a single selector
+	 * naming them all. Repeated names are ignored when searching and scoring. Without a selector, `textMatches`
+	 * searches every searchable place, including reference attributes, associated data and text reached through
+	 * composition. Outside `inEntity`, an attribute selector selects no composed places.
+	 * The wildcard `inAttributeAll()` selects every searchable attribute of the current level; `inAttribute()`
+	 * without names is refused.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * Searchable attribute names are application settings, so neither the constructors nor the factory ever omit the
+	 * selector: a null or empty array, and a null or blank name, are refused. Omitting the selector would widen the
+	 * search to every searchable place.
+	 *
+	 * **Syntax**
+	 *
+	 * ```evitaql
+	 * inAttribute('name', 'description')
+	 * ```
+	 *
+	 * **Arguments**
+	 *
+	 * - one or more searchable attribute names, each mandatory and non-blank
+	 *
+	 * **Example**
+	 *
+	 * ```evitaql
+	 * textMatches('black leather jacket', inAttribute('name', 'description'))
+	 * ```
+	 *
+	 * @param attributeName searchable attribute name, must not be null or blank
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.AttributeIn
+	 */
+	@Nonnull
+	static AttributeIn inAttribute(@Nonnull String attributeName) {
+		return new AttributeIn(attributeName);
+	}
+
+	/**
+	 * The `inAttribute` constraint restricts the enclosing {@link TextMatches} fulltext search to one or more
+	 * searchable attributes of its level: of the queried collection directly under `textMatches`, of the reference
+	 * under `inReference` and inside `referenceHaving`, and of the target collection under `inEntity`. Several
+	 * selectors search the union of their named attributes, with the same matches and scores as a single selector
+	 * naming them all. Repeated names are ignored when searching and scoring. Without a selector, `textMatches`
+	 * searches every searchable place, including reference attributes, associated data and text reached through
+	 * composition. Outside `inEntity`, an attribute selector selects no composed places.
+	 * The wildcard `inAttributeAll()` selects every searchable attribute of the current level; `inAttribute()`
+	 * without names is refused.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * Searchable attribute names are application settings, so neither the constructors nor the factory ever omit the
+	 * selector: a null or empty array, and a null or blank name, are refused. Omitting the selector would widen the
+	 * search to every searchable place.
+	 *
+	 * **Syntax**
+	 *
+	 * ```evitaql
+	 * inAttribute('name', 'description')
+	 * ```
+	 *
+	 * **Arguments**
+	 *
+	 * - one or more searchable attribute names, each mandatory and non-blank
+	 *
+	 * **Example**
+	 *
+	 * ```evitaql
+	 * textMatches('black leather jacket', inAttribute('name', 'description'))
+	 * ```
+	 *
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.AttributeIn
+	 */
+	@Nonnull
+	static AttributeIn inAttributeAll() {
+		return AttributeIn.all();
+	}
+
+	/**
+	 * The `inAssociatedData` constraint restricts the enclosing {@link TextMatches} search to one or more searchable
+	 * associated data items of its level: of the queried collection directly under `textMatches`, and of the target
+	 * collection under `inEntity`. Several selectors search their union; repeated names contribute only once to
+	 * matching and scoring. The wildcard `inAssociatedDataAll()` selects every searchable associated data item of
+	 * this level. The named `inAssociatedData()` form without names is refused.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * Without selectors, `textMatches` searches every searchable place, including attributes, reference attributes,
+	 * associated data and declared composition. Outside `inEntity`, this selector selects no composed places.
+	 *
+	 * Searchable associated data names are application settings, so neither the constructors nor the factory ever omit
+	 * the selector: a null or empty array, and a null or blank name, are refused. Omitting the selector would widen the
+	 * search to every searchable place.
+	 *
+	 * **Syntax**
+	 *
+	 * ```evitaql
+	 * inAssociatedData('name', 'description')
+	 * ```
+	 *
+	 * **Arguments**
+	 *
+	 * - one or more searchable associated data names, each mandatory and non-blank
+	 *
+	 * **Example**
+	 *
+	 * ```evitaql
+	 * textMatches('black leather jacket', inAssociatedData('name', 'description'))
+	 * ```
+	 *
+	 * Associated data selectors are valid neither directly under `inReference` nor inside `referenceHaving`.
+	 *
+	 * @param associatedDataNames searchable associated data names, at least one and none null or blank
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.AssociatedDataIn
+	 */
+	@Nonnull
+	static AssociatedDataIn inAssociatedData(@Nonnull String... associatedDataNames) {
+		return new AssociatedDataIn(associatedDataNames);
+	}
+
+	/**
+	 * The `inAssociatedData` constraint restricts the enclosing {@link TextMatches} search to one or more searchable
+	 * associated data items of its level: of the queried collection directly under `textMatches`, and of the target
+	 * collection under `inEntity`. Several selectors search their union; repeated names contribute only once to
+	 * matching and scoring. The wildcard `inAssociatedDataAll()` selects every searchable associated data item of
+	 * this level. The named `inAssociatedData()` form without names is refused.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * Without selectors, `textMatches` searches every searchable place, including attributes, reference attributes,
+	 * associated data and declared composition. Outside `inEntity`, this selector selects no composed places.
+	 *
+	 * Searchable associated data names are application settings, so neither the constructors nor the factory ever omit
+	 * the selector: a null or empty array, and a null or blank name, are refused. Omitting the selector would widen the
+	 * search to every searchable place.
+	 *
+	 * **Syntax**
+	 *
+	 * ```evitaql
+	 * inAssociatedData('name', 'description')
+	 * ```
+	 *
+	 * **Arguments**
+	 *
+	 * - one or more searchable associated data names, each mandatory and non-blank
+	 *
+	 * **Example**
+	 *
+	 * ```evitaql
+	 * textMatches('black leather jacket', inAssociatedData('name', 'description'))
+	 * ```
+	 *
+	 * Associated data selectors are valid neither directly under `inReference` nor inside `referenceHaving`.
+	 *
+	 * @param associatedDataName searchable associated data name, mandatory and non-blank
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.AssociatedDataIn
+	 */
+	@Nonnull
+	static AssociatedDataIn inAssociatedData(@Nonnull String associatedDataName) {
+		return new AssociatedDataIn(associatedDataName);
+	}
+
+	/**
+	 * The `inAssociatedData` constraint restricts the enclosing {@link TextMatches} search to one or more searchable
+	 * associated data items of its level: of the queried collection directly under `textMatches`, and of the target
+	 * collection under `inEntity`. Several selectors search their union; repeated names contribute only once to
+	 * matching and scoring. The wildcard `inAssociatedDataAll()` selects every searchable associated data item of
+	 * this level. The named `inAssociatedData()` form without names is refused.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * Without selectors, `textMatches` searches every searchable place, including attributes, reference attributes,
+	 * associated data and declared composition. Outside `inEntity`, this selector selects no composed places.
+	 *
+	 * Searchable associated data names are application settings, so neither the constructors nor the factory ever omit
+	 * the selector: a null or empty array, and a null or blank name, are refused. Omitting the selector would widen the
+	 * search to every searchable place.
+	 *
+	 * **Syntax**
+	 *
+	 * ```evitaql
+	 * inAssociatedData('name', 'description')
+	 * ```
+	 *
+	 * **Arguments**
+	 *
+	 * - one or more searchable associated data names, each mandatory and non-blank
+	 *
+	 * **Example**
+	 *
+	 * ```evitaql
+	 * textMatches('black leather jacket', inAssociatedData('name', 'description'))
+	 * ```
+	 *
+	 * Associated data selectors are valid neither directly under `inReference` nor inside `referenceHaving`.
+	 *
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.AssociatedDataIn
+	 */
+	@Nonnull
+	static AssociatedDataIn inAssociatedDataAll() {
+		return AssociatedDataIn.all();
+	}
+
+	/**
+	 * Selects searchable attributes of a named reference and, through `inEntity`, its composed target places.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * Without children, selects all searchable attributes of this reference. `inAttribute` children select reference
+	 * attributes; `inEntity` children select target places only and require the reference to declare
+	 * `searchableThrough(COMPOSITION)` in every processed scope. Repeated references merge their selected places.
+	 *
+	 * Empty and single-child forms remain necessary during query normalization: removing this container would change
+	 * the selected level.
+	 *
+	 * @param referenceName reference whose places should be searched, mandatory and non-blank
+	 * @param in optional selectors restricting the places of this level
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.ReferenceIn
+	 */
+	@Nonnull
+	static ReferenceIn inReference(
+		@Nonnull String referenceName, @Nullable TextMatchesReferenceSpecificationFilterConstraint... in
+	) {
+		return new ReferenceIn(referenceName, in);
+	}
+
+	/**
+	 * Selects searchable places of the target collection of the enclosing `inReference`.
+	 * The search behaves as if only selected places were searchable, so it can match entities absent from plain search.
+	 *
+	 * Without children, selects exactly the places plain composition searches: target attributes, associated data
+	 * and target reference attributes. Target composition declarations are never followed. Explicit children may
+	 * select target attributes and associated data. A target scope in which nothing is selected is skipped, as plain
+	 * composition skips it. The enclosing reference must declare `searchableThrough(COMPOSITION)` in every processed
+	 * scope. Target weights retain their ordinary composition multiplier.
+	 *
+	 * Empty and single-child forms remain necessary during query normalization: removing this container would change
+	 * the selected level.
+	 *
+	 * @param in optional selectors restricting the places of this level
+	 * @return the place selector
+	 * @see io.evitadb.api.query.filter.EntityIn
+	 */
+	@Nonnull
+	static EntityIn inEntity(@Nullable TextMatchesTargetSpecificationFilterConstraint... in) {
+		return new EntityIn(in);
+	}
+
 	/*
 		ORDERING
 	 */
@@ -2259,6 +2622,236 @@ public interface QueryConstraints {
 	@Nonnull
 	static Random randomWithSeed(long seed) {
 		return new Random(seed);
+	}
+
+	/**
+	 * The `relevanceText` constraint sorts the entities matched by the {@link io.evitadb.api.query.filter.TextMatches}
+	 * fulltext filter from the most relevant to the least relevant one.
+	 *
+	 * **Syntax**
+	 *
+	 * ```evitaql
+	 * relevanceText()
+	 * ```
+	 *
+	 * **Example**
+	 *
+	 * ```evitaql
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         entityLocaleEquals("en"),
+	 *         textMatches("black leather jacket")
+	 *     ),
+	 *     orderBy(
+	 *         relevanceText()
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * **Behaviour**
+	 *
+	 * - scoring sources come from the main filter and, inside a segment, that segment's predicate; other segments and
+	 *   requirement filters supply no scores here
+	 * - without a scoring source the constraint passes entities to the next ordering constraint; text in reach confined
+	 *   to hierarchy `having`, `anyHaving` or `excluding` is refused because it filters the tree and is not scored
+	 * - the constraint can be used in the top-level `orderBy` and inside a `segment`, but not inside the ordering
+	 *   containers that sort by properties of referenced entities (`referenceProperty`, `entityProperty`,
+	 *   `entityGroupProperty`, `traverseByEntityProperty`, `pickFirstByEntityProperty`)
+	 *
+	 * **Place weights**
+	 *
+	 * Children replace the schema search weights of individual searchable places for this relevance ordering:
+	 *
+	 * - `attributeWeight` and `associatedDataWeight` weigh attributes and associated data of the queried entity
+	 * - `referenceWeight` weighs the attributes of one reference and, through `entityWeight`, the places of its target
+	 *   collection that the query searches through composition
+	 *
+	 * Each `attributeWeight` and `associatedDataWeight` refuses a negative weight or one beyond the decimal
+	 * representation bounds when it is constructed. The other checks run during planning, before any index is read,
+	 * and a violation refuses the query:
+	 *
+	 * - every weighted place must exist and be searchable in every scope this ordering covers; enclosing ordering
+	 *   `inScope` containers narrow the query scopes, just as for filterable and sortable attributes
+	 * - weights must fit the internal float; one `relevanceText` may weight each place only once
+	 * - each `relevanceText` has its own weights, so segments and ordering `inScope` containers can rank differently
+	 * - when scoring text is in reach, each weighted place must be searched by a scoring `textMatches` of the main
+	 *   filter or this segment's predicate; text used only by hierarchy predicates or other segments does not count
+	 * - without scoring text in reach, the existing searched-place checks still apply; with no `textMatches` anywhere,
+	 *   weights receive schema validation only and order nothing
+	 *
+	 * Places not weighted by this `relevanceText` retain their schema search weights.
+	 *
+	 * ```evitaql
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         entityLocaleEquals("en"),
+	 *         textMatches("black leather jacket")
+	 *     ),
+	 *     orderBy(
+	 *         relevanceText(
+	 *             attributeWeight("name", 3),
+	 *             associatedDataWeight("description", 0.5),
+	 *             referenceWeight("brand", entityWeight(attributeWeight("name", 2)))
+	 *         )
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * @param weights place weights for this relevance ordering, NULL or empty for schema defaults
+	 * @return the relevance ordering constraint
+	 * @see io.evitadb.api.query.filter.TextMatches
+	 * @see RelevanceText
+	 */
+	@Nonnull
+	static RelevanceText relevanceText(@Nullable RelevanceTextEntitySpecificationOrderConstraint... weights) {
+		return new RelevanceText(weights);
+	}
+
+	/**
+	 * The `attributeWeight` constraint replaces one searchable attribute weight for its enclosing `relevanceText`.
+	 * The enclosing constraint decides whose attribute it is: directly inside `relevanceText` an attribute of the
+	 * queried entity, inside `referenceWeight` an attribute of that reference, and inside `entityWeight` an attribute
+	 * of the reference's target collection searched through composition. A composed target weight is the final place
+	 * weight, replacing the target search weight times the reference composition weight. Anywhere else the query is
+	 * refused.
+	 *
+	 * The attribute must exist at its level and be searchable in every scope the enclosing `relevanceText` covers;
+	 * narrow the ordering with `inScope` to cover fewer scopes. Zero keeps matches and quality but gives no strength.
+	 * The weight is a non-null `BigDecimal`, normalized so scale does not affect equality or plain decimal printing.
+	 * The name must be non-null and non-blank.
+	 * Construction refuses a negative weight, more than 100 significant digits and a stripped scale outside -100 to
+	 * 100. Bounds are checked before rescaling; diagnostics never expand an unsupported value. Planning refuses float
+	 * overflow and underflow, places the schema does not make searchable in a covered scope and, when scoring text is
+	 * in reach, places no scoring `textMatches` searches.
+	 *
+	 * ```evitaql
+	 * relevanceText(
+	 *     attributeWeight("name", 2.5),
+	 *     referenceWeight("brand", attributeWeight("label", 2))
+	 * )
+	 * ```
+	 *
+	 * @param attributeName searchable attribute at the level of the enclosing constraint, non-null and
+	 *                       non-blank
+	 * @param weight non-null, non-negative replacement decimal within the construction bounds; its float range is
+	 *               checked during planning
+	 * @return the place weight
+	 * @throws EvitaInvalidUsageException when the name is null or blank, the weight is null or negative, or its
+	 * representation exceeds the construction bounds
+	 * @see io.evitadb.api.query.order.AttributeWeight
+	 */
+	@Nonnull
+	static AttributeWeight attributeWeight(@Nonnull String attributeName, @Nonnull BigDecimal weight) {
+		return new AttributeWeight(attributeName, weight);
+	}
+
+	/**
+	 * The `associatedDataWeight` constraint replaces one associated data weight for its enclosing `relevanceText`.
+	 * Directly inside `relevanceText` the data belongs to the queried entity; inside `entityWeight` it belongs to the
+	 * reference's target collection searched through composition. A composed target weight is final, replacing the
+	 * target search weight times the reference composition weight. Anywhere else the query is refused.
+	 *
+	 * The associated data must exist at its level and be searchable in every scope the enclosing `relevanceText`
+	 * covers; narrow the ordering with `inScope` to cover fewer scopes. Zero keeps matches and quality but gives no
+	 * strength.
+	 * The weight is a non-null `BigDecimal`, normalized so scale does not affect equality or plain decimal printing.
+	 * The name must be non-null and non-blank.
+	 * Construction refuses a negative weight, more than 100 significant digits and a stripped scale outside -100 to
+	 * 100. Bounds are checked before rescaling; diagnostics never expand an unsupported value. Planning refuses float
+	 * overflow and underflow, places the schema does not make searchable in a covered scope and, when scoring text is
+	 * in reach, places no scoring `textMatches` searches.
+	 *
+	 * ```evitaql
+	 * relevanceText(
+	 *     associatedDataWeight("description", 0.5)
+	 * )
+	 * ```
+	 *
+	 * @param associatedDataName searchable associated data at the level of the enclosing constraint,
+	 *                            non-null and non-blank
+	 * @param weight non-null, non-negative replacement decimal within the construction bounds; its float range is
+	 *               checked during planning
+	 * @return the place weight
+	 * @throws EvitaInvalidUsageException when the name is null or blank, the weight is null or negative, or its
+	 * representation exceeds the construction bounds
+	 * @see io.evitadb.api.query.order.AssociatedDataWeight
+	 */
+	@Nonnull
+	static AssociatedDataWeight associatedDataWeight(@Nonnull String associatedDataName, @Nonnull BigDecimal weight) {
+		return new AssociatedDataWeight(associatedDataName, weight);
+	}
+
+	/**
+	 * The `referenceWeight` constraint weighs places reached through one named reference of the queried entity. Its
+	 * `attributeWeight` children replace the search weights of the reference's own searchable attributes, and its
+	 * `entityWeight` children the final weights of target places searched through composition. It is valid only
+	 * directly inside `relevanceText`.
+	 *
+	 * The reference must exist in the queried entity's schema and each weighted attribute must be searchable in every
+	 * scope the enclosing `relevanceText` covers. Narrow the ordering with `inScope` to cover fewer scopes. The
+	 * container must hold at least one weight; an empty container survives normalization so planning can refuse it.
+	 * Several `referenceWeight` constraints combine their places within one `relevanceText`; weighting a place twice
+	 * is refused. The reference name must be non-null and non-blank.
+	 *
+	 * Child weights are non-null `BigDecimal` values with scale-independent equality and plain decimal printing.
+	 * Each leaf weight refuses a negative value or one beyond the decimal representation bounds when it is
+	 * constructed, before this container exists. Planning refuses float overflow and underflow, together with the
+	 * schema and searched-place requirements.
+	 *
+	 * ```evitaql
+	 * relevanceText(
+	 *     referenceWeight(
+	 *         "brand",
+	 *         attributeWeight("label", 2),
+	 *         entityWeight(attributeWeight("name", 3))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * @param referenceName reference of the queried entity whose places are weighted, non-null and
+	 *                       non-blank
+	 * @param weights attribute and target weights of this reference, at least one
+	 * @return the reference-level weight container
+	 * @see io.evitadb.api.query.order.ReferenceWeight
+	 */
+	@Nonnull
+	static ReferenceWeight referenceWeight(@Nonnull String referenceName,
+		@Nullable RelevanceTextReferenceSpecificationOrderConstraint... weights) {
+		return new ReferenceWeight(referenceName, weights);
+	}
+
+	/**
+	 * The `entityWeight` constraint weighs places of the target collection of the enclosing `referenceWeight` that the
+	 * query searches through composition. Its `attributeWeight` and `associatedDataWeight` children name target
+	 * attributes and associated data, and each number is the final composed place weight, replacing the target search
+	 * weight times the reference composition weight. Target reference attributes cannot be addressed here. It is valid
+	 * only directly inside `referenceWeight`.
+	 *
+	 * The reference must target a managed entity collection and declare `searchableThrough(COMPOSITION)` in every scope
+	 * the enclosing `relevanceText` covers. Each weighted target place must be searchable in every such scope; narrow
+	 * the ordering with `inScope` to cover fewer scopes. A container without child weights is refused during planning.
+	 *
+	 * Child weights are non-null `BigDecimal` values with scale-independent equality and plain decimal printing.
+	 * Each leaf weight refuses a negative value or one beyond the decimal representation bounds when it is
+	 * constructed, before this container exists. Planning refuses float overflow and underflow, together with the
+	 * schema and searched-place requirements.
+	 *
+	 * ```evitaql
+	 * referenceWeight(
+	 *     "brand",
+	 *     entityWeight(attributeWeight("name", 3), associatedDataWeight("description", 0.5))
+	 * )
+	 * ```
+	 *
+	 * @param weights target attribute and associated data weights, at least one
+	 * @return the target-level weight container
+	 * @see io.evitadb.api.query.order.EntityWeight
+	 */
+	@Nonnull
+	static EntityWeight entityWeight(@Nullable RelevanceTextTargetSpecificationOrderConstraint... weights) {
+		return new EntityWeight(weights);
 	}
 
 	/*

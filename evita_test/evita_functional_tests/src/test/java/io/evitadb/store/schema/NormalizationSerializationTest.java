@@ -23,6 +23,7 @@
 
 package io.evitadb.store.schema;
 
+import io.evitadb.store.schema.NormalizationSerializationTest;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
@@ -107,7 +108,7 @@ class NormalizationSerializationTest {
 		return Stream.of(
 			List.of(),
 			List.of(lowercase(), asciiFolding(), trim(), removeCharacters("- ")),
-			List.of(step("custom", parameter("limit", 3), parameter("characters", new String[]{"-", "/"})))
+			List.of(normalizingStep("custom", parameter("limit", 3), parameter("characters", new String[]{"-", "/"})))
 		);
 	}
 
@@ -167,7 +168,7 @@ class NormalizationSerializationTest {
 					new ScopedAttributeFilterAccelerators(Scope.LIVE, SUBSTRING_SEARCH)
 				},
 				Scope.DEFAULT_SCOPES, Scope.DEFAULT_SCOPES,
-				true, true, true, String.class, "default", 0, ConflictResolutionOverride.ENTITY, steps
+				true, true, true, String.class, "default", 0, ConflictResolutionOverride.ENTITY, steps, null, null, null
 			);
 			final CreateGlobalAttributeSchemaMutation restored = roundTrip(createWalKryo(), mutation);
 			assertEquals(mutation, restored);
@@ -196,8 +197,8 @@ class NormalizationSerializationTest {
 	@Test
 	@DisplayName("writes parameter names in sorted order for both persistence paths")
 	void shouldWriteParametersDeterministically() {
-		final AnalysisStep forward = step("custom", parameter("alpha", 1), parameter("zeta", "value"));
-		final AnalysisStep reverse = step("custom", parameter("zeta", "value"), parameter("alpha", 1));
+		final AnalysisStep forward = normalizingStep("custom", parameter("alpha", 1), parameter("zeta", "value"));
+		final AnalysisStep reverse = normalizingStep("custom", parameter("zeta", "value"), parameter("alpha", 1));
 		assertEquals(forward, reverse);
 		assertArrayEquals(
 			serialize(createSchemaKryo(), AttributeSchema._internalBuild(
@@ -228,7 +229,7 @@ class NormalizationSerializationTest {
 				new ScopedAttributeFilterAccelerators(Scope.LIVE, SUBSTRING_SEARCH)
 			},
 			Scope.DEFAULT_SCOPES, Scope.DEFAULT_SCOPES,
-			true, true, true, String.class, "default", 0, ConflictResolutionOverride.ENTITY, steps
+			true, true, true, String.class, "default", 0, ConflictResolutionOverride.ENTITY, steps, null, null, null
 		);
 	}
 

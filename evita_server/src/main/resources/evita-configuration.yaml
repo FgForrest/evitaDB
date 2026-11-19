@@ -85,6 +85,16 @@ cache:
   minimalUsageThreshold: ${cache.minimalUsageThreshold:2}
   cacheSizeInBytes: ${cache.cacheSizeInBytes:null}
 
+fulltext:
+  minLengthOneTypo: ${fulltext.minLengthOneTypo:4}
+  minLengthTwoTypos: ${fulltext.minLengthTwoTypos:8}
+  nonFuzzyPrefix: ${fulltext.nonFuzzyPrefix:1}
+  transpositions: ${fulltext.transpositions:true}
+  digitsExact: ${fulltext.digitsExact:true}
+  prefixLeg: ${fulltext.prefixLeg:true}
+  minFragmentLength: ${fulltext.minFragmentLength:4}
+  openEndedStartLength: ${fulltext.openEndedStartLength:4}
+
 api:
   workerGroupThreads: ${api.workerGroupThreads:null}
   idleTimeoutInMillis: ${api.idleTimeoutInMillis:60K}

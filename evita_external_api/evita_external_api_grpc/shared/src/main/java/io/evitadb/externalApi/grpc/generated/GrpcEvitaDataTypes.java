@@ -308,6 +308,16 @@ public final class GrpcEvitaDataTypes {
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcAnalysisStep_ParametersEntry_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceSearchMode_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceSearchMode_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSearchModes_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSearchModes_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -570,7 +580,15 @@ public final class GrpcEvitaDataTypes {
       "ep.ParametersEntry\032h\n\017ParametersEntry\022\013\n" +
       "\003key\030\001 \001(\t\022D\n\005value\030\002 \001(\01325.io.evitadb.e" +
       "xternalApi.grpc.generated.GrpcEvitaValue" +
-      ":\0028\001B\014P\001\252\002\007EvitaDBb\006proto3"
+      ":\0028\001\"\264\001\n\035GrpcScopedReferenceSearchMode\022E" +
+      "\n\005scope\030\001 \001(\01626.io.evitadb.externalApi.g" +
+      "rpc.generated.GrpcEntityScope\022L\n\004mode\030\002 " +
+      "\001(\0162>.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcReferenceSearchMode\"o\n\030GrpcRefer" +
+      "enceSearchModes\022S\n\005modes\030\001 \003(\0132D.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcScope" +
+      "dReferenceSearchModeB\014P\001\252\002\007EvitaDBb\006prot" +
+      "o3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -903,6 +921,18 @@ public final class GrpcEvitaDataTypes {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcAnalysisStep_ParametersEntry_descriptor,
         new java.lang.String[] { "Key", "Value", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceSearchMode_descriptor =
+      getDescriptor().getMessageTypes().get(52);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceSearchMode_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceSearchMode_descriptor,
+        new java.lang.String[] { "Scope", "Mode", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSearchModes_descriptor =
+      getDescriptor().getMessageTypes().get(53);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSearchModes_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSearchModes_descriptor,
+        new java.lang.String[] { "Modes", });
     com.google.protobuf.TimestampProto.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();

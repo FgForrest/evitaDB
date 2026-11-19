@@ -1,7 +1,7 @@
 # Hunspell dictionaries used by the full-text analysis test sweeps
 
-These four dictionary pairs are **developer instruments**, not product data. They are read only by the lexicon
-coverage sweeps and the branching-stemmer equivalence tests — `CzechVariantStemmerLexiconTest`,
+These four dictionaries and the Czech affix file are **developer instruments**, not product data. They are read only
+by the lexicon coverage sweeps and the branching-stemmer equivalence tests — `CzechVariantStemmerLexiconTest`,
 `SlovakVariantStemmerLexiconTest`, `PolishVariantStemmerLexiconTest`, `RomanianVariantStemmerLexiconTest`,
 `BranchingCzechStemmerEquivalenceTest`, `BranchingSlovakStemmerEquivalenceTest`,
 `BranchingPolishStemmerEquivalenceTest` and `BranchingRomanianStemmerEquivalenceTest` — which use them to
@@ -18,7 +18,7 @@ in `evita_test/evita_functional_tests/NOTICE`. evitaDB's own Business Source Lic
 
 ## Per-dictionary provenance
 
-### `pl_PL.dic` / `pl_PL.aff`
+### `pl_PL.dic`
 
 - **Upstream**: Polish dictionary pack of the Polish Native Lang Project, 2008-12-06 snapshot of the
   OpenOffice.org dictionaries. Maintainer Marek Futrega, corrections Marcin Miłkowski.
@@ -31,7 +31,7 @@ in `evita_test/evita_functional_tests/NOTICE`. evitaDB's own Business Source Lic
   ShareAlike licenses" **without naming versions**; wooorm records the SPDX expression
   `(GPL-3.0 OR LGPL-3.0 OR MPL-2.0)`. evitaDB relies on the **MPL** option.
 
-### `sk_SK.dic` / `sk_SK.aff`
+### `sk_SK.dic`
 
 - **Upstream**: sk-spell Slovak dictionaries for ASpell & Hunspell, Zdenko Podobný, <http://www.sk-spell.sk.cx>.
   Version `2.03-1` of 2009-12-19, as stated on the first line of `sk_SK.aff`.
@@ -40,7 +40,7 @@ in `evita_test/evita_functional_tests/NOTICE`. evitaDB's own Business Source Lic
   `8cfea406b505e4d7df52d5a19bce525df98c54ab` (2024-09-09).
 - **Licence**: GPL-2.0 / LGPL-2.1 / MPL-1.1 tri-licence. evitaDB relies on the **MPL 1.1** option.
 
-### `ro_RO.dic` / `ro_RO.aff`
+### `ro_RO.dic`
 
 - **Upstream**: Romanian Hunspell package, Rospell Team, <http://rospell.sourceforge.net> /
   <https://rospell.wordpress.com>. Word list version 3.3.10, as stated on the first line of `ro_RO.aff`.
@@ -83,11 +83,8 @@ GPL-2.0 lineage.
 f39f7cfea27f4c09e3ff21d4e6d47897e6382ec9ec975d247796263b82efd5f6  cs_CZ.dic
 05b6a8c0b1f9bddb4050d334ea596f83ab58807f5854895c3ec59ce32ee0f7fa  cs_CZ.aff
 74b6155391025419967c26913541b55b36d58e80b1028037d4a0b8ddcb18d0b7  pl_PL.dic
-de7b54a8fa37562d58b481cf3d87a63e3dcc2d74021f6403eb0e4f5df9ecc225  pl_PL.aff
 b6cdb6fb512c44881cc91329aea0b179840f5f9a3e6cb024c2ab8547f96f5d94  sk_SK.dic
-a79dc992b849aa2355db38eea9c4722239993639d77bc81c9c1aa79f213e723c  sk_SK.aff
 c26a9356f598a0ae89e7be650f6bdd9ba70acce66b41d7ab14c0c68639b6ed33  ro_RO.dic
-3ee127a667bdec829faee546ae32033e8f10f7c63117f9b572ef03ad9df2b76b  ro_RO.aff
 ```
 
 Verify with `sha256sum *.dic *.aff` from this directory. A mismatch means the file was edited, which it must

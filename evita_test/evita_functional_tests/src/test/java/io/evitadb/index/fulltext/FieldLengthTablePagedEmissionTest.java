@@ -25,6 +25,7 @@ package io.evitadb.index.fulltext;
 
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
@@ -36,7 +37,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.util.Locale;
+
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -44,6 +45,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.*;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -80,7 +82,7 @@ class FieldLengthTablePagedEmissionTest {
 
 	@BeforeAll
 	static void setUpRegistry() {
-		registry = new FulltextAnalyzerRegistry();
+		registry = new FulltextAnalyzerRegistry(new AnalysisStepRegistry());
 	}
 
 	@AfterAll
@@ -571,11 +573,9 @@ class FieldLengthTablePagedEmissionTest {
 		@Test
 		@DisplayName("Collects the lengths of every field, a field registered in the transaction included")
 		void shouldCollectEveryFieldIncludingOneRegisteredInTheTransaction() {
-			final FulltextIndex index = new FulltextIndex(
-				registry.getIndexAnalyzer("product", Locale.forLanguageTag("cs"))
-			);
-			index.addValue(attribute("title"), 5, "Rychlá hnědá liška");
-			index.addValue(attribute("title"), pk(3, 1), "Líná kočka");
+			final FulltextIndex index = new FulltextIndex();
+			index.addValue(attribute("title"), 5, testAnalyzer(), 25.0, null, "Rychlá hnědá liška");
+			index.addValue(attribute("title"), pk(3, 1), testAnalyzer(), 25.0, null, "Líná kočka");
 			final LengthBlockEmission[] warmUp = index.collectChangedLengthBlocks();
 			assertEquals(1, warmUp.length);
 			assertArrayEquals(new int[]{0, 3}, changedKeys(warmUp[0]));
@@ -583,7 +583,7 @@ class FieldLengthTablePagedEmissionTest {
 			assertStateAfterCommit(
 				index,
 				t -> {
-					t.addValue(attribute("body"), 9, "Skáče přes plot");
+					t.addValue(attribute("body"), 9, testAnalyzer(), 25.0, null, "Skáče přes plot");
 					final LengthBlockEmission[] emissions = t.collectChangedLengthBlocks();
 					assertEquals(2, emissions.length, "The field the transaction registered is collected too.");
 					assertTrue(emissions[0].changedBlocks().isEmpty(), "The title was not written.");

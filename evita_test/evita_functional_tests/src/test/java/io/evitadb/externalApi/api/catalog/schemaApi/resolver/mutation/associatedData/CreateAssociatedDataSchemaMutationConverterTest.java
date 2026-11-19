@@ -23,8 +23,10 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData;
 
+import java.math.BigDecimal;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
@@ -32,10 +34,15 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import javax.annotation.Nullable;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -162,6 +169,8 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 					.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class.getSimpleName())
 					.e(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED.name(), true)
 					.e(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE.name(), true)
+					// no descriptor yet - the property is emitted by reflection over the mutation's creator (F1c)
+					.e("searchableInScopes", array())
 					.e(CreateAssociatedDataSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 					.build()
 			);
@@ -183,5 +192,27 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
 		assertEquals(ConflictResolutionOverride.ENTITY, roundTripped.getConflictResolutionOverride());
 		assertEquals(inputMutation, roundTripped);
+	}
+
+	/**
+	 * Emits a present decimal weight without rounding and omits an unspecified weight.
+	 * @param weight decimal ranking contribution, or null to leave the weight unspecified
+	 */
+	@ParameterizedTest
+	@NullSource
+	@ValueSource(strings = {"0", "0.0000001", "12345678.5", "0.123456789012345678901234567891"})
+	void shouldSerializeSearchWeightToOutput(@Nullable BigDecimal weight) {
+		final CreateAssociatedDataSchemaMutation mutation = new CreateAssociatedDataSchemaMutation(
+			"labels", null, null, String.class, false, true, new Scope[] { Scope.LIVE }, null,
+			ConflictResolutionOverride.INHERITED, null, null, weight
+		);
+		@SuppressWarnings("unchecked")
+		final Map<String, Object> output = (Map<String, Object>) this.converter.convertToOutput(mutation);
+		if (weight == null) {
+			assertThat(output).doesNotContainKey("searchWeight");
+		} else {
+			// The decimal output preserves every significant digit.
+			assertThat(output).containsEntry("searchWeight", weight.toPlainString());
+		}
 	}
 }

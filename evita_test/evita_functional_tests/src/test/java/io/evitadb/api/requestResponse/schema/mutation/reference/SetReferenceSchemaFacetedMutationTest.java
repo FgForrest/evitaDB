@@ -110,7 +110,8 @@ class SetReferenceSchemaFacetedMutationTest {
 			io.evitadb.api.requestResponse.schema
 				.ReflectedReferenceSchemaContract
 				.AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-			null
+			null,
+			null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -986,7 +987,8 @@ class SetReferenceSchemaFacetedMutationTest {
 								.FOR_FILTERING
 						)
 					},
-					new Scope[]{Scope.LIVE, Scope.ARCHIVED}
+					new Scope[]{Scope.LIVE, Scope.ARCHIVED},
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				);
 			final ReferenceSchemaContract schemaWithBoth =
 				setupMutation.mutate(

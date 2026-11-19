@@ -23,6 +23,8 @@
 
 package io.evitadb.store.wal;
 
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaSearchableMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
@@ -119,6 +121,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
@@ -694,4 +697,30 @@ public class WalMutationSerializationTest {
 			assertEquals(object, deserialized);
 		}
 	}
+
+	/** Every searchable/create serializer preserves optional ranking weights, including zero. */
+	@Test
+	@DisplayName("should round trip search weights in all searchable and create mutations")
+	void shouldRoundTripSearchWeights() {
+		for (final BigDecimal weight : new BigDecimal[]{null, BigDecimal.ZERO, valueOf(0.0000001),
+			valueOf(12345678.5), new BigDecimal("0.123456789012345678901234567891")}) {
+			assertSerializationRound(new SetAttributeSchemaSearchableMutation(
+				"name", Scope.DEFAULT_SCOPES, null, null, weight));
+			assertSerializationRound(new SetAssociatedDataSchemaSearchableMutation(
+				"body", Scope.DEFAULT_SCOPES, ExpressionFactory.parse("$value.title"), null, null, weight));
+			assertSerializationRound(new CreateAttributeSchemaMutation(
+				"name", null, null, null, null, null, Scope.DEFAULT_SCOPES, null, true, false, false,
+				String.class, null, 0, ConflictResolutionOverride.INHERITED,
+				null, null, null, weight));
+			assertSerializationRound(new CreateGlobalAttributeSchemaMutation(
+				"title", null, null, null, null, null, null, Scope.DEFAULT_SCOPES, null, true, false, false,
+				String.class, null, 0, ConflictResolutionOverride.INHERITED,
+				null, null, null, weight));
+			assertSerializationRound(new CreateAssociatedDataSchemaMutation(
+				"body", null, null, String.class, true, false, Scope.DEFAULT_SCOPES, null,
+				ConflictResolutionOverride.INHERITED,
+				null, null, weight));
+		}
+	}
+
 }

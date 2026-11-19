@@ -29,6 +29,7 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.AttributeEquals;
+import io.evitadb.api.query.filter.AttributeIn;
 import io.evitadb.api.query.filter.AttributeInSet;
 import io.evitadb.api.query.filter.AttributeIs;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
@@ -44,6 +45,7 @@ import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeEqualsTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeIsTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeValueMatchingTranslator;
+import io.evitadb.core.query.filter.translator.fulltext.AttributeInTranslator;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -58,6 +60,7 @@ import java.util.Set;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FILTER;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -67,8 +70,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins that every attribute constraint the filter can execute has a translator that creates the matcher of its
- * value, and that the registry of the translators refuses to load otherwise.
+ * Pins matcher support for attribute-value predicates and the deliberate non-matching attribute guards,
+ * together with translator coverage for the complete registered filter vocabulary.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -112,7 +115,7 @@ class FilterByVisitorAttributeTranslatorsTest {
 	void shouldAcceptRealRegistry() {
 		final Map<Class<? extends FilterConstraint>, FilteringConstraintTranslator<? extends FilterConstraint>>
 			registry = new HashMap<>();
-		for (Class<? extends FilterConstraint> constraintClass : getDescribedFilterConstraints()) {
+		for (final Class<? extends FilterConstraint> constraintClass : getDescribedFilterConstraints()) {
 			final FilteringConstraintTranslator<? extends FilterConstraint> translator =
 				FilterByVisitor.getTranslator(constraintClass);
 			if (translator != null) {
@@ -120,6 +123,15 @@ class FilterByVisitorAttributeTranslatorsTest {
 			}
 		}
 		assertFalse(registry.isEmpty());
+		assertDoesNotThrow(() -> FilterByVisitor.verifyAttributeTranslators(registry));
+	}
+
+	/** Fulltext selectors describe places; their parent performs matching over the fulltext index. */
+	@Test
+	@DisplayName("Accepts attribute place selectors without a per-value matcher")
+	void shouldAcceptAttributePlaceSelectorWithoutMatcher() {
+		final Map<Class<? extends FilterConstraint>, FilteringConstraintTranslator<? extends FilterConstraint>>
+			registry = Map.of(AttributeIn.class, new AttributeInTranslator());
 		assertDoesNotThrow(() -> FilterByVisitor.verifyAttributeTranslators(registry));
 	}
 
@@ -162,13 +174,16 @@ class FilterByVisitorAttributeTranslatorsTest {
 		assertNull(FilterByVisitor.getTranslator(FilterConstraint.class));
 	}
 
+	/**
+	 * Checks registry coverage and matcher support, except for the deliberately non-matching attribute guards.
+	 */
 	@Test
-	@DisplayName("every described filter constraint has a translator, and every attribute one can create a matcher")
+	@DisplayName("every described filter has a translator, including non-matching AttributeIs and AttributeIn guards")
 	void shouldHaveTranslatorForEveryDescribedFilterConstraint() {
-		final Set<Class<? extends FilterConstraint>> attributeConstraints = new HashSet<>();
-		final Set<Class<? extends FilterConstraint>> uniqueIndexConstraints = new HashSet<>();
-		final Set<Class<? extends FilterConstraint>> withoutTranslator = new HashSet<>();
-		for (Class<? extends FilterConstraint> constraintClass : getDescribedFilterConstraints()) {
+		final Set<Class<? extends FilterConstraint>> attributeConstraints = createHashSet(64);
+		final Set<Class<? extends FilterConstraint>> uniqueIndexConstraints = createHashSet(4);
+		final Set<Class<? extends FilterConstraint>> withoutTranslator = createHashSet(4);
+		for (final Class<? extends FilterConstraint> constraintClass : getDescribedFilterConstraints()) {
 			final FilteringConstraintTranslator<? extends FilterConstraint> translator =
 				FilterByVisitor.getTranslator(constraintClass);
 			if (translator == null) {
@@ -177,7 +192,10 @@ class FilterByVisitorAttributeTranslatorsTest {
 			}
 			if (AttributeConstraint.class.isAssignableFrom(constraintClass)) {
 				attributeConstraints.add(constraintClass);
-				if (constraintClass == AttributeIs.class) {
+				if (constraintClass == AttributeIn.class) {
+					assertInstanceOf(AttributeInTranslator.class, translator);
+				}
+				if (constraintClass == AttributeIs.class || constraintClass == AttributeIn.class) {
 					assertFalse(translator instanceof AttributeValueMatchingTranslator<?>);
 				} else {
 					final AttributeValueMatchingTranslator<?> matchingTranslator = assertInstanceOf(
@@ -196,6 +214,7 @@ class FilterByVisitorAttributeTranslatorsTest {
 		);
 		assertFalse(attributeConstraints.isEmpty());
 		assertTrue(attributeConstraints.contains(AttributeIs.class));
+		assertTrue(attributeConstraints.contains(AttributeIn.class));
 		assertEquals(Set.of(AttributeEquals.class, AttributeInSet.class), uniqueIndexConstraints);
 	}
 

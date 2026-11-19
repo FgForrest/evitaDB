@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
+import io.evitadb.api.requestResponse.schema.analysis.NormalizingAnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNormalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.core.Evita;
@@ -86,7 +87,9 @@ class NormalizationSchemaValidationTest implements EvitaTestSupport {
 			assertInvalid("name", "absent", () ->
 				NormalizationSchemaValidationTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
 					session.defineEntitySchema("Product")
-						.withAttribute("name", String.class, attribute -> attribute.normalized(step("absent")))
+						.withAttribute(
+							"name", String.class, attribute -> attribute.normalized(normalizingStep("absent"))
+						)
 						.updateVia(session);
 				}));
 		}
@@ -101,7 +104,7 @@ class NormalizationSchemaValidationTest implements EvitaTestSupport {
 			assertInvalid("name", "absent", () ->
 				NormalizationSchemaValidationTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
 					session.updateEntitySchema(new ModifyEntitySchemaMutation("Product", new SetAttributeSchemaNormalizedMutation(
-						"name", new AnalysisStep[]{step("absent")}
+						"name", new AnalysisStep[]{normalizingStep("absent")}
 					)));
 				}));
 			NormalizationSchemaValidationTest.this.evita.queryCatalog(TEST_CATALOG, session -> {
@@ -118,7 +121,10 @@ class NormalizationSchemaValidationTest implements EvitaTestSupport {
 				NormalizationSchemaValidationTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
 					session.defineEntitySchema("Product")
 						.withReferenceTo("brand", "Brand", Cardinality.ZERO_OR_MORE, reference -> reference
-							.withAttribute("referenceCode", String.class, attribute -> attribute.normalized(step("absent"))))
+							.withAttribute(
+								"referenceCode", String.class,
+								attribute -> attribute.normalized(normalizingStep("absent"))
+							))
 						.updateVia(session);
 				}));
 		}
@@ -130,7 +136,9 @@ class NormalizationSchemaValidationTest implements EvitaTestSupport {
 			assertInvalid("globalCode", "absent", () ->
 				NormalizationSchemaValidationTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
 					session.getCatalogSchema().openForWrite()
-						.withAttribute("globalCode", String.class, attribute -> attribute.normalized(step("absent")))
+						.withAttribute(
+							"globalCode", String.class, attribute -> attribute.normalized(normalizingStep("absent"))
+						)
 						.updateVia(session);
 				}));
 		}
@@ -142,7 +150,10 @@ class NormalizationSchemaValidationTest implements EvitaTestSupport {
 			assertInvalid("name", "remove-characters", () ->
 				NormalizationSchemaValidationTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
 					session.defineEntitySchema("Product")
-						.withAttribute("name", String.class, attribute -> attribute.normalized(step("remove-characters")))
+						.withAttribute(
+							"name", String.class,
+							attribute -> attribute.normalized(normalizingStep("remove-characters"))
+						)
 						.updateVia(session);
 				}));
 		}
@@ -158,7 +169,9 @@ class NormalizationSchemaValidationTest implements EvitaTestSupport {
 			assertInvalid("globalCode", "absent", () ->
 				NormalizationSchemaValidationTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
 					session.getCatalogSchema().openForWrite()
-						.withAttribute("globalCode", String.class, attribute -> attribute.normalized(step("absent")))
+						.withAttribute(
+							"globalCode", String.class, attribute -> attribute.normalized(normalizingStep("absent"))
+						)
 						.updateVia(session);
 				}));
 			NormalizationSchemaValidationTest.this.evita.queryCatalog(TEST_CATALOG, session -> {
@@ -172,7 +185,7 @@ class NormalizationSchemaValidationTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should accept valid entity reference and global declarations")
 		void shouldAcceptValidDeclarations() {
-			final AnalysisStep[] steps = {lowercase(), asciiFolding(), trim(), removeCharacters("-😀")};
+			final NormalizingAnalysisStep[] steps = {lowercase(), asciiFolding(), trim(), removeCharacters("-😀")};
 			NormalizationSchemaValidationTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
 				session.getCatalogSchema().openForWrite()
 					.withAttribute("globalCode", String.class, attribute -> attribute.normalized(steps)).updateVia(session);
@@ -225,7 +238,9 @@ class NormalizationSchemaValidationTest implements EvitaTestSupport {
 				NormalizationSchemaValidationTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
 					session.defineEntitySchema("Category").withReflectedReferenceToEntity(
 						"products", "Product", "categories", reference -> reference.withAttributesInheritedExcept("excluded")
-							.withAttribute("ownCode", String.class, attribute -> attribute.normalized(step("absent")))
+							.withAttribute(
+								"ownCode", String.class, attribute -> attribute.normalized(normalizingStep("absent"))
+							)
 					).updateVia(session);
 				}));
 		}

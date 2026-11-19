@@ -65,6 +65,7 @@ public final class CzechLexicon {
 		"evita_test/evita_functional_tests/src/test/resources/fulltext/hunspell/cs_CZ.dic"
 	};
 
+	/** Prevents construction of this vocabulary utility. */
 	private CzechLexicon() {
 	}
 

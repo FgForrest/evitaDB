@@ -55,6 +55,7 @@ private static final long serialVersionUID = 0L;
     type_ = 0;
     nameVariant_ = java.util.Collections.emptyList();
     conflictResolutionOverride_ = 0;
+    searchableInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -366,6 +367,256 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.UNRECOGNIZED : result;
   }
 
+  public static final int SEARCHABLEINSCOPES_FIELD_NUMBER = 9;
+  @SuppressWarnings("serial")
+  private java.util.List<java.lang.Integer> searchableInScopes_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope> searchableInScopes_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcEntityScope convert(java.lang.Integer from) {
+              io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.forNumber(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+   * scope, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+   * @return A list containing the searchableInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getSearchableInScopesList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(searchableInScopes_, searchableInScopes_converter_);
+  }
+  /**
+   * <pre>
+   * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+   * scope, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+   * @return The count of searchableInScopes.
+   */
+  @java.lang.Override
+  public int getSearchableInScopesCount() {
+    return searchableInScopes_.size();
+  }
+  /**
+   * <pre>
+   * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+   * scope, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+   * @param index The index of the element to return.
+   * @return The searchableInScopes at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getSearchableInScopes(int index) {
+    return searchableInScopes_converter_.convert(searchableInScopes_.get(index));
+  }
+  /**
+   * <pre>
+   * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+   * scope, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+   * @return A list containing the enum numeric values on the wire for searchableInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getSearchableInScopesValueList() {
+    return searchableInScopes_;
+  }
+  /**
+   * <pre>
+   * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+   * scope, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of searchableInScopes at the given index.
+   */
+  @java.lang.Override
+  public int getSearchableInScopesValue(int index) {
+    return searchableInScopes_.get(index);
+  }
+  private int searchableInScopesMemoizedSerializedSize;
+
+  public static final int ANALYZER_FIELD_NUMBER = 10;
+  private com.google.protobuf.StringValue analyzer_;
+  /**
+   * <pre>
+   * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+   * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 10;</code>
+   * @return Whether the analyzer field is set.
+   */
+  @java.lang.Override
+  public boolean hasAnalyzer() {
+    return ((bitField0_ & 0x00000004) != 0);
+  }
+  /**
+   * <pre>
+   * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+   * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 10;</code>
+   * @return The analyzer.
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getAnalyzer() {
+    return analyzer_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : analyzer_;
+  }
+  /**
+   * <pre>
+   * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+   * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 10;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getAnalyzerOrBuilder() {
+    return analyzer_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : analyzer_;
+  }
+
+  public static final int LENGTHPIVOT_FIELD_NUMBER = 11;
+  private com.google.protobuf.Int32Value lengthPivot_;
+  /**
+   * <pre>
+   * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+   * one less. Unset when the server predates fulltext; clients then use the default 25.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+   * @return Whether the lengthPivot field is set.
+   */
+  @java.lang.Override
+  public boolean hasLengthPivot() {
+    return ((bitField0_ & 0x00000008) != 0);
+  }
+  /**
+   * <pre>
+   * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+   * one less. Unset when the server predates fulltext; clients then use the default 25.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+   * @return The lengthPivot.
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32Value getLengthPivot() {
+    return lengthPivot_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : lengthPivot_;
+  }
+  /**
+   * <pre>
+   * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+   * one less. Unset when the server predates fulltext; clients then use the default 25.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32ValueOrBuilder getLengthPivotOrBuilder() {
+    return lengthPivot_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : lengthPivot_;
+  }
+
+  public static final int SEARCHWEIGHT_FIELD_NUMBER = 12;
+  private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight_;
+  /**
+   * <pre>
+   * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+   * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+   * differs from an unset wrapper.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+   * @return Whether the searchWeight field is set.
+   */
+  @java.lang.Override
+  public boolean hasSearchWeight() {
+    return ((bitField0_ & 0x00000010) != 0);
+  }
+  /**
+   * <pre>
+   * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+   * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+   * differs from an unset wrapper.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+   * @return The searchWeight.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchWeight() {
+    return searchWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchWeight_;
+  }
+  /**
+   * <pre>
+   * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+   * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+   * differs from an unset wrapper.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchWeightOrBuilder() {
+    return searchWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchWeight_;
+  }
+
+  public static final int TEXTEXPRESSION_FIELD_NUMBER = 13;
+  private com.google.protobuf.StringValue textExpression_;
+  /**
+   * <pre>
+   * Raw source of the expression selecting the searchable text from the associated data value, such as
+   * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue textExpression = 13;</code>
+   * @return Whether the textExpression field is set.
+   */
+  @java.lang.Override
+  public boolean hasTextExpression() {
+    return ((bitField0_ & 0x00000020) != 0);
+  }
+  /**
+   * <pre>
+   * Raw source of the expression selecting the searchable text from the associated data value, such as
+   * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue textExpression = 13;</code>
+   * @return The textExpression.
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getTextExpression() {
+    return textExpression_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : textExpression_;
+  }
+  /**
+   * <pre>
+   * Raw source of the expression selecting the searchable text from the associated data value, such as
+   * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue textExpression = 13;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getTextExpressionOrBuilder() {
+    return textExpression_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : textExpression_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -380,6 +631,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    getSerializedSize();
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
     }
@@ -403,6 +655,25 @@ private static final long serialVersionUID = 0L;
     }
     if (conflictResolutionOverride_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED.getNumber()) {
       output.writeEnum(8, conflictResolutionOverride_);
+    }
+    if (getSearchableInScopesList().size() > 0) {
+      output.writeUInt32NoTag(74);
+      output.writeUInt32NoTag(searchableInScopesMemoizedSerializedSize);
+    }
+    for (int i = 0; i < searchableInScopes_.size(); i++) {
+      output.writeEnumNoTag(searchableInScopes_.get(i));
+    }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      output.writeMessage(10, getAnalyzer());
+    }
+    if (((bitField0_ & 0x00000008) != 0)) {
+      output.writeMessage(11, getLengthPivot());
+    }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      output.writeMessage(12, getSearchWeight());
+    }
+    if (((bitField0_ & 0x00000020) != 0)) {
+      output.writeMessage(13, getTextExpression());
     }
     getUnknownFields().writeTo(output);
   }
@@ -444,6 +715,34 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(8, conflictResolutionOverride_);
     }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < searchableInScopes_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(searchableInScopes_.get(i));
+      }
+      size += dataSize;
+      if (!getSearchableInScopesList().isEmpty()) {  size += 1;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }searchableInScopesMemoizedSerializedSize = dataSize;
+    }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(10, getAnalyzer());
+    }
+    if (((bitField0_ & 0x00000008) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(11, getLengthPivot());
+    }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(12, getSearchWeight());
+    }
+    if (((bitField0_ & 0x00000020) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(13, getTextExpression());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -479,6 +778,27 @@ private static final long serialVersionUID = 0L;
     if (!getNameVariantList()
         .equals(other.getNameVariantList())) return false;
     if (conflictResolutionOverride_ != other.conflictResolutionOverride_) return false;
+    if (!searchableInScopes_.equals(other.searchableInScopes_)) return false;
+    if (hasAnalyzer() != other.hasAnalyzer()) return false;
+    if (hasAnalyzer()) {
+      if (!getAnalyzer()
+          .equals(other.getAnalyzer())) return false;
+    }
+    if (hasLengthPivot() != other.hasLengthPivot()) return false;
+    if (hasLengthPivot()) {
+      if (!getLengthPivot()
+          .equals(other.getLengthPivot())) return false;
+    }
+    if (hasSearchWeight() != other.hasSearchWeight()) return false;
+    if (hasSearchWeight()) {
+      if (!getSearchWeight()
+          .equals(other.getSearchWeight())) return false;
+    }
+    if (hasTextExpression() != other.hasTextExpression()) return false;
+    if (hasTextExpression()) {
+      if (!getTextExpression()
+          .equals(other.getTextExpression())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -514,6 +834,26 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + CONFLICTRESOLUTIONOVERRIDE_FIELD_NUMBER;
     hash = (53 * hash) + conflictResolutionOverride_;
+    if (getSearchableInScopesCount() > 0) {
+      hash = (37 * hash) + SEARCHABLEINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + searchableInScopes_.hashCode();
+    }
+    if (hasAnalyzer()) {
+      hash = (37 * hash) + ANALYZER_FIELD_NUMBER;
+      hash = (53 * hash) + getAnalyzer().hashCode();
+    }
+    if (hasLengthPivot()) {
+      hash = (37 * hash) + LENGTHPIVOT_FIELD_NUMBER;
+      hash = (53 * hash) + getLengthPivot().hashCode();
+    }
+    if (hasSearchWeight()) {
+      hash = (37 * hash) + SEARCHWEIGHT_FIELD_NUMBER;
+      hash = (53 * hash) + getSearchWeight().hashCode();
+    }
+    if (hasTextExpression()) {
+      hash = (37 * hash) + TEXTEXPRESSION_FIELD_NUMBER;
+      hash = (53 * hash) + getTextExpression().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -658,6 +998,10 @@ private static final long serialVersionUID = 0L;
         getDescriptionFieldBuilder();
         getDeprecationNoticeFieldBuilder();
         getNameVariantFieldBuilder();
+        getAnalyzerFieldBuilder();
+        getLengthPivotFieldBuilder();
+        getSearchWeightFieldBuilder();
+        getTextExpressionFieldBuilder();
       }
     }
     @java.lang.Override
@@ -686,6 +1030,28 @@ private static final long serialVersionUID = 0L;
       }
       bitField0_ = (bitField0_ & ~0x00000040);
       conflictResolutionOverride_ = 0;
+      searchableInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000100);
+      analyzer_ = null;
+      if (analyzerBuilder_ != null) {
+        analyzerBuilder_.dispose();
+        analyzerBuilder_ = null;
+      }
+      lengthPivot_ = null;
+      if (lengthPivotBuilder_ != null) {
+        lengthPivotBuilder_.dispose();
+        lengthPivotBuilder_ = null;
+      }
+      searchWeight_ = null;
+      if (searchWeightBuilder_ != null) {
+        searchWeightBuilder_.dispose();
+        searchWeightBuilder_ = null;
+      }
+      textExpression_ = null;
+      if (textExpressionBuilder_ != null) {
+        textExpressionBuilder_.dispose();
+        textExpressionBuilder_ = null;
+      }
       return this;
     }
 
@@ -728,6 +1094,11 @@ private static final long serialVersionUID = 0L;
       } else {
         result.nameVariant_ = nameVariantBuilder_.build();
       }
+      if (((bitField0_ & 0x00000100) != 0)) {
+        searchableInScopes_ = java.util.Collections.unmodifiableList(searchableInScopes_);
+        bitField0_ = (bitField0_ & ~0x00000100);
+      }
+      result.searchableInScopes_ = searchableInScopes_;
     }
 
     private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema result) {
@@ -759,6 +1130,30 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000080) != 0)) {
         result.conflictResolutionOverride_ = conflictResolutionOverride_;
+      }
+      if (((from_bitField0_ & 0x00000200) != 0)) {
+        result.analyzer_ = analyzerBuilder_ == null
+            ? analyzer_
+            : analyzerBuilder_.build();
+        to_bitField0_ |= 0x00000004;
+      }
+      if (((from_bitField0_ & 0x00000400) != 0)) {
+        result.lengthPivot_ = lengthPivotBuilder_ == null
+            ? lengthPivot_
+            : lengthPivotBuilder_.build();
+        to_bitField0_ |= 0x00000008;
+      }
+      if (((from_bitField0_ & 0x00000800) != 0)) {
+        result.searchWeight_ = searchWeightBuilder_ == null
+            ? searchWeight_
+            : searchWeightBuilder_.build();
+        to_bitField0_ |= 0x00000010;
+      }
+      if (((from_bitField0_ & 0x00001000) != 0)) {
+        result.textExpression_ = textExpressionBuilder_ == null
+            ? textExpression_
+            : textExpressionBuilder_.build();
+        to_bitField0_ |= 0x00000020;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -856,6 +1251,28 @@ private static final long serialVersionUID = 0L;
       if (other.conflictResolutionOverride_ != 0) {
         setConflictResolutionOverrideValue(other.getConflictResolutionOverrideValue());
       }
+      if (!other.searchableInScopes_.isEmpty()) {
+        if (searchableInScopes_.isEmpty()) {
+          searchableInScopes_ = other.searchableInScopes_;
+          bitField0_ = (bitField0_ & ~0x00000100);
+        } else {
+          ensureSearchableInScopesIsMutable();
+          searchableInScopes_.addAll(other.searchableInScopes_);
+        }
+        onChanged();
+      }
+      if (other.hasAnalyzer()) {
+        mergeAnalyzer(other.getAnalyzer());
+      }
+      if (other.hasLengthPivot()) {
+        mergeLengthPivot(other.getLengthPivot());
+      }
+      if (other.hasSearchWeight()) {
+        mergeSearchWeight(other.getSearchWeight());
+      }
+      if (other.hasTextExpression()) {
+        mergeTextExpression(other.getTextExpression());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -934,6 +1351,51 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000080;
               break;
             } // case 64
+            case 72: {
+              int tmpRaw = input.readEnum();
+              ensureSearchableInScopesIsMutable();
+              searchableInScopes_.add(tmpRaw);
+              break;
+            } // case 72
+            case 74: {
+              int length = input.readRawVarint32();
+              int oldLimit = input.pushLimit(length);
+              while(input.getBytesUntilLimit() > 0) {
+                int tmpRaw = input.readEnum();
+                ensureSearchableInScopesIsMutable();
+                searchableInScopes_.add(tmpRaw);
+              }
+              input.popLimit(oldLimit);
+              break;
+            } // case 74
+            case 82: {
+              input.readMessage(
+                  getAnalyzerFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000200;
+              break;
+            } // case 82
+            case 90: {
+              input.readMessage(
+                  getLengthPivotFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000400;
+              break;
+            } // case 90
+            case 98: {
+              input.readMessage(
+                  getSearchWeightFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000800;
+              break;
+            } // case 98
+            case 106: {
+              input.readMessage(
+                  getTextExpressionFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00001000;
+              break;
+            } // case 106
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1963,6 +2425,879 @@ private static final long serialVersionUID = 0L;
       conflictResolutionOverride_ = 0;
       onChanged();
       return this;
+    }
+
+    private java.util.List<java.lang.Integer> searchableInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensureSearchableInScopesIsMutable() {
+      if (!((bitField0_ & 0x00000100) != 0)) {
+        searchableInScopes_ = new java.util.ArrayList<java.lang.Integer>(searchableInScopes_);
+        bitField0_ |= 0x00000100;
+      }
+    }
+    /**
+     * <pre>
+     * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+     * scope, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+     * @return A list containing the searchableInScopes.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getSearchableInScopesList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(searchableInScopes_, searchableInScopes_converter_);
+    }
+    /**
+     * <pre>
+     * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+     * scope, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+     * @return The count of searchableInScopes.
+     */
+    public int getSearchableInScopesCount() {
+      return searchableInScopes_.size();
+    }
+    /**
+     * <pre>
+     * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+     * scope, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+     * @param index The index of the element to return.
+     * @return The searchableInScopes at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getSearchableInScopes(int index) {
+      return searchableInScopes_converter_.convert(searchableInScopes_.get(index));
+    }
+    /**
+     * <pre>
+     * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+     * scope, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+     * @param index The index to set the value at.
+     * @param value The searchableInScopes to set.
+     * @return This builder for chaining.
+     */
+    public Builder setSearchableInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureSearchableInScopesIsMutable();
+      searchableInScopes_.set(index, value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+     * scope, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+     * @param value The searchableInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addSearchableInScopes(io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureSearchableInScopesIsMutable();
+      searchableInScopes_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+     * scope, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+     * @param values The searchableInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllSearchableInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
+      ensureSearchableInScopesIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
+        searchableInScopes_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+     * scope, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearSearchableInScopes() {
+      searchableInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000100);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+     * scope, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+     * @return A list containing the enum numeric values on the wire for searchableInScopes.
+     */
+    public java.util.List<java.lang.Integer>
+    getSearchableInScopesValueList() {
+      return java.util.Collections.unmodifiableList(searchableInScopes_);
+    }
+    /**
+     * <pre>
+     * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+     * scope, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of searchableInScopes at the given index.
+     */
+    public int getSearchableInScopesValue(int index) {
+      return searchableInScopes_.get(index);
+    }
+    /**
+     * <pre>
+     * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+     * scope, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+     * @param index The index to set the value at.
+     * @param value The enum numeric value on the wire for searchableInScopes to set.
+     * @return This builder for chaining.
+     */
+    public Builder setSearchableInScopesValue(
+        int index, int value) {
+      ensureSearchableInScopesIsMutable();
+      searchableInScopes_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+     * scope, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+     * @param value The enum numeric value on the wire for searchableInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addSearchableInScopesValue(int value) {
+      ensureSearchableInScopesIsMutable();
+      searchableInScopes_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+     * scope, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+     * @param values The enum numeric values on the wire for searchableInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllSearchableInScopesValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureSearchableInScopesIsMutable();
+      for (int value : values) {
+        searchableInScopes_.add(value);
+      }
+      onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.StringValue analyzer_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> analyzerBuilder_;
+    /**
+     * <pre>
+     * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+     * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 10;</code>
+     * @return Whether the analyzer field is set.
+     */
+    public boolean hasAnalyzer() {
+      return ((bitField0_ & 0x00000200) != 0);
+    }
+    /**
+     * <pre>
+     * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+     * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 10;</code>
+     * @return The analyzer.
+     */
+    public com.google.protobuf.StringValue getAnalyzer() {
+      if (analyzerBuilder_ == null) {
+        return analyzer_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : analyzer_;
+      } else {
+        return analyzerBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+     * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 10;</code>
+     */
+    public Builder setAnalyzer(com.google.protobuf.StringValue value) {
+      if (analyzerBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        analyzer_ = value;
+      } else {
+        analyzerBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000200;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+     * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 10;</code>
+     */
+    public Builder setAnalyzer(
+        com.google.protobuf.StringValue.Builder builderForValue) {
+      if (analyzerBuilder_ == null) {
+        analyzer_ = builderForValue.build();
+      } else {
+        analyzerBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000200;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+     * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 10;</code>
+     */
+    public Builder mergeAnalyzer(com.google.protobuf.StringValue value) {
+      if (analyzerBuilder_ == null) {
+        if (((bitField0_ & 0x00000200) != 0) &&
+          analyzer_ != null &&
+          analyzer_ != com.google.protobuf.StringValue.getDefaultInstance()) {
+          getAnalyzerBuilder().mergeFrom(value);
+        } else {
+          analyzer_ = value;
+        }
+      } else {
+        analyzerBuilder_.mergeFrom(value);
+      }
+      if (analyzer_ != null) {
+        bitField0_ |= 0x00000200;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+     * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 10;</code>
+     */
+    public Builder clearAnalyzer() {
+      bitField0_ = (bitField0_ & ~0x00000200);
+      analyzer_ = null;
+      if (analyzerBuilder_ != null) {
+        analyzerBuilder_.dispose();
+        analyzerBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+     * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 10;</code>
+     */
+    public com.google.protobuf.StringValue.Builder getAnalyzerBuilder() {
+      bitField0_ |= 0x00000200;
+      onChanged();
+      return getAnalyzerFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+     * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 10;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getAnalyzerOrBuilder() {
+      if (analyzerBuilder_ != null) {
+        return analyzerBuilder_.getMessageOrBuilder();
+      } else {
+        return analyzer_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : analyzer_;
+      }
+    }
+    /**
+     * <pre>
+     * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+     * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue analyzer = 10;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        getAnalyzerFieldBuilder() {
+      if (analyzerBuilder_ == null) {
+        analyzerBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
+                getAnalyzer(),
+                getParentForChildren(),
+                isClean());
+        analyzer_ = null;
+      }
+      return analyzerBuilder_;
+    }
+
+    private com.google.protobuf.Int32Value lengthPivot_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> lengthPivotBuilder_;
+    /**
+     * <pre>
+     * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+     * one less. Unset when the server predates fulltext; clients then use the default 25.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+     * @return Whether the lengthPivot field is set.
+     */
+    public boolean hasLengthPivot() {
+      return ((bitField0_ & 0x00000400) != 0);
+    }
+    /**
+     * <pre>
+     * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+     * one less. Unset when the server predates fulltext; clients then use the default 25.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+     * @return The lengthPivot.
+     */
+    public com.google.protobuf.Int32Value getLengthPivot() {
+      if (lengthPivotBuilder_ == null) {
+        return lengthPivot_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : lengthPivot_;
+      } else {
+        return lengthPivotBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+     * one less. Unset when the server predates fulltext; clients then use the default 25.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+     */
+    public Builder setLengthPivot(com.google.protobuf.Int32Value value) {
+      if (lengthPivotBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        lengthPivot_ = value;
+      } else {
+        lengthPivotBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000400;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+     * one less. Unset when the server predates fulltext; clients then use the default 25.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+     */
+    public Builder setLengthPivot(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (lengthPivotBuilder_ == null) {
+        lengthPivot_ = builderForValue.build();
+      } else {
+        lengthPivotBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000400;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+     * one less. Unset when the server predates fulltext; clients then use the default 25.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+     */
+    public Builder mergeLengthPivot(com.google.protobuf.Int32Value value) {
+      if (lengthPivotBuilder_ == null) {
+        if (((bitField0_ & 0x00000400) != 0) &&
+          lengthPivot_ != null &&
+          lengthPivot_ != com.google.protobuf.Int32Value.getDefaultInstance()) {
+          getLengthPivotBuilder().mergeFrom(value);
+        } else {
+          lengthPivot_ = value;
+        }
+      } else {
+        lengthPivotBuilder_.mergeFrom(value);
+      }
+      if (lengthPivot_ != null) {
+        bitField0_ |= 0x00000400;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+     * one less. Unset when the server predates fulltext; clients then use the default 25.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+     */
+    public Builder clearLengthPivot() {
+      bitField0_ = (bitField0_ & ~0x00000400);
+      lengthPivot_ = null;
+      if (lengthPivotBuilder_ != null) {
+        lengthPivotBuilder_.dispose();
+        lengthPivotBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+     * one less. Unset when the server predates fulltext; clients then use the default 25.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getLengthPivotBuilder() {
+      bitField0_ |= 0x00000400;
+      onChanged();
+      return getLengthPivotFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+     * one less. Unset when the server predates fulltext; clients then use the default 25.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getLengthPivotOrBuilder() {
+      if (lengthPivotBuilder_ != null) {
+        return lengthPivotBuilder_.getMessageOrBuilder();
+      } else {
+        return lengthPivot_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : lengthPivot_;
+      }
+    }
+    /**
+     * <pre>
+     * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+     * one less. Unset when the server predates fulltext; clients then use the default 25.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        getLengthPivotFieldBuilder() {
+      if (lengthPivotBuilder_ == null) {
+        lengthPivotBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getLengthPivot(),
+                getParentForChildren(),
+                isClean());
+        lengthPivot_ = null;
+      }
+      return lengthPivotBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> searchWeightBuilder_;
+    /**
+     * <pre>
+     * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+     * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+     * differs from an unset wrapper.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+     * @return Whether the searchWeight field is set.
+     */
+    public boolean hasSearchWeight() {
+      return ((bitField0_ & 0x00000800) != 0);
+    }
+    /**
+     * <pre>
+     * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+     * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+     * differs from an unset wrapper.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+     * @return The searchWeight.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchWeight() {
+      if (searchWeightBuilder_ == null) {
+        return searchWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchWeight_;
+      } else {
+        return searchWeightBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+     * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+     * differs from an unset wrapper.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+     */
+    public Builder setSearchWeight(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
+      if (searchWeightBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        searchWeight_ = value;
+      } else {
+        searchWeightBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000800;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+     * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+     * differs from an unset wrapper.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+     */
+    public Builder setSearchWeight(
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
+      if (searchWeightBuilder_ == null) {
+        searchWeight_ = builderForValue.build();
+      } else {
+        searchWeightBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000800;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+     * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+     * differs from an unset wrapper.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+     */
+    public Builder mergeSearchWeight(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
+      if (searchWeightBuilder_ == null) {
+        if (((bitField0_ & 0x00000800) != 0) &&
+          searchWeight_ != null &&
+          searchWeight_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance()) {
+          getSearchWeightBuilder().mergeFrom(value);
+        } else {
+          searchWeight_ = value;
+        }
+      } else {
+        searchWeightBuilder_.mergeFrom(value);
+      }
+      if (searchWeight_ != null) {
+        bitField0_ |= 0x00000800;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+     * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+     * differs from an unset wrapper.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+     */
+    public Builder clearSearchWeight() {
+      bitField0_ = (bitField0_ & ~0x00000800);
+      searchWeight_ = null;
+      if (searchWeightBuilder_ != null) {
+        searchWeightBuilder_.dispose();
+        searchWeightBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+     * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+     * differs from an unset wrapper.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getSearchWeightBuilder() {
+      bitField0_ |= 0x00000800;
+      onChanged();
+      return getSearchWeightFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+     * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+     * differs from an unset wrapper.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchWeightOrBuilder() {
+      if (searchWeightBuilder_ != null) {
+        return searchWeightBuilder_.getMessageOrBuilder();
+      } else {
+        return searchWeight_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchWeight_;
+      }
+    }
+    /**
+     * <pre>
+     * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+     * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+     * differs from an unset wrapper.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
+        getSearchWeightFieldBuilder() {
+      if (searchWeightBuilder_ == null) {
+        searchWeightBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
+                getSearchWeight(),
+                getParentForChildren(),
+                isClean());
+        searchWeight_ = null;
+      }
+      return searchWeightBuilder_;
+    }
+
+    private com.google.protobuf.StringValue textExpression_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> textExpressionBuilder_;
+    /**
+     * <pre>
+     * Raw source of the expression selecting the searchable text from the associated data value, such as
+     * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue textExpression = 13;</code>
+     * @return Whether the textExpression field is set.
+     */
+    public boolean hasTextExpression() {
+      return ((bitField0_ & 0x00001000) != 0);
+    }
+    /**
+     * <pre>
+     * Raw source of the expression selecting the searchable text from the associated data value, such as
+     * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue textExpression = 13;</code>
+     * @return The textExpression.
+     */
+    public com.google.protobuf.StringValue getTextExpression() {
+      if (textExpressionBuilder_ == null) {
+        return textExpression_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : textExpression_;
+      } else {
+        return textExpressionBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Raw source of the expression selecting the searchable text from the associated data value, such as
+     * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue textExpression = 13;</code>
+     */
+    public Builder setTextExpression(com.google.protobuf.StringValue value) {
+      if (textExpressionBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        textExpression_ = value;
+      } else {
+        textExpressionBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00001000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Raw source of the expression selecting the searchable text from the associated data value, such as
+     * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue textExpression = 13;</code>
+     */
+    public Builder setTextExpression(
+        com.google.protobuf.StringValue.Builder builderForValue) {
+      if (textExpressionBuilder_ == null) {
+        textExpression_ = builderForValue.build();
+      } else {
+        textExpressionBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00001000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Raw source of the expression selecting the searchable text from the associated data value, such as
+     * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue textExpression = 13;</code>
+     */
+    public Builder mergeTextExpression(com.google.protobuf.StringValue value) {
+      if (textExpressionBuilder_ == null) {
+        if (((bitField0_ & 0x00001000) != 0) &&
+          textExpression_ != null &&
+          textExpression_ != com.google.protobuf.StringValue.getDefaultInstance()) {
+          getTextExpressionBuilder().mergeFrom(value);
+        } else {
+          textExpression_ = value;
+        }
+      } else {
+        textExpressionBuilder_.mergeFrom(value);
+      }
+      if (textExpression_ != null) {
+        bitField0_ |= 0x00001000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Raw source of the expression selecting the searchable text from the associated data value, such as
+     * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue textExpression = 13;</code>
+     */
+    public Builder clearTextExpression() {
+      bitField0_ = (bitField0_ & ~0x00001000);
+      textExpression_ = null;
+      if (textExpressionBuilder_ != null) {
+        textExpressionBuilder_.dispose();
+        textExpressionBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Raw source of the expression selecting the searchable text from the associated data value, such as
+     * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue textExpression = 13;</code>
+     */
+    public com.google.protobuf.StringValue.Builder getTextExpressionBuilder() {
+      bitField0_ |= 0x00001000;
+      onChanged();
+      return getTextExpressionFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Raw source of the expression selecting the searchable text from the associated data value, such as
+     * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue textExpression = 13;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getTextExpressionOrBuilder() {
+      if (textExpressionBuilder_ != null) {
+        return textExpressionBuilder_.getMessageOrBuilder();
+      } else {
+        return textExpression_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : textExpression_;
+      }
+    }
+    /**
+     * <pre>
+     * Raw source of the expression selecting the searchable text from the associated data value, such as
+     * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue textExpression = 13;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        getTextExpressionFieldBuilder() {
+      if (textExpressionBuilder_ == null) {
+        textExpressionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
+                getTextExpression(),
+                getParentForChildren(),
+                isClean());
+        textExpression_ = null;
+      }
+      return textExpressionBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

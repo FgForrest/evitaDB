@@ -200,7 +200,8 @@ class PrefetchedRecordsSorterTest {
 		final SortableAttributeCompoundSchemaContract compoundSchema = mock(SortableAttributeCompoundSchemaContract.class);
 		when(compoundSchema.getAttributeElements()).thenReturn(List.of());
 		final ReferenceSchema referenceSchema = ReferenceSchema._internalBuild(
-			"category", "category", false, Cardinality.ZERO_OR_ONE, null, false, null, null
+			"category", "category", false, Cardinality.ZERO_OR_ONE, null, false, null, null,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 		final AbstractReferenceCompoundAttributeComparator comparator = new AbstractReferenceCompoundAttributeComparator(
 			compoundSchema, referenceSchema, null, attributeName -> mock(AttributeSchemaContract.class),

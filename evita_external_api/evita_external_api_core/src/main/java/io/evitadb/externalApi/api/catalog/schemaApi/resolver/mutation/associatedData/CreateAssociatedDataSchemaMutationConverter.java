@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.resolver.mutation.Input;
+import io.evitadb.externalApi.api.resolver.mutation.Output;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
@@ -66,7 +67,31 @@ public class CreateAssociatedDataSchemaMutationConverter extends AssociatedDataS
 			),
 			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED, false),
 			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE, false),
-			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE, ConflictResolutionOverride.INHERITED)
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.SEARCHABLE_IN_SCOPES),
+			readTextExpression(input),
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE,
+				ConflictResolutionOverride.INHERITED),
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.ANALYZER),
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.LENGTH_PIVOT),
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.SEARCH_WEIGHT)
 		);
+	}
+
+	/**
+	 * Writes the text expression as raw source and the ranking weight as a decimal before reflection reaches them,
+	 * because {@link Output} cannot serialize an `Expression`; reflection then fills in the
+	 * remaining properties.
+	 *
+	 * @param mutation the mutation to serialize
+	 * @param output the output receiving the properties
+	 */
+	@Override
+	protected void convertToOutput(@Nonnull CreateAssociatedDataSchemaMutation mutation, @Nonnull Output output) {
+		writeTextExpression(mutation.getTextExpression(), output);
+		writeSearchWeight(
+			CreateAssociatedDataSchemaMutationDescriptor.SEARCH_WEIGHT.name(),
+			mutation.getSearchWeight(), output
+		);
+		super.convertToOutput(mutation, output);
 	}
 }

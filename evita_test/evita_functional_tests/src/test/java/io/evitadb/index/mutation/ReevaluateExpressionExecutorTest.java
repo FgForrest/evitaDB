@@ -1639,7 +1639,8 @@ class ReevaluateExpressionExecutorTest {
 			GROUP_ENTITY_TYPE,
 			true,
 			new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, indexType)},
-			new Scope[]{Scope.LIVE}
+			new Scope[]{Scope.LIVE},
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -1659,7 +1660,8 @@ class ReevaluateExpressionExecutorTest {
 			null,
 			false,
 			new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, indexType)},
-			new Scope[]{Scope.LIVE}
+			new Scope[]{Scope.LIVE},
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

@@ -26,7 +26,6 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;
-
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -52,9 +51,13 @@ public interface AnalysisStepDescriptor {
 	/** Output object shared by schema and mutation serializers. */
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("AnalysisStep")
-		.description("One operation in the declared, ordered attribute normalization chain.")
+		.description("One operation in a declared, ordered analysis chain.")
 		.staticProperties(List.of(STEP, PARAMETERS))
 		.build();
-	/** Installed-provider selector whose exclusivity is enforced by GraphQL and REST. */
+	/**
+	 * Selector of an installed normalization provider, whose exclusivity GraphQL and REST enforce. The fulltext
+	 * phases use their own selectors, see
+	 * {@link AnalysisStepInputDescriptors#getInputDescriptor(AnalysisStepInputDescriptors.Context)}.
+	 */
 	ObjectDescriptor THIS_INPUT = AnalysisStepInputDescriptors.getInputDescriptor();
 }

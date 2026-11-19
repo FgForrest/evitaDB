@@ -67,10 +67,11 @@ class ConstraintDescriptorProviderTest {
 	@DisplayName("Registration")
 	class RegistrationTest {
 
+		/** Pins all registered creator variants, including the two fulltext selector wildcard variants. */
 		@Test
 		@DisplayName("should have processed all registered constraints")
 		void shouldHaveProcessedConstraints() {
-			assertEquals(126, ConstraintDescriptorProvider.getAllConstraints().size());
+			assertEquals(138, ConstraintDescriptorProvider.getAllConstraints().size());
 		}
 	}
 
@@ -176,14 +177,15 @@ class ConstraintDescriptorProviderTest {
 	@DisplayName("Filtering")
 	class FilteringTest {
 
+		/** Counts the filter and order creators exposed by the public descriptor registry. */
 		@Test
 		@DisplayName("should find all constraints for specific type")
 		void shouldFindAllConstraintsForSpecificType() {
 			assertEquals(
-				50, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size()
+				57, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size()
 			);
 			assertEquals(
-				21, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size()
+				26, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size()
 			);
 		}
 

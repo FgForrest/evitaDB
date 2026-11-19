@@ -148,7 +148,9 @@ public final class ReferenceSchemaBuilder
 						.entrySet()
 						.stream()
 						.map(it -> new ScopedBucketedPartially(it.getKey(), it.getValue()))
-						.toArray(ScopedBucketedPartially[]::new)
+						.toArray(ScopedBucketedPartially[]::new),
+					ReferenceSchema.toScopedSearchModes(this.baseSchema.getSearchableThroughInScopes()),
+					this.baseSchema.getSearchableThroughWeight()
 				)
 			);
 			// the creation comes first, the mutations queued by earlier calls apply to the created reference
@@ -165,12 +167,12 @@ public final class ReferenceSchemaBuilder
 			// reference, never the caller-supplied `existingSchema`. The caller builds
 			// `existingSchema` from `toInstance()`, so it already reflects every pending
 			// entity-level mutation targeting this reference — the very same mutations that are
-			// copied into `this.mutations` below. Starting the replay from an already-mutated
+			// copied into `this.mutations` above. Starting the replay from an already-mutated
 			// base would re-apply those mutations on top of themselves.
 			// Intentional asymmetry: `baseSchema` is the raw persisted reference (see above),
 			// but the comparisons below deliberately read `existingSchema` (the post-mutation view).
 			// Any prior entity-type / cardinality change is already present in the `mutations` list
-			// copied a few lines further down, and therefore already reflected in `existingSchema`.
+			// copied above, and therefore already reflected in `existingSchema`.
 			// Comparing against the post-mutation view prevents re-emitting a Modify*Mutation that
 			// is already queued.
 			if (referencedEntityTypeManaged != existingSchema.isReferencedEntityTypeManaged() || !entityType.equals(existingSchema.getReferencedEntityType())) {
@@ -201,7 +203,7 @@ public final class ReferenceSchemaBuilder
 	 * @param mutations the mutations queued in the entity builder
 	 */
 	private void copyQueuedMutations(@Nonnull String name, @Nonnull List<LocalEntitySchemaMutation> mutations) {
-		for (LocalEntitySchemaMutation mutation : mutations) {
+		for (final LocalEntitySchemaMutation mutation : mutations) {
 			if (
 				mutation instanceof ReferenceSchemaMutation referenceSchemaMutation &&
 					name.equals(referenceSchemaMutation.getName()) &&
@@ -236,7 +238,8 @@ public final class ReferenceSchemaBuilder
 				ReferenceSchema._internalBuild(
 					name, entityType, referencedEntityTypeManaged, cardinality,
 					null, false,
-					ScopedReferenceIndexType.EMPTY, Scope.NO_SCOPE
+					ScopedReferenceIndexType.EMPTY, Scope.NO_SCOPE,
+					null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				) :
 				existingSchema;
 		} else {
@@ -535,7 +538,7 @@ public final class ReferenceSchemaBuilder
 		final Collection<LocalEntitySchemaMutation> mutations = toMutation();
 		// and now rebuild the schema from scratch including consistency checks
 		ReferenceSchemaContract currentSchema = this.baseSchema;
-		for (LocalEntitySchemaMutation mutation : mutations) {
+		for (final LocalEntitySchemaMutation mutation : mutations) {
 			currentSchema = Objects.requireNonNull(
 				((ReferenceSchemaMutation) mutation).mutate(this.entitySchema, currentSchema)
 			);

@@ -57,6 +57,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static io.evitadb.api.requestResponse.schema.ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT;
 import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.REFERENCE_NAME;
 import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.REFERENCE_TYPE;
 import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.createExistingReferenceSchema;
@@ -136,7 +137,8 @@ class CreateReflectedReferenceSchemaMutationTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			// Create a mutation with DIFFERENT description but same inherited
 			// indexed/faceted/components
@@ -457,7 +459,8 @@ class CreateReflectedReferenceSchemaMutationTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			// Create mutation with inherited bucketed (both null)
 			final CreateReflectedReferenceSchemaMutation mutation =
@@ -525,7 +528,8 @@ class CreateReflectedReferenceSchemaMutationTest {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final ReferenceSchemaContract existingReflected = inheritedBase.withBucketed(
 				Map.of(
@@ -604,7 +608,8 @@ class CreateReflectedReferenceSchemaMutationTest {
 				REFERENCE_NAME, null, null, REFERENCE_TYPE, REFLECTED_REFERENCE_NAME, null,
 				null, null, null, null, null, null,
 				Collections.emptyMap(), Collections.emptyMap(),
-				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT, null
+				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT, null,
+				null, DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final CreateReflectedReferenceSchemaMutation mutation = new CreateReflectedReferenceSchemaMutation(
 				REFERENCE_NAME, "declaredDescription", null, null,

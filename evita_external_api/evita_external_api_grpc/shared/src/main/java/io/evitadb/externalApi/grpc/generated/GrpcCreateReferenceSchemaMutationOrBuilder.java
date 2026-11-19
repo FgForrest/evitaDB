@@ -682,4 +682,58 @@ public interface GrpcCreateReferenceSchemaMutationOrBuilder extends
    * @return The conflictResolutionOverride.
    */
   io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride();
+
+  /**
+   * <pre>
+   * Optional replacement composition modes; an empty message explicitly clears the declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+   * @return Whether the searchableThroughInScopes field is set.
+   */
+  boolean hasSearchableThroughInScopes();
+  /**
+   * <pre>
+   * Optional replacement composition modes; an empty message explicitly clears the declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+   * @return The searchableThroughInScopes.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes getSearchableThroughInScopes();
+  /**
+   * <pre>
+   * Optional replacement composition modes; an empty message explicitly clears the declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder getSearchableThroughInScopesOrBuilder();
+
+  /**
+   * <pre>
+   * Optional shared ranking weight; zero is distinct from omission.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+   * @return Whether the searchableThroughWeight field is set.
+   */
+  boolean hasSearchableThroughWeight();
+  /**
+   * <pre>
+   * Optional shared ranking weight; zero is distinct from omission.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+   * @return The searchableThroughWeight.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchableThroughWeight();
+  /**
+   * <pre>
+   * Optional shared ranking weight; zero is distinct from omission.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchableThroughWeightOrBuilder();
 }

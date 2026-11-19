@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.tartarus.snowball.ext.RomanianStemmer;
 
 import javax.annotation.Nonnull;
+
 import java.io.IOException;
 import java.text.Normalizer;
 
@@ -37,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The Romanian instance of the {@link LexiconCoverageSweep}: verifies over the whole `ro_RO` Hunspell lexicon
- * that the production {@link RomanianVariantStemmer} — the query half of the `romanian`/`romanian-search`
+ * that the production {@link RomanianVariantStemmer} — the query half of the `text` index/query
  * built-in pair — always emits the term the index half wrote.
  *
  * The index side is the production shape: comma-below spellings normalized to the cedilla ones the pinned

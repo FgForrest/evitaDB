@@ -76,6 +76,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.lowercase;
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.wordList;
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
@@ -146,7 +148,8 @@ class SchemaContentComparatorTest {
 	 * `CatalogSchema` fields `SchemaContentComparator.isCatalogSchemaContentEqual` compares through the schema contract.
 	 */
 	private static final Set<String> COMPARED_CATALOG_SCHEMA_FIELDS = Set.of(
-		"name", "nameVariants", "description", "conflictResolution", "catalogEvolutionMode", "attributes"
+		"name", "nameVariants", "description", "conflictResolution", "catalogEvolutionMode", "attributes",
+		"fulltextLanguages", "fulltextResources", "fulltextAnalyzers"
 	);
 	/**
 	 * `CatalogSchema` fields deliberately left out: the version counter, derived data and the entity schemas, which the
@@ -372,6 +375,13 @@ class SchemaContentComparatorTest {
 	static Stream<Arguments> genuineCatalogChanges() {
 		return Stream.of(
 			catalogScenario("description", builder -> builder.withDescription("changed")),
+			catalogScenario(
+				"fulltext languages", builder -> builder.withFulltextLanguage("en", l -> l.wordNumberSplit())
+			),
+			catalogScenario("fulltext resources", builder -> builder.withFulltextResource("words", wordList("sample"))),
+			catalogScenario(
+				"fulltext analyzers", builder -> builder.withFulltextAnalyzer("names", a -> a.words(lowercase()))
+			),
 			catalogScenario(
 				"conflict resolution", builder -> builder.withConflictResolution(new ConflictResolution(ConflictPolicy.COLLECTION))
 			),

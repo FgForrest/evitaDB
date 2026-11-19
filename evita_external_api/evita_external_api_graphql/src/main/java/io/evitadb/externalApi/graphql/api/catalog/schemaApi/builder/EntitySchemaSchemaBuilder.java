@@ -203,6 +203,12 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	@Nonnull
 	private GraphQLObjectType buildAttributeSchemaObject() {
 		this.buildingContext.registerDataFetcher(
+			AttributeSchemaDescriptor.THIS.name(), AttributeSchemaDescriptor.SEARCHABLE,
+			AttributeSchemaSearchableDataFetcher.getInstance());
+		this.buildingContext.registerDataFetcher(
+			AttributeSchemaDescriptor.THIS.name(), AttributeSchemaDescriptor.SEARCH_WEIGHT,
+			SchemaMutationSearchWeightDataFetcher.getInstance());
+		this.buildingContext.registerDataFetcher(
 			AttributeSchemaDescriptor.THIS,
 			AttributeSchemaDescriptor.TYPE,
 			AttributeSchemaTypeDataFetcher.getInstance()
@@ -241,6 +247,12 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	@Nonnull
 	private GraphQLObjectType buildEntityAttributeSchemaObject() {
 		this.buildingContext.registerDataFetcher(
+			EntityAttributeSchemaDescriptor.THIS.name(), AttributeSchemaDescriptor.SEARCHABLE,
+			AttributeSchemaSearchableDataFetcher.getInstance());
+		this.buildingContext.registerDataFetcher(
+			EntityAttributeSchemaDescriptor.THIS.name(), AttributeSchemaDescriptor.SEARCH_WEIGHT,
+			SchemaMutationSearchWeightDataFetcher.getInstance());
+		this.buildingContext.registerDataFetcher(
 			EntityAttributeSchemaDescriptor.THIS,
 			AttributeSchemaDescriptor.TYPE,
 			AttributeSchemaTypeDataFetcher.getInstance()
@@ -278,6 +290,12 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 	@Nonnull
 	private GraphQLObjectType buildGlobalAttributeSchemaObject() {
+		this.buildingContext.registerDataFetcher(
+			GlobalAttributeSchemaDescriptor.THIS.name(), AttributeSchemaDescriptor.SEARCHABLE,
+			AttributeSchemaSearchableDataFetcher.getInstance());
+		this.buildingContext.registerDataFetcher(
+			GlobalAttributeSchemaDescriptor.THIS.name(), AttributeSchemaDescriptor.SEARCH_WEIGHT,
+			SchemaMutationSearchWeightDataFetcher.getInstance());
 		this.buildingContext.registerDataFetcher(
 			GlobalAttributeSchemaDescriptor.THIS,
 			AttributeSchemaDescriptor.TYPE,
@@ -463,6 +481,15 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	@Nonnull
 	private GraphQLObjectType buildAssociatedDataSchemaObject() {
 		this.buildingContext.registerDataFetcher(
+			AssociatedDataSchemaDescriptor.THIS.name(), AssociatedDataSchemaDescriptor.SEARCHABLE,
+			AssociatedDataSchemaSearchableDataFetcher.getInstance());
+		this.buildingContext.registerDataFetcher(
+			AssociatedDataSchemaDescriptor.THIS.name(), AssociatedDataSchemaDescriptor.SEARCH_WEIGHT,
+			SchemaMutationSearchWeightDataFetcher.getInstance());
+		this.buildingContext.registerDataFetcher(
+			AssociatedDataSchemaDescriptor.THIS.name(), AssociatedDataSchemaDescriptor.TEXT_EXPRESSION,
+			AssociatedDataMutationTextExpressionDataFetcher.getInstance());
+		this.buildingContext.registerDataFetcher(
 			AssociatedDataSchemaDescriptor.THIS,
 			AssociatedDataSchemaDescriptor.TYPE,
 			AssociatedDataSchemaTypeDataFetcher.getInstance()
@@ -532,6 +559,12 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private GraphQLObjectType buildGenericReferenceSchemaObject() {
 		// the name variant fetchers stay synchronous: they are nested fields, and in the response of a schema mutation
 		// they read through its read-write session, which rejects a second thread calling it concurrently
+		this.buildingContext.registerDataFetcher(
+			ReferenceSchemaDescriptor.THIS_GENERIC.name(), ReferenceSchemaDescriptor.SEARCHABLE_THROUGH,
+			ReferenceSchemaSearchableThroughDataFetcher.getInstance());
+		this.buildingContext.registerDataFetcher(
+			ReferenceSchemaDescriptor.THIS_GENERIC.name(), ReferenceSchemaDescriptor.SEARCHABLE_THROUGH_WEIGHT,
+			SchemaMutationSearchWeightDataFetcher.getInstance());
 		this.buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
@@ -646,6 +679,12 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private GraphQLObjectType buildReferenceSchemaObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                     @Nonnull ReferenceSchemaContract referenceSchema) {
 		final String objectName = ReferenceSchemaDescriptor.THIS_SPECIFIC.name(entitySchema, referenceSchema);
+		this.buildingContext.registerDataFetcher(
+			objectName, ReferenceSchemaDescriptor.SEARCHABLE_THROUGH,
+			ReferenceSchemaSearchableThroughDataFetcher.getInstance());
+		this.buildingContext.registerDataFetcher(
+			objectName, ReferenceSchemaDescriptor.SEARCHABLE_THROUGH_WEIGHT,
+			SchemaMutationSearchWeightDataFetcher.getInstance());
 
 		final GraphQLObjectType.Builder referenceSchemaObjectBuilder = ReferenceSchemaDescriptor.THIS_SPECIFIC
 			.to(this.objectBuilderTransformer)

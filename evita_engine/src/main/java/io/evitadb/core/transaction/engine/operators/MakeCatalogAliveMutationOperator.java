@@ -42,6 +42,7 @@ import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerBehaviourCheck.SessionChecks;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -91,6 +92,18 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 		return "Making catalog `" + engineMutation.getCatalogName() + "` alive";
 	}
 
+	/**
+	 * Drains authoring sessions and validates the final schema before either warm-up or ALIVE publication.
+	 * Direct engine callers use the pre-drain schema as their baseline; authoring sessions validate their own changes
+	 * against their session-start declarations before closing.
+	 *
+	 * @param transactionId engine transaction coordinating this transition
+	 * @param mutation catalog go-live request
+	 * @param evita engine owning the catalog and its session registry
+	 * @param transitionEngineStateUpdater publishes the temporary catalog transition state
+	 * @param completionEngineStateUpdater publishes the completed catalog transition
+	 * @return the publication progress and resulting catalog/schema versions
+	 */
 	@Nonnull
 	@Override
 	public ProgressingFuture<CommitVersions> applyMutation(
@@ -232,6 +245,9 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 			};
 
 			try {
+				// Direct engine go-live has no authoring session. Its baseline is the schema before the drain;
+				// drained sessions validate against their own baselines, as does session-driven go-live before closing.
+				final SessionChecks analyzerChecks = new SessionChecks(theCatalog, theCatalog.getSchema());
 				// The drain. An incumbent warm-up session holds the very `Catalog` instance `goLive()` is about to
 				// supersede and writes to it in place; closing it here - after its running method returns, and a
 				// warm-up close flushes - is what keeps its writes in the flush below. New sessions are already
@@ -274,10 +290,11 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 				// validation lives. All three go-live entry points funnel through this operator, so the check sits
 				// here, ahead of the first publication, and raises the same barrier an ordinary close would.
 				// caught as any exception for the same reason as the warm-up close in `EvitaSession#closeInternal`:
-				// `validate()` refuses in two vocabularies, only the narrower one is a `SchemaAlteringException`, and
-				// an exception outside both leaves the schema unvalidated - none of them may reach a publication
+				// `Catalog#validateFinalSchema()` refuses in two vocabularies, only the narrower one is a
+				// `SchemaAlteringException`, and an exception outside both leaves the schema unvalidated - none of
+				// them may reach a publication
 				try {
-					theCatalog.getSchema().validate();
+					theCatalog.validateFinalSchema(analyzerChecks);
 				} catch (Throwable ex) {
 					theCatalog.markUnpublishableDueToInvalidSchema(ex);
 					throw ex;

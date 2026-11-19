@@ -1332,3 +1332,8 @@ enum GrpcStoragePartGroup {
   STORAGE_PART_GROUP_HEADER = 14;
 
 }
+
+// How referenced text participates in the owner's fulltext search.
+enum GrpcReferenceSearchMode {
+  REFERENCE_SEARCH_COMPOSITION = 0;
+}

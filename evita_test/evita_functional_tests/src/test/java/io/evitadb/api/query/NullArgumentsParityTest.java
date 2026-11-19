@@ -82,6 +82,15 @@ class NullArgumentsParityTest {
 		@DisplayName("Scalar nulls have equal Java and EvitaQL outcomes")
 		Stream<DynamicTest> shouldMatchFactoriesWhenScalarParametersAreNull() {
 			return Stream.of(
+				row("textMatches(?)", FilterConstraint.class, () -> textMatches(null), (Object) null),
+				row("textMatches(?)", FilterConstraint.class, () -> textMatches(" "), " "),
+				row("filterBy(textMatches(?))", FilterConstraint.class,
+					() -> filterBy(textMatches(null)), (Object) null),
+				row("inAttribute(?)", FilterConstraint.class, () -> inAttribute(" "), " "),
+				row("inAttribute(?)", FilterConstraint.class,
+					() -> inAttribute(new String[]{null, "name"}), new Object[]{new String[]{null, "name"}}),
+				row("textMatches(?,inAttribute(?))", FilterConstraint.class,
+					() -> textMatches(null, inAttribute(" ")), null, " "),
 				row("attributeEquals(?, ?)", FilterConstraint.class, () -> attributeEquals("code", null), "code", null),
 				row("entityLocaleEquals(?)", FilterConstraint.class, () -> entityLocaleEquals(null), (Object) null),
 				row("attributeBetween(?, ?, ?)", FilterConstraint.class,

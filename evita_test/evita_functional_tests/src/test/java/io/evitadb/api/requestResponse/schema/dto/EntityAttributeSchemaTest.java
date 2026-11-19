@@ -23,22 +23,27 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import java.math.BigDecimal;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import javax.annotation.Nonnull;
 import java.util.Map;
 
 import org.junit.jupiter.api.Tag;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -92,7 +97,9 @@ class EntityAttributeSchemaTest {
 				Integer.class, 10,
 				0,
 				ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertEquals("priority", schema.getName());
@@ -117,7 +124,9 @@ class EntityAttributeSchemaTest {
 				false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			assertEquals(
@@ -194,7 +203,9 @@ class EntityAttributeSchemaTest {
 				false, false, false,
 				String.class, null,
 				0, ConflictResolutionOverride.INHERITED,
-				null
+				null,
+				FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 			);
 
 			final String result = schema.toString();
@@ -226,4 +237,32 @@ class EntityAttributeSchemaTest {
 		assertTrue(normalized.toString().contains("normalization=[lowercase]"));
 	}
 
+	/** Ranking weight participates in the value contract, with a canonical representation for zero. */
+	@Test
+	void shouldIncludeSearchWeightInValueSemantics() {
+		final EntityAttributeSchema zero = schemaWithSearchWeight(valueOf(0));
+		final EntityAttributeSchema weighted = schemaWithSearchWeight(valueOf(2.5));
+		assertNotEquals(zero, weighted);
+		assertNotEquals(zero.hashCode(), weighted.hashCode());
+		assertTrue(weighted.toString().contains("searchWeight=2.5"));
+		final EntityAttributeSchema negativeZero = schemaWithSearchWeight(valueOf(0));
+		assertEquals(valueOf(0), negativeZero.getSearchWeight());
+		assertEquals(zero, negativeZero);
+		assertEquals(zero.hashCode(), negativeZero.hashCode());
+	}
+
+	/**
+	 * Builds a DTO whose only variable setting is the ranking weight.
+	 * @param weight decimal ranking contribution
+	 * @return the schema carrying the normalized weight
+	 */
+	@Nonnull
+	private static EntityAttributeSchema schemaWithSearchWeight(@Nonnull BigDecimal weight) {
+		return EntityAttributeSchema._internalBuild(
+			"code", null, null,
+			(ScopedAttributeUniquenessType[]) null, null, null, null, null,
+			false, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, null,
+			FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT, weight
+		);
+	}
 }

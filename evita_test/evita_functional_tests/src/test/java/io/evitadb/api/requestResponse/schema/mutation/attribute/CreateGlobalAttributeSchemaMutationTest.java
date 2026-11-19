@@ -23,6 +23,10 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.dataType.Scope;
+import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -38,6 +42,9 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -46,9 +53,12 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Tag;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
@@ -334,7 +344,8 @@ class CreateGlobalAttributeSchemaMutationTest {
 			final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
 				ATTRIBUTE_NAME, null, null, null, null, null, null, null, null,
 				false, false, false, Integer.class, null, 0, ConflictResolutionOverride.INHERITED,
-				new AnalysisStep[]{lowercase()}
+				new AnalysisStep[]{lowercase()},
+				null, null, null
 			);
 			assertTrue(mutation.mutate(null, null, GlobalAttributeSchemaContract.class)
 				.validate().anyMatch(error -> error.contains("normalization")));
@@ -350,8 +361,49 @@ class CreateGlobalAttributeSchemaMutationTest {
 		private CreateGlobalAttributeSchemaMutation createWithNormalization(@Nullable AnalysisStep[] steps) {
 			return new CreateGlobalAttributeSchemaMutation(
 				ATTRIBUTE_NAME, null, null, null, null, null, null, null, null,
-				false, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, steps
+				false, false, false, String.class, null, 0, ConflictResolutionOverride.INHERITED, steps, null, null,
+				null
 			);
+		}
+	}
+
+	/**
+	 * Create null means default; remove/create emits searchability only for an actual weight difference.
+	 * @param weight decimal ranking contribution, or null to leave the weight unspecified
+	 */
+	@ParameterizedTest
+	@NullSource
+	@ValueSource(strings = {"0", "-0", "2.5", "3.5"})
+	@DisplayName("should default create weights and include only real weight differences")
+	void shouldDefaultSearchWeightAndDetectWeightDifferences(@Nullable BigDecimal weight) {
+		final CatalogSchema catalog = CatalogSchema._internalBuild(
+			"test", Map.of(), null, Set.of(),
+			EmptyEntitySchemaAccessor.INSTANCE
+		);
+		final CatalogSchemaContract owner = new InternalCatalogSchemaBuilder(catalog)
+			.withAttribute(ATTRIBUTE_NAME, String.class,
+				a -> a.localized().searchable().searchWeight(valueOf(3.5))).toInstance();
+		final CreateGlobalAttributeSchemaMutation create = new CreateGlobalAttributeSchemaMutation(
+			ATTRIBUTE_NAME, null, null, null, null, null, null, Scope.DEFAULT_SCOPES, null, true, false, false,
+			String.class, null, 0, ConflictResolutionOverride.INHERITED, null, null, null, weight
+		);
+		final BigDecimal expected = weight == null ? valueOf(1) : weight.stripTrailingZeros();
+		final BigDecimal created = create.mutate(catalog, null, GlobalAttributeSchemaContract.class).getSearchWeight();
+		assertEquals(expected, created);
+		if (weight != null) {
+			assertEquals(expected, create.getSearchWeight());
+		}
+		final MutationCombinationResult<LocalCatalogSchemaMutation> combined = create.combineWith(
+			owner, new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME)
+		);
+		assertNotNull(combined);
+		if (expected.compareTo(valueOf(3.5)) == 0) {
+			assertNull(combined.current());
+		} else {
+			assertEquals(1, combined.current().length);
+			assertTrue(combined.current()[0] instanceof SetAttributeSchemaSearchableMutation);
+			assertEquals(expected,
+				((SetAttributeSchemaSearchableMutation) combined.current()[0]).getSearchWeight());
 		}
 	}
 

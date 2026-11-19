@@ -126,7 +126,10 @@ public class CreateReferenceSchemaMutationConverter
 			facetedPartiallyInScopes,
 			bucketedInScopes,
 			bucketedPartiallyInScopes,
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE, ConflictResolutionOverride.INHERITED)
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE,
+				ConflictResolutionOverride.INHERITED),
+			readSearchableThrough(input),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.SEARCHABLE_THROUGH_WEIGHT)
 		);
 	}
 
@@ -138,6 +141,10 @@ public class CreateReferenceSchemaMutationConverter
 		serializeFacetedPartially(mutation.getFacetedPartiallyInScopes(), output);
 		serializeBucketedHistogram(mutation.getBucketedInScopes(), output);
 		serializeBucketedPartially(mutation.getBucketedPartiallyInScopes(), output);
+		writeSearchWeight(
+			CreateReferenceSchemaMutationDescriptor.SEARCHABLE_THROUGH_WEIGHT.name(),
+			mutation.getSearchableThroughWeight(), output
+		);
 		super.convertToOutput(mutation, output);
 	}
 }

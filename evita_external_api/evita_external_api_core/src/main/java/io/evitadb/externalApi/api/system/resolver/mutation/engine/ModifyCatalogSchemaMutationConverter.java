@@ -108,7 +108,11 @@ public class ModifyCatalogSchemaMutationConverter
 	protected void convertToOutput(@Nonnull ModifyCatalogSchemaMutation mutation, @Nonnull Output output) {
 		output.setProperty(
 			ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS,
-			this.delegatingLocalCatalogSchemaMutationConverter.convertToOutput(mutation.getSchemaMutations())
+			// the nested converter returns the API's serialized form (a JSON tree for REST); parse it back into
+			// plain values, which the output can embed
+			getObjectMapper().parse(
+				this.delegatingLocalCatalogSchemaMutationConverter.convertToOutput(mutation.getSchemaMutations())
+			)
 		);
 		super.convertToOutput(mutation, output);
 	}

@@ -104,6 +104,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerBehaviourCheck.SessionChecks;
 import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -212,6 +213,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * This variable is used to keep track of the initial version of the catalog schema.
 	 */
 	private final int startCatalogSchemaVersion;
+	/**
+	 * Behavior baseline and last verdict for a session that can author schema changes, null for a read-only session.
+	 * The engine mutation executor reads it too, through the session registry, when a warm-up DDL operation probes
+	 * whether it may publish.
+	 */
+	@Nullable private final SessionChecks analyzerChecks;
 	/**
 	 * Contains reference to the proxy factory that is used to create proxies for the entities.
 	 */
@@ -364,6 +371,17 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			};
 	}
 
+	/**
+	 * Opens a session and captures its starting schema for final analyzer dependency comparisons.
+	 *
+	 * @param evita owning engine
+	 * @param catalog catalog version this session reads or modifies
+	 * @param reflectionLookup shared lookup used by entity proxies
+	 * @param terminationCallback engine cleanup invoked when this session terminates
+	 * @param commitBehaviour stage at which the caller considers a commit complete
+	 * @param sessionTraits session access mode and transaction ownership
+	 * @param catalogConsumerControl control pinning catalog versions while they are consumed
+	 */
 	public EvitaSession(
 		@Nonnull Evita evita,
 		@Nonnull Catalog catalog,
@@ -375,7 +393,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	) {
 		this.evita = evita;
 		this.catalog = catalog;
-		this.startCatalogSchemaVersion = catalog.getSchema().version();
+		final SealedCatalogSchema startCatalogSchema = catalog.getSchema();
+		this.startCatalogSchemaVersion = startCatalogSchema.version();
+		this.analyzerChecks = sessionTraits.isReadWrite() ? new SessionChecks(catalog, startCatalogSchema) : null;
 		this.reflectionLookup = reflectionLookup;
 		this.proxyFactory = evita.getProxyFactory();
 		this.commitBehaviour = commitBehaviour;
@@ -449,6 +469,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return this.closedFuture == null || this.beingClosed.get();
 	}
 
+	/**
+	 * Validates this session's final schema against its starting declarations before terminating and going live.
+	 * A refusal raises the warm-up publication barrier and completes session cleanup through the close path.
+	 *
+	 * @param progressObserver optional observer of the engine go-live operation
+	 * @return progress of the catalog's transition and its committed versions
+	 */
 	@Nonnull
 	@Traced
 	@Override
@@ -477,6 +504,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			// session it would have recorded), which `Evita#wasSessionForcefullyClosedForCatalog` reports to a
 			// client whose session vanished. The operator lifts this suspension on success and on failure alike.
 			if (isActive()) {
+				try {
+					theCatalog.validateFinalSchema(this.analyzerChecks);
+				} catch (Throwable ex) {
+					theCatalog.markUnpublishableDueToInvalidSchema(ex);
+					closeInternal(this.commitBehaviour);
+					throw ex;
+				}
 				executeTerminationSteps(null, theCatalog);
 				this.closedFuture = CompletableFuture.completedFuture(
 					new CommitVersions(this.catalog.getVersion() + 1, this.catalog.getSchema().version())
@@ -1966,7 +2000,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							// while a getter it reaches on a schema it cannot resolve simply refuses to answer -
 							// ReflectedReferenceSchema#isIndexedInScope throwing
 							// "the reflected reference is not available" is the demonstrated case, and it is what
-							// Catalog#isSchemaValid had to widen its own catch for. Whether a schema can still be
+							// Catalog#isWarmUpSchemaValid had to widen its own catch for. Whether a schema can still be
 							// in that shape HERE, at the close, was not demonstrated: every attempt to build one
 							// met a schema-altering refusal first. The wide catch is kept anyway, because the two
 							// outcomes are not symmetric - a bare refusal that slipped past a narrow catch would
@@ -2145,25 +2179,40 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	/**
-	 * Validates the schema of the given catalog, and marks the open transaction rollback-only when the validation does
-	 * not pass.
+	 * Supplies the authoring baseline to a warm-up DDL operation running on the engine mutation executor.
+	 * @param theCatalog catalog that is about to publish
+	 * @return this session's checks when it owns this catalog and can write, otherwise null
+	 */
+	@Nullable
+	SessionChecks analyzerChecksFor(@Nonnull Catalog theCatalog) {
+		return this.catalog == theCatalog ? this.analyzerChecks : null;
+	}
+
+	/**
+	 * Validates the final schema through {@link Catalog#validateFinalSchema(SessionChecks)} - its rules and
+	 * touched analyzers' behavior - and marks the open transaction rollback-only when validation fails.
+	 * The validation is skipped unless this session raised the catalog schema version or a warm-up schema batch of
+	 * this session failed: such a batch restores the catalog schema version but can retain field edits, which are
+	 * still checked against the same session baseline.
 	 *
-	 * Whatever the validation throws marks it, not only a {@link SchemaAlteringException}. `validate()` refuses in
-	 * two vocabularies (see the warm-up branch of {@link #closeInternal(CommitBehavior)}), and an exception outside
-	 * both - an engine defect the walk uncovers - means the schema was never validated at all. The transaction
+	 * Whatever the validation throws marks it, not only a {@link SchemaAlteringException}. `validateFinalSchema()`
+	 * refuses in two vocabularies (see the warm-up branch of {@link #closeInternal(CommitBehavior)}), and an exception
+	 * outside both - an engine defect the walk uncovers - means the schema was never validated at all. The transaction
 	 * commits when it closes unless it is marked, so a narrower catch would publish exactly the schema the validation
 	 * could not vouch for. The exception still propagates, so the failure surfaces as before.
 	 *
 	 * @param theCatalog the catalog to be validated, must not be null
+	 * @throws SchemaAlteringException when the schema or a touched analyzer is refused
 	 */
 	private void validateCatalogSchema(
-		@Nonnull CatalogContract theCatalog
+		@Nonnull Catalog theCatalog
 	) throws SchemaAlteringException {
 		try {
-			final SealedCatalogSchema catalogSchema = theCatalog.getSchema();
-			final int catalogVersion = catalogSchema.version();
-			if (catalogVersion > this.startCatalogSchemaVersion) {
-				catalogSchema.validate();
+			final int catalogVersion = theCatalog.getSchema().version();
+			final boolean mayHaveRetainedChanges =
+				this.analyzerChecks != null && this.analyzerChecks.hasFailedWarmUpSchemaBatch();
+			if (catalogVersion > this.startCatalogSchemaVersion || mayHaveRetainedChanges) {
+				theCatalog.validateFinalSchema(this.analyzerChecks);
 			}
 		} catch (Throwable ex) {
 			/* if validation fails and transaction is available, mark it as rollback only */

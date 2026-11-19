@@ -28,13 +28,17 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.AttributeEquals;
+import io.evitadb.api.query.filter.AttributeIn;
 import io.evitadb.api.query.filter.EntityHaving;
+import io.evitadb.api.query.filter.EntityIn;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.HierarchyExcluding;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.filter.ReferenceIn;
+import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.query.require.AssociatedDataContent;
 import io.evitadb.api.query.require.FacetGroupsConjunction;
 import io.evitadb.api.query.require.ReferenceSummary;
@@ -50,6 +54,7 @@ import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -589,5 +594,39 @@ public class DataLocatorResolverTest {
 			ExternalApiInternalError.class,
 			() -> this.dataLocatorResolver.resolveConstraintDataLocator(parent, groupHaving, null)
 		);
+	}
+
+	/** Verifies every locator transition of the nested fulltext selector chain, including TEXT inheritance. */
+	@Test
+	@DisplayName("TEXT follows reference and target selector contexts")
+	void shouldResolveTextSelectorChain() {
+		final DataLocator entity = new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT));
+		final DataLocator text = this.dataLocatorResolver.resolveConstraintDataLocator(
+			entity, ConstraintDescriptorProvider.getConstraint(TextMatches.class), null);
+		assertEquals(entity, text);
+		final DataLocator places = this.dataLocatorResolver
+			.resolveChildParameterDataLocator(text, ConstraintDomain.TEXT)
+			.orElseThrow();
+		assertEquals(new TextDataLocator(entity.entityTypePointer()), places);
+		final DataLocator reference = this.dataLocatorResolver.resolveConstraintDataLocator(
+			places, ConstraintDescriptorProvider.getConstraint(ReferenceIn.class), Entities.CATEGORY);
+		assertEquals(new ReferenceDataLocator(entity.entityTypePointer(), Entities.CATEGORY), reference);
+		final DataLocator referencePlaces = this.dataLocatorResolver
+			.resolveChildParameterDataLocator(reference, ConstraintDomain.TEXT).orElseThrow();
+		assertEquals(new ReferenceTextDataLocator(entity.entityTypePointer(), Entities.CATEGORY), referencePlaces);
+		final DataLocator target = this.dataLocatorResolver.resolveConstraintDataLocator(
+			referencePlaces, ConstraintDescriptorProvider.getConstraint(EntityIn.class), null);
+		assertEquals(new EntityDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY)), target);
+		final DataLocator targetPlaces = this.dataLocatorResolver
+			.resolveChildParameterDataLocator(target, ConstraintDomain.TEXT).orElseThrow();
+		assertEquals(new TextDataLocator(target.entityTypePointer()), targetPlaces);
+		assertEquals(targetPlaces, this.dataLocatorResolver.resolveConstraintDataLocator(
+			targetPlaces, ConstraintDescriptorProvider.getConstraint(AttributeIn.class, null), ATTRIBUTE_NAME));
+		assertEquals(targetPlaces, this.dataLocatorResolver
+			.resolveChildParameterDataLocator(targetPlaces, ConstraintDomain.TEXT).orElseThrow());
+		assertEquals(new TextDataLocator(new ExternalEntityTypePointer(EXTERNAL_ENTITY_TAG)),
+			this.dataLocatorResolver.resolveChildParameterDataLocator(
+				new EntityDataLocator(new ExternalEntityTypePointer(EXTERNAL_ENTITY_TAG)), ConstraintDomain.TEXT)
+				.orElseThrow());
 	}
 }

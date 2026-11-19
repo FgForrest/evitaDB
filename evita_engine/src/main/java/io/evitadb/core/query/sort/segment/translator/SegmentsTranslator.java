@@ -38,6 +38,7 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.segment.sorter.SegmentSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -54,10 +55,10 @@ import java.util.stream.Stream;
  * A segment consists only of the entities its own ordering can sort: an entity lacking the data the ordering sorts
  * by - an attribute, a reference, a price - is excluded from the segment and left to the following segments, or to
  * the entities appended after all of them. That is why the sorters of a segment's ordering are collected by
- * {@link OrderByVisitor#collectSegmentSorters(Runnable)}, without the default {@link NoSorter}, which would otherwise
- * place every such entity at the end of the segment. An explicit ascending primary key order still sorts every entity
- * of its scope - every entity carries a primary key - because within a segment its translator registers a sorter of
- * its own at the declared position (see
+ * {@link OrderByVisitor#collectSegmentSorters(Formula, Runnable)}, without the default {@link NoSorter}, which would
+ * otherwise place every such entity at the end of the segment. An explicit ascending primary key order still sorts
+ * every entity of its scope - every entity carries a primary key - because within a segment its translator registers
+ * a sorter of its own at the declared position (see
  * {@link io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator}).
  *
  * Nested segments - a {@link Segments} container anywhere in the ordering of a segment - are rejected with
@@ -67,6 +68,7 @@ import java.util.stream.Stream;
  */
 public class SegmentsTranslator implements OrderingConstraintTranslator<Segments>, SelfTraversingTranslator {
 
+	/** Builds each scored predicate before exposing it to that segment's ordering only. */
 	@Nonnull
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull Segments segments, @Nonnull OrderByVisitor orderByVisitor) {
@@ -81,32 +83,40 @@ public class SegmentsTranslator implements OrderingConstraintTranslator<Segments
 		// map each segment to a separate sorter
 		return Arrays.stream(segments.getSegments())
 			.map(segment -> {
-				// first, create sorter by the ordering constraint contents - the entities they cannot sort fall out of
-				// the segment, unless the ordering asks for the ascending primary key order, which sorts them all
-				final OrderBy orderBy = segment.getOrderBy();
-				final OrderConstraint[] orderConstraints = orderBy.getChildren();
-				final List<Sorter> embeddedSorters = orderByVisitor.collectSegmentSorters(
-					() -> {
-						for (OrderConstraint orderConstraint : orderConstraints) {
-							orderConstraint.accept(orderByVisitor);
-						}
-					}
-				);
 				final QueryPlanningContext queryContext = orderByVisitor.getQueryContext();
 				// optionally, create a filtering formula for the segment by the filtering constraint contents
 				final Optional<Formula> filteringFormula = segment.getEntityHaving()
 					.map(it -> queryContext.computeOnlyOnce(
 						Collections.emptyList(),
 						it,
-						() -> FilterByVisitor.createFormulaForTheFilter(
+						() -> FilterByVisitor.createFormulaForScoredFilter(
 							queryContext,
 							orderByVisitor.getProcessingScope().getScopes(),
 							new FilterBy(it.getChildren()),
 							queryContext.getFilterBy(),
 							orderByVisitor.getSchema().getName(),
 							() -> "Result segment filtering: " + it
-						)
+						),
+						// the collection and the processed scopes keep predicates planned for another collection or
+						// scope set apart; the trailing `2L` marks the entry as the scored segment carrier, whose
+						// value holds the membership together with its score sources
+						LongHashFunction.xx3().hashChars(orderByVisitor.getSchema().getName()),
+						orderByVisitor.getProcessingScope().getScopes().stream()
+							.mapToLong(scope -> 1L << scope.ordinal()).sum(),
+						2L
 					));
+				// first, create sorter by the ordering constraint contents - the entities they cannot sort fall out of
+				// the segment, unless the ordering asks for the ascending primary key order, which sorts them all
+				final OrderBy orderBy = segment.getOrderBy();
+				final OrderConstraint[] orderConstraints = orderBy.getChildren();
+				final List<Sorter> embeddedSorters = orderByVisitor.collectSegmentSorters(
+					filteringFormula.orElse(null),
+					() -> {
+						for (final OrderConstraint orderConstraint : orderConstraints) {
+							orderConstraint.accept(orderByVisitor);
+						}
+					}
+				);
 				// optionally, retrieve the limit for the segment
 				final OptionalInt limit = segment.getLimit();
 				// segment sorter will delegate sorting to internal sorter, but will limit the number of sorted records

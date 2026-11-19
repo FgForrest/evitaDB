@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import java.io.IOException;
 import java.text.Normalizer;
 
@@ -36,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The Slovak instance of the {@link LexiconCoverageSweep}: verifies over the whole `sk_SK` Hunspell lexicon
  * (~265k headwords) that the production {@link SlovakVariantStemmer} — the query half of the
- * `slovak`/`slovak-search` built-in pair — always emits the term the index half wrote.
+ * `text` index/query built-in pair — always emits the term the index half wrote.
  *
  * The lexicon rather than a fixture, because the fixture already produced one false positive here: the first
  * three runs concluded the folded reading had **no** fold-ambiguity at all, and the first sweep of this lexicon

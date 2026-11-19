@@ -79,6 +79,7 @@ private static final long serialVersionUID = 0L;
     ENTITYMUTATION(8),
     LOCALMUTATION(9),
     INFRASTRUCTUREMUTATION(10),
+    CATALOGSCHEMAMUTATION(11),
     BODY_NOT_SET(0);
     private final int value;
     private BodyCase(int value) {
@@ -100,6 +101,7 @@ private static final long serialVersionUID = 0L;
         case 8: return ENTITYMUTATION;
         case 9: return LOCALMUTATION;
         case 10: return INFRASTRUCTUREMUTATION;
+        case 11: return CATALOGSCHEMAMUTATION;
         case 0: return BODY_NOT_SET;
         default: return null;
       }
@@ -529,6 +531,49 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.getDefaultInstance();
   }
 
+  public static final int CATALOGSCHEMAMUTATION_FIELD_NUMBER = 11;
+  /**
+   * <pre>
+   * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+   * @return Whether the catalogSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasCatalogSchemaMutation() {
+    return bodyCase_ == 11;
+  }
+  /**
+   * <pre>
+   * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+   * @return The catalogSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation getCatalogSchemaMutation() {
+    if (bodyCase_ == 11) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation) body_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder getCatalogSchemaMutationOrBuilder() {
+    if (bodyCase_ == 11) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation) body_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.getDefaultInstance();
+  }
+
   public static final int TIMESTAMP_FIELD_NUMBER = 99;
   private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp_;
   /**
@@ -611,6 +656,9 @@ private static final long serialVersionUID = 0L;
     if (bodyCase_ == 10) {
       output.writeMessage(10, (io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation) body_);
     }
+    if (bodyCase_ == 11) {
+      output.writeMessage(11, (io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation) body_);
+    }
     if (((bitField0_ & 0x00000010) != 0)) {
       output.writeMessage(99, getTimestamp());
     }
@@ -662,6 +710,10 @@ private static final long serialVersionUID = 0L;
     if (bodyCase_ == 10) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(10, (io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation) body_);
+    }
+    if (bodyCase_ == 11) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(11, (io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation) body_);
     }
     if (((bitField0_ & 0x00000010) != 0)) {
       size += com.google.protobuf.CodedOutputStream
@@ -727,6 +779,10 @@ private static final long serialVersionUID = 0L;
         if (!getInfrastructureMutation()
             .equals(other.getInfrastructureMutation())) return false;
         break;
+      case 11:
+        if (!getCatalogSchemaMutation()
+            .equals(other.getCatalogSchemaMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -781,6 +837,10 @@ private static final long serialVersionUID = 0L;
       case 10:
         hash = (37 * hash) + INFRASTRUCTUREMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getInfrastructureMutation().hashCode();
+        break;
+      case 11:
+        hash = (37 * hash) + CATALOGSCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getCatalogSchemaMutation().hashCode();
         break;
       case 0:
       default:
@@ -964,6 +1024,9 @@ private static final long serialVersionUID = 0L;
       if (infrastructureMutationBuilder_ != null) {
         infrastructureMutationBuilder_.clear();
       }
+      if (catalogSchemaMutationBuilder_ != null) {
+        catalogSchemaMutationBuilder_.clear();
+      }
       timestamp_ = null;
       if (timestampBuilder_ != null) {
         timestampBuilder_.dispose();
@@ -1036,7 +1099,7 @@ private static final long serialVersionUID = 0L;
       if (((from_bitField0_ & 0x00000020) != 0)) {
         result.operation_ = operation_;
       }
-      if (((from_bitField0_ & 0x00000400) != 0)) {
+      if (((from_bitField0_ & 0x00000800) != 0)) {
         result.timestamp_ = timestampBuilder_ == null
             ? timestamp_
             : timestampBuilder_.build();
@@ -1063,6 +1126,10 @@ private static final long serialVersionUID = 0L;
       if (bodyCase_ == 10 &&
           infrastructureMutationBuilder_ != null) {
         result.body_ = infrastructureMutationBuilder_.build();
+      }
+      if (bodyCase_ == 11 &&
+          catalogSchemaMutationBuilder_ != null) {
+        result.body_ = catalogSchemaMutationBuilder_.build();
       }
     }
 
@@ -1146,6 +1213,10 @@ private static final long serialVersionUID = 0L;
         }
         case INFRASTRUCTUREMUTATION: {
           mergeInfrastructureMutation(other.getInfrastructureMutation());
+          break;
+        }
+        case CATALOGSCHEMAMUTATION: {
+          mergeCatalogSchemaMutation(other.getCatalogSchemaMutation());
           break;
         }
         case BODY_NOT_SET: {
@@ -1244,11 +1315,18 @@ private static final long serialVersionUID = 0L;
               bodyCase_ = 10;
               break;
             } // case 82
+            case 90: {
+              input.readMessage(
+                  getCatalogSchemaMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bodyCase_ = 11;
+              break;
+            } // case 90
             case 794: {
               input.readMessage(
                   getTimestampFieldBuilder().getBuilder(),
                   extensionRegistry);
-              bitField0_ |= 0x00000400;
+              bitField0_ |= 0x00000800;
               break;
             } // case 794
             default: {
@@ -2882,6 +2960,184 @@ private static final long serialVersionUID = 0L;
       return infrastructureMutationBuilder_;
     }
 
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder> catalogSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+     * @return Whether the catalogSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasCatalogSchemaMutation() {
+      return bodyCase_ == 11;
+    }
+    /**
+     * <pre>
+     * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+     * @return The catalogSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation getCatalogSchemaMutation() {
+      if (catalogSchemaMutationBuilder_ == null) {
+        if (bodyCase_ == 11) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation) body_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.getDefaultInstance();
+      } else {
+        if (bodyCase_ == 11) {
+          return catalogSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+     */
+    public Builder setCatalogSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation value) {
+      if (catalogSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        body_ = value;
+        onChanged();
+      } else {
+        catalogSchemaMutationBuilder_.setMessage(value);
+      }
+      bodyCase_ = 11;
+      return this;
+    }
+    /**
+     * <pre>
+     * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+     */
+    public Builder setCatalogSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder builderForValue) {
+      if (catalogSchemaMutationBuilder_ == null) {
+        body_ = builderForValue.build();
+        onChanged();
+      } else {
+        catalogSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      bodyCase_ = 11;
+      return this;
+    }
+    /**
+     * <pre>
+     * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+     */
+    public Builder mergeCatalogSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation value) {
+      if (catalogSchemaMutationBuilder_ == null) {
+        if (bodyCase_ == 11 &&
+            body_ != io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.getDefaultInstance()) {
+          body_ = io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation) body_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          body_ = value;
+        }
+        onChanged();
+      } else {
+        if (bodyCase_ == 11) {
+          catalogSchemaMutationBuilder_.mergeFrom(value);
+        } else {
+          catalogSchemaMutationBuilder_.setMessage(value);
+        }
+      }
+      bodyCase_ = 11;
+      return this;
+    }
+    /**
+     * <pre>
+     * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+     */
+    public Builder clearCatalogSchemaMutation() {
+      if (catalogSchemaMutationBuilder_ == null) {
+        if (bodyCase_ == 11) {
+          bodyCase_ = 0;
+          body_ = null;
+          onChanged();
+        }
+      } else {
+        if (bodyCase_ == 11) {
+          bodyCase_ = 0;
+          body_ = null;
+        }
+        catalogSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder getCatalogSchemaMutationBuilder() {
+      return getCatalogSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder getCatalogSchemaMutationOrBuilder() {
+      if ((bodyCase_ == 11) && (catalogSchemaMutationBuilder_ != null)) {
+        return catalogSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (bodyCase_ == 11) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation) body_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Set for a SCHEMA area mutation that exists on the catalog level only. See the `body` comment above.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 11;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder> 
+        getCatalogSchemaMutationFieldBuilder() {
+      if (catalogSchemaMutationBuilder_ == null) {
+        if (!(bodyCase_ == 11)) {
+          body_ = io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.getDefaultInstance();
+        }
+        catalogSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation) body_,
+                getParentForChildren(),
+                isClean());
+        body_ = null;
+      }
+      bodyCase_ = 11;
+      onChanged();
+      return catalogSchemaMutationBuilder_;
+    }
+
     private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp_;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> timestampBuilder_;
@@ -2894,7 +3150,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the timestamp field is set.
      */
     public boolean hasTimestamp() {
-      return ((bitField0_ & 0x00000400) != 0);
+      return ((bitField0_ & 0x00000800) != 0);
     }
     /**
      * <pre>
@@ -2927,7 +3183,7 @@ private static final long serialVersionUID = 0L;
       } else {
         timestampBuilder_.setMessage(value);
       }
-      bitField0_ |= 0x00000400;
+      bitField0_ |= 0x00000800;
       onChanged();
       return this;
     }
@@ -2945,7 +3201,7 @@ private static final long serialVersionUID = 0L;
       } else {
         timestampBuilder_.setMessage(builderForValue.build());
       }
-      bitField0_ |= 0x00000400;
+      bitField0_ |= 0x00000800;
       onChanged();
       return this;
     }
@@ -2958,7 +3214,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder mergeTimestamp(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
       if (timestampBuilder_ == null) {
-        if (((bitField0_ & 0x00000400) != 0) &&
+        if (((bitField0_ & 0x00000800) != 0) &&
           timestamp_ != null &&
           timestamp_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
           getTimestampBuilder().mergeFrom(value);
@@ -2969,7 +3225,7 @@ private static final long serialVersionUID = 0L;
         timestampBuilder_.mergeFrom(value);
       }
       if (timestamp_ != null) {
-        bitField0_ |= 0x00000400;
+        bitField0_ |= 0x00000800;
         onChanged();
       }
       return this;
@@ -2982,7 +3238,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
      */
     public Builder clearTimestamp() {
-      bitField0_ = (bitField0_ & ~0x00000400);
+      bitField0_ = (bitField0_ & ~0x00000800);
       timestamp_ = null;
       if (timestampBuilder_ != null) {
         timestampBuilder_.dispose();
@@ -2999,7 +3255,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getTimestampBuilder() {
-      bitField0_ |= 0x00000400;
+      bitField0_ |= 0x00000800;
       onChanged();
       return getTimestampFieldBuilder().getBuilder();
     }

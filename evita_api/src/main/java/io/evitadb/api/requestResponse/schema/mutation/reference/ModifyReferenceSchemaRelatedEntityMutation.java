@@ -111,7 +111,7 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 			referenceSchema.isReferencedEntityTypeManaged() == this.referencedEntityTypeManaged) {
 			return referenceSchema;
 		} else {
-			return ReferenceSchema._internalBuild(
+			final ReferenceSchema result = ReferenceSchema._internalBuild(
 				referenceSchema.getName(),
 				referenceSchema.getNameVariants(),
 				referenceSchema.getDescription(),
@@ -135,8 +135,13 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 				referenceSchema.getBucketedPartiallyInScopes(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds(),
-				referenceSchema.getConflictResolutionOverride()
+				referenceSchema.getConflictResolutionOverride(),
+				referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 			);
+			if (consistencyChecks == ConsistencyChecks.APPLY) {
+				SetReferenceSchemaSearchableThroughMutation.verifyRequirements(entitySchema, result);
+			}
+			return result;
 		}
 	}
 

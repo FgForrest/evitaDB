@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.At
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -54,6 +55,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -77,8 +79,12 @@ import java.util.stream.Stream;
 public class CreateReflectedReferenceSchemaMutation
 	extends AbstractReferenceDataSchemaMutation
 	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = 6927605828004667958L;
+	@Serial private static final long serialVersionUID = 6927605828004667959L;
 
+	/** Complete composition declaration; null means none is declared. */
+	@Getter @Nullable private final ScopedReferenceSearchMode[] searchableThroughInScopes;
+	/** Single ranking weight shared by all scopes; null means the default weight. */
+	@Getter @Nullable private final BigDecimal searchableThroughWeight;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nullable private final Cardinality cardinality;
@@ -320,6 +326,16 @@ public class CreateReflectedReferenceSchemaMutation
 	/**
 	 * Creates mutation that sets up a new reflected reference schema using a simple boolean
 	 * flag for faceted configuration.
+	 *
+	 * @param name reference name
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param reflectedReferenceName name of the original reference
+	 * @param faceted whether to facet the default scope
+	 * @param attributeInheritanceBehavior attribute inheritance behavior
+	 * @param attributeInheritanceFilter attribute inheritance filter, or null for no entries
 	 */
 	public CreateReflectedReferenceSchemaMutation(
 		@Nonnull String name,
@@ -331,6 +347,41 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nullable Boolean faceted,
 		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter
+	) {
+		this(
+			name, description, deprecationNotice, cardinality, referencedEntityType, reflectedReferenceName,
+			faceted, attributeInheritanceBehavior, attributeInheritanceFilter, null, null
+		);
+	}
+
+	/**
+	 * Creates mutation that sets up a new reflected reference schema using a simple boolean flag for faceted
+	 * configuration and declares its own text composition.
+	 *
+	 * @param name reference name
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param reflectedReferenceName name of the original reference
+	 * @param faceted whether to facet the default scope
+	 * @param attributeInheritanceBehavior attribute inheritance behavior
+	 * @param attributeInheritanceFilter attribute inheritance filter, or null for no entries
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight shared ranking weight, or null for the default 0.5
+	 */
+	public CreateReflectedReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull String reflectedReferenceName,
+		@Nullable Boolean faceted,
+		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
+		@Nullable String[] attributeInheritanceFilter,
+		@Nullable ScopedReferenceSearchMode[] searchableThroughInScopes,
+		@Nullable BigDecimal searchableThroughWeight
 	) {
 		this(
 			name, description, deprecationNotice, cardinality, referencedEntityType, reflectedReferenceName,
@@ -346,7 +397,8 @@ public class CreateReflectedReferenceSchemaMutation
 			ScopedHistogramIndexDefinition.EMPTY,
 			// by default bucketedPartially is empty
 			ScopedBucketedPartially.EMPTY,
-			attributeInheritanceBehavior, attributeInheritanceFilter
+			attributeInheritanceBehavior, attributeInheritanceFilter,
+			searchableThroughInScopes, searchableThroughWeight
 		);
 	}
 
@@ -354,8 +406,22 @@ public class CreateReflectedReferenceSchemaMutation
 	 * Creates mutation that sets up a new reflected reference schema with detailed per-scope
 	 * indexed/faceted/bucketed configuration including per-scope facetedPartially and
 	 * bucketedPartially expressions.
+	 *
+	 * @param name reference name
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param reflectedReferenceName name of the original reference
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param attributeInheritanceBehavior attribute inheritance behavior
+	 * @param attributeInheritanceFilter attribute inheritance filter, or null for no entries
 	 */
-	@SerializableCreator
 	public CreateReflectedReferenceSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -372,7 +438,60 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter
 	) {
+		this(
+			name, description, deprecationNotice, cardinality, referencedEntityType, reflectedReferenceName,
+			indexedInScopes, indexedComponentsInScopes, facetedInScopes, facetedPartiallyInScopes, bucketedInScopes,
+			bucketedPartiallyInScopes, attributeInheritanceBehavior, attributeInheritanceFilter,
+			null, null
+		);
+	}
+
+	/**
+	 * Creates mutation that sets up a new reflected reference schema with detailed per-scope
+	 * indexed/faceted/bucketed configuration and declares its own text composition, which a reflected reference
+	 * never inherits from its original reference.
+	 *
+	 * @param name reference name
+	 * @param description description, or null when absent
+	 * @param deprecationNotice deprecation notice, or null when absent
+	 * @param cardinality reference cardinality
+	 * @param referencedEntityType referenced entity type
+	 * @param reflectedReferenceName name of the original reference
+	 * @param indexedInScopes per-scope index configuration
+	 * @param indexedComponentsInScopes per-scope indexed components
+	 * @param facetedInScopes faceted scopes
+	 * @param facetedPartiallyInScopes per-scope facet predicates
+	 * @param bucketedInScopes per-scope histogram definitions
+	 * @param bucketedPartiallyInScopes per-scope histogram predicates
+	 * @param attributeInheritanceBehavior attribute inheritance behavior
+	 * @param attributeInheritanceFilter attribute inheritance filter, or null for no entries
+	 * @param searchableThroughInScopes complete search mode declaration, or null for none
+	 * @param searchableThroughWeight shared ranking weight, or null for the default 0.5
+	 */
+	@SerializableCreator
+	public CreateReflectedReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull String reflectedReferenceName,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes,
+		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
+		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
+		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes,
+		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
+		@Nullable String[] attributeInheritanceFilter,
+		@Nullable ScopedReferenceSearchMode[] searchableThroughInScopes,
+		@Nullable BigDecimal searchableThroughWeight
+	) {
 		super(name);
+		this.searchableThroughInScopes = searchableThroughInScopes == null
+			? null : searchableThroughInScopes.clone();
+		this.searchableThroughWeight = searchableThroughWeight == null
+			? null : AttributeSchemaContract.normalizeSearchWeight(searchableThroughWeight, "Reference `" + name + "`");
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
 		this.description = description;
@@ -431,6 +550,12 @@ public class CreateReflectedReferenceSchemaMutation
 					null,
 					Stream.of(
 							Stream.of(
+								(!existingVersion.getSearchableThroughInScopes().isEmpty() &&
+									!createdVersion.getSearchableThroughInScopes()
+										.equals(existingVersion.getSearchableThroughInScopes())) ?
+									new SetReferenceSchemaSearchableThroughMutation(
+										this.name, ScopedReferenceSearchMode.EMPTY, null
+									) : null,
 								makeMutationIfDeclaredDifferently(
 									createdVersion.isDescriptionInherited(), createdVersion::getDescription,
 									existingVersion.isDescriptionInherited(), existingVersion::getDescription,
@@ -460,7 +585,18 @@ public class CreateReflectedReferenceSchemaMutation
 								// emit a single mutation carrying both facetedInScopes and facetedPartially
 								createCombinedFacetedMutation(createdVersion, existingVersion),
 								// emit a single mutation carrying both bucketedInScopes and bucketedPartially
-								createCombinedBucketedMutation(createdVersion, existingVersion)
+								createCombinedBucketedMutation(createdVersion, existingVersion),
+								(createdVersion.getSearchableThroughInScopes()
+									.equals(existingVersion.getSearchableThroughInScopes()) &&
+									createdVersion.getSearchableThroughWeight().equals(
+										existingVersion.getSearchableThroughWeight())) ? null :
+									new SetReferenceSchemaSearchableThroughMutation(
+										this.name,
+										ReferenceSchema.toScopedSearchModes(
+											createdVersion.getSearchableThroughInScopes()
+										),
+										createdVersion.getSearchableThroughWeight()
+									)
 							),
 							// only the declared part: an inherited attribute cannot be removed, and the inherited ones are
 							// not available while the reflected reference is not bound to its original
@@ -492,7 +628,7 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull ConsistencyChecks consistencyChecks
 	) {
-		return ReflectedReferenceSchema._internalBuild(
+		final ReflectedReferenceSchema result = ReflectedReferenceSchema._internalBuild(
 			this.name, this.description, this.deprecationNotice,
 			this.referencedEntityType, this.reflectedReferenceName,
 			this.cardinality,
@@ -505,8 +641,15 @@ public class CreateReflectedReferenceSchemaMutation
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			this.attributeInheritanceBehavior,
-			this.attributeInheritanceFilter
+			this.attributeInheritanceFilter,
+			ReferenceSchema.toSearchableThroughMap(this.searchableThroughInScopes),
+			this.searchableThroughWeight == null ? ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
+				: this.searchableThroughWeight
 		);
+		if (consistencyChecks == ConsistencyChecks.APPLY) {
+			SetReferenceSchemaSearchableThroughMutation.verifyRequirements(entitySchema, result);
+		}
+		return result;
 	}
 
 	@Nonnull
@@ -517,7 +660,8 @@ public class CreateReflectedReferenceSchemaMutation
 	) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		final ReflectedReferenceSchema newReferenceSchema = Objects.requireNonNull(
-			(ReflectedReferenceSchema) this.mutate(entitySchema, null)
+			// Other reflected creation checks remain deferred until the original is bound.
+			(ReflectedReferenceSchema) this.mutate(entitySchema, null, ConsistencyChecks.SKIP)
 		);
 		final Optional<ReferenceSchemaContract> referencedReferenceSchema = catalogSchema
 			.getEntitySchema(newReferenceSchema.getReferencedEntityType())
@@ -527,6 +671,9 @@ public class CreateReflectedReferenceSchemaMutation
 		final ReferenceSchemaContract referenceToInsert = referencedReferenceSchema
 			.map(newReferenceSchema::withReferencedSchemaAfterSchemaChange)
 			.orElse(newReferenceSchema);
+		SetReferenceSchemaSearchableThroughMutation.verifyRequirements(
+			entitySchema, (ReferenceSchema) referenceToInsert
+		);
 		return insertNewReference(entitySchema, this.name, referenceToInsert, newReferenceSchema);
 	}
 
@@ -581,7 +728,9 @@ public class CreateReflectedReferenceSchemaMutation
 			bucketedPartiallyDescription = "(in scopes: " + Arrays.toString(this.bucketedPartiallyInScopes) + ")";
 		}
 		return "Create entity reflected reference schema: " +
-			"name='" + this.name + '\'' +
+			"searchableThrough=" + Arrays.toString(this.searchableThroughInScopes) +
+			", searchableThroughWeight=" + this.searchableThroughWeight +
+			", name='" + this.name + '\'' +
 			", description='" + this.description + '\'' +
 			", deprecationNotice='" + this.deprecationNotice + '\'' +
 			", cardinality=" + this.cardinality +

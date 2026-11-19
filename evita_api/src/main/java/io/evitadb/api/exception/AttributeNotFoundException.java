@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -81,6 +82,24 @@ public class AttributeNotFoundException extends EvitaInvalidUsageException {
 			"Attribute with name `" + attributeName + "` is not present in schema of reference " +
 				"`" + referenceSchema.getName() + "` of entity `" + entitySchema.getName() + "`."
 		);
+	}
+
+	/**
+	 * Creates a missing-place diagnostic retaining both the schema level and the stated query constraint.
+	 *
+	 * @param attributeName the attribute the constraint names
+	 * @param entitySchema schema of the entity holding the attribute, or holding the reference that should hold it
+	 * @param referenceSchema NULL when the attribute belongs to the entity itself, otherwise the reference whose
+	 *                        attributes were searched
+	 * @param constraint the complete constraint as the query states it
+	 */
+	public AttributeNotFoundException(
+		@Nonnull String attributeName, @Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema, @Nonnull String constraint
+	) {
+		super("Constraint `" + constraint + "`: attribute `" + attributeName + "` is not present in schema of " +
+			(referenceSchema == null ? "" : "reference `" + referenceSchema.getName() + "` of ") +
+			"entity `" + entitySchema.getName() + "`.");
 	}
 
 }

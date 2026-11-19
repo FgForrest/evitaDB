@@ -93,6 +93,7 @@ public class GroupHavingTranslator implements FilteringConstraintTranslator<Grou
 					"` by group entity `" + referencedGroupType + "` having: " + filterConstraint;
 
 			return HavingTranslatorHelper.translateHavingConstraint(
+				groupHaving,
 				filterConstraint,
 				filterByVisitor,
 				entitySchema,

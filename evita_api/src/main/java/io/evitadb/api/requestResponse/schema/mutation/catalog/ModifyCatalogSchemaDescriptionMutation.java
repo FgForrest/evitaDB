@@ -98,6 +98,9 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 					catalogSchema.getConflictResolution().orElse(null),
 					catalogSchema.getCatalogEvolutionMode(),
 					catalogSchema.getAttributes(),
+					catalogSchema.getFulltextLanguages(),
+					catalogSchema.getFulltextResources(),
+					catalogSchema.getFulltextAnalyzers(),
 					entitySchemaAccessor
 				)
 			);

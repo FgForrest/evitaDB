@@ -194,5 +194,14 @@ message GrpcEntitySchemaMutation {
     // Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
     GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;
 
+    // Fulltext schema declaration.
+    GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 128;
+
+    // Fulltext schema declaration.
+    GrpcSetAssociatedDataSchemaSearchableMutation setAssociatedDataSchemaSearchableMutation = 129;
+
+    // Fulltext schema declaration.
+    GrpcSetReferenceSchemaSearchableThroughMutation setReferenceSchemaSearchableThroughMutation = 130;
+
   }
 }

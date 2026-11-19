@@ -24,6 +24,7 @@
 package io.evitadb.index.fulltext.analysis;
 
 import javax.annotation.Nonnull;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,7 +41,7 @@ import java.util.function.UnaryOperator;
  * The lexicon-scale verifier of the M7 correctness invariant, shared by the per-language
  * `*VariantStemmerLexiconTest`s: for **every headword of a Hunspell `.dic` file**, the folded image of the
  * index-side term must be contained in the variant set the production {@link VariantStemmer} emits for the
- * bare-typed word — exactly the term set the language's `*-search` built-in emits. A violating word is a
+ * bare-typed word — exactly the term set the language's compiled `text` query side emits. A violating word is a
  * fold-ambiguity no fork covers, i.e. a bare-typed query that would silently fail to find its own document.
  *
  * This runs against the **production** stemmer rather than the flat `Folded*Stemmer` specification, so it is a

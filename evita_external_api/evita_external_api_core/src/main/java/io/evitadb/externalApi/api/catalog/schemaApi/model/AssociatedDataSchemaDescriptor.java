@@ -26,8 +26,8 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -80,6 +80,19 @@ public interface AssociatedDataSchemaDescriptor extends NamedSchemaWithDeprecati
 		.build();
 
 
+	/** Shares the description of {@link AttributeSchemaDescriptor#SEARCHABLE}. */
+	PropertyDescriptor SEARCHABLE = AttributeSchemaDescriptor.SEARCHABLE;
+	/** Shares the description of {@link AttributeSchemaDescriptor#ANALYZER}. */
+	PropertyDescriptor ANALYZER = AttributeSchemaDescriptor.ANALYZER;
+	/** Shares the description of {@link AttributeSchemaDescriptor#LENGTH_PIVOT}. */
+	PropertyDescriptor LENGTH_PIVOT = AttributeSchemaDescriptor.LENGTH_PIVOT;
+	/** Shares the description of {@link AttributeSchemaDescriptor#SEARCH_WEIGHT}. */
+	PropertyDescriptor SEARCH_WEIGHT = AttributeSchemaDescriptor.SEARCH_WEIGHT;
+	/** Raw expression source; absent when the value needs no extraction. */
+	PropertyDescriptor TEXT_EXPRESSION = PropertyDescriptor.builder()
+		.name("textExpression").description("Raw source of the expression selecting searchable text from the value.")
+		.type(PrimitivePropertyDataTypeDescriptor.nullable(String.class)).build();
+
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("AssociatedDataSchema")
 		.description("""
@@ -100,6 +113,11 @@ public interface AssociatedDataSchemaDescriptor extends NamedSchemaWithDeprecati
 			LOCALIZED,
 			NULLABLE,
 			TYPE,
+			SEARCHABLE,
+			ANALYZER,
+			LENGTH_PIVOT,
+			SEARCH_WEIGHT,
+			TEXT_EXPRESSION,
 			CONFLICT_RESOLUTION_OVERRIDE
 		))
 		.build();

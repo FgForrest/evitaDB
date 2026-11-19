@@ -42,7 +42,10 @@ import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.AttributeStartsWith;
 import io.evitadb.api.query.filter.HierarchySpecificationFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.filter.AttributeIn;
+import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.RelevanceText;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.exception.EvitaInternalError;
 import lombok.SneakyThrows;
@@ -58,8 +61,10 @@ import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 
@@ -116,6 +121,52 @@ class ConstraintProcessorTest {
 				ConstraintWithConstructorAndFactoryMethod.def(),
 				descriptors2.get(1).creator().instantiateConstraint(new Object[]{}, "")
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Fulltext annotation processing")
+	class FulltextConstraintsTest {
+
+		/** Keeps the existing annotation check aligned with the final fulltext metadata. */
+		@Test
+		@DisplayName("should process the annotations of the fulltext constraints")
+		void shouldProcessAnnotationsOfFulltextConstraints() {
+			// process only these three classes, so the descriptor list holds exactly their variants
+			final List<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(
+					Set.of(TextMatches.class, AttributeIn.class, RelevanceText.class)
+				)
+				.stream()
+				.sorted(Comparator.comparing(ConstraintDescriptor::fullName))
+				.toList();
+
+			assertEquals(
+				List.of("in", "inAll", "relevanceText", "textMatches"),
+				descriptors.stream().map(ConstraintDescriptor::fullName).toList()
+			);
+
+			final ConstraintDescriptor inAttribute = descriptors.get(0);
+			assertEquals(ConstraintType.FILTER, inAttribute.type());
+			assertEquals(ConstraintPropertyType.ATTRIBUTE, inAttribute.propertyType());
+			assertEquals(ConstraintValueStructure.NONE, inAttribute.creator().valueStructure());
+
+			final ConstraintDescriptor relevanceText = descriptors.get(2);
+			assertEquals(ConstraintType.ORDER, relevanceText.type());
+			assertEquals(ConstraintPropertyType.GENERIC, relevanceText.propertyType());
+			assertEquals(Set.of(ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE), relevanceText.supportedIn());
+			assertEquals(ConstraintValueStructure.CONTAINER, relevanceText.creator().valueStructure());
+			assertEquals("weights", relevanceText.creator().childParameters().getFirst().name());
+			assertFalse(relevanceText.creator().childParameters().getFirst().uniqueChildren());
+
+			final ConstraintDescriptor textMatches = descriptors.get(3);
+			assertEquals(ConstraintType.FILTER, textMatches.type());
+			assertEquals(ConstraintPropertyType.GENERIC, textMatches.propertyType());
+			assertEquals(Set.of(ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE), textMatches.supportedIn());
+			assertEquals(ConstraintValueStructure.COMPLEX, textMatches.creator().valueStructure());
+			final List<ChildParameterDescriptor> childParameters = textMatches.creator().childParameters();
+			assertEquals(1, childParameters.size());
+			assertTrue(childParameters.get(0).uniqueChildren());
+			assertFalse(childParameters.get(0).required());
 		}
 	}
 

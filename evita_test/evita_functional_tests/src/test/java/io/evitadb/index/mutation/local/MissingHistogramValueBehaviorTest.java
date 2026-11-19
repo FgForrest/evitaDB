@@ -64,6 +64,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.analysis.AttributeNormalizationResolver;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -2100,7 +2101,9 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 				)), () -> schema, sequencer::getAndIncrement,
 				() -> new Entity(schema, PRODUCT_PK), () -> registry, null, null, classifierResolver,
 				new SchemaCapabilityUsageRegistry(), new SchemaCapabilityUsageRegistry(),
-				new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD, true,
+				new FulltextAnalyzerRegistry(new AnalysisStepRegistry()),
+				() -> io.evitadb.index.fulltext.FulltextIndexTestSupport.SCHEMA,
+				AttributeNormalizationResolver.LEGACY_NFD, true,
 				behavior, new PartitionReservations()
 			),
 			storage, schema, grouped, globalIndex, indexesByPrimaryKey

@@ -188,6 +188,43 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 		.type(nullable(ConflictResolutionOverride.class))
 		.build();
 
+	/** Shared with the searchability replacement: omitted or empty means searchable nowhere in both. */
+	PropertyDescriptor SEARCHABLE_IN_SCOPES = SetAttributeSchemaSearchableMutationDescriptor.SEARCHABLE_IN_SCOPES;
+	/**
+	 * Creation counterpart of {@link SetAttributeSchemaSearchableMutationDescriptor#ANALYZER}: there is no current
+	 * analyzer to keep, so omission means the default one.
+	 */
+	PropertyDescriptor ANALYZER = PropertyDescriptor.from(SetAttributeSchemaSearchableMutationDescriptor.ANALYZER)
+		.description("""
+			Name of the fulltext analyzer that turns the text of the field into index terms - a built-in one (`text`,
+			`html-text`) or one declared in the catalog schema; omission means the default `text` analyzer.
+			""")
+		.build();
+	/**
+	 * Creation counterpart of {@link SetAttributeSchemaSearchableMutationDescriptor#LENGTH_PIVOT}: omission means the
+	 * default pivot.
+	 */
+	PropertyDescriptor LENGTH_PIVOT = PropertyDescriptor.from(
+			SetAttributeSchemaSearchableMutationDescriptor.LENGTH_PIVOT
+		)
+		.description("""
+			Number of words a value of normal length has: a word found in a shorter value weighs more, in a longer
+			one less. Omission means the default length pivot of 25 words.
+			""")
+		.build();
+	/**
+	 * Creation counterpart of {@link SetAttributeSchemaSearchableMutationDescriptor#SEARCH_WEIGHT}: omission means the
+	 * default weight.
+	 */
+	PropertyDescriptor SEARCH_WEIGHT = PropertyDescriptor.from(
+			SetAttributeSchemaSearchableMutationDescriptor.SEARCH_WEIGHT
+		)
+		.description("""
+			Ranking weight of the field in every scope; it must be finite and non-negative. Zero is valid: matches are
+			kept but add no ranking strength. Omission means the default weight of 1.
+			""")
+		.build();
+
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(CreateAttributeSchemaMutation.class)
 		.description("""
@@ -195,6 +232,10 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			Mutation can be used for altering also the existing `AttributeSchema` alone.
 			""")
 		.staticProperty(NAME)
+		.staticProperty(SEARCHABLE_IN_SCOPES)
+		.staticProperty(ANALYZER)
+		.staticProperty(LENGTH_PIVOT)
+		.staticProperty(SEARCH_WEIGHT)
 		.staticProperty(DESCRIPTION)
 		.staticProperty(DEPRECATION_NOTICE)
 		.staticProperty(UNIQUE_IN_SCOPES)

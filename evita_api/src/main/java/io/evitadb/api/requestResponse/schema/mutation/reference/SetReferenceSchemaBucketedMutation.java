@@ -143,7 +143,9 @@ public class SetReferenceSchemaBucketedMutation
 						: createMutation.getBucketedInScopes(),
 					this.bucketedPartiallyInScopes != null
 						? this.bucketedPartiallyInScopes
-						: createMutation.getBucketedPartiallyInScopes()
+						: createMutation.getBucketedPartiallyInScopes(),
+					createMutation.getConflictResolutionOverride(),
+					createMutation.getSearchableThroughInScopes(), createMutation.getSearchableThroughWeight()
 				)
 			);
 		} else if (
@@ -166,7 +168,8 @@ public class SetReferenceSchemaBucketedMutation
 					this.bucketedInScopes,
 					this.bucketedPartiallyInScopes,
 					createMutation.getAttributeInheritanceBehavior(),
-					createMutation.getAttributeInheritanceFilter()
+					createMutation.getAttributeInheritanceFilter(),
+					createMutation.getSearchableThroughInScopes(), createMutation.getSearchableThroughWeight()
 				)
 			);
 		} else {
@@ -261,7 +264,8 @@ public class SetReferenceSchemaBucketedMutation
 				newPartially,
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds(),
-				referenceSchema.getConflictResolutionOverride()
+				referenceSchema.getConflictResolutionOverride(),
+				referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 			);
 		}
 	}

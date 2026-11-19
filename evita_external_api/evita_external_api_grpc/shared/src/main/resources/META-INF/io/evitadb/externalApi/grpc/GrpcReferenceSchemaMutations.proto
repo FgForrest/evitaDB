@@ -91,6 +91,11 @@ message GrpcCreateReferenceSchemaMutation {
   repeated GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;
   // The per-reference override of the conflict resolution granularity.
   GrpcConflictResolutionOverride conflictResolutionOverride = 18;
+  // Optional replacement composition modes; an empty message explicitly clears the declaration.
+  GrpcReferenceSearchModes searchableThroughInScopes = 19;
+  // Optional shared ranking weight; zero is distinct from omission.
+  GrpcBigDecimal searchableThroughWeight = 20;
+
 }
 
 // Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
@@ -170,6 +175,11 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   repeated GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;
   // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
   repeated GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;
+  // Optional replacement composition modes; an empty message explicitly clears the declaration.
+  GrpcReferenceSearchModes searchableThroughInScopes = 19;
+  // Optional shared ranking weight; zero is distinct from omission.
+  GrpcBigDecimal searchableThroughWeight = 20;
+
 }
 
 // Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
@@ -351,3 +361,10 @@ message GrpcSetReferenceSchemaConflictResolutionOverrideMutation {
   GrpcConflictResolutionOverride conflictResolutionOverride = 2;
 }
 
+
+// Changes reference composition modes and their shared ranking weight independently.
+message GrpcSetReferenceSchemaSearchableThroughMutation {
+  string name = 1;
+  GrpcReferenceSearchModes searchableThroughInScopes = 2;
+  GrpcBigDecimal weight = 3;
+}

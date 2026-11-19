@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +48,7 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
@@ -521,6 +523,24 @@ class AssociatedDataSchemaBuilderTest {
 					data.getDeprecationNotice(),
 					"Default deprecation notice"
 						+ " should be null"
+				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Fulltext field settings")
+	@Tag(FULLTEXT)
+	class FulltextFieldSettings {
+
+		@Test
+		@DisplayName("should refuse a null analyzer instead of keeping the current one")
+		void shouldRefuseNullAnalyzer() {
+			final EntitySchemaBuilder builder = createEntitySchemaBuilder();
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> builder.withAssociatedData(
+					"body", String.class, whichIs -> whichIs.localized().analyzer(null)
 				)
 			);
 		}

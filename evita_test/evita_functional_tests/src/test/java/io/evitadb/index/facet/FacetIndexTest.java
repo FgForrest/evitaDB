@@ -84,19 +84,22 @@ class FacetIndexTest {
 		Entities.BRAND, Entities.BRAND, true, Cardinality.ZERO_OR_MORE,
 		null, false,
 		new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)},
-		Scope.NO_SCOPE
+		Scope.NO_SCOPE,
+		null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 	);
 	private final ReferenceSchema storeReferenceSchema = ReferenceSchema._internalBuild(
 		Entities.STORE, Entities.STORE, true, Cardinality.ZERO_OR_MORE,
 		null, false,
 		new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)},
-		Scope.NO_SCOPE
+		Scope.NO_SCOPE,
+		null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 	);
 	private final ReferenceSchema parameterReferenceSchema = ReferenceSchema._internalBuild(
 		Entities.PARAMETER, Entities.PARAMETER, true, Cardinality.ZERO_OR_MORE,
 		null, false,
 		new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)},
-		Scope.NO_SCOPE
+		Scope.NO_SCOPE,
+		null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 	);
 	private FacetIndex facetIndex;
 
@@ -837,7 +840,8 @@ class FacetIndexTest {
 			new ScopedReferenceIndexType[]{
 				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 			},
-			Scope.NO_SCOPE
+			Scope.NO_SCOPE,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

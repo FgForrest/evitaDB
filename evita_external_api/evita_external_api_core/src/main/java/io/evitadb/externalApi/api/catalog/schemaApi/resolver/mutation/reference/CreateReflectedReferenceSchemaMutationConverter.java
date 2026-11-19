@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
@@ -128,8 +129,13 @@ public class CreateReflectedReferenceSchemaMutationConverter
 			facetedPartiallyInScopes,
 			bucketedInScopes,
 			bucketedPartiallyInScopes,
-			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR),
-			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER)
+			input.getProperty(
+				CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR_INPUT,
+				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED
+			),
+			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER),
+			readSearchableThrough(input),
+			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.SEARCHABLE_THROUGH_WEIGHT)
 		);
 	}
 
@@ -141,6 +147,10 @@ public class CreateReflectedReferenceSchemaMutationConverter
 		serializeFacetedPartially(mutation.getFacetedPartiallyInScopes(), output);
 		serializeBucketedHistogram(mutation.getBucketedInScopes(), output);
 		serializeBucketedPartially(mutation.getBucketedPartiallyInScopes(), output);
+		writeSearchWeight(
+			CreateReflectedReferenceSchemaMutationDescriptor.SEARCHABLE_THROUGH_WEIGHT.name(),
+			mutation.getSearchableThroughWeight(), output
+		);
 		super.convertToOutput(mutation, output);
 	}
 }

@@ -1003,7 +1003,8 @@ class BitmapSlicerTest {
 	private static ReferenceSchema referenceSchema() {
 		return ReferenceSchema._internalBuild(
 			REFERENCE_NAME, "referenced", false, Cardinality.ZERO_OR_MORE,
-			null, false, null, null
+			null, false, null, null,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

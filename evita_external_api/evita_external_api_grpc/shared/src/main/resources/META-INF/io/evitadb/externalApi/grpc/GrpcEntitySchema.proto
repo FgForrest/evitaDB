@@ -266,6 +266,19 @@ message GrpcAttributeSchema {
   // normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
   // A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
   repeated GrpcAnalysisStep normalized = 23;
+  // Scopes in which the attribute contributes words to the fulltext index. Empty when it is not searchable in any
+  // scope, and when the server predates fulltext.
+  repeated GrpcEntityScope searchableInScopes = 24;
+  // Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+  // catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+  google.protobuf.StringValue analyzer = 25;
+  // Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+  // one less. Unset when the server predates fulltext; clients then use the default 25.
+  google.protobuf.Int32Value lengthPivot = 26;
+  // Fulltext ranking weight of the attribute, shared by every scope; zero preserves matches while contributing no
+  // ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+  // differs from an unset wrapper.
+  GrpcBigDecimal searchWeight = 27;
 }
 
 // This is the definition object for associated data that is stored along with
@@ -303,6 +316,22 @@ message GrpcAssociatedDataSchema {
   // Contains the per-associated-data override of the conflict resolution granularity. Defaults to inherited (follow
   // the resolved conflict resolution).
   GrpcConflictResolutionOverride conflictResolutionOverride = 8;
+  // Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+  // scope, and when the server predates fulltext.
+  repeated GrpcEntityScope searchableInScopes = 9;
+  // Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+  // catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+  google.protobuf.StringValue analyzer = 10;
+  // Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+  // one less. Unset when the server predates fulltext; clients then use the default 25.
+  google.protobuf.Int32Value lengthPivot = 11;
+  // Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+  // ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+  // differs from an unset wrapper.
+  GrpcBigDecimal searchWeight = 12;
+  // Raw source of the expression selecting the searchable text from the associated data value, such as
+  // `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+  google.protobuf.StringValue textExpression = 13;
 }
 
 // This is the definition object for reference that is stored along with
@@ -451,6 +480,13 @@ message GrpcReferenceSchema {
   // Contains the per-reference override of the conflict resolution granularity. Defaults to inherited (follow the
   // resolved conflict resolution). On reflected references this is always inherited.
   GrpcConflictResolutionOverride conflictResolutionOverride = 34;
+  // How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+  // scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+  // message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+  GrpcReferenceSearchModes searchableThroughInScopes = 35;
+  // Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+  // contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+  GrpcBigDecimal searchableThroughWeight = 36;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB

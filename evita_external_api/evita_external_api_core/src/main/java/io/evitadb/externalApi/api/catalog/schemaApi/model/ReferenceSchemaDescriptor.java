@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
+import java.math.BigDecimal;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
@@ -251,6 +251,23 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 		.type(nonNull(ConflictResolutionOverride.class))
 		.build();
 
+	/** How the searchable text of referenced entities joins the owner's fulltext search, by scope. */
+	PropertyDescriptor SEARCHABLE_THROUGH = PropertyDescriptor.builder()
+		.name("searchableThrough").description("""
+			How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+			scope. A scope missing from the list is not searched through the reference; an empty list means no scope
+			is.
+			""")
+		.type(nonNullListRef(ScopedReferenceSearchModeDescriptor.THIS)).build();
+	/** Ranking weight of text found through the reference; zero preserves matches without ranking strength. */
+	PropertyDescriptor SEARCHABLE_THROUGH_WEIGHT = PropertyDescriptor.builder()
+		.name("searchableThroughWeight").description("""
+			Ranking weight of text found through the reference, shared by every scope; 0.5 unless declared otherwise.
+			Zero preserves matches while contributing no ranking strength. The weight must be non-negative, have at most
+			100 significant digits and a stripped scale between -100 and 100, and fit the engine float range.
+			""")
+		.type(nonNull(BigDecimal.class)).build();
+
 	ObjectDescriptor THIS_SPECIFIC = ObjectDescriptor.builder()
 		.name("*ReferenceSchema")
 		.staticProperties(List.of(
@@ -266,6 +283,8 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			INDEXED,
 			INDEXED_COMPONENTS,
 			FACETED,
+			SEARCHABLE_THROUGH,
+			SEARCHABLE_THROUGH_WEIGHT,
 			FACETED_PARTIALLY,
 			BUCKETED,
 			BUCKETED_PARTIALLY,
@@ -311,6 +330,8 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			INDEXED,
 			INDEXED_COMPONENTS,
 			FACETED,
+			SEARCHABLE_THROUGH,
+			SEARCHABLE_THROUGH_WEIGHT,
 			FACETED_PARTIALLY,
 			BUCKETED,
 			BUCKETED_PARTIALLY,

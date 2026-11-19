@@ -23,19 +23,31 @@
 
 package io.evitadb.index.fulltext;
 
-import io.evitadb.index.fulltext.analysis.AnalyzedTerm;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.index.fulltext.analysis.CompiledFulltextAnalyzer;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.impactsOf;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.postingsOf;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.termCount;
+import static io.evitadb.index.fulltext.FulltextIndexTestSupport.surfaceReferenceCounts;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -52,14 +64,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * ## What the oracle derives itself, and what it shares
  *
- * The expected postings, impacts and lengths are computed from the modelled VALUES, never read from an index:
- * every term with the entities whose value produced it, every impact from the term frequency, the value's length
- * and the field's pivot, and every length through the table's encoding. An asymmetry between adding and removing a
- * value, an impact left behind by a split, or a length that outlives its value shows up as a difference.
+ * The expected postings, impacts and indexed entities are computed from the modelled VALUES, never read from an
+ * index: every term with the entities whose value produced it, every impact from the term frequency, the value's
+ * length and the field's pivot, and every entity whose value has a token. An asymmetry between adding and removing a
+ * value, an impact left behind by a split, or a length that outlives its value shows up as a difference. The lengths
+ * themselves are read only by the impacts normalized with them and by a flush, which the model does not drive.
  *
- * The oracle shares three pure functions with the implementation: the analyzer, {@link FulltextIndex#computeImpact}
- * and {@link FieldLengthTable#encode}. A defect inside one of them is invisible here, because both sides would be
- * wrong together. Their own tests (`FulltextAnalyzerTest`, `FulltextIndexTest`, `NumberUtilsTest`) cover them.
+ * The oracle shares two pure functions with the implementation: the analyzer and
+ * {@link FulltextIndex#computeImpact}. A defect inside one of them is invisible here, because both sides would be
+ * wrong together. Their own tests (`FulltextAnalyzerTest`, `FulltextIndexTest`) cover them.
  *
  * ## The steps
  *
@@ -77,6 +90,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class FulltextIndexModel {
+	/** A real catalog schema shared by long-running model fixtures using built-in text chains. */
+	public static final CatalogSchemaContract ANALYSIS_SCHEMA = CatalogSchema._internalBuild(
+		"test", NamingConvention.generate("test"), null, EnumSet.allOf(CatalogEvolutionMode.class),
+		EmptyEntitySchemaAccessor.INSTANCE
+	);
+
 	/**
 	 * Words the generated values are built from: Czech declension variants the Czech analyzer folds together, stop
 	 * words, and diacritics. The vocabulary is small on purpose, so the common terms collect long posting lists that
@@ -90,7 +109,7 @@ public final class FulltextIndexModel {
 	 * The pivots a newly registered field draws from: shorter and longer than the default, so the same value gets
 	 * different impacts in different fields.
 	 */
-	private static final double[] PIVOTS = {6.0, FulltextIndex.DEFAULT_LENGTH_PIVOT, 80.0};
+	private static final double[] PIVOTS = {6.0, 25.0, 80.0};
 	/**
 	 * One step in this many retires a field, and one more removes a value through a retired key.
 	 */
@@ -99,13 +118,13 @@ public final class FulltextIndexModel {
 	/**
 	 * The analyzer of the index the model drives; the expected postings are derived through it.
 	 */
-	@Nonnull private final FulltextAnalyzer analyzer;
+	@Nonnull private final CompiledFulltextAnalyzer analyzer;
 	/**
 	 * The field keys the steps draw from.
 	 */
 	@Nonnull private final FulltextFieldKey[] keys;
 	/**
-	 * The primary keys the steps draw from, ascending - also the keys whose lengths the content dumps read.
+	 * The primary keys the steps draw from, ascending - also the keys the content dumps probe for an indexed value.
 	 */
 	@Nonnull private final int[] primaryKeys;
 	/**
@@ -121,7 +140,7 @@ public final class FulltextIndexModel {
 	 * @param primaryKeys the primary keys the steps draw from
 	 */
 	public FulltextIndexModel(
-		@Nonnull FulltextAnalyzer analyzer,
+		@Nonnull CompiledFulltextAnalyzer analyzer,
 		@Nonnull FulltextFieldKey[] keys,
 		@Nonnull int[] primaryKeys
 	) {
@@ -198,7 +217,9 @@ public final class FulltextIndexModel {
 	public void replayInto(@Nonnull FulltextIndex index) {
 		for (int fieldId = 0; fieldId < this.fields.size(); fieldId++) {
 			final ModelField field = this.fields.get(fieldId);
-			assertEquals(fieldId, index.getOrAssignFieldId(field.key, field.pivot), "replayed field id");
+			assertEquals(fieldId, index.getOrAssignFieldId(field.key,
+				this.analyzer.indexSurface().getAnalyzerName(), this.analyzer.fingerprint().index(),
+				this.analyzer.fingerprint().wordPhase(), field.pivot, null), "replayed field id");
 			for (final Map.Entry<Integer, ModelValue> entry : field.values.entrySet()) {
 				addValue(index, field.key, entry.getKey(), entry.getValue().elements());
 			}
@@ -217,17 +238,21 @@ public final class FulltextIndexModel {
 	public String expectedContent() {
 		final StringBuilder content = new StringBuilder(8_192);
 		int termCount = 0;
+		final Map<String, Long> surfaceCounts = new TreeMap<>();
 		for (final ModelField field : this.fields) {
 			content.append(field.key).append('@').append(field.pivot).append(field.retired ? " retired\n" : "\n");
 			final TreeMap<String, TreeMap<Integer, Integer>> postings = new TreeMap<>();
-			final TreeMap<Integer, Integer> lengths = new TreeMap<>();
+			final TreeSet<Integer> indexed = new TreeSet<>();
 			for (final Map.Entry<Integer, ModelValue> entry : field.values.entrySet()) {
 				final ModelValue value = entry.getValue();
 				if (value.length() == 0) {
 					// a value without tokens is indexed as nothing - no posting and no length
 					continue;
 				}
-				lengths.put(entry.getKey(), FieldLengthTable.encode(value.length()));
+				indexed.add(entry.getKey());
+				for (final String pair : value.surfacePairs()) {
+					surfaceCounts.merge(pair, 1L, Long::sum);
+				}
 				for (final Map.Entry<String, Integer> term : value.termFrequencies().entrySet()) {
 					postings.computeIfAbsent(term.getKey(), t -> new TreeMap<>()).put(
 						entry.getKey(), FulltextIndex.computeImpact(term.getValue(), value.length(), field.pivot)
@@ -241,9 +266,9 @@ public final class FulltextIndexModel {
 				}
 				content.append('\n');
 			}
-			content.append("lengths ").append(lengths.size()).append(':');
-			for (final Map.Entry<Integer, Integer> length : lengths.entrySet()) {
-				content.append(' ').append(length.getKey()).append('/').append(length.getValue());
+			content.append("indexed:");
+			for (final int primaryKey : indexed) {
+				content.append(' ').append(primaryKey);
 			}
 			content.append('\n');
 			termCount += postings.size();
@@ -251,7 +276,7 @@ public final class FulltextIndexModel {
 		for (final FulltextFieldKey key : this.keys) {
 			content.append(key).append(" -> ").append(activeFieldId(key)).append('\n');
 		}
-		return content.append("terms ").append(termCount).toString();
+		return content.append("surface ").append(surfaceCounts).append("\nterms ").append(termCount).toString();
 	}
 
 	/**
@@ -268,16 +293,17 @@ public final class FulltextIndexModel {
 
 	/**
 	 * Renders what an index holds, as the caller's transaction sees it: every field with its pivot and retirement,
-	 * every term with its postings and their impacts in posting order, the length of every passed primary key, what
-	 * every passed key resolves to, and the dictionary size.
+	 * every term with its postings and their impacts in posting order, which of the passed primary keys have a value
+	 * indexed, what every passed key resolves to, and the dictionary size.
 	 *
-	 * Each term is read twice, through the walk - which hands out the leaf's own posting list and impacts - and
-	 * through a descent, and the two must agree. That is where an impact that drifted from its posting shows up even
-	 * when both read paths agree with each other about the posting list.
+	 * Each term is read twice, through the walk of its field - which hands out the leaf's own posting list and
+	 * impacts - and through a lookup of the term alone, a walk the query path starts with a descent to the term, and
+	 * the two must agree. That is where an impact that drifted from its posting shows up even when both read paths
+	 * agree with each other about the posting list.
 	 *
 	 * @param index       the index to read
 	 * @param keys        the keys whose resolution to render
-	 * @param primaryKeys the primary keys whose lengths to render, ascending
+	 * @param primaryKeys the primary keys to probe for an indexed value, ascending
 	 * @return the content, comparable with `equals`
 	 */
 	@Nonnull
@@ -295,10 +321,10 @@ public final class FulltextIndexModel {
 				final int[] walked = postings.getArray();
 				final byte[] walkedImpacts = impacts.toArray();
 				assertArrayEquals(
-					index.getPostings(theFieldId, term).getArray(), walked, "walked postings of `" + term + "`"
+					postingsOf(index, theFieldId, term).getArray(), walked, "walked postings of `" + term + "`"
 				);
 				assertArrayEquals(
-					index.getImpacts(theFieldId, term), walkedImpacts, "walked impacts of `" + term + "`"
+					impactsOf(index, theFieldId, term), walkedImpacts, "walked impacts of `" + term + "`"
 				);
 				assertEquals(walked.length, walkedImpacts.length, "impacts misaligned with the postings of " + term);
 				content.append(term).append(':');
@@ -308,12 +334,10 @@ public final class FulltextIndexModel {
 				content.append('\n');
 				return true;
 			});
-			final FieldLengthTable lengths = index.getFieldLengths(fieldId);
-			content.append("lengths ").append(lengths.size()).append(':');
+			content.append("indexed:");
 			for (final int primaryKey : primaryKeys) {
-				final int encoded = lengths.getEncoded(primaryKey);
-				if (encoded != 0) {
-					content.append(' ').append(primaryKey).append('/').append(encoded);
+				if (index.hasIndexedValue(fieldId, primaryKey)) {
+					content.append(' ').append(primaryKey);
 				}
 			}
 			content.append('\n');
@@ -321,7 +345,9 @@ public final class FulltextIndexModel {
 		for (final FulltextFieldKey key : keys) {
 			content.append(key).append(" -> ").append(index.getFieldId(key)).append('\n');
 		}
-		return content.append("terms ").append(index.getTermCount()).toString();
+		final Map<String, Long> surfaces = index.getFieldCount() == 0 ? Map.of()
+			: surfaceReferenceCounts(index, index.getWordPhaseId(0));
+		return content.append("surface ").append(surfaces).append("\nterms ").append(termCount(index)).toString();
 	}
 
 	/**
@@ -363,7 +389,9 @@ public final class FulltextIndexModel {
 		}
 		if (field == null) {
 			final double pivot = PIVOTS[random.nextInt(PIVOTS.length)];
-			assertEquals(this.fields.size(), index.getOrAssignFieldId(key, pivot), "the id assigned to " + key);
+			assertEquals(this.fields.size(), index.getOrAssignFieldId(key, this.analyzer.indexSurface().getAnalyzerName(),
+				this.analyzer.fingerprint().index(), this.analyzer.fingerprint().wordPhase(), pivot, null),
+				"the id assigned to " + key);
 			field = new ModelField(key, pivot);
 			this.fields.add(field);
 			log.append("new ").append(key).append('@').append(pivot).append(' ');
@@ -459,16 +487,20 @@ public final class FulltextIndexModel {
 	@Nonnull
 	private ModelValue analyze(@Nonnull String[] elements) {
 		final Map<String, Integer> termFrequencies = CollectionUtils.createHashMap(16);
-		int length = 0;
+		final Set<String> surfacePairs = CollectionUtils.createHashSet(16);
+		final int[] length = new int[1];
 		for (final String element : elements) {
-			for (final AnalyzedTerm term : this.analyzer.getTerms(element)) {
-				termFrequencies.merge(term.term(), 1, Integer::sum);
-				if (term.positionIncrement() > 0) {
-					length++;
+			this.analyzer.indexSurface().analyzeIndexed(element, (term, folded, display, start, end, increment) -> {
+				termFrequencies.merge(term, 1, Integer::sum);
+				if (folded != null) {
+					surfacePairs.add(folded.toString() + '\0' + term);
 				}
-			}
+				if (increment > 0) {
+					length[0]++;
+				}
+			});
 		}
-		return new ModelValue(elements, termFrequencies, length);
+		return new ModelValue(elements, termFrequencies, surfacePairs, length[0]);
 	}
 
 	/**
@@ -503,16 +535,17 @@ public final class FulltextIndexModel {
 	 * @param primaryKey the entity
 	 * @param elements   the elements of the value
 	 */
-	private static void addValue(
+	private void addValue(
 		@Nonnull FulltextIndex index,
 		@Nonnull FulltextFieldKey key,
 		int primaryKey,
 		@Nonnull String[] elements
 	) {
+		final double pivot = index.getLengthPivot(index.getFieldId(key));
 		if (elements.length == 1) {
-			index.addValue(key, primaryKey, elements[0]);
+			index.addValue(key, primaryKey, this.analyzer, pivot, null, elements[0]);
 		} else {
-			index.addValue(key, primaryKey, elements);
+			index.addValue(key, primaryKey, this.analyzer, pivot, null, elements);
 		}
 	}
 
@@ -524,16 +557,18 @@ public final class FulltextIndexModel {
 	 * @param primaryKey the entity
 	 * @param elements   the elements of the value that was indexed
 	 */
-	private static void removeValue(
+	private void removeValue(
 		@Nonnull FulltextIndex index,
 		@Nonnull FulltextFieldKey key,
 		int primaryKey,
 		@Nonnull String[] elements
 	) {
+		final int fieldId = index.getFieldId(key);
+		final double pivot = fieldId == FulltextIndex.UNKNOWN_FIELD_ID ? 25.0 : index.getLengthPivot(fieldId);
 		if (elements.length == 1) {
-			index.removeValue(key, primaryKey, elements[0]);
+			index.removeValue(key, primaryKey, this.analyzer, pivot, elements[0]);
 		} else {
-			index.removeValue(key, primaryKey, elements);
+			index.removeValue(key, primaryKey, this.analyzer, pivot, elements);
 		}
 	}
 
@@ -604,11 +639,13 @@ public final class FulltextIndexModel {
 	 *
 	 * @param elements        the elements of the value
 	 * @param termFrequencies every distinct term with its frequency over all elements
+	 * @param surfacePairs distinct folded surface and stem pairs in the value
 	 * @param length          the number of positions over all elements, the length the index records
 	 */
 	private record ModelValue(
 		@Nonnull String[] elements,
 		@Nonnull Map<String, Integer> termFrequencies,
+		@Nonnull Set<String> surfacePairs,
 		int length
 	) {}
 

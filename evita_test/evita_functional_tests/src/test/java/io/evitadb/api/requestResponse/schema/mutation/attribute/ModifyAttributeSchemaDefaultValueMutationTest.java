@@ -498,7 +498,10 @@ class ModifyAttributeSchemaDefaultValueMutationTest {
 			null,
 			0,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract.TEXT,
+			AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 
@@ -526,7 +529,10 @@ class ModifyAttributeSchemaDefaultValueMutationTest {
 			defaultValue,
 			0,
 			ConflictResolutionOverride.INHERITED,
-			null
+			null,
+			io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract.TEXT,
+			AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

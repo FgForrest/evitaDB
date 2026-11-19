@@ -30,6 +30,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -362,4 +363,25 @@ class FilterConstraintToJsonConverterTest extends AbstractConstraintToJsonConver
 		);
 	}
 
+	/**
+	 * Expands a multi-name Java selector into one API key per name, while a wildcard keeps its own key.
+	 */
+	@Test
+	@DisplayName("Multi-name fulltext selectors convert to one key per name")
+	void shouldSplitMultiNameTextSelectors() {
+		final ObjectNode in = jsonNodeFactory.objectNode();
+		in.putIfAbsent("attributeCodeIn", jsonNodeFactory.booleanNode(true));
+		in.putIfAbsent("attributeAgeIn", jsonNodeFactory.booleanNode(true));
+		in.putIfAbsent("attributeInAll", jsonNodeFactory.booleanNode(true));
+		final ObjectNode search = jsonNodeFactory.objectNode();
+		search.putIfAbsent("text", jsonNodeFactory.textNode("quartz"));
+		search.putIfAbsent("in", in);
+
+		final JsonConstraint converted = this.converter.convert(
+			new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
+			textMatches("quartz", inAttribute("CODE", "AGE"), inAttributeAll())
+		).orElseThrow();
+
+		assertEquals(new JsonConstraint("textMatches", search), converted);
+	}
 }

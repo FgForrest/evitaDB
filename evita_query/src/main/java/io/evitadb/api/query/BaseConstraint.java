@@ -32,6 +32,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -113,6 +114,11 @@ import java.util.Objects;
 public abstract class BaseConstraint<T extends Constraint<T>> implements Constraint<T> {
 	@Serial private static final long serialVersionUID = 2216675116416057520L;
 	/**
+	 * Longest plain text a decimal argument is printed with: 100 significant digits, 100 integer padding digits and
+	 * a sign, which covers every place weight `relevanceText` accepts.
+	 */
+	private static final int MAX_PLAIN_DECIMAL_LENGTH = 201;
+	/**
 	 * The base name of this constraint, derived from the class name or explicitly set via constructor.
 	 * For constraints implementing {@link ConstraintWithSuffix}, the final name returned by {@link #getName()}
 	 * will be this base name plus the suffix.
@@ -130,6 +136,12 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 	 *
 	 * Formatting rules:
 	 * - `null` values are represented as `<NULL>`
+	 * - `BigDecimal` values are printed in plain notation (`0.0000001`, `1000`) while that text has at most
+	 *   201 characters, because the EvitaQL grammar reads no exponent form and a query text must be usable from
+	 *   every client language. A longer value falls back to the exponent form of
+	 *   {@link io.evitadb.dataType.EvitaDataTypes#formatValue(Serializable)} instead of allocating a string the
+	 *   size of its magnitude. Only constraint text is printed this way: stored data and API output keep the
+	 *   scale-preserving exponent form of the shared formatter, which plain text would lose (`1e3` is not `1000`).
 	 * - Other values are formatted via {@link io.evitadb.dataType.EvitaDataTypes#formatValue(Serializable)},
 	 *   which handles proper quoting for strings, formatting for numbers, dates, etc.
 	 *
@@ -141,7 +153,31 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 		if (value == null) {
 			return "<NULL>";
 		}
+		if (value instanceof BigDecimal decimal && plainDecimalLength(decimal) <= MAX_PLAIN_DECIMAL_LENGTH) {
+			return decimal.toPlainString();
+		}
 		return EvitaDataTypes.formatValue(value);
+	}
+
+	/**
+	 * Computes the length of `value.toPlainString()` from precision and scale alone, so that a compact value with an
+	 * extreme scale is measured without being rendered. Sums and negations use `long` arithmetic, so even an
+	 * `Integer.MIN_VALUE` scale cannot overflow.
+	 *
+	 * @param value the decimal whose plain text is measured
+	 * @return the number of characters of the plain text, including the minus sign and a leading `0.`
+	 */
+	private static long plainDecimalLength(@Nonnull BigDecimal value) {
+		final long precision = value.precision();
+		final long scale = value.scale();
+		final int sign = value.signum();
+		final long magnitudeLength;
+		if (scale <= 0) {
+			magnitudeLength = sign == 0 ? 1 : precision - scale;
+		} else {
+			magnitudeLength = precision > scale ? precision + 1 : scale + 2;
+		}
+		return magnitudeLength + (sign < 0 ? 1 : 0);
 	}
 
 	/**

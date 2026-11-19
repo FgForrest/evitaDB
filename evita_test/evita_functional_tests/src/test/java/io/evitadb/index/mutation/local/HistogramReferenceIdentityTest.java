@@ -39,6 +39,7 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Set;
 
+import static io.evitadb.api.requestResponse.schema.ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
@@ -58,7 +59,8 @@ class HistogramReferenceIdentityTest {
 	private static final String REFERENCE_NAME = "brand";
 	private static final EntitySchema ENTITY_SCHEMA = EntitySchema._internalBuild("product");
 	private static final ReferenceSchema REFERENCE_SCHEMA = ReferenceSchema._internalBuild(
-		REFERENCE_NAME, "brand", true, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, null, false, null, null
+		REFERENCE_NAME, "brand", true, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, null, false, null, null,
+		java.util.Map.of(), DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 	);
 
 	/**

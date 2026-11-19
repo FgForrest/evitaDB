@@ -339,6 +339,9 @@ class CatalogSchemaBuilderTest {
 			catalogWithCode.getConflictResolution().orElse(null),
 			catalogWithCode.getCatalogEvolutionMode(),
 			catalogWithCode.getAttributes(),
+			catalogWithCode.getFulltextLanguages(),
+			catalogWithCode.getFulltextResources(),
+			catalogWithCode.getFulltextAnalyzers(),
 			singleEntitySchemaProvider(productSchema)
 		);
 	}

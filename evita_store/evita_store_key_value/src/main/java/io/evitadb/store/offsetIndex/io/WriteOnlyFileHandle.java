@@ -91,7 +91,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * Larger records are split into chained frames, so this limits one frame and any single string or binary value,
 	 * rather than the record size. A buffer of this size is borrowed from the shared pool only while a frame is
 	 * assembled; larger buffers use more memory.
-	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
+	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 4MB.
 	 */
 	private final int outputBufferSize;
 	/**

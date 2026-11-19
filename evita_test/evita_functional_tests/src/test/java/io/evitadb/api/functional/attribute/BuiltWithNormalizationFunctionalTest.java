@@ -168,7 +168,7 @@ class BuiltWithNormalizationFunctionalTest implements EvitaTestSupport {
 			// A later failing statement restores the row an earlier statement in the same warm-up batch changed.
 			assertThrows(InvalidSchemaMutationException.class, () -> session.updateCatalogSchema(
 				new SetAttributeSchemaNormalizedMutation("unusedGlobal", lowercase()),
-				new SetAttributeSchemaNormalizedMutation("unusedGlobal", step("uninstalled"))));
+				new SetAttributeSchemaNormalizedMutation("unusedGlobal", normalizingStep("uninstalled"))));
 			assertEquals(List.of(),
 				catalog().getGlobalAttributeNormalizationRows().getOrDefault("unusedGlobal", List.of()));
 			// Warm-up uses exactly the same populated scan as live schema mutations.

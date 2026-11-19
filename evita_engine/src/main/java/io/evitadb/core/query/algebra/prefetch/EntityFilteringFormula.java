@@ -36,11 +36,13 @@ import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRec
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
+import io.evitadb.index.fulltext.FulltextScoringPolicy.Place;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -124,14 +126,26 @@ public class EntityFilteringFormula extends AbstractFormula
 		return this.alternative instanceof final FulltextScoreAccessor accessor && accessor.providesFulltextScores();
 	}
 
+	/** Scores with the requesting relevance ordering's weights; preparation stays weight-independent. */
 	@Nonnull
 	@Override
-	public FulltextPhaseOneScorer.Result getFulltextScores(@Nonnull int[] candidates, int topN) {
+	public FulltextPhaseOneScorer.Result getFulltextScores(
+		@Nonnull int[] candidates,
+		@Nonnull Map<Place, Float> weights
+	) {
 		Assert.isPremiseValid(
 			providesFulltextScores(),
 			"Entity filtering formula has no fulltext scores to give - its alternative provides none!"
 		);
-		return ((FulltextScoreAccessor) this.alternative).getFulltextScores(candidates, topN);
+		return ((FulltextScoreAccessor) this.alternative).getFulltextScores(candidates, weights);
+	}
+
+	/** Forwards query-origin metadata when the body alternative exposes a text source. */
+	@Nullable
+	@Override
+	public SourceIdentity getFulltextSourceIdentity() {
+		return this.alternative instanceof FulltextScoreAccessor accessor ?
+			accessor.getFulltextSourceIdentity() : null;
 	}
 
 	@Nonnull

@@ -35,7 +35,6 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexed
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
@@ -113,10 +112,11 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			
 			Returns array of scopes and their corresponding reference index types in which this reference is indexed.
 			""")
-		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS))
+		.type(nullableListRef(ScopedReferenceIndexTypeDescriptor.THIS))
 		.build();
 	PropertyDescriptor INDEXED_IN_SCOPES_INPUT = PropertyDescriptor.from(INDEXED_IN_SCOPES)
-		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS_INPUT))
+		.description("Optional scoped index declaration; omission inherits indexing from the original reference.")
+		.type(nullableListRef(ScopedReferenceIndexTypeDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor INDEXED_COMPONENTS_IN_SCOPES = PropertyDescriptor.builder()
 		.name("indexedComponentsInScopes")
@@ -199,6 +199,17 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			""")
 		.type(nonNull(AttributeInheritanceBehavior.class))
 		.build();
+	/**
+	 * Optional on input: an omitted policy means `INHERIT_ONLY_SPECIFIED`, the same default a freshly built
+	 * reflected reference has in the Java API. The description carries the default so that it reaches the API schemas.
+	 */
+	PropertyDescriptor ATTRIBUTES_INHERITANCE_BEHAVIOR_INPUT = PropertyDescriptor.from(ATTRIBUTES_INHERITANCE_BEHAVIOR)
+		.description(ATTRIBUTES_INHERITANCE_BEHAVIOR.description() + """
+
+			Omission means `INHERIT_ONLY_SPECIFIED`, the default of a reflected reference built in the Java API.
+			""")
+		.type(nullable(AttributeInheritanceBehavior.class))
+		.build();
 	PropertyDescriptor ATTRIBUTE_INHERITANCE_FILTER = PropertyDescriptor.builder()
 		.name("attributeInheritanceFilter")
 		.description("""
@@ -210,6 +221,15 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 		.type(nullable(String[].class))
 		.build();
 
+	/** Same creation semantics as a plain reference: omission means no composition. */
+	PropertyDescriptor SEARCHABLE_THROUGH_IN_SCOPES =
+		CreateReferenceSchemaMutationDescriptor.SEARCHABLE_THROUGH_IN_SCOPES;
+	/** Input variant of {@link #SEARCHABLE_THROUGH_IN_SCOPES}. */
+	PropertyDescriptor SEARCHABLE_THROUGH_IN_SCOPES_INPUT =
+		CreateReferenceSchemaMutationDescriptor.SEARCHABLE_THROUGH_IN_SCOPES_INPUT;
+	/** Same creation semantics as a plain reference: omission means the default weight. */
+	PropertyDescriptor SEARCHABLE_THROUGH_WEIGHT = CreateReferenceSchemaMutationDescriptor.SEARCHABLE_THROUGH_WEIGHT;
+
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(CreateReflectedReferenceSchemaMutation.class)
 		.description("""
@@ -217,11 +237,15 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
 			""")
 		.staticProperty(NAME)
+		.staticProperty(SEARCHABLE_THROUGH_IN_SCOPES)
+		.staticProperty(SEARCHABLE_THROUGH_WEIGHT)
 		.staticProperty(DESCRIPTION)
 		.staticProperty(DEPRECATION_NOTICE)
 		.staticProperty(CARDINALITY)
 		.staticProperty(REFERENCED_ENTITY_TYPE)
 		.staticProperty(REFLECTED_REFERENCE_NAME)
+		.staticProperty(ATTRIBUTES_INHERITANCE_BEHAVIOR)
+		.staticProperty(ATTRIBUTE_INHERITANCE_FILTER)
 		.staticProperty(INDEXED_IN_SCOPES)
 		.staticProperty(INDEXED_COMPONENTS_IN_SCOPES)
 		.staticProperty(FACETED_IN_SCOPES)
@@ -231,6 +255,8 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateReflectedReferenceSchemaMutationInput")
+		.staticProperty(ATTRIBUTES_INHERITANCE_BEHAVIOR_INPUT)
+		.staticProperty(SEARCHABLE_THROUGH_IN_SCOPES_INPUT)
 		.staticProperty(INDEXED_IN_SCOPES_INPUT)
 		.staticProperty(INDEXED_COMPONENTS_IN_SCOPES_INPUT)
 		.staticProperty(FACETED_PARTIALLY_IN_SCOPES_INPUT)

@@ -995,6 +995,82 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.UNRECOGNIZED : result;
   }
 
+  public static final int SEARCHABLETHROUGHINSCOPES_FIELD_NUMBER = 19;
+  private io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes_;
+  /**
+   * <pre>
+   * Optional replacement composition modes; an empty message explicitly clears the declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+   * @return Whether the searchableThroughInScopes field is set.
+   */
+  @java.lang.Override
+  public boolean hasSearchableThroughInScopes() {
+    return ((bitField0_ & 0x00000008) != 0);
+  }
+  /**
+   * <pre>
+   * Optional replacement composition modes; an empty message explicitly clears the declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+   * @return The searchableThroughInScopes.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes getSearchableThroughInScopes() {
+    return searchableThroughInScopes_ == null ? io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.getDefaultInstance() : searchableThroughInScopes_;
+  }
+  /**
+   * <pre>
+   * Optional replacement composition modes; an empty message explicitly clears the declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder getSearchableThroughInScopesOrBuilder() {
+    return searchableThroughInScopes_ == null ? io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.getDefaultInstance() : searchableThroughInScopes_;
+  }
+
+  public static final int SEARCHABLETHROUGHWEIGHT_FIELD_NUMBER = 20;
+  private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight_;
+  /**
+   * <pre>
+   * Optional shared ranking weight; zero is distinct from omission.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+   * @return Whether the searchableThroughWeight field is set.
+   */
+  @java.lang.Override
+  public boolean hasSearchableThroughWeight() {
+    return ((bitField0_ & 0x00000010) != 0);
+  }
+  /**
+   * <pre>
+   * Optional shared ranking weight; zero is distinct from omission.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+   * @return The searchableThroughWeight.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchableThroughWeight() {
+    return searchableThroughWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchableThroughWeight_;
+  }
+  /**
+   * <pre>
+   * Optional shared ranking weight; zero is distinct from omission.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchableThroughWeightOrBuilder() {
+    return searchableThroughWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchableThroughWeight_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1071,6 +1147,12 @@ private static final long serialVersionUID = 0L;
     }
     if (conflictResolutionOverride_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED.getNumber()) {
       output.writeEnum(18, conflictResolutionOverride_);
+    }
+    if (((bitField0_ & 0x00000008) != 0)) {
+      output.writeMessage(19, getSearchableThroughInScopes());
+    }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      output.writeMessage(20, getSearchableThroughWeight());
     }
     getUnknownFields().writeTo(output);
   }
@@ -1167,6 +1249,14 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(18, conflictResolutionOverride_);
     }
+    if (((bitField0_ & 0x00000008) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(19, getSearchableThroughInScopes());
+    }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(20, getSearchableThroughWeight());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1223,6 +1313,16 @@ private static final long serialVersionUID = 0L;
     if (!getBucketedPartiallyInScopesList()
         .equals(other.getBucketedPartiallyInScopesList())) return false;
     if (conflictResolutionOverride_ != other.conflictResolutionOverride_) return false;
+    if (hasSearchableThroughInScopes() != other.hasSearchableThroughInScopes()) return false;
+    if (hasSearchableThroughInScopes()) {
+      if (!getSearchableThroughInScopes()
+          .equals(other.getSearchableThroughInScopes())) return false;
+    }
+    if (hasSearchableThroughWeight() != other.hasSearchableThroughWeight()) return false;
+    if (hasSearchableThroughWeight()) {
+      if (!getSearchableThroughWeight()
+          .equals(other.getSearchableThroughWeight())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -1294,6 +1394,14 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + CONFLICTRESOLUTIONOVERRIDE_FIELD_NUMBER;
     hash = (53 * hash) + conflictResolutionOverride_;
+    if (hasSearchableThroughInScopes()) {
+      hash = (37 * hash) + SEARCHABLETHROUGHINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + getSearchableThroughInScopes().hashCode();
+    }
+    if (hasSearchableThroughWeight()) {
+      hash = (37 * hash) + SEARCHABLETHROUGHWEIGHT_FIELD_NUMBER;
+      hash = (53 * hash) + getSearchableThroughWeight().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1437,6 +1545,8 @@ private static final long serialVersionUID = 0L;
         getFacetedPartiallyFieldBuilder();
         getBucketedInScopesFieldBuilder();
         getBucketedPartiallyInScopesFieldBuilder();
+        getSearchableThroughInScopesFieldBuilder();
+        getSearchableThroughWeightFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1505,6 +1615,16 @@ private static final long serialVersionUID = 0L;
       }
       bitField0_ = (bitField0_ & ~0x00010000);
       conflictResolutionOverride_ = 0;
+      searchableThroughInScopes_ = null;
+      if (searchableThroughInScopesBuilder_ != null) {
+        searchableThroughInScopesBuilder_.dispose();
+        searchableThroughInScopesBuilder_ = null;
+      }
+      searchableThroughWeight_ = null;
+      if (searchableThroughWeightBuilder_ != null) {
+        searchableThroughWeightBuilder_.dispose();
+        searchableThroughWeightBuilder_ = null;
+      }
       return this;
     }
 
@@ -1639,6 +1759,18 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00020000) != 0)) {
         result.conflictResolutionOverride_ = conflictResolutionOverride_;
+      }
+      if (((from_bitField0_ & 0x00040000) != 0)) {
+        result.searchableThroughInScopes_ = searchableThroughInScopesBuilder_ == null
+            ? searchableThroughInScopes_
+            : searchableThroughInScopesBuilder_.build();
+        to_bitField0_ |= 0x00000008;
+      }
+      if (((from_bitField0_ & 0x00080000) != 0)) {
+        result.searchableThroughWeight_ = searchableThroughWeightBuilder_ == null
+            ? searchableThroughWeight_
+            : searchableThroughWeightBuilder_.build();
+        to_bitField0_ |= 0x00000010;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -1874,6 +2006,12 @@ private static final long serialVersionUID = 0L;
       if (other.conflictResolutionOverride_ != 0) {
         setConflictResolutionOverrideValue(other.getConflictResolutionOverrideValue());
       }
+      if (other.hasSearchableThroughInScopes()) {
+        mergeSearchableThroughInScopes(other.getSearchableThroughInScopes());
+      }
+      if (other.hasSearchableThroughWeight()) {
+        mergeSearchableThroughWeight(other.getSearchableThroughWeight());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -2060,6 +2198,20 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00020000;
               break;
             } // case 144
+            case 154: {
+              input.readMessage(
+                  getSearchableThroughInScopesFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00040000;
+              break;
+            } // case 154
+            case 162: {
+              input.readMessage(
+                  getSearchableThroughWeightFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00080000;
+              break;
+            } // case 162
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -5349,6 +5501,320 @@ private static final long serialVersionUID = 0L;
       conflictResolutionOverride_ = 0;
       onChanged();
       return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes, io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder> searchableThroughInScopesBuilder_;
+    /**
+     * <pre>
+     * Optional replacement composition modes; an empty message explicitly clears the declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+     * @return Whether the searchableThroughInScopes field is set.
+     */
+    public boolean hasSearchableThroughInScopes() {
+      return ((bitField0_ & 0x00040000) != 0);
+    }
+    /**
+     * <pre>
+     * Optional replacement composition modes; an empty message explicitly clears the declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+     * @return The searchableThroughInScopes.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes getSearchableThroughInScopes() {
+      if (searchableThroughInScopesBuilder_ == null) {
+        return searchableThroughInScopes_ == null ? io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.getDefaultInstance() : searchableThroughInScopes_;
+      } else {
+        return searchableThroughInScopesBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Optional replacement composition modes; an empty message explicitly clears the declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+     */
+    public Builder setSearchableThroughInScopes(io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes value) {
+      if (searchableThroughInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        searchableThroughInScopes_ = value;
+      } else {
+        searchableThroughInScopesBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00040000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional replacement composition modes; an empty message explicitly clears the declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+     */
+    public Builder setSearchableThroughInScopes(
+        io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.Builder builderForValue) {
+      if (searchableThroughInScopesBuilder_ == null) {
+        searchableThroughInScopes_ = builderForValue.build();
+      } else {
+        searchableThroughInScopesBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00040000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional replacement composition modes; an empty message explicitly clears the declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+     */
+    public Builder mergeSearchableThroughInScopes(io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes value) {
+      if (searchableThroughInScopesBuilder_ == null) {
+        if (((bitField0_ & 0x00040000) != 0) &&
+          searchableThroughInScopes_ != null &&
+          searchableThroughInScopes_ != io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.getDefaultInstance()) {
+          getSearchableThroughInScopesBuilder().mergeFrom(value);
+        } else {
+          searchableThroughInScopes_ = value;
+        }
+      } else {
+        searchableThroughInScopesBuilder_.mergeFrom(value);
+      }
+      if (searchableThroughInScopes_ != null) {
+        bitField0_ |= 0x00040000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional replacement composition modes; an empty message explicitly clears the declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+     */
+    public Builder clearSearchableThroughInScopes() {
+      bitField0_ = (bitField0_ & ~0x00040000);
+      searchableThroughInScopes_ = null;
+      if (searchableThroughInScopesBuilder_ != null) {
+        searchableThroughInScopesBuilder_.dispose();
+        searchableThroughInScopesBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional replacement composition modes; an empty message explicitly clears the declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.Builder getSearchableThroughInScopesBuilder() {
+      bitField0_ |= 0x00040000;
+      onChanged();
+      return getSearchableThroughInScopesFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Optional replacement composition modes; an empty message explicitly clears the declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder getSearchableThroughInScopesOrBuilder() {
+      if (searchableThroughInScopesBuilder_ != null) {
+        return searchableThroughInScopesBuilder_.getMessageOrBuilder();
+      } else {
+        return searchableThroughInScopes_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.getDefaultInstance() : searchableThroughInScopes_;
+      }
+    }
+    /**
+     * <pre>
+     * Optional replacement composition modes; an empty message explicitly clears the declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes, io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder> 
+        getSearchableThroughInScopesFieldBuilder() {
+      if (searchableThroughInScopesBuilder_ == null) {
+        searchableThroughInScopesBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes, io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder>(
+                getSearchableThroughInScopes(),
+                getParentForChildren(),
+                isClean());
+        searchableThroughInScopes_ = null;
+      }
+      return searchableThroughInScopesBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> searchableThroughWeightBuilder_;
+    /**
+     * <pre>
+     * Optional shared ranking weight; zero is distinct from omission.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+     * @return Whether the searchableThroughWeight field is set.
+     */
+    public boolean hasSearchableThroughWeight() {
+      return ((bitField0_ & 0x00080000) != 0);
+    }
+    /**
+     * <pre>
+     * Optional shared ranking weight; zero is distinct from omission.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+     * @return The searchableThroughWeight.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchableThroughWeight() {
+      if (searchableThroughWeightBuilder_ == null) {
+        return searchableThroughWeight_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchableThroughWeight_;
+      } else {
+        return searchableThroughWeightBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Optional shared ranking weight; zero is distinct from omission.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+     */
+    public Builder setSearchableThroughWeight(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
+      if (searchableThroughWeightBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        searchableThroughWeight_ = value;
+      } else {
+        searchableThroughWeightBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00080000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional shared ranking weight; zero is distinct from omission.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+     */
+    public Builder setSearchableThroughWeight(
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
+      if (searchableThroughWeightBuilder_ == null) {
+        searchableThroughWeight_ = builderForValue.build();
+      } else {
+        searchableThroughWeightBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00080000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional shared ranking weight; zero is distinct from omission.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+     */
+    public Builder mergeSearchableThroughWeight(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
+      if (searchableThroughWeightBuilder_ == null) {
+        if (((bitField0_ & 0x00080000) != 0) &&
+          searchableThroughWeight_ != null &&
+          searchableThroughWeight_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance()) {
+          getSearchableThroughWeightBuilder().mergeFrom(value);
+        } else {
+          searchableThroughWeight_ = value;
+        }
+      } else {
+        searchableThroughWeightBuilder_.mergeFrom(value);
+      }
+      if (searchableThroughWeight_ != null) {
+        bitField0_ |= 0x00080000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional shared ranking weight; zero is distinct from omission.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+     */
+    public Builder clearSearchableThroughWeight() {
+      bitField0_ = (bitField0_ & ~0x00080000);
+      searchableThroughWeight_ = null;
+      if (searchableThroughWeightBuilder_ != null) {
+        searchableThroughWeightBuilder_.dispose();
+        searchableThroughWeightBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional shared ranking weight; zero is distinct from omission.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getSearchableThroughWeightBuilder() {
+      bitField0_ |= 0x00080000;
+      onChanged();
+      return getSearchableThroughWeightFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Optional shared ranking weight; zero is distinct from omission.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchableThroughWeightOrBuilder() {
+      if (searchableThroughWeightBuilder_ != null) {
+        return searchableThroughWeightBuilder_.getMessageOrBuilder();
+      } else {
+        return searchableThroughWeight_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : searchableThroughWeight_;
+      }
+    }
+    /**
+     * <pre>
+     * Optional shared ranking weight; zero is distinct from omission.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
+        getSearchableThroughWeightFieldBuilder() {
+      if (searchableThroughWeightBuilder_ == null) {
+        searchableThroughWeightBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
+                getSearchableThroughWeight(),
+                getParentForChildren(),
+                isClean());
+        searchableThroughWeight_ = null;
+      }
+      return searchableThroughWeightBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

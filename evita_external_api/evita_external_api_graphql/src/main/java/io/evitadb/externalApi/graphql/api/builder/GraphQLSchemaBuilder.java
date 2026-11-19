@@ -30,6 +30,8 @@ import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLUnionType;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaSearchableMutation;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
@@ -40,17 +42,32 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepInputDescriptors;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaSearchableMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateFulltextAnalyzerSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateFulltextLanguageSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateFulltextResourceSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyFulltextAnalyzerSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyFulltextLanguageSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyFulltextResourceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.TypeDescriptor;
 import io.evitadb.externalApi.api.model.UnionDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver.RegistryKey;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.AssociatedDataMutationTextExpressionDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.FulltextAnalyzerMutationAllLanguagesDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.FulltextAnalyzerMutationLanguagesDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.FulltextLanguageMutationWordSplittingDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.FulltextResourceMutationContentDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.MutationDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.SchemaMutationSearchWeightDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.*;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.MutationTypeDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
@@ -65,9 +82,12 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Currency;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 
 import static graphql.schema.GraphQLEnumType.newEnum;
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.ASSOCIATED_DATA_SCALAR_ENUM;
@@ -123,24 +143,61 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 
 
 	/**
-	 * Registers the typed analysis-step input of a schema API that accepts schema mutations: the parameter object of
-	 * every installed normalizing step that takes parameters and the `@oneOf` selector over all installed steps.
+	 * Registers typed provider parameters and phase-specific `@oneOf` selectors for normalization and fulltext
+	 * declarations accepted by the schema API.
 	 */
 	protected void registerAnalysisStepInputTypes() {
-		final ObjectDescriptor descriptor = AnalysisStepDescriptor.THIS_INPUT;
-		final GraphQLInputObjectType.Builder input = descriptor.to(this.inputObjectBuilderTransformer)
-			.clearFields()
-			.withAppliedDirective(Directives.OneOfDirective.toAppliedDirective());
-		// ObjectDescriptor normalizes fields through a map; retain the registry's step-name order explicitly.
-		for (final AnalysisStepInputDescriptors.StepInput step : AnalysisStepInputDescriptors.getSteps()) {
-			if (step.parameters() != null) {
-				this.buildingContext.registerType(step.parameters().to(this.inputObjectBuilderTransformer).build());
+		registerAnalysisStepInputTypes(AnalysisStepInputDescriptors::getSteps);
+	}
+
+	/**
+	 * Registers phase selectors using the same provider metadata as the server input converter.
+	 *
+	 * @param providers ordered metadata of the validated providers admitted in each phase
+	 */
+	protected void registerAnalysisStepInputTypes(
+		@Nonnull Function<AnalysisStepInputDescriptors.Context, List<AnalysisStepInputDescriptors.StepInput>> providers
+	) {
+		final Map<String, ObjectDescriptor> parameters = new HashMap<>();
+		for (final AnalysisStepInputDescriptors.Context context : AnalysisStepInputDescriptors.Context.values()) {
+			final List<AnalysisStepInputDescriptors.StepInput> steps = providers.apply(context);
+			final ObjectDescriptor descriptor = AnalysisStepInputDescriptors.getInputDescriptor(context, steps);
+			final GraphQLInputObjectType.Builder input = descriptor.to(this.inputObjectBuilderTransformer)
+				.clearFields().withAppliedDirective(Directives.OneOfDirective.toAppliedDirective());
+			for (final AnalysisStepInputDescriptors.StepInput step : steps) {
+				if (step.parameters() != null) {
+					final ObjectDescriptor previous =
+						parameters.putIfAbsent(step.parameters().name(), step.parameters());
+					if (previous != null && !previous.equals(step.parameters())) {
+						throw new ExternalApiInternalError("Conflicting analysis parameter type `" +
+							step.parameters().name() + "`.");
+					}
+					if (previous == null) {
+						this.buildingContext.registerType(step.parameters()
+							.to(this.inputObjectBuilderTransformer).build());
+					}
+				}
+				input.field(descriptor.staticProperties().stream()
+					.filter(property -> property.name().equals(step.fieldName()))
+					.findFirst().orElseThrow().to(this.inputFieldBuilderTransformer));
 			}
-			input.field(descriptor.staticProperties().stream()
-				.filter(property -> property.name().equals(step.fieldName()))
-				.findFirst().orElseThrow().to(this.inputFieldBuilderTransformer));
+			this.buildingContext.registerType(input.build());
 		}
-		this.buildingContext.registerType(input.build());
+		for (final ObjectDescriptor descriptor : List.of(
+			SynonymGroupDescriptor.THIS_INPUT, FulltextResourceContentDescriptor.THIS_INPUT,
+			FulltextAnalysisPhasesDescriptor.THIS_INPUT, FulltextLanguageAnalysisPhasesDescriptor.THIS_INPUT)) {
+			this.buildingContext.registerType(descriptor.to(this.inputObjectBuilderTransformer).build());
+		}
+	}
+
+	/** Registers the shared fulltext output objects in a catalog or system schema. */
+	protected void registerFulltextOutputTypes() {
+		for (final ObjectDescriptor descriptor : List.of(
+			SynonymGroupDescriptor.THIS, FulltextResourceContentDescriptor.THIS, FulltextAnalysisPhasesDescriptor.THIS,
+			FulltextLanguageAnalysisPhasesDescriptor.THIS, FulltextLanguageSchemaDescriptor.THIS,
+			FulltextResourceSchemaDescriptor.THIS, FulltextAnalyzerSchemaDescriptor.THIS)) {
+			this.buildingContext.registerType(descriptor.to(this.objectBuilderTransformer).build());
+		}
 	}
 
 
@@ -293,6 +350,47 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 				MutationDescriptor.MUTATION_TYPE,
 				MutationTypeDataFetcher.getInstance()
 			);
+
+			// the default property fetcher would leave the `Expression` to the string scalar, which renders its
+			// `toString()` display form, whereas clients need the raw source they can send back as mutation input
+			if (mutationDescriptor.representedClass() == CreateAssociatedDataSchemaMutation.class ||
+				mutationDescriptor.representedClass() == SetAssociatedDataSchemaSearchableMutation.class) {
+				this.buildingContext.registerDataFetcher(
+					mutationDescriptor.name(),
+					SetAssociatedDataSchemaSearchableMutationDescriptor.TEXT_EXPRESSION,
+					AssociatedDataMutationTextExpressionDataFetcher.getInstance()
+				);
+			}
+
+			// ranking weight properties share a decimal fetcher and are matched by name,
+			// so a new weight property must use one of these names or register its own fetcher
+			for (final PropertyDescriptor property : mutationDescriptor.staticProperties()) {
+				if ("searchWeight".equals(property.name()) || "searchableThroughWeight".equals(property.name()) ||
+					"weight".equals(property.name())) {
+					this.buildingContext.registerDataFetcher(
+						mutationDescriptor.name(), property, SchemaMutationSearchWeightDataFetcher.getInstance());
+				}
+			}
+
+			if (mutationDescriptor == CreateFulltextLanguageSchemaMutationDescriptor.THIS ||
+				mutationDescriptor == ModifyFulltextLanguageSchemaMutationDescriptor.THIS) {
+				this.buildingContext.registerDataFetcher(
+					mutationDescriptor.name(), CreateFulltextLanguageSchemaMutationDescriptor.WORD_SPLITTING,
+					FulltextLanguageMutationWordSplittingDataFetcher.getInstance());
+			} else if (mutationDescriptor == CreateFulltextResourceSchemaMutationDescriptor.THIS ||
+				mutationDescriptor == ModifyFulltextResourceSchemaMutationDescriptor.THIS) {
+				this.buildingContext.registerDataFetcher(
+					mutationDescriptor.name(), CreateFulltextResourceSchemaMutationDescriptor.CONTENT,
+					FulltextResourceMutationContentDataFetcher.getInstance());
+			} else if (mutationDescriptor == CreateFulltextAnalyzerSchemaMutationDescriptor.THIS ||
+				mutationDescriptor == ModifyFulltextAnalyzerSchemaMutationDescriptor.THIS) {
+				this.buildingContext.registerDataFetcher(
+					mutationDescriptor.name(), CreateFulltextAnalyzerSchemaMutationDescriptor.ALL_LANGUAGES,
+					FulltextAnalyzerMutationAllLanguagesDataFetcher.getInstance());
+				this.buildingContext.registerDataFetcher(
+					mutationDescriptor.name(), CreateFulltextAnalyzerSchemaMutationDescriptor.LANGUAGES,
+					FulltextAnalyzerMutationLanguagesDataFetcher.getInstance());
+			}
 
 			// register dto mapping
 			//noinspection unchecked

@@ -23,8 +23,14 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
 
+import java.math.BigDecimal;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
@@ -34,6 +40,7 @@ import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMap
 import io.evitadb.externalApi.api.system.model.mutation.engine.EngineMutationDescriptor;
 import io.evitadb.externalApi.api.system.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.system.resolver.mutation.engine.ModifyCatalogSchemaMutationConverter;
+import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
+import static java.math.BigDecimal.valueOf;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -143,5 +151,36 @@ public class ModifyCatalogSchemaMutationConverterTest {
 					))
 					.build()
 			);
+	}
+
+	/**
+	 * The REST mapper serializes every nested dispatcher result into a JSON tree; the wrapper must embed the nested
+	 * schema mutations as plain values, otherwise a system capture of any catalog schema change cannot be written.
+	 */
+	@Test
+	void shouldSerializeNestedSchemaMutationsThroughRestMapper() {
+		final ModifyCatalogSchemaMutationConverter restConverter = new ModifyCatalogSchemaMutationConverter(
+			new RestMutationObjectMapper(new ObjectMapper()), TestMutationResolvingExceptionFactory.INSTANCE
+		);
+		final ModifyCatalogSchemaMutation inputMutation = new ModifyCatalogSchemaMutation(
+			"testCatalog",
+			null,
+			new ModifyEntitySchemaMutation(
+				"product",
+				new SetAttributeSchemaSearchableMutation("text", Scope.DEFAULT_SCOPES, "text", 73, valueOf(0))
+			)
+		);
+
+		final JsonNode serializedMutation = (JsonNode) restConverter.convertToOutput(inputMutation);
+
+		final JsonNode entitySchemaMutation = serializedMutation.at("/schemaMutations/0");
+		assertEquals(
+			ModifyEntitySchemaMutation.class.getSimpleName(), entitySchemaMutation.at("/mutationType").asText()
+		);
+		final JsonNode attributeMutation = entitySchemaMutation.at("/schemaMutations/0");
+		assertEquals(
+			SetAttributeSchemaSearchableMutation.class.getSimpleName(), attributeMutation.at("/mutationType").asText()
+		);
+		assertEquals("0", attributeMutation.at("/searchWeight").asText());
 	}
 }

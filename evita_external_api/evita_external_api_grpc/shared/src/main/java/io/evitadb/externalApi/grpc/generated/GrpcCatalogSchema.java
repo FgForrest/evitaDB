@@ -71,6 +71,12 @@ private static final long serialVersionUID = 0L;
     switch (number) {
       case 5:
         return internalGetAttributes();
+      case 8:
+        return internalGetFulltextLanguages();
+      case 9:
+        return internalGetFulltextResources();
+      case 10:
+        return internalGetFulltextAnalyzers();
       default:
         throw new RuntimeException(
             "Invalid map field number: " + number);
@@ -512,6 +518,307 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
     return conflictResolution_ == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolution.getDefaultInstance() : conflictResolution_;
   }
 
+  public static final int FULLTEXTLANGUAGES_FIELD_NUMBER = 8;
+  private static final class FulltextLanguagesDefaultEntryHolder {
+    static final com.google.protobuf.MapEntry<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> defaultEntry =
+            com.google.protobuf.MapEntry
+            .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema>newDefaultInstance(
+                io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogSchema_FulltextLanguagesEntry_descriptor, 
+                com.google.protobuf.WireFormat.FieldType.STRING,
+                "",
+                com.google.protobuf.WireFormat.FieldType.MESSAGE,
+                io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema.getDefaultInstance());
+  }
+  @SuppressWarnings("serial")
+  private com.google.protobuf.MapField<
+      java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> fulltextLanguages_;
+  private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema>
+  internalGetFulltextLanguages() {
+    if (fulltextLanguages_ == null) {
+      return com.google.protobuf.MapField.emptyMapField(
+          FulltextLanguagesDefaultEntryHolder.defaultEntry);
+    }
+    return fulltextLanguages_;
+  }
+  public int getFulltextLanguagesCount() {
+    return internalGetFulltextLanguages().getMap().size();
+  }
+  /**
+   * <pre>
+   * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+   * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+   * fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+   */
+  @java.lang.Override
+  public boolean containsFulltextLanguages(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    return internalGetFulltextLanguages().getMap().containsKey(key);
+  }
+  /**
+   * Use {@link #getFulltextLanguagesMap()} instead.
+   */
+  @java.lang.Override
+  @java.lang.Deprecated
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> getFulltextLanguages() {
+    return getFulltextLanguagesMap();
+  }
+  /**
+   * <pre>
+   * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+   * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+   * fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+   */
+  @java.lang.Override
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> getFulltextLanguagesMap() {
+    return internalGetFulltextLanguages().getMap();
+  }
+  /**
+   * <pre>
+   * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+   * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+   * fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+   */
+  @java.lang.Override
+  public /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema getFulltextLanguagesOrDefault(
+      java.lang.String key,
+      /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema defaultValue) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> map =
+        internalGetFulltextLanguages().getMap();
+    return map.containsKey(key) ? map.get(key) : defaultValue;
+  }
+  /**
+   * <pre>
+   * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+   * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+   * fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema getFulltextLanguagesOrThrow(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> map =
+        internalGetFulltextLanguages().getMap();
+    if (!map.containsKey(key)) {
+      throw new java.lang.IllegalArgumentException();
+    }
+    return map.get(key);
+  }
+
+  public static final int FULLTEXTRESOURCES_FIELD_NUMBER = 9;
+  private static final class FulltextResourcesDefaultEntryHolder {
+    static final com.google.protobuf.MapEntry<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> defaultEntry =
+            com.google.protobuf.MapEntry
+            .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema>newDefaultInstance(
+                io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogSchema_FulltextResourcesEntry_descriptor, 
+                com.google.protobuf.WireFormat.FieldType.STRING,
+                "",
+                com.google.protobuf.WireFormat.FieldType.MESSAGE,
+                io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema.getDefaultInstance());
+  }
+  @SuppressWarnings("serial")
+  private com.google.protobuf.MapField<
+      java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> fulltextResources_;
+  private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema>
+  internalGetFulltextResources() {
+    if (fulltextResources_ == null) {
+      return com.google.protobuf.MapField.emptyMapField(
+          FulltextResourcesDefaultEntryHolder.defaultEntry);
+    }
+    return fulltextResources_;
+  }
+  public int getFulltextResourcesCount() {
+    return internalGetFulltextResources().getMap().size();
+  }
+  /**
+   * <pre>
+   * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+   * lists are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+   */
+  @java.lang.Override
+  public boolean containsFulltextResources(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    return internalGetFulltextResources().getMap().containsKey(key);
+  }
+  /**
+   * Use {@link #getFulltextResourcesMap()} instead.
+   */
+  @java.lang.Override
+  @java.lang.Deprecated
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> getFulltextResources() {
+    return getFulltextResourcesMap();
+  }
+  /**
+   * <pre>
+   * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+   * lists are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+   */
+  @java.lang.Override
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> getFulltextResourcesMap() {
+    return internalGetFulltextResources().getMap();
+  }
+  /**
+   * <pre>
+   * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+   * lists are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+   */
+  @java.lang.Override
+  public /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema getFulltextResourcesOrDefault(
+      java.lang.String key,
+      /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema defaultValue) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> map =
+        internalGetFulltextResources().getMap();
+    return map.containsKey(key) ? map.get(key) : defaultValue;
+  }
+  /**
+   * <pre>
+   * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+   * lists are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema getFulltextResourcesOrThrow(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> map =
+        internalGetFulltextResources().getMap();
+    if (!map.containsKey(key)) {
+      throw new java.lang.IllegalArgumentException();
+    }
+    return map.get(key);
+  }
+
+  public static final int FULLTEXTANALYZERS_FIELD_NUMBER = 10;
+  private static final class FulltextAnalyzersDefaultEntryHolder {
+    static final com.google.protobuf.MapEntry<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> defaultEntry =
+            com.google.protobuf.MapEntry
+            .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema>newDefaultInstance(
+                io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogSchema_FulltextAnalyzersEntry_descriptor, 
+                com.google.protobuf.WireFormat.FieldType.STRING,
+                "",
+                com.google.protobuf.WireFormat.FieldType.MESSAGE,
+                io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema.getDefaultInstance());
+  }
+  @SuppressWarnings("serial")
+  private com.google.protobuf.MapField<
+      java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> fulltextAnalyzers_;
+  private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema>
+  internalGetFulltextAnalyzers() {
+    if (fulltextAnalyzers_ == null) {
+      return com.google.protobuf.MapField.emptyMapField(
+          FulltextAnalyzersDefaultEntryHolder.defaultEntry);
+    }
+    return fulltextAnalyzers_;
+  }
+  public int getFulltextAnalyzersCount() {
+    return internalGetFulltextAnalyzers().getMap().size();
+  }
+  /**
+   * <pre>
+   * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+   * and `html-text` are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+   */
+  @java.lang.Override
+  public boolean containsFulltextAnalyzers(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    return internalGetFulltextAnalyzers().getMap().containsKey(key);
+  }
+  /**
+   * Use {@link #getFulltextAnalyzersMap()} instead.
+   */
+  @java.lang.Override
+  @java.lang.Deprecated
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> getFulltextAnalyzers() {
+    return getFulltextAnalyzersMap();
+  }
+  /**
+   * <pre>
+   * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+   * and `html-text` are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+   */
+  @java.lang.Override
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> getFulltextAnalyzersMap() {
+    return internalGetFulltextAnalyzers().getMap();
+  }
+  /**
+   * <pre>
+   * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+   * and `html-text` are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+   */
+  @java.lang.Override
+  public /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema getFulltextAnalyzersOrDefault(
+      java.lang.String key,
+      /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema defaultValue) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> map =
+        internalGetFulltextAnalyzers().getMap();
+    return map.containsKey(key) ? map.get(key) : defaultValue;
+  }
+  /**
+   * <pre>
+   * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+   * and `html-text` are not present. Empty when the server predates fulltext.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema getFulltextAnalyzersOrThrow(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> map =
+        internalGetFulltextAnalyzers().getMap();
+    if (!map.containsKey(key)) {
+      throw new java.lang.IllegalArgumentException();
+    }
+    return map.get(key);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -555,6 +862,24 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
     if (((bitField0_ & 0x00000002) != 0)) {
       output.writeMessage(7, getConflictResolution());
     }
+    com.google.protobuf.GeneratedMessageV3
+      .serializeStringMapTo(
+        output,
+        internalGetFulltextLanguages(),
+        FulltextLanguagesDefaultEntryHolder.defaultEntry,
+        8);
+    com.google.protobuf.GeneratedMessageV3
+      .serializeStringMapTo(
+        output,
+        internalGetFulltextResources(),
+        FulltextResourcesDefaultEntryHolder.defaultEntry,
+        9);
+    com.google.protobuf.GeneratedMessageV3
+      .serializeStringMapTo(
+        output,
+        internalGetFulltextAnalyzers(),
+        FulltextAnalyzersDefaultEntryHolder.defaultEntry,
+        10);
     getUnknownFields().writeTo(output);
   }
 
@@ -605,6 +930,36 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(7, getConflictResolution());
     }
+    for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> entry
+         : internalGetFulltextLanguages().getMap().entrySet()) {
+      com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema>
+      fulltextLanguages__ = FulltextLanguagesDefaultEntryHolder.defaultEntry.newBuilderForType()
+          .setKey(entry.getKey())
+          .setValue(entry.getValue())
+          .build();
+      size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(8, fulltextLanguages__);
+    }
+    for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> entry
+         : internalGetFulltextResources().getMap().entrySet()) {
+      com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema>
+      fulltextResources__ = FulltextResourcesDefaultEntryHolder.defaultEntry.newBuilderForType()
+          .setKey(entry.getKey())
+          .setValue(entry.getValue())
+          .build();
+      size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(9, fulltextResources__);
+    }
+    for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> entry
+         : internalGetFulltextAnalyzers().getMap().entrySet()) {
+      com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema>
+      fulltextAnalyzers__ = FulltextAnalyzersDefaultEntryHolder.defaultEntry.newBuilderForType()
+          .setKey(entry.getKey())
+          .setValue(entry.getValue())
+          .build();
+      size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(10, fulltextAnalyzers__);
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -639,6 +994,12 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
       if (!getConflictResolution()
           .equals(other.getConflictResolution())) return false;
     }
+    if (!internalGetFulltextLanguages().equals(
+        other.internalGetFulltextLanguages())) return false;
+    if (!internalGetFulltextResources().equals(
+        other.internalGetFulltextResources())) return false;
+    if (!internalGetFulltextAnalyzers().equals(
+        other.internalGetFulltextAnalyzers())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -673,6 +1034,18 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
     if (hasConflictResolution()) {
       hash = (37 * hash) + CONFLICTRESOLUTION_FIELD_NUMBER;
       hash = (53 * hash) + getConflictResolution().hashCode();
+    }
+    if (!internalGetFulltextLanguages().getMap().isEmpty()) {
+      hash = (37 * hash) + FULLTEXTLANGUAGES_FIELD_NUMBER;
+      hash = (53 * hash) + internalGetFulltextLanguages().hashCode();
+    }
+    if (!internalGetFulltextResources().getMap().isEmpty()) {
+      hash = (37 * hash) + FULLTEXTRESOURCES_FIELD_NUMBER;
+      hash = (53 * hash) + internalGetFulltextResources().hashCode();
+    }
+    if (!internalGetFulltextAnalyzers().getMap().isEmpty()) {
+      hash = (37 * hash) + FULLTEXTANALYZERS_FIELD_NUMBER;
+      hash = (53 * hash) + internalGetFulltextAnalyzers().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -796,6 +1169,12 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
       switch (number) {
         case 5:
           return internalGetAttributes();
+        case 8:
+          return internalGetFulltextLanguages();
+        case 9:
+          return internalGetFulltextResources();
+        case 10:
+          return internalGetFulltextAnalyzers();
         default:
           throw new RuntimeException(
               "Invalid map field number: " + number);
@@ -807,6 +1186,12 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
       switch (number) {
         case 5:
           return internalGetMutableAttributes();
+        case 8:
+          return internalGetMutableFulltextLanguages();
+        case 9:
+          return internalGetMutableFulltextResources();
+        case 10:
+          return internalGetMutableFulltextAnalyzers();
         default:
           throw new RuntimeException(
               "Invalid map field number: " + number);
@@ -864,6 +1249,9 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
         conflictResolutionBuilder_.dispose();
         conflictResolutionBuilder_ = null;
       }
+      internalGetMutableFulltextLanguages().clear();
+      internalGetMutableFulltextResources().clear();
+      internalGetMutableFulltextAnalyzers().clear();
       return this;
     }
 
@@ -936,6 +1324,15 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
             ? conflictResolution_
             : conflictResolutionBuilder_.build();
         to_bitField0_ |= 0x00000002;
+      }
+      if (((from_bitField0_ & 0x00000080) != 0)) {
+        result.fulltextLanguages_ = internalGetFulltextLanguages().build(FulltextLanguagesDefaultEntryHolder.defaultEntry);
+      }
+      if (((from_bitField0_ & 0x00000100) != 0)) {
+        result.fulltextResources_ = internalGetFulltextResources().build(FulltextResourcesDefaultEntryHolder.defaultEntry);
+      }
+      if (((from_bitField0_ & 0x00000200) != 0)) {
+        result.fulltextAnalyzers_ = internalGetFulltextAnalyzers().build(FulltextAnalyzersDefaultEntryHolder.defaultEntry);
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -1037,6 +1434,15 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
       if (other.hasConflictResolution()) {
         mergeConflictResolution(other.getConflictResolution());
       }
+      internalGetMutableFulltextLanguages().mergeFrom(
+          other.internalGetFulltextLanguages());
+      bitField0_ |= 0x00000080;
+      internalGetMutableFulltextResources().mergeFrom(
+          other.internalGetFulltextResources());
+      bitField0_ |= 0x00000100;
+      internalGetMutableFulltextAnalyzers().mergeFrom(
+          other.internalGetFulltextAnalyzers());
+      bitField0_ |= 0x00000200;
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -1126,6 +1532,33 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
               bitField0_ |= 0x00000040;
               break;
             } // case 58
+            case 66: {
+              com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema>
+              fulltextLanguages__ = input.readMessage(
+                  FulltextLanguagesDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
+              internalGetMutableFulltextLanguages().ensureBuilderMap().put(
+                  fulltextLanguages__.getKey(), fulltextLanguages__.getValue());
+              bitField0_ |= 0x00000080;
+              break;
+            } // case 66
+            case 74: {
+              com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema>
+              fulltextResources__ = input.readMessage(
+                  FulltextResourcesDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
+              internalGetMutableFulltextResources().ensureBuilderMap().put(
+                  fulltextResources__.getKey(), fulltextResources__.getValue());
+              bitField0_ |= 0x00000100;
+              break;
+            } // case 74
+            case 82: {
+              com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema>
+              fulltextAnalyzers__ = input.readMessage(
+                  FulltextAnalyzersDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
+              internalGetMutableFulltextAnalyzers().ensureBuilderMap().put(
+                  fulltextAnalyzers__.getKey(), fulltextAnalyzers__.getValue());
+              bitField0_ |= 0x00000200;
+              break;
+            } // case 82
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2400,6 +2833,599 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
         conflictResolution_ = null;
       }
       return conflictResolutionBuilder_;
+    }
+
+    private static final class FulltextLanguagesConverter implements com.google.protobuf.MapFieldBuilder.Converter<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchemaOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> {
+      @java.lang.Override
+      public io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema build(io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchemaOrBuilder val) {
+        if (val instanceof io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema) { return (io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema) val; }
+        return ((io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema.Builder) val).build();
+      }
+
+      @java.lang.Override
+      public com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> defaultEntry() {
+        return FulltextLanguagesDefaultEntryHolder.defaultEntry;
+      }
+    };
+    private static final FulltextLanguagesConverter fulltextLanguagesConverter = new FulltextLanguagesConverter();
+
+    private com.google.protobuf.MapFieldBuilder<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchemaOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema.Builder> fulltextLanguages_;
+    private com.google.protobuf.MapFieldBuilder<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchemaOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema.Builder>
+        internalGetFulltextLanguages() {
+      if (fulltextLanguages_ == null) {
+        return new com.google.protobuf.MapFieldBuilder<>(fulltextLanguagesConverter);
+      }
+      return fulltextLanguages_;
+    }
+    private com.google.protobuf.MapFieldBuilder<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchemaOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema.Builder>
+        internalGetMutableFulltextLanguages() {
+      if (fulltextLanguages_ == null) {
+        fulltextLanguages_ = new com.google.protobuf.MapFieldBuilder<>(fulltextLanguagesConverter);
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return fulltextLanguages_;
+    }
+    public int getFulltextLanguagesCount() {
+      return internalGetFulltextLanguages().ensureBuilderMap().size();
+    }
+    /**
+     * <pre>
+     * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+     * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+     * fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+     */
+    @java.lang.Override
+    public boolean containsFulltextLanguages(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      return internalGetFulltextLanguages().ensureBuilderMap().containsKey(key);
+    }
+    /**
+     * Use {@link #getFulltextLanguagesMap()} instead.
+     */
+    @java.lang.Override
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> getFulltextLanguages() {
+      return getFulltextLanguagesMap();
+    }
+    /**
+     * <pre>
+     * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+     * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+     * fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+     */
+    @java.lang.Override
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> getFulltextLanguagesMap() {
+      return internalGetFulltextLanguages().getImmutableMap();
+    }
+    /**
+     * <pre>
+     * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+     * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+     * fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+     */
+    @java.lang.Override
+    public /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema getFulltextLanguagesOrDefault(
+        java.lang.String key,
+        /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema defaultValue) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchemaOrBuilder> map = internalGetMutableFulltextLanguages().ensureBuilderMap();
+      return map.containsKey(key) ? fulltextLanguagesConverter.build(map.get(key)) : defaultValue;
+    }
+    /**
+     * <pre>
+     * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+     * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+     * fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema getFulltextLanguagesOrThrow(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchemaOrBuilder> map = internalGetMutableFulltextLanguages().ensureBuilderMap();
+      if (!map.containsKey(key)) {
+        throw new java.lang.IllegalArgumentException();
+      }
+      return fulltextLanguagesConverter.build(map.get(key));
+    }
+    public Builder clearFulltextLanguages() {
+      bitField0_ = (bitField0_ & ~0x00000080);
+      internalGetMutableFulltextLanguages().clear();
+      return this;
+    }
+    /**
+     * <pre>
+     * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+     * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+     * fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+     */
+    public Builder removeFulltextLanguages(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      internalGetMutableFulltextLanguages().ensureBuilderMap()
+          .remove(key);
+      return this;
+    }
+    /**
+     * Use alternate mutation accessors instead.
+     */
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema>
+        getMutableFulltextLanguages() {
+      bitField0_ |= 0x00000080;
+      return internalGetMutableFulltextLanguages().ensureMessageMap();
+    }
+    /**
+     * <pre>
+     * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+     * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+     * fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+     */
+    public Builder putFulltextLanguages(
+        java.lang.String key,
+        io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema value) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      if (value == null) { throw new NullPointerException("map value"); }
+      internalGetMutableFulltextLanguages().ensureBuilderMap()
+          .put(key, value);
+      bitField0_ |= 0x00000080;
+      return this;
+    }
+    /**
+     * <pre>
+     * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+     * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+     * fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+     */
+    public Builder putAllFulltextLanguages(
+        java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> values) {
+      for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema> e : values.entrySet()) {
+        if (e.getKey() == null || e.getValue() == null) {
+          throw new NullPointerException();
+        }
+      }
+      internalGetMutableFulltextLanguages().ensureBuilderMap()
+          .putAll(values);
+      bitField0_ |= 0x00000080;
+      return this;
+    }
+    /**
+     * <pre>
+     * How the catalog splits text of each language into words, keyed by ISO 639 language code. Only declared languages
+     * are present; text in any other language is split by the `standard` tokenizer alone. Empty when the server predates
+     * fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema&gt; fulltextLanguages = 8;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema.Builder putFulltextLanguagesBuilderIfAbsent(
+        java.lang.String key) {
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchemaOrBuilder> builderMap = internalGetMutableFulltextLanguages().ensureBuilderMap();
+      io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchemaOrBuilder entry = builderMap.get(key);
+      if (entry == null) {
+        entry = io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema.newBuilder();
+        builderMap.put(key, entry);
+      }
+      if (entry instanceof io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema) {
+        entry = ((io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema) entry).toBuilder();
+        builderMap.put(key, entry);
+      }
+      return (io.evitadb.externalApi.grpc.generated.GrpcFulltextLanguageSchema.Builder) entry;
+    }
+
+    private static final class FulltextResourcesConverter implements com.google.protobuf.MapFieldBuilder.Converter<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchemaOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> {
+      @java.lang.Override
+      public io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema build(io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchemaOrBuilder val) {
+        if (val instanceof io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema) { return (io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema) val; }
+        return ((io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema.Builder) val).build();
+      }
+
+      @java.lang.Override
+      public com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> defaultEntry() {
+        return FulltextResourcesDefaultEntryHolder.defaultEntry;
+      }
+    };
+    private static final FulltextResourcesConverter fulltextResourcesConverter = new FulltextResourcesConverter();
+
+    private com.google.protobuf.MapFieldBuilder<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchemaOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema.Builder> fulltextResources_;
+    private com.google.protobuf.MapFieldBuilder<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchemaOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema.Builder>
+        internalGetFulltextResources() {
+      if (fulltextResources_ == null) {
+        return new com.google.protobuf.MapFieldBuilder<>(fulltextResourcesConverter);
+      }
+      return fulltextResources_;
+    }
+    private com.google.protobuf.MapFieldBuilder<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchemaOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema.Builder>
+        internalGetMutableFulltextResources() {
+      if (fulltextResources_ == null) {
+        fulltextResources_ = new com.google.protobuf.MapFieldBuilder<>(fulltextResourcesConverter);
+      }
+      bitField0_ |= 0x00000100;
+      onChanged();
+      return fulltextResources_;
+    }
+    public int getFulltextResourcesCount() {
+      return internalGetFulltextResources().ensureBuilderMap().size();
+    }
+    /**
+     * <pre>
+     * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+     * lists are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+     */
+    @java.lang.Override
+    public boolean containsFulltextResources(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      return internalGetFulltextResources().ensureBuilderMap().containsKey(key);
+    }
+    /**
+     * Use {@link #getFulltextResourcesMap()} instead.
+     */
+    @java.lang.Override
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> getFulltextResources() {
+      return getFulltextResourcesMap();
+    }
+    /**
+     * <pre>
+     * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+     * lists are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+     */
+    @java.lang.Override
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> getFulltextResourcesMap() {
+      return internalGetFulltextResources().getImmutableMap();
+    }
+    /**
+     * <pre>
+     * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+     * lists are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+     */
+    @java.lang.Override
+    public /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema getFulltextResourcesOrDefault(
+        java.lang.String key,
+        /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema defaultValue) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchemaOrBuilder> map = internalGetMutableFulltextResources().ensureBuilderMap();
+      return map.containsKey(key) ? fulltextResourcesConverter.build(map.get(key)) : defaultValue;
+    }
+    /**
+     * <pre>
+     * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+     * lists are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema getFulltextResourcesOrThrow(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchemaOrBuilder> map = internalGetMutableFulltextResources().ensureBuilderMap();
+      if (!map.containsKey(key)) {
+        throw new java.lang.IllegalArgumentException();
+      }
+      return fulltextResourcesConverter.build(map.get(key));
+    }
+    public Builder clearFulltextResources() {
+      bitField0_ = (bitField0_ & ~0x00000100);
+      internalGetMutableFulltextResources().clear();
+      return this;
+    }
+    /**
+     * <pre>
+     * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+     * lists are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+     */
+    public Builder removeFulltextResources(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      internalGetMutableFulltextResources().ensureBuilderMap()
+          .remove(key);
+      return this;
+    }
+    /**
+     * Use alternate mutation accessors instead.
+     */
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema>
+        getMutableFulltextResources() {
+      bitField0_ |= 0x00000100;
+      return internalGetMutableFulltextResources().ensureMessageMap();
+    }
+    /**
+     * <pre>
+     * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+     * lists are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+     */
+    public Builder putFulltextResources(
+        java.lang.String key,
+        io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema value) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      if (value == null) { throw new NullPointerException("map value"); }
+      internalGetMutableFulltextResources().ensureBuilderMap()
+          .put(key, value);
+      bitField0_ |= 0x00000100;
+      return this;
+    }
+    /**
+     * <pre>
+     * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+     * lists are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+     */
+    public Builder putAllFulltextResources(
+        java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> values) {
+      for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema> e : values.entrySet()) {
+        if (e.getKey() == null || e.getValue() == null) {
+          throw new NullPointerException();
+        }
+      }
+      internalGetMutableFulltextResources().ensureBuilderMap()
+          .putAll(values);
+      bitField0_ |= 0x00000100;
+      return this;
+    }
+    /**
+     * <pre>
+     * Word lists and synonym lists the catalog declares for analysis steps to read, keyed by name. The built-in stop
+     * lists are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema&gt; fulltextResources = 9;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema.Builder putFulltextResourcesBuilderIfAbsent(
+        java.lang.String key) {
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchemaOrBuilder> builderMap = internalGetMutableFulltextResources().ensureBuilderMap();
+      io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchemaOrBuilder entry = builderMap.get(key);
+      if (entry == null) {
+        entry = io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema.newBuilder();
+        builderMap.put(key, entry);
+      }
+      if (entry instanceof io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema) {
+        entry = ((io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema) entry).toBuilder();
+        builderMap.put(key, entry);
+      }
+      return (io.evitadb.externalApi.grpc.generated.GrpcFulltextResourceSchema.Builder) entry;
+    }
+
+    private static final class FulltextAnalyzersConverter implements com.google.protobuf.MapFieldBuilder.Converter<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchemaOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> {
+      @java.lang.Override
+      public io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema build(io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchemaOrBuilder val) {
+        if (val instanceof io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema) { return (io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema) val; }
+        return ((io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema.Builder) val).build();
+      }
+
+      @java.lang.Override
+      public com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> defaultEntry() {
+        return FulltextAnalyzersDefaultEntryHolder.defaultEntry;
+      }
+    };
+    private static final FulltextAnalyzersConverter fulltextAnalyzersConverter = new FulltextAnalyzersConverter();
+
+    private com.google.protobuf.MapFieldBuilder<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchemaOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema.Builder> fulltextAnalyzers_;
+    private com.google.protobuf.MapFieldBuilder<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchemaOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema.Builder>
+        internalGetFulltextAnalyzers() {
+      if (fulltextAnalyzers_ == null) {
+        return new com.google.protobuf.MapFieldBuilder<>(fulltextAnalyzersConverter);
+      }
+      return fulltextAnalyzers_;
+    }
+    private com.google.protobuf.MapFieldBuilder<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchemaOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema.Builder>
+        internalGetMutableFulltextAnalyzers() {
+      if (fulltextAnalyzers_ == null) {
+        fulltextAnalyzers_ = new com.google.protobuf.MapFieldBuilder<>(fulltextAnalyzersConverter);
+      }
+      bitField0_ |= 0x00000200;
+      onChanged();
+      return fulltextAnalyzers_;
+    }
+    public int getFulltextAnalyzersCount() {
+      return internalGetFulltextAnalyzers().ensureBuilderMap().size();
+    }
+    /**
+     * <pre>
+     * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+     * and `html-text` are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+     */
+    @java.lang.Override
+    public boolean containsFulltextAnalyzers(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      return internalGetFulltextAnalyzers().ensureBuilderMap().containsKey(key);
+    }
+    /**
+     * Use {@link #getFulltextAnalyzersMap()} instead.
+     */
+    @java.lang.Override
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> getFulltextAnalyzers() {
+      return getFulltextAnalyzersMap();
+    }
+    /**
+     * <pre>
+     * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+     * and `html-text` are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+     */
+    @java.lang.Override
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> getFulltextAnalyzersMap() {
+      return internalGetFulltextAnalyzers().getImmutableMap();
+    }
+    /**
+     * <pre>
+     * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+     * and `html-text` are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+     */
+    @java.lang.Override
+    public /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema getFulltextAnalyzersOrDefault(
+        java.lang.String key,
+        /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema defaultValue) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchemaOrBuilder> map = internalGetMutableFulltextAnalyzers().ensureBuilderMap();
+      return map.containsKey(key) ? fulltextAnalyzersConverter.build(map.get(key)) : defaultValue;
+    }
+    /**
+     * <pre>
+     * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+     * and `html-text` are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema getFulltextAnalyzersOrThrow(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchemaOrBuilder> map = internalGetMutableFulltextAnalyzers().ensureBuilderMap();
+      if (!map.containsKey(key)) {
+        throw new java.lang.IllegalArgumentException();
+      }
+      return fulltextAnalyzersConverter.build(map.get(key));
+    }
+    public Builder clearFulltextAnalyzers() {
+      bitField0_ = (bitField0_ & ~0x00000200);
+      internalGetMutableFulltextAnalyzers().clear();
+      return this;
+    }
+    /**
+     * <pre>
+     * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+     * and `html-text` are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+     */
+    public Builder removeFulltextAnalyzers(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      internalGetMutableFulltextAnalyzers().ensureBuilderMap()
+          .remove(key);
+      return this;
+    }
+    /**
+     * Use alternate mutation accessors instead.
+     */
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema>
+        getMutableFulltextAnalyzers() {
+      bitField0_ |= 0x00000200;
+      return internalGetMutableFulltextAnalyzers().ensureMessageMap();
+    }
+    /**
+     * <pre>
+     * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+     * and `html-text` are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+     */
+    public Builder putFulltextAnalyzers(
+        java.lang.String key,
+        io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema value) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      if (value == null) { throw new NullPointerException("map value"); }
+      internalGetMutableFulltextAnalyzers().ensureBuilderMap()
+          .put(key, value);
+      bitField0_ |= 0x00000200;
+      return this;
+    }
+    /**
+     * <pre>
+     * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+     * and `html-text` are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+     */
+    public Builder putAllFulltextAnalyzers(
+        java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> values) {
+      for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema> e : values.entrySet()) {
+        if (e.getKey() == null || e.getValue() == null) {
+          throw new NullPointerException();
+        }
+      }
+      internalGetMutableFulltextAnalyzers().ensureBuilderMap()
+          .putAll(values);
+      bitField0_ |= 0x00000200;
+      return this;
+    }
+    /**
+     * <pre>
+     * Analyzers the catalog declares, keyed by name, before phase inheritance is resolved. The built-in analyzers `text`
+     * and `html-text` are not present. Empty when the server predates fulltext.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema&gt; fulltextAnalyzers = 10;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema.Builder putFulltextAnalyzersBuilderIfAbsent(
+        java.lang.String key) {
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchemaOrBuilder> builderMap = internalGetMutableFulltextAnalyzers().ensureBuilderMap();
+      io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchemaOrBuilder entry = builderMap.get(key);
+      if (entry == null) {
+        entry = io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema.newBuilder();
+        builderMap.put(key, entry);
+      }
+      if (entry instanceof io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema) {
+        entry = ((io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema) entry).toBuilder();
+        builderMap.put(key, entry);
+      }
+      return (io.evitadb.externalApi.grpc.generated.GrpcFulltextAnalyzerSchema.Builder) entry;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

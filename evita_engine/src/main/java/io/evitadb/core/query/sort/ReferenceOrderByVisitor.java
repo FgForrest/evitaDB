@@ -29,13 +29,18 @@ import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.order.AssociatedDataWeight;
 import io.evitadb.api.query.order.AttributeNatural;
+import io.evitadb.api.query.order.AttributeWeight;
 import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.query.order.EntityPrimaryKeyExact;
 import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.EntityProperty;
+import io.evitadb.api.query.order.EntityWeight;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderInScope;
+import io.evitadb.api.query.order.ReferenceWeight;
+import io.evitadb.api.query.order.RelevanceText;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.FetchRequirementCollector;
@@ -63,6 +68,8 @@ import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslato
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.translator.EntityGroupPropertyTranslator;
 import io.evitadb.core.query.sort.entity.translator.EntityPropertyTranslator;
+import io.evitadb.core.query.sort.fulltext.translator.PlaceWeightTranslator;
+import io.evitadb.core.query.sort.fulltext.translator.RelevanceTextTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
@@ -121,6 +128,12 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		TRANSLATORS.put(EntityPrimaryKeyExact.class, new EntityPrimaryKeyExactTranslator());
 		TRANSLATORS.put(EntityProperty.class, new EntityPropertyTranslator());
 		TRANSLATORS.put(EntityGroupProperty.class, new EntityGroupPropertyTranslator());
+		TRANSLATORS.put(RelevanceText.class, new RelevanceTextTranslator());
+		final PlaceWeightTranslator placeWeightTranslator = new PlaceWeightTranslator();
+		TRANSLATORS.put(AttributeWeight.class, placeWeightTranslator);
+		TRANSLATORS.put(AssociatedDataWeight.class, placeWeightTranslator);
+		TRANSLATORS.put(ReferenceWeight.class, placeWeightTranslator);
+		TRANSLATORS.put(EntityWeight.class, placeWeightTranslator);
 	}
 
 	/**

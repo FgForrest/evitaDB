@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.fulltext;
 
+import io.evitadb.api.query.filter.TextMatches;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -30,20 +31,24 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
+import io.evitadb.index.fulltext.FulltextScoringPolicy.Place;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Marks a formula that can rank entities by fulltext relevance — the formula a fulltext condition translated into,
  * and every wrapper that can sit above one.
  *
- * It follows the two-phase pattern of {@link FilteredPriceRecordAccessor}: the planner is to find the accessors in
- * the filter tree through {@link FormulaFinder#find} in {@link LookUp#SHALLOW} mode, and the sorter to pull the
- * scores out only when it orders the final result. Neither consumer exists yet — the query side of fulltext is still
- * to come — so this is the contract they will be written against. The score is keyed by primary key, not read from
- * the entity body, so the same accessor serves the index path and the prefetch path alike.
+ * It follows the two-phase pattern of {@link FilteredPriceRecordAccessor}: the planner finds the accessors in the
+ * filter tree through {@link FormulaFinder#find} in {@link LookUp#SHALLOW} mode, and the sorter pulls the scores out
+ * only when it orders the final result - the `relevanceText()` sorter is that consumer. The score is keyed
+ * by primary key, not read from the entity body, so the same accessor serves the index path and the prefetch path
+ * alike.
  *
- * **Every wrapper that can sit above a fulltext formula must implement this interface too.** A `SHALLOW` lookup
+ * **Every wrapper exposed through the main filter must implement this interface too.** A `SHALLOW` lookup
  * does not descend into a node it has matched, and with prefetch on the planner wraps translated formulas in
  * {@link SelectionFormula} and {@link EntityFilteringFormula} — both implement this interface, so the lookup stops
  * at them, as the price lookup stops at them because they implement {@link FilteredPriceRecordAccessor}. A wrapper
@@ -51,32 +56,64 @@ import javax.annotation.Nonnull;
  * to no ordering exactly when the planner chose prefetch. A wrapper implements it unconditionally and answers
  * {@link #providesFulltextScores()} by what it actually wraps.
  *
+ * **A formula translating primary keys from one collection's space to another's implements it too, and answers
+ * `false`.** The lookup stops at it, so a fulltext formula of a referenced collection below it is never read as
+ * scores of the queried entities. Such scores reach the sorter already translated, as
+ * {@link ReferenceOwnerFulltextScoreAccessor}s the filter visitor collects.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public interface FulltextScoreAccessor {
+
+	/**
+	 * Semantic identity of a searched scoring source. Processing scopes deliberately do not participate: separate
+	 * scope-sensitive preparations of this search are copies of its evidence, whose scores collapse by best copy.
+	 * The reference context distinguishes direct reference bodies from entity-level searches in the same collection.
+	 *
+	 * @param origin the `textMatches` constraint the search was prepared for, compared by value
+	 * @param collection the entity type whose primary keys the source scores
+	 * @param locale the locale the search was planned in
+	 * @param referenceContext the reference whose body holds the search, NULL for an entity-level search
+	 */
+	public record SourceIdentity(
+		@Nonnull TextMatches origin, @Nonnull String collection, @Nonnull Locale locale,
+		@Nullable String referenceContext
+	) { }
+
+	/**
+	 * Returns the structural identity of a formula-tree text source. Additional mapped/reference sources use their
+	 * registration keys instead, and standalone arithmetic sources may have no query origin.
+	 */
+	@Nullable
+	default SourceIdentity getFulltextSourceIdentity() {
+		return null;
+	}
 
 	/**
 	 * Returns whether this accessor has fulltext scores to give. A fulltext formula always has; a wrapper has only
 	 * when it wraps one, so a sorter skips the wrappers that answer `false` rather than treating them as matching
 	 * nothing.
 	 *
-	 * @return true when {@link #getFulltextScores(int[], int)} may be called
+	 * @return true when {@link #getFulltextScores(int[], Map)} may be called
 	 */
 	boolean providesFulltextScores();
 
 	/**
-	 * Scores the candidates against the fulltext query this accessor represents and returns the top N, best first.
-	 * A candidate is selected when it contains at least one query token — it need not be in the strict match set of
+	 * Scores every candidate against this source and returns composites aligned with the candidates array.
+	 * A candidate has a score when it contains at least one query token — it need not be in the strict match set of
 	 * the fulltext formula, and ranks below the candidates matching more tokens. Candidates matching no token are
-	 * never selected.
+	 * represented by a zero composite.
 	 *
 	 * @param candidates primary keys of the entities to rank — typically the final result of the whole filter —
 	 *                   ascending and distinct
-	 * @param topN       how many entities to return, at least one
-	 * @return the selected entities and their composite scores, as {@link FulltextPhaseOneScorer} defines them
+	 * @param weights immutable overrides of this relevance ordering, keyed in the source owner namespace
+	 * @return all candidate primary keys and their aligned composites, as {@link FulltextPhaseOneScorer} defines them
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when {@link #providesFulltextScores()} is false
 	 */
 	@Nonnull
-	Result getFulltextScores(@Nonnull int[] candidates, int topN);
+	Result getFulltextScores(
+		@Nonnull int[] candidates,
+		@Nonnull Map<Place, Float> weights
+	);
 
 }

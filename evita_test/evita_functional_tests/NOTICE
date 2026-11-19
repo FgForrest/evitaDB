@@ -16,7 +16,7 @@ Provenance, exact upstream revisions and checksums:
 `src/test/resources/fulltext/hunspell/README.md`.
 
 
-Polish dictionary (pl_PL.dic, pl_PL.aff)
+Polish dictionary (pl_PL.dic)
 ----------------------------------------
 
 From the Polish dictionary pack of the Polish Native Lang Project
@@ -37,7 +37,7 @@ expression (GPL-3.0 OR LGPL-3.0 OR MPL-2.0). evitaDB relies on the MPL
 option.
 
 
-Slovak dictionary (sk_SK.dic, sk_SK.aff)
+Slovak dictionary (sk_SK.dic)
 ----------------------------------------
 
 Slovak dictionaries for ASpell & Hunspell from the sk-spell project
@@ -60,7 +60,7 @@ Upstream licence statement, verbatim:
 evitaDB relies on the MPL 1.1 option.
 
 
-Romanian dictionary (ro_RO.dic, ro_RO.aff)
+Romanian dictionary (ro_RO.dic)
 ------------------------------------------
 
 Romanian Hunspell package, Copyright (C) 2005-2013 Rospell Team

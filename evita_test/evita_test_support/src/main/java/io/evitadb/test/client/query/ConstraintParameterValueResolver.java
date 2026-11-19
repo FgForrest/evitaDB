@@ -24,9 +24,19 @@
 package io.evitadb.test.client.query;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintContainer;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ParameterDescriptor;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
+import io.evitadb.api.query.filter.AssociatedDataIn;
+import io.evitadb.api.query.filter.EntityIn;
+import io.evitadb.api.query.filter.ReferenceIn;
+import io.evitadb.api.query.filter.TextMatches;
+import io.evitadb.api.query.order.EntityWeight;
+import io.evitadb.api.query.order.ReferenceWeight;
+import io.evitadb.api.query.order.RelevanceText;
+import io.evitadb.api.query.order.Segment;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.StringUtils;
 
@@ -43,8 +53,30 @@ import java.util.Optional;
  */
 public class ConstraintParameterValueResolver {
 
+	/**
+	 * Reads a creator parameter, including fulltext child arrays and the segment factory adapter's ordering/limit.
+	 *
+	 * @param constraint constraint with already split single-name selectors
+	 * @param parameter creator parameter to read
+	 * @return the parameter value, absent for a missing optional value
+	 */
 	@Nonnull
 	public Optional<?> resolveParameterValue(@Nonnull Constraint<?> constraint, @Nonnull ParameterDescriptor parameter) {
+		if (constraint instanceof AssociatedDataIn selector &&
+			parameter instanceof ConstraintCreator.ClassifierParameterDescriptor) {
+			return Optional.of(selector.getAssociatedDataNames()[0]);
+		}
+		if (parameter instanceof ConstraintCreator.ChildParameterDescriptor && isTextChildContainer(constraint)) {
+			return Optional.of(((ConstraintContainer<?>) constraint).getChildren());
+		}
+		if (constraint instanceof Segment segment &&
+			parameter instanceof ConstraintCreator.ChildParameterDescriptor child) {
+			if (child.type().isArray()) {
+				return Optional.of(segment.getOrderBy().getChildren());
+			}
+			return segment.getLimit().isPresent() ?
+				Optional.of(QueryConstraints.limit(segment.getLimit().getAsInt())) : Optional.empty();
+		}
 		final Class<?> constraintClass = constraint.getClass();
 
 		final Method getter = findGetter(constraintClass.getDeclaredMethods(), parameter.name())
@@ -69,6 +101,18 @@ public class ConstraintParameterValueResolver {
 			return optionalParameterValue;
 		}
 		return Optional.ofNullable(parameterValue);
+	}
+
+	/**
+	 * Tells the fulltext containers whose creator child array is read as the container's children.
+	 *
+	 * @param constraint constraint whose child parameter is read
+	 * @return true for `textMatches`, `inReference`, `inEntity`, `relevanceText`, `referenceWeight` and `entityWeight`
+	 */
+	private static boolean isTextChildContainer(@Nonnull Constraint<?> constraint) {
+		return constraint instanceof TextMatches || constraint instanceof ReferenceIn ||
+			constraint instanceof EntityIn || constraint instanceof RelevanceText ||
+			constraint instanceof ReferenceWeight || constraint instanceof EntityWeight;
 	}
 
 	@Nonnull

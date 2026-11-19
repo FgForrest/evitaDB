@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -61,6 +64,58 @@ public abstract class ConstraintSchemaBuildingContext<SIMPLE_TYPE, OBJECT_TYPE> 
 	 * Already built wrapper objects ready for reuse.
 	 */
 	protected final Map<WrapperObjectKey, SIMPLE_TYPE> cachedWrapperObjects = createHashMap(200);
+
+	/** Direct searchable places discovered once per entity or reference in this build. */
+	@Nonnull
+	private final Map<DataLocator, TextPlaces> cachedTextPlaces = createHashMap(32);
+	/** Eligibility includes the child marker and its allowed/forbidden constraints. */
+	@Nonnull
+	private final Map<ContainerKey, Boolean> cachedTextEligibility = createHashMap(64);
+
+	/**
+	 * Reuses direct-place discovery across all constraint builders in this schema build.
+	 *
+	 * @param locator entity or reference whose direct places are needed
+	 * @param discovery direct-place discovery that never follows target collections
+	 * @return cached direct places
+	 */
+	@Nonnull
+	public TextPlaces getTextPlaces(@Nonnull DataLocator locator, @Nonnull Supplier<TextPlaces> discovery) {
+		final TextPlaces cached = this.cachedTextPlaces.get(locator);
+		if (cached != null) {
+			return cached;
+		}
+		final TextPlaces result = discovery.get();
+		this.cachedTextPlaces.put(locator, result);
+		return result;
+	}
+
+	/**
+	 * Reuses marker-specific eligibility without traversing composition paths again.
+	 *
+	 * @param key locator and allowed child marker
+	 * @param discovery bounded eligibility check
+	 * @return whether this marker has a searchable place in this context
+	 */
+	public boolean hasTextPlace(@Nonnull ContainerKey key, @Nonnull BooleanSupplier discovery) {
+		final Boolean cached = this.cachedTextEligibility.get(key);
+		if (cached != null) {
+			return cached;
+		}
+		final boolean result = discovery.getAsBoolean();
+		this.cachedTextEligibility.put(key, result);
+		return result;
+	}
+
+	/**
+	 * Direct searchable places; reference attributes are separate because target weights cannot address them.
+	 *
+	 * @param attributes whether this entity or reference has searchable attributes
+	 * @param associatedData whether this entity has searchable associated data
+	 * @param referenceAttributes whether an entity has a reference with searchable attributes
+	 */
+	public record TextPlaces(boolean attributes, boolean associatedData, boolean referenceAttributes) {
+	}
 
 	/**
 	 * Built schema types during build process that have to be registered in the API schema because build process

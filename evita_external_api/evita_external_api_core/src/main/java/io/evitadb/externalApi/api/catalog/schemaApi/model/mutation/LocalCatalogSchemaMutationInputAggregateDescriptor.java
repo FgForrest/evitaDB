@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation;
 
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
@@ -35,7 +36,6 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
 import java.util.List;
 
 /**
@@ -59,6 +59,51 @@ public interface LocalCatalogSchemaMutationInputAggregateDescriptor {
 	PropertyDescriptor MODIFY_CATALOG_SCHEMA_CONFLICT_RESOLUTION_MUTATION = PropertyDescriptor.nullableFromObject(
 		"modifyCatalogSchemaConflictResolutionMutation",
 		ModifyCatalogSchemaConflictResolutionMutationDescriptor.THIS_INPUT
+	);
+
+	/** Input of the mutation that declares a catalog fulltext language. */
+	PropertyDescriptor CREATE_FULLTEXT_LANGUAGE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
+		"createFulltextLanguageSchemaMutation", CreateFulltextLanguageSchemaMutationDescriptor.THIS_INPUT
+	);
+
+	/** Input of the mutation that replaces a catalog fulltext language. */
+	PropertyDescriptor MODIFY_FULLTEXT_LANGUAGE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
+		"modifyFulltextLanguageSchemaMutation", ModifyFulltextLanguageSchemaMutationDescriptor.THIS_INPUT
+	);
+
+	/** Input of the mutation that removes a catalog fulltext language. */
+	PropertyDescriptor REMOVE_FULLTEXT_LANGUAGE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
+		"removeFulltextLanguageSchemaMutation", RemoveFulltextLanguageSchemaMutationDescriptor.THIS_INPUT
+	);
+
+	/** Input of the mutation that declares a catalog fulltext resource. */
+	PropertyDescriptor CREATE_FULLTEXT_RESOURCE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
+		"createFulltextResourceSchemaMutation", CreateFulltextResourceSchemaMutationDescriptor.THIS_INPUT
+	);
+
+	/** Input of the mutation that replaces a catalog fulltext resource. */
+	PropertyDescriptor MODIFY_FULLTEXT_RESOURCE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
+		"modifyFulltextResourceSchemaMutation", ModifyFulltextResourceSchemaMutationDescriptor.THIS_INPUT
+	);
+
+	/** Input of the mutation that removes a catalog fulltext resource. */
+	PropertyDescriptor REMOVE_FULLTEXT_RESOURCE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
+		"removeFulltextResourceSchemaMutation", RemoveFulltextResourceSchemaMutationDescriptor.THIS_INPUT
+	);
+
+	/** Input of the mutation that declares a catalog fulltext analyzer. */
+	PropertyDescriptor CREATE_FULLTEXT_ANALYZER_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
+		"createFulltextAnalyzerSchemaMutation", CreateFulltextAnalyzerSchemaMutationDescriptor.THIS_INPUT
+	);
+
+	/** Input of the mutation that replaces a catalog fulltext analyzer. */
+	PropertyDescriptor MODIFY_FULLTEXT_ANALYZER_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
+		"modifyFulltextAnalyzerSchemaMutation", ModifyFulltextAnalyzerSchemaMutationDescriptor.THIS_INPUT
+	);
+
+	/** Input of the mutation that removes a catalog fulltext analyzer. */
+	PropertyDescriptor REMOVE_FULLTEXT_ANALYZER_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
+		"removeFulltextAnalyzerSchemaMutation", RemoveFulltextAnalyzerSchemaMutationDescriptor.THIS_INPUT
 	);
 
 	PropertyDescriptor ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
@@ -115,6 +160,10 @@ public interface LocalCatalogSchemaMutationInputAggregateDescriptor {
 	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_NORMALIZED_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setAttributeSchemaNormalizedMutation",
 		SetAttributeSchemaNormalizedMutationDescriptor.THIS_INPUT
+	);
+	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_SEARCHABLE_MUTATION = PropertyDescriptor.nullableFromObject(
+		"setAttributeSchemaSearchableMutation",
+		SetAttributeSchemaSearchableMutationDescriptor.THIS_INPUT
 	);
 	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setAttributeSchemaLocalizedMutation",
@@ -175,6 +224,15 @@ public interface LocalCatalogSchemaMutationInputAggregateDescriptor {
 			MODIFY_CATALOG_SCHEMA_DESCRIPTION_MUTATION,
 			MODIFY_CATALOG_SCHEMA_CONFLICT_RESOLUTION_MUTATION,
 			ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION,
+			REMOVE_FULLTEXT_ANALYZER_SCHEMA_MUTATION,
+			MODIFY_FULLTEXT_ANALYZER_SCHEMA_MUTATION,
+			CREATE_FULLTEXT_ANALYZER_SCHEMA_MUTATION,
+			REMOVE_FULLTEXT_RESOURCE_SCHEMA_MUTATION,
+			MODIFY_FULLTEXT_RESOURCE_SCHEMA_MUTATION,
+			CREATE_FULLTEXT_RESOURCE_SCHEMA_MUTATION,
+			REMOVE_FULLTEXT_LANGUAGE_SCHEMA_MUTATION,
+			MODIFY_FULLTEXT_LANGUAGE_SCHEMA_MUTATION,
+			CREATE_FULLTEXT_LANGUAGE_SCHEMA_MUTATION,
 			DISALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION,
 
 			CREATE_GLOBAL_ATTRIBUTE_SCHEMA_MUTATION,
@@ -187,6 +245,7 @@ public interface LocalCatalogSchemaMutationInputAggregateDescriptor {
 			SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_ACCELERATED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_NORMALIZED_MUTATION,
+			SET_ATTRIBUTE_SCHEMA_SEARCHABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION,

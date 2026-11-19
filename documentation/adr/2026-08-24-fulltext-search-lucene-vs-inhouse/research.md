@@ -183,6 +183,10 @@ application and the engine's primitives. Five decision tests by which any disput
    exactly why tokenization must not be given to the client.
 3. **Is it model inference or knowledge outside the catalog?** → never evitaDB: NER-RE, intent parsing,
    learning. The only established market exception is query embeddings (§8, VK9/VK13; O7).
+   **[2026-11-02] Superseded for embeddings:** evitaDB may now compute document and query embeddings itself
+   through a named embedder in the catalog schema (the client may still supply vectors). Test 2 outranks this test
+   there — a query vector must agree with the document vectors as query terms must agree with indexed terms. The
+   reasoning is in the record's *Decisions taken*, 2026-11-02.
 4. **Is it a choice (policy) rather than a mechanism?** → the client: field weights, profile selection, K
    for re-ranking, boost table selection, A/B arm.
 5. **Is it data that changes without reindexing?** → a hot-swappable artifact in evitaDB; produced by
@@ -874,6 +878,12 @@ network call, which on the vector leg reintroduces a dependency we otherwise eli
 the lifecycle too: changing the embedding model = re-embedding the catalog = a bulk write through the
 write path + a rebuild of the vector index; mmapped immutable files per catalog version (§5.3) accommodate
 that.
+
+**[2026-11-02] Superseded by the semantic-search design** ([`README.md`](README.md), the rows of 2026-11-02):
+evitaDB either embeds documents itself — an embedder defined in the catalog schema, asynchronously after the
+commit — or takes the client's vectors as associated data of a new supported type `VectorEmbedding`, not `float[]`;
+the query text is embedded by the engine. The question below is answered there as well: long text is chunked and
+the entity is represented by its best chunk.
 
 **An open question that the ES verification opened (2026-08-13): is the unit of the vector index the
 entity, or a chunk?** The field type `semantic_text` has the splitting of long text into parts built

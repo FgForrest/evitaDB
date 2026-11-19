@@ -31,6 +31,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
@@ -79,6 +80,7 @@ public interface LocalEntitySchemaMutationUnionDescriptor {
 		.type(ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS)
 		.type(RemoveAssociatedDataSchemaMutationDescriptor.THIS)
 		.type(SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS)
+		.type(SetAssociatedDataSchemaSearchableMutationDescriptor.THIS)
 		.type(SetAssociatedDataSchemaNullableMutationDescriptor.THIS)
 		.type(SetAssociatedDataSchemaConflictResolutionOverrideMutationDescriptor.THIS)
 
@@ -92,6 +94,7 @@ public interface LocalEntitySchemaMutationUnionDescriptor {
 		.type(SetAttributeSchemaFilterableMutationDescriptor.THIS)
 		.type(SetAttributeSchemaAcceleratedMutationDescriptor.THIS)
 		.type(SetAttributeSchemaNormalizedMutationDescriptor.THIS)
+		.type(SetAttributeSchemaSearchableMutationDescriptor.THIS)
 		.type(SetAttributeSchemaLocalizedMutationDescriptor.THIS)
 		.type(SetAttributeSchemaNullableMutationDescriptor.THIS)
 		.type(SetAttributeSchemaRepresentativeMutationDescriptor.THIS)
@@ -122,6 +125,7 @@ public interface LocalEntitySchemaMutationUnionDescriptor {
 		.type(SetReferenceSchemaBucketedMutationDescriptor.THIS)
 		.type(SetReferenceSchemaFacetedMutationDescriptor.THIS)
 		.type(SetReferenceSchemaIndexedMutationDescriptor.THIS)
+		.type(SetReferenceSchemaSearchableThroughMutationDescriptor.THIS)
 		.type(SetReferenceSchemaConflictResolutionOverrideMutationDescriptor.THIS)
 
 		.build();

@@ -106,7 +106,7 @@ class StringNormalizationCompilerTest {
 		assertEquals("ı", registry.compile(List.of(lowercase()), Locale.forLanguageTag("tr")).apply("I"));
 		assertNotSame(registry.compile(List.of(trim(), lowercase()), null), registry.compile(mutable, null));
 		assertSame(registry.compile(List.of(removeCharacters("-")), null),
-			registry.compile(List.of(step("remove-characters", parameter("characters", "-"))), null));
+			registry.compile(List.of(normalizingStep("remove-characters", parameter("characters", "-"))), null));
 		IntStream.range(0, 100).parallel().forEach(index ->
 			assertSame(root, registry.compile(List.of(lowercase()), null)));
 	}

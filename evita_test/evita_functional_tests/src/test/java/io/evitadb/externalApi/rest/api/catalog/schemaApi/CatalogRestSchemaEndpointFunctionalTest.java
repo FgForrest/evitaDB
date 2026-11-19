@@ -121,6 +121,10 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.build())
 			.e(NamedSchemaDescriptor.DESCRIPTION.name(), catalogSchema.getDescription())
 			.e(CatalogSchemaDescriptor.CONFLICT_RESOLUTION.name(), createConflictResolutionDto(catalogSchema.getConflictResolution().orElse(null)))
+			// This legacy fixture has no catalog-level fulltext declarations.
+			.e(CatalogSchemaDescriptor.FULLTEXT_LANGUAGES.name(), List.of())
+			.e(CatalogSchemaDescriptor.FULLTEXT_RESOURCES.name(), List.of())
+			.e(CatalogSchemaDescriptor.FULLTEXT_ANALYZERS.name(), List.of())
 			.e(CatalogSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(catalogSchema.getAttributes().size()))
 			.e(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name(), createLinkedHashMap(entityTypes.size()));
 
@@ -263,6 +267,10 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 						.collect(Collectors.toMap(Map.Entry::getKey, entry -> serializeDefaultValue(entry.getValue()))))
 					.build())
 				.toList())
+			.e(AttributeSchemaDescriptor.SEARCHABLE.name(), createFlagInScopesDto(attributeSchema::isSearchableInScope))
+			.e(AttributeSchemaDescriptor.ANALYZER.name(), attributeSchema.getAnalyzer())
+			.e(AttributeSchemaDescriptor.LENGTH_PIVOT.name(), attributeSchema.getLengthPivot())
+			.e(AttributeSchemaDescriptor.SEARCH_WEIGHT.name(), attributeSchema.getSearchWeight().toPlainString())
 			.e(AttributeSchemaDescriptor.SORTABLE.name(), createFlagInScopesDto(attributeSchema::isSortableInScope))
 			.e(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized())
 			.e(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
@@ -307,7 +315,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 
 	@Nonnull
 	protected static Map<String, Object> createAssociatedDataSchemaDto(@Nonnull AssociatedDataSchemaContract associatedDataSchema) {
-		return map()
+		final MapBuilder dto = map()
 			.e(NamedSchemaDescriptor.NAME.name(), associatedDataSchema.getName())
 			.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
 				.e(NameVariantsDescriptor.CAMEL_CASE.name(), associatedDataSchema.getNameVariant(NamingConvention.CAMEL_CASE))
@@ -321,8 +329,19 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(AssociatedDataSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(associatedDataSchema.getType()))
 			.e(AssociatedDataSchemaDescriptor.LOCALIZED.name(), associatedDataSchema.isLocalized())
 			.e(AssociatedDataSchemaDescriptor.NULLABLE.name(), associatedDataSchema.isNullable())
-			.e(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), associatedDataSchema.getConflictResolutionOverride().name())
-			.build();
+			.e(AssociatedDataSchemaDescriptor.SEARCHABLE.name(),
+				createFlagInScopesDto(associatedDataSchema::isSearchableInScope))
+			.e(AssociatedDataSchemaDescriptor.ANALYZER.name(), associatedDataSchema.getAnalyzer())
+			.e(AssociatedDataSchemaDescriptor.LENGTH_PIVOT.name(), associatedDataSchema.getLengthPivot())
+			.e(AssociatedDataSchemaDescriptor.SEARCH_WEIGHT.name(),
+				associatedDataSchema.getSearchWeight().toPlainString())
+			.e(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(),
+				associatedDataSchema.getConflictResolutionOverride().name());
+		if (associatedDataSchema.getTextExpression() != null) {
+			dto.e(AssociatedDataSchemaDescriptor.TEXT_EXPRESSION.name(),
+				associatedDataSchema.getTextExpression().toExpressionString());
+		}
+		return dto.build();
 	}
 
 	@Nonnull
@@ -363,6 +382,11 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged())
 			.e(ReferenceSchemaDescriptor.INDEXED.name(), createReferenceIndexTypeDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(), createReferenceIndexedComponentsDto(referenceSchema))
+			.e(ReferenceSchemaDescriptor.SEARCHABLE_THROUGH.name(), referenceSchema.getSearchableThroughInScopes()
+				.entrySet().stream().sorted(Map.Entry.comparingByKey())
+				.map(entry -> Map.of("scope", entry.getKey().name(), "mode", entry.getValue().name())).toList())
+			.e(ReferenceSchemaDescriptor.SEARCHABLE_THROUGH_WEIGHT.name(),
+				referenceSchema.getSearchableThroughWeight().toPlainString())
 			.e(ReferenceSchemaDescriptor.FACETED.name(), createFlagInScopesDto(referenceSchema::isFacetedInScope))
 			.e(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), createFacetedPartiallyDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.BUCKETED.name(), createBucketedHistogramDto(referenceSchema))

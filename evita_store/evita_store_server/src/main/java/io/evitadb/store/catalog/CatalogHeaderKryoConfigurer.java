@@ -32,9 +32,10 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesSt
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextLeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextReferenceValueStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueLeafStreamKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityLeafStreamKey;
@@ -45,8 +46,8 @@ import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_08;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2025_6;
 import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer;
 import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer_2024_11;
-import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer_2026_2;
 import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer_2024_5;
+import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer_2026_2;
 import io.evitadb.store.entity.serializer.AttributesSetKeySerializer;
 import io.evitadb.store.entity.serializer.EnumNameSerializer;
 import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
@@ -54,6 +55,7 @@ import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer;
 import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer_2025_5;
 import io.evitadb.store.index.serializer.FulltextIndexKeySerializer;
 import io.evitadb.store.index.serializer.FulltextLeafStreamKeySerializer;
+import io.evitadb.store.index.serializer.FulltextReferenceValueStreamKeySerializer;
 import io.evitadb.store.index.serializer.GlobalUniqueLeafStreamKeySerializer;
 import io.evitadb.store.index.serializer.HistogramIndexKeySerializer;
 import io.evitadb.store.index.serializer.HistogramLeafStreamKeySerializer;
@@ -65,6 +67,7 @@ import io.evitadb.store.index.serializer.VirtualReferencePartitionLeafStreamKeyS
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.schema.serializer.CatalogSchemaSerializer;
 import io.evitadb.store.schema.serializer.CatalogSchemaSerializer_2026_1;
+import io.evitadb.store.schema.serializer.CatalogSchemaSerializer_2026_2;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -95,7 +98,8 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			CatalogSchema.class,
 			new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class)
-				.addBackwardCompatibleSerializer(-1582409928666780012L, new CatalogSchemaSerializer_2026_1()),
+				.addBackwardCompatibleSerializer(-1582409928666780012L, new CatalogSchemaSerializer_2026_1())
+				.addBackwardCompatibleSerializer(-1582409928666780011L, new CatalogSchemaSerializer_2026_2()),
 			index++
 		);
 		kryo.register(CatalogState.class, new EnumNameSerializer<>(), index++);
@@ -179,6 +183,10 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 			new SerialVersionBasedSerializer<>(new FulltextLeafStreamKeySerializer(), FulltextLeafStreamKey.class),
 			index++
 		);
+
+		kryo.register(FulltextReferenceValueStreamKey.class,
+			new SerialVersionBasedSerializer<>(new FulltextReferenceValueStreamKeySerializer(),
+				FulltextReferenceValueStreamKey.class), index++);
 
 		Assert.isPremiseValid(index < 800, "Index count overflow.");
 	}

@@ -47,6 +47,8 @@ import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeM
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetInFilterTranslator;
+import io.evitadb.core.query.sort.fulltext.translator.PlaceWeightTranslator;
+import io.evitadb.core.query.sort.fulltext.translator.RelevanceTextTranslator;
 import io.evitadb.core.query.sort.price.translator.PriceDiscountTranslator;
 import io.evitadb.core.query.sort.price.translator.PriceNaturalTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTranslator;
@@ -118,6 +120,12 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		TRANSLATORS.put(AttributeSetExact.class, new AttributeSetExactTranslator());
 		TRANSLATORS.put(Segments.class, new SegmentsTranslator());
 		TRANSLATORS.put(OrderInScope.class, new OrderInScopeTranslator());
+		TRANSLATORS.put(RelevanceText.class, new RelevanceTextTranslator());
+		final PlaceWeightTranslator placeWeightTranslator = new PlaceWeightTranslator();
+		TRANSLATORS.put(AttributeWeight.class, placeWeightTranslator);
+		TRANSLATORS.put(AssociatedDataWeight.class, placeWeightTranslator);
+		TRANSLATORS.put(ReferenceWeight.class, placeWeightTranslator);
+		TRANSLATORS.put(EntityWeight.class, placeWeightTranslator);
 	}
 
 	/**
@@ -149,6 +157,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * Set while the sorters of a segment ordering are being created - see {@link #isWithinSegment()}.
 	 */
 	private boolean withinSegment;
+	/** Predicate visible only while constructing the ordering of its segment. */
+	@Getter @Nullable private Formula segmentFilteringFormula;
 
 	/**
 	 * Method creates the {@link Sorter} implementation that could be used for sorting primary keys of entities
@@ -373,23 +383,27 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * answers `true`. The result therefore holds only the sorters the ordering constraints produced themselves - it
 	 * may be empty - and the records none of them can sort stay unsorted, so that they fall out of the segment.
 	 *
+	 * @param predicate memoized predicate and scoring carrier of this segment, NULL for an unfiltered segment
 	 * @param lambda the lambda to execute within the isolated scope that creates and registers the sorter chain
 	 * @return the sorters registered by the lambda in registration order, possibly an empty list
 	 */
 	@Nonnull
-	public final List<Sorter> collectSegmentSorters(@Nonnull Runnable lambda) {
+	public final List<Sorter> collectSegmentSorters(@Nullable Formula predicate, @Nonnull Runnable lambda) {
 		final boolean previouslyWithinSegment = this.withinSegment;
+		final Formula previousPredicate = this.segmentFilteringFormula;
+		this.segmentFilteringFormula = predicate;
 		this.withinSegment = true;
 		try {
 			return collectIsolatedSorters(lambda, false);
 		} finally {
 			this.withinSegment = previouslyWithinSegment;
+			this.segmentFilteringFormula = previousPredicate;
 		}
 	}
 
 	/**
 	 * Returns `true` while the sorters of a segment ordering are being created (see
-	 * {@link #collectSegmentSorters(Runnable)}). A segment takes only the entities its ordering can sort, so a
+	 * {@link #collectSegmentSorters(Formula, Runnable)}). A segment takes only the entities its ordering can sort, so a
 	 * translator must neither register a sorter that places entities lacking the sorted data, nor a prefetch
 	 * comparator that sorts them - outside a segment, such a fallback keeps the entities in the ordering.
 	 *
@@ -739,6 +753,17 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				sorter -> sortersQueue.add(scopeRecords == null ? sorter : new ScopedSorter(scopeRecords, sorter))
 			);
 		}
+	}
+
+	/**
+	 * Returns whether this visitor orders the entities of the main query, whose filtering formula and filter visitor
+	 * are available through {@link #getFilteringFormula()} and {@link #getFilterByVisitor()}. A visitor created for a
+	 * nested ordering of other entities has neither, and those methods throw there.
+	 *
+	 * @return true for the visitor of the main query
+	 */
+	public boolean isMainQueryContext() {
+		return this.filteringFormula != null;
 	}
 
 	/**

@@ -75,7 +75,7 @@ class NullArgumentsInventoryTest {
 	 * Scalar `String` parameters that carry a value rather than a name, so null or blank leaves the constraint out
 	 * instead of being refused.
 	 */
-	private static final Set<String> VALUE_STRINGS = Set.of("textToSearch", "currency", "expression", "priceList");
+	private static final Set<String> VALUE_STRINGS = Set.of("textToSearch", "text", "currency", "expression", "priceList");
 	private static final Set<String> REQUIRED_ENUMS = Set.of("inScope", "attributeIs", "priceContent");
 	private static final List<Map.Entry<String, String>> BLANK_NAMES = List.of(
 		Map.entry("empty", ""), Map.entry("space", " "), Map.entry("tab and newline", "\t\n")
@@ -214,7 +214,12 @@ class NullArgumentsInventoryTest {
 								default -> throw new IllegalStateException("Unknown list shape");
 							};
 							final boolean hasNullItem = shape.contains("null");
-							if (hasNullItem && !VALUE_LISTS.contains(method.getName())) {
+							if ((hasNullItem || shape.equals("missing") || shape.equals("empty"))
+								&& (method.getName().equals("inAttribute")
+								|| method.getName().equals("inAssociatedData"))) {
+								// A selector requires at least one name; omitting it would widen the fulltext search.
+								assertThrows(EvitaInvalidUsageException.class, () -> invoke(method, arguments));
+							} else if (hasNullItem && !VALUE_LISTS.contains(method.getName())) {
 								assertThrows(EvitaInvalidUsageException.class, () -> invoke(method, arguments));
 							} else if (shape.equals("missing") && FILTER_VALUE_LISTS.contains(method.getName())) {
 								assertNull(invoke(method, arguments));
@@ -449,6 +454,7 @@ class NullArgumentsInventoryTest {
 		}
 		if (type == int.class || type == Integer.class) return 1;
 		if (type == long.class || type == Long.class) return 1L;
+		if (type == float.class || type == Float.class) return 1f;
 		if (type == boolean.class || type == Boolean.class) return Boolean.TRUE;
 		if (type == BigDecimal.class || type == Number.class) return BigDecimal.ONE;
 		if (type == Locale.class) return Locale.ENGLISH;

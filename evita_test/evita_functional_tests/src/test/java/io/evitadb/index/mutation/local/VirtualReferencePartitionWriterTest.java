@@ -98,7 +98,8 @@ class VirtualReferencePartitionWriterTest {
 			Map.of(Scope.LIVE, indexType),
 			Map.of(Scope.LIVE, components),
 			Set.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 

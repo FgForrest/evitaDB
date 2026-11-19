@@ -29,15 +29,25 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.api.requestResponse.schema.mutation.attribute.*;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextLanguageSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextResourceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextLanguageSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextResourceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextLanguageSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextResourceSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.MutationCase;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute.*;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationConverter;
@@ -78,6 +88,42 @@ public class DelegatingLocalCatalogSchemaMutationConverter implements SchemaMuta
 		TO_GRPC_CONVERTERS.put(ModifyCatalogSchemaConflictResolutionMutation.class, new ToGrpc((b, m) -> b.setModifyCatalogSchemaConflictResolutionMutation((GrpcModifyCatalogSchemaConflictResolutionMutation) m), ModifyCatalogSchemaConflictResolutionMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(AllowEvolutionModeInCatalogSchemaMutation.class, new ToGrpc((b, m) -> b.setAllowEvolutionModeInCatalogSchemaMutation((GrpcAllowEvolutionModeInCatalogSchemaMutation) m), AllowEvolutionModeInCatalogSchemaMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(DisallowEvolutionModeInCatalogSchemaMutation.class, new ToGrpc((b, m) -> b.setDisallowEvolutionModeInCatalogSchemaMutation((GrpcDisallowEvolutionModeInCatalogSchemaMutation) m), DisallowEvolutionModeInCatalogSchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(CreateFulltextLanguageSchemaMutation.class,
+			new ToGrpc((b, m) -> b.setCreateFulltextLanguageSchemaMutation(
+				(GrpcCreateFulltextLanguageSchemaMutation) m),
+				CreateFulltextLanguageSchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(ModifyFulltextLanguageSchemaMutation.class,
+			new ToGrpc((b, m) -> b.setModifyFulltextLanguageSchemaMutation(
+				(GrpcModifyFulltextLanguageSchemaMutation) m),
+				ModifyFulltextLanguageSchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemoveFulltextLanguageSchemaMutation.class,
+			new ToGrpc((b, m) -> b.setRemoveFulltextLanguageSchemaMutation(
+				(GrpcRemoveFulltextLanguageSchemaMutation) m),
+				RemoveFulltextLanguageSchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(CreateFulltextResourceSchemaMutation.class,
+			new ToGrpc((b, m) -> b.setCreateFulltextResourceSchemaMutation(
+				(GrpcCreateFulltextResourceSchemaMutation) m),
+				CreateFulltextResourceSchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(ModifyFulltextResourceSchemaMutation.class,
+			new ToGrpc((b, m) -> b.setModifyFulltextResourceSchemaMutation(
+				(GrpcModifyFulltextResourceSchemaMutation) m),
+				ModifyFulltextResourceSchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemoveFulltextResourceSchemaMutation.class,
+			new ToGrpc((b, m) -> b.setRemoveFulltextResourceSchemaMutation(
+				(GrpcRemoveFulltextResourceSchemaMutation) m),
+				RemoveFulltextResourceSchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(CreateFulltextAnalyzerSchemaMutation.class,
+			new ToGrpc((b, m) -> b.setCreateFulltextAnalyzerSchemaMutation(
+				(GrpcCreateFulltextAnalyzerSchemaMutation) m),
+				CreateFulltextAnalyzerSchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(ModifyFulltextAnalyzerSchemaMutation.class,
+			new ToGrpc((b, m) -> b.setModifyFulltextAnalyzerSchemaMutation(
+				(GrpcModifyFulltextAnalyzerSchemaMutation) m),
+				ModifyFulltextAnalyzerSchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemoveFulltextAnalyzerSchemaMutation.class,
+			new ToGrpc((b, m) -> b.setRemoveFulltextAnalyzerSchemaMutation(
+				(GrpcRemoveFulltextAnalyzerSchemaMutation) m),
+				RemoveFulltextAnalyzerSchemaMutationConverter.INSTANCE));
 		// global attribute schema mutations
 		TO_GRPC_CONVERTERS.put(CreateGlobalAttributeSchemaMutation.class, new ToGrpc((b, m) -> b.setCreateGlobalAttributeSchemaMutation((GrpcCreateGlobalAttributeSchemaMutation) m), CreateGlobalAttributeSchemaMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(ModifyAttributeSchemaDefaultValueMutation.class, new ToGrpc((b, m) -> b.setModifyAttributeSchemaDefaultValueMutation((GrpcModifyAttributeSchemaDefaultValueMutation) m), ModifyAttributeSchemaDefaultValueMutationConverter.INSTANCE));
@@ -96,6 +142,13 @@ public class DelegatingLocalCatalogSchemaMutationConverter implements SchemaMuta
 			new ToGrpc((b, m) -> b.setSetAttributeSchemaNormalizedMutation((GrpcSetAttributeSchemaNormalizedMutation) m),
 				SetAttributeSchemaNormalizedMutationConverter.INSTANCE)
 		);
+		TO_GRPC_CONVERTERS.put(
+			SetAttributeSchemaSearchableMutation.class,
+			new ToGrpc(
+				(b, m) -> b.setSetAttributeSchemaSearchableMutation((GrpcSetAttributeSchemaSearchableMutation) m),
+				SetAttributeSchemaSearchableMutationConverter.INSTANCE
+			)
+		);
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaGloballyUniqueMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaGloballyUniqueMutation((GrpcSetAttributeSchemaGloballyUniqueMutation) m), SetAttributeSchemaGloballyUniqueMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaLocalizedMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaLocalizedMutation((GrpcSetAttributeSchemaLocalizedMutation) m), SetAttributeSchemaLocalizedMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaNullableMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaNullableMutation((GrpcSetAttributeSchemaNullableMutation) m), SetAttributeSchemaNullableMutationConverter.INSTANCE));
@@ -113,6 +166,43 @@ public class DelegatingLocalCatalogSchemaMutationConverter implements SchemaMuta
 		// catalog schema mutations
 		TO_JAVA_CONVERTERS.put(MODIFYCATALOGSCHEMADESCRIPTIONMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getModifyCatalogSchemaDescriptionMutation, ModifyCatalogSchemaDescriptionMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getModifyCatalogSchemaConflictResolutionMutation, ModifyCatalogSchemaConflictResolutionMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(
+			ALLOWEVOLUTIONMODEINCATALOGSCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getAllowEvolutionModeInCatalogSchemaMutation,
+				AllowEvolutionModeInCatalogSchemaMutationConverter.INSTANCE)
+		);
+		TO_JAVA_CONVERTERS.put(
+			DISALLOWEVOLUTIONMODEINCATALOGSCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getDisallowEvolutionModeInCatalogSchemaMutation,
+				DisallowEvolutionModeInCatalogSchemaMutationConverter.INSTANCE)
+		);
+		TO_JAVA_CONVERTERS.put(CREATEFULLTEXTLANGUAGESCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getCreateFulltextLanguageSchemaMutation,
+				CreateFulltextLanguageSchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MODIFYFULLTEXTLANGUAGESCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getModifyFulltextLanguageSchemaMutation,
+				ModifyFulltextLanguageSchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(REMOVEFULLTEXTLANGUAGESCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getRemoveFulltextLanguageSchemaMutation,
+				RemoveFulltextLanguageSchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(CREATEFULLTEXTRESOURCESCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getCreateFulltextResourceSchemaMutation,
+				CreateFulltextResourceSchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MODIFYFULLTEXTRESOURCESCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getModifyFulltextResourceSchemaMutation,
+				ModifyFulltextResourceSchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(REMOVEFULLTEXTRESOURCESCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getRemoveFulltextResourceSchemaMutation,
+				RemoveFulltextResourceSchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(CREATEFULLTEXTANALYZERSCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getCreateFulltextAnalyzerSchemaMutation,
+				CreateFulltextAnalyzerSchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MODIFYFULLTEXTANALYZERSCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getModifyFulltextAnalyzerSchemaMutation,
+				ModifyFulltextAnalyzerSchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(REMOVEFULLTEXTANALYZERSCHEMAMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getRemoveFulltextAnalyzerSchemaMutation,
+				RemoveFulltextAnalyzerSchemaMutationConverter.INSTANCE));
 		// global attribute schema mutations
 		TO_JAVA_CONVERTERS.put(CREATEGLOBALATTRIBUTESCHEMAMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getCreateGlobalAttributeSchemaMutation, CreateGlobalAttributeSchemaMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(MODIFYATTRIBUTESCHEMADEFAULTVALUEMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getModifyAttributeSchemaDefaultValueMutation, ModifyAttributeSchemaDefaultValueMutationConverter.INSTANCE));
@@ -130,6 +220,11 @@ public class DelegatingLocalCatalogSchemaMutationConverter implements SchemaMuta
 			SETATTRIBUTESCHEMANORMALIZEDMUTATION,
 			new ToJava(GrpcLocalCatalogSchemaMutation::getSetAttributeSchemaNormalizedMutation,
 				SetAttributeSchemaNormalizedMutationConverter.INSTANCE)
+		);
+		TO_JAVA_CONVERTERS.put(
+			SETATTRIBUTESCHEMASEARCHABLEMUTATION,
+			new ToJava(GrpcLocalCatalogSchemaMutation::getSetAttributeSchemaSearchableMutation,
+				SetAttributeSchemaSearchableMutationConverter.INSTANCE)
 		);
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMAGLOBALLYUNIQUEMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getSetAttributeSchemaGloballyUniqueMutation, SetAttributeSchemaGloballyUniqueMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMALOCALIZEDMUTATION, new ToJava(GrpcLocalCatalogSchemaMutation::getSetAttributeSchemaLocalizedMutation, SetAttributeSchemaLocalizedMutationConverter.INSTANCE));

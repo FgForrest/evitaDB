@@ -23,12 +23,14 @@
 
 package io.evitadb.api.requestResponse.schema.model.evolution;
 
+import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ScopeAttributeSettings;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 import java.io.Serializable;
@@ -65,7 +67,13 @@ public interface GetterBasedEntitySearchableEvolutionV2NarrowAll {
 	)
 	String getScopedText();
 
-	@Reference(managed = false)
+	@AssociatedData(localized = true)
+	String getBody();
+
+	@AssociatedData(localized = true)
+	GetterBasedEntitySearchableEvolutionV1.Article getArticle();
+
+	@Reference(managed = false, indexed = ReferenceIndexType.FOR_FILTERING)
 	Brand getMarketingBrand();
 
 	interface Brand extends Serializable {

@@ -68,7 +68,13 @@ class ImpactFormulaGeneratorTest {
 	private final Set<EntityReference> facetGroupDisjunction = new HashSet<>();
 	private final Set<EntityReference> facetGroupNegation = new HashSet<>();
 	private final Set<EntityReference> facetGroupExclusivity = new HashSet<>();
-	private final ReferenceSchema brandReference = ReferenceSchema._internalBuild(Entities.BRAND, Entities.BRAND, false, Cardinality.ZERO_OR_ONE, null, false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[]{Scope.LIVE});
+	private final ReferenceSchema brandReference = ReferenceSchema._internalBuild(
+		Entities.BRAND, Entities.BRAND, false, Cardinality.ZERO_OR_ONE, null, false,
+		new ScopedReferenceIndexType[]{
+			new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+		}, new Scope[]{Scope.LIVE},
+		null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
+	);
 	private ImpactFormulaGenerator impactFormulaGenerator;
 
 	@BeforeEach

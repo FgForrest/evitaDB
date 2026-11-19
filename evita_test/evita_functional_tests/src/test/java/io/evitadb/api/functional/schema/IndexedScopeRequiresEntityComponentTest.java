@@ -269,7 +269,8 @@ class IndexedScopeRequiresEntityComponentTest implements EvitaTestSupport {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final ReflectedReferenceSchema stored = ReflectedReferenceSchema._internalBuild(
 				REF_REFLECTED_PRODUCTS, NamingConvention.generate(REF_REFLECTED_PRODUCTS),
@@ -280,7 +281,8 @@ class IndexedScopeRequiresEntityComponentTest implements EvitaTestSupport {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			).withReferencedSchema(original);
 			assertTrue(stored.isIndexedInScope(Scope.LIVE), "The premise is a reflected reference indexed in LIVE");
 			assertEquals(
@@ -333,7 +335,8 @@ class IndexedScopeRequiresEntityComponentTest implements EvitaTestSupport {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			assertEquals(
 				"LIVE=[REFERENCED_ENTITY] ARCHIVED=[]",
@@ -382,7 +385,8 @@ class IndexedScopeRequiresEntityComponentTest implements EvitaTestSupport {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final ReflectedReferenceSchema stored = ReflectedReferenceSchema._internalBuild(
 				REF_REFLECTED_PRODUCTS, NamingConvention.generate(REF_REFLECTED_PRODUCTS),
@@ -394,7 +398,8 @@ class IndexedScopeRequiresEntityComponentTest implements EvitaTestSupport {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
-				null
+				null,
+				null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			).withReferencedSchema(original);
 			assertTrue(
 				stored.isIndexedInScope(Scope.ARCHIVED), "The premise is a reflected reference indexed in ARCHIVED"

@@ -81,5 +81,26 @@ message GrpcLocalCatalogSchemaMutation {
     GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 36;
     // Replaces the declared normalization chain; an empty chain removes normalization.
     GrpcSetAttributeSchemaNormalizedMutation setAttributeSchemaNormalizedMutation = 37;
+    // Fulltext schema declaration.
+    GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;
+
+    // Mutation declares how text in one language is split into words.
+    GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;
+    // Mutation replaces the whole word splitting of a declared language.
+    GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;
+    // Mutation removes the word splitting declared for a language.
+    GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;
+    // Mutation declares a named word list or synonym list that analysis steps read.
+    GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;
+    // Mutation replaces the whole content of a declared fulltext resource.
+    GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;
+    // Mutation removes a declared fulltext resource.
+    GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;
+    // Mutation declares a named fulltext analyzer searchable fields can refer to.
+    GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;
+    // Mutation replaces the whole definition of a declared fulltext analyzer.
+    GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;
+    // Mutation removes a declared fulltext analyzer.
+    GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;
   }
 }

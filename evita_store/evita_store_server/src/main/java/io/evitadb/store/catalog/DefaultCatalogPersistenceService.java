@@ -5363,6 +5363,9 @@ public class DefaultCatalogPersistenceService
 					catalogSchema.getConflictResolution().orElse(null),
 					catalogSchema.getCatalogEvolutionMode(),
 					catalogSchema.getAttributes(),
+					catalogSchema.getFulltextLanguages(),
+					catalogSchema.getFulltextResources(),
+					catalogSchema.getFulltextAnalyzers(),
 					MutationEntitySchemaAccessor.INSTANCE
 				);
 				storagePartPersistenceService.putStoragePart(

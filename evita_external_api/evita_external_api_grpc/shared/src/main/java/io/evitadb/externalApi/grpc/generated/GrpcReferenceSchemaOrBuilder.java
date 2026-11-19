@@ -176,7 +176,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.entityTypeRelatesToEntity is deprecated.
-   *     See GrpcEntitySchema.proto;l=347
+   *     See GrpcEntitySchema.proto;l=376
    * @return The entityTypeRelatesToEntity.
    */
   @java.lang.Deprecated boolean getEntityTypeRelatesToEntity();
@@ -219,7 +219,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.groupTypeRelatesToEntity is deprecated.
-   *     See GrpcEntitySchema.proto;l=353
+   *     See GrpcEntitySchema.proto;l=382
    * @return The groupTypeRelatesToEntity.
    */
   @java.lang.Deprecated boolean getGroupTypeRelatesToEntity();
@@ -239,7 +239,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>bool indexed = 9 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexed is deprecated.
-   *     See GrpcEntitySchema.proto;l=363
+   *     See GrpcEntitySchema.proto;l=392
    * @return The indexed.
    */
   @java.lang.Deprecated boolean getIndexed();
@@ -259,7 +259,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>bool faceted = 10 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.faceted is deprecated.
-   *     See GrpcEntitySchema.proto;l=373
+   *     See GrpcEntitySchema.proto;l=402
    * @return The faceted.
    */
   @java.lang.Deprecated boolean getFaceted();
@@ -731,7 +731,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=425
+   *     See GrpcEntitySchema.proto;l=454
    * @return A list containing the indexedInScopes.
    */
   @java.lang.Deprecated java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
@@ -750,7 +750,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=425
+   *     See GrpcEntitySchema.proto;l=454
    * @return The count of indexedInScopes.
    */
   @java.lang.Deprecated int getIndexedInScopesCount();
@@ -769,7 +769,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=425
+   *     See GrpcEntitySchema.proto;l=454
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
@@ -789,7 +789,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=425
+   *     See GrpcEntitySchema.proto;l=454
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
   @java.lang.Deprecated java.util.List<java.lang.Integer>
@@ -809,7 +809,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema.indexedInScopes is deprecated.
-   *     See GrpcEntitySchema.proto;l=425
+   *     See GrpcEntitySchema.proto;l=454
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */
@@ -1160,4 +1160,67 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    * @return The conflictResolutionOverride.
    */
   io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride();
+
+  /**
+   * <pre>
+   * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+   * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+   * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+   * @return Whether the searchableThroughInScopes field is set.
+   */
+  boolean hasSearchableThroughInScopes();
+  /**
+   * <pre>
+   * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+   * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+   * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+   * @return The searchableThroughInScopes.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes getSearchableThroughInScopes();
+  /**
+   * <pre>
+   * How the searchable text of the referenced entities takes part in the owner's fulltext search, declared per
+   * scope. The declaration is complete: a scope missing from it is not searched through the reference, so an empty
+   * message means no scope is. Unset when the server predates fulltext, which reads the same as an empty message.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 35;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder getSearchableThroughInScopesOrBuilder();
+
+  /**
+   * <pre>
+   * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+   * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+   * @return Whether the searchableThroughWeight field is set.
+   */
+  boolean hasSearchableThroughWeight();
+  /**
+   * <pre>
+   * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+   * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+   * @return The searchableThroughWeight.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchableThroughWeight();
+  /**
+   * <pre>
+   * Ranking weight of text found through the reference, shared by every scope; zero preserves matches while
+   * contributing no ranking strength. Unset when the server predates fulltext; clients then use the default 0.5.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 36;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchableThroughWeightOrBuilder();
 }

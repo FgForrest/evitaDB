@@ -48,6 +48,9 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.CatalogEntitySchemaDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.CatalogEntitySchemasDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.CatalogSchemaDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.CatalogSchemaFulltextAnalyzersDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.CatalogSchemaFulltextLanguagesDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.CatalogSchemaFulltextResourcesDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateCatalogSchemaMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.OnCatalogSchemaChangeCaptureSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
@@ -106,6 +109,15 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 	private GraphQLObjectType buildCatalogSchemaObject() {
 		final CatalogSchemaContract catalogSchema = this.buildingContext.getSchema();
 
+		this.buildingContext.registerDataFetcher(
+			CatalogSchemaDescriptor.THIS, CatalogSchemaDescriptor.FULLTEXT_LANGUAGES,
+			CatalogSchemaFulltextLanguagesDataFetcher.getInstance());
+		this.buildingContext.registerDataFetcher(
+			CatalogSchemaDescriptor.THIS, CatalogSchemaDescriptor.FULLTEXT_RESOURCES,
+			CatalogSchemaFulltextResourcesDataFetcher.getInstance());
+		this.buildingContext.registerDataFetcher(
+			CatalogSchemaDescriptor.THIS, CatalogSchemaDescriptor.FULLTEXT_ANALYZERS,
+			CatalogSchemaFulltextAnalyzersDataFetcher.getInstance());
 		final GraphQLObjectType.Builder schemaObjectBuilder = CatalogSchemaDescriptor.THIS.to(this.objectBuilderTransformer)
 			.field(CatalogSchemaDescriptor.ALL_ATTRIBUTES.to(this.fieldBuilderTransformer))
 			.field(CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS.to(this.fieldBuilderTransformer));

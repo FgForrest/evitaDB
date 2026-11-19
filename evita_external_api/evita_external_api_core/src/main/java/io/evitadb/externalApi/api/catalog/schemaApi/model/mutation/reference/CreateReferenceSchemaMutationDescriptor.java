@@ -213,6 +213,33 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 		.type(nullable(ConflictResolutionOverride.class))
 		.build();
 
+	/**
+	 * Creation counterpart of
+	 * {@link SetReferenceSchemaSearchableThroughMutationDescriptor#SEARCHABLE_THROUGH_IN_SCOPES}: there is no
+	 * declaration to keep, so omission means no composition.
+	 */
+	PropertyDescriptor SEARCHABLE_THROUGH_IN_SCOPES =
+		PropertyDescriptor.from(SetReferenceSchemaSearchableThroughMutationDescriptor.SEARCHABLE_THROUGH_IN_SCOPES)
+			.description("""
+				Composition modes of the reference: in a listed scope the referenced entity's searchable text counts as
+				the owner's own text. Omission or an empty list means no composition.
+				""")
+			.build();
+	/** Input variant of {@link #SEARCHABLE_THROUGH_IN_SCOPES}, built from the writable scoped declaration. */
+	PropertyDescriptor SEARCHABLE_THROUGH_IN_SCOPES_INPUT = PropertyDescriptor.from(SEARCHABLE_THROUGH_IN_SCOPES)
+		.type(SetReferenceSchemaSearchableThroughMutationDescriptor.SEARCHABLE_THROUGH_IN_SCOPES_INPUT.type())
+		.build();
+	/** Creation counterpart of {@link SetReferenceSchemaSearchableThroughMutationDescriptor#WEIGHT}. */
+	PropertyDescriptor SEARCHABLE_THROUGH_WEIGHT =
+		PropertyDescriptor.from(SetReferenceSchemaSearchableThroughMutationDescriptor.WEIGHT)
+			.name("searchableThroughWeight")
+			.description("""
+				Ranking strength of text composed through the reference, shared by all scopes; it must be finite and
+				non-negative. Zero is valid: matches are kept but add no ranking strength. Omission means the default
+				weight of 0.5.
+				""")
+			.build();
+
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(CreateReferenceSchemaMutation.class)
 		.description("""
@@ -220,6 +247,8 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
 		.staticProperty(NAME)
+		.staticProperty(SEARCHABLE_THROUGH_IN_SCOPES)
+		.staticProperty(SEARCHABLE_THROUGH_WEIGHT)
 		.staticProperty(DESCRIPTION)
 		.staticProperty(DEPRECATION_NOTICE)
 		.staticProperty(CARDINALITY)
@@ -237,6 +266,7 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateReferenceSchemaMutationInput")
+		.staticProperty(SEARCHABLE_THROUGH_IN_SCOPES_INPUT)
 		.staticProperty(INDEXED_IN_SCOPES_INPUT)
 		.staticProperty(INDEXED_COMPONENTS_IN_SCOPES_INPUT)
 		.staticProperty(FACETED_PARTIALLY_IN_SCOPES_INPUT)

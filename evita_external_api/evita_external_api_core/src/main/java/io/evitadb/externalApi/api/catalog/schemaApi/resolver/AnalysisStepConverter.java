@@ -30,6 +30,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepInputDescr
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.resolver.mutation.Input;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -39,6 +40,7 @@ import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 /**
  * Converts the shared typed input selector into an immutable analysis-step description.
@@ -62,22 +64,78 @@ public final class AnalysisStepConverter {
 		@Nonnull Input input,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
+		return fromInput(input, exceptionFactory, AnalysisStepInputDescriptors.Context.NORMALIZATION);
+	}
+
+	/**
+	 * Converts a typed step in a specific fulltext phase using installed parameter metadata.
+	 *
+	 * @param input selected provider and its typed parameters
+	 * @param exceptionFactory API-specific diagnostics
+	 * @param context phase restricting the permitted providers
+	 * @return declarative step with persisted provider parameter names
+	 */
+	@Nonnull
+	public static AnalysisStep fromInput(
+		@Nonnull Input input,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory,
+		@Nonnull AnalysisStepInputDescriptors.Context context
+	) {
+		return fromInput(input, exceptionFactory, context, AnalysisStepInputDescriptors.getRegistry());
+	}
+
+	/**
+	 * Converts a declaration against a specific server's validated provider registry.
+	 *
+	 * @param input selected provider and its typed parameter values
+	 * @param exceptionFactory API-specific invalid-input diagnostics
+	 * @param context phase restricting the accepted providers
+	 * @param registry validated providers used to generate the input types
+	 * @return step declaration with the provider's original parameter spellings
+	 */
+	@Nonnull
+	public static AnalysisStep fromInput(
+		@Nonnull Input input, @Nonnull MutationResolvingExceptionFactory exceptionFactory,
+		@Nonnull AnalysisStepInputDescriptors.Context context, @Nonnull AnalysisStepRegistry registry
+	) {
+		return fromInput(input, exceptionFactory, context, AnalysisStepInputDescriptors.getSteps(registry, context),
+			(step, parameter) -> AnalysisStepInputDescriptors.getFulltextParameterName(registry, step, parameter));
+	}
+
+	/**
+	 * Applies selector and parameter validation to the metadata supplied by the server registry.
+	 *
+	 * @param input selected provider and its typed parameter values
+	 * @param exceptionFactory API-specific invalid-input diagnostics
+	 * @param context phase restricting the accepted providers
+	 * @param steps provider metadata accepted by that phase
+	 * @param parameterName restores the original spelling of a fulltext provider parameter
+	 * @return immutable declaration preserving supplied parameter values
+	 */
+	@Nonnull
+	private static AnalysisStep fromInput(
+		@Nonnull Input input, @Nonnull MutationResolvingExceptionFactory exceptionFactory,
+		@Nonnull AnalysisStepInputDescriptors.Context context, @Nonnull List<StepInput> steps,
+		@Nonnull BiFunction<String, String, String> parameterName
+	) {
+		final String usage =
+			context == AnalysisStepInputDescriptors.Context.NORMALIZATION ? "normalization" : "fulltext";
 		final Object value = input.getRequiredValue();
 		if (!(value instanceof Map<?, ?> selection) || selection.size() != 1) {
 			throw exceptionFactory.createInvalidArgumentException(
-				"A normalization step must select exactly one installed step."
+				"A " + usage + " step must select exactly one installed step."
 			);
 		}
 		final Map.Entry<?, ?> selected = selection.entrySet().iterator().next();
-		for (final StepInput step : AnalysisStepInputDescriptors.getSteps()) {
+		for (final StepInput step : steps) {
 			if (step.fieldName().equals(selected.getKey())) {
 				if (step.parameters() == null) {
 					if (!Boolean.TRUE.equals(selected.getValue())) {
 						throw exceptionFactory.createInvalidArgumentException(
-							"Parameterless normalization step `" + step.fieldName() + "` requires `true`."
+							"Parameterless " + usage + " step `" + step.fieldName() + "` requires `true`."
 						);
 					}
-					return new AnalysisStep(step.stepName(), Map.of());
+					return AnalysisStep.of(step.stepName(), Map.of());
 				}
 				if (!(selected.getValue() instanceof Map<?, ?> values)) {
 					throw exceptionFactory.createInvalidArgumentException("Step parameters must be a non-null object.");
@@ -90,7 +148,9 @@ public final class AnalysisStepConverter {
 					);
 					final Serializable parameter = parameterInput.getProperty(descriptor);
 					if (parameter != null) {
-						parameters.put(descriptor.name(), parameter);
+						parameters.put(
+							context == AnalysisStepInputDescriptors.Context.NORMALIZATION ? descriptor.name() :
+								parameterName.apply(step.stepName(), descriptor.name()), parameter);
 					}
 				}
 				for (final Object name : values.keySet()) {
@@ -98,10 +158,12 @@ public final class AnalysisStepConverter {
 						throw exceptionFactory.createInvalidArgumentException("Unknown analysis step parameter `" + name + "`.");
 					}
 				}
-				return new AnalysisStep(step.stepName(), parameters);
+				return AnalysisStep.of(step.stepName(), parameters);
 			}
 		}
-		throw exceptionFactory.createInvalidArgumentException("Unknown normalizing step input `" + selected.getKey() + "`.");
+		throw exceptionFactory.createInvalidArgumentException("Unknown " +
+			(context == AnalysisStepInputDescriptors.Context.NORMALIZATION ? "normalizing" : "fulltext") +
+			" step input `" + selected.getKey() + "`.");
 	}
 
 	/**

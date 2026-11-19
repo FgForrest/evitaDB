@@ -74,6 +74,11 @@ class ConstraintRegistry {
 		UserFilter.class,
 		EntityScope.class,
 		FilterInScope.class,
+		TextMatches.class,
+		AttributeIn.class,
+		AssociatedDataIn.class,
+		ReferenceIn.class,
+		EntityIn.class,
 		// entity
 		EntityPrimaryKeyInSet.class,
 		EntityPrimaryKeyGreaterThan.class,
@@ -126,6 +131,11 @@ class ConstraintRegistry {
 		OrderGroupBy.class,
 		Random.class,
 		OrderInScope.class,
+		RelevanceText.class,
+		AttributeWeight.class,
+		AssociatedDataWeight.class,
+		ReferenceWeight.class,
+		EntityWeight.class,
 		// entity
 		EntityPrimaryKeyExact.class,
 		EntityPrimaryKeyInFilter.class,

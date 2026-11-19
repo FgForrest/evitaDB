@@ -61,7 +61,7 @@ public class AnalysisStepConverter {
 			step.getParametersMap().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(
 				entry -> parameters.put(entry.getKey(), EvitaDataTypesConverter.toEvitaValue(entry.getValue()))
 			);
-			result.add(new AnalysisStep(step.getStep(), parameters));
+			result.add(AnalysisStep.of(step.getStep(), parameters));
 		}
 		return List.copyOf(result);
 	}

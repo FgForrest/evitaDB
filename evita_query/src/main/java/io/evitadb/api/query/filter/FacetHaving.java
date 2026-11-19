@@ -168,6 +168,11 @@ import java.io.Serializable;
  * - Attribute constraints to filter on reference attributes.
  * - {@code entityPrimaryKeyInSet} to filter by referenced entity primary keys.
  *
+ * A {@link TextMatches} constraint is refused anywhere in the body except inside a container that leaves the
+ * reference - {@link EntityHaving}, {@link GroupHaving}, or the children filter of {@link FacetIncludingChildren} /
+ * {@link FacetIncludingChildrenExcept}: a facet is selected by what its references hold, never by the words of their
+ * attributes. Search those words with {@link ReferenceHaving} instead.
+ *
  * Facet keys, reference attributes and scopes are isolated from owner lookups by
  * {@link SeparateEntityScopeContainer}, just as in {@link ReferenceHaving}. Its direct children retain the owner
  * locale; only a nested {@link DifferentEntityFilterContainer} starts another locale level.

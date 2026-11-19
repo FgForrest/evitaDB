@@ -39,6 +39,7 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
@@ -169,6 +170,18 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		associatedDataSchemaNode.putIfAbsent(AssociatedDataSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(associatedDataSchema.isNullable()));
 		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), associatedDataSchema.getConflictResolutionOverride().name());
 
+		associatedDataSchemaNode.set(AssociatedDataSchemaDescriptor.SEARCHABLE.name(),
+			serializeFlagInScopes(associatedDataSchema::isSearchableInScope));
+		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.ANALYZER.name(),
+			associatedDataSchema.getAnalyzer());
+		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.LENGTH_PIVOT.name(),
+			associatedDataSchema.getLengthPivot());
+		associatedDataSchemaNode.set(AssociatedDataSchemaDescriptor.SEARCH_WEIGHT.name(),
+			serializeWeight(associatedDataSchema.getSearchWeight()));
+		if (associatedDataSchema.getTextExpression() != null) {
+			associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.TEXT_EXPRESSION.name(),
+				associatedDataSchema.getTextExpression().toExpressionString());
+		}
 		return associatedDataSchemaNode;
 	}
 
@@ -212,6 +225,17 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(referenceSchema));
 		referenceSchemaNode.set(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(referenceSchema));
 
+		final ArrayNode modes = this.objectJsonSerializer.arrayNode();
+		referenceSchema.getSearchableThroughInScopes().entrySet().stream()
+			.sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+				final ObjectNode mode = this.objectJsonSerializer.objectNode();
+				mode.put("scope", entry.getKey().name());
+				mode.put("mode", entry.getValue().name());
+				modes.add(mode);
+			});
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.SEARCHABLE_THROUGH.name(), modes);
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.SEARCHABLE_THROUGH_WEIGHT.name(),
+			serializeWeight(referenceSchema.getSearchableThroughWeight()));
 		return referenceSchemaNode;
 	}
 

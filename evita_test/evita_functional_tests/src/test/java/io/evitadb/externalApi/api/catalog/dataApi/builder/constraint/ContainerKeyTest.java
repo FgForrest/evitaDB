@@ -32,6 +32,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceTextDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.TextDataLocator;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
@@ -50,6 +53,29 @@ import static io.evitadb.test.TestTags.QUERY;
 @Tag(EXTERNAL_API)
 @Tag(QUERY)
 class ContainerKeyTest {
+
+	/** Verifies that TEXT contexts remain distinct in the existing class-and-reference cache hash. */
+	@Test
+	@DisplayName("TEXT locators have separate cache hashes for each domain and reference")
+	void shouldKeepTextLocatorCacheKeysDistinct() {
+		final ManagedEntityTypePointer entity = new ManagedEntityTypePointer("item");
+		final AllowedConstraintPredicate predicate =
+			new AllowedConstraintPredicate(FilterConstraint.class, Set.of(), Set.of(), Set.of());
+		final ContainerKey text = new ContainerKey(ConstraintType.FILTER,
+			new TextDataLocator(entity), predicate);
+		final ContainerKey referenceText = new ContainerKey(ConstraintType.FILTER,
+			new ReferenceTextDataLocator(entity, "related"), predicate);
+		assertEquals(text.toHash(), new ContainerKey(ConstraintType.FILTER,
+			new TextDataLocator(new ManagedEntityTypePointer("item")), predicate).toHash());
+		assertEquals(referenceText.toHash(), new ContainerKey(ConstraintType.FILTER,
+			new ReferenceTextDataLocator(new ManagedEntityTypePointer("item"), "related"), predicate).toHash());
+		assertNotEquals(text.toHash(), new ContainerKey(ConstraintType.FILTER,
+			new EntityDataLocator(entity), predicate).toHash());
+		assertNotEquals(text.toHash(), referenceText.toHash());
+		assertNotEquals(referenceText.toHash(), new ContainerKey(ConstraintType.FILTER,
+			new ReferenceTextDataLocator(entity, "other"), predicate)
+			.toHash());
+	}
 
 	@Test
 	void shouldKeysBeEqual() {

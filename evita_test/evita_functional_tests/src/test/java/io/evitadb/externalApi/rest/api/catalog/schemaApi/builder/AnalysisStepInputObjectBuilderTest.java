@@ -24,22 +24,35 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.builder;
 
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.DualPurposeAnalysisStepTestSupport;
+import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AnalysisStepInputDescriptors;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.AnalysisStepConverter;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.resolver.mutation.Input;
 import io.evitadb.externalApi.configuration.HeaderOptions;
+import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
+import io.evitadb.externalApi.rest.api.model.PropertyDataTypeDescriptorToOpenApiTypeTransformer;
+import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.system.SystemRestBuilder;
+import io.evitadb.externalApi.rest.api.system.builder.SystemRestBuildingContext;
 import io.evitadb.externalApi.rest.configuration.RestOptions;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
 import io.evitadb.test.EvitaTestSupport;
 import io.swagger.v3.oas.models.media.Schema;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.REST;
@@ -89,6 +102,51 @@ class AnalysisStepInputObjectBuilderTest implements EvitaTestSupport {
 					assertNotNull(parameters.getProperties().get(property.name()));
 				}
 			}
+		}
+	}
+
+	/** Both provider spellings must survive type registration and map back to the original input parameter. */
+	@ParameterizedTest
+	@ValueSource(strings = {"KeepOriginal", "keep-original"})
+	@DisplayName("keeps dual-purpose provider parameter shapes distinct")
+	void shouldGenerateDistinctDualPurposeParameterTypes(@Nonnull String parameter) {
+		final AnalysisStepRegistry registry = DualPurposeAnalysisStepTestSupport.registry(parameter);
+		final TestPaths paths = createTestPaths("DualPurposeRestInput");
+		try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
+			final SystemRestBuildingContext context = new SystemRestBuildingContext(
+				new RestOptions(true, "localhost:5555", null, null, null, "rest", null),
+				HeaderOptions.builder().build(), evita);
+			final ObjectDescriptorToOpenApiObjectTransformer transformer =
+				new ObjectDescriptorToOpenApiObjectTransformer(
+				new PropertyDescriptorToOpenApiPropertyTransformer(
+					new PropertyDataTypeDescriptorToOpenApiTypeTransformer(context)));
+			AnalysisStepInputObjectBuilder.registerTypes(context, transformer,
+				phase -> AnalysisStepInputDescriptors.getSteps(registry, phase));
+			final Map<String, Schema> types = context.buildRest().openApi().getComponents().getSchemas();
+			assertEquals(Set.of(parameter), types.get("InputCustomAnalysisStepParameters").getProperties().keySet());
+			assertEquals(Set.of("keepOriginal"),
+				types.get("InputFulltextCustomAnalysisStepParameters").getProperties().keySet());
+			final Schema<?> words = types.get("InputFulltextWordsStep");
+			assertEquals(AnalysisStepInputDescriptors.getSteps(registry,
+				AnalysisStepInputDescriptors.Context.WORDS).size(), words.getOneOf().size());
+			final Schema<?> custom = (Schema<?>) words.getOneOf().stream()
+				.filter(branch -> branch.getProperties().containsKey("custom"))
+				.findFirst().orElseThrow().getProperties().get("custom");
+			assertEquals("#/components/schemas/InputFulltextCustomAnalysisStepParameters", custom.get$ref());
+			final AnalysisStep step = AnalysisStepConverter.fromInput(new Input("step",
+				Map.of("custom", Map.of("keepOriginal", "x")),
+					TestMutationResolvingExceptionFactory.INSTANCE, Map.of()),
+				TestMutationResolvingExceptionFactory.INSTANCE, AnalysisStepInputDescriptors.Context.WORDS, registry);
+			assertEquals(Map.of(parameter, "x"), step.parameters());
+			registry.resolveFulltext(step);
+			final AnalysisStep normalized = AnalysisStepConverter.fromInput(new Input("step",
+				Map.of("custom", Map.of(parameter, "x")), TestMutationResolvingExceptionFactory.INSTANCE, Map.of()),
+				TestMutationResolvingExceptionFactory.INSTANCE,
+				AnalysisStepInputDescriptors.Context.NORMALIZATION, registry);
+			assertEquals(Map.of(parameter, "x"), normalized.parameters());
+			registry.resolve(normalized);
+		} finally {
+			cleanupTestPaths(paths);
 		}
 	}
 

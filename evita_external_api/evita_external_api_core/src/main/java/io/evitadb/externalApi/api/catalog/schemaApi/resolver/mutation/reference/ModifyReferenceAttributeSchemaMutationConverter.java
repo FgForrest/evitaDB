@@ -112,8 +112,11 @@ public class ModifyReferenceAttributeSchemaMutationConverter
 	protected void convertToOutput(@Nonnull ModifyReferenceAttributeSchemaMutation mutation, @Nonnull Output output) {
 		output.setProperty(
 			ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION,
-			this.delegatingAttributeSchemaMutationConverter.convertToOutput(
-				mutation.getAttributeSchemaMutation())
+			// the nested converter returns the API's serialized form (a JSON tree for REST); parse it back into
+			// plain values, which the output can embed
+			getObjectMapper().parse(
+				this.delegatingAttributeSchemaMutationConverter.convertToOutput(mutation.getAttributeSchemaMutation())
+			)
 		);
 		super.convertToOutput(mutation, output);
 	}

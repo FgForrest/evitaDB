@@ -43,6 +43,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramComputer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
+import io.evitadb.index.fulltext.FulltextScoringPolicy.Place;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -52,6 +53,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -387,17 +389,30 @@ public class SelectionFormula extends AbstractFormula
 	 * Delegates to the fulltext formula inside {@link #getDelegate()} - on the prefetch path too. A fulltext score is
 	 * keyed by primary key and read from the index, never from the entity body, so the delegate's terms rank the
 	 * entities the {@link #alternative} filtered exactly as they rank the ones the delegate computed. The alternative
-	 * is therefore never asked, unlike for price records, which do live in the entity body.
+	 * is therefore never asked, unlike for price records, which do live in the entity body. The requesting ordering's
+	 * weights travel to the delegate with every scoring call.
 	 */
 	@Nonnull
 	@Override
-	public FulltextPhaseOneScorer.Result getFulltextScores(@Nonnull int[] candidates, int topN) {
+	public FulltextPhaseOneScorer.Result getFulltextScores(
+		@Nonnull int[] candidates,
+		@Nonnull Map<Place, Float> weights
+	) {
 		final List<FulltextScoreAccessor> accessors = findInnerScoreAccessors();
 		Assert.isPremiseValid(
 			accessors.size() == 1,
 			() -> "Selection formula wraps " + accessors.size() + " fulltext score accessors, exactly one expected!"
 		);
-		return accessors.get(0).getFulltextScores(candidates, topN);
+		return accessors.get(0).getFulltextScores(candidates, weights);
+	}
+
+	/** Forwards the structural origin of the same delegate that supplies the scoring vector. */
+	@Nullable
+	@Override
+	public SourceIdentity getFulltextSourceIdentity() {
+		final List<FulltextScoreAccessor> accessors = findInnerScoreAccessors();
+		Assert.isPremiseValid(accessors.size() == 1, "A scoring selection needs exactly one text source!");
+		return accessors.getFirst().getFulltextSourceIdentity();
 	}
 
 	/**

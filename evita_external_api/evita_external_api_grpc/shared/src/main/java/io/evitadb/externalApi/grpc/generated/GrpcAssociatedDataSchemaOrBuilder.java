@@ -228,4 +228,181 @@ public interface GrpcAssociatedDataSchemaOrBuilder extends
    * @return The conflictResolutionOverride.
    */
   io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride();
+
+  /**
+   * <pre>
+   * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+   * scope, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+   * @return A list containing the searchableInScopes.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getSearchableInScopesList();
+  /**
+   * <pre>
+   * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+   * scope, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+   * @return The count of searchableInScopes.
+   */
+  int getSearchableInScopesCount();
+  /**
+   * <pre>
+   * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+   * scope, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+   * @param index The index of the element to return.
+   * @return The searchableInScopes at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getSearchableInScopes(int index);
+  /**
+   * <pre>
+   * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+   * scope, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+   * @return A list containing the enum numeric values on the wire for searchableInScopes.
+   */
+  java.util.List<java.lang.Integer>
+  getSearchableInScopesValueList();
+  /**
+   * <pre>
+   * Scopes in which the associated data contributes words to the fulltext index. Empty when it is not searchable in any
+   * scope, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 9;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of searchableInScopes at the given index.
+   */
+  int getSearchableInScopesValue(int index);
+
+  /**
+   * <pre>
+   * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+   * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 10;</code>
+   * @return Whether the analyzer field is set.
+   */
+  boolean hasAnalyzer();
+  /**
+   * <pre>
+   * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+   * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 10;</code>
+   * @return The analyzer.
+   */
+  com.google.protobuf.StringValue getAnalyzer();
+  /**
+   * <pre>
+   * Name of the fulltext analyzer that turns the values into words: a built-in one (`text`, `html-text`) or one the
+   * catalog declares. Unset when the server predates fulltext; clients then use the default analyzer `text`.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 10;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getAnalyzerOrBuilder();
+
+  /**
+   * <pre>
+   * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+   * one less. Unset when the server predates fulltext; clients then use the default 25.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+   * @return Whether the lengthPivot field is set.
+   */
+  boolean hasLengthPivot();
+  /**
+   * <pre>
+   * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+   * one less. Unset when the server predates fulltext; clients then use the default 25.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+   * @return The lengthPivot.
+   */
+  com.google.protobuf.Int32Value getLengthPivot();
+  /**
+   * <pre>
+   * Number of words a value of normal length has; positive. A word found in a shorter value weighs more, in a longer
+   * one less. Unset when the server predates fulltext; clients then use the default 25.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 11;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getLengthPivotOrBuilder();
+
+  /**
+   * <pre>
+   * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+   * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+   * differs from an unset wrapper.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+   * @return Whether the searchWeight field is set.
+   */
+  boolean hasSearchWeight();
+  /**
+   * <pre>
+   * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+   * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+   * differs from an unset wrapper.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+   * @return The searchWeight.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchWeight();
+  /**
+   * <pre>
+   * Fulltext ranking weight of the associated data, shared by every scope; zero preserves matches while contributing no
+   * ranking strength. Unset when the server predates fulltext; clients then use the default 1.0, so a set zero
+   * differs from an unset wrapper.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 12;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchWeightOrBuilder();
+
+  /**
+   * <pre>
+   * Raw source of the expression selecting the searchable text from the associated data value, such as
+   * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue textExpression = 13;</code>
+   * @return Whether the textExpression field is set.
+   */
+  boolean hasTextExpression();
+  /**
+   * <pre>
+   * Raw source of the expression selecting the searchable text from the associated data value, such as
+   * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue textExpression = 13;</code>
+   * @return The textExpression.
+   */
+  com.google.protobuf.StringValue getTextExpression();
+  /**
+   * <pre>
+   * Raw source of the expression selecting the searchable text from the associated data value, such as
+   * `$value.title`. Unset when the value needs no extraction, and when the server predates fulltext.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue textExpression = 13;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getTextExpressionOrBuilder();
 }

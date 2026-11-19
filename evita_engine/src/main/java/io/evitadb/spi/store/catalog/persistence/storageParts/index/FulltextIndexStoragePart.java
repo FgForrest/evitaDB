@@ -24,6 +24,7 @@
 package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 
 import io.evitadb.index.fulltext.FulltextFieldKey;
+import io.evitadb.index.fulltext.ReferenceFulltextValueIndex.ValueManifest;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.utils.Assert;
@@ -34,32 +35,40 @@ import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.Serial;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * The root record of one fulltext index - the index of one locale partition of an entity index. It carries no terms
  * and no lengths itself; it says how to read the pages that do, and with which configuration they were written:
  *
  * - the **field registry** in field-id order - the id of a field is its position, and it is the key prefix of every
- *   term the field owns, so the order is part of the format - with each field's identity, its length pivot, whether
- *   it was retired, and the blocks of its length table that have a page;
+ *   term the field owns, so the order is part of the format - with each field's identity, the analyzer name and the
+ *   identities of the index chain and its words phase it was built with, its length pivot, its text expression,
+ *   whether it was retired, the blocks of its length table that have a page and, for a reference attribute, the
+ *   manifest of its value dictionary pages;
  * - the **dictionary page list** - the sequences of the dictionary's leaf pages in key order, which a load assembles
  *   into the tree leaf by leaf - and the high-water of the dictionary's page-sequence allocator, so a sequence is never
  *   handed out twice across a restart;
- * - the **analyzer** the terms were produced by and the **default pivot** a field registered later gets.
+ * - the **surface dictionary page list**, its allocator high-water and the fingerprint-to-short-id table that
+ *   gives every surface key its word-phase prefix. Surface pages hold reference counts, without postings.
  *
- * The pages themselves are {@link FulltextDictionaryLeafPagePart}s, and the length blocks pages of their own; both
- * are keyed by a {@link FulltextLeafStreamKey} of this index.
+ * The pages are {@link FulltextDictionaryLeafPagePart}s and {@link FulltextSurfaceFormLeafPagePart}s, and the length
+ * blocks have pages of their own; all are keyed by a {@link FulltextLeafStreamKey} of this index. The value dictionary
+ * pages of a reference attribute are {@link FulltextReferenceValueLeafPagePart}s, keyed by a
+ * {@link FulltextReferenceValueStreamKey} of their field and child.
  *
- * The analyzer and the pivots are persisted here only until the schema owns them: an index must not be read back
- * with a different analyzer or pivot than it was built with, and today nothing else remembers which it was.
+ * Loading restores the recorded analysis identities without compiling a chain; queries skip generations that no
+ * longer agree with their schema.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ToString(of = {"entityIndexPrimaryKey", "locale"})
 public class FulltextIndexStoragePart implements StoragePart {
-	@Serial private static final long serialVersionUID = -8709870492189630144L;
+	/** Identity of this storage-part format. */
+	@Serial private static final long serialVersionUID = 7623501083909622147L;
 
 	/**
 	 * Primary key of the owning entity index.
@@ -69,16 +78,6 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 * The locale of the partition the index serves.
 	 */
 	@Getter @Nonnull private final Locale locale;
-	/**
-	 * Name of the analyzer that produced the index's terms.
-	 */
-	//TODO JNO change it at the end of #258
-	@Getter @Nonnull private final String analyzerName;
-	/**
-	 * Length pivot a field registered without one gets.
-	 */
-	//TODO JNO change it at the end of #258
-	@Getter private final double defaultLengthPivot;
 	/**
 	 * The registered fields, the i-th having field id `i`, retired ones included.
 	 */
@@ -94,6 +93,15 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 */
 	@Getter @Nonnull private final int[] dictionaryPageSequences;
 	/**
+	 * Word-phase fingerprints and the short ids that prefix their surface dictionary keys - every phase a field not
+	 * retired or a surface key still uses, so a retired field's phase stays while its keys do.
+	 */
+	@Getter @Nonnull private final Map<Long, Integer> wordPhaseIds;
+	/** High-water of the surface page sequence allocator. */
+	@Getter private final int surfaceFormHighWaterPageSequence;
+	/** Surface leaves in ascending key order. */
+	@Getter @Nonnull private final int[] surfaceFormPageSequences;
+	/**
 	 * The storage-part primary key `pack(entityIndexPrimaryKey, id of the FulltextIndexKey)`; `null` until assigned.
 	 */
 	@Nullable @Getter @Setter private Long storagePartPK;
@@ -104,27 +112,52 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 * A retired field is persisted with everything it held, because its postings are still in the dictionary pages
 	 * under its id: dropping its entry would shift the ids of every later field off their key prefixes.
 	 *
-	 * @param key          the field's identity
-	 * @param lengthPivot  the field's length pivot, which every impact of the field was computed with
-	 * @param retired      whether the field was retired - its key resolves to no field, or to a later one
-	 * @param lengthBlocks the high 16 bits of the primary keys of every block of the field's length table that has a
-	 *                     page, strictly ascending; each names the page of sequence
-	 *                     {@link FulltextFieldLengthBlockPart#pageSequenceOf(int, int) pageSequenceOf(fieldId, blockKey)}
-	 *                     in the {@link FulltextLeafStreamKey.StreamKind#FIELD_LENGTHS} stream of the index, which is
-	 *                     how the reload finds it
+	 * @param key            the field's identity
+	 * @param analyzerName   the analyzer recorded for the field generation
+	 * @param indexFingerprint the identity of its index chain, compared with the fingerprint of the chain the schema
+	 *                       declares now to tell whether the field is current
+	 * @param wordPhaseId    the identity of its index words phase
+	 * @param lengthPivot    the field's length pivot, which every impact of the field was computed with
+	 * @param textExpression the EvitaEL expression the field's text was selected with from the stored values, `null`
+	 *                       when the values are the text themselves - kept until the field is rebuilt (#409)
+	 * @param retired        whether the field was retired - its key resolves to no field, or to a later one
+	 * @param lengthBlocks   the high 16 bits of the primary keys of every block of the field's length table that has
+	 *                       a page, strictly ascending; each names the page of sequence
+	 *                       {@link FulltextFieldLengthBlockPart#pageSequenceOf(int, int) pageSequenceOf(fieldId,
+	 *                       blockKey)} in the {@link FulltextLeafStreamKey.StreamKind#FIELD_LENGTHS} stream of the
+	 *                       index, which is how the reload finds it
+	 * @param referenceValues the manifest of the value dictionary pages of a reference attribute, `null` for every
+	 *                       other field kind
 	 */
 	public record FieldEntry(
 		@Nonnull FulltextFieldKey key,
-		//TODO JNO change it at the end of #258
+		@Nonnull String analyzerName,
+		long indexFingerprint,
+		long wordPhaseId,
 		double lengthPivot,
+		@Nullable String textExpression,
 		boolean retired,
-		@Nonnull int[] lengthBlocks
+		@Nonnull int[] lengthBlocks,
+		@Nullable ValueManifest referenceValues
 	) {
 
 		/**
-		 * Verifies the block list is a strictly ascending list of 16-bit block keys.
+		 * Verifies that only a reference attribute carries a value dictionary manifest, and that the block list is a
+		 * strictly ascending list of 16-bit block keys.
+		 *
+		 * @param key the field identity
+		 * @param analyzerName the analyzer name recorded at registration
+		 * @param indexFingerprint the identity of the chain building its postings
+		 * @param wordPhaseId the identity of its index words phase
+		 * @param lengthPivot the pivot used for impact normalization
+		 * @param textExpression the extraction expression, or null for text values
+		 * @param retired whether the generation stopped accepting writes
+		 * @param lengthBlocks the persisted length block keys in strictly ascending order
+		 * @param referenceValues dictionary metadata for reference fields, null otherwise
 		 */
 		public FieldEntry {
+			Assert.isPremiseValid((key.kind() == FulltextFieldKey.FieldKind.REFERENCE_ATTRIBUTE) ==
+				(referenceValues != null), "Reference dictionary metadata must match the field kind!");
 			for (int i = 0; i < lengthBlocks.length; i++) {
 				final int block = lengthBlocks[i];
 				final int previous = i == 0 ? -1 : lengthBlocks[i - 1];
@@ -141,23 +174,25 @@ public class FulltextIndexStoragePart implements StoragePart {
 	/**
 	 * Creates the root record.
 	 *
-	 * @param entityIndexPrimaryKey           primary key of the owning entity index
-	 * @param locale                          the locale of the partition the index serves
-	 * @param analyzerName                    name of the analyzer that produced the index's terms
-	 * @param defaultLengthPivot              length pivot a field registered without one gets
-	 * @param fields                          the registered fields in field-id order
-	 * @param dictionaryHighWaterPageSequence the highest page sequence the dictionary ever allocated
-	 * @param dictionaryPageSequences         the dictionary's page sequences in key order, at least one
-	 * @param storagePartPK                   the precomputed primary key, or `null` to have it computed
+	 * @param entityIndexPrimaryKey            primary key of the owning entity index
+	 * @param locale                           the locale of the partition the index serves
+	 * @param fields                           the registered fields in field-id order
+	 * @param dictionaryHighWaterPageSequence  the highest page sequence the dictionary ever allocated
+	 * @param dictionaryPageSequences          the dictionary's page sequences in key order, at least one
+	 * @param wordPhaseIds                     the word-phase fingerprint to short surface-key prefix table
+	 * @param surfaceFormHighWaterPageSequence the highest page sequence the surface dictionary ever allocated
+	 * @param surfaceFormPageSequences         the surface dictionary's page sequences in key order, at least one
+	 * @param storagePartPK                    the precomputed primary key, or `null` to have it computed
 	 */
 	public FulltextIndexStoragePart(
 		int entityIndexPrimaryKey,
 		@Nonnull Locale locale,
-		@Nonnull String analyzerName,
-		double defaultLengthPivot,
 		@Nonnull FieldEntry[] fields,
 		int dictionaryHighWaterPageSequence,
 		@Nonnull int[] dictionaryPageSequences,
+		@Nonnull Map<Long, Integer> wordPhaseIds,
+		int surfaceFormHighWaterPageSequence,
+		@Nonnull int[] surfaceFormPageSequences,
 		@Nullable Long storagePartPK
 	) {
 		Assert.isPremiseValid(
@@ -166,11 +201,13 @@ public class FulltextIndexStoragePart implements StoragePart {
 		);
 		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
 		this.locale = locale;
-		this.analyzerName = analyzerName;
-		this.defaultLengthPivot = defaultLengthPivot;
 		this.fields = fields;
 		this.dictionaryHighWaterPageSequence = dictionaryHighWaterPageSequence;
 		this.dictionaryPageSequences = dictionaryPageSequences;
+		Assert.isPremiseValid(surfaceFormPageSequences.length > 0, "A surface dictionary has at least one page!");
+		this.wordPhaseIds = Map.copyOf(wordPhaseIds);
+		this.surfaceFormHighWaterPageSequence = surfaceFormHighWaterPageSequence;
+		this.surfaceFormPageSequences = surfaceFormPageSequences;
 		this.storagePartPK = storagePartPK;
 	}
 

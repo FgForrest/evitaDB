@@ -166,6 +166,9 @@ public class RemoveAttributeSchemaMutation
 								Function.identity()
 							)
 						),
+					catalogSchema.getFulltextLanguages(),
+					catalogSchema.getFulltextResources(),
+					catalogSchema.getFulltextAnalyzers(),
 					entitySchemaAccessor
 				),
 				entitySchemaMutations
@@ -293,7 +296,8 @@ public class RemoveAttributeSchemaMutation
 							)
 						),
 					referenceSchema.getSortableAttributeCompounds(),
-					referenceSchema.getConflictResolutionOverride()
+					referenceSchema.getConflictResolutionOverride(),
+					referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 				);
 			}
 		}

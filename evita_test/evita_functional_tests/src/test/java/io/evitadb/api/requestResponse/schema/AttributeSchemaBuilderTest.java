@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaTypeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNormalizedMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.BeforeEach;
@@ -912,6 +913,16 @@ class AttributeSchemaBuilderTest {
 					() -> retyped.validate(theCatalogSchema)
 				);
 				assertTrue(exception.getMessage().contains("String"), exception.getMessage());
+			}
+
+			@Test
+			@DisplayName("should refuse a null analyzer instead of keeping the current one")
+			void shouldRefuseNullAnalyzer() {
+				final EntitySchemaBuilder builder = createEntitySchemaBuilder();
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> builder.withAttribute("name", String.class, whichIs -> whichIs.localized().analyzer(null))
+				);
 			}
 		}
 
@@ -2382,14 +2393,14 @@ class AttributeSchemaBuilderTest {
 
 		@Test
 		@DisplayName(
-			"should make an attribute of a non-indexed reference searchable"
+			"should refuse a searchable attribute of a non-indexed reference"
 		)
 		@Tag(FULLTEXT)
-		void shouldMakeAttributeOfNonIndexedReferenceSearchable() {
-			// unlike filterability, searchability needs no reference index - the entity is searchable by the union
-			// of the attribute's values over its references, which lives in the entity's global index
-			final EntitySchemaContract schema =
-				createEntitySchemaBuilder()
+		void shouldRefuseSearchableAttributeOfNonIndexedReference() {
+			// like a filterable one, the attribute is refused as soon as the builder applies its mutations
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> createEntitySchemaBuilder()
 					.withReferenceTo(
 						"brand", Entities.BRAND,
 						Cardinality.ZERO_OR_MORE,
@@ -2398,13 +2409,10 @@ class AttributeSchemaBuilderTest {
 							whichIs -> whichIs.localized().searchable()
 						)
 					)
-					.toInstance();
-
-			final AttributeSchemaContract attr =
-				schema.getReference("brand").orElseThrow()
-					.getAttribute("name").orElseThrow();
-
-			assertTrue(attr.isSearchable());
+					.toInstance()
+			);
+			assertTrue(exception.getMessage().contains("searchable attribute `name`"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("required scopes: LIVE!"), exception.getMessage());
 		}
 
 		@Test
@@ -2419,7 +2427,7 @@ class AttributeSchemaBuilderTest {
 					.withReferenceTo(
 						"brand", Entities.BRAND,
 						Cardinality.ZERO_OR_MORE,
-						ref -> ref.withAttribute(
+						ref -> ref.indexedForFiltering().withAttribute(
 							"name", String.class,
 							AttributeSchemaEditor::searchable
 						)
@@ -2515,10 +2523,10 @@ class AttributeSchemaBuilderTest {
 		@Test
 		@DisplayName("Clients accept structurally valid custom step names")
 		void shouldAcceptCustomStepsWithoutServerKnowledge() {
-			assertEquals(List.of(step("custom", parameter("setting", "value"))), createEntitySchemaBuilder()
+			assertEquals(List.of(normalizingStep("custom", parameter("setting", "value"))), createEntitySchemaBuilder()
 				.withAttribute(
 					"code", String.class, attribute ->
-						attribute.normalized(step("custom", parameter("setting", "value")))
+						attribute.normalized(normalizingStep("custom", parameter("setting", "value")))
 				)
 				.toInstance().getAttribute("code").orElseThrow().getNormalization());
 		}

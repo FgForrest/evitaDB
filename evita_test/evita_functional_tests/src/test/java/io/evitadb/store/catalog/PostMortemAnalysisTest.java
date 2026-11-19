@@ -274,19 +274,23 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 		try (
 			Evita evita = new Evita(
-				new EvitaConfiguration(
-					"postMortemAnalysisTest",
-					ServerOptions.builder()
-						.readOnly(true)
-						.closeSessionsAfterSecondsOfInactivity(Integer.MAX_VALUE)
-						.build(),
-					StorageOptions.builder().storageDirectory(basePath).compress(true).build(),
-					TransactionOptions.builder().build(),
-					CacheOptions.builder().build(),
-					FileSystemExportOptions.builder()
-						.directory(exportPath)
-						.build()
-				)
+				EvitaConfiguration.builder()
+					.name("postMortemAnalysisTest")
+					.server(
+						ServerOptions.builder()
+							.readOnly(true)
+							.closeSessionsAfterSecondsOfInactivity(Integer.MAX_VALUE)
+							.build()
+					)
+					.storage(StorageOptions.builder().storageDirectory(basePath).compress(true).build())
+					.transaction(TransactionOptions.builder().build())
+					.cache(CacheOptions.builder().build())
+					.export(
+						FileSystemExportOptions.builder()
+							.directory(exportPath)
+							.build()
+					)
+					.build()
 			)
 		) {
 			long totalCount = evita.queryCatalog(

@@ -198,7 +198,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=128
+   *     See GrpcReferenceSchemaMutations.proto;l=133
    * @return Whether the faceted field is set.
    */
   @java.lang.Deprecated boolean hasFaceted();
@@ -216,7 +216,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=128
+   *     See GrpcReferenceSchemaMutations.proto;l=133
    * @return The faceted.
    */
   @java.lang.Deprecated com.google.protobuf.BoolValue getFaceted();
@@ -326,7 +326,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=146
+   *     See GrpcReferenceSchemaMutations.proto;l=151
    * @return A list containing the indexedInScopes.
    */
   @java.lang.Deprecated java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
@@ -345,7 +345,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=146
+   *     See GrpcReferenceSchemaMutations.proto;l=151
    * @return The count of indexedInScopes.
    */
   @java.lang.Deprecated int getIndexedInScopesCount();
@@ -364,7 +364,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=146
+   *     See GrpcReferenceSchemaMutations.proto;l=151
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
@@ -384,7 +384,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=146
+   *     See GrpcReferenceSchemaMutations.proto;l=151
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
   @java.lang.Deprecated java.util.List<java.lang.Integer>
@@ -404,7 +404,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=146
+   *     See GrpcReferenceSchemaMutations.proto;l=151
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */
@@ -739,4 +739,58 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder getBucketedPartiallyInScopesOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Optional replacement composition modes; an empty message explicitly clears the declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+   * @return Whether the searchableThroughInScopes field is set.
+   */
+  boolean hasSearchableThroughInScopes();
+  /**
+   * <pre>
+   * Optional replacement composition modes; an empty message explicitly clears the declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+   * @return The searchableThroughInScopes.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes getSearchableThroughInScopes();
+  /**
+   * <pre>
+   * Optional replacement composition modes; an empty message explicitly clears the declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModes searchableThroughInScopes = 19;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcReferenceSearchModesOrBuilder getSearchableThroughInScopesOrBuilder();
+
+  /**
+   * <pre>
+   * Optional shared ranking weight; zero is distinct from omission.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+   * @return Whether the searchableThroughWeight field is set.
+   */
+  boolean hasSearchableThroughWeight();
+  /**
+   * <pre>
+   * Optional shared ranking weight; zero is distinct from omission.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+   * @return The searchableThroughWeight.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchableThroughWeight();
+  /**
+   * <pre>
+   * Optional shared ranking weight; zero is distinct from omission.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchableThroughWeight = 20;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchableThroughWeightOrBuilder();
 }

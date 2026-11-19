@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContex
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
@@ -38,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilde
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -196,6 +198,7 @@ class ModifyEntitySchemaMutationTest {
 	@DisplayName("Mutate catalog schema")
 	class MutateCatalogSchema {
 
+		/** Rebuilds an entity through the accessor with valid decimal ranking defaults. */
 		@Test
 		@DisplayName("should mutate entity via schema accessor")
 		void shouldMutateCatalogSchema() {
@@ -211,6 +214,9 @@ class ModifyEntitySchemaMutationTest {
 			// the replacement takes the attribute out by its own name, which the contract never leaves null
 			Mockito.doReturn("someAttribute").when(attribute).getName();
 			Mockito.doReturn(Integer.class).when(attribute).getType();
+			Mockito.doReturn(FulltextAnalyzerSchemaContract.TEXT).when(attribute).getAnalyzer();
+			Mockito.doReturn(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT).when(attribute).getLengthPivot();
+			Mockito.doReturn(AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT).when(attribute).getSearchWeight();
 			Mockito.doReturn(
 				AttributeSchema.toUniquenessEnumMap(
 					new ScopedAttributeUniquenessType[]{
@@ -263,6 +269,7 @@ class ModifyEntitySchemaMutationTest {
 	@DisplayName("Mutate entity schema")
 	class MutateEntitySchema {
 
+		/** Applies uniqueness changes to an entity whose attribute retains its decimal ranking default. */
 		@Test
 		@DisplayName("should apply schema mutations to entity schema")
 		void shouldMutateEntitySchema() {
@@ -276,6 +283,9 @@ class ModifyEntitySchemaMutationTest {
 			// the replacement takes the attribute out by its own name, which the contract never leaves null
 			Mockito.doReturn("someAttribute").when(attribute).getName();
 			Mockito.doReturn(Integer.class).when(attribute).getType();
+			Mockito.doReturn(FulltextAnalyzerSchemaContract.TEXT).when(attribute).getAnalyzer();
+			Mockito.doReturn(AttributeSchemaContract.DEFAULT_LENGTH_PIVOT).when(attribute).getLengthPivot();
+			Mockito.doReturn(AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT).when(attribute).getSearchWeight();
 			Mockito.doReturn(
 				AttributeSchema.toUniquenessEnumMap(
 					new ScopedAttributeUniquenessType[]{

@@ -81,6 +81,10 @@ public class ConstraintProcessingUtils {
 		GROUP_PREFIX, ConstraintPropertyType.GROUP
 	);
 
+	/**
+	 * Fallback property types for concrete domains when an API key omits its property prefix.
+	 * Shared child domains such as TEXT use GENERIC so property-specific keys keep their prefix.
+	 */
 	private static final Map<ConstraintDomain, ConstraintPropertyType> DOMAIN_TO_PROPERTY_TYPE = Map.of(
 		ConstraintDomain.GENERIC, ConstraintPropertyType.GENERIC,
 		ConstraintDomain.ENTITY, ConstraintPropertyType.ENTITY,
@@ -89,6 +93,7 @@ public class ConstraintProcessingUtils {
 		ConstraintDomain.HIERARCHY, ConstraintPropertyType.HIERARCHY,
 		ConstraintDomain.FACET, ConstraintPropertyType.FACET,
 		ConstraintDomain.SEGMENT, ConstraintPropertyType.GENERIC,
+		ConstraintDomain.TEXT, ConstraintPropertyType.GENERIC,
 		ConstraintDomain.GROUP_ENTITY, ConstraintPropertyType.GROUP
 	);
 

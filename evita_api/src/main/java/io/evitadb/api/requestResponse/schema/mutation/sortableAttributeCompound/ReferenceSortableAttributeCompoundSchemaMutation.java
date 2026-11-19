@@ -211,7 +211,8 @@ public interface ReferenceSortableAttributeCompoundSchemaMutation extends Sortab
 								Function.identity()
 							)
 						),
-					referenceSchema.getConflictResolutionOverride()
+					referenceSchema.getConflictResolutionOverride(),
+					referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 				);
 			}
 		}

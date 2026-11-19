@@ -60,6 +60,7 @@ import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.EntityIndex;
@@ -283,6 +284,18 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 			).isEmpty()) {
 			throw new EntityNotManagedException(referenceSchema.getReferencedEntityType());
 		}
+
+		// a facet is chosen by what its reference rows hold, never by searching their words - the walk stops at every
+		// container that leaves the reference scope, so `entityHaving` / `groupHaving` still search the facet entity
+		// or its group, and `includingChildren` / `includingChildrenExcept` the children of a hierarchical facet
+		isTrue(
+			QueryUtils.findConstraints(facetHaving, TextMatches.class, SeparateEntityScopeContainer.class).isEmpty(),
+			() -> new EvitaInvalidUsageException(
+				"Constraint `textMatches` cannot be used directly inside `facetHaving` of the reference `" +
+					facetHaving.getReferenceName() + "` - search the reference attributes with `referenceHaving`, " +
+					"or the facet entity or its group with `entityHaving` / `groupHaving`!"
+			)
+		);
 
 		final List<EntityIndex> searchedIndexes = filterByVisitor.getEntityIndexStream().toList();
 		// there is no index to search - no entity can match

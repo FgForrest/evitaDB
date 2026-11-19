@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import java.math.BigDecimal;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
@@ -44,7 +45,11 @@ import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import javax.annotation.Nullable;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
@@ -392,5 +397,28 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
 		assertEquals(ConflictResolutionOverride.ENTITY, roundTripped.getConflictResolutionOverride());
 		assertEquals(inputMutation, roundTripped);
+	}
+
+	/**
+	 * Emits a present decimal weight without rounding and omits an unspecified weight.
+	 * @param weight decimal ranking contribution, or null to leave the weight unspecified
+	 */
+	@ParameterizedTest
+	@NullSource
+	@ValueSource(strings = {"0", "0.0000001", "12345678.5", "0.123456789012345678901234567891"})
+	void shouldSerializeSearchWeightToOutput(@Nullable BigDecimal weight) {
+		final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
+			"code", null, null, null, null, null, null, new Scope[] { Scope.LIVE }, null,
+			false, true, false, String.class, null, 0, ConflictResolutionOverride.INHERITED,
+			null, null, null, weight
+		);
+		@SuppressWarnings("unchecked")
+		final Map<String, Object> output = (Map<String, Object>) this.converter.convertToOutput(mutation);
+		if (weight == null) {
+			assertThat(output).doesNotContainKey("searchWeight");
+		} else {
+			// The decimal output preserves every significant digit.
+			assertThat(output).containsEntry("searchWeight", weight.toPlainString());
+		}
 	}
 }

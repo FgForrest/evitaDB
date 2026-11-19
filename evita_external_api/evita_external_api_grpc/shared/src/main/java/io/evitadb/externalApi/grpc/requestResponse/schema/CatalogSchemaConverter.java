@@ -23,12 +23,15 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
+import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
@@ -84,6 +87,13 @@ public class CatalogSchemaConverter {
 			.setVersion(catalogSchema.version())
 			.putAllAttributes(toGrpcGlobalAttributeSchemas(catalogSchema.getAttributes(), includeNameVariants));
 
+		catalogSchema.getFulltextLanguages().forEach((language, schema) ->
+			builder.putFulltextLanguages(language, FulltextSchemaConverter.toGrpcLanguage(schema)));
+		catalogSchema.getFulltextResources().forEach((name, schema) ->
+			builder.putFulltextResources(name, FulltextSchemaConverter.toGrpcResource(schema)));
+		catalogSchema.getFulltextAnalyzers().forEach((name, schema) ->
+			builder.putFulltextAnalyzers(name, FulltextSchemaConverter.toGrpcAnalyzer(schema)));
+
 		if (catalogSchema.getDescription() != null) {
 			builder.setDescription(StringValue.of(catalogSchema.getDescription()));
 		}
@@ -126,6 +136,12 @@ public class CatalogSchemaConverter {
 					Entry::getKey,
 					it -> toGlobalAttributeSchema(it.getValue())
 				)),
+			catalogSchema.getFulltextLanguagesMap().entrySet().stream().collect(Collectors.toMap(
+				Entry::getKey, entry -> FulltextSchemaConverter.toLanguage(entry.getValue()))),
+			catalogSchema.getFulltextResourcesMap().entrySet().stream().collect(Collectors.toMap(
+				Entry::getKey, entry -> FulltextSchemaConverter.toResource(entry.getValue()))),
+			catalogSchema.getFulltextAnalyzersMap().entrySet().stream().collect(Collectors.toMap(
+				Entry::getKey, entry -> FulltextSchemaConverter.toAnalyzer(entry.getValue()))),
 			entitySchemaProvider
 		);
 	}
@@ -193,6 +209,11 @@ public class CatalogSchemaConverter {
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
+			.addAllSearchableInScopes(Arrays.stream(Scope.values()).filter(attributeSchema::isSearchableInScope)
+				.map(EvitaEnumConverter::toGrpcScope).toList())
+			.setAnalyzer(StringValue.of(attributeSchema.getAnalyzer()))
+			.setLengthPivot(Int32Value.of(attributeSchema.getLengthPivot()))
+			.setSearchWeight(EvitaDataTypesConverter.toGrpcBigDecimal(attributeSchema.getSearchWeight()))
 			.addAllNormalized(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
 			.addAllAccelerated(
 				toGrpcScopedAttributeFilterAccelerators(
@@ -241,8 +262,8 @@ public class CatalogSchemaConverter {
 		// absent on the wire for an older server - proto3 renders that as an empty list, which converts to `null`
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
 			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratedList());
-		// searchability has no gRPC mirror, so a schema converted from the wire reports no attribute as searchable
-		final Scope[] searchableInScopes = null;
+		final Scope[] searchableInScopes = attributeSchema.getSearchableInScopesList().stream()
+			.map(EvitaEnumConverter::toScope).toArray(Scope[]::new);
 		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
 
 		return GlobalAttributeSchema._internalBuild(
@@ -262,7 +283,14 @@ public class CatalogSchemaConverter {
 			attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 			attributeSchema.getIndexedDecimalPlaces(),
 			EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
-			toAnalysisSteps(attributeSchema.getNormalizedList())
+			toAnalysisSteps(attributeSchema.getNormalizedList()),
+			attributeSchema.hasAnalyzer() ? attributeSchema.getAnalyzer().getValue() :
+				FulltextAnalyzerSchemaContract.TEXT,
+			attributeSchema.hasLengthPivot() ? attributeSchema.getLengthPivot().getValue() :
+				AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+			attributeSchema.hasSearchWeight()
+				? EvitaDataTypesConverter.toBigDecimal(attributeSchema.getSearchWeight()) :
+				AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 		);
 	}
 

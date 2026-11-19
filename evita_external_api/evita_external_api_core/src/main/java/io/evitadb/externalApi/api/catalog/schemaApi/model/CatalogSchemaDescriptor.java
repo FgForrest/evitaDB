@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
@@ -105,6 +104,28 @@ public interface CatalogSchemaDescriptor extends VersionedDescriptor, NamedSchem
 		.type(nullableRef(ConflictResolutionDescriptor.THIS))
 		.build();
 
+	/** Catalog language declarations, excluding server defaults. */
+	PropertyDescriptor FULLTEXT_LANGUAGES = PropertyDescriptor.builder()
+		.name("fulltextLanguages").description("""
+			How the catalog splits text of each language into words. Only declared languages are listed; text in any
+			other language is split by the `standard` tokenizer alone.
+			""")
+		.type(nonNullListRef(FulltextLanguageSchemaDescriptor.THIS)).build();
+	/** Catalog resource declarations, excluding built-in resources. */
+	PropertyDescriptor FULLTEXT_RESOURCES = PropertyDescriptor.builder()
+		.name("fulltextResources").description("""
+			Word lists and synonym lists the catalog declares for analysis steps to read. The built-in stop lists are
+			not listed.
+			""")
+		.type(nonNullListRef(FulltextResourceSchemaDescriptor.THIS)).build();
+	/** Catalog analyzers before inheritance is resolved. */
+	PropertyDescriptor FULLTEXT_ANALYZERS = PropertyDescriptor.builder()
+		.name("fulltextAnalyzers").description("""
+			Analyzers the catalog declares, before phase inheritance is resolved. The built-in analyzers `text` and
+			`html-text` are not listed.
+			""")
+		.type(nonNullListRef(FulltextAnalyzerSchemaDescriptor.THIS)).build();
+
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("CatalogSchema")
 		.description("""
@@ -115,7 +136,10 @@ public interface CatalogSchemaDescriptor extends VersionedDescriptor, NamedSchem
 			NAME,
 			NAME_VARIANTS,
 			DESCRIPTION,
-			CONFLICT_RESOLUTION
+			CONFLICT_RESOLUTION,
+			FULLTEXT_LANGUAGES,
+			FULLTEXT_RESOURCES,
+			FULLTEXT_ANALYZERS
 		))
 		.build();
 

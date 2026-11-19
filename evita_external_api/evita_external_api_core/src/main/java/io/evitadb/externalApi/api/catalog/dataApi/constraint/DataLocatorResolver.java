@@ -66,6 +66,14 @@ public class DataLocatorResolver {
 	                                                              @Nonnull ConstraintDomain desiredChildDomainOfParameter) {
 		if (desiredChildDomainOfParameter == ConstraintDomain.DEFAULT || parentDataLocator.targetDomain().equals(desiredChildDomainOfParameter)) {
 			return Optional.of(parentDataLocator);
+		} else if (desiredChildDomainOfParameter == ConstraintDomain.TEXT) {
+			if (parentDataLocator instanceof final DataLocatorWithReference referenceLocator &&
+				referenceLocator.referenceName() != null) {
+				return Optional.of(new ReferenceTextDataLocator(
+					referenceLocator.entityTypePointer(), referenceLocator.referenceName()
+				));
+			}
+			return Optional.of(new TextDataLocator(parentDataLocator.entityTypePointer()));
 		} else if (CONSTRAINT_DOMAINS_WITH_REFERENCE.contains(desiredChildDomainOfParameter)) {
 			Assert.isPremiseValid(
 				parentDataLocator instanceof DataLocatorWithReference,

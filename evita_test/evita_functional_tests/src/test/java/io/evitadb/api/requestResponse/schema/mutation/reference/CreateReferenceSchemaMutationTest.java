@@ -54,6 +54,8 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaContract;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -155,7 +157,9 @@ class CreateReferenceSchemaMutationTest {
 					null,
 					2,
 					ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				),
 				REFERENCE_ATTRIBUTE_QUANTITY,
 				AttributeSchema._internalBuild(
@@ -178,7 +182,9 @@ class CreateReferenceSchemaMutationTest {
 					null,
 					2,
 					ConflictResolutionOverride.INHERITED,
-					null
+					null,
+					FulltextAnalyzerSchemaContract.TEXT, AttributeSchemaContract.DEFAULT_LENGTH_PIVOT,
+					AttributeSchemaContract.DEFAULT_SEARCH_WEIGHT
 				)
 			),
 			Map.of(
@@ -202,7 +208,8 @@ class CreateReferenceSchemaMutationTest {
 					)
 				)
 			),
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -232,7 +239,8 @@ class CreateReferenceSchemaMutationTest {
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-			null
+			null,
+			null, ReflectedReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 		);
 	}
 
@@ -823,7 +831,8 @@ class CreateReferenceSchemaMutationTest {
 				null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
 				REFERENCE_NAME,

@@ -23,21 +23,22 @@
 
 package io.evitadb.index.mutation.local.handler;
 
+import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
+import io.evitadb.index.mutation.local.FulltextIndexMutator;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 
 import javax.annotation.Nonnull;
 
 /**
- * Shared fan-out for the two concrete associated-data mutations. Associated data is opaque to all reduced indexes, so
- * the fan-out touches only conditions reading the mutated key: it withdraws the histogram values of the references
- * whose histogram condition reads it before the associated data changes, so the final add of the run evaluates the
- * condition against the new value, and registers a post-write facet re-evaluation when a facet trigger reads it.
+ * Shared fan-out for the two concrete associated-data mutations. Searchable associated data updates the
+ * fulltext indexes in the global index. Before storage changes, the fan-out withdraws histogram values of
+ * references whose condition reads the mutated key, then registers a post-write facet re-evaluation.
  */
 final class AssociatedDataMutationFanOut {
 
@@ -49,18 +50,22 @@ final class AssociatedDataMutationFanOut {
 	}
 
 	/**
-	 * Withdraws the histogram values of the references whose condition reads the named associated data and defers
-	 * facet expression re-evaluation for triggers that read it.
+	 * Updates fulltext indexes, withdraws reference histogram values whose condition reads the named associated
+	 * data, and defers facet expression re-evaluation for triggers that read it.
 	 *
-	 * @param mutatedDataName the associated data name from the mutation
-	 * @param executor        the active executor
-	 * @param globalIndex     pre-resolved global index for the active scope
+	 * @param mutation    the associated data mutation
+	 * @param executor    the active executor
+	 * @param globalIndex pre-resolved global index for the active scope
 	 */
 	static void apply(
-		@Nonnull String mutatedDataName,
+		@Nonnull AssociatedDataMutation mutation,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
+		// the fulltext indexes live in the global index only - the value it replaces is read before the storage
+		// executor applies the same mutation
+		FulltextIndexMutator.executeAssociatedDataMutation(executor, globalIndex, mutation);
+		final String mutatedDataName = mutation.getAssociatedDataKey().associatedDataName();
 		withdrawHistogramValuesOfReferencesReading(mutatedDataName, executor);
 		// defer re-evaluation to after storage write so expression reads updated associated data
 		if (executor.hasFacetExpressionTriggers()) {

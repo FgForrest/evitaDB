@@ -303,8 +303,9 @@ public final class GrpcEnums {
       "\0220\n,STORAGE_PART_GROUP_REFERENCE_HISTOGR" +
       "AM_INDEX\020\014\022%\n!STORAGE_PART_GROUP_FULLTEX" +
       "T_INDEX\020\017\022\035\n\031STORAGE_PART_GROUP_SCHEMA\020\r" +
-      "\022\035\n\031STORAGE_PART_GROUP_HEADER\020\016B\014P\001\252\002\007Ev" +
-      "itaDBb\006proto3"
+      "\022\035\n\031STORAGE_PART_GROUP_HEADER\020\016*;\n\027GrpcR" +
+      "eferenceSearchMode\022 \n\034REFERENCE_SEARCH_C" +
+      "OMPOSITION\020\000B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

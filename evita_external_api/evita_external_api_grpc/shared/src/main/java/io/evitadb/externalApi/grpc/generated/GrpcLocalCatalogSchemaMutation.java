@@ -97,6 +97,16 @@ private static final long serialVersionUID = 0L;
     MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION(35),
     SETATTRIBUTESCHEMAACCELERATEDMUTATION(36),
     SETATTRIBUTESCHEMANORMALIZEDMUTATION(37),
+    SETATTRIBUTESCHEMASEARCHABLEMUTATION(38),
+    CREATEFULLTEXTLANGUAGESCHEMAMUTATION(39),
+    MODIFYFULLTEXTLANGUAGESCHEMAMUTATION(40),
+    REMOVEFULLTEXTLANGUAGESCHEMAMUTATION(41),
+    CREATEFULLTEXTRESOURCESCHEMAMUTATION(42),
+    MODIFYFULLTEXTRESOURCESCHEMAMUTATION(43),
+    REMOVEFULLTEXTRESOURCESCHEMAMUTATION(44),
+    CREATEFULLTEXTANALYZERSCHEMAMUTATION(45),
+    MODIFYFULLTEXTANALYZERSCHEMAMUTATION(46),
+    REMOVEFULLTEXTANALYZERSCHEMAMUTATION(47),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -139,6 +149,16 @@ private static final long serialVersionUID = 0L;
         case 35: return MODIFYCATALOGSCHEMACONFLICTRESOLUTIONMUTATION;
         case 36: return SETATTRIBUTESCHEMAACCELERATEDMUTATION;
         case 37: return SETATTRIBUTESCHEMANORMALIZEDMUTATION;
+        case 38: return SETATTRIBUTESCHEMASEARCHABLEMUTATION;
+        case 39: return CREATEFULLTEXTLANGUAGESCHEMAMUTATION;
+        case 40: return MODIFYFULLTEXTLANGUAGESCHEMAMUTATION;
+        case 41: return REMOVEFULLTEXTLANGUAGESCHEMAMUTATION;
+        case 42: return CREATEFULLTEXTRESOURCESCHEMAMUTATION;
+        case 43: return MODIFYFULLTEXTRESOURCESCHEMAMUTATION;
+        case 44: return REMOVEFULLTEXTRESOURCESCHEMAMUTATION;
+        case 45: return CREATEFULLTEXTANALYZERSCHEMAMUTATION;
+        case 46: return MODIFYFULLTEXTANALYZERSCHEMAMUTATION;
+        case 47: return REMOVEFULLTEXTANALYZERSCHEMAMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -1274,6 +1294,436 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation.getDefaultInstance();
   }
 
+  public static final int SETATTRIBUTESCHEMASEARCHABLEMUTATION_FIELD_NUMBER = 38;
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+   * @return Whether the setAttributeSchemaSearchableMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasSetAttributeSchemaSearchableMutation() {
+    return mutationCase_ == 38;
+  }
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+   * @return The setAttributeSchemaSearchableMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation getSetAttributeSchemaSearchableMutation() {
+    if (mutationCase_ == 38) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Fulltext schema declaration.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder getSetAttributeSchemaSearchableMutationOrBuilder() {
+    if (mutationCase_ == 38) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance();
+  }
+
+  public static final int CREATEFULLTEXTLANGUAGESCHEMAMUTATION_FIELD_NUMBER = 39;
+  /**
+   * <pre>
+   * Mutation declares how text in one language is split into words.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+   * @return Whether the createFulltextLanguageSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasCreateFulltextLanguageSchemaMutation() {
+    return mutationCase_ == 39;
+  }
+  /**
+   * <pre>
+   * Mutation declares how text in one language is split into words.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+   * @return The createFulltextLanguageSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation getCreateFulltextLanguageSchemaMutation() {
+    if (mutationCase_ == 39) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation declares how text in one language is split into words.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutationOrBuilder getCreateFulltextLanguageSchemaMutationOrBuilder() {
+    if (mutationCase_ == 39) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int MODIFYFULLTEXTLANGUAGESCHEMAMUTATION_FIELD_NUMBER = 40;
+  /**
+   * <pre>
+   * Mutation replaces the whole word splitting of a declared language.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+   * @return Whether the modifyFulltextLanguageSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasModifyFulltextLanguageSchemaMutation() {
+    return mutationCase_ == 40;
+  }
+  /**
+   * <pre>
+   * Mutation replaces the whole word splitting of a declared language.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+   * @return The modifyFulltextLanguageSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation getModifyFulltextLanguageSchemaMutation() {
+    if (mutationCase_ == 40) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation replaces the whole word splitting of a declared language.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutationOrBuilder getModifyFulltextLanguageSchemaMutationOrBuilder() {
+    if (mutationCase_ == 40) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int REMOVEFULLTEXTLANGUAGESCHEMAMUTATION_FIELD_NUMBER = 41;
+  /**
+   * <pre>
+   * Mutation removes the word splitting declared for a language.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+   * @return Whether the removeFulltextLanguageSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasRemoveFulltextLanguageSchemaMutation() {
+    return mutationCase_ == 41;
+  }
+  /**
+   * <pre>
+   * Mutation removes the word splitting declared for a language.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+   * @return The removeFulltextLanguageSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation getRemoveFulltextLanguageSchemaMutation() {
+    if (mutationCase_ == 41) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation removes the word splitting declared for a language.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutationOrBuilder getRemoveFulltextLanguageSchemaMutationOrBuilder() {
+    if (mutationCase_ == 41) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int CREATEFULLTEXTRESOURCESCHEMAMUTATION_FIELD_NUMBER = 42;
+  /**
+   * <pre>
+   * Mutation declares a named word list or synonym list that analysis steps read.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+   * @return Whether the createFulltextResourceSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasCreateFulltextResourceSchemaMutation() {
+    return mutationCase_ == 42;
+  }
+  /**
+   * <pre>
+   * Mutation declares a named word list or synonym list that analysis steps read.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+   * @return The createFulltextResourceSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation getCreateFulltextResourceSchemaMutation() {
+    if (mutationCase_ == 42) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation declares a named word list or synonym list that analysis steps read.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutationOrBuilder getCreateFulltextResourceSchemaMutationOrBuilder() {
+    if (mutationCase_ == 42) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int MODIFYFULLTEXTRESOURCESCHEMAMUTATION_FIELD_NUMBER = 43;
+  /**
+   * <pre>
+   * Mutation replaces the whole content of a declared fulltext resource.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+   * @return Whether the modifyFulltextResourceSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasModifyFulltextResourceSchemaMutation() {
+    return mutationCase_ == 43;
+  }
+  /**
+   * <pre>
+   * Mutation replaces the whole content of a declared fulltext resource.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+   * @return The modifyFulltextResourceSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation getModifyFulltextResourceSchemaMutation() {
+    if (mutationCase_ == 43) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation replaces the whole content of a declared fulltext resource.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutationOrBuilder getModifyFulltextResourceSchemaMutationOrBuilder() {
+    if (mutationCase_ == 43) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int REMOVEFULLTEXTRESOURCESCHEMAMUTATION_FIELD_NUMBER = 44;
+  /**
+   * <pre>
+   * Mutation removes a declared fulltext resource.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+   * @return Whether the removeFulltextResourceSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasRemoveFulltextResourceSchemaMutation() {
+    return mutationCase_ == 44;
+  }
+  /**
+   * <pre>
+   * Mutation removes a declared fulltext resource.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+   * @return The removeFulltextResourceSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation getRemoveFulltextResourceSchemaMutation() {
+    if (mutationCase_ == 44) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation removes a declared fulltext resource.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutationOrBuilder getRemoveFulltextResourceSchemaMutationOrBuilder() {
+    if (mutationCase_ == 44) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int CREATEFULLTEXTANALYZERSCHEMAMUTATION_FIELD_NUMBER = 45;
+  /**
+   * <pre>
+   * Mutation declares a named fulltext analyzer searchable fields can refer to.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+   * @return Whether the createFulltextAnalyzerSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasCreateFulltextAnalyzerSchemaMutation() {
+    return mutationCase_ == 45;
+  }
+  /**
+   * <pre>
+   * Mutation declares a named fulltext analyzer searchable fields can refer to.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+   * @return The createFulltextAnalyzerSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation getCreateFulltextAnalyzerSchemaMutation() {
+    if (mutationCase_ == 45) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation declares a named fulltext analyzer searchable fields can refer to.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutationOrBuilder getCreateFulltextAnalyzerSchemaMutationOrBuilder() {
+    if (mutationCase_ == 45) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int MODIFYFULLTEXTANALYZERSCHEMAMUTATION_FIELD_NUMBER = 46;
+  /**
+   * <pre>
+   * Mutation replaces the whole definition of a declared fulltext analyzer.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+   * @return Whether the modifyFulltextAnalyzerSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasModifyFulltextAnalyzerSchemaMutation() {
+    return mutationCase_ == 46;
+  }
+  /**
+   * <pre>
+   * Mutation replaces the whole definition of a declared fulltext analyzer.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+   * @return The modifyFulltextAnalyzerSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation getModifyFulltextAnalyzerSchemaMutation() {
+    if (mutationCase_ == 46) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation replaces the whole definition of a declared fulltext analyzer.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutationOrBuilder getModifyFulltextAnalyzerSchemaMutationOrBuilder() {
+    if (mutationCase_ == 46) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int REMOVEFULLTEXTANALYZERSCHEMAMUTATION_FIELD_NUMBER = 47;
+  /**
+   * <pre>
+   * Mutation removes a declared fulltext analyzer.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+   * @return Whether the removeFulltextAnalyzerSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasRemoveFulltextAnalyzerSchemaMutation() {
+    return mutationCase_ == 47;
+  }
+  /**
+   * <pre>
+   * Mutation removes a declared fulltext analyzer.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+   * @return The removeFulltextAnalyzerSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation getRemoveFulltextAnalyzerSchemaMutation() {
+    if (mutationCase_ == 47) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation removes a declared fulltext analyzer.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutationOrBuilder getRemoveFulltextAnalyzerSchemaMutationOrBuilder() {
+    if (mutationCase_ == 47) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1362,6 +1812,36 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 37) {
       output.writeMessage(37, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation) mutation_);
+    }
+    if (mutationCase_ == 38) {
+      output.writeMessage(38, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_);
+    }
+    if (mutationCase_ == 39) {
+      output.writeMessage(39, (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 40) {
+      output.writeMessage(40, (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 41) {
+      output.writeMessage(41, (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 42) {
+      output.writeMessage(42, (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 43) {
+      output.writeMessage(43, (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 44) {
+      output.writeMessage(44, (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 45) {
+      output.writeMessage(45, (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 46) {
+      output.writeMessage(46, (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 47) {
+      output.writeMessage(47, (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation) mutation_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -1471,6 +1951,46 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 37) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(37, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNormalizedMutation) mutation_);
+    }
+    if (mutationCase_ == 38) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(38, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_);
+    }
+    if (mutationCase_ == 39) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(39, (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 40) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(40, (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 41) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(41, (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 42) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(42, (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 43) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(43, (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 44) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(44, (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 45) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(45, (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 46) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(46, (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 47) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(47, (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation) mutation_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -1589,6 +2109,46 @@ private static final long serialVersionUID = 0L;
         if (!getSetAttributeSchemaNormalizedMutation()
             .equals(other.getSetAttributeSchemaNormalizedMutation())) return false;
         break;
+      case 38:
+        if (!getSetAttributeSchemaSearchableMutation()
+            .equals(other.getSetAttributeSchemaSearchableMutation())) return false;
+        break;
+      case 39:
+        if (!getCreateFulltextLanguageSchemaMutation()
+            .equals(other.getCreateFulltextLanguageSchemaMutation())) return false;
+        break;
+      case 40:
+        if (!getModifyFulltextLanguageSchemaMutation()
+            .equals(other.getModifyFulltextLanguageSchemaMutation())) return false;
+        break;
+      case 41:
+        if (!getRemoveFulltextLanguageSchemaMutation()
+            .equals(other.getRemoveFulltextLanguageSchemaMutation())) return false;
+        break;
+      case 42:
+        if (!getCreateFulltextResourceSchemaMutation()
+            .equals(other.getCreateFulltextResourceSchemaMutation())) return false;
+        break;
+      case 43:
+        if (!getModifyFulltextResourceSchemaMutation()
+            .equals(other.getModifyFulltextResourceSchemaMutation())) return false;
+        break;
+      case 44:
+        if (!getRemoveFulltextResourceSchemaMutation()
+            .equals(other.getRemoveFulltextResourceSchemaMutation())) return false;
+        break;
+      case 45:
+        if (!getCreateFulltextAnalyzerSchemaMutation()
+            .equals(other.getCreateFulltextAnalyzerSchemaMutation())) return false;
+        break;
+      case 46:
+        if (!getModifyFulltextAnalyzerSchemaMutation()
+            .equals(other.getModifyFulltextAnalyzerSchemaMutation())) return false;
+        break;
+      case 47:
+        if (!getRemoveFulltextAnalyzerSchemaMutation()
+            .equals(other.getRemoveFulltextAnalyzerSchemaMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -1703,6 +2263,46 @@ private static final long serialVersionUID = 0L;
       case 37:
         hash = (37 * hash) + SETATTRIBUTESCHEMANORMALIZEDMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getSetAttributeSchemaNormalizedMutation().hashCode();
+        break;
+      case 38:
+        hash = (37 * hash) + SETATTRIBUTESCHEMASEARCHABLEMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSetAttributeSchemaSearchableMutation().hashCode();
+        break;
+      case 39:
+        hash = (37 * hash) + CREATEFULLTEXTLANGUAGESCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getCreateFulltextLanguageSchemaMutation().hashCode();
+        break;
+      case 40:
+        hash = (37 * hash) + MODIFYFULLTEXTLANGUAGESCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getModifyFulltextLanguageSchemaMutation().hashCode();
+        break;
+      case 41:
+        hash = (37 * hash) + REMOVEFULLTEXTLANGUAGESCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getRemoveFulltextLanguageSchemaMutation().hashCode();
+        break;
+      case 42:
+        hash = (37 * hash) + CREATEFULLTEXTRESOURCESCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getCreateFulltextResourceSchemaMutation().hashCode();
+        break;
+      case 43:
+        hash = (37 * hash) + MODIFYFULLTEXTRESOURCESCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getModifyFulltextResourceSchemaMutation().hashCode();
+        break;
+      case 44:
+        hash = (37 * hash) + REMOVEFULLTEXTRESOURCESCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getRemoveFulltextResourceSchemaMutation().hashCode();
+        break;
+      case 45:
+        hash = (37 * hash) + CREATEFULLTEXTANALYZERSCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getCreateFulltextAnalyzerSchemaMutation().hashCode();
+        break;
+      case 46:
+        hash = (37 * hash) + MODIFYFULLTEXTANALYZERSCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getModifyFulltextAnalyzerSchemaMutation().hashCode();
+        break;
+      case 47:
+        hash = (37 * hash) + REMOVEFULLTEXTANALYZERSCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getRemoveFulltextAnalyzerSchemaMutation().hashCode();
         break;
       case 0:
       default:
@@ -1842,6 +2442,7 @@ private static final long serialVersionUID = 0L;
     public Builder clear() {
       super.clear();
       bitField0_ = 0;
+      bitField1_ = 0;
       if (modifyCatalogSchemaDescriptionMutationBuilder_ != null) {
         modifyCatalogSchemaDescriptionMutationBuilder_.clear();
       }
@@ -1917,6 +2518,36 @@ private static final long serialVersionUID = 0L;
       if (setAttributeSchemaNormalizedMutationBuilder_ != null) {
         setAttributeSchemaNormalizedMutationBuilder_.clear();
       }
+      if (setAttributeSchemaSearchableMutationBuilder_ != null) {
+        setAttributeSchemaSearchableMutationBuilder_.clear();
+      }
+      if (createFulltextLanguageSchemaMutationBuilder_ != null) {
+        createFulltextLanguageSchemaMutationBuilder_.clear();
+      }
+      if (modifyFulltextLanguageSchemaMutationBuilder_ != null) {
+        modifyFulltextLanguageSchemaMutationBuilder_.clear();
+      }
+      if (removeFulltextLanguageSchemaMutationBuilder_ != null) {
+        removeFulltextLanguageSchemaMutationBuilder_.clear();
+      }
+      if (createFulltextResourceSchemaMutationBuilder_ != null) {
+        createFulltextResourceSchemaMutationBuilder_.clear();
+      }
+      if (modifyFulltextResourceSchemaMutationBuilder_ != null) {
+        modifyFulltextResourceSchemaMutationBuilder_.clear();
+      }
+      if (removeFulltextResourceSchemaMutationBuilder_ != null) {
+        removeFulltextResourceSchemaMutationBuilder_.clear();
+      }
+      if (createFulltextAnalyzerSchemaMutationBuilder_ != null) {
+        createFulltextAnalyzerSchemaMutationBuilder_.clear();
+      }
+      if (modifyFulltextAnalyzerSchemaMutationBuilder_ != null) {
+        modifyFulltextAnalyzerSchemaMutationBuilder_.clear();
+      }
+      if (removeFulltextAnalyzerSchemaMutationBuilder_ != null) {
+        removeFulltextAnalyzerSchemaMutationBuilder_.clear();
+      }
       mutationCase_ = 0;
       mutation_ = null;
       return this;
@@ -1946,6 +2577,7 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation result = new io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation(this);
       if (bitField0_ != 0) { buildPartial0(result); }
+      if (bitField1_ != 0) { buildPartial1(result); }
       buildPartialOneofs(result);
       onBuilt();
       return result;
@@ -1953,6 +2585,10 @@ private static final long serialVersionUID = 0L;
 
     private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation result) {
       int from_bitField0_ = bitField0_;
+    }
+
+    private void buildPartial1(io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation result) {
+      int from_bitField1_ = bitField1_;
     }
 
     private void buildPartialOneofs(io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation result) {
@@ -2057,6 +2693,46 @@ private static final long serialVersionUID = 0L;
       if (mutationCase_ == 37 &&
           setAttributeSchemaNormalizedMutationBuilder_ != null) {
         result.mutation_ = setAttributeSchemaNormalizedMutationBuilder_.build();
+      }
+      if (mutationCase_ == 38 &&
+          setAttributeSchemaSearchableMutationBuilder_ != null) {
+        result.mutation_ = setAttributeSchemaSearchableMutationBuilder_.build();
+      }
+      if (mutationCase_ == 39 &&
+          createFulltextLanguageSchemaMutationBuilder_ != null) {
+        result.mutation_ = createFulltextLanguageSchemaMutationBuilder_.build();
+      }
+      if (mutationCase_ == 40 &&
+          modifyFulltextLanguageSchemaMutationBuilder_ != null) {
+        result.mutation_ = modifyFulltextLanguageSchemaMutationBuilder_.build();
+      }
+      if (mutationCase_ == 41 &&
+          removeFulltextLanguageSchemaMutationBuilder_ != null) {
+        result.mutation_ = removeFulltextLanguageSchemaMutationBuilder_.build();
+      }
+      if (mutationCase_ == 42 &&
+          createFulltextResourceSchemaMutationBuilder_ != null) {
+        result.mutation_ = createFulltextResourceSchemaMutationBuilder_.build();
+      }
+      if (mutationCase_ == 43 &&
+          modifyFulltextResourceSchemaMutationBuilder_ != null) {
+        result.mutation_ = modifyFulltextResourceSchemaMutationBuilder_.build();
+      }
+      if (mutationCase_ == 44 &&
+          removeFulltextResourceSchemaMutationBuilder_ != null) {
+        result.mutation_ = removeFulltextResourceSchemaMutationBuilder_.build();
+      }
+      if (mutationCase_ == 45 &&
+          createFulltextAnalyzerSchemaMutationBuilder_ != null) {
+        result.mutation_ = createFulltextAnalyzerSchemaMutationBuilder_.build();
+      }
+      if (mutationCase_ == 46 &&
+          modifyFulltextAnalyzerSchemaMutationBuilder_ != null) {
+        result.mutation_ = modifyFulltextAnalyzerSchemaMutationBuilder_.build();
+      }
+      if (mutationCase_ == 47 &&
+          removeFulltextAnalyzerSchemaMutationBuilder_ != null) {
+        result.mutation_ = removeFulltextAnalyzerSchemaMutationBuilder_.build();
       }
     }
 
@@ -2203,6 +2879,46 @@ private static final long serialVersionUID = 0L;
         }
         case SETATTRIBUTESCHEMANORMALIZEDMUTATION: {
           mergeSetAttributeSchemaNormalizedMutation(other.getSetAttributeSchemaNormalizedMutation());
+          break;
+        }
+        case SETATTRIBUTESCHEMASEARCHABLEMUTATION: {
+          mergeSetAttributeSchemaSearchableMutation(other.getSetAttributeSchemaSearchableMutation());
+          break;
+        }
+        case CREATEFULLTEXTLANGUAGESCHEMAMUTATION: {
+          mergeCreateFulltextLanguageSchemaMutation(other.getCreateFulltextLanguageSchemaMutation());
+          break;
+        }
+        case MODIFYFULLTEXTLANGUAGESCHEMAMUTATION: {
+          mergeModifyFulltextLanguageSchemaMutation(other.getModifyFulltextLanguageSchemaMutation());
+          break;
+        }
+        case REMOVEFULLTEXTLANGUAGESCHEMAMUTATION: {
+          mergeRemoveFulltextLanguageSchemaMutation(other.getRemoveFulltextLanguageSchemaMutation());
+          break;
+        }
+        case CREATEFULLTEXTRESOURCESCHEMAMUTATION: {
+          mergeCreateFulltextResourceSchemaMutation(other.getCreateFulltextResourceSchemaMutation());
+          break;
+        }
+        case MODIFYFULLTEXTRESOURCESCHEMAMUTATION: {
+          mergeModifyFulltextResourceSchemaMutation(other.getModifyFulltextResourceSchemaMutation());
+          break;
+        }
+        case REMOVEFULLTEXTRESOURCESCHEMAMUTATION: {
+          mergeRemoveFulltextResourceSchemaMutation(other.getRemoveFulltextResourceSchemaMutation());
+          break;
+        }
+        case CREATEFULLTEXTANALYZERSCHEMAMUTATION: {
+          mergeCreateFulltextAnalyzerSchemaMutation(other.getCreateFulltextAnalyzerSchemaMutation());
+          break;
+        }
+        case MODIFYFULLTEXTANALYZERSCHEMAMUTATION: {
+          mergeModifyFulltextAnalyzerSchemaMutation(other.getModifyFulltextAnalyzerSchemaMutation());
+          break;
+        }
+        case REMOVEFULLTEXTANALYZERSCHEMAMUTATION: {
+          mergeRemoveFulltextAnalyzerSchemaMutation(other.getRemoveFulltextAnalyzerSchemaMutation());
           break;
         }
         case MUTATION_NOT_SET: {
@@ -2410,6 +3126,76 @@ private static final long serialVersionUID = 0L;
               mutationCase_ = 37;
               break;
             } // case 298
+            case 306: {
+              input.readMessage(
+                  getSetAttributeSchemaSearchableMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 38;
+              break;
+            } // case 306
+            case 314: {
+              input.readMessage(
+                  getCreateFulltextLanguageSchemaMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 39;
+              break;
+            } // case 314
+            case 322: {
+              input.readMessage(
+                  getModifyFulltextLanguageSchemaMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 40;
+              break;
+            } // case 322
+            case 330: {
+              input.readMessage(
+                  getRemoveFulltextLanguageSchemaMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 41;
+              break;
+            } // case 330
+            case 338: {
+              input.readMessage(
+                  getCreateFulltextResourceSchemaMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 42;
+              break;
+            } // case 338
+            case 346: {
+              input.readMessage(
+                  getModifyFulltextResourceSchemaMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 43;
+              break;
+            } // case 346
+            case 354: {
+              input.readMessage(
+                  getRemoveFulltextResourceSchemaMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 44;
+              break;
+            } // case 354
+            case 362: {
+              input.readMessage(
+                  getCreateFulltextAnalyzerSchemaMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 45;
+              break;
+            } // case 362
+            case 370: {
+              input.readMessage(
+                  getModifyFulltextAnalyzerSchemaMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 46;
+              break;
+            } // case 370
+            case 378: {
+              input.readMessage(
+                  getRemoveFulltextAnalyzerSchemaMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 47;
+              break;
+            } // case 378
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2441,6 +3227,7 @@ private static final long serialVersionUID = 0L;
     }
 
     private int bitField0_;
+    private int bitField1_;
 
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaDescriptionMutationOrBuilder> modifyCatalogSchemaDescriptionMutationBuilder_;
@@ -7025,6 +7812,1786 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 37;
       onChanged();
       return setAttributeSchemaNormalizedMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder> setAttributeSchemaSearchableMutationBuilder_;
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     * @return Whether the setAttributeSchemaSearchableMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasSetAttributeSchemaSearchableMutation() {
+      return mutationCase_ == 38;
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     * @return The setAttributeSchemaSearchableMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation getSetAttributeSchemaSearchableMutation() {
+      if (setAttributeSchemaSearchableMutationBuilder_ == null) {
+        if (mutationCase_ == 38) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 38) {
+          return setAttributeSchemaSearchableMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    public Builder setSetAttributeSchemaSearchableMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation value) {
+      if (setAttributeSchemaSearchableMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        setAttributeSchemaSearchableMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 38;
+      return this;
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    public Builder setSetAttributeSchemaSearchableMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.Builder builderForValue) {
+      if (setAttributeSchemaSearchableMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        setAttributeSchemaSearchableMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 38;
+      return this;
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    public Builder mergeSetAttributeSchemaSearchableMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation value) {
+      if (setAttributeSchemaSearchableMutationBuilder_ == null) {
+        if (mutationCase_ == 38 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 38) {
+          setAttributeSchemaSearchableMutationBuilder_.mergeFrom(value);
+        } else {
+          setAttributeSchemaSearchableMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 38;
+      return this;
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    public Builder clearSetAttributeSchemaSearchableMutation() {
+      if (setAttributeSchemaSearchableMutationBuilder_ == null) {
+        if (mutationCase_ == 38) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 38) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        setAttributeSchemaSearchableMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.Builder getSetAttributeSchemaSearchableMutationBuilder() {
+      return getSetAttributeSchemaSearchableMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder getSetAttributeSchemaSearchableMutationOrBuilder() {
+      if ((mutationCase_ == 38) && (setAttributeSchemaSearchableMutationBuilder_ != null)) {
+        return setAttributeSchemaSearchableMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 38) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Fulltext schema declaration.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation setAttributeSchemaSearchableMutation = 38;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder> 
+        getSetAttributeSchemaSearchableMutationFieldBuilder() {
+      if (setAttributeSchemaSearchableMutationBuilder_ == null) {
+        if (!(mutationCase_ == 38)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.getDefaultInstance();
+        }
+        setAttributeSchemaSearchableMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSearchableMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 38;
+      onChanged();
+      return setAttributeSchemaSearchableMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutationOrBuilder> createFulltextLanguageSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation declares how text in one language is split into words.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+     * @return Whether the createFulltextLanguageSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasCreateFulltextLanguageSchemaMutation() {
+      return mutationCase_ == 39;
+    }
+    /**
+     * <pre>
+     * Mutation declares how text in one language is split into words.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+     * @return The createFulltextLanguageSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation getCreateFulltextLanguageSchemaMutation() {
+      if (createFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 39) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 39) {
+          return createFulltextLanguageSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation declares how text in one language is split into words.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+     */
+    public Builder setCreateFulltextLanguageSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation value) {
+      if (createFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        createFulltextLanguageSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 39;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation declares how text in one language is split into words.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+     */
+    public Builder setCreateFulltextLanguageSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.Builder builderForValue) {
+      if (createFulltextLanguageSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        createFulltextLanguageSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 39;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation declares how text in one language is split into words.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+     */
+    public Builder mergeCreateFulltextLanguageSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation value) {
+      if (createFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 39 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 39) {
+          createFulltextLanguageSchemaMutationBuilder_.mergeFrom(value);
+        } else {
+          createFulltextLanguageSchemaMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 39;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation declares how text in one language is split into words.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+     */
+    public Builder clearCreateFulltextLanguageSchemaMutation() {
+      if (createFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 39) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 39) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        createFulltextLanguageSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation declares how text in one language is split into words.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.Builder getCreateFulltextLanguageSchemaMutationBuilder() {
+      return getCreateFulltextLanguageSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation declares how text in one language is split into words.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutationOrBuilder getCreateFulltextLanguageSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 39) && (createFulltextLanguageSchemaMutationBuilder_ != null)) {
+        return createFulltextLanguageSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 39) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation declares how text in one language is split into words.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation createFulltextLanguageSchemaMutation = 39;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutationOrBuilder> 
+        getCreateFulltextLanguageSchemaMutationFieldBuilder() {
+      if (createFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 39)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.getDefaultInstance();
+        }
+        createFulltextLanguageSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextLanguageSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 39;
+      onChanged();
+      return createFulltextLanguageSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutationOrBuilder> modifyFulltextLanguageSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation replaces the whole word splitting of a declared language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+     * @return Whether the modifyFulltextLanguageSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasModifyFulltextLanguageSchemaMutation() {
+      return mutationCase_ == 40;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole word splitting of a declared language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+     * @return The modifyFulltextLanguageSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation getModifyFulltextLanguageSchemaMutation() {
+      if (modifyFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 40) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 40) {
+          return modifyFulltextLanguageSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole word splitting of a declared language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+     */
+    public Builder setModifyFulltextLanguageSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation value) {
+      if (modifyFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        modifyFulltextLanguageSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 40;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole word splitting of a declared language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+     */
+    public Builder setModifyFulltextLanguageSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.Builder builderForValue) {
+      if (modifyFulltextLanguageSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        modifyFulltextLanguageSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 40;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole word splitting of a declared language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+     */
+    public Builder mergeModifyFulltextLanguageSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation value) {
+      if (modifyFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 40 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 40) {
+          modifyFulltextLanguageSchemaMutationBuilder_.mergeFrom(value);
+        } else {
+          modifyFulltextLanguageSchemaMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 40;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole word splitting of a declared language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+     */
+    public Builder clearModifyFulltextLanguageSchemaMutation() {
+      if (modifyFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 40) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 40) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        modifyFulltextLanguageSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole word splitting of a declared language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.Builder getModifyFulltextLanguageSchemaMutationBuilder() {
+      return getModifyFulltextLanguageSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole word splitting of a declared language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutationOrBuilder getModifyFulltextLanguageSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 40) && (modifyFulltextLanguageSchemaMutationBuilder_ != null)) {
+        return modifyFulltextLanguageSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 40) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole word splitting of a declared language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation modifyFulltextLanguageSchemaMutation = 40;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutationOrBuilder> 
+        getModifyFulltextLanguageSchemaMutationFieldBuilder() {
+      if (modifyFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 40)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.getDefaultInstance();
+        }
+        modifyFulltextLanguageSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextLanguageSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 40;
+      onChanged();
+      return modifyFulltextLanguageSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutationOrBuilder> removeFulltextLanguageSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation removes the word splitting declared for a language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+     * @return Whether the removeFulltextLanguageSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasRemoveFulltextLanguageSchemaMutation() {
+      return mutationCase_ == 41;
+    }
+    /**
+     * <pre>
+     * Mutation removes the word splitting declared for a language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+     * @return The removeFulltextLanguageSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation getRemoveFulltextLanguageSchemaMutation() {
+      if (removeFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 41) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 41) {
+          return removeFulltextLanguageSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation removes the word splitting declared for a language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+     */
+    public Builder setRemoveFulltextLanguageSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation value) {
+      if (removeFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        removeFulltextLanguageSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 41;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation removes the word splitting declared for a language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+     */
+    public Builder setRemoveFulltextLanguageSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.Builder builderForValue) {
+      if (removeFulltextLanguageSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        removeFulltextLanguageSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 41;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation removes the word splitting declared for a language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+     */
+    public Builder mergeRemoveFulltextLanguageSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation value) {
+      if (removeFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 41 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 41) {
+          removeFulltextLanguageSchemaMutationBuilder_.mergeFrom(value);
+        } else {
+          removeFulltextLanguageSchemaMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 41;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation removes the word splitting declared for a language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+     */
+    public Builder clearRemoveFulltextLanguageSchemaMutation() {
+      if (removeFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 41) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 41) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        removeFulltextLanguageSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation removes the word splitting declared for a language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.Builder getRemoveFulltextLanguageSchemaMutationBuilder() {
+      return getRemoveFulltextLanguageSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation removes the word splitting declared for a language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutationOrBuilder getRemoveFulltextLanguageSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 41) && (removeFulltextLanguageSchemaMutationBuilder_ != null)) {
+        return removeFulltextLanguageSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 41) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation removes the word splitting declared for a language.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation removeFulltextLanguageSchemaMutation = 41;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutationOrBuilder> 
+        getRemoveFulltextLanguageSchemaMutationFieldBuilder() {
+      if (removeFulltextLanguageSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 41)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.getDefaultInstance();
+        }
+        removeFulltextLanguageSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextLanguageSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 41;
+      onChanged();
+      return removeFulltextLanguageSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutationOrBuilder> createFulltextResourceSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation declares a named word list or synonym list that analysis steps read.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+     * @return Whether the createFulltextResourceSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasCreateFulltextResourceSchemaMutation() {
+      return mutationCase_ == 42;
+    }
+    /**
+     * <pre>
+     * Mutation declares a named word list or synonym list that analysis steps read.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+     * @return The createFulltextResourceSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation getCreateFulltextResourceSchemaMutation() {
+      if (createFulltextResourceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 42) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 42) {
+          return createFulltextResourceSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation declares a named word list or synonym list that analysis steps read.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+     */
+    public Builder setCreateFulltextResourceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation value) {
+      if (createFulltextResourceSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        createFulltextResourceSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 42;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation declares a named word list or synonym list that analysis steps read.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+     */
+    public Builder setCreateFulltextResourceSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.Builder builderForValue) {
+      if (createFulltextResourceSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        createFulltextResourceSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 42;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation declares a named word list or synonym list that analysis steps read.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+     */
+    public Builder mergeCreateFulltextResourceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation value) {
+      if (createFulltextResourceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 42 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 42) {
+          createFulltextResourceSchemaMutationBuilder_.mergeFrom(value);
+        } else {
+          createFulltextResourceSchemaMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 42;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation declares a named word list or synonym list that analysis steps read.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+     */
+    public Builder clearCreateFulltextResourceSchemaMutation() {
+      if (createFulltextResourceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 42) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 42) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        createFulltextResourceSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation declares a named word list or synonym list that analysis steps read.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.Builder getCreateFulltextResourceSchemaMutationBuilder() {
+      return getCreateFulltextResourceSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation declares a named word list or synonym list that analysis steps read.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutationOrBuilder getCreateFulltextResourceSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 42) && (createFulltextResourceSchemaMutationBuilder_ != null)) {
+        return createFulltextResourceSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 42) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation declares a named word list or synonym list that analysis steps read.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation createFulltextResourceSchemaMutation = 42;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutationOrBuilder> 
+        getCreateFulltextResourceSchemaMutationFieldBuilder() {
+      if (createFulltextResourceSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 42)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.getDefaultInstance();
+        }
+        createFulltextResourceSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextResourceSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 42;
+      onChanged();
+      return createFulltextResourceSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutationOrBuilder> modifyFulltextResourceSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation replaces the whole content of a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+     * @return Whether the modifyFulltextResourceSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasModifyFulltextResourceSchemaMutation() {
+      return mutationCase_ == 43;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole content of a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+     * @return The modifyFulltextResourceSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation getModifyFulltextResourceSchemaMutation() {
+      if (modifyFulltextResourceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 43) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 43) {
+          return modifyFulltextResourceSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole content of a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+     */
+    public Builder setModifyFulltextResourceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation value) {
+      if (modifyFulltextResourceSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        modifyFulltextResourceSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 43;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole content of a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+     */
+    public Builder setModifyFulltextResourceSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.Builder builderForValue) {
+      if (modifyFulltextResourceSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        modifyFulltextResourceSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 43;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole content of a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+     */
+    public Builder mergeModifyFulltextResourceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation value) {
+      if (modifyFulltextResourceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 43 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 43) {
+          modifyFulltextResourceSchemaMutationBuilder_.mergeFrom(value);
+        } else {
+          modifyFulltextResourceSchemaMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 43;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole content of a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+     */
+    public Builder clearModifyFulltextResourceSchemaMutation() {
+      if (modifyFulltextResourceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 43) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 43) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        modifyFulltextResourceSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole content of a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.Builder getModifyFulltextResourceSchemaMutationBuilder() {
+      return getModifyFulltextResourceSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole content of a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutationOrBuilder getModifyFulltextResourceSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 43) && (modifyFulltextResourceSchemaMutationBuilder_ != null)) {
+        return modifyFulltextResourceSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 43) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole content of a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation modifyFulltextResourceSchemaMutation = 43;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutationOrBuilder> 
+        getModifyFulltextResourceSchemaMutationFieldBuilder() {
+      if (modifyFulltextResourceSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 43)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.getDefaultInstance();
+        }
+        modifyFulltextResourceSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextResourceSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 43;
+      onChanged();
+      return modifyFulltextResourceSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutationOrBuilder> removeFulltextResourceSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+     * @return Whether the removeFulltextResourceSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasRemoveFulltextResourceSchemaMutation() {
+      return mutationCase_ == 44;
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+     * @return The removeFulltextResourceSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation getRemoveFulltextResourceSchemaMutation() {
+      if (removeFulltextResourceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 44) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 44) {
+          return removeFulltextResourceSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+     */
+    public Builder setRemoveFulltextResourceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation value) {
+      if (removeFulltextResourceSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        removeFulltextResourceSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 44;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+     */
+    public Builder setRemoveFulltextResourceSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.Builder builderForValue) {
+      if (removeFulltextResourceSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        removeFulltextResourceSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 44;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+     */
+    public Builder mergeRemoveFulltextResourceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation value) {
+      if (removeFulltextResourceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 44 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 44) {
+          removeFulltextResourceSchemaMutationBuilder_.mergeFrom(value);
+        } else {
+          removeFulltextResourceSchemaMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 44;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+     */
+    public Builder clearRemoveFulltextResourceSchemaMutation() {
+      if (removeFulltextResourceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 44) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 44) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        removeFulltextResourceSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.Builder getRemoveFulltextResourceSchemaMutationBuilder() {
+      return getRemoveFulltextResourceSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutationOrBuilder getRemoveFulltextResourceSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 44) && (removeFulltextResourceSchemaMutationBuilder_ != null)) {
+        return removeFulltextResourceSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 44) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext resource.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation removeFulltextResourceSchemaMutation = 44;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutationOrBuilder> 
+        getRemoveFulltextResourceSchemaMutationFieldBuilder() {
+      if (removeFulltextResourceSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 44)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.getDefaultInstance();
+        }
+        removeFulltextResourceSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextResourceSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 44;
+      onChanged();
+      return removeFulltextResourceSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutationOrBuilder> createFulltextAnalyzerSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation declares a named fulltext analyzer searchable fields can refer to.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+     * @return Whether the createFulltextAnalyzerSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasCreateFulltextAnalyzerSchemaMutation() {
+      return mutationCase_ == 45;
+    }
+    /**
+     * <pre>
+     * Mutation declares a named fulltext analyzer searchable fields can refer to.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+     * @return The createFulltextAnalyzerSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation getCreateFulltextAnalyzerSchemaMutation() {
+      if (createFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 45) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 45) {
+          return createFulltextAnalyzerSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation declares a named fulltext analyzer searchable fields can refer to.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+     */
+    public Builder setCreateFulltextAnalyzerSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation value) {
+      if (createFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        createFulltextAnalyzerSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 45;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation declares a named fulltext analyzer searchable fields can refer to.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+     */
+    public Builder setCreateFulltextAnalyzerSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.Builder builderForValue) {
+      if (createFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        createFulltextAnalyzerSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 45;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation declares a named fulltext analyzer searchable fields can refer to.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+     */
+    public Builder mergeCreateFulltextAnalyzerSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation value) {
+      if (createFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 45 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 45) {
+          createFulltextAnalyzerSchemaMutationBuilder_.mergeFrom(value);
+        } else {
+          createFulltextAnalyzerSchemaMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 45;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation declares a named fulltext analyzer searchable fields can refer to.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+     */
+    public Builder clearCreateFulltextAnalyzerSchemaMutation() {
+      if (createFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 45) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 45) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        createFulltextAnalyzerSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation declares a named fulltext analyzer searchable fields can refer to.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.Builder getCreateFulltextAnalyzerSchemaMutationBuilder() {
+      return getCreateFulltextAnalyzerSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation declares a named fulltext analyzer searchable fields can refer to.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutationOrBuilder getCreateFulltextAnalyzerSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 45) && (createFulltextAnalyzerSchemaMutationBuilder_ != null)) {
+        return createFulltextAnalyzerSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 45) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation declares a named fulltext analyzer searchable fields can refer to.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation createFulltextAnalyzerSchemaMutation = 45;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutationOrBuilder> 
+        getCreateFulltextAnalyzerSchemaMutationFieldBuilder() {
+      if (createFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 45)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.getDefaultInstance();
+        }
+        createFulltextAnalyzerSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcCreateFulltextAnalyzerSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 45;
+      onChanged();
+      return createFulltextAnalyzerSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutationOrBuilder> modifyFulltextAnalyzerSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation replaces the whole definition of a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+     * @return Whether the modifyFulltextAnalyzerSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasModifyFulltextAnalyzerSchemaMutation() {
+      return mutationCase_ == 46;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole definition of a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+     * @return The modifyFulltextAnalyzerSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation getModifyFulltextAnalyzerSchemaMutation() {
+      if (modifyFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 46) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 46) {
+          return modifyFulltextAnalyzerSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole definition of a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+     */
+    public Builder setModifyFulltextAnalyzerSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation value) {
+      if (modifyFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        modifyFulltextAnalyzerSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 46;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole definition of a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+     */
+    public Builder setModifyFulltextAnalyzerSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.Builder builderForValue) {
+      if (modifyFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        modifyFulltextAnalyzerSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 46;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole definition of a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+     */
+    public Builder mergeModifyFulltextAnalyzerSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation value) {
+      if (modifyFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 46 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 46) {
+          modifyFulltextAnalyzerSchemaMutationBuilder_.mergeFrom(value);
+        } else {
+          modifyFulltextAnalyzerSchemaMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 46;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole definition of a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+     */
+    public Builder clearModifyFulltextAnalyzerSchemaMutation() {
+      if (modifyFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 46) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 46) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        modifyFulltextAnalyzerSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole definition of a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.Builder getModifyFulltextAnalyzerSchemaMutationBuilder() {
+      return getModifyFulltextAnalyzerSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole definition of a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutationOrBuilder getModifyFulltextAnalyzerSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 46) && (modifyFulltextAnalyzerSchemaMutationBuilder_ != null)) {
+        return modifyFulltextAnalyzerSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 46) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation replaces the whole definition of a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation modifyFulltextAnalyzerSchemaMutation = 46;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutationOrBuilder> 
+        getModifyFulltextAnalyzerSchemaMutationFieldBuilder() {
+      if (modifyFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 46)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.getDefaultInstance();
+        }
+        modifyFulltextAnalyzerSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcModifyFulltextAnalyzerSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 46;
+      onChanged();
+      return modifyFulltextAnalyzerSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutationOrBuilder> removeFulltextAnalyzerSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+     * @return Whether the removeFulltextAnalyzerSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasRemoveFulltextAnalyzerSchemaMutation() {
+      return mutationCase_ == 47;
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+     * @return The removeFulltextAnalyzerSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation getRemoveFulltextAnalyzerSchemaMutation() {
+      if (removeFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 47) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 47) {
+          return removeFulltextAnalyzerSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+     */
+    public Builder setRemoveFulltextAnalyzerSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation value) {
+      if (removeFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        removeFulltextAnalyzerSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 47;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+     */
+    public Builder setRemoveFulltextAnalyzerSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.Builder builderForValue) {
+      if (removeFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        removeFulltextAnalyzerSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 47;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+     */
+    public Builder mergeRemoveFulltextAnalyzerSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation value) {
+      if (removeFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 47 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 47) {
+          removeFulltextAnalyzerSchemaMutationBuilder_.mergeFrom(value);
+        } else {
+          removeFulltextAnalyzerSchemaMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 47;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+     */
+    public Builder clearRemoveFulltextAnalyzerSchemaMutation() {
+      if (removeFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 47) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 47) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        removeFulltextAnalyzerSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.Builder getRemoveFulltextAnalyzerSchemaMutationBuilder() {
+      return getRemoveFulltextAnalyzerSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutationOrBuilder getRemoveFulltextAnalyzerSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 47) && (removeFulltextAnalyzerSchemaMutationBuilder_ != null)) {
+        return removeFulltextAnalyzerSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 47) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation removes a declared fulltext analyzer.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation removeFulltextAnalyzerSchemaMutation = 47;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutationOrBuilder> 
+        getRemoveFulltextAnalyzerSchemaMutationFieldBuilder() {
+      if (removeFulltextAnalyzerSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 47)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.getDefaultInstance();
+        }
+        removeFulltextAnalyzerSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcRemoveFulltextAnalyzerSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 47;
+      onChanged();
+      return removeFulltextAnalyzerSchemaMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

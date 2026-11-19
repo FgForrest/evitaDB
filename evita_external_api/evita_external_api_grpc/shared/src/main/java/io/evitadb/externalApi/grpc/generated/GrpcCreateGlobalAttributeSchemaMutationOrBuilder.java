@@ -120,7 +120,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=95
+   *     See GrpcAttributeSchemaMutations.proto;l=104
    * @return The enum numeric value on the wire for unique.
    */
   @java.lang.Deprecated int getUniqueValue();
@@ -133,7 +133,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=95
+   *     See GrpcAttributeSchemaMutations.proto;l=104
    * @return The unique.
    */
   @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique();
@@ -147,7 +147,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=99
+   *     See GrpcAttributeSchemaMutations.proto;l=108
    * @return The enum numeric value on the wire for uniqueGlobally.
    */
   @java.lang.Deprecated int getUniqueGloballyValue();
@@ -160,7 +160,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=99
+   *     See GrpcAttributeSchemaMutations.proto;l=108
    * @return The uniqueGlobally.
    */
   @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally();
@@ -175,7 +175,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>bool filterable = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=104
+   *     See GrpcAttributeSchemaMutations.proto;l=113
    * @return The filterable.
    */
   @java.lang.Deprecated boolean getFilterable();
@@ -190,7 +190,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>bool sortable = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=109
+   *     See GrpcAttributeSchemaMutations.proto;l=118
    * @return The sortable.
    */
   @java.lang.Deprecated boolean getSortable();
@@ -635,4 +635,134 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder getNormalizationOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+   * @return A list containing the searchableInScopes.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getSearchableInScopesList();
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+   * @return The count of searchableInScopes.
+   */
+  int getSearchableInScopesCount();
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+   * @param index The index of the element to return.
+   * @return The searchableInScopes at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getSearchableInScopes(int index);
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+   * @return A list containing the enum numeric values on the wire for searchableInScopes.
+   */
+  java.util.List<java.lang.Integer>
+  getSearchableInScopesValueList();
+  /**
+   * <pre>
+   * Replacement searchable scopes.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope searchableInScopes = 21;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of searchableInScopes at the given index.
+   */
+  int getSearchableInScopesValue(int index);
+
+  /**
+   * <pre>
+   * Optional fulltext analyzer name.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 22;</code>
+   * @return Whether the analyzer field is set.
+   */
+  boolean hasAnalyzer();
+  /**
+   * <pre>
+   * Optional fulltext analyzer name.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 22;</code>
+   * @return The analyzer.
+   */
+  com.google.protobuf.StringValue getAnalyzer();
+  /**
+   * <pre>
+   * Optional fulltext analyzer name.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue analyzer = 22;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getAnalyzerOrBuilder();
+
+  /**
+   * <pre>
+   * Optional fulltext length pivot.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+   * @return Whether the lengthPivot field is set.
+   */
+  boolean hasLengthPivot();
+  /**
+   * <pre>
+   * Optional fulltext length pivot.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+   * @return The lengthPivot.
+   */
+  com.google.protobuf.Int32Value getLengthPivot();
+  /**
+   * <pre>
+   * Optional fulltext length pivot.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value lengthPivot = 23;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getLengthPivotOrBuilder();
+
+  /**
+   * <pre>
+   * Optional ranking weight; explicit zero is preserved.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+   * @return Whether the searchWeight field is set.
+   */
+  boolean hasSearchWeight();
+  /**
+   * <pre>
+   * Optional ranking weight; explicit zero is preserved.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+   * @return The searchWeight.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getSearchWeight();
+  /**
+   * <pre>
+   * Optional ranking weight; explicit zero is preserved.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal searchWeight = 24;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getSearchWeightOrBuilder();
 }

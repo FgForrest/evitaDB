@@ -82,7 +82,8 @@ public abstract class AbstractMutationTest {
 				new ScopedReferenceIndexType[] {
 					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 				},
-				new Scope[] {Scope.LIVE}
+				new Scope[] {Scope.LIVE},
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			),
 			"category",
 			ReferenceSchema._internalBuild(
@@ -116,7 +117,8 @@ public abstract class AbstractMutationTest {
 					)
 				),
 				Map.of(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchema.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			)
 		),
 		EnumSet.allOf(EvolutionMode.class),

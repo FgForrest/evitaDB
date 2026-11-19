@@ -106,6 +106,7 @@ import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.core.transaction.engine.operators.DefaultUpgradeExecutor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.index.fulltext.typo.FulltextTypoParameters;
 import io.evitadb.index.mutation.local.MissingHistogramValueBehavior;
 import io.evitadb.roaringbitmap.RoaringKernels;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
@@ -221,6 +222,8 @@ public final class Evita implements EvitaContract {
 	 * Field contains the global - shared configuration for the entire Evita instance.
 	 */
 	@Getter private final EvitaConfiguration configuration;
+	/** Query-side fulltext policy mapped once from the API configuration. */
+	@Getter private final FulltextTypoParameters fulltextTypoParameters;
 	/**
 	 * What a write does when it must withdraw a reference-histogram value the index does not hold for the entity -
 	 * resolved once, when this instance starts, by {@link MissingHistogramValueBehavior#fromSystemProperty()}, and
@@ -518,6 +521,7 @@ public final class Evita implements EvitaContract {
 		}
 
 		this.configuration = configuration;
+		this.fulltextTypoParameters = new FulltextTypoParameters(configuration.fulltext());
 		this.onSessionCreationCallback = onSessionCreationCallback == null ?
 			Functions.noOpConsumer() : onSessionCreationCallback;
 		this.onSessionTerminationCallback = onSessionTerminationCallback == null ?

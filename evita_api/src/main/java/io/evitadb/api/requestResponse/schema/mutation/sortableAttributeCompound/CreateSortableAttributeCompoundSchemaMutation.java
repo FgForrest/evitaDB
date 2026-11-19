@@ -303,7 +303,8 @@ public class CreateSortableAttributeCompoundSchemaMutation
 							Function.identity()
 						)
 					),
-					referenceSchema.getConflictResolutionOverride()
+					referenceSchema.getConflictResolutionOverride(),
+					referenceSchema.getSearchableThroughInScopes(), referenceSchema.getSearchableThroughWeight()
 				);
 			}
 		} else if (existingCompoundSchema.get().equals(newCompoundSchema)) {

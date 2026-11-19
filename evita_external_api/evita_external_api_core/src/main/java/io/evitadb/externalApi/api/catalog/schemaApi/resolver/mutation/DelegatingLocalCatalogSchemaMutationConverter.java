@@ -27,6 +27,16 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.*;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.*;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextLanguageSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateFulltextResourceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextLanguageSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyFulltextResourceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextAnalyzerSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextLanguageSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveFulltextResourceSchemaMutation;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.*;
 import io.evitadb.externalApi.api.resolver.mutation.DelegatingMutationConverter;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
@@ -67,6 +77,24 @@ public class DelegatingLocalCatalogSchemaMutationConverter extends
 		registerConverter(ModifyCatalogSchemaDescriptionMutation.class, new ModifyCatalogSchemaDescriptionMutationConverter(objectParser, exceptionFactory));
 		registerConverter(ModifyCatalogSchemaConflictResolutionMutation.class, new ModifyCatalogSchemaConflictResolutionMutationConverter(objectParser, exceptionFactory));
 		registerConverter(AllowEvolutionModeInCatalogSchemaMutation.class, new AllowEvolutionModeInCatalogSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(RemoveFulltextAnalyzerSchemaMutation.class,
+			new RemoveFulltextAnalyzerSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(ModifyFulltextAnalyzerSchemaMutation.class,
+			new ModifyFulltextAnalyzerSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(CreateFulltextAnalyzerSchemaMutation.class,
+			new CreateFulltextAnalyzerSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(RemoveFulltextResourceSchemaMutation.class,
+			new RemoveFulltextResourceSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(ModifyFulltextResourceSchemaMutation.class,
+			new ModifyFulltextResourceSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(CreateFulltextResourceSchemaMutation.class,
+			new CreateFulltextResourceSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(RemoveFulltextLanguageSchemaMutation.class,
+			new RemoveFulltextLanguageSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(ModifyFulltextLanguageSchemaMutation.class,
+			new ModifyFulltextLanguageSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(CreateFulltextLanguageSchemaMutation.class,
+			new CreateFulltextLanguageSchemaMutationConverter(objectParser, exceptionFactory));
 		registerConverter(DisallowEvolutionModeInCatalogSchemaMutation.class, new DisallowEvolutionModeInCatalogSchemaMutationConverter(objectParser, exceptionFactory));
 
 		// global attribute schema mutations
@@ -85,6 +113,10 @@ public class DelegatingLocalCatalogSchemaMutationConverter extends
 		registerConverter(
 			SetAttributeSchemaNormalizedMutation.class,
 			new SetAttributeSchemaNormalizedMutationConverter(objectParser, exceptionFactory)
+		);
+		registerConverter(
+			SetAttributeSchemaSearchableMutation.class,
+			new SetAttributeSchemaSearchableMutationConverter(objectParser, exceptionFactory)
 		);
 		registerConverter(SetAttributeSchemaLocalizedMutation.class, new SetAttributeSchemaLocalizedMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SetAttributeSchemaNullableMutation.class, new SetAttributeSchemaNullableMutationConverter(objectParser, exceptionFactory));

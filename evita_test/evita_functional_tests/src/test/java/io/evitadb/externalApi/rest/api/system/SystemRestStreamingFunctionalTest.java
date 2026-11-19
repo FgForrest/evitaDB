@@ -262,13 +262,10 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 			ctx -> {
 				final long startVersion = evita.getEngineState().version() + 1;
 
-				// subscribe to the HOST area only — the ENGINE area would deliver the underlying
-				// `ModifyEntitySchemaMutation` envelopes, whose nested array-typed mutation payload
-				// is not yet exercised by the REST `ObjectJsonSerializer` and would surface as a
-				// `Serialization of value of class ArrayNode is not implemented yet` error frame
-				// before the host event arrives. Coalescing semantics for `CatalogSchemaUpdated`
+				// subscribe to the HOST area only — coalescing semantics for `CatalogSchemaUpdated`
 				// are independent of the engine-mutation surface, so HOST-only is the focused
-				// scope for this test.
+				// scope for this test, and without engine-mutation envelopes the frame count
+				// awaited below stays unambiguous.
 				ctx.writer().write(createConnectionInitMessage());
 				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,

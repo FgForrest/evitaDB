@@ -587,7 +587,8 @@ class IndexingExpressionInputValidatorTest {
 				null,
 				new Scope[]{Scope.LIVE, Scope.ARCHIVED},
 				facetConditions, histograms, bucketConditions,
-				Collections.emptyMap(), Collections.emptyMap(), ConflictResolutionOverride.INHERITED
+				Collections.emptyMap(), Collections.emptyMap(), ConflictResolutionOverride.INHERITED,
+				null, ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 			);
 		}
 	}

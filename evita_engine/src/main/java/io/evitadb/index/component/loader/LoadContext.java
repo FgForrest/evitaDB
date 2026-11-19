@@ -35,7 +35,6 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
@@ -81,8 +80,6 @@ import java.util.function.UnaryOperator;
  *                               {@link IndexActivity} holder — carried through the reload
  *                               because an index restored from disk starts a fresh observation window, and
  *                               a server running with `server.usageStatisticsTracking` off must not open one
- * @param fulltextAnalyzerRegistry the catalog's analyzer registry, through which the fulltext indexes resolve the
- *                               analyzer they were built with by its persisted name
  * @param normalizationResolver owner resolver used to bind String functions before any attribute tree is constructed
  */
 public record LoadContext(
@@ -97,7 +94,6 @@ public record LoadContext(
 	@Nonnull StoragePartPersistenceService<?> storagePartService,
 	@Nullable RepresentativeReferenceKey referenceKey,
 	boolean usageStatisticsTracking,
-	@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
 	@Nonnull AttributeNormalizationResolver normalizationResolver
 ) {
 

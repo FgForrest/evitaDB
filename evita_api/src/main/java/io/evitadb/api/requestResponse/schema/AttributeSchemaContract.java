@@ -23,6 +23,9 @@
 
 package io.evitadb.api.requestResponse.schema;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.TextPlaceWeightSupport;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.AttributeContains;
 import io.evitadb.api.query.filter.AttributeEquals;
@@ -44,6 +47,7 @@ import io.evitadb.dataType.Scope;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -71,6 +75,37 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContract, ConflictResolutionOverrideAwareSchemaContract {
+
+	/**
+	 * The {@link #getLengthPivot() length pivot} of an attribute or associated data that declares none.
+	 */
+	int DEFAULT_LENGTH_PIVOT = 25;
+
+	/** Default fulltext ranking weight; every matching place contributes equally. */
+	BigDecimal DEFAULT_SEARCH_WEIGHT = BigDecimal.ONE;
+
+	/**
+	 * Canonicalizes a schema weight and checks that the engine can represent a nonzero ranking contribution.
+	 *
+	 * @param weight supplied decimal weight
+	 * @param place attribute, associated data or reference named in a refusal
+	 * @return the canonical decimal, with zero preserved explicitly
+	 * @throws InvalidSchemaMutationException when the decimal bounds or the engine float range are exceeded
+	 */
+	@Nonnull
+	static BigDecimal normalizeSearchWeight(@Nonnull BigDecimal weight, @Nonnull String place) {
+		final BigDecimal normalized;
+		try {
+			normalized = TextPlaceWeightSupport.normalize(weight);
+		} catch (EvitaInvalidUsageException ex) {
+			throw new InvalidSchemaMutationException(place + " search weight: " + ex.getMessage());
+		}
+		final float engineWeight = normalized.floatValue();
+		if (!Float.isFinite(engineWeight) || (normalized.signum() != 0 && engineWeight == 0f)) {
+			throw new InvalidSchemaMutationException(place + " search weight exceeds the engine float range!");
+		}
+		return normalized;
+	}
 
 	/**
 	 * Ordered normalization steps for `String` and `String[]` attributes, shared by all scopes.
@@ -346,13 +381,15 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * of its references of that reference type - an entity referencing three brands is found by the name of any of
 	 * them, and a name two of its references share counts once. A change of a reference attribute that adds no value
 	 * missing from that union and removes no value no other reference still holds changes nothing in the fulltext
-	 * index at all.
+	 * index at all. The reference must be indexed in every scope the attribute is searchable in - for the attributes
+	 * a reflected reference inherits too - otherwise the reference schema is refused.
 	 *
-	 * **Over stored data**, declaring an attribute searchable is never refused, but values stored before the
-	 * declaration are not indexed retroactively - stored data is not reindexed yet - so a search returns incomplete
-	 * results until such a value is written again. Withdrawing searchability takes effect lazily, at the next write of
-	 * the attribute in the scope and locale, and the space its old values took in the index is not reclaimed; a later
-	 * re-declaration starts from an empty field. Results are only ever incomplete, never phantom.
+	 * **Over stored data**, declaring an attribute searchable is never refused because of the data already stored,
+	 * but values stored before the declaration are not indexed retroactively - stored data is not reindexed yet - so
+	 * a search returns incomplete results until such a value is written again. Withdrawing searchability takes effect
+	 * lazily, at the next write of the attribute in the scope and locale, and the space its old values took in the
+	 * index is not reclaimed; a later re-declaration starts from an empty field. Results are only ever incomplete,
+	 * never phantom.
 	 *
 	 * This method returns true only if the attribute is searchable in the default (i.e. {@link Scope#LIVE}) scope.
 	 *
@@ -389,6 +426,41 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 */
 	@Nonnull
 	Set<Scope> getSearchableInScopes();
+
+	/**
+	 * Returns the name of the fulltext analyzer that turns the attribute's values into words while it is
+	 * {@link #isSearchable() searchable}: a built-in one ({@link FulltextAnalyzerSchemaContract#TEXT},
+	 * {@link FulltextAnalyzerSchemaContract#HTML_TEXT}) or one declared in the catalog schema
+	 * ({@link CatalogSchemaContract#getFulltextAnalyzers()}). The analyzer must exist in the catalog; the reference is
+	 * checked on the schema an update produces as a whole, so one update may declare an analyzer and point the
+	 * attribute to it, or point the attribute elsewhere and remove the analyzer.
+	 *
+	 * @return the name of the analyzer, {@link FulltextAnalyzerSchemaContract#TEXT} unless declared otherwise
+	 */
+	@Nonnull
+	String getAnalyzer();
+
+	/**
+	 * Returns the length pivot of the attribute's fulltext field: the number of words a value of normal length has.
+	 * A word found in a value shorter than the pivot weighs more, in a longer one less, so that short values such as
+	 * titles are not outranked by long texts that merely mention the word.
+	 *
+	 * @return the length pivot, {@link #DEFAULT_LENGTH_PIVOT} unless declared otherwise
+	 */
+	int getLengthPivot();
+
+	/**
+	 * Returns the fulltext ranking weight of this attribute.
+	 * Zero preserves matches while contributing no ranking strength. This setting applies in every
+	 * scope and changing it does not rebuild the fulltext field.
+	 *
+	 * Equal decimal values share one representation. Weights must be non-negative, use at most 100 significant
+	 * digits and have a stripped scale within [-100, 100]. Nonzero values must convert to a finite, nonzero float.
+	 *
+	 * @return the ranking weight, {@link AttributeSchemaContract#DEFAULT_SEARCH_WEIGHT} unless declared otherwise
+	 */
+	@Nonnull
+	BigDecimal getSearchWeight();
 
 	/**
 	 * Collects the schema-consistency errors of this attribute, one message per problem, **without throwing**.
@@ -450,6 +522,26 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				);
 			}
 		}
+		if (getAnalyzer().isBlank()) {
+			errors = Stream.concat(
+				errors, Stream.of("Attribute `" + getName() + "` names a blank fulltext analyzer.")
+			);
+		}
+		try {
+			AttributeSchemaContract.normalizeSearchWeight(getSearchWeight(), "Attribute `" + getName() + "`");
+		} catch (InvalidSchemaMutationException ex) {
+			errors = Stream.concat(errors, Stream.of(ex.getMessage()));
+		}
+
+		if (getLengthPivot() <= 0) {
+			errors = Stream.concat(
+				errors,
+				Stream.of(
+					"Attribute `" + getName() + "` declares the length pivot " + getLengthPivot() +
+						"! The length pivot must be positive."
+				)
+			);
+		}
 		if (!getNormalization().isEmpty() && !String.class.equals(getPlainType())) {
 			errors = Stream.concat(
 				errors,
@@ -459,8 +551,8 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				)
 			);
 		}
-		// Records validate individual descriptions at construction; keep the assembled contract responsible
-		// for structure too, including alternate contract implementations and deserialized schemas.
+		// a description validates itself when created; the assembled contract checks the steps again, because an
+		// alternate contract implementation or a deserialized schema may hold any list
 		for (final AnalysisStep step : getNormalization()) {
 			if (step == null) {
 				errors = Stream.concat(
@@ -468,7 +560,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 				);
 			} else {
 				try {
-					new AnalysisStep(step.name(), step.parameters());
+					AnalysisStep.of(step.name(), step.parameters());
 				} catch (final IllegalArgumentException ex) {
 					errors = Stream.concat(
 						errors, Stream.of(

@@ -626,9 +626,15 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		return new InsertionPosition(lo, false);
 	}
 
+	/**
+	 * Appends the exact key rather than a debug rendering, decoded from the front-coded bytes without materializing
+	 * a String: exact string lookups and forward bucket cursors compare these characters with their probes.
+	 */
 	@Override
 	public void appendKey(@Nonnull StringBuilder sb, int index) {
-		sb.append(decodeAt(index));
+		final DecodeScratch scratch = SCRATCH.get();
+		final int length = decodeAtBytes(scratch, index);
+		Wtf8.appendDecoded(scratch.cur, length, sb);
 	}
 
 	@Nonnull

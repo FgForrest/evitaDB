@@ -59,7 +59,6 @@ import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.PriceSuperIndexLoader;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.fulltext.FulltextIndex;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.membership.ReducedIndexMembership;
@@ -598,28 +597,21 @@ public class GlobalEntityIndex extends EntityIndex
 	}
 
 	/**
-	 * Returns the fulltext index of the passed locale partition, creating an empty one built with the passed analyzer
-	 * when there is none.
+	 * Returns the fulltext index of the passed locale partition, creating an empty one when there is none.
 	 *
-	 * An existing index is returned as it is, even when it was built with a different analyzer than the passed one -
-	 * which happens when the analyzer assigned to the locale changed after the index was built, and the index was
-	 * reloaded with the analyzer it persisted. The index keeps analyzing every value it adds or removes with its own
-	 * analyzer, so it never holds the terms of two analyzers, and removing a value always finds the postings adding it
-	 * produced. The newly assigned analyzer applies only to an index built anew: the mismatch degrades the index to
-	 * its old analysis, it never refuses the write.
+	 * Each field records its own built-with analysis identities. Creating or loading the locale container needs no
+	 * analyzer; every field write supplies the compiled current schema chain and pivot.
 	 *
 	 * @param locale        the locale of the partition
-	 * @param indexAnalyzer analyzer of the index slot of the locale, used only when the index is created
 	 * @return the fulltext index, never `null`
 	 */
 	@Nonnull
-	public FulltextIndex getOrCreateFulltextIndex(@Nonnull Locale locale, @Nonnull FulltextAnalyzer indexAnalyzer) {
+	public FulltextIndex getOrCreateFulltextIndex(@Nonnull Locale locale) {
 		final FulltextIndex existing = this.fulltextIndexes.get(locale);
 		if (existing != null) {
-			// TOBEDONE JNO #409 - rebuild an index whose analyzer differs from the one the locale is assigned now
 			return existing;
 		}
-		final FulltextIndex created = new FulltextIndex(indexAnalyzer);
+		final FulltextIndex created = new FulltextIndex();
 		this.fulltextIndexes.put(locale, created);
 		return created;
 	}

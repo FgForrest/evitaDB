@@ -29,7 +29,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;
-
+import java.math.BigDecimal;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
@@ -171,6 +171,39 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 		.type(nonNull(ConflictResolutionOverride.class))
 		.build();
 
+	/** Scopes whose fulltext index holds this field; empty when it is not searchable. */
+	PropertyDescriptor SEARCHABLE = PropertyDescriptor.builder()
+		.name("searchable")
+		.description("""
+			Scopes in which the field contributes words to the fulltext index. An empty list means the field is not
+			searchable in any scope.
+			""")
+		.type(nonNull(Scope[].class))
+		.build();
+	/** Name of the analyzer turning the values into words, `text` unless declared otherwise. */
+	PropertyDescriptor ANALYZER = PropertyDescriptor.builder()
+		.name("analyzer").description("""
+			Name of the fulltext analyzer that turns the values into words while the field is searchable: a built-in
+			one (`text`, `html-text`) or one the catalog declares. `text` unless declared otherwise.
+			""")
+		.type(nonNull(String.class)).build();
+	/** Number of words a value of normal length has; positive, 25 unless declared otherwise. */
+	PropertyDescriptor LENGTH_PIVOT = PropertyDescriptor.builder()
+		.name("lengthPivot").description("""
+			Number of words a value of normal length has; positive, 25 unless declared otherwise. A word found in a
+			shorter value weighs more, in a longer one less, so short values such as titles are not outranked by long
+			texts that merely mention the word.
+			""")
+		.type(nonNull(Integer.class)).build();
+	/** Decimal ranking weight of the field; zero preserves matches without ranking strength. */
+	PropertyDescriptor SEARCH_WEIGHT = PropertyDescriptor.builder()
+		.name("searchWeight").description("""
+			Fulltext ranking weight of the field, shared by every scope; 1.0 unless declared otherwise. Zero preserves
+			matches while contributing no ranking strength. The weight must be non-negative, have at most
+			100 significant digits and a stripped scale between -100 and 100, and fit the engine float range.
+			""")
+		.type(nonNull(BigDecimal.class)).build();
+
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("AttributeSchema")
 		.description("""
@@ -199,6 +232,10 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			FILTERABLE,
 			ACCELERATED,
 			NORMALIZED,
+			SEARCHABLE,
+			ANALYZER,
+			LENGTH_PIVOT,
+			SEARCH_WEIGHT,
 			SORTABLE,
 			LOCALIZED,
 			NULLABLE,

@@ -88,6 +88,12 @@ public class EntitySchemaObjectBuilder {
 			ScopedReferenceIndexTypeDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
 		);
 		this.buildingContext.registerType(
+			ScopedReferenceSearchModeDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedReferenceSearchModeDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
 			ScopedReferenceIndexedComponentsDescriptor.THIS.to(this.objectBuilderTransformer).build()
 		);
 		this.buildingContext.registerType(

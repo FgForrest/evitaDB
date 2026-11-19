@@ -51,6 +51,7 @@ import java.nio.file.attribute.BasicFileAttributes;
  * @param transaction Contains transaction related options.
  * @param cache       Cache options contain settings crucial for Evita caching and cache invalidation.
  * @param export      Export options contain settings for file export functionality including storage backend selection.
+ * @param fulltext    Query-side fulltext options; changes do not require a reindex.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaConfiguration(
@@ -59,24 +60,41 @@ public record EvitaConfiguration(
 	@Nonnull StorageOptions storage,
 	@Nonnull TransactionOptions transaction,
 	@Nonnull CacheOptions cache,
-	@Nonnull ExportOptions export
+	@Nonnull ExportOptions export,
+	@Nonnull FulltextOptions fulltext
 ) {
 	public static final String DEFAULT_SERVER_NAME = "evitaDB";
 
 	/**
 	 * Builder for the evitaDB options. Recommended to use to avoid binary compatibility problems in the future.
+	 * @return a builder using the built-in defaults
 	 */
+	@Nonnull
 	public static EvitaConfiguration.Builder builder() {
 		return new Builder();
 	}
 
 	/**
 	 * Builder for the evitaDB options. Recommended to use to avoid binary compatibility problems in the future.
+	 * @param configuration configuration to copy
+	 * @return a builder copying every configuration section
 	 */
+	@Nonnull
 	public static EvitaConfiguration.Builder builder(@Nonnull EvitaConfiguration configuration) {
 		return new Builder(configuration);
 	}
 
+	/**
+	 * Creates a configuration with the built-in fulltext defaults.
+	 * @param name instance name
+	 * @param server server options
+	 * @param storage storage options
+	 * @param transaction transaction options
+	 * @param cache cache options
+	 * @param export export options
+	 * @deprecated Use {@link #builder()} to preserve compatibility when new sections are added.
+	 */
+	@Deprecated(since = "2026.3", forRemoval = true)
 	public EvitaConfiguration(
 		@Nonnull String name,
 		@Nonnull ServerOptions server,
@@ -84,6 +102,28 @@ public record EvitaConfiguration(
 		@Nonnull TransactionOptions transaction,
 		@Nonnull CacheOptions cache,
 		@Nonnull ExportOptions export
+	) {
+		this(name, server, storage, transaction, cache, export, new FulltextOptions());
+	}
+
+	/**
+	 * Creates a configuration including the query-side fulltext options.
+	 * @param name instance name
+	 * @param server server options
+	 * @param storage storage options
+	 * @param transaction transaction options
+	 * @param cache cache options
+	 * @param export export options
+	 * @param fulltext query-side fulltext options
+	 */
+	public EvitaConfiguration(
+		@Nonnull String name,
+		@Nonnull ServerOptions server,
+		@Nonnull StorageOptions storage,
+		@Nonnull TransactionOptions transaction,
+		@Nonnull CacheOptions cache,
+		@Nonnull ExportOptions export,
+		@Nonnull FulltextOptions fulltext
 	) {
 		try {
 			if (DEFAULT_SERVER_NAME.equals(name)) {
@@ -112,6 +152,8 @@ public record EvitaConfiguration(
 			this.transaction = transaction;
 			this.cache = cache;
 			this.export = export;
+			Assert.notNull(fulltext, "fulltext must not be null.");
+			this.fulltext = fulltext;
 		} catch (IOException ex) {
 			throw new GenericEvitaInternalError("Unable to access storage directory creation time!", ex);
 		}
@@ -130,7 +172,8 @@ public record EvitaConfiguration(
 			new StorageOptions(),
 			new TransactionOptions(),
 			new CacheOptions(),
-			export
+			export,
+			new FulltextOptions()
 		);
 	}
 
@@ -154,10 +197,17 @@ public record EvitaConfiguration(
 		private TransactionOptions transaction = TransactionOptions.builder().build();
 		private CacheOptions cache = CacheOptions.builder().build();
 		private ExportOptions export = DefaultExportOptions.INSTANCE;
+		/** Query-side fulltext options shared by all catalogs. */
+		private FulltextOptions fulltext = new FulltextOptions();
 
+		/** Creates a builder with the built-in defaults. */
 		Builder() {
 		}
 
+		/**
+		 * Copies all configuration sections.
+		 * @param configuration configuration to copy
+		 */
 		Builder(@Nonnull EvitaConfiguration configuration) {
 			this.name = configuration.name;
 			this.server = configuration.server;
@@ -165,48 +215,94 @@ public record EvitaConfiguration(
 			this.transaction = configuration.transaction;
 			this.cache = configuration.cache;
 			this.export = configuration.export;
+			this.fulltext = configuration.fulltext;
 		}
 
+		/**
+		 * Sets the instance name.
+		 * @param name instance name
+		 * @return this builder
+		 */
 		@Nonnull
 		public EvitaConfiguration.Builder name(@Nonnull String name) {
 			this.name = name;
 			return this;
 		}
 
+		/**
+		 * Sets the server options.
+		 * @param server server options
+		 * @return this builder
+		 */
 		@Nonnull
 		public EvitaConfiguration.Builder server(@Nonnull ServerOptions server) {
 			this.server = server;
 			return this;
 		}
 
+		/**
+		 * Sets the storage options.
+		 * @param storage storage options
+		 * @return this builder
+		 */
 		@Nonnull
 		public EvitaConfiguration.Builder storage(@Nonnull StorageOptions storage) {
 			this.storage = storage;
 			return this;
 		}
 
+		/**
+		 * Sets the transaction options.
+		 * @param transaction transaction options
+		 * @return this builder
+		 */
 		@Nonnull
 		public EvitaConfiguration.Builder transaction(@Nonnull TransactionOptions transaction) {
 			this.transaction = transaction;
 			return this;
 		}
 
+		/**
+		 * Sets the cache options.
+		 * @param cache cache options
+		 * @return this builder
+		 */
 		@Nonnull
 		public EvitaConfiguration.Builder cache(@Nonnull CacheOptions cache) {
 			this.cache = cache;
 			return this;
 		}
 
+		/**
+		 * Sets the export options.
+		 * @param export export options
+		 * @return this builder
+		 */
 		@Nonnull
 		public EvitaConfiguration.Builder export(@Nonnull ExportOptions export) {
 			this.export = export;
 			return this;
 		}
 
+		/**
+		 * Sets the query-side fulltext options.
+		 * @param fulltext fulltext options for every catalog
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder fulltext(@Nonnull FulltextOptions fulltext) {
+			this.fulltext = fulltext;
+			return this;
+		}
+
+		/**
+		 * Builds the configuration with every selected section.
+		 * @return the immutable engine configuration
+		 */
 		@Nonnull
 		public EvitaConfiguration build() {
 			return new EvitaConfiguration(
-				this.name, this.server, this.storage, this.transaction, this.cache, this.export
+				this.name, this.server, this.storage, this.transaction, this.cache, this.export, this.fulltext
 			);
 		}
 

@@ -55,6 +55,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static io.evitadb.api.requestResponse.schema.ReferenceSchemaContract.DEFAULT_SEARCHABLE_THROUGH_WEIGHT;
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -257,7 +258,8 @@ class Migration_2026_3_UpgradeReportTest implements EvitaTestSupport {
 					"products", null, null, "product", "brand", null,
 					null, null, null, null, null, null,
 					Collections.emptyMap(), Collections.emptyMap(),
-					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT, new String[]{"label"}
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT, new String[]{"label"},
+					null, DEFAULT_SEARCHABLE_THROUGH_WEIGHT
 				).withReferencedSchema(original);
 				assertTrue(reflected.getSortableAttributeCompounds().containsKey("validityLabel"));
 				assertFalse(reflected.getAttributes().containsKey("label"));
