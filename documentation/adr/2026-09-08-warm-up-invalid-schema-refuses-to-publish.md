@@ -1,7 +1,7 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-11-19 21:17
+updated: 2026-11-19 21:41
 status: accepted
 kind: fix
 issues: [1466, 2014, 2032, 2033]
@@ -284,7 +284,8 @@ both reached the disk.
   or with `CatalogUnpublishableException` caused by it when termination has already recorded its cause and the flush's
   first barrier check meets that. It counts itself out exactly once: still under the lock below at the end of a
   publication that succeeded; after the barrier stands when it failed, a synchronous failure after its pop included;
-  and on completion when it was cancelled. Counting out on completion alone was not enough: the dependents of the
+  and on completion when it was cancelled - in the last two even when raising the barrier throws, as scheduling its
+  deactivation does on a shut-down scheduler. Counting out on completion alone was not enough: the dependents of the
   flush future run before the one registered first, so the session close - and a termination right behind it - would
   still have found a flush that had already published. A session close whose flush cannot even be submitted - a full
   or shut-down transaction pool - settles the flush exceptionally, so the flush's own failure handler raises the
@@ -395,7 +396,7 @@ termination releases the lock, the idle-writer control fails on its own `isPubli
 closes - a queued call resuming between the unlock and the close of the persistence service - has no deterministic
 reproduction.
 
-`CatalogWarmUpTerminationBesideFlushTest` (8 tests) drives the flush a warm-up close starts - `Catalog#flush()`
+`CatalogWarmUpTerminationBesideFlushTest` (10 tests) drives the flush a warm-up close starts - `Catalog#flush()`
 executed on an executor that holds its collection writes back, the one seam there is, because the close dispatches to
 the engine's own transaction executor - and, where the termination itself must be held, a spy that pauses it once it
 has begun. One test per transition, each failing on its own counterfactual:
@@ -421,6 +422,11 @@ has begun. One test per transition, each failing on its own counterfactual:
   does not load;
 - a session close whose flush cannot be submitted - the same pool held and its backlog full: before the change the
   catalog stayed publishable (`expected: <false> but was: <true>`) over the changes the stranded flush had popped;
+- raising the barrier when the scheduler is shut down - the state of an embedded engine whose close has shut its
+  service executor down - so scheduling the deactivation throws after the cause is recorded: a flush failing in its
+  last step, with a termination registered behind it the way the session close's completion is, and a cancelled
+  flush followed by a termination. Before the count-out moved into a `finally` in the failure handler and in the
+  cancellation backstop, both terminations still found the flush in progress and warned that its work was dropped;
 - a flush finishing before termination, the control, publishes the write whole.
 
 `CatalogWarmUpTerminationCatalogIndexTest` (6 tests) covers the catalog index. Before the shared publication tail, both
@@ -481,9 +487,6 @@ but was: <false>`).
   - *Cancellation visible before the barrier.* The backstop for a cancelled flush is a completion dependent, so the
     flush's remaining writes and last step can still run - and publish - before the barrier stands. Nothing cancels a
     warm-up flush today.
-  - *A shut-down scheduler.* The flush's failure handler and its cancellation backstop raise the barrier and then
-    count the flush out; when scheduling the deactivation throws, the count-out is skipped, which leaves the barrier
-    standing but a later termination reporting a flush in progress that no longer is.
   - *A transaction pool of one worker (inherited).* A warm-up schema change joins collection writes it submits to the
     pool its own operator occupies, and engine shutdown queues catalog termination on that same pool, so with one
     worker both starve.

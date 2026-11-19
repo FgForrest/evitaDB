@@ -2941,10 +2941,14 @@ public final class Catalog
 				// `super.completeExceptionally` no-ops - but the mark behind it is compare-and-set guarded, so MARKING
 				// twice is impossible and the first cause is the one that survives. The failed flush is counted out
 				// only once the barrier stands: a termination that finds no flush in progress must never find the
-				// barrier still missing for one that failed.
+				// barrier still missing for one that failed. Counted out even when the mark throws - scheduling the
+				// deactivation fails on a shut-down scheduler after the barrier is already raised.
 				failure -> {
-					markUnpublishable(failure);
-					countOut.run();
+					try {
+						markUnpublishable(failure);
+					} finally {
+						countOut.run();
+					}
 				}
 			);
 		} catch (RuntimeException | Error ex) {
@@ -2972,10 +2976,13 @@ public final class Catalog
 		// among them, and a termination right behind that close must not count a flush that has already published.
 		flushFuture.whenComplete(
 			(result, ex) -> {
-				if (ex != null) {
-					markUnpublishable(ex);
+				try {
+					if (ex != null) {
+						markUnpublishable(ex);
+					}
+				} finally {
+					countOut.run();
 				}
-				countOut.run();
 			}
 		);
 		return flushFuture;

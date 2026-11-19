@@ -39,7 +39,11 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
+import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.executor.Scheduler;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -54,11 +58,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -75,6 +82,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -516,6 +524,59 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 	}
 
 	@Nested
+	@DisplayName("when raising the barrier cannot schedule the deactivation")
+	class DeactivationRefusedByScheduler {
+
+		@Test
+		@DisplayName("should count a failed flush out before a termination behind it begins")
+		void shouldCountFailedFlushOutWhenDeactivationCannotBeScheduled() {
+			final CatalogWarmUpTerminationBesideFlushTest test = CatalogWarmUpTerminationBesideFlushTest.this;
+			final Catalog catalog = test.catalog();
+			final EvitaSessionContract writer = test.evita.createReadWriteSession(TEST_CATALOG);
+			writeProductAndCategory(writer);
+			shutDownSchedulerOf(catalog);
+			failWriteOfCatalogChanges(catalog);
+			final InFlightFlush flush = startFlush(catalog::flush);
+			// registered on the flush the way the session close registers the completion the drain waits for, after
+			// which the engine terminates the catalog
+			final CompletableFuture<List<ILoggingEvent>> terminationBehindFlush = flush.future()
+				.handle((result, ex) -> captureCatalogWarnings(catalog::terminate));
+
+			flush.heldBack().runRemaining();
+			final List<ILoggingEvent> warnings = terminationBehindFlush.join();
+
+			assertTrue(flush.future().isCompletedExceptionally(), "the flush must have failed in its last step");
+			assertFalse(catalog.isPublishable(), "the failed flush must have barred publication");
+			assertTrue(
+				warnings.isEmpty(),
+				() -> "a termination behind a flush that failed must not find it still in progress, but it warned: " +
+					warnings.stream().map(ILoggingEvent::getFormattedMessage).toList()
+			);
+		}
+
+		@Test
+		@DisplayName("should count a cancelled flush out")
+		void shouldCountCancelledFlushOutWhenDeactivationCannotBeScheduled() {
+			final CatalogWarmUpTerminationBesideFlushTest test = CatalogWarmUpTerminationBesideFlushTest.this;
+			final Catalog catalog = test.catalog();
+			final EvitaSessionContract writer = test.evita.createReadWriteSession(TEST_CATALOG);
+			writeProductAndCategory(writer);
+			shutDownSchedulerOf(catalog);
+			final InFlightFlush flush = startFlush(catalog::flush);
+
+			assertTrue(flush.future().cancel(false), "the flush must be cancelled before any of its writes ran");
+			final List<ILoggingEvent> warnings = captureCatalogWarnings(catalog::terminate);
+
+			assertFalse(catalog.isPublishable(), "the cancelled flush must have barred publication");
+			assertTrue(
+				warnings.isEmpty(),
+				() -> "a termination after a flush was cancelled must not find it still in progress, but it warned: " +
+					warnings.stream().map(ILoggingEvent::getFormattedMessage).toList()
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("when the termination runs right behind a flush that published")
 	class TerminationBehindPublishedFlush {
 
@@ -680,6 +741,99 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 			return (ReentrantLock) field.get(catalog);
 		} catch (ReflectiveOperationException ex) {
 			throw new IllegalStateException("The warm-up publication lock of the catalog is not readable.", ex);
+		}
+	}
+
+	/**
+	 * Replaces the scheduler of the catalog with one that is shut down, so that raising the unpublishable barrier
+	 * fails to schedule the deactivation that goes with it - the state of an embedded engine whose close has shut its
+	 * service executor down.
+	 *
+	 * @param catalog the catalog
+	 */
+	private static void shutDownSchedulerOf(@Nonnull Catalog catalog) {
+		final Scheduler shutDown = new Scheduler(new ScheduledThreadPoolExecutor(1));
+		shutDown.shutdown();
+		replaceCatalogField(catalog, "scheduler", shutDown);
+	}
+
+	/**
+	 * Replaces the data store buffer of the catalog with one whose popped trapped changes fail to be written, so the
+	 * last step of a flush fails once every collection has been written - the injected failure the storage layer has
+	 * no seam for.
+	 *
+	 * @param catalog the catalog
+	 */
+	private static void failWriteOfCatalogChanges(@Nonnull Catalog catalog) {
+		final DataStoreMemoryBuffer real = (DataStoreMemoryBuffer) readCatalogField(catalog, "dataStoreBuffer");
+		final DataStoreMemoryBuffer failing = (DataStoreMemoryBuffer) Proxy.newProxyInstance(
+			DataStoreMemoryBuffer.class.getClassLoader(),
+			new Class<?>[]{DataStoreMemoryBuffer.class},
+			(proxy, method, args) -> {
+				if ("popTrappedChanges".equals(method.getName())) {
+					final TrappedChanges unwritable = new TrappedChanges();
+					unwritable.addIterator(
+						new Iterator<>() {
+							@Override
+							public boolean hasNext() {
+								return true;
+							}
+
+							@Override
+							public StoragePart next() {
+								throw new IllegalStateException("Injected failure to write the catalog's own changes.");
+							}
+						},
+						1
+					);
+					return unwritable;
+				}
+				try {
+					return method.invoke(real, args);
+				} catch (InvocationTargetException ex) {
+					throw ex.getCause();
+				}
+			}
+		);
+		replaceCatalogField(catalog, "dataStoreBuffer", failing);
+	}
+
+	/**
+	 * Reads a private field of the catalog.
+	 *
+	 * @param catalog   the catalog
+	 * @param fieldName name of the field
+	 * @return the value of the field
+	 */
+	@Nullable
+	private static Object readCatalogField(@Nonnull Catalog catalog, @Nonnull String fieldName) {
+		try {
+			final Field field = Catalog.class.getDeclaredField(fieldName);
+			field.setAccessible(true);
+			return field.get(catalog);
+		} catch (ReflectiveOperationException ex) {
+			throw new IllegalStateException("The field `" + fieldName + "` of the catalog is not readable.", ex);
+		}
+	}
+
+	/**
+	 * Replaces a private field of the catalog.
+	 *
+	 * @param catalog   the catalog
+	 * @param fieldName name of the field
+	 * @param value     the value to set
+	 */
+	private static void replaceCatalogField(
+		@Nonnull Catalog catalog,
+		@Nonnull String fieldName,
+		@Nonnull Object value
+	) {
+		try {
+			final Field field = Catalog.class.getDeclaredField(fieldName);
+			field.setAccessible(true);
+			field.set(catalog, value);
+		} catch (ReflectiveOperationException ex) {
+			throw new IllegalStateException("The field `" + fieldName + "` of the catalog is not writable.", ex);
 		}
 	}
 
