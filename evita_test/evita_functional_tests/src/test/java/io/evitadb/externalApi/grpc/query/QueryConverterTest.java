@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.query;
 
 import com.google.protobuf.Int32Value;
+import com.google.protobuf.InvalidProtocolBufferException;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
@@ -38,6 +39,7 @@ import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.QueryTelemetryContent;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.core.Evita;
@@ -94,6 +96,7 @@ import static io.evitadb.api.query.QueryConstraints.histogramHaving;
 import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.page;
+import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
@@ -266,6 +269,72 @@ class QueryConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> QueryConverter.convertQueryParam(GrpcQueryParam.getDefaultInstance())
 		);
+	}
+
+	/**
+	 * Every telemetry level has to survive the trip through `GrpcQueryParam` in both directions. A real query only
+	 * ever extracts `PLAN` - `TIMINGS` is an implicit argument the client leaves out - but the conversion maps the
+	 * type, so it must not depend on which constant a query happens to carry.
+	 */
+	@Test
+	@DisplayName("should convert every query telemetry content level in both directions")
+	void shouldConvertQueryTelemetryContentInBothDirections() {
+		for (final QueryTelemetryContent content : QueryTelemetryContent.values()) {
+			assertEquals(content, convertQueryParam(content));
+		}
+	}
+
+	/**
+	 * The numbers on the wire are the contract with clients generated from the proto files, which never see the Java
+	 * conversion. Two mirrored mistakes in that conversion would cancel out between a Java client and a Java server,
+	 * so each level is checked against its wire number after a real serialization - including `TIMINGS`, whose zero
+	 * value must still arrive as a set parameter.
+	 *
+	 * @throws InvalidProtocolBufferException when the serialized parameter cannot be parsed back
+	 */
+	@Test
+	@DisplayName("should put each query telemetry content level on the wire under its own number")
+	void shouldSerializeQueryTelemetryContentUnderItsWireNumber() throws InvalidProtocolBufferException {
+		final Map<QueryTelemetryContent, Integer> wireNumbers = Map.of(
+			QueryTelemetryContent.TIMINGS, 0,
+			QueryTelemetryContent.PLAN, 1
+		);
+		assertEquals(QueryTelemetryContent.values().length, wireNumbers.size());
+		for (final QueryTelemetryContent content : QueryTelemetryContent.values()) {
+			final GrpcQueryParam received = GrpcQueryParam.parseFrom(
+				QueryConverter.convertQueryParam(content).toByteArray()
+			);
+			assertEquals(QueryParamCase.QUERYTELEMETRYCONTENT, received.getQueryParamCase());
+			assertEquals(wireNumbers.get(content).intValue(), received.getQueryTelemetryContentValue());
+			assertEquals(content, QueryConverter.convertQueryParam(received));
+		}
+	}
+
+	/**
+	 * The client sends `queryTelemetry(PLAN)` as `queryTelemetry(?)` with the level as a positional parameter, so the
+	 * level reaches the server only if that parameter encodes and the server parses it back into the same query.
+	 */
+	@Test
+	@DisplayName("should round-trip a query asking for the formula plan through the gRPC query converter")
+	void shouldRoundTripQueryTelemetryPlanThroughTheWire() {
+		final Query original = query(
+			collection("product"),
+			require(queryTelemetry(QueryTelemetryContent.PLAN))
+		).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		assertTrue(
+			extracted.parameters().contains(QueryTelemetryContent.PLAN),
+			"The level must travel as a parameter, or this test does not exercise the gRPC parameter at all."
+		);
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
 	}
 
 	@Test

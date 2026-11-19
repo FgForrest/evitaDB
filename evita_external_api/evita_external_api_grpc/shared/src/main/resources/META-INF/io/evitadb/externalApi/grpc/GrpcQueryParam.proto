@@ -112,6 +112,12 @@ message GrpcQueryParam {
     // A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
     // all and the requirement keeps its own default, `MATCHING`.
     GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;
+    // Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+    // select whether the query profile carries the formula plan alongside the timings.
+    //
+    // A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+    // sent at all - in practice the arm only ever carries `PLAN`.
+    GrpcQueryTelemetryContent queryTelemetryContent = 29;
 
     // Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
     // as `attributeInSet` over string-typed attributes.

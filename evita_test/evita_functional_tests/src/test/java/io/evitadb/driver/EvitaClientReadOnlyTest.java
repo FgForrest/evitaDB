@@ -62,6 +62,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.QueryTelemetryContent;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -73,6 +74,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
+import io.evitadb.api.requestResponse.extraResult.FormulaPlan;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
@@ -1308,6 +1310,51 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
 		assertNotNull(referenceSummary);
 		assertFalse(referenceSummary.getReferenceStatistics().isEmpty());
+	}
+
+	/**
+	 * Tests that a query asking for the formula plan gets the plan back from the server. The client sends the
+	 * telemetry level as a query parameter, so the level travels only if a gRPC query parameter can carry it - the
+	 * default level never needs to, because it is an implicit argument the client leaves out.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
+	@Test
+	@DisplayName("get the executed formula plan when the query telemetry asks for it")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldGetExecutedFormulaPlanWhenTelemetryAsksForPlan(
+		EvitaClient evitaClient,
+		Map<Integer, SealedEntity> products
+	) {
+		final Locale locale = products.values()
+			.stream()
+			.flatMap(it -> it.getAllLocales().stream())
+			.findFirst()
+			.orElseThrow();
+
+		final EvitaResponse<EntityReference> result = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityLocaleEquals(locale)),
+						require(queryTelemetry(QueryTelemetryContent.PLAN))
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final QueryTelemetry telemetry = result.getExtraResult(QueryTelemetry.class);
+		assertNotNull(telemetry, "Query telemetry must be present - it is the observable this test reads!");
+		final FormulaPlan plan = telemetry.getPlan();
+		assertNotNull(plan, "The root must carry the plan that was actually executed!");
+		assertNotNull(plan.description(), "The described occurrence of a formula must say what it is!");
+		assertNull(plan.refTo(), "The plan root can never be a back-reference - nothing precedes it!");
+		assertNotNull(plan.actualCost(), "The executed plan must report the cost it really incurred!");
+		assertNotNull(plan.resultCount(), "The executed plan must report how many records it produced!");
 	}
 
 	/**
