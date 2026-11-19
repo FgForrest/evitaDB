@@ -5,7 +5,7 @@ updated: 2026-11-19 16:56
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917, 1920]
-prs: [1884, 1913, 1914, 1919]
+prs: [1884, 1913, 1914, 1919, 2034]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
   - evita_query/src/main/java/io/evitadb/api/query
