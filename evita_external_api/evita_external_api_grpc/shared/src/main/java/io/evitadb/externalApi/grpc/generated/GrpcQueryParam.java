@@ -100,6 +100,7 @@ private static final long serialVersionUID = 0L;
     FACETGROUPRELATIONLEVEL(26),
     TRAVERSALMODE(27),
     HIERARCHYPARENTSBEHAVIOUR(28),
+    QUERYTELEMETRYCONTENT(29),
     STRINGARRAYVALUE(101),
     INTEGERARRAYVALUE(102),
     LONGARRAYVALUE(103),
@@ -167,6 +168,7 @@ private static final long serialVersionUID = 0L;
         case 26: return FACETGROUPRELATIONLEVEL;
         case 27: return TRAVERSALMODE;
         case 28: return HIERARCHYPARENTSBEHAVIOUR;
+        case 29: return QUERYTELEMETRYCONTENT;
         case 101: return STRINGARRAYVALUE;
         case 102: return INTEGERARRAYVALUE;
         case 103: return LONGARRAYVALUE;
@@ -1509,6 +1511,61 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour.MATCHING;
   }
 
+  public static final int QUERYTELEMETRYCONTENT_FIELD_NUMBER = 29;
+  /**
+   * <pre>
+   * Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+   * select whether the query profile carries the formula plan alongside the timings.
+   *
+   * A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+   * sent at all - in practice the arm only ever carries `PLAN`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent queryTelemetryContent = 29;</code>
+   * @return Whether the queryTelemetryContent field is set.
+   */
+  public boolean hasQueryTelemetryContent() {
+    return queryParamCase_ == 29;
+  }
+  /**
+   * <pre>
+   * Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+   * select whether the query profile carries the formula plan alongside the timings.
+   *
+   * A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+   * sent at all - in practice the arm only ever carries `PLAN`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent queryTelemetryContent = 29;</code>
+   * @return The enum numeric value on the wire for queryTelemetryContent.
+   */
+  public int getQueryTelemetryContentValue() {
+    if (queryParamCase_ == 29) {
+      return (java.lang.Integer) queryParam_;
+    }
+    return 0;
+  }
+  /**
+   * <pre>
+   * Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+   * select whether the query profile carries the formula plan alongside the timings.
+   *
+   * A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+   * sent at all - in practice the arm only ever carries `PLAN`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent queryTelemetryContent = 29;</code>
+   * @return The queryTelemetryContent.
+   */
+  public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent getQueryTelemetryContent() {
+    if (queryParamCase_ == 29) {
+      io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent result = io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent.forNumber(
+          (java.lang.Integer) queryParam_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent.UNRECOGNIZED : result;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent.TIMINGS;
+  }
+
   public static final int STRINGARRAYVALUE_FIELD_NUMBER = 101;
   /**
    * <pre>
@@ -2622,6 +2679,9 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 28) {
       output.writeEnum(28, ((java.lang.Integer) queryParam_));
     }
+    if (queryParamCase_ == 29) {
+      output.writeEnum(29, ((java.lang.Integer) queryParam_));
+    }
     if (queryParamCase_ == 101) {
       output.writeMessage(101, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_);
     }
@@ -2809,6 +2869,10 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 28) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(28, ((java.lang.Integer) queryParam_));
+    }
+    if (queryParamCase_ == 29) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(29, ((java.lang.Integer) queryParam_));
     }
     if (queryParamCase_ == 101) {
       size += com.google.protobuf.CodedOutputStream
@@ -3027,6 +3091,10 @@ private static final long serialVersionUID = 0L;
         if (getHierarchyParentsBehaviourValue()
             != other.getHierarchyParentsBehaviourValue()) return false;
         break;
+      case 29:
+        if (getQueryTelemetryContentValue()
+            != other.getQueryTelemetryContentValue()) return false;
+        break;
       case 101:
         if (!getStringArrayValue()
             .equals(other.getStringArrayValue())) return false;
@@ -3243,6 +3311,10 @@ private static final long serialVersionUID = 0L;
       case 28:
         hash = (37 * hash) + HIERARCHYPARENTSBEHAVIOUR_FIELD_NUMBER;
         hash = (53 * hash) + getHierarchyParentsBehaviourValue();
+        break;
+      case 29:
+        hash = (37 * hash) + QUERYTELEMETRYCONTENT_FIELD_NUMBER;
+        hash = (53 * hash) + getQueryTelemetryContentValue();
         break;
       case 101:
         hash = (37 * hash) + STRINGARRAYVALUE_FIELD_NUMBER;
@@ -3890,6 +3962,10 @@ private static final long serialVersionUID = 0L;
           setHierarchyParentsBehaviourValue(other.getHierarchyParentsBehaviourValue());
           break;
         }
+        case QUERYTELEMETRYCONTENT: {
+          setQueryTelemetryContentValue(other.getQueryTelemetryContentValue());
+          break;
+        }
         case STRINGARRAYVALUE: {
           mergeStringArrayValue(other.getStringArrayValue());
           break;
@@ -4181,6 +4257,12 @@ private static final long serialVersionUID = 0L;
               queryParam_ = rawValue;
               break;
             } // case 224
+            case 232: {
+              int rawValue = input.readEnum();
+              queryParamCase_ = 29;
+              queryParam_ = rawValue;
+              break;
+            } // case 232
             case 810: {
               input.readMessage(
                   getStringArrayValueFieldBuilder().getBuilder(),
@@ -7817,6 +7899,124 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearHierarchyParentsBehaviour() {
       if (queryParamCase_ == 28) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
+        onChanged();
+      }
+      return this;
+    }
+
+    /**
+     * <pre>
+     * Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+     * select whether the query profile carries the formula plan alongside the timings.
+     *
+     * A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+     * sent at all - in practice the arm only ever carries `PLAN`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent queryTelemetryContent = 29;</code>
+     * @return Whether the queryTelemetryContent field is set.
+     */
+    @java.lang.Override
+    public boolean hasQueryTelemetryContent() {
+      return queryParamCase_ == 29;
+    }
+    /**
+     * <pre>
+     * Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+     * select whether the query profile carries the formula plan alongside the timings.
+     *
+     * A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+     * sent at all - in practice the arm only ever carries `PLAN`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent queryTelemetryContent = 29;</code>
+     * @return The enum numeric value on the wire for queryTelemetryContent.
+     */
+    @java.lang.Override
+    public int getQueryTelemetryContentValue() {
+      if (queryParamCase_ == 29) {
+        return ((java.lang.Integer) queryParam_).intValue();
+      }
+      return 0;
+    }
+    /**
+     * <pre>
+     * Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+     * select whether the query profile carries the formula plan alongside the timings.
+     *
+     * A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+     * sent at all - in practice the arm only ever carries `PLAN`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent queryTelemetryContent = 29;</code>
+     * @param value The enum numeric value on the wire for queryTelemetryContent to set.
+     * @return This builder for chaining.
+     */
+    public Builder setQueryTelemetryContentValue(int value) {
+      queryParamCase_ = 29;
+      queryParam_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+     * select whether the query profile carries the formula plan alongside the timings.
+     *
+     * A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+     * sent at all - in practice the arm only ever carries `PLAN`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent queryTelemetryContent = 29;</code>
+     * @return The queryTelemetryContent.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent getQueryTelemetryContent() {
+      if (queryParamCase_ == 29) {
+        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent result = io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent.forNumber(
+            (java.lang.Integer) queryParam_);
+        return result == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent.UNRECOGNIZED : result;
+      }
+      return io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent.TIMINGS;
+    }
+    /**
+     * <pre>
+     * Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+     * select whether the query profile carries the formula plan alongside the timings.
+     *
+     * A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+     * sent at all - in practice the arm only ever carries `PLAN`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent queryTelemetryContent = 29;</code>
+     * @param value The queryTelemetryContent to set.
+     * @return This builder for chaining.
+     */
+    public Builder setQueryTelemetryContent(io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      queryParamCase_ = 29;
+      queryParam_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+     * select whether the query profile carries the formula plan alongside the timings.
+     *
+     * A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+     * sent at all - in practice the arm only ever carries `PLAN`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent queryTelemetryContent = 29;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearQueryTelemetryContent() {
+      if (queryParamCase_ == 29) {
         queryParamCase_ = 0;
         queryParam_ = null;
         onChanged();

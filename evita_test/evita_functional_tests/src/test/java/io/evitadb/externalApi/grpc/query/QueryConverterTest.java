@@ -38,6 +38,7 @@ import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.QueryTelemetryContent;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.core.Evita;
@@ -94,6 +95,7 @@ import static io.evitadb.api.query.QueryConstraints.histogramHaving;
 import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.page;
+import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
@@ -266,6 +268,46 @@ class QueryConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> QueryConverter.convertQueryParam(GrpcQueryParam.getDefaultInstance())
 		);
+	}
+
+	/**
+	 * Every telemetry level has to survive the trip through `GrpcQueryParam` in both directions. A real query only
+	 * ever extracts `PLAN` - `TIMINGS` is an implicit argument the client leaves out - but the conversion maps the
+	 * type, so it must not depend on which constant a query happens to carry.
+	 */
+	@Test
+	@DisplayName("should convert every query telemetry content level in both directions")
+	void shouldConvertQueryTelemetryContentInBothDirections() {
+		for (final QueryTelemetryContent content : QueryTelemetryContent.values()) {
+			assertEquals(content, convertQueryParam(content));
+		}
+	}
+
+	/**
+	 * The client sends `queryTelemetry(PLAN)` as `queryTelemetry(?)` with the level as a positional parameter, so the
+	 * level reaches the server only if that parameter encodes and the server parses it back into the same query.
+	 */
+	@Test
+	@DisplayName("should round-trip a query asking for the formula plan through the gRPC query converter")
+	void shouldRoundTripQueryTelemetryPlanThroughTheWire() {
+		final Query original = query(
+			collection("product"),
+			require(queryTelemetry(QueryTelemetryContent.PLAN))
+		).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		assertTrue(
+			extracted.parameters().contains(QueryTelemetryContent.PLAN),
+			"The level must travel as a parameter, or this test does not exercise the gRPC parameter at all."
+		);
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
 	}
 
 	@Test

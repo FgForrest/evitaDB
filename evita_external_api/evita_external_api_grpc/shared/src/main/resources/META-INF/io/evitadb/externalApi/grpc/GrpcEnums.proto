@@ -1327,3 +1327,20 @@ enum GrpcStoragePartGroup {
   STORAGE_PART_GROUP_HEADER = 14;
 
 }
+
+// The enumeration controls how much the `queryTelemetry` requirement puts into the query profile it asks for. The
+// levels are ordered by what they cost to produce, and each is a deliberate choice rather than a set to combine: a
+// profile carries the timings, or the timings and the formula plan.
+enum GrpcQueryTelemetryContent {
+  // Phase timings and the root's metrics, and nothing beyond them.
+  //
+  // This is the default, and deliberately the zero value. The level is an implicit argument of `queryTelemetry`, so
+  // a query asking for the default carries no placeholder for it and sends no parameter at all - and a parameter
+  // that does carry the zero value selects the same default.
+  TIMINGS = 0;
+  // The formula plan alongside the timings - the structure of the boolean formula the planner built, with the cost
+  // it estimated for each part and the cost that part really incurred - delivered in the `plan` field of
+  // `GrpcQueryTelemetry` on the phases that own a formula. The plan is rendered inside the measured query, so the
+  // timings of a profile made at this level are not directly comparable with those of one made without it.
+  PLAN = 1;
+}

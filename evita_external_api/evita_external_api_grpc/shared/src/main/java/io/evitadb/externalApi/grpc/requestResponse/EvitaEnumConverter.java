@@ -468,6 +468,42 @@ public class EvitaEnumConverter {
 	}
 
 	/**
+	 * Converts {@link GrpcQueryTelemetryContent} to {@link QueryTelemetryContent}.
+	 *
+	 * @param grpcQueryTelemetryContent the {@link GrpcQueryTelemetryContent} to be converted
+	 * @return the converted {@link QueryTelemetryContent}
+	 * @throws EvitaInvalidUsageException if the given grpcQueryTelemetryContent is unrecognized
+	 */
+	@Nonnull
+	public static QueryTelemetryContent toQueryTelemetryContent(
+		@Nonnull GrpcQueryTelemetryContent grpcQueryTelemetryContent
+	) {
+		return switch (grpcQueryTelemetryContent) {
+			case TIMINGS -> QueryTelemetryContent.TIMINGS;
+			case PLAN -> QueryTelemetryContent.PLAN;
+			case UNRECOGNIZED -> throw new EvitaInvalidUsageException(
+				"Unrecognized remote query telemetry content: " + grpcQueryTelemetryContent
+			);
+		};
+	}
+
+	/**
+	 * Converts {@link QueryTelemetryContent} to {@link GrpcQueryTelemetryContent}.
+	 *
+	 * @param queryTelemetryContent the {@link QueryTelemetryContent} to be converted
+	 * @return the converted {@link GrpcQueryTelemetryContent}
+	 */
+	@Nonnull
+	public static GrpcQueryTelemetryContent toGrpcQueryTelemetryContent(
+		@Nonnull QueryTelemetryContent queryTelemetryContent
+	) {
+		return switch (queryTelemetryContent) {
+			case TIMINGS -> GrpcQueryTelemetryContent.TIMINGS;
+			case PLAN -> GrpcQueryTelemetryContent.PLAN;
+		};
+	}
+
+	/**
 	 * Converts {@link GrpcAttributeSpecialValue} to {@link AttributeSpecialValue}.
 	 *
 	 * @param grpcAttributeSpecialValue the {@link GrpcAttributeSpecialValue} to be converted

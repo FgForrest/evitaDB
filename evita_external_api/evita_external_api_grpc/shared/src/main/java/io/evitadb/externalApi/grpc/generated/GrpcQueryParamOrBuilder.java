@@ -885,6 +885,46 @@ public interface GrpcQueryParamOrBuilder extends
 
   /**
    * <pre>
+   * Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+   * select whether the query profile carries the formula plan alongside the timings.
+   *
+   * A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+   * sent at all - in practice the arm only ever carries `PLAN`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent queryTelemetryContent = 29;</code>
+   * @return Whether the queryTelemetryContent field is set.
+   */
+  boolean hasQueryTelemetryContent();
+  /**
+   * <pre>
+   * Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+   * select whether the query profile carries the formula plan alongside the timings.
+   *
+   * A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+   * sent at all - in practice the arm only ever carries `PLAN`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent queryTelemetryContent = 29;</code>
+   * @return The enum numeric value on the wire for queryTelemetryContent.
+   */
+  int getQueryTelemetryContentValue();
+  /**
+   * <pre>
+   * Binds a `GrpcQueryTelemetryContent` enum parameter into the query, used by the `queryTelemetry` requirement to
+   * select whether the query profile carries the formula plan alongside the timings.
+   *
+   * A query that asks for the default level, `TIMINGS`, carries no placeholder for it, so no entry of this arm is
+   * sent at all - in practice the arm only ever carries `PLAN`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent queryTelemetryContent = 29;</code>
+   * @return The queryTelemetryContent.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryContent getQueryTelemetryContent();
+
+  /**
+   * <pre>
    * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
    * as `attributeInSet` over string-typed attributes.
    * </pre>

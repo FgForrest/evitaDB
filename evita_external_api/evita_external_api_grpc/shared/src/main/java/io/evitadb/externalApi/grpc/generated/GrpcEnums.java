@@ -302,8 +302,9 @@ public final class GrpcEnums {
       "\022&\n\"STORAGE_PART_GROUP_HIERARCHY_INDEX\020\013" +
       "\0220\n,STORAGE_PART_GROUP_REFERENCE_HISTOGR" +
       "AM_INDEX\020\014\022\035\n\031STORAGE_PART_GROUP_SCHEMA\020" +
-      "\r\022\035\n\031STORAGE_PART_GROUP_HEADER\020\016B\014P\001\252\002\007E" +
-      "vitaDBb\006proto3"
+      "\r\022\035\n\031STORAGE_PART_GROUP_HEADER\020\016*2\n\031Grpc" +
+      "QueryTelemetryContent\022\013\n\007TIMINGS\020\000\022\010\n\004PL" +
+      "AN\020\001B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
