@@ -29,14 +29,19 @@ import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
+import io.evitadb.api.query.require.HistogramBehavior;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.time.DayOfWeek;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -78,6 +83,47 @@ class EvitaQLHeadConstraintVisitorTest {
 				"label(@key, @value)", Map.of("key", "lang", "value", Locale.ENGLISH)
 			))
 		);
+	}
+
+	/**
+	 * Checks the diagnostics for types the Java label constructor refuses.
+	 *
+	 * @param value the floating-point or enum parameter
+	 */
+	@ParameterizedTest
+	@MethodSource("unsupportedLabelValues")
+	@DisplayName("Name unsupported floating-point and enum label types in both binding modes")
+	void shouldRejectUnsupportedLabelValues(@Nonnull Object value) {
+		assertAll(
+			() -> assertRefusedType(value, () -> parseHeadConstraint("label(?, ?)", "value", value)),
+			() -> assertRefusedType(value, () -> parseHeadConstraint(
+				"label(@name, @value)", Map.of("name", "value", "value", value)
+			))
+		);
+	}
+
+	/**
+	 * Supplies floating-point values and both kinds of enum refused by the label factory.
+	 *
+	 * @return the refused label values
+	 */
+	@Nonnull
+	static Stream<Object> unsupportedLabelValues() {
+		return Stream.of(
+			2.1d, 2.1f, DayOfWeek.MONDAY, HistogramBehavior.OPTIMIZED,
+			Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY,
+			Float.NaN, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY
+		);
+	}
+
+	/** Checks that an enum literal still requires a type permitted by the label position. */
+	@Test
+	@DisplayName("Name the enum type when refusing an unquoted enum label value")
+	void shouldRejectUntypedLabelEnumLiteral() {
+		final EvitaSyntaxException error = assertThrows(
+			EvitaSyntaxException.class, () -> parseHeadConstraintUnsafe("label('day', MONDAY)")
+		);
+		assertTrue(error.getMessage().contains(Enum.class.getTypeName()), error::getMessage);
 	}
 
 	/**

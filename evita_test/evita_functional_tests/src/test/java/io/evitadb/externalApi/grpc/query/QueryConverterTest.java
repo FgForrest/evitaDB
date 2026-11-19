@@ -74,6 +74,7 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeInRange;
 import static io.evitadb.api.query.QueryConstraints.attributeInSet;
 import static io.evitadb.api.query.QueryConstraints.attributeLessThan;
 import static io.evitadb.api.query.QueryConstraints.attributeSetExact;
@@ -81,6 +82,7 @@ import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.histogramHaving;
 import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.page;
@@ -89,6 +91,7 @@ import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttribut
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.userFilter;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
@@ -348,6 +351,47 @@ class QueryConverterTest {
 			(queryString, positionalArguments, namedArguments, error) -> fail(error)
 		);
 		assertEquals(original, parsed.parsedQuery());
+	}
+
+	/**
+	 * Checks that range points and histogram bounds created from floating-point values use the decimal wire type.
+	 *
+	 * @param from the range point and lower histogram bound
+	 * @param to the upper histogram bound
+	 */
+	@ParameterizedTest
+	@MethodSource("floatingPointRangeAndHistogramBounds")
+	@DisplayName("Round-trip floating-point range points and histogram bounds through gRPC")
+	void shouldRoundTripFloatingPointRangeAndHistogramBounds(@Nonnull Number from, @Nonnull Number to) {
+		final Query original = query(
+			collection("product"),
+			filterBy(
+				attributeInRange("validity", from),
+				userFilter(histogramHaving("parameterValues", "amountBucket", from, to))
+			)
+		).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
+		assertEquals(3, encoded.stream().filter(GrpcQueryParam::hasBigDecimalValue).count());
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertNotNull(parsed);
+		assertEquals(original, parsed.parsedQuery());
+	}
+
+	/**
+	 * Supplies a pair of decimal bounds for each floating-point type to exercise the gRPC round trip.
+	 *
+	 * @return the finite bound pairs
+	 */
+	@Nonnull
+	static Stream<Arguments> floatingPointRangeAndHistogramBounds() {
+		return Stream.of(Arguments.of(2.1d, 2.9d), Arguments.of(7.1f, 7.9f));
 	}
 
 	/**

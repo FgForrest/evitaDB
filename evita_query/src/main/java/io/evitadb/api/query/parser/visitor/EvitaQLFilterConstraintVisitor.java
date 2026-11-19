@@ -83,6 +83,10 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		long.class,
 		Long.class
 	);
+	/**
+	 * Parses range points as numbers or date-times. The Java factory normalizes finite floats and doubles to decimals.
+	 */
+	@Nonnull
 	protected final EvitaQLValueTokenVisitor inRangeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,
 		Byte.class,
@@ -92,6 +96,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		Integer.class,
 		long.class,
 		Long.class,
+		Float.class,
+		Double.class,
 		BigDecimal.class,
 		OffsetDateTime.class
 	);
@@ -106,6 +112,10 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		Long.class,
 		BigDecimal.class
 	);
+	/**
+	 * Parses numeric histogram bounds, including finite floats and doubles that convert to decimals.
+	 */
+	@Nonnull
 	protected final EvitaQLValueTokenVisitor numericValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,
 		Byte.class,
@@ -115,6 +125,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		Integer.class,
 		long.class,
 		Long.class,
+		Float.class,
+		Double.class,
 		BigDecimal.class
 	);
 	protected final EvitaQLValueTokenVisitor offsetDateTimeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(OffsetDateTime.class);

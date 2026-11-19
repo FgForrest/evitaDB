@@ -271,10 +271,9 @@ public class ParseContext {
 	}
 
 	/**
-	 * Checks which types can reach the visitor for position-specific validation. Finite floats and doubles pass this
-	 * check for the attribute value positions (the comparisons, `attributeBetween`, `attributeInSet` and
-	 * `attributeSetExact`), whose factories normalize them to decimals; the visitor of every other position refuses
-	 * them.
+	 * Checks which types can reach the visitor for position-specific validation. Visitors allow floats and doubles in
+	 * attribute comparisons, `attributeBetween`, `attributeInSet`, `attributeSetExact`, `attributeInRange` and
+	 * `histogramHaving`, which normalize them to decimals. Scalar validation also requires these values to be finite.
 	 *
 	 * @param type the scalar or array component type
 	 * @return whether the type is eligible for binding

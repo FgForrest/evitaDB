@@ -301,6 +301,36 @@ class EvitaQLFilterConstraintVisitorTest {
 		}
 
 		/**
+		 * Checks the diagnostic for a non-finite range point and for either histogram bound.
+		 *
+		 * @param value a non-finite floating-point parameter
+		 */
+		@ParameterizedTest
+		@MethodSource("nonFiniteFloatingPointValues")
+		@DisplayName("Name non-finite floating-point types in range and histogram syntax errors")
+		void shouldRejectNonFiniteRangeAndHistogramValues(@Nonnull Number value) {
+			final Class<?> type = value.getClass();
+			assertAll(
+				() -> assertUnsupportedType(type, "attributeInRange(?, ?)", "validity", value),
+				() -> assertUnsupportedType(type, "histogramHaving(?, ?, ?)", "parameterValues", value, 1),
+				() -> assertUnsupportedType(type, "histogramHaving(?, ?, ?)", "parameterValues", 0, value)
+			);
+		}
+
+		/**
+		 * Provides the non-finite values of each floating-point type.
+		 *
+		 * @return the NaNs and infinities
+		 */
+		@Nonnull
+		static Stream<Number> nonFiniteFloatingPointValues() {
+			return Stream.of(
+				Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY,
+				Float.NaN, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY
+			);
+		}
+
+		/**
 		 * Checks that a positional filter binding fails with a syntax error naming its unsupported type.
 		 *
 		 * @param type the class expected in the error
@@ -1035,6 +1065,34 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertEquals(attributeInRange("a", 500L), constraint7);
 		}
 
+		/**
+		 * Compares the parsed range point with the Java factory in both binding modes.
+		 *
+		 * @param point the finite floating-point range point
+		 */
+		@ParameterizedTest
+		@MethodSource("floatingPointRangePoints")
+		@DisplayName("Parse finite floating-point range points in both binding modes")
+		void shouldParseFloatingPointRangePoint(@Nonnull Number point) {
+			final FilterConstraint expected = attributeInRange("validity", point);
+			assertAll(
+				() -> assertEquals(expected, parseFilterConstraint("attributeInRange(?, ?)", "validity", point)),
+				() -> assertEquals(expected, parseFilterConstraint(
+					"attributeInRange(@name, @point)", Map.of("name", "validity", "point", point)
+				))
+			);
+		}
+
+		/**
+		 * Provides a range point for each floating-point type.
+		 *
+		 * @return the finite points to bind
+		 */
+		@Nonnull
+		static Stream<Number> floatingPointRangePoints() {
+			return Stream.of(2.1d, 2.1f);
+		}
+
 		@Test
 		@DisplayName("Should not parse invalid attributeInRange constraint")
 		void shouldNotParseAttributeInRangeConstraint() {
@@ -1728,6 +1786,38 @@ class EvitaQLFilterConstraintVisitorTest {
 	@Nested
 	@DisplayName("histogramHaving constraint")
 	class HistogramHavingConstraint {
+
+		/**
+		 * Compares parsed histogram bounds with the Java factory in both binding modes.
+		 *
+		 * @param from the lower bound
+		 * @param to the upper bound
+		 */
+		@ParameterizedTest
+		@MethodSource("floatingPointHistogramBounds")
+		@DisplayName("Parse finite floating-point histogram bounds in both binding modes")
+		void shouldParseFloatingPointHistogramBounds(@Nonnull Number from, @Nonnull Number to) {
+			final FilterConstraint expected = histogramHaving("parameterValues", "amountBucket", from, to);
+			assertAll(
+				() -> assertEquals(expected, parseFilterConstraint(
+					"histogramHaving(?, ?, ?, ?)", "parameterValues", "amountBucket", from, to
+				)),
+				() -> assertEquals(expected, parseFilterConstraint(
+					"histogramHaving(@ref, @histogram, @from, @to)",
+					Map.of("ref", "parameterValues", "histogram", "amountBucket", "from", from, "to", to)
+				))
+			);
+		}
+
+		/**
+		 * Provides a pair of decimal bounds for each floating-point type.
+		 *
+		 * @return the finite bound pairs
+		 */
+		@Nonnull
+		static Stream<Arguments> floatingPointHistogramBounds() {
+			return Stream.of(Arguments.of(50.1d, 120.3d), Arguments.of(50.1f, 120.3f));
+		}
 
 		@Test
 		@DisplayName("Should parse the three-argument histogramHaving form (classifier plus from/to bounds)")
