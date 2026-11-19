@@ -28,6 +28,8 @@ import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.core.Evita;
+import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -40,6 +42,9 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -59,6 +64,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -210,6 +216,32 @@ class CatalogWarmUpTerminationCatalogIndexTest implements EvitaTestSupport {
 		}
 	}
 
+	@Nested
+	@DisplayName("when the flush of the writer fails after it popped the catalog index")
+	class FlushFailingAfterPop {
+
+		@Test
+		@DisplayName("should bar every later publication")
+		void shouldBarPublicationWhenFlushFailsAfterPoppingCatalogIndex() {
+			final CatalogWarmUpTerminationCatalogIndexTest test = CatalogWarmUpTerminationCatalogIndexTest.this;
+			final Catalog catalog = test.catalog();
+			final EvitaSessionContract writer = test.evita.createReadWriteSession(TEST_CATALOG);
+			insertWrittenProduct(writer);
+			// the flush pops the catalog's own trapped changes - the new unique value among them - before any
+			// collection's, so a collection whose pop fails strands them
+			failTrappedChangesPop(
+				catalog.getCollectionForEntityOrThrowException(Entities.PRODUCT), EntityCollection.class
+			);
+
+			assertThrows(IllegalStateException.class, catalog::flush, "the flush must fail on the collection's pop");
+			assertFalse(
+				catalog.isPublishable(),
+				"a flush that failed after popping the catalog index must bar every later publication - a " +
+					"termination would otherwise publish the product without its unique value"
+			);
+		}
+	}
+
 	/**
 	 * Inserts the product carrying {@link #WRITTEN_CODE}.
 	 *
@@ -253,6 +285,48 @@ class CatalogWarmUpTerminationCatalogIndexTest implements EvitaTestSupport {
 	@Nonnull
 	private static String describe(@Nonnull EntityReferenceContract reference) {
 		return reference.getType() + ":" + reference.getPrimaryKey();
+	}
+
+	/**
+	 * Replaces the data store buffer of a collection or of the catalog with one that fails to pop its trapped changes
+	 * and delegates everything else - the injected failure the storage layer has no seam for.
+	 *
+	 * @param owner     the entity collection or the catalog whose buffer is replaced
+	 * @param ownerType the class declaring the `dataStoreBuffer` field of the owner
+	 */
+	private static void failTrappedChangesPop(@Nonnull Object owner, @Nonnull Class<?> ownerType) {
+		try {
+			final Field field = ownerType.getDeclaredField("dataStoreBuffer");
+			field.setAccessible(true);
+			final DataStoreMemoryBuffer real = (DataStoreMemoryBuffer) field.get(owner);
+			final DataStoreMemoryBuffer failing = (DataStoreMemoryBuffer) Proxy.newProxyInstance(
+				DataStoreMemoryBuffer.class.getClassLoader(),
+				new Class<?>[]{DataStoreMemoryBuffer.class},
+				(proxy, method, args) -> {
+					if ("popTrappedChanges".equals(method.getName())) {
+						throw new IllegalStateException("Injected failure to pop the trapped changes.");
+					}
+					try {
+						return method.invoke(real, args);
+					} catch (InvocationTargetException ex) {
+						throw ex.getCause();
+					}
+				}
+			);
+			field.set(owner, failing);
+		} catch (ReflectiveOperationException ex) {
+			throw new IllegalStateException("The data store buffer of `" + owner + "` could not be replaced.", ex);
+		}
+	}
+
+	/**
+	 * Returns the catalog instance the engine serves under the test catalog name.
+	 *
+	 * @return the catalog; never null
+	 */
+	@Nonnull
+	private Catalog catalog() {
+		return assertInstanceOf(Catalog.class, this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow());
 	}
 
 	/**

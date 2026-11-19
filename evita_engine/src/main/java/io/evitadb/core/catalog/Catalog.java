@@ -2945,8 +2945,13 @@ public final class Catalog
 				}
 			);
 		} catch (RuntimeException | Error ex) {
-			// no future exists that could count this flush out once it completes
-			countOut.run();
+			// whatever was popped before the failure is lost with it, exactly as when the future fails - so the barrier
+			// is raised first, and only then is the flush counted out, here, because no future exists that could
+			try {
+				markUnpublishable(ex);
+			} finally {
+				countOut.run();
+			}
 			throw ex;
 		}
 		// **The second half of the same barrier, and not a duplicate of the handler above.** The failure handler
