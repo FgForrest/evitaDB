@@ -1,10 +1,10 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-17 14:09
+updated: 2026-11-19 16:56
 status: accepted
 kind: fix
-issues: [1880, 1883, 1897, 1915, 1917]
+issues: [1880, 1883, 1897, 1915, 1917, 1920]
 prs: [1884, 1913, 1914, 1919]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
@@ -12,6 +12,7 @@ areas:
   - evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference
   - evita_engine/src/main/java/io/evitadb/core/query/filter/translator/behavioral
   - evita_engine/src/main/java/io/evitadb/core/query/fetch
+  - evita_engine/src/main/java/io/evitadb/core/query/extraResult
   - evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference
   - evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference/producer
   - evita_engine/src/main/java/io/evitadb/core/query/QueryPlanner.java
@@ -264,6 +265,92 @@ and the scopes of the owners for each branch or `not` that names none. The local
 same extraction, so they come only from containers reachable through `and`, otherwise from the reference level and
 then the owners. Two scopes side by side in one container still fail, as at the root.
 
+### #1920 — a require-level `inScope` around the main fetch
+
+A require-level `inScope(S, …)` is meant for extra results with no index outside `S` - a facet summary, a histogram,
+hierarchy statistics. `RequireInScopeTranslator` narrows the processing scopes of `ExtraResultPlanningVisitor` to `S`,
+and `ExtraResultPlanningVisitor#executeInContext` copies the narrowed set into every context below it, the main
+`entityFetch` included. The fetch itself ignores the container: `EvitaRequest#isRequiresEntity` finds the main fetch
+through it (`QueryUtils.findRequire(…, EntityFetch.class, SeparateEntityContentRequireContainer.class)`), and the
+requests of the bodies derive from the query's scopes. The pre-flight passes the requested scopes through it too. So
+four planning checks of fetched content judged a fetch over both scopes in `S` alone: the owner scopes of
+`ReferenceContentTranslator#createProducer` and the inheritance base of `#resolveOwnerScope`, the walk of
+`HierarchyContentTranslator#verifyStopAtNode`, and the uniqueness exemption of
+`AttributeContentTranslator#verifyAttributes`.
+
+Measured on `dev` (`328fb082b1`) over `scope(LIVE, ARCHIVED)`, every main fetch wrapped in `inScope(LIVE, …)` or
+`inScope(ARCHIVED, …)`:
+
+- **The fetch answered alike under either wrapper and without one**, on the prefetch route and the index route:
+  archived owners got their rows under `inScope(LIVE, …)`, live owners under `inScope(ARCHIVED, …)`.
+- **A correct query was refused.** The query of the issue (an `inScope(ARCHIVED, …)` in the `labels` filter of the
+  group bodies, wrapped in `inScope(LIVE, …)`) failed with ``Scope `ARCHIVED` used in `inScope` filter container was
+  not requested``, and so did its mirrors, the same filter of the value bodies, an `inScope` of the nested order, and
+  a named localized attribute unique only outside the wrapper's scope, with `EntityLocaleMissingException`.
+- **The verdict depended on the data.** A nested filter or order reading an attribute indexed only in the live scope,
+  and a hierarchy bound on such an attribute at the first level or below the bodies, are refused without the wrapper.
+  Under `inScope(LIVE, …)` they were refused only for an owner whose rows reached an archived body that the fetch
+  plans the filter in (a tag filter: owners with tag rows refused, owners without answered; a hierarchy bound: an
+  archived node with a parent refused, a live one or a root answered).
+- **The filter and order of a first-level `referenceContent` were not affected.**
+  `ReferencedEntityFetcher#verifyReferenceContentConstraints` reuses the query's own planning context when the owners
+  are the queried type in the query's locale, and that context plans in the query's scopes. The hierarchy bound has
+  no such shortcut, so its first level was affected.
+
+#### Option R — the main fetch is planned in the query's searched scopes (chosen)
+
+`ExtraResultPlanningVisitor#executeEntityFetchInContext`, through which `EntityFetchTranslator` plans every fetch,
+starts the frame of the main fetch with `QueryPlanningContext#getScopes()` instead of the narrowed set. The four
+checks read the processing scopes as before, which below the main fetch are the scopes the fetch searches.
+
+- **Pros:** every check below the main fetch, present or future, sees the scopes of the fetch, so no reader has to
+  know the rule; the extra results and their bodies keep the narrowed scopes; a query without a require-level
+  `inScope` takes the unchanged path, because the narrowed set and the query's are then equal.
+- **Cons:** all or nothing for the main fetch - it brings the nested filter, the nested order, the hierarchy bound and
+  the uniqueness exemption along together, with the new refusals listed under Consequences.
+
+#### Option S — the four checks read the query's scopes (declined)
+
+- **Pros:** the smallest diff; it could stop at the reference filter and order, if fewer new refusals were wanted.
+- **Rejected because:** `AttributeContentTranslator#verifyAttributes` also serves the bodies of the facet and
+  reference summaries and of hierarchy statistics, so it would change their uniqueness exemption without a
+  measurement, and a new check below the fetch would have to know the rule. Worth revisiting only if a check below
+  the main fetch ever needs the narrowed scopes.
+
+#### Option T — the fetch honours the container (declined)
+
+- **Pros:** the documented sentence "restrict require conditions so that they only apply to a specific scope" would
+  hold for the fetch as well.
+- **Rejected because:** it changes answers that work today (archived owners lose their rows under `inScope(LIVE, …)`),
+  needs a request per scope through `EvitaRequest`, `ReferencedEntityFetcher` and every derived request, and the only
+  shape that would make it useful - one main fetch per scope - is refused by the single-constraint lookup
+  (`MoreThanSingleResultException`, #2027). Worth revisiting if fetch content per scope becomes a feature; #2027 holds
+  the question.
+
+#### Option U — fix only the nested body levels (declined)
+
+The issue's own scope: the owner scopes of a nested `referenceContent`.
+
+- **Pros:** narrowest change.
+- **Rejected because:** the hierarchy bound at the first level and the uniqueness exemption of the main bodies were
+  measured with the same defect.
+
+#### Option V — refuse `entityFetch` inside a require-level `inScope` (declined)
+
+- **Pros:** honest about a fetch that ignores the container.
+- **Rejected because:** it breaks every client that wraps its fetch today, on every data set; EvitaQL and REST accept
+  the shape.
+
+#### Option W — validate the folded fetch requirement instead of the written one (declined)
+
+`HierarchyContent#combineWith` folds `hierarchyContent()` and `hierarchyContent(stopAt(…))` into one requirement
+without the bound, so the fetch never evaluates that bound.
+
+- **Pros:** would keep the one newly refused shape no fetch can fail on answered under the wrapper.
+- **Rejected because:** planning validates the requirements as written, the rule the project owner set for #1949
+  (`2026-11-17-direct-entity-calls-check-requested-content`), and the same query without the wrapper is refused
+  today. Changing that is a separate decision covering every query, not one this fix makes for the wrapper alone.
+
 ## Decision
 
 **Chosen: Option A, with the checks Options G and H decline to do without.** Option A is the only option under which a
@@ -284,6 +371,13 @@ owner with rows.
 admitted at the level of the body - the scopes its containers name, the scopes of the owners where they name none -
 and the verdict on a filter below the bodies no longer depends on the rows. Two uses that worked are refused now
 (Consequences); the project owner decided against a `breaking change` label and an upgrade note for the first one.
+
+**#1920: Option R**, by the project owner's decision. A require-level `inScope` plans the extra results it wraps in its
+scope; the main `entityFetch` is applied to every returned entity whatever its scope, so its content is checked in the
+scopes the fetch reads it in - every scope the query searches, unless a reference filter selects the scopes of its
+bodies - as the fetch, the pre-flight and the direct calls already did. The shapes it newly refuses were all
+refused without the wrapper, and all but the folded hierarchy bound were refused under it for other data; the project
+owner accepted the folded bound's refusal too, and labelled the change breaking with an upgrade note on #1920.
 
 ## Key technical details
 
@@ -370,6 +464,27 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
   fetch of the bodies by it, so a check that plans one of those filters in the scopes of the query refuses what the
   fetch and `getEntity` answer. `ReferenceContentTranslator` and `HierarchyContentTranslator#verifyStopAtNode` do so; a
   new check of a requirement nested in an `entityFetch` has to call `ReferenceContentTranslator#resolveOwnerScope`.
+  Where no enclosing level names a scope, it inherits the processing scopes, which below the main fetch are the
+  query's searched scopes (#1920) and below the body fetch of an extra result the scopes of its `inScope`.
+- **The main fetch, structurally (#1920).** `ExtraResultPlanningVisitor#visit` remembers the outermost
+  `SeparateEntityContentRequireContainer` on the active path, and `#executeEntityFetchInContext` starts the frame
+  with the query's scopes only for an `entityFetch` that is that container itself - the boundary
+  `EvitaRequest#isRequiresEntity` stops at - and only when the processing scopes differ from the query's, so a query
+  without a require-level `inScope` takes the inherited scopes as before.
+  **Not `isRootScope()`:** `HierarchyOfSelf#getCopyWithNewChildren` (and that of `HierarchyOfReference`) accepts a bare
+  `entityFetch` child, and its translator visits it without a new frame, at the root depth - measured, both
+  copied-hierarchy guards of `$RequireLevelInScope` fail with the frame depth in place of the structural test. **Not
+  identity with the fetch `QueryUtils.findRequire` returns:** the Java API lets one `EntityFetch` object stand both as
+  the main fetch and as the child of such a hierarchy, and identity then planned the hierarchy's body in the query's
+  scopes (`$RequireLevelInScope#shouldRefuseCopiedHierarchyBodyWithoutLocaleWhenItSharesTheMainFetchObject`).
+- **Looks like a bug and is not (#1920):** an extra result that a Java copy places inside the main fetch - e.g.
+  `hierarchyContent().getCopyWithNewChildren(...)` holding an `attributeHistogram` - is planned in the main fetch's
+  scopes, not in those of an enclosing `inScope`. The EvitaQL parser refuses that placement; it is not a supported
+  tree.
+- **Left narrowed on purpose (#1920):** the bodies of a facet or reference summary and of hierarchy statistics under
+  a require-level `inScope` keep the narrowed uniqueness exemption, although
+  `QueryPlanningContext#fabricateFetchRequest` fetches them in the query's scopes - suspected to be the same defect,
+  not measured (Consequences).
 - `ReferencedEntityFetcher#verifyReferenceContentConstraints` takes the requested scopes of the owners explicitly; NULL
   keeps the five-argument `deriveCopyWith`, which unites the scopes of the query with the searched ones. Its shortcut
   reusing the context of the query applies only then, so a self-referencing type cannot skip a scope of its bodies.
@@ -508,6 +623,35 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
   functional classes are unchanged; the two reference-content `inScope(LIVE, scope(LIVE))` rows now expect the
   entry-point diagnostic instead of the late row compiler's diagnostic.
 
+- **#1920, red first.** `NestedInScopeFilterFunctionalTest$RequireLevelInScope` was written against unchanged
+  production code (`328fb082b1`): 36 tests, 18 failures, every one an invocation of the answered or the refused group
+  and every guard green. The answered group failed with the messages of the issue (``Scope `ARCHIVED` used in
+  `inScope` filter container was not requested``, its `LIVE` and order mirrors, `EntityLocaleMissingException`); the
+  refused group failed with "nothing was thrown" for exactly the owners the data-dependence above names, and the
+  nested order of the archived scope with the admission message instead of `AttributeNotSortableException`. With the
+  fix: 38 tests, 0 failures - two added after the red run, the shared fetch object above and a wrapper equal to the
+  query's single scope. Each test asserts a literal answer or the exact exception and message, for owners with and
+  without rows and the unfiltered query; the locale-less fetches also fetch the same bodies in English, so their empty
+  answer is the missing locale, not missing data.
+- **#1920, counterfactual.** With `ExtraResultPlanningVisitor#executeEntityFetchInContext` always taking the
+  inherited scopes: 37 tests, 18 failures - the answered and the refused groups exactly - and 19 green
+  guards: a first-level filter and order still refused under every wrapper, first-level filters naming either scope
+  answered, the rows of the fetch identical on the prefetch and the index route (`EXECUTION_PREFETCH` in the
+  telemetry of the one, absent in the other), a self-referencing nested level with inherited and with explicit
+  scopes, a live-only facet summary beside the fetch in both child orders with counts of live owners only, a summary
+  body keeping its narrowed refusal, and both copied-hierarchy guards. With the frame depth (`isRootScope()`) in place
+  of the structural test: exactly the two copied-hierarchy guards fail. With the marker of the outermost container
+  never cleared: exactly the facet-summary guard with the summary visited first fails, its main fetch refused with
+  `EntityLocaleMissingException` - the guard fetches node bodies whose `code` only a check in both scopes admits. The
+  whole `NestedInScopeFilterFunctionalTest` passes 186 tests with the fix.
+- **#1920, neighbours.** 57 classes touching require-level and nested `inScope`, fetched-body scopes and the query
+  model, 7,155 tests, 0 failures, 0 errors, 0 skipped.
+- **#1920, full suite** on `328fb082b1` plus the change, `-P unitAndFunctional` with fixed parallelism 8, 16:53 min:
+  bitmap 19,215 tests with 0 failures and 1 skip; functional 39,503 with 0 failures, 70 skipped and 183 errors, every
+  one in the nine release-upgrade classes and reading `Fixture ... is not on the class path` - the release fixtures
+  were not generated, because the sandbox could not resolve release 2026.2.18 offline. The pull request's CI builds
+  them.
+
 ## Consequences & open follow-ups
 
 - **Visible to clients, both ways.** A query over both scopes with a nested `inScope` now works where it failed. `or`
@@ -540,8 +684,9 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
     which a planned query refuses; it returned the entity, or the referenced entity bodies, without the attribute.
     The direct calls now check the requested content against the schema next to the scope check
     (`2026-11-17-direct-entity-calls-check-requested-content`).
-  - #1920: an `inScope` in the require section narrows the scopes the planning check of a nested `referenceContent`
-    inherits, while the pre-flight and the fetch do not, so the planned query refuses a filter they admit.
+  - **Resolved in #1920:** an `inScope` in the require section narrowed the scopes the planning checks of the main
+    fetch inherited, while the pre-flight and the fetch did not. They now check it in the query's searched scopes
+    (Option R).
   - The `EXISTING` gate of the referenced entities searches every scope the filter names at any level
     (`ReferencedEntityFetcher#gatherSearchedScopes`), the bodies only the scopes of their level, so a row the widened
     lookup admits can lack its body.
@@ -597,6 +742,20 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
   ordered selection; previously `scope(LIVE), and(scope(LIVE))` raised `MoreThanSingleResultException`.
   `referenceContent` accepts the root path too, by flattening `and` and single-child `or` before compiling its row
   predicates. Scope lookup, `inScope` compilation and target-bound extraction keep their existing meanings.
+- **Breaking, #1920.** Under a require-level `inScope`, the main fetch's content is refused for every owner where
+  the same query without the wrapper is refused: a nested filter or order reading an attribute not indexed in a
+  searched scope, and a hierarchy bound on such an attribute at any level. All of them were refused for some owners
+  before. An `inScope` of the other scope in a nested order is refused with `AttributeNotSortableException`, as
+  without the wrapper, instead of the admission message. The exception is a bounded `hierarchyContent` beside an
+  unbounded one in the same fetch: the fetch folds them and never evaluates the bound, so it was answered for every
+  entity under the wrapper and is now refused as without it. The upgrade note on #1920: drop the redundant bounded
+  sibling, index the attribute in the searched scopes, or scope the nested filter.
+- **Open, left by #1920:**
+  - **Suspected, not measured:** the bodies of facet and reference summaries and of hierarchy statistics under a
+    require-level `inScope` are fetched in the query's scopes and checked with the narrowed uniqueness exemption (Key
+    technical details), the defect #1920 fixed for the main fetch. A fix would widen what those bodies admit.
+  - #2027: a main fetch per scope (`inScope(LIVE, entityFetch(…)), inScope(ARCHIVED, entityFetch(…))`) is refused by
+    the generic single-constraint lookup with `MoreThanSingleResultException`, when the plan is executed.
 - **Backport: none, by the project owner's decision.** The `ClassCastException` stays on `release_2026-2`, where it
   depends on the data. The refusal never shipped, because that branch has no residual check.
 
@@ -638,3 +797,8 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
 - **2026-11-13** — PR #1913 merged.
 - **2026-11-17** — #1949: the direct calls check the requested content, recorded in
   `2026-11-17-direct-entity-calls-check-requested-content`.
+- **2026-11-19** — #1920: probes on `dev` showed the fetch ignoring a require-level `inScope` and the narrowed checks
+  depending on the data. Option R reviewed by an advisor and two adversarial Codex reviews, one of them writing its
+  own design first and reaching the same contract; it moved the detection of the main fetch from the frame depth to
+  the structure. The project owner chose R, accepted the refusal of the folded hierarchy bound and the `breaking
+  change` label. #2027 split off.
