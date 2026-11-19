@@ -30,6 +30,8 @@ import ch.qos.logback.core.read.ListAppender;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -51,17 +53,21 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -71,6 +77,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -116,7 +124,8 @@ import static org.mockito.Mockito.spy;
  * which decides how far the flush has got when the catalog terminates. That is the only seam: the close dispatches to
  * the engine's own transaction executor, which a test cannot hold between two writes. Where the termination itself
  * has to be held, a spy pauses it once it has begun, at the point where it asks whether it may publish - the spy
- * shares every mutable holder of the catalog.
+ * shares every mutable holder of the catalog. Where a real session close has to wait on its flush, the engine is
+ * restarted with a transaction pool small enough for the test to hold every worker of it.
  *
  * One product upsert referencing a category writes into both collections: the product's own parts go to its
  * collection's storage directly, the reflected reference the category receives is trapped in the category's buffer,
@@ -148,11 +157,10 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 	private static final String WRITTEN_CATEGORY_LABEL = "written";
 	/** Bound of every positive wait of this test. */
 	private static final long POSITIVE_WAIT_SECONDS = 30L;
-	/**
-	 * How long the termination is given to finish while a header write is held - a negative wait: a loaded machine can
-	 * only make the termination slower, which can never fail the assertion that it waits.
-	 */
-	private static final long NEGATIVE_WAIT_MILLIS = 250L;
+	/** Workers of the transaction pool of an engine restarted to hold them all - see `restartWithTransactionPool`. */
+	private static final int TRANSACTION_WORKERS = 2;
+	/** Backlog of the transaction pool of an engine restarted to hold its workers - room for the writes of a flush. */
+	private static final int TRANSACTION_QUEUE_SIZE = 4;
 	/** Name prefix of the fixture's own threads, so a stack dump of a stuck run says which test owns them. */
 	private static final String FIXTURE_THREAD_PREFIX = "catalog-warm-up-termination-beside-flush-test-";
 
@@ -160,6 +168,8 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 	private final CountDownLatch releaseParked = new CountDownLatch(1);
 	/** Counted down once a parked termination has begun and reached its publication decision. */
 	private final CountDownLatch terminationParked = new CountDownLatch(1);
+	/** Releases the transaction workers a test holds; counted down again by the tear-down. */
+	private final CountDownLatch releaseTransactionWorkers = new CountDownLatch(1);
 	/** Numbers the fixture threads. */
 	private final AtomicInteger fixtureThreadCounter = new AtomicInteger();
 	private TestPaths paths;
@@ -210,6 +220,7 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 	void tearDown() throws InterruptedException {
 		// a test that failed before releasing what it parked must not leave it parked behind the engine close
 		this.releaseParked.countDown();
+		this.releaseTransactionWorkers.countDown();
 		this.fixtureThreads.shutdownNow();
 		this.fixtureThreads.awaitTermination(POSITIVE_WAIT_SECONDS, SECONDS);
 		if (this.evita != null && this.evita.isActive()) {
@@ -395,7 +406,15 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 					}
 				}
 			);
-			final boolean terminatedDuringHeaderWrite = terminated.await(NEGATIVE_WAIT_MILLIS, MILLISECONDS);
+			// A thread blocked inside a lock acquisition signals nothing a latch could carry, so the lock itself is
+			// asked - within the positive bound - until the termination either queues on it or finishes without it
+			final ReentrantLock publicationLock = publicationLock(catalog);
+			final long deadline = System.nanoTime() + SECONDS.toNanos(POSITIVE_WAIT_SECONDS);
+			while (!publicationLock.hasQueuedThreads() && terminated.getCount() > 0) {
+				assertTrue(System.nanoTime() < deadline, "the termination never reached the publication lock");
+				LockSupport.parkNanos(MILLISECONDS.toNanos(1L));
+			}
+			final boolean terminatedDuringHeaderWrite = terminated.getCount() == 0;
 			test.releaseParked.countDown();
 			awaitCompletion(lastWrite);
 			awaitCompletion(termination);
@@ -421,6 +440,46 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 				published.values().stream().allMatch(Boolean::booleanValue),
 				() -> "the header write the termination waited for must be published whole, but the published " +
 					"state holds: " + published
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("when a session close is waiting on the flush")
+	class SessionCloseWaitingOnFlush {
+
+		@Test
+		@DisplayName("should complete the close, exceptionally, after the termination published nothing")
+		void shouldCompleteWaitingSessionCloseWhenTerminationPublishesNothing() throws IOException {
+			final CatalogWarmUpTerminationBesideFlushTest test = CatalogWarmUpTerminationBesideFlushTest.this;
+			test.restartWithTransactionPool();
+			final Catalog catalog = test.catalog();
+			final EvitaSessionContract writer = test.evita.createReadWriteSession(TEST_CATALOG);
+			writeProductAndCategory(writer);
+			// with every transaction worker held, the close queues the writes of its flush and returns waiting on them
+			test.holdTransactionWorkers();
+			final CompletableFuture<CommitVersions> close = writer
+				.closeNow(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION)
+				.toCompletableFuture();
+			assertFalse(close.isDone(), "the close must be waiting on the writes of its flush");
+
+			final Future<?> termination = test.fixtureThreads.submit(catalog::terminate);
+			awaitCompletion(termination);
+			assertTrue(catalog.isTerminated(), "the termination must finish while the close still waits on its flush");
+			test.snapshotStorage();
+			// the queued writes run against released collections now
+			test.releaseTransactionWorkers.countDown();
+			awaitCompletion(close);
+
+			assertTrue(
+				close.isCompletedExceptionally(),
+				"the close waiting on the flush the termination met must complete, exceptionally"
+			);
+			final Map<String, Boolean> published = test.readPublishedWrite(List.of());
+			assertTrue(
+				published.values().stream().noneMatch(Boolean::booleanValue),
+				() -> "a termination beside the flush of a waiting close must leave the last published state, but " +
+					"the published state holds: " + published
 			);
 		}
 	}
@@ -575,6 +634,25 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Returns the lock the last step of a warm-up flush holds while it writes the catalog header, which the termination
+	 * takes to begin. Read reflectively, because whether a thread is blocked on it is the one thing the termination
+	 * leaves no other trace of.
+	 *
+	 * @param catalog the catalog
+	 * @return the catalog's warm-up publication lock
+	 */
+	@Nonnull
+	private static ReentrantLock publicationLock(@Nonnull Catalog catalog) {
+		try {
+			final Field field = Catalog.class.getDeclaredField("warmUpPublicationLock");
+			field.setAccessible(true);
+			return (ReentrantLock) field.get(catalog);
+		} catch (ReflectiveOperationException ex) {
+			throw new IllegalStateException("The warm-up publication lock of the catalog is not readable.", ex);
+		}
+	}
+
+	/**
 	 * Returns the innermost cause of a failure.
 	 *
 	 * @param failure the failure, or `null`
@@ -633,7 +711,7 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 		final Logger logger = assertInstanceOf(
 			Logger.class, LoggerFactory.getLogger(Catalog.class), "Logback backend required to capture log output."
 		);
-		final List<ILoggingEvent> warnings = Collections.synchronizedList(new ArrayList<>(4));
+		final List<ILoggingEvent> warnings = new CopyOnWriteArrayList<>();
 		final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
 			@Override
 			protected void append(ILoggingEvent eventObject) {
@@ -676,6 +754,48 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 			}
 		).when(terminating).isPublishable();
 		return terminating;
+	}
+
+	/**
+	 * Closes the engine and opens a new one over the same storage whose transaction pool has exactly
+	 * {@link #TRANSACTION_WORKERS} workers and a backlog of {@link #TRANSACTION_QUEUE_SIZE} tasks, so that a test can
+	 * hold every worker and decide when the writes of a real session close's flush run.
+	 */
+	private void restartWithTransactionPool() {
+		this.evita.close();
+		this.evita = new Evita(
+			newTestEvitaConfigurationBuilder(this.paths)
+				.server(
+					ServerOptions.builder()
+						.transactionThreadPool(
+							ThreadPoolOptions.transactionThreadPoolBuilder()
+								.minThreadCount(TRANSACTION_WORKERS)
+								.maxThreadCount(TRANSACTION_WORKERS)
+								.queueSize(TRANSACTION_QUEUE_SIZE)
+								.build()
+						)
+						.build()
+				)
+				.build()
+		);
+		this.evita.waitUntilFullyInitialized();
+	}
+
+	/**
+	 * Occupies every worker of the restarted engine's transaction pool until {@link #releaseTransactionWorkers} is
+	 * counted down, and returns once all of them are held.
+	 */
+	private void holdTransactionWorkers() {
+		final CountDownLatch held = new CountDownLatch(TRANSACTION_WORKERS);
+		for (int i = 0; i < TRANSACTION_WORKERS; i++) {
+			this.evita.getTransactionExecutor().execute(
+				() -> {
+					held.countDown();
+					awaitLatch(this.releaseTransactionWorkers, "the transaction workers were never released");
+				}
+			);
+		}
+		awaitLatch(held, "the transaction workers were never all held");
 	}
 
 	/**
@@ -811,8 +931,8 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 	 * catalog terminates - each write is parked before it starts, never inside the storage layer.
 	 */
 	private static final class HeldBackExecutor implements Executor {
-		/** Tasks dispatched and not yet run, in dispatch order; the flush dispatches on the thread that executes it. */
-		private final List<Runnable> tasks = Collections.synchronizedList(new ArrayList<>(4));
+		/** Tasks dispatched and not yet run, in dispatch order; a test may run them on a thread of its own. */
+		private final Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
 
 		@Override
 		public void execute(@Nonnull Runnable command) {
@@ -832,7 +952,7 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 		 * Runs the task dispatched first among those not run yet, on the calling thread.
 		 */
 		void runNext() {
-			this.tasks.remove(0).run();
+			Objects.requireNonNull(this.tasks.poll(), "no dispatched task is held back").run();
 		}
 
 		/**
