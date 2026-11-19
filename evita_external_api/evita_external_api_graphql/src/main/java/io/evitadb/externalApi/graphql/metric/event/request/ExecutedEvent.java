@@ -329,10 +329,22 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	}
 
 	/**
+	 * Marks the parsed and validated document of this request as served from the document cache. Called by the
+	 * cache itself, so that the flag is correct even when the request fails before its operation starts executing.
+	 * @return this
+	 */
+	@Nonnull
+	public ExecutedEvent markDocumentCached() {
+		this.documentCached = true;
+		return this;
+	}
+
+	/**
 	 * Measures duration of preparation from previous state for a request whose parsed and validated document was
-	 * served from the document cache - parse and validation did not happen, so their durations stay zero and the
-	 * operation execution starts right away. Replaces the {@link #finishPreparation()}, {@link #finishParse()} and
-	 * {@link #finishValidation()} sequence and should be called only once.
+	 * served from the document cache (see {@link #markDocumentCached()}) - parse and validation did not happen, so
+	 * their durations stay zero and the operation execution starts right away. Replaces the
+	 * {@link #finishPreparation()}, {@link #finishParse()} and {@link #finishValidation()} sequence and should be
+	 * called only once.
 	 * @return this
 	 */
 	@Nonnull
@@ -347,7 +359,6 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 		);
 		final long now = System.currentTimeMillis();
 		this.preparationDurationMilliseconds = now - this.preparationStarted;
-		this.documentCached = true;
 		this.operationExecutionStarted = now;
 		return this;
 	}
@@ -378,14 +389,39 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 
 	/**
 	 * Measures duration of operation execution from previous state. Should be called only once.
+	 *
+	 * When the request failed before its operation started executing (a syntax or validation error, an unknown
+	 * operation name, a variable coercion error), the operation duration stays zero and the last phase that started
+	 * is closed instead - so a failure after a successful validation is attributed to validation.
 	 * @return this
 	 */
 	@Nonnull
 	public ExecutedEvent finishOperationExecution() {
 		final long now = System.currentTimeMillis();
-		this.operationExecutionDurationMilliseconds = now - this.operationExecutionStarted;
+		if (this.operationExecutionStarted == 0) {
+			closePhaseRunningBeforeExecution(now);
+		} else {
+			this.operationExecutionDurationMilliseconds = now - this.operationExecutionStarted;
+		}
 		this.resultSerializationStarted = now;
 		return this;
+	}
+
+	/**
+	 * Closes the last phase preceding the operation execution that started before the request failed: preparation
+	 * (the document came from the cache, so parse and validation never started), parse, or validation. Never throws -
+	 * it runs on the path that reports a failure.
+	 *
+	 * @param now current time in milliseconds
+	 */
+	private void closePhaseRunningBeforeExecution(final long now) {
+		if (this.validationStarted != 0) {
+			this.validationDurationMilliseconds = now - this.validationStarted;
+		} else if (this.parseStarted != 0) {
+			this.parseDurationMilliseconds = now - this.parseStarted;
+		} else if (this.preparationStarted != 0) {
+			this.preparationDurationMilliseconds = now - this.preparationStarted;
+		}
 	}
 
 	/**
@@ -395,7 +431,10 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	 */
 	@Nonnull
 	public ExecutedEvent finishResultSerialization() {
-		this.resultSerializationDurationMilliseconds = System.currentTimeMillis() - this.resultSerializationStarted;
+		// the system API drives no execution phases, so the serialization may have never started
+		if (this.resultSerializationStarted != 0) {
+			this.resultSerializationDurationMilliseconds = System.currentTimeMillis() - this.resultSerializationStarted;
+		}
 		return this;
 	}
 

@@ -164,6 +164,9 @@ class ReferenceChainExactOrderingFunctionalTest {
 
 	/**
 	 * Refuses exact entity chain values before either execution route starts.
+	 *
+	 * @param route the preferred execution route
+	 * @param session the chain dataset session
 	 */
 	@DisplayName("An exact entity chain order is rejected before execution")
 	@UseDataSet(CHAIN_REFERENCES)
@@ -177,7 +180,7 @@ class ReferenceChainExactOrderingFunctionalTest {
 			() -> session.query(
 				query(
 					collection(ENTITY_OWNER), filterBy(entityPrimaryKeyInSet(100, 102, 104)),
-					orderBy(attributeSetExact(ATTRIBUTE_CHAIN, Predecessor.HEAD)),
+					orderBy(attributeSetExact(ATTRIBUTE_CHAIN, "head")),
 					require(page(1, 10), debug(route))
 				), EntityReference.class
 			)
@@ -187,6 +190,12 @@ class ReferenceChainExactOrderingFunctionalTest {
 
 	/**
 	 * Requires the same explanation for both chain types in every reference ordering, with or without a name collision.
+	 *
+	 * @param reference reference whose attribute is ordered
+	 * @param attribute chain attribute name
+	 * @param ordering reference ordering mode
+	 * @param route the preferred execution route
+	 * @param session the chain dataset session
 	 */
 	@DisplayName("An exact reference chain order is rejected before execution")
 	@UseDataSet(CHAIN_REFERENCES)
@@ -196,25 +205,28 @@ class ReferenceChainExactOrderingFunctionalTest {
 		@Nonnull String reference, @Nonnull String attribute, @Nonnull String ordering, @Nonnull DebugMode route,
 		@Nonnull EvitaSessionContract session
 	) {
-		final Serializable head = reference.startsWith("target") ? ReferencedEntityPredecessor.HEAD : Predecessor.HEAD;
+		final Class<?> type = reference.startsWith("target") ? ReferencedEntityPredecessor.class : Predecessor.class;
 		final EvitaInvalidUsageException exception = assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> session.query(
 				query(
 					collection(ENTITY_OWNER), filterBy(entityPrimaryKeyInSet(100, 102, 104)),
 					orderBy(
-						referenceOrder(reference, ordering, attributeSetExact(attribute, head)),
+						referenceOrder(reference, ordering, attributeSetExact(attribute, "head")),
 						entityPrimaryKeyNatural(OrderDirection.DESC)
 					),
 					require(page(1, 10), debug(route))
 				), EntityReference.class
 			)
 		);
-		assertChainRefusal(exception, attribute, head.getClass());
+		assertChainRefusal(exception, attribute, type);
 	}
 
 	/**
 	 * Characterizes the prerequisite filter's refusal without adding an ordering prohibition.
+	 *
+	 * @param route the preferred execution route
+	 * @param session the chain dataset session
 	 */
 	@DisplayName("An entity chain cannot supply the filter values for exact ordering")
 	@UseDataSet(CHAIN_REFERENCES)
@@ -227,7 +239,7 @@ class ReferenceChainExactOrderingFunctionalTest {
 			AttributeNotFilterableException.class,
 			() -> session.query(
 				query(
-					collection(ENTITY_OWNER), filterBy(attributeInSet(ATTRIBUTE_CHAIN, Predecessor.HEAD)),
+					collection(ENTITY_OWNER), filterBy(attributeInSet(ATTRIBUTE_CHAIN, "head")),
 					orderBy(attributeSetInFilter(ATTRIBUTE_CHAIN)), require(page(1, 10), debug(route))
 				), EntityReference.class
 			)
@@ -238,6 +250,11 @@ class ReferenceChainExactOrderingFunctionalTest {
 	/**
 	 * Checks the prerequisite chain filter for both types on both route preferences. The filter is planned before
 	 * any ordering, so one reference ordering form stands for all of them.
+	 *
+	 * @param reference reference whose chain attribute is filtered
+	 * @param attribute chain attribute name
+	 * @param route the preferred execution route
+	 * @param session the chain dataset session
 	 */
 	@DisplayName("A reference chain cannot supply the filter values for exact ordering")
 	@UseDataSet(CHAIN_REFERENCES)
@@ -247,12 +264,11 @@ class ReferenceChainExactOrderingFunctionalTest {
 		@Nonnull String reference, @Nonnull String attribute, @Nonnull DebugMode route,
 		@Nonnull EvitaSessionContract session
 	) {
-		final Serializable head = reference.startsWith("target") ? ReferencedEntityPredecessor.HEAD : Predecessor.HEAD;
 		final AttributeNotFilterableException exception = assertThrows(
 			AttributeNotFilterableException.class,
 			() -> session.query(
 				query(
-					collection(ENTITY_OWNER), filterBy(referenceHaving(reference, attributeInSet(attribute, head))),
+					collection(ENTITY_OWNER), filterBy(referenceHaving(reference, attributeInSet(attribute, "head"))),
 					orderBy(referenceProperty(reference, attributeSetInFilter(attribute))),
 					require(page(1, 10), debug(route))
 				), EntityReference.class

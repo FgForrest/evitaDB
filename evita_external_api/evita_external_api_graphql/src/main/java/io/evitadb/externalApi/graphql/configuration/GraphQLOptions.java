@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
+import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -57,9 +58,9 @@ public class GraphQLOptions extends AbstractApiOptions implements ApiWithSpecifi
 	 * Controls whether the data fetchers wrapped in
 	 * {@link io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher} run asynchronously: reads on
 	 * the request executor, writes on the transaction executor. These are the fetchers of all top-level query and
-	 * mutation fields of the data API and the schema API of every catalog and of the system API, plus a few nested
-	 * schema API fields; subscription fields are not wrapped and are not affected. When disabled, the wrapped
-	 * fetchers run on the calling thread. Default value is `true`.
+	 * mutation fields of the data API and the schema API of every catalog and of the system API; subscription fields
+	 * are not wrapped and are not affected. When disabled, the wrapped fetchers run on the calling thread. Default
+	 * value is `true`.
 	 */
 	@Getter private final boolean parallelize;
 	/**
@@ -71,20 +72,32 @@ public class GraphQLOptions extends AbstractApiOptions implements ApiWithSpecifi
 	 */
 	@Getter private final long documentCacheSizeInBytes;
 
+	/**
+	 * Creates enabled options listening on all network interfaces at {@link AbstractApiOptions#DEFAULT_PORT}, with
+	 * `tlsMode` {@link TlsMode#FORCE_TLS}.
+	 */
 	public GraphQLOptions() {
-		super();
+		super(TlsMode.FORCE_TLS);
 		this.prefix = BASE_GRAPHQL_PATH;
 		this.parallelize = true;
 		this.documentCacheSizeInBytes = DEFAULT_DOCUMENT_CACHE_SIZE_IN_BYTES;
 	}
 
+	/**
+	 * Creates enabled options listening on `host` (comma-separated `hostname:port` definitions), with `tlsMode`
+	 * {@link TlsMode#FORCE_TLS}.
+	 */
 	public GraphQLOptions(@Nonnull String host) {
-		super(true, host);
+		super(true, host, TlsMode.FORCE_TLS);
 		this.prefix = BASE_GRAPHQL_PATH;
 		this.parallelize = true;
 		this.documentCacheSizeInBytes = DEFAULT_DOCUMENT_CACHE_SIZE_IN_BYTES;
 	}
 
+	/**
+	 * Creates options from configuration; a missing `tlsMode` resolves to {@link TlsMode#FORCE_TLS} and an unknown name
+	 * fails.
+	 */
 	@JsonCreator
 	public GraphQLOptions(
 		@Nullable @JsonProperty("enabled") Boolean enabled,
@@ -97,7 +110,7 @@ public class GraphQLOptions extends AbstractApiOptions implements ApiWithSpecifi
 		@Nullable @JsonProperty("documentCacheSizeInBytes") Long documentCacheSizeInBytes,
 		@Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
-		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
+		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration, TlsMode.FORCE_TLS);
 		this.prefix = ofNullable(prefix).orElse(BASE_GRAPHQL_PATH);
 		this.parallelize = ofNullable(parallelize).orElse(true);
 		this.documentCacheSizeInBytes = ofNullable(documentCacheSizeInBytes)

@@ -26,18 +26,28 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeBetween;
+import static io.evitadb.api.query.QueryConstraints.attributeGreaterThan;
+import static io.evitadb.api.query.QueryConstraints.attributeGreaterThanEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeLessThan;
+import static io.evitadb.api.query.QueryConstraints.attributeLessThanEquals;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.FILTER;
@@ -58,6 +68,31 @@ class AttributeEqualsTest {
 	@Nested
 	@DisplayName("Construction")
 	class ConstructionTest {
+
+		/** Verifies that each comparison reports the attribute and an unusable value type during construction. */
+		@Test
+		@DisplayName("Reject arrays and both predecessor types in scalar comparison arguments")
+		void shouldRejectUnsupportedScalarComparisonValues() {
+			for (final Serializable value : List.of(
+				new String[]{"a", "b"}, new Integer[]{1, 2}, new int[]{1, 2},
+				Predecessor.HEAD, ReferencedEntityPredecessor.HEAD
+			)) {
+				final List<Executable> comparisons = List.of(
+					() -> attributeEquals("code", value),
+					() -> attributeGreaterThan("code", value),
+					() -> attributeGreaterThanEquals("code", value),
+					() -> attributeLessThan("code", value),
+					() -> attributeLessThanEquals("code", value),
+					() -> attributeBetween("code", value, "z"),
+					() -> attributeBetween("code", "a", value)
+				);
+				assertAll(comparisons.stream().map(comparison -> () -> {
+					final EvitaInvalidUsageException error = assertThrows(EvitaInvalidUsageException.class, comparison);
+					assertTrue(error.getMessage().contains(value.getClass().getTypeName()), error::getMessage);
+					assertTrue(error.getMessage().contains("`code`"), error::getMessage);
+				}));
+			}
+		}
 
 		@Test
 		@DisplayName("should fail to use invalid data type")
