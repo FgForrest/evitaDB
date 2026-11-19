@@ -248,7 +248,8 @@ final class ReferenceHistogramAccumulator {
 		// RTEI's group count and clamp to a sanity cap against pathological group counts.
 		final int pendingEstimate;
 		if (grouped) {
-			int groupsProbe = 0;
+			// long, so neither the sum over scopes nor its product with the request count can overflow
+			long groupsProbe = 0;
 			for (final Scope scope : scopes) {
 				final EntityIndexKey probeKey = new EntityIndexKey(
 					EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
@@ -260,9 +261,8 @@ final class ReferenceHistogramAccumulator {
 					groupsProbe += probe.getAllReferencedPrimaryKeys().size();
 				}
 			}
-			pendingEstimate = Math.min(
-				Math.max(requests.size() * scopes.size(), requests.size() * groupsProbe),
-				PENDING_SANITY_CAP
+			pendingEstimate = (int) Math.min(
+				requests.size() * Math.max(scopes.size(), groupsProbe), PENDING_SANITY_CAP
 			);
 		} else {
 			pendingEstimate = Math.min(requests.size() * scopes.size(), PENDING_SANITY_CAP);
@@ -1346,7 +1346,7 @@ final class ReferenceHistogramAccumulator {
 			// with no candidate of the group passing the owner check, the bound keeps every candidate
 			return BoundaryPick.of(pickBoundaryPkAmong(candidatesInGroup, facetSorter));
 		}
-		final Integer ownedPk = pickBoundaryPkAmong(ownedCandidates, facetSorter);
+		final int ownedPk = pickBoundaryPkAmongNonEmpty(ownedCandidates, facetSorter);
 		// every candidate of the group passing means one set, so the pick among every candidate is the same one
 		return ownedCandidates.getLongCardinality() == candidatesInGroup.getLongCardinality() ?
 			BoundaryPick.of(ownedPk) :
@@ -1386,9 +1386,21 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull PersistentRoaringBitmap candidates,
 		@Nullable NestedContextSorter facetSorter
 	) {
-		if (candidates.isEmpty()) {
-			return null;
-		}
+		return candidates.isEmpty() ? null : pickBoundaryPkAmongNonEmpty(candidates, facetSorter);
+	}
+
+	/**
+	 * Picks a single PK of final candidates the caller knows to be non-empty — via the reference's configured sorter
+	 * when available (honouring the user's `orderBy`), or the lowest-valued PK otherwise.
+	 *
+	 * @param candidates  the final candidate referenced entity PKs, at least one
+	 * @param facetSorter the reference's sorter deciding ties, or {@code null} for the lowest-PK rule
+	 * @return the boundary PK
+	 */
+	private static int pickBoundaryPkAmongNonEmpty(
+		@Nonnull PersistentRoaringBitmap candidates,
+		@Nullable NestedContextSorter facetSorter
+	) {
 		// short-circuit when only one PK survives the intersection — the sorter cannot reorder a
 		// single element, so skipping the allocation + sortAndSlice call is a straight win
 		if (candidates.getLongCardinality() == 1L) {
