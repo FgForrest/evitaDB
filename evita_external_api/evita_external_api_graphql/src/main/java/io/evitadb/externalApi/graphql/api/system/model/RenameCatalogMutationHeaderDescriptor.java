@@ -28,8 +28,9 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for header arguments of {@link SystemRootDescriptor#RENAME_CATALOG}
- * query.
+ * Descriptor for header arguments of {@link SystemRootDescriptor#RENAME_CATALOG} and
+ * {@link SystemRootDescriptor#RENAME_CATALOG_WITH_PROGRESS}
+ * mutations.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

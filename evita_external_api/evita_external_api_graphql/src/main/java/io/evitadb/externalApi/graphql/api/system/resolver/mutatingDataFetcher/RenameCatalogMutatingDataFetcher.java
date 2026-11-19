@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,34 +23,32 @@
 
 package io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher;
 
-import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.model.RenameCatalogMutationHeaderDescriptor;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Objects;
+
+import static io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.EngineOperationArguments.getStringArgument;
 
 /**
- * Returns single catalog dto by name.
+ * Renames a catalog and returns it under its new name.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-@RequiredArgsConstructor
-public class RenameCatalogMutatingDataFetcher implements DataFetcher<CatalogContract>, WriteDataFetcher {
+public class RenameCatalogMutatingDataFetcher extends EngineOperationMutatingDataFetcher {
 
-    private final Evita evita;
+	public RenameCatalogMutatingDataFetcher(@Nonnull Evita evita) {
+		super(evita);
+	}
 
-    @Nonnull
-    @Override
-    public CatalogContract get(DataFetchingEnvironment environment) throws Exception {
-        final String catalogName = Objects.requireNonNull(environment.getArgument(RenameCatalogMutationHeaderDescriptor.NAME.name()));
-        final String newCatalogName = Objects.requireNonNull(environment.getArgument(RenameCatalogMutationHeaderDescriptor.NEW_NAME.name()));
-
-	    this.evita.renameCatalog(catalogName, newCatalogName);
-        return this.evita.getCatalogInstanceOrThrowException(newCatalogName);
-    }
+	@Nonnull
+	@Override
+	protected String executeOperation(@Nonnull DataFetchingEnvironment environment) {
+		final String newCatalogName = getStringArgument(environment, RenameCatalogMutationHeaderDescriptor.NEW_NAME);
+		this.evita.renameCatalog(
+			getStringArgument(environment, RenameCatalogMutationHeaderDescriptor.NAME), newCatalogName
+		);
+		return newCatalogName;
+	}
 }

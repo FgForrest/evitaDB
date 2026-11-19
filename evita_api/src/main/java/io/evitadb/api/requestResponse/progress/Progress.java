@@ -25,6 +25,8 @@ package io.evitadb.api.requestResponse.progress;
 
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.function.IntConsumer;
 
@@ -94,5 +96,19 @@ public interface Progress<T> {
 	 * @param intConsumer the progress listener to be removed; must not be null
 	 */
 	void removeProgressListener(@Nonnull IntConsumer intConsumer);
+
+	/**
+	 * Returns the id under which the engine tracks this operation. The id may be used to observe the progress of the
+	 * operation from another place - e.g. the GraphQL and REST system APIs return it to their clients, which then
+	 * subscribe to the progress stream with it. For engine mutations the id equals the id of the engine transaction
+	 * the mutation is applied in, so the progress can be correlated with the engine change data capture stream.
+	 *
+	 * @return the id under which the engine tracks this operation; empty when it is not tracked by an engine (e.g. a
+	 *         progress created by the Java client)
+	 */
+	@Nonnull
+	default Optional<UUID> progressId() {
+		return Optional.empty();
+	}
 
 }

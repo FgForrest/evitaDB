@@ -53,6 +53,6 @@ public interface UnusableCatalogDescriptor extends CatalogContractDescriptor {
             Catalog instance that cannot be loaded into a memory due an error.
             The original exception is accessible via. the `cause` property.
             """)
-        .staticProperties(List.of(NAME, CATALOG_STATE, CAUSE, UNUSABLE))
+        .staticProperties(List.of(NAME, CATALOG_STATE, READ_ONLY, CAUSE, UNUSABLE))
         .build();
 }

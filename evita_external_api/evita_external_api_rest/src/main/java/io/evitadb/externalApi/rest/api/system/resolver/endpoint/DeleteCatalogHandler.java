@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,70 +24,53 @@
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
 import com.linecorp.armeria.common.HttpMethod;
-import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.EndpointResponse;
-import io.evitadb.externalApi.http.NotFoundEndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
-import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
-import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Deletes single evitaDB catalog by its name.
+ * Deletes single evitaDB catalog by its name. Serves both the blocking `DELETE /catalogs/{name}`, which answers
+ * `204` once the catalog is deleted, and the asynchronous `DELETE /catalogs-async/{name}`. A missing catalog is
+ * answered with `404`.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingContext> {
+public class DeleteCatalogHandler extends EngineOperationHandler {
 
-	public DeleteCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
-		super(restApiHandlingContext);
-	}
-
-	@Override
-	protected boolean modifiesData() {
-		return true;
+	public DeleteCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext, boolean async) {
+		super(restApiHandlingContext, async);
 	}
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-
-		final Map<String, Object> parameters = getParametersFromRequest(executionContext);
-		requestExecutedEvent.finishInputDeserialization();
-
+	protected CompletableFuture<EngineOperation> prepareOperation(
+		@Nonnull RestEndpointExecutionContext executionContext,
+		@Nonnull Map<String, Object> parameters
+	) {
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		return executionContext.executeAsyncInTransactionThreadPool(
-			() -> {
-				final Evita evita = this.restHandlingContext.getEvita();
-				final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					evita.getCatalogInstance(catalogName));
-				if (catalog.isEmpty()) {
-					requestExecutedEvent.finishOperationExecution();
-					requestExecutedEvent.finishResultSerialization();
-					return new NotFoundEndpointResponse();
-				}
-
-				requestExecutedEvent.measureInternalEvitaDBExecution(
-					() -> {
-						evita.deleteCatalogIfExists(catalog.get().getName());
-						return null;
-					}
-				);
-
-				requestExecutedEvent.finishOperationExecution();
-				requestExecutedEvent.finishResultSerialization();
-				return SuccessEndpointResponse.NO_CONTENT;
-			}
+		return CompletableFuture.completedFuture(
+			new EngineOperation(
+				(evita, catalog) -> evita.deleteCatalogIfExistsWithProgress(catalog.getName()).map(it -> it),
+				catalogName
+			)
 		);
+	}
+
+	@Nonnull
+	@Override
+	protected EndpointResponse createSyncResponse(
+		@Nonnull RestEndpointExecutionContext executionContext,
+		@Nonnull Evita evita,
+		@Nonnull String resultingCatalogName
+	) {
+		return SuccessEndpointResponse.NO_CONTENT;
 	}
 
 	@Nonnull

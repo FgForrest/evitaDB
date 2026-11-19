@@ -23,6 +23,7 @@
 
 package io.evitadb.api.configuration;
 
+import io.evitadb.utils.Assert;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
@@ -75,6 +76,18 @@ import javax.annotation.Nullable;
  *                                              write path resolves a capability holder. The surfaces keep working and
  *                                              keep listing every declared capability - each row simply reports itself
  *                                              as not measured rather than as never requested.
+ * @param engineMutationProgressRetentionInSeconds How long, in seconds, the engine remembers the outcome of a finished
+ *                                              engine mutation (create, rename, activate, ...) under its progress id,
+ *                                              so that a client subscribing to the progress after the operation has
+ *                                              finished still learns how it ended. Counted from the completion; the
+ *                                              default is 5 minutes, `0` forgets the outcome immediately. The record is
+ *                                              held in memory only - it does not survive a restart and is unknown to
+ *                                              other nodes.
+ * @param engineMutationProgressRetentionLimit  Maximum number of finished engine mutation outcomes retained at once;
+ *                                              the default is 100, `0` retains none. Running mutations never count
+ *                                              towards the limit and are never evicted. The limit is shared by all
+ *                                              callers (GraphQL, REST, gRPC, Java API), so a burst of mutations may
+ *                                              evict an outcome before a slow client subscribes to it.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ServerOptions(
@@ -89,7 +102,9 @@ public record ServerOptions(
 	@Nonnull TrafficRecordingOptions trafficRecording,
 	boolean readOnly,
 	boolean quiet,
-	boolean usageStatisticsTracking
+	boolean usageStatisticsTracking,
+	int engineMutationProgressRetentionInSeconds,
+	int engineMutationProgressRetentionLimit
 ) {
 	public static final long DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS = 5000L;
 	/** Default read-write transaction timeout: 5 minutes (`300 * 1000` ms). */
@@ -122,6 +137,15 @@ public record ServerOptions(
 	 * when the question finally gets asked.
 	 */
 	public static final boolean DEFAULT_USAGE_STATISTICS_TRACKING = true;
+	/**
+	 * Default retention of a finished engine mutation's outcome: 5 minutes (`60 * 5` seconds), the same interval for
+	 * which the scheduler keeps finished tasks.
+	 */
+	public static final int DEFAULT_ENGINE_MUTATION_PROGRESS_RETENTION_IN_SECONDS = 60 * 5;
+	/**
+	 * Default maximum number of retained finished engine mutation outcomes.
+	 */
+	public static final int DEFAULT_ENGINE_MUTATION_PROGRESS_RETENTION_LIMIT = 100;
 
 	/**
 	 * Builder for the server options. Recommended to use to avoid binary compatibility problems in the future.
@@ -140,7 +164,10 @@ public record ServerOptions(
 	/**
 	 * Canonical constructor that normalizes optional inputs: any `null` thread-pool, change-data-capture, or
 	 * traffic-recording component is replaced with its default build, so the resulting record never holds a
-	 * `null` component.
+	 * `null` component. Negative engine mutation progress retention settings are rejected.
+	 *
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the engine mutation progress retention or its
+	 *                                                         limit is negative
 	 */
 	public ServerOptions(
 		@Nullable ThreadPoolOptions requestThreadPool,
@@ -154,8 +181,20 @@ public record ServerOptions(
 		@Nullable TrafficRecordingOptions trafficRecording,
 		boolean readOnly,
 		boolean quiet,
-		boolean usageStatisticsTracking
+		boolean usageStatisticsTracking,
+		int engineMutationProgressRetentionInSeconds,
+		int engineMutationProgressRetentionLimit
 	) {
+		Assert.isTrue(
+			engineMutationProgressRetentionInSeconds >= 0,
+			"`engineMutationProgressRetentionInSeconds` must not be negative, but was: " +
+				engineMutationProgressRetentionInSeconds
+		);
+		Assert.isTrue(
+			engineMutationProgressRetentionLimit >= 0,
+			"`engineMutationProgressRetentionLimit` must not be negative, but was: " +
+				engineMutationProgressRetentionLimit
+		);
 		this.requestThreadPool = requestThreadPool == null ? ThreadPoolOptions.requestThreadPoolBuilder().build() : requestThreadPool;
 		this.transactionThreadPool = transactionThreadPool == null ? ThreadPoolOptions.transactionThreadPoolBuilder().build() : transactionThreadPool;
 		this.serviceThreadPool = serviceThreadPool == null ? ThreadPoolOptions.serviceThreadPoolBuilder().build() : serviceThreadPool;
@@ -168,6 +207,8 @@ public record ServerOptions(
 		this.readOnly = readOnly;
 		this.quiet = quiet;
 		this.usageStatisticsTracking = usageStatisticsTracking;
+		this.engineMutationProgressRetentionInSeconds = engineMutationProgressRetentionInSeconds;
+		this.engineMutationProgressRetentionLimit = engineMutationProgressRetentionLimit;
 	}
 
 	public ServerOptions() {
@@ -183,7 +224,9 @@ public record ServerOptions(
 			TrafficRecordingOptions.builder().build(),
 			DEFAULT_READ_ONLY,
 			DEFAULT_QUIET,
-			DEFAULT_USAGE_STATISTICS_TRACKING
+			DEFAULT_USAGE_STATISTICS_TRACKING,
+			DEFAULT_ENGINE_MUTATION_PROGRESS_RETENTION_IN_SECONDS,
+			DEFAULT_ENGINE_MUTATION_PROGRESS_RETENTION_LIMIT
 		);
 	}
 
@@ -204,6 +247,8 @@ public record ServerOptions(
 		private boolean readOnly = DEFAULT_READ_ONLY;
 		private boolean quiet = DEFAULT_QUIET;
 		private boolean usageStatisticsTracking = DEFAULT_USAGE_STATISTICS_TRACKING;
+		private int engineMutationProgressRetentionInSeconds = DEFAULT_ENGINE_MUTATION_PROGRESS_RETENTION_IN_SECONDS;
+		private int engineMutationProgressRetentionLimit = DEFAULT_ENGINE_MUTATION_PROGRESS_RETENTION_LIMIT;
 
 		Builder() {
 		}
@@ -221,6 +266,8 @@ public record ServerOptions(
 			this.readOnly = serverOptions.readOnly();
 			this.quiet = serverOptions.quiet();
 			this.usageStatisticsTracking = serverOptions.usageStatisticsTracking();
+			this.engineMutationProgressRetentionInSeconds = serverOptions.engineMutationProgressRetentionInSeconds();
+			this.engineMutationProgressRetentionLimit = serverOptions.engineMutationProgressRetentionLimit();
 		}
 
 		@Nonnull
@@ -307,6 +354,31 @@ public record ServerOptions(
 			return this;
 		}
 
+		/**
+		 * Sets how long the outcome of a finished engine mutation stays observable under its progress id.
+		 *
+		 * @param engineMutationProgressRetentionInSeconds retention in seconds counted from the completion, `0` to
+		 *                                                 forget the outcome immediately
+		 */
+		@Nonnull
+		public ServerOptions.Builder engineMutationProgressRetentionInSeconds(
+			int engineMutationProgressRetentionInSeconds
+		) {
+			this.engineMutationProgressRetentionInSeconds = engineMutationProgressRetentionInSeconds;
+			return this;
+		}
+
+		/**
+		 * Sets the maximum number of retained outcomes of finished engine mutations.
+		 *
+		 * @param engineMutationProgressRetentionLimit maximum count of finished outcomes, `0` to retain none
+		 */
+		@Nonnull
+		public ServerOptions.Builder engineMutationProgressRetentionLimit(int engineMutationProgressRetentionLimit) {
+			this.engineMutationProgressRetentionLimit = engineMutationProgressRetentionLimit;
+			return this;
+		}
+
 		@Nonnull
 		public ServerOptions build() {
 			return new ServerOptions(
@@ -321,7 +393,9 @@ public record ServerOptions(
 				this.trafficRecording,
 				this.readOnly,
 				this.quiet,
-				this.usageStatisticsTracking
+				this.usageStatisticsTracking,
+				this.engineMutationProgressRetentionInSeconds,
+				this.engineMutationProgressRetentionLimit
 			);
 		}
 

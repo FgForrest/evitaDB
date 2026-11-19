@@ -1,5 +1,5 @@
 PATCH /rest/system/catalogs/evita
 
 {
-  "catalogState": "ALIVE"
+  "state": "ALIVE"
 }

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.system.builder;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import graphql.schema.DataFetcher;
 import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLObjectType;
@@ -102,6 +103,8 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
+import io.evitadb.externalApi.api.model.EndpointDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.TypeDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogContractDescriptor;
@@ -115,28 +118,46 @@ import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureCriteriaDe
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.HostSystemEventDescriptor;
 import io.evitadb.externalApi.api.system.model.mutation.engine.*;
+import io.evitadb.externalApi.api.system.model.progress.EngineMutationProgressChangeDescriptor;
+import io.evitadb.externalApi.api.system.model.progress.EngineMutationProgressHandleDescriptor;
 import io.evitadb.externalApi.api.transaction.model.mutation.TransactionMutationDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.model.CatalogNameMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.system.model.DeleteCatalogIfExistsMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.system.model.DuplicateCatalogMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.system.model.OnEngineMutationProgressChangeSubscriptionHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.OnCatalogChangeCaptureSubscriptionHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.OnSystemChangeCaptureSubscriptionHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.RenameCatalogMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.ReplaceCatalogMutationHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.system.model.SwitchCatalogToAliveStateMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.SystemRootDescriptor;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.CatalogDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.CatalogReadOnlyDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.CatalogsDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.LivenessDataFetcher;
-import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.CreateCatalogMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.ActivateCatalogMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.ActivateCatalogWithProgressMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.CreateNewCatalogMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.DeactivateCatalogMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.DeactivateCatalogWithProgressMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.DeleteCatalogIfExistsMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.DeleteCatalogIfExistsWithProgressMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.DuplicateCatalogMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.DuplicateCatalogWithProgressMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.MakeCatalogAliveMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.MakeCatalogAliveWithProgressMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.MakeCatalogImmutableMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.MakeCatalogImmutableWithProgressMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.MakeCatalogMutableMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.MakeCatalogMutableWithProgressMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.RenameCatalogMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.RenameCatalogWithProgressMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.ReplaceCatalogMutatingDataFetcher;
-import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.SwitchCatalogToAliveStateMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.ReplaceCatalogWithProgressMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.OnEngineMutationProgressChangeSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.ChangeCatalogCaptureUntypedBodyDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.ChangeSystemCaptureUntypedBodyDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.OnCatalogChangeCaptureSubscribingDataFetcher;
@@ -145,6 +166,7 @@ import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+import java.util.List;
 import java.util.Map;
 
 import static graphql.schema.GraphQLTypeReference.typeRef;
@@ -174,10 +196,16 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 	@Nonnull
 	private final Evita evita;
+	/**
+	 * Resolves the `readOnly` field of both catalog types.
+	 */
+	@Nonnull
+	private final CatalogReadOnlyDataFetcher catalogReadOnlyDataFetcher;
 
 	public SystemGraphQLSchemaBuilder(@Nonnull GraphQLOptions config, @Nonnull Evita evita) {
 		super(new GraphQLSchemaBuildingContext(config, evita));
 		this.evita = evita;
+		this.catalogReadOnlyDataFetcher = new CatalogReadOnlyDataFetcher(evita);
 	}
 
 	@Override
@@ -205,6 +233,12 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerType(ScopedBucketedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(
+			EngineMutationProgressHandleDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			EngineMutationProgressChangeDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
 
 		buildMutationInterface();
 		final Map<Class<? extends Mutation>, GraphQLObjectType> registeredOutputMutations = buildOutputMutations();
@@ -244,16 +278,13 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerQueryField(buildCatalogField());
 		this.buildingContext.registerQueryField(buildCatalogsField());
 
-		this.buildingContext.registerMutationField(buildCreateCatalogField());
-		this.buildingContext.registerMutationField(buildSwitchCatalogToAliveStateField());
-		this.buildingContext.registerMutationField(buildRenameCatalogField());
-		this.buildingContext.registerMutationField(buildReplaceCatalogField());
-		this.buildingContext.registerMutationField(buildDeleteCatalogIfExistsField());
+		registerEngineMutationFields();
 
 		this.buildingContext.registerSubscriptionField(buildOnSystemChangeField());
 		this.buildingContext.registerSubscriptionField(buildOnSystemChangeUntypedField());
 		this.buildingContext.registerSubscriptionField(buildOnCatalogChangeField());
 		this.buildingContext.registerSubscriptionField(buildOnCatalogChangeUntypedField());
+		this.buildingContext.registerSubscriptionField(buildOnEngineMutationProgressChangeField());
 
 		return this.buildingContext.buildGraphQLSchema();
 	}
@@ -416,6 +447,11 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			CatalogContractDescriptor.UNUSABLE,
 			CATALOG_UNUSABLE_DATA_FETCHER
 		);
+		this.buildingContext.registerDataFetcher(
+			CatalogDescriptor.THIS,
+			CatalogContractDescriptor.READ_ONLY,
+			this.catalogReadOnlyDataFetcher
+		);
 
 		return CatalogDescriptor.THIS.to(this.objectBuilderTransformer).build();
 	}
@@ -431,6 +467,11 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			UnusableCatalogDescriptor.THIS,
 			CatalogContractDescriptor.UNUSABLE,
 			UNUSABLE_CATALOG_UNUSABLE_DATA_FETCHER
+		);
+		this.buildingContext.registerDataFetcher(
+			UnusableCatalogDescriptor.THIS,
+			CatalogContractDescriptor.READ_ONLY,
+			this.catalogReadOnlyDataFetcher
 		);
 
 		return UnusableCatalogDescriptor.THIS.to(this.objectBuilderTransformer).build();
@@ -662,95 +703,136 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		);
 	}
 
-	@Nonnull
-	private BuiltFieldDescriptor buildCreateCatalogField() {
-		final GraphQLFieldDefinition createCatalogField = SystemRootDescriptor.CREATE_CATALOG
-			.to(this.staticEndpointBuilderTransformer)
-			.argument(CreateCatalogMutationHeaderDescriptor.NAME.to(this.argumentBuilderTransformer))
-			.build();
+	/**
+	 * Registers the blocking and `...WithProgress` engine mutations. The blocking ones wait until the operation
+	 * finishes and return the resulting catalog, the `...WithProgress` ones return a progress handle as soon as the
+	 * engine accepts the operation. Both are wrapped in {@link AsyncDataFetcher} so they run on the transaction pool
+	 * rather than on the thread executing the GraphQL request.
+	 */
+	private void registerEngineMutationFields() {
+		final List<PropertyDescriptor> nameArgument = List.of(CatalogNameMutationHeaderDescriptor.NAME);
+		final List<PropertyDescriptor> renameArguments = List.of(
+			RenameCatalogMutationHeaderDescriptor.NAME, RenameCatalogMutationHeaderDescriptor.NEW_NAME
+		);
+		final List<PropertyDescriptor> duplicateArguments = List.of(
+			DuplicateCatalogMutationHeaderDescriptor.NAME, DuplicateCatalogMutationHeaderDescriptor.NEW_NAME
+		);
+		final List<PropertyDescriptor> replaceArguments = List.of(
+			ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED,
+			ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED_WITH
+		);
 
-		return new BuiltFieldDescriptor(
-			createCatalogField,
-			new AsyncDataFetcher(
-				new CreateCatalogMutatingDataFetcher(this.evita),
-				this.buildingContext.getConfig(),
-				this.buildingContext.getTracingContext(),
-				this.buildingContext.getEvita()
+		registerEngineMutationField(
+			SystemRootDescriptor.CREATE_NEW_CATALOG, nameArgument, new CreateNewCatalogMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.ACTIVATE_CATALOG, nameArgument, new ActivateCatalogMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.ACTIVATE_CATALOG_WITH_PROGRESS, nameArgument,
+			new ActivateCatalogWithProgressMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.DEACTIVATE_CATALOG, nameArgument, new DeactivateCatalogMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.DEACTIVATE_CATALOG_WITH_PROGRESS, nameArgument,
+			new DeactivateCatalogWithProgressMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.DELETE_CATALOG_IF_EXISTS, nameArgument,
+			new DeleteCatalogIfExistsMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.DELETE_CATALOG_IF_EXISTS_WITH_PROGRESS, nameArgument,
+			new DeleteCatalogIfExistsWithProgressMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.DUPLICATE_CATALOG, duplicateArguments,
+			new DuplicateCatalogMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.DUPLICATE_CATALOG_WITH_PROGRESS, duplicateArguments,
+			new DuplicateCatalogWithProgressMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.MAKE_CATALOG_ALIVE, nameArgument, new MakeCatalogAliveMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.MAKE_CATALOG_ALIVE_WITH_PROGRESS, nameArgument,
+			new MakeCatalogAliveWithProgressMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.MAKE_CATALOG_IMMUTABLE, nameArgument,
+			new MakeCatalogImmutableMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.MAKE_CATALOG_IMMUTABLE_WITH_PROGRESS, nameArgument,
+			new MakeCatalogImmutableWithProgressMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.MAKE_CATALOG_MUTABLE, nameArgument,
+			new MakeCatalogMutableMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.MAKE_CATALOG_MUTABLE_WITH_PROGRESS, nameArgument,
+			new MakeCatalogMutableWithProgressMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.RENAME_CATALOG, renameArguments, new RenameCatalogMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.RENAME_CATALOG_WITH_PROGRESS, renameArguments,
+			new RenameCatalogWithProgressMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.REPLACE_CATALOG, replaceArguments, new ReplaceCatalogMutatingDataFetcher(this.evita)
+		);
+		registerEngineMutationField(
+			SystemRootDescriptor.REPLACE_CATALOG_WITH_PROGRESS, replaceArguments,
+			new ReplaceCatalogWithProgressMutatingDataFetcher(this.evita)
+		);
+	}
+
+	/**
+	 * Registers a mutation field with the given arguments, its data fetcher wrapped in {@link AsyncDataFetcher}.
+	 */
+	private void registerEngineMutationField(
+		@Nonnull EndpointDescriptor endpoint,
+		@Nonnull List<PropertyDescriptor> arguments,
+		@Nonnull DataFetcher<?> dataFetcher
+	) {
+		final GraphQLFieldDefinition.Builder fieldBuilder = endpoint.to(this.staticEndpointBuilderTransformer);
+		for (PropertyDescriptor argument : arguments) {
+			fieldBuilder.argument(argument.to(this.argumentBuilderTransformer));
+		}
+		this.buildingContext.registerMutationField(
+			new BuiltFieldDescriptor(
+				fieldBuilder.build(),
+				new AsyncDataFetcher(
+					dataFetcher,
+					this.buildingContext.getConfig(),
+					this.buildingContext.getTracingContext(),
+					this.buildingContext.getEvita()
+				)
 			)
 		);
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildSwitchCatalogToAliveStateField() {
-		final GraphQLFieldDefinition switchCatalogToAliveStateField = SystemRootDescriptor.SWITCH_CATALOG_TO_ALIVE_STATE
-			.to(this.staticEndpointBuilderTransformer)
-			.argument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.to(this.argumentBuilderTransformer))
-			.build();
+	private BuiltFieldDescriptor buildOnEngineMutationProgressChangeField() {
+		final GraphQLFieldDefinition onEngineMutationProgressChangeField =
+			SystemRootDescriptor.ON_ENGINE_MUTATION_PROGRESS_CHANGE
+				.to(this.staticEndpointBuilderTransformer)
+				.argument(
+					OnEngineMutationProgressChangeSubscriptionHeaderDescriptor.PROGRESS_ID
+						.to(this.argumentBuilderTransformer)
+				)
+				.build();
 
 		return new BuiltFieldDescriptor(
-			switchCatalogToAliveStateField,
-			new AsyncDataFetcher(
-				new SwitchCatalogToAliveStateMutatingDataFetcher(this.evita),
-				this.buildingContext.getConfig(),
-				this.buildingContext.getTracingContext(),
-				this.buildingContext.getEvita()
-			)
-		);
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildRenameCatalogField() {
-		final GraphQLFieldDefinition renameCatalogField = SystemRootDescriptor.RENAME_CATALOG
-			.to(this.staticEndpointBuilderTransformer)
-			.argument(RenameCatalogMutationHeaderDescriptor.NAME.to(this.argumentBuilderTransformer))
-			.argument(RenameCatalogMutationHeaderDescriptor.NEW_NAME.to(this.argumentBuilderTransformer))
-			.build();
-
-		return new BuiltFieldDescriptor(
-			renameCatalogField,
-			new AsyncDataFetcher(
-				new RenameCatalogMutatingDataFetcher(this.evita),
-				this.buildingContext.getConfig(),
-				this.buildingContext.getTracingContext(),
-				this.buildingContext.getEvita()
-			)
-		);
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildReplaceCatalogField() {
-		final GraphQLFieldDefinition replaceCatalogField = SystemRootDescriptor.REPLACE_CATALOG
-			.to(this.staticEndpointBuilderTransformer)
-			.argument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED.to(this.argumentBuilderTransformer))
-			.argument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED_WITH.to(this.argumentBuilderTransformer))
-			.build();
-
-		return new BuiltFieldDescriptor(
-			replaceCatalogField,
-			new AsyncDataFetcher(
-				new ReplaceCatalogMutatingDataFetcher(this.evita),
-				this.buildingContext.getConfig(),
-				this.buildingContext.getTracingContext(),
-				this.buildingContext.getEvita()
-			)
-		);
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildDeleteCatalogIfExistsField() {
-		final GraphQLFieldDefinition deleteCatalogIfExistsCatalogField = SystemRootDescriptor.DELETE_CATALOG_IF_EXISTS
-			.to(this.staticEndpointBuilderTransformer)
-			.argument(DeleteCatalogIfExistsMutationHeaderDescriptor.NAME.to(this.argumentBuilderTransformer))
-			.build();
-
-		return new BuiltFieldDescriptor(
-			deleteCatalogIfExistsCatalogField,
-			new AsyncDataFetcher(
-				new DeleteCatalogIfExistsMutatingDataFetcher(this.evita),
-				this.buildingContext.getConfig(),
-				this.buildingContext.getTracingContext(),
-				this.buildingContext.getEvita()
-			)
+			onEngineMutationProgressChangeField,
+			new OnEngineMutationProgressChangeSubscribingDataFetcher(this.evita)
 		);
 	}
 

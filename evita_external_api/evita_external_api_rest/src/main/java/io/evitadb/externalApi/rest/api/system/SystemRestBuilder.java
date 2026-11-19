@@ -96,6 +96,8 @@ import io.evitadb.externalApi.api.system.model.cdc.CatalogSchemaUpdatedDescripto
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureCriteriaDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.HostSystemEventDescriptor;
+import io.evitadb.externalApi.api.system.model.progress.EngineMutationProgressChangeDescriptor;
+import io.evitadb.externalApi.api.system.model.progress.EngineMutationProgressHandleDescriptor;
 import io.evitadb.externalApi.api.transaction.model.mutation.TransactionMutationDescriptor;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
@@ -109,6 +111,7 @@ import io.evitadb.externalApi.rest.api.system.builder.SystemEndpointBuilder;
 import io.evitadb.externalApi.rest.api.system.builder.SystemRestBuildingContext;
 import io.evitadb.externalApi.rest.api.system.model.ChangeSystemCaptureRequestDescriptor;
 import io.evitadb.externalApi.rest.api.system.model.CreateCatalogRequestDescriptor;
+import io.evitadb.externalApi.rest.api.system.model.EngineMutationProgressRequestDescriptor;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.api.system.model.UpdateCatalogRequestDescriptor;
 import io.evitadb.externalApi.rest.configuration.RestOptions;
@@ -170,6 +173,9 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		this.buildingContext.registerType(UnusableCatalogDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(CreateCatalogRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(UpdateCatalogRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(
+			EngineMutationProgressHandleDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(
@@ -207,6 +213,13 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		this.buildingContext.registerType(CatalogSchemaUpdatedDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(HostSystemEventDescriptor.THIS.to(this.unionBuilderTransformer).build());
 		this.buildingContext.registerType(buildChangeSystemCaptureObject());
+		// the same applies to the engine mutation progress stream: its subscription payload and its messages
+		this.buildingContext.registerType(
+			EngineMutationProgressRequestDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			EngineMutationProgressChangeDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ConflictResolutionDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
 		buildMutationInterface();
@@ -232,9 +245,16 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		this.buildingContext.registerEndpoint(this.endpointBuilder.buildGetCatalogEndpoint());
 		this.buildingContext.registerEndpoint(this.endpointBuilder.buildListCatalogsEndpoint());
 		this.buildingContext.registerEndpoint(this.endpointBuilder.buildCreateCatalogEndpoint());
-		this.buildingContext.registerEndpoint(this.endpointBuilder.buildUpdateCatalogEndpoint());
-		this.buildingContext.registerEndpoint(this.endpointBuilder.buildDeleteCatalogEndpoint());
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildUpdateCatalogEndpoint(false));
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildUpdateCatalogEndpoint(true));
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildDeleteCatalogEndpoint(false));
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildDeleteCatalogEndpoint(true));
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildDuplicateCatalogEndpoint(false));
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildDuplicateCatalogEndpoint(true));
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildReplaceCatalogEndpoint(false));
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildReplaceCatalogEndpoint(true));
 		this.buildingContext.registerEndpoint(this.endpointBuilder.buildChangeSystemCaptureEndpoint());
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildEngineMutationProgressEndpoint());
 	}
 
 	@Nonnull

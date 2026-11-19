@@ -9,7 +9,7 @@ prs: [1890]
 areas: [evita_engine/src/main/java/io/evitadb/core/transaction, evita_engine/src/main/java/io/evitadb/core/transaction/engine/operators, evita_engine/src/main/java/io/evitadb/core/engine, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog]
 supersedes: []
 superseded-by: []
-relates: [2026-08-06-catalog-folder-decoupling, 2026-09-06-go-live-session-drain]
+relates: [2026-08-06-catalog-folder-decoupling, 2026-09-06-go-live-session-drain, 2026-11-18-engine-mutation-progress-by-id]
 ---
 
 # A rename or replace outlasts the commits in flight, under a 5 s budget, and never publishes across them
@@ -242,6 +242,8 @@ refusals turn out to matter, Option E if rounds over 5 s turn out to be common.
   pipeline. It also recorded the first checkpoint-ordering defect and the rejected WAL transaction this record keeps rejected.
 - `2026-09-06-go-live-session-drain` — the same synchronous-half shape and 5 s budget. It named `discardSuspension` as the tell
   in the go-live operator; this work deletes the method.
+- `2026-11-18-engine-mutation-progress-by-id` — the asynchronous rename/replace of the GraphQL and REST system APIs; they
+  still pay this drain at admission, which declined Option E would remove.
 
 ## Timeline
 

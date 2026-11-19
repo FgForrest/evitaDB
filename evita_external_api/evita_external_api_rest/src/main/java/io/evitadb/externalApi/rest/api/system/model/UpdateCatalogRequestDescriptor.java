@@ -29,7 +29,6 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -42,31 +41,38 @@ public interface UpdateCatalogRequestDescriptor {
 	PropertyDescriptor NAME = PropertyDescriptor.builder()
 		.name("name")
 		.description("""
-			New name of selected catalog.
+			New name of the catalog. The name must not be taken by another catalog - to take the name of an existing
+			catalog use the `replace` action instead.
 			""")
-		.type(nonNull(String.class))
+		.type(nullable(String.class))
 		.build();
-	PropertyDescriptor OVERWRITE_TARGET = PropertyDescriptor.builder()
-		.name("overwriteTarget")
+	PropertyDescriptor STATE = PropertyDescriptor.builder()
+		.name("state")
 		.description("""
-			If `true`, existing catalog under passed new `name` will be overwritten with this one.
+			Requested state of the catalog. Only `ALIVE` and `INACTIVE` are accepted:
+
+			- `ALIVE` activates an `INACTIVE` catalog (loads it into memory), or switches a catalog in the
+			  `WARMING_UP` state to the `ALIVE` state. An activated catalog returns to the state it was deactivated in,
+			  so a catalog deactivated during warm-up comes back `WARMING_UP` and needs `ALIVE` once more.
+			- `INACTIVE` deactivates the catalog (unloads it from memory, its data remain on disk).
+			""")
+		.type(nullable(CatalogState.class))
+		.build();
+	PropertyDescriptor READ_ONLY = PropertyDescriptor.builder()
+		.name("readOnly")
+		.description("""
+			`true` makes the catalog read-only (it rejects all data and schema changes), `false` makes it writable
+			again.
 			""")
 		.type(nullable(Boolean.class))
-		.build();
-
-	PropertyDescriptor CATALOG_STATE = PropertyDescriptor.builder()
-		.name("catalogState")
-		.description("""
-			New state of selected catalog. Can be used only for switching from `WARMING_UP` to `ALIVE` state.
-			""")
-		.type(nonNull(CatalogState.class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("UpdateCatalogRequest")
 		.description("""
-			Requests creation of new catalog.
+			Requests a change of a catalog. Exactly one of the properties must be set - each request performs exactly
+			one engine operation.
 			""")
-		.staticProperties(List.of(NAME, OVERWRITE_TARGET, CATALOG_STATE))
+		.staticProperties(List.of(NAME, STATE, READ_ONLY))
 		.build();
 }

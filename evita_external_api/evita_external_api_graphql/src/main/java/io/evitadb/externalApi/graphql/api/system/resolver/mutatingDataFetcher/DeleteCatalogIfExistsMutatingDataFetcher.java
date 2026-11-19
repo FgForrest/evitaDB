@@ -28,7 +28,7 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
-import io.evitadb.externalApi.graphql.api.system.model.DeleteCatalogIfExistsMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.system.model.CatalogNameMutationHeaderDescriptor;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -36,7 +36,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Returns single catalog dto by name.
+ * Deletes the catalog of the given name if it exists and returns whether it existed.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -49,7 +49,7 @@ public class DeleteCatalogIfExistsMutatingDataFetcher implements DataFetcher<Boo
     @Override
     public Boolean get(DataFetchingEnvironment environment) throws Exception {
         final String catalogName = Objects.requireNonNull(
-            environment.getArgument(DeleteCatalogIfExistsMutationHeaderDescriptor.NAME.name())
+            environment.getArgument(CatalogNameMutationHeaderDescriptor.NAME.name())
         );
         final Optional<CatalogContract> catalogInstance = this.evita.getCatalogInstance(catalogName);
         return catalogInstance

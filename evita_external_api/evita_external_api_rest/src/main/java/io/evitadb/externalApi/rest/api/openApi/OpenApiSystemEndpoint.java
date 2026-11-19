@@ -215,7 +215,8 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 				() -> new OpenApiBuildingError("Endpoint `" + this.path + "` is missing description.")
 			);
 
-			if (Set.of(POST, PUT, PATCH).contains(this.method)) {
+			// a `POST` may carry everything in its path - the catalog actions (`.../actions/duplicate/{newName}`) do
+			if (Set.of(PUT, PATCH).contains(this.method)) {
 				Assert.isPremiseValid(
 					this.requestBody != null,
 					() -> new OpenApiBuildingError("Endpoint `" + this.path + "` is missing request body.")

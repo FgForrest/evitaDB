@@ -1,5 +1,7 @@
 mutation {
-  createCatalog(name: "evita") {
-    name
+  createNewCatalog(name: "evita") {
+    ... on Catalog {
+      name
+    }
   }
 }

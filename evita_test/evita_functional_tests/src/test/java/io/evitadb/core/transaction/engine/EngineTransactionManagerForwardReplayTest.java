@@ -141,7 +141,11 @@ class EngineTransactionManagerForwardReplayTest implements EvitaTestSupport {
 	) {
 		lastSetState.set(initialState);
 		final StorageOptions storage = StorageOptions.builder().storageDirectory(storageDirectory).build();
-		final ServerOptions server = ServerOptions.builder().transactionTimeoutInMilliseconds(5_000L).build();
+		// no progress retention: the mocked engine has no scheduler for the registry's cleanup task
+		final ServerOptions server = ServerOptions.builder()
+			.transactionTimeoutInMilliseconds(5_000L)
+			.engineMutationProgressRetentionInSeconds(0)
+			.build();
 		final EvitaConfiguration configuration = mock(EvitaConfiguration.class);
 		when(configuration.storage()).thenReturn(storage);
 		when(configuration.server()).thenReturn(server);

@@ -87,7 +87,7 @@ by executing:
 
 </SourceCodeTabs>
 
-The <LS to="g">`switchCatalogToAliveState` mutation</LS><LS to="r">`/catalogs/{catalog-name}` endpoint with `PATCH` method</LS>
+The <LS to="g">`makeCatalogAlive` mutation</LS><LS to="r">`/catalogs/{catalog-name}` endpoint with `PATCH` method and the `state` set to `ALIVE`</LS>
 sets the catalog to `ALIVE` (transactional) state. From this moment on, multiple clients can send queries or mutations
 requests in parallel to this particular catalog.
 

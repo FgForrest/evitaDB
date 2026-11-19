@@ -118,6 +118,15 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 							);
 							writeResponse(executionContext, responseWriter, result, ctx.eventLoop());
 						}
+					} else if (response instanceof AcceptedEndpointResponse acceptedResponse) {
+						responseWriter.write(
+							ResponseHeaders.of(
+								HttpStatus.ACCEPTED,
+								HttpHeaderNames.CONTENT_TYPE,
+								executionContext.preferredResponseContentType() + CONTENT_TYPE_CHARSET
+							)
+						);
+						writeResponse(executionContext, responseWriter, acceptedResponse.result(), ctx.eventLoop());
 					} else {
 						throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
 					}

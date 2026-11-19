@@ -43,7 +43,7 @@ The following operations are supported at the engine level:
     <dt>Duplicate existing catalog</dt>
     <dd>Creates a copy of an existing catalog under a new name. The duplicated catalog is a binary copy of the original catalog and is created in an "inactive" state, which means it cannot be immediately queried or updated unless you make it active.</dd>
     <dt>Modify catalog name</dt>
-    <dd>Changes the name of an existing catalog to a new one. You can also use the name of another existing catalog to replace it with the named catalog, but you need to confirm this replacement operation by setting `overwriteTarget` to `true`.</dd>
+    <dd>Changes the name of an existing catalog to a new one (`renameCatalog`). To take the name of another existing catalog, replacing it with the named catalog, use the separate replace operation (`replaceCatalog`) instead.</dd>
     <dt>Modify catalog schema</dt>
     <dd>Allows you to modify the catalog schema. This mutation is not allowed to be used as an engine control mutation — it is only usable within the context of a specific catalog and requires <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> to be executed.</dd>
     <dt>Make catalog alive</dt>
@@ -75,6 +75,138 @@ The following operations are supported at the engine level:
 </Note>
 
 </LS>
-<LS to="e,r,g,c">
-Engine control is currently supported only in [Java](control-engine.md?lang=java).
+<LS to="g,r">
+The engine is controlled through the <LS to="g">[system API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances)</LS><LS to="r">[system API](/documentation/user/en/use/connectors/rest.md#rest-api-instances)</LS>.
+Every operation comes in two flavors, the same as in the Java API: a blocking one, which waits until the operation
+finishes and returns the resulting catalog, and an asynchronous one, which returns as soon as the engine has accepted
+the operation, with a handle carrying the `progressId` of the operation. The `progressId` is then used to subscribe to
+the progress and the outcome of the operation.
+
+<LS to="g">
+
+| Operation                        | Blocking mutation        | Asynchronous mutation                |
+|----------------------------------|--------------------------|--------------------------------------|
+| Create new catalog               | `createNewCatalog`       | -                                    |
+| Activate catalog                 | `activateCatalog`        | `activateCatalogWithProgress`        |
+| Deactivate catalog               | `deactivateCatalog`      | `deactivateCatalogWithProgress`      |
+| Delete catalog                   | `deleteCatalogIfExists`  | `deleteCatalogIfExistsWithProgress`  |
+| Duplicate catalog                | `duplicateCatalog`       | `duplicateCatalogWithProgress`       |
+| Make catalog alive               | `makeCatalogAlive`       | `makeCatalogAliveWithProgress`       |
+| Make catalog read-only           | `makeCatalogImmutable`   | `makeCatalogImmutableWithProgress`   |
+| Make catalog writable            | `makeCatalogMutable`     | `makeCatalogMutableWithProgress`     |
+| Rename catalog                   | `renameCatalog`          | `renameCatalogWithProgress`          |
+| Replace catalog with another one | `replaceCatalog`         | `replaceCatalogWithProgress`         |
+
+Renaming and replacing require the catalogs to be loaded in memory (not `INACTIVE`).
+
+The blocking mutations return the resulting catalog as `CatalogUnion` - a loaded `Catalog`, or an `UnusableCatalog`
+when the catalog is not loaded in memory (e.g. after it was deactivated or duplicated); `deleteCatalogIfExists` returns
+whether the catalog existed. This is how to define a new catalog and make it inactive using the blocking mutations:
+
+</LS>
+<LS to="r">
+
+| Operation                        | Blocking endpoint                                           | Asynchronous endpoint                            |
+|----------------------------------|-------------------------------------------------------------|--------------------------------------------------|
+| Create new catalog               | `POST /catalogs` with `{"name": "..."}`                     | -                                                |
+| Activate catalog                 | `PATCH /catalogs/{name}` with `{"state": "ALIVE"}`          | `PATCH /catalogs-async/{name}`                   |
+| Deactivate catalog               | `PATCH /catalogs/{name}` with `{"state": "INACTIVE"}`       | `PATCH /catalogs-async/{name}`                   |
+| Make catalog alive               | `PATCH /catalogs/{name}` with `{"state": "ALIVE"}`          | `PATCH /catalogs-async/{name}`                   |
+| Make catalog read-only/writable  | `PATCH /catalogs/{name}` with `{"readOnly": true/false}`    | `PATCH /catalogs-async/{name}`                   |
+| Rename catalog                   | `PATCH /catalogs/{name}` with `{"name": "newName"}`         | `PATCH /catalogs-async/{name}`                   |
+| Delete catalog                   | `DELETE /catalogs/{name}`                                   | `DELETE /catalogs-async/{name}`                  |
+| Duplicate catalog                | `POST /catalogs/{name}/actions/duplicate/{newName}`         | `POST /catalogs-async/{name}/actions/duplicate/{newName}` |
+| Replace catalog `{newName}`      | `POST /catalogs/{name}/actions/replace/{newName}`           | `POST /catalogs-async/{name}/actions/replace/{newName}`   |
+
+A `PATCH` request must contain exactly one of `name`, `state` and `readOnly` - one request performs exactly one
+operation. `ALIVE` activates an inactive catalog, or switches a catalog in the `WARMING_UP` state to the `ALIVE` state.
+A catalog returns from activation in the state it was deactivated in, so a catalog deactivated during warm-up comes back
+`WARMING_UP` and needs `ALIVE` once more. The replace action makes the catalog `{name}` take the place of the catalog
+`{newName}`, whose original contents are dropped. Renaming and replacing require the catalogs to be loaded in memory
+(not `INACTIVE`).
+
+The blocking endpoints return the resulting catalog (a loaded `Catalog`, or an `UnusableCatalog` when the catalog is not
+loaded in memory), the `DELETE` endpoint answers `204 No Content`. A missing catalog is answered with `404 Not Found`.
+This is how to duplicate a catalog using the blocking endpoint:
+
+</LS>
+
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+
+[Changing catalogs in a blocking fashion](/documentation/user/en/use/api/example/system-api-engine-control-blocking.graphql)
+
+</SourceCodeTabs>
+
+The asynchronous <LS to="g">mutations</LS><LS to="r">endpoints answer `202 Accepted` and</LS> return a handle with
+the `progressId` of the accepted operation<LS to="g"> - here making a catalog alive</LS><LS to="r"> - here duplicating
+a catalog</LS>:
+
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+
+[Starting an operation in an asynchronous fashion](/documentation/user/en/use/api/example/system-api-engine-control-nonblocking.graphql)
+
+</SourceCodeTabs>
+
+<LS to="g">
+
+The progress of the operation is then observed by the `onEngineMutationProgressChange` subscription:
+
+```plain
+subscription {
+  onEngineMutationProgressChange(progressId: "c2d0b1e4-8f3a-4c6e-9b1d-2a7f5e3c8d90") {
+    progressId
+    percentCompleted
+    finished
+    catalogVersion
+    catalogSchemaVersion
+  }
+}
+```
+
+</LS>
+<LS to="r">
+
+The progress of the operation is then observed through the WebSocket endpoint `GET /catalogs-async/progress`, using
+the same sub-protocol as the [change data capture](/documentation/user/en/use/connectors/rest.md) stream, with the
+subscription payload:
+
+```json
+{
+  "progressId": "c2d0b1e4-8f3a-4c6e-9b1d-2a7f5e3c8d90"
+}
+```
+
+</LS>
+
+The first message carries the state of the operation at the moment of the subscription, the following ones its
+changes - intermediate percentages may be skipped when the client consumes them slower than the operation progresses.
+A successful operation ends the stream with a message with `finished` set to `true` (carrying the resulting
+`catalogVersion` and `catalogSchemaVersion` for operations that report them, such as making a catalog alive, renaming
+or replacing it), a failed one with an error carrying the failure. Subscribing after the operation has finished still
+delivers its outcome, as long as the server retains it - see the
+[`engineMutationProgressRetentionInSeconds` and `engineMutationProgressRetentionLimit`](/documentation/user/en/operate/configure.md#server-configuration)
+settings. The outcomes are kept in memory only: after a restart of the server, the `progressId` is unknown and the
+stream ends with an error - read the state of the catalog instead.
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### What the asynchronous variant does not save
+</NoteTitle>
+
+The asynchronous variant does not wait for the operation, but it still waits for its *acceptance*: the engine verifies
+that the operation can be applied, and - for renaming, replacing and making a catalog alive - closes the sessions open
+on the catalog and lets the commits in progress finish. This usually takes milliseconds; when the sessions or commits do
+not finish in time, the request itself is refused. Failures detected during the acceptance (a missing catalog, a name
+clash, a read-only server) fail the request directly; failures after the acceptance reach the client only through the
+progress stream.
+
+The blocking variant holds a server thread for the whole operation and is subject to the request timeout of the API -
+prefer the asynchronous variant for long-running operations, such as activating a large catalog.
+</Note>
+
+</LS>
+<LS to="e,c">
+Engine control is currently supported only in [Java](control-engine.md?lang=java), [GraphQL](control-engine.md?lang=graphql) and [REST](control-engine.md?lang=rest).
 </LS>

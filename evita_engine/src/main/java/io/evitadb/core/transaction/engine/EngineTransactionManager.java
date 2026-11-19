@@ -24,6 +24,7 @@
 package io.evitadb.core.transaction.engine;
 
 
+import com.github.benmanes.caffeine.cache.Ticker;
 import io.evitadb.api.exception.ConflictingEngineMutationException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.InvalidMutationException;
@@ -70,9 +71,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -168,6 +171,11 @@ public class EngineTransactionManager implements Closeable {
 	 * Map that keeps track of currently running mutations for each catalog.
 	 */
 	private final Map<String, Progress<?>> currentCatalogMutations = CollectionUtils.createConcurrentHashMap(64);
+	/**
+	 * Tracks every engine mutation under its progress id (the transaction id), so that clients can observe the
+	 * progress and the outcome of an operation by id, also after it has finished.
+	 */
+	private final EngineMutationProgressRegistry progressRegistry;
 	/**
 	 * Wait interval in milliseconds that the transaction manager will wait for the engine state lock.
 	 */
@@ -312,6 +320,13 @@ public class EngineTransactionManager implements Closeable {
 		this.engineExecutor = executor;
 		this.enginePersistenceService = enginePersistenceService;
 		this.engineMutationWaitIntervalInMillis = this.evita.getConfiguration().server().transactionTimeoutInMilliseconds();
+		this.progressRegistry = new EngineMutationProgressRegistry(
+			this.evita.getConfiguration().server(),
+			this.evita.getServiceExecutor(),
+			// `SubmissionPublisher` drops a subscriber silently when its executor rejects a task
+			ProgressingFuture.unrejectableExecutor(this.evita.getRequestExecutor()),
+			Ticker.systemTicker()
+		);
 		final ExpandedEngineState engineState = this.evita.getEngineState();
 		// Prime `lastStoredEngineStateVersion` up-front so the forward-replay path can update it
 		// via the normal post-replay bookkeeping. Priming must happen BEFORE the replay call
@@ -499,6 +514,18 @@ public class EngineTransactionManager implements Closeable {
 	}
 
 	/**
+	 * Returns a publisher of the progress of the engine mutation tracked under `progressId`. See
+	 * {@link EngineMutationProgressRegistry} for the signals it emits.
+	 *
+	 * @param progressId id of the operation, as returned by {@link Progress#progressId()}
+	 * @return publisher of the progress of the operation
+	 */
+	@Nonnull
+	public Flow.Publisher<EngineMutationProgressStatus> subscribeToEngineMutationProgress(@Nonnull UUID progressId) {
+		return this.progressRegistry.subscribe(progressId);
+	}
+
+	/**
 	 * Returns internal system executor that is used for executing asynchronous engine level tasks.
 	 * @return the executor that is used for executing asynchronous engine level tasks
 	 */
@@ -599,6 +626,7 @@ public class EngineTransactionManager implements Closeable {
 		).join();
 		// close the engine executor
 		IOUtils.closeQuietly(
+			this.progressRegistry::close,
 			this.changeObserver::close,
 			this.enginePersistenceService::close
 		);
@@ -817,20 +845,6 @@ public class EngineTransactionManager implements Closeable {
 				"Unknown engine mutation operator for mutation: " + engineMutation.getClass()
 			);
 
-			final Consumer<ProgressRecord<T>> onProgressExecution;
-			final Consumer<ProgressRecord<T>> onProgressCompletion;
-			if (engineMutation instanceof TopLevelCatalogMutation<?> catalogMutation) {
-				onProgressExecution = progress -> this.currentCatalogMutations.put(
-					catalogMutation.getCatalogName(), progress);
-				onProgressCompletion = progress -> {
-					this.currentCatalogMutations.remove(catalogMutation.getCatalogName());
-					onCompletion.run();
-				};
-			} else {
-				onProgressExecution = Functions.noOpConsumer();
-				onProgressCompletion = progress -> onCompletion.run();
-			}
-
 			// Hoisted out of the constructor call below, and the operation name with it so the evaluation order
 			// is the one the arguments used to give. What the local buys is the `catch`: an operator that has
 			// already taken a placeholder and suspended a session registry hangs its compensation on this
@@ -841,8 +855,41 @@ public class EngineTransactionManager implements Closeable {
 				this::updateEngineStateBeforeEngineMutation,
 				this::updateEngineStateAfterEngineMutation
 			);
+
+			// The callbacks are built after `operatorFuture` only because the completion callback captures it: it
+			// runs inside `whenComplete` of that future, where the record's own `onCompletion()` is not complete yet,
+			// so the outcome has to be read from the operator future itself. Where the lambdas are created does not
+			// affect the timing - the operator only creates the future, and nothing runs until `ProgressRecord`'s
+			// constructor submits it as its last statement, after it has registered both callbacks.
+			final Consumer<ProgressRecord<T>> onProgressExecution;
+			final Consumer<ProgressRecord<T>> onProgressCompletion;
+			if (engineMutation instanceof TopLevelCatalogMutation<?> catalogMutation) {
+				onProgressExecution = progress -> {
+					this.currentCatalogMutations.put(catalogMutation.getCatalogName(), progress);
+					registerTrackedProgress(transactionId, progress);
+				};
+				onProgressCompletion = progress -> {
+					try {
+						this.currentCatalogMutations.remove(catalogMutation.getCatalogName());
+						onCompletion.run();
+					} finally {
+						completeTrackedProgress(transactionId, operatorFuture);
+					}
+				};
+			} else {
+				onProgressExecution = progress -> registerTrackedProgress(transactionId, progress);
+				onProgressCompletion = progress -> {
+					try {
+						onCompletion.run();
+					} finally {
+						completeTrackedProgress(transactionId, operatorFuture);
+					}
+				};
+			}
+
 			try {
 				return new ProgressRecord<>(
+					transactionId,
 					operationName,
 					progressObserver == null ? Functions.noOpIntConsumer() : progressObserver,
 					operatorFuture,
@@ -869,7 +916,58 @@ public class EngineTransactionManager implements Closeable {
 				// A statement added below that call in `ProgressRecord` would break this, silently: the future
 				// could then be complete before this catch is entered.
 				operatorFuture.completeExceptionally(ex);
+				// the caller gets an exception and no id, so the entry registered above would be an orphan
+				this.progressRegistry.remove(transactionId);
 				throw ex;
+			}
+		}
+	}
+
+	/**
+	 * Starts tracking the progress under `progressId`. Never throws: it runs inside the constructor of the progress
+	 * record, where a throw would fail - and undo - a mutation that is otherwise fine. An operation that could not be
+	 * registered simply cannot be observed by its id.
+	 *
+	 * @param progressId id of the operation
+	 * @param progress   progress of the operation
+	 */
+	private void registerTrackedProgress(@Nonnull UUID progressId, @Nonnull Progress<?> progress) {
+		try {
+			this.progressRegistry.register(progressId, progress);
+		} catch (Throwable ex) {
+			log.error("Failed to start tracking the progress of engine mutation `{}`.", progressId, ex);
+		}
+	}
+
+	/**
+	 * Transitions the progress tracked under `progressId` to its terminal state, taking the outcome from the
+	 * operator future. Runs last in the completion callback - after the conflict keys were released, and even when
+	 * releasing them failed, so the entry never stays running forever - and never throws: it runs inside
+	 * `whenComplete` of the operator future, so a throw would fail the `onCompletion()` of a mutation that has
+	 * succeeded.
+	 *
+	 * @param progressId     id of the tracked operation
+	 * @param operatorFuture the completed operator future
+	 */
+	private void completeTrackedProgress(@Nonnull UUID progressId, @Nonnull CompletableFuture<?> operatorFuture) {
+		try {
+			switch (operatorFuture.state()) {
+				case SUCCESS -> this.progressRegistry.complete(progressId, operatorFuture.resultNow(), null);
+				case FAILED -> this.progressRegistry.complete(progressId, null, operatorFuture.exceptionNow());
+				case CANCELLED -> this.progressRegistry.complete(
+					progressId, null, new CancellationException("Engine mutation was cancelled.")
+				);
+				case RUNNING -> throw new GenericEvitaInternalError(
+					"Engine mutation `" + progressId + "` reported completion while still running!"
+				);
+			}
+		} catch (Throwable ex) {
+			log.error("Failed to record the outcome of engine mutation `{}`.", progressId, ex);
+			// an entry that cannot be completed must not stay running - and unexpirable - forever
+			try {
+				this.progressRegistry.remove(progressId);
+			} catch (Throwable removalEx) {
+				log.error("Failed to forget the progress of engine mutation `{}`.", progressId, removalEx);
 			}
 		}
 	}

@@ -28,8 +28,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.core.Evita;
+import io.evitadb.core.transaction.engine.EngineMutationProgressStatus;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.progress.EngineMutationProgressHandleDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
@@ -40,6 +42,7 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.utils.NamingConvention;
+import io.restassured.response.ValidatableResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -50,6 +53,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.externalApi.http.MimeTypes.APPLICATION_JSON;
 import static io.evitadb.externalApi.http.MimeTypes.APPLICATION_YAML;
@@ -64,6 +71,9 @@ import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for REST system management endpoints.
@@ -278,7 +288,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 			.requestBody(
 				"""
 					{
-						"catalogState": "ALIVE"
+						"state": "ALIVE"
 					}
 					"""
 			)
@@ -322,18 +332,11 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 			.statusCode(200)
 			.body("", equalTo(createCatalogDto(evita.getCatalogInstanceOrThrowException("temporaryCatalog"))));
 
-		// replace test catalog to temporary catalog
+		// replace temporary catalog with test catalog: `{name}` is the catalog to be replaced with, `{newName}` the
+		// catalog to be replaced
 		tester.test(SYSTEM_URL)
-			.urlPathSuffix("/catalogs/testCatalog")
-			.httpMethod(Request.METHOD_PATCH)
-			.requestBody(
-				"""
-					{
-						"name": "temporaryCatalog",
-						"overwriteTarget": true
-					}
-					"""
-			)
+			.urlPathSuffix("/catalogs/testCatalog/actions/replace/temporaryCatalog")
+			.httpMethod(Request.METHOD_POST)
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(createCatalogDto(evita.getCatalogInstanceOrThrowException("temporaryCatalog"))));
@@ -356,20 +359,224 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 		// replace temporary catalog back to test catalog
 		tester.test(SYSTEM_URL)
-			.urlPathSuffix("/catalogs/temporaryCatalog")
-			.httpMethod(Request.METHOD_PATCH)
-			.requestBody(
-				"""
-					{
-						"name": "%s",
-						"overwriteTarget": true
-					}
-					""",
-				TEST_CATALOG
-			)
+			.urlPathSuffix("/catalogs/temporaryCatalog/actions/replace/" + TEST_CATALOG)
+			.httpMethod(Request.METHOD_POST)
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(createCatalogDto(evita.getCatalogInstanceOrThrowException(TEST_CATALOG))));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
+	@DisplayName("Should duplicate, deactivate, activate and change mutability of catalog")
+	void shouldDuplicateDeactivateActivateAndChangeMutability(Evita evita, RestTester tester) {
+		createCatalog(tester, "restMutabilitySource");
+		patchCatalog(tester, "/catalogs/restMutabilitySource", "{\"state\": \"ALIVE\"}")
+			.statusCode(200)
+			.body(CatalogDescriptor.CATALOG_STATE.name(), equalTo(CatalogState.ALIVE.name()));
+
+		// a duplicate is created inactive - the response is an unusable catalog
+		tester.test(SYSTEM_URL)
+			.urlPathSuffix("/catalogs/restMutabilitySource/actions/duplicate/restMutabilityCopy")
+			.httpMethod(Request.METHOD_POST)
+			.executeAndThen()
+			.statusCode(200)
+			.body(CatalogDescriptor.NAME.name(), equalTo("restMutabilityCopy"))
+			.body(CatalogDescriptor.CATALOG_STATE.name(), equalTo(CatalogState.INACTIVE.name()))
+			.body(CatalogDescriptor.UNUSABLE.name(), equalTo(true));
+
+		patchCatalog(tester, "/catalogs/restMutabilityCopy", "{\"state\": \"ALIVE\"}")
+			.statusCode(200)
+			.body(CatalogDescriptor.CATALOG_STATE.name(), equalTo(CatalogState.ALIVE.name()))
+			.body(CatalogDescriptor.READ_ONLY.name(), equalTo(false));
+		patchCatalog(tester, "/catalogs/restMutabilityCopy", "{\"readOnly\": true}")
+			.statusCode(200)
+			.body(CatalogDescriptor.READ_ONLY.name(), equalTo(true));
+		// the read-only flag is reported also for an inactive catalog
+		patchCatalog(tester, "/catalogs/restMutabilityCopy", "{\"state\": \"INACTIVE\"}")
+			.statusCode(200)
+			.body(CatalogDescriptor.CATALOG_STATE.name(), equalTo(CatalogState.INACTIVE.name()))
+			.body(CatalogDescriptor.READ_ONLY.name(), equalTo(true));
+		patchCatalog(tester, "/catalogs/restMutabilityCopy", "{\"state\": \"ALIVE\"}")
+			.statusCode(200)
+			.body(CatalogDescriptor.CATALOG_STATE.name(), equalTo(CatalogState.ALIVE.name()));
+		patchCatalog(tester, "/catalogs/restMutabilityCopy", "{\"readOnly\": false}")
+			.statusCode(200)
+			.body(CatalogDescriptor.READ_ONLY.name(), equalTo(false));
+
+		deleteCatalog(tester, "restMutabilitySource");
+		deleteCatalog(tester, "restMutabilityCopy");
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
+	@DisplayName("Should refuse a change request that does not contain exactly one change")
+	void shouldRefuseInvalidChangeRequest(Evita evita, RestTester tester) {
+		patchCatalog(tester, "/catalogs/" + TEST_CATALOG, "{\"name\": \"other\", \"readOnly\": true}")
+			.statusCode(400);
+		patchCatalog(tester, "/catalogs-async/" + TEST_CATALOG, "{\"name\": \"other\", \"readOnly\": true}")
+			.statusCode(400);
+		patchCatalog(tester, "/catalogs/" + TEST_CATALOG, "{}")
+			.statusCode(400);
+		patchCatalog(tester, "/catalogs/" + TEST_CATALOG, "{\"state\": \"WARMING_UP\"}")
+			.statusCode(400);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
+	@DisplayName("Should answer 404 for an operation on an unknown catalog")
+	void shouldReturnNotFoundForUnknownCatalog(Evita evita, RestTester tester) {
+		patchCatalog(tester, "/catalogs/unknown", "{\"readOnly\": true}").statusCode(404);
+		patchCatalog(tester, "/catalogs-async/unknown", "{\"readOnly\": true}").statusCode(404);
+		tester.test(SYSTEM_URL)
+			.urlPathSuffix("/catalogs-async/unknown")
+			.httpMethod(Request.METHOD_DELETE)
+			.executeAndThen()
+			.statusCode(404);
+		tester.test(SYSTEM_URL)
+			.urlPathSuffix("/catalogs/unknown/actions/duplicate/unknownCopy")
+			.httpMethod(Request.METHOD_POST)
+			.executeAndThen()
+			.statusCode(404);
+		tester.test(SYSTEM_URL)
+			.urlPathSuffix("/catalogs-async/unknown/actions/replace/" + TEST_CATALOG)
+			.httpMethod(Request.METHOD_POST)
+			.executeAndThen()
+			.statusCode(404);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
+	@DisplayName("Should accept asynchronous operations with a progress handle")
+	void shouldAcceptAsynchronousOperations(Evita evita, RestTester tester) {
+		createCatalog(tester, "restAsyncCatalog");
+
+		final String progressId = patchCatalog(tester, "/catalogs-async/restAsyncCatalog", "{\"state\": \"ALIVE\"}")
+			.statusCode(202)
+			.body(EngineMutationProgressHandleDescriptor.PROGRESS_ID.name(), notNullValue())
+			.extract()
+			.path(EngineMutationProgressHandleDescriptor.PROGRESS_ID.name());
+		awaitCompletion(evita, progressId);
+		assertEquals(CatalogState.ALIVE, evita.getCatalogState("restAsyncCatalog").orElseThrow());
+
+		awaitCompletion(
+			evita,
+			tester.test(SYSTEM_URL)
+				.urlPathSuffix("/catalogs-async/restAsyncCatalog/actions/duplicate/restAsyncCopy")
+				.httpMethod(Request.METHOD_POST)
+				.executeAndThen()
+				.statusCode(202)
+				.extract()
+				.path(EngineMutationProgressHandleDescriptor.PROGRESS_ID.name())
+		);
+		assertEquals(CatalogState.INACTIVE, evita.getCatalogState("restAsyncCopy").orElseThrow());
+
+		for (String catalogName : new String[]{"restAsyncCatalog", "restAsyncCopy"}) {
+			awaitCompletion(
+				evita,
+				tester.test(SYSTEM_URL)
+					.urlPathSuffix("/catalogs-async/" + catalogName)
+					.httpMethod(Request.METHOD_DELETE)
+					.executeAndThen()
+					.statusCode(202)
+					.extract()
+					.path(EngineMutationProgressHandleDescriptor.PROGRESS_ID.name())
+			);
+			assertTrue(evita.getCatalogState(catalogName).isEmpty());
+		}
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
+	@DisplayName("Should route catalogs named like the static path items of the new endpoints")
+	void shouldRouteCatalogsNamedLikeStaticPathItems(Evita evita, RestTester tester) {
+		for (String catalogName : new String[]{"progress", "actions"}) {
+			createCatalog(tester, catalogName);
+			awaitCompletion(
+				evita,
+				patchCatalog(tester, "/catalogs-async/" + catalogName, "{\"readOnly\": true}")
+					.statusCode(202)
+					.extract()
+					.path(EngineMutationProgressHandleDescriptor.PROGRESS_ID.name())
+			);
+			tester.test(SYSTEM_URL)
+				.urlPathSuffix("/catalogs/" + catalogName)
+				.httpMethod(Request.METHOD_GET)
+				.executeAndThen()
+				.statusCode(200)
+				.body(CatalogDescriptor.READ_ONLY.name(), equalTo(true));
+			deleteCatalog(tester, catalogName);
+		}
+	}
+
+	/**
+	 * Creates a new catalog through the API.
+	 */
+	private static void createCatalog(@Nonnull RestTester tester, @Nonnull String catalogName) {
+		tester.test(SYSTEM_URL)
+			.urlPathSuffix("/catalogs")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("{\"name\": \"%s\"}", catalogName)
+			.executeAndThen()
+			.statusCode(200)
+			.body(CatalogDescriptor.CATALOG_STATE.name(), equalTo(CatalogState.WARMING_UP.name()));
+	}
+
+	/**
+	 * Deletes a catalog through the blocking API.
+	 */
+	private static void deleteCatalog(@Nonnull RestTester tester, @Nonnull String catalogName) {
+		tester.test(SYSTEM_URL)
+			.urlPathSuffix("/catalogs/" + catalogName)
+			.httpMethod(Request.METHOD_DELETE)
+			.executeAndExpectOkWithoutBodyAndThen();
+	}
+
+	/**
+	 * Sends a `PATCH` request with the given body.
+	 */
+	@Nonnull
+	private static ValidatableResponse patchCatalog(
+		@Nonnull RestTester tester,
+		@Nonnull String urlPathSuffix,
+		@Nonnull String body
+	) {
+		return tester.test(SYSTEM_URL)
+			.urlPathSuffix(urlPathSuffix)
+			.httpMethod(Request.METHOD_PATCH)
+			.requestBody(body)
+			.executeAndThen();
+	}
+
+	/**
+	 * Waits until the engine operation of the given progress id finishes successfully.
+	 */
+	private static void awaitCompletion(@Nonnull Evita evita, @Nonnull String progressId) {
+		final CompletableFuture<Void> finished = new CompletableFuture<>();
+		evita.subscribeToEngineMutationProgress(UUID.fromString(progressId)).subscribe(
+			new Flow.Subscriber<>() {
+				@Override
+				public void onSubscribe(Flow.Subscription subscription) {
+					subscription.request(Long.MAX_VALUE);
+				}
+
+				@Override
+				public void onNext(EngineMutationProgressStatus item) {
+					// only the outcome matters
+				}
+
+				@Override
+				public void onError(Throwable throwable) {
+					finished.completeExceptionally(throwable);
+				}
+
+				@Override
+				public void onComplete() {
+					finished.complete(null);
+				}
+			}
+		);
+		finished.orTimeout(30, TimeUnit.SECONDS).join();
 	}
 
 	@Nonnull
@@ -385,6 +592,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 				.e(NameVariantsDescriptor.KEBAB_CASE.name(), catalog.getSchema().getNameVariants().get(NamingConvention.KEBAB_CASE)))
 			.e(CatalogDescriptor.VERSION.name(), String.valueOf(catalog.getVersion()))
 			.e(CatalogDescriptor.CATALOG_STATE.name(), catalog.getCatalogState().name())
+			.e(CatalogDescriptor.READ_ONLY.name(), false)
 			.e(CatalogDescriptor.SUPPORTS_TRANSACTION.name(), catalog.supportsTransaction())
 			.e(CatalogDescriptor.ENTITY_TYPES.name(), new ArrayList<>(catalog.getEntityTypes()))
 			.e(CatalogDescriptor.UNUSABLE.name(), false)

@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-11-18 | [Every engine mutation is tracked by its transaction id, its outcome retained as a compact record, and the GraphQL/REST system APIs expose blocking and asynchronous engine operations as a hard replace](2026-11-18-engine-mutation-progress-by-id.md) | feature | accepted | #995 |
 | 2026-11-16 | [Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure](2026-11-16-copy-on-write-path-routing.md) | refactor | accepted | #1956, #1959, #1967, #1968, PR #1957, PR #1974 |
 | 2026-11-16 | [A warm-up schema change refused when its expression triggers are built raises the unpublishable barrier, and the inline DDL flush waits until they build](2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier.md) | fix | accepted | #1922, PR #1970 |
 | 2026-11-13 | [Cache parsed and validated GraphQL documents per GraphQL instance in a Caffeine cache bounded by bytes](2026-11-13-graphql-parsed-document-cache.md) | optimization | proposed | #1191 |

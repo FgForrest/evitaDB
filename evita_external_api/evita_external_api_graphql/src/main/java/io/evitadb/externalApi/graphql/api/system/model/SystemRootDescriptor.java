@@ -25,9 +25,10 @@ package io.evitadb.externalApi.graphql.api.system.model;
 
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
-import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
+import io.evitadb.externalApi.api.system.model.progress.EngineMutationProgressChangeDescriptor;
+import io.evitadb.externalApi.api.system.model.progress.EngineMutationProgressHandleDescriptor;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
@@ -67,56 +68,245 @@ public interface SystemRootDescriptor {
         .type(nullableListRef(CatalogUnionDescriptor.THIS))
         .build();
 
-    EndpointDescriptor CREATE_CATALOG = EndpointDescriptor.builder()
-        .operation("createCatalog")
-        .description("""
-            Creates new catalog of particular name if it doesn't exist. New empty catalog is returned. The catalog
-            is created in `WARMING_UP` state and must be switched to `ALIVE` state by calling `switchCatalogToAliveState`
-            after all bulk index operations are finished.
-            """)
-        .type(nonNullRef(CatalogDescriptor.THIS))
-        .build();
-    EndpointDescriptor RENAME_CATALOG = EndpointDescriptor.builder()
-        .operation("renameCatalog")
-        .description("""
-            Renames existing catalog to a new name. The `newName` must not clash with any existing catalog name,
-            otherwise exception is thrown. If you need to rename catalog to a name of existing catalog use
-            the `replaceCatalog` mutation instead.
-            
-            In case exception occurs the original catalog (`name`) is guaranteed to be untouched,
-            and the `newName` will not be present.
-            """)
-        .type(nonNullRef(CatalogDescriptor.THIS))
-        .build();
-    EndpointDescriptor SWITCH_CATALOG_TO_ALIVE_STATE = EndpointDescriptor.builder()
-        .operation("switchCatalogToAliveState")
-        .description("""
-            Switches catalog to the `ALIVE` state so that next request is operating in the new catalog state.
-            
-            Catalog's state is switched only when the state transition successfully occurs and this is signalized
-            by return value.
-            """)
-        .type(nonNull(Boolean.class))
-        .build();
-    EndpointDescriptor REPLACE_CATALOG = EndpointDescriptor.builder()
-        .operation("replaceCatalog")
-        .description("""
-            Replaces existing catalog of particular with the contents of the another catalog. When this method is
-            successfully finished, the catalog `nameToBeReplacedWith` will be known under the name of the
-            `nameToBeReplaced` and the original contents of the `nameToBeReplaced` will be purged entirely.
-            
-            In case exception occurs, the original catalog (`nameToBeReplaced`) is guaranteed to be untouched, the
-            state of `nameToBeReplacedWith` is however unknown and should be treated as damaged.
-            """)
-        .type(nonNullRef(CatalogDescriptor.THIS))
-        .build();
-    EndpointDescriptor DELETE_CATALOG_IF_EXISTS = EndpointDescriptor.builder()
-        .operation("deleteCatalogIfExists")
-        .description("""
-            Deletes catalog with name along with its contents on disk.
-            """)
-        .type(nonNull(Boolean.class))
-        .build();
+	EndpointDescriptor CREATE_NEW_CATALOG = EndpointDescriptor.builder()
+		.operation("createNewCatalog")
+		.description("""
+			Creates a new catalog of the given name if it doesn't exist yet, and returns it. An existing catalog of that
+			name is returned as it is. A new catalog is created in the `WARMING_UP` state and must be switched to the
+			`ALIVE` state by `makeCatalogAlive` after all bulk indexing operations are finished.
+
+			The call waits until the operation finishes. Returns the resulting catalog after the operation has finished.
+			""")
+		.type(nonNullRef(CatalogUnionDescriptor.THIS))
+		.build();
+	EndpointDescriptor ACTIVATE_CATALOG = EndpointDescriptor.builder()
+		.operation("activateCatalog")
+		.description("""
+			Activates an inactive catalog by loading it from disk into memory. The catalog returns to the state it had
+			when it was deactivated - `ALIVE`, or `WARMING_UP` when it was deactivated during warm-up.
+
+			The call waits until the operation finishes. Returns the resulting catalog after the operation has finished.
+			""")
+		.type(nonNullRef(CatalogUnionDescriptor.THIS))
+		.build();
+	EndpointDescriptor ACTIVATE_CATALOG_WITH_PROGRESS = EndpointDescriptor.builder()
+		.operation("activateCatalogWithProgress")
+		.description("""
+			Activates an inactive catalog by loading it from disk into memory. The catalog returns to the state it had
+			when it was deactivated - `ALIVE`, or `WARMING_UP` when it was deactivated during warm-up.
+
+			The call returns as soon as the operation is accepted, with a handle whose `progressId` can be used to
+			subscribe to the progress and the outcome of the operation by `onEngineMutationProgressChange`. Checks
+			that precede the acceptance (e.g. that the catalog exists) still fail the call itself.
+			""")
+		.type(nonNullRef(EngineMutationProgressHandleDescriptor.THIS))
+		.build();
+	EndpointDescriptor DEACTIVATE_CATALOG = EndpointDescriptor.builder()
+		.operation("deactivateCatalog")
+		.description("""
+			Deactivates a catalog by unloading it from memory. The catalog becomes `INACTIVE`, its data remains on disk
+			and it can be activated again by `activateCatalog`.
+
+			The call waits until the operation finishes. Returns the resulting catalog after the operation has finished.
+			""")
+		.type(nonNullRef(CatalogUnionDescriptor.THIS))
+		.build();
+	EndpointDescriptor DEACTIVATE_CATALOG_WITH_PROGRESS = EndpointDescriptor.builder()
+		.operation("deactivateCatalogWithProgress")
+		.description("""
+			Deactivates a catalog by unloading it from memory. The catalog becomes `INACTIVE`, its data remains on disk
+			and it can be activated again by `activateCatalog`.
+
+			The call returns as soon as the operation is accepted, with a handle whose `progressId` can be used to
+			subscribe to the progress and the outcome of the operation by `onEngineMutationProgressChange`. Checks
+			that precede the acceptance (e.g. that the catalog exists) still fail the call itself.
+			""")
+		.type(nonNullRef(EngineMutationProgressHandleDescriptor.THIS))
+		.build();
+	EndpointDescriptor DELETE_CATALOG_IF_EXISTS = EndpointDescriptor.builder()
+		.operation("deleteCatalogIfExists")
+		.description("""
+			Deletes the catalog of the given name along with its contents on disk, if it exists.
+
+			The call waits until the operation finishes. Returns `true` when the catalog existed and was deleted,
+			`false` when no such catalog exists.
+			""")
+		.type(nonNull(Boolean.class))
+		.build();
+	EndpointDescriptor DELETE_CATALOG_IF_EXISTS_WITH_PROGRESS = EndpointDescriptor.builder()
+		.operation("deleteCatalogIfExistsWithProgress")
+		.description("""
+			Deletes the catalog of the given name along with its contents on disk, if it exists.
+
+			The call returns as soon as the operation is accepted, with a handle whose `progressId` can be used to
+			subscribe to the progress and the outcome of the operation by `onEngineMutationProgressChange`. Checks
+			that precede the acceptance (e.g. that the catalog exists) still fail the call itself. Returns `null` when
+			no catalog of the given name exists.
+			""")
+		.type(nullableRef(EngineMutationProgressHandleDescriptor.THIS))
+		.build();
+	EndpointDescriptor DUPLICATE_CATALOG = EndpointDescriptor.builder()
+		.operation("duplicateCatalog")
+		.description("""
+			Duplicates an existing catalog into a new catalog of name `newName`, copying all its data and schema. The
+			source catalog must be `ALIVE` or `WARMING_UP` and no catalog of name `newName` may exist. The duplicate is
+			created `INACTIVE`.
+
+			The call waits until the operation finishes. Returns the resulting catalog after the operation has finished.
+			""")
+		.type(nonNullRef(CatalogUnionDescriptor.THIS))
+		.build();
+	EndpointDescriptor DUPLICATE_CATALOG_WITH_PROGRESS = EndpointDescriptor.builder()
+		.operation("duplicateCatalogWithProgress")
+		.description("""
+			Duplicates an existing catalog into a new catalog of name `newName`, copying all its data and schema. The
+			source catalog must be `ALIVE` or `WARMING_UP` and no catalog of name `newName` may exist. The duplicate is
+			created `INACTIVE`.
+
+			The call returns as soon as the operation is accepted, with a handle whose `progressId` can be used to
+			subscribe to the progress and the outcome of the operation by `onEngineMutationProgressChange`. Checks
+			that precede the acceptance (e.g. that the catalog exists) still fail the call itself.
+			""")
+		.type(nonNullRef(EngineMutationProgressHandleDescriptor.THIS))
+		.build();
+	EndpointDescriptor MAKE_CATALOG_ALIVE = EndpointDescriptor.builder()
+		.operation("makeCatalogAlive")
+		.description("""
+			Switches a catalog from the `WARMING_UP` state to the `ALIVE` state, in which it supports transactions. The
+			operation waits briefly for open sessions of the catalog to finish.
+
+			The call waits until the operation finishes. Returns the resulting catalog after the operation has finished.
+			""")
+		.type(nonNullRef(CatalogUnionDescriptor.THIS))
+		.build();
+	EndpointDescriptor MAKE_CATALOG_ALIVE_WITH_PROGRESS = EndpointDescriptor.builder()
+		.operation("makeCatalogAliveWithProgress")
+		.description("""
+			Switches a catalog from the `WARMING_UP` state to the `ALIVE` state, in which it supports transactions. The
+			operation waits briefly for open sessions of the catalog to finish.
+
+			The call returns as soon as the operation is accepted, with a handle whose `progressId` can be used to
+			subscribe to the progress and the outcome of the operation by `onEngineMutationProgressChange`. Checks
+			that precede the acceptance (e.g. that the catalog exists) still fail the call itself.
+			""")
+		.type(nonNullRef(EngineMutationProgressHandleDescriptor.THIS))
+		.build();
+	EndpointDescriptor MAKE_CATALOG_IMMUTABLE = EndpointDescriptor.builder()
+		.operation("makeCatalogImmutable")
+		.description("""
+			Makes a catalog read-only: it will reject all data modifications and schema changes until it is made
+			mutable again by `makeCatalogMutable`.
+
+			The call waits until the operation finishes. Returns the resulting catalog after the operation has finished.
+			""")
+		.type(nonNullRef(CatalogUnionDescriptor.THIS))
+		.build();
+	EndpointDescriptor MAKE_CATALOG_IMMUTABLE_WITH_PROGRESS = EndpointDescriptor.builder()
+		.operation("makeCatalogImmutableWithProgress")
+		.description("""
+			Makes a catalog read-only: it will reject all data modifications and schema changes until it is made
+			mutable again by `makeCatalogMutable`.
+
+			The call returns as soon as the operation is accepted, with a handle whose `progressId` can be used to
+			subscribe to the progress and the outcome of the operation by `onEngineMutationProgressChange`. Checks
+			that precede the acceptance (e.g. that the catalog exists) still fail the call itself.
+			""")
+		.type(nonNullRef(EngineMutationProgressHandleDescriptor.THIS))
+		.build();
+	EndpointDescriptor MAKE_CATALOG_MUTABLE = EndpointDescriptor.builder()
+		.operation("makeCatalogMutable")
+		.description("""
+			Makes a read-only catalog writable again, so it accepts data modifications and schema changes.
+
+			The call waits until the operation finishes. Returns the resulting catalog after the operation has finished.
+			""")
+		.type(nonNullRef(CatalogUnionDescriptor.THIS))
+		.build();
+	EndpointDescriptor MAKE_CATALOG_MUTABLE_WITH_PROGRESS = EndpointDescriptor.builder()
+		.operation("makeCatalogMutableWithProgress")
+		.description("""
+			Makes a read-only catalog writable again, so it accepts data modifications and schema changes.
+
+			The call returns as soon as the operation is accepted, with a handle whose `progressId` can be used to
+			subscribe to the progress and the outcome of the operation by `onEngineMutationProgressChange`. Checks
+			that precede the acceptance (e.g. that the catalog exists) still fail the call itself.
+			""")
+		.type(nonNullRef(EngineMutationProgressHandleDescriptor.THIS))
+		.build();
+	EndpointDescriptor RENAME_CATALOG = EndpointDescriptor.builder()
+		.operation("renameCatalog")
+		.description("""
+			Renames an existing catalog to `newName`. The `newName` must not clash with any existing catalog name - to
+			take the name of an existing catalog use `replaceCatalog` instead. The operation waits briefly for open
+			sessions and commits in progress of the catalog and is refused when they do not finish in time.
+
+			When the operation fails, the catalog keeps its original name and `newName` is not created. The catalog
+			must be loaded in memory (not `INACTIVE`).
+
+			The call waits until the operation finishes. Returns the resulting catalog after the operation has finished.
+			""")
+		.type(nonNullRef(CatalogUnionDescriptor.THIS))
+		.build();
+	EndpointDescriptor RENAME_CATALOG_WITH_PROGRESS = EndpointDescriptor.builder()
+		.operation("renameCatalogWithProgress")
+		.description("""
+			Renames an existing catalog to `newName`. The `newName` must not clash with any existing catalog name - to
+			take the name of an existing catalog use `replaceCatalog` instead. The operation waits briefly for open
+			sessions and commits in progress of the catalog and is refused when they do not finish in time.
+
+			When the operation fails, the catalog keeps its original name and `newName` is not created. The catalog
+			must be loaded in memory (not `INACTIVE`).
+
+			The call returns as soon as the operation is accepted, with a handle whose `progressId` can be used to
+			subscribe to the progress and the outcome of the operation by `onEngineMutationProgressChange`. Checks
+			that precede the acceptance (e.g. that the catalog exists) still fail the call itself.
+			""")
+		.type(nonNullRef(EngineMutationProgressHandleDescriptor.THIS))
+		.build();
+	EndpointDescriptor REPLACE_CATALOG = EndpointDescriptor.builder()
+		.operation("replaceCatalog")
+		.description("""
+			Replaces the catalog `nameToBeReplaced` with the catalog `nameToBeReplacedWith`: after the operation the
+			catalog `nameToBeReplacedWith` is known under the name `nameToBeReplaced`, and the original contents of
+			`nameToBeReplaced` are dropped. The operation waits briefly for open sessions and commits in progress of
+			both catalogs and is refused when they do not finish in time.
+
+			When the operation fails, both catalogs stay as they were. The catalogs must be loaded in memory (not
+			`INACTIVE`).
+
+			The call waits until the operation finishes. Returns the resulting catalog after the operation has finished.
+			""")
+		.type(nonNullRef(CatalogUnionDescriptor.THIS))
+		.build();
+	EndpointDescriptor REPLACE_CATALOG_WITH_PROGRESS = EndpointDescriptor.builder()
+		.operation("replaceCatalogWithProgress")
+		.description("""
+			Replaces the catalog `nameToBeReplaced` with the catalog `nameToBeReplacedWith`: after the operation the
+			catalog `nameToBeReplacedWith` is known under the name `nameToBeReplaced`, and the original contents of
+			`nameToBeReplaced` are dropped. The operation waits briefly for open sessions and commits in progress of
+			both catalogs and is refused when they do not finish in time.
+
+			When the operation fails, both catalogs stay as they were. The catalogs must be loaded in memory (not
+			`INACTIVE`).
+
+			The call returns as soon as the operation is accepted, with a handle whose `progressId` can be used to
+			subscribe to the progress and the outcome of the operation by `onEngineMutationProgressChange`. Checks
+			that precede the acceptance (e.g. that the catalog exists) still fail the call itself.
+			""")
+		.type(nonNullRef(EngineMutationProgressHandleDescriptor.THIS))
+		.build();
+
+	EndpointDescriptor ON_ENGINE_MUTATION_PROGRESS_CHANGE = EndpointDescriptor.builder()
+		.operation("onEngineMutationProgressChange")
+		.description("""
+			Subscribes client to the progress of an engine operation started by one of the `...WithProgress`
+			mutations. The first message carries the state of the operation at the moment of subscription, the
+			following ones its changes. A successful operation ends the stream with a message with `finished` set to
+			`true`, a failed one with an error. Subscribing after the operation has finished delivers its outcome as
+			long as it is retained by the server; an unknown or expired id ends the stream with an error.
+			""")
+		.type(nonNullRef(EngineMutationProgressChangeDescriptor.THIS))
+		.build();
 
 	EndpointDescriptor ON_SYSTEM_CHANGE = EndpointDescriptor.builder()
 		.operation("onSystemChange")

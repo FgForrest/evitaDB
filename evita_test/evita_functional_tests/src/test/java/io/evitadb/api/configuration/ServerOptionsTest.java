@@ -23,6 +23,7 @@
 
 package io.evitadb.api.configuration;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -137,7 +138,9 @@ class ServerOptionsTest {
 				ServerOptions
 					.DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY,
 				null, null,
-				false, false, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING
+				false, false, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING,
+				ServerOptions.DEFAULT_ENGINE_MUTATION_PROGRESS_RETENTION_IN_SECONDS,
+				ServerOptions.DEFAULT_ENGINE_MUTATION_PROGRESS_RETENTION_LIMIT
 			);
 
 			assertNotNull(options.requestThreadPool());
@@ -162,7 +165,9 @@ class ServerOptionsTest {
 				ServerOptions
 					.DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY,
 				null, null,
-				false, false, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING
+				false, false, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING,
+				ServerOptions.DEFAULT_ENGINE_MUTATION_PROGRESS_RETENTION_IN_SECONDS,
+				ServerOptions.DEFAULT_ENGINE_MUTATION_PROGRESS_RETENTION_LIMIT
 			);
 
 			assertNotNull(options.changeDataCapture());
@@ -363,6 +368,48 @@ class ServerOptionsTest {
 				120,
 				ServerOptions.builder(source).build()
 					.dropCollationKeysAfterSecondsOfInactivity()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Engine mutation progress retention")
+	class EngineMutationProgressRetentionTest {
+
+		@Test
+		@DisplayName("should retain finished progress for five minutes and at most 100 records by default")
+		void shouldUseDefaultRetention() {
+			final ServerOptions options = ServerOptions.builder().build();
+
+			assertEquals(300, options.engineMutationProgressRetentionInSeconds());
+			assertEquals(100, options.engineMutationProgressRetentionLimit());
+			assertEquals(300, new ServerOptions().engineMutationProgressRetentionInSeconds());
+			assertEquals(100, new ServerOptions().engineMutationProgressRetentionLimit());
+		}
+
+		@Test
+		@DisplayName("should set and copy retention via builder")
+		void shouldSetAndCopyRetentionViaBuilder() {
+			final ServerOptions source = ServerOptions.builder()
+				.engineMutationProgressRetentionInSeconds(0)
+				.engineMutationProgressRetentionLimit(7)
+				.build();
+			final ServerOptions copy = ServerOptions.builder(source).build();
+
+			assertEquals(0, copy.engineMutationProgressRetentionInSeconds());
+			assertEquals(7, copy.engineMutationProgressRetentionLimit());
+		}
+
+		@Test
+		@DisplayName("should reject negative retention values")
+		void shouldThrowExceptionWhenRetentionIsNegative() {
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> ServerOptions.builder().engineMutationProgressRetentionInSeconds(-1).build()
+			);
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> ServerOptions.builder().engineMutationProgressRetentionLimit(-1).build()
 			);
 		}
 	}

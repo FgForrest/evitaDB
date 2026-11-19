@@ -32,20 +32,23 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static io.evitadb.test.TestTags.GRAPHQL;
-import static io.evitadb.test.TestTags.EXTERNAL_API;
-import static io.evitadb.test.TestTags.QUERY;
 
 /**
- * Tests for GraphQL catalog collections query.
+ * Tests for the engine mutations of the GraphQL system API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -55,11 +58,21 @@ import static io.evitadb.test.TestTags.QUERY;
 public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointFunctionalTest {
 
 	private static final String CATALOG_PATH = "data.catalog";
-	private static final String CREATE_CATALOG_PATH = "data.createCatalog";
+	private static final String CREATE_CATALOG_PATH = "data.createNewCatalog";
 	private static final String RENAME_CATALOG_PATH = "data.renameCatalog";
-	private static final String SWITCH_CATALOG_PATH = "data.switchCatalogToAliveState";
+	private static final String MAKE_CATALOG_ALIVE_PATH = "data.makeCatalogAlive";
 	private static final String REPLACE_CATALOG_PATH = "data.replaceCatalog";
 	private static final String DELETE_CATALOG_PATH = "data.deleteCatalogIfExists";
+	/**
+	 * Selection of both members of the `CatalogUnion` returned by the engine mutations.
+	 */
+	private static final String CATALOG_UNION_SELECTION = """
+		{
+			__typename
+			... on Catalog { name catalogState readOnly }
+			... on UnusableCatalog { name catalogState readOnly }
+		}
+		""";
 	public static final String GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE = GRAPHQL_THOUSAND_PRODUCTS + "forReplace";
 
 	@Override
@@ -70,15 +83,18 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
-	@DisplayName("Should create rename and delete catalog")
+	@DisplayName("Should create, make alive, rename and delete catalog")
 	void shouldCreateRenameAndDeleteCatalog(GraphQLTester tester) {
 		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					mutation {
-						createCatalog(name: "temporaryCatalog") {
-							name
-							catalogState
+						createNewCatalog(name: "temporaryCatalog") {
+							... on Catalog {
+								name
+								catalogState
+								readOnly
+							}
 						}
 					}
 					"""
@@ -90,6 +106,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 					map()
 						.e(CatalogDescriptor.NAME.name(), "temporaryCatalog")
 						.e(CatalogDescriptor.CATALOG_STATE.name(), CatalogState.WARMING_UP.name())
+						.e(CatalogDescriptor.READ_ONLY.name(), false)
 						.build()
 				)
 			);
@@ -98,14 +115,24 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 			.document(
 				"""
 					mutation {
-						switchCatalogToAliveState(name: "temporaryCatalog")
+						makeCatalogAlive(name: "temporaryCatalog") {
+							... on Catalog {
+								name
+								catalogState
+							}
+						}
 					}
 					"""
 			)
 			.executeAndExpectOkAndThen()
 			.body(
-				SWITCH_CATALOG_PATH,
-				equalTo(true)
+				MAKE_CATALOG_ALIVE_PATH,
+				equalTo(
+					map()
+						.e(CatalogDescriptor.NAME.name(), "temporaryCatalog")
+						.e(CatalogDescriptor.CATALOG_STATE.name(), CatalogState.ALIVE.name())
+						.build()
+				)
 			);
 
 		tester.test(SYSTEM_URL)
@@ -137,7 +164,9 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 				"""
 					mutation {
 						renameCatalog(name: "temporaryCatalog", newName: "temporaryCatalog2") {
-							name
+							... on Catalog {
+								name
+							}
 						}
 					}
 					"""
@@ -166,6 +195,69 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
+	@DisplayName("Should duplicate, deactivate, activate and change mutability of catalog")
+	void shouldDuplicateDeactivateActivateAndChangeMutability(GraphQLTester tester) {
+		expectCatalog(tester, "createNewCatalog(name: \"mutabilitySource\")",
+			"Catalog", "mutabilitySource", CatalogState.WARMING_UP, false);
+		expectCatalog(tester, "makeCatalogAlive(name: \"mutabilitySource\")",
+			"Catalog", "mutabilitySource", CatalogState.ALIVE, false);
+		// a duplicate is created inactive, so the mutation must be able to return an unusable catalog
+		expectCatalog(tester, "duplicateCatalog(name: \"mutabilitySource\", newName: \"mutabilityCopy\")",
+			"UnusableCatalog", "mutabilityCopy", CatalogState.INACTIVE, false);
+		expectCatalog(tester, "activateCatalog(name: \"mutabilityCopy\")",
+			"Catalog", "mutabilityCopy", CatalogState.ALIVE, false);
+		expectCatalog(tester, "makeCatalogImmutable(name: \"mutabilityCopy\")",
+			"Catalog", "mutabilityCopy", CatalogState.ALIVE, true);
+		// the read-only flag is kept and reported also for an inactive catalog
+		expectCatalog(tester, "deactivateCatalog(name: \"mutabilityCopy\")",
+			"UnusableCatalog", "mutabilityCopy", CatalogState.INACTIVE, true);
+		expectCatalog(tester, "activateCatalog(name: \"mutabilityCopy\")",
+			"Catalog", "mutabilityCopy", CatalogState.ALIVE, true);
+		expectCatalog(tester, "makeCatalogMutable(name: \"mutabilityCopy\")",
+			"Catalog", "mutabilityCopy", CatalogState.ALIVE, false);
+
+		for (String catalogName : new String[]{"mutabilitySource", "mutabilityCopy"}) {
+			tester.test(SYSTEM_URL)
+				.document("mutation { deleteCatalogIfExists(name: \"%s\") }", catalogName)
+				.executeAndExpectOkAndThen()
+				.body(DELETE_CATALOG_PATH, equalTo(true));
+		}
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
+	@DisplayName("Should fail an operation on an unknown catalog")
+	void shouldFailOperationOnUnknownCatalog(GraphQLTester tester) {
+		tester.test(SYSTEM_URL)
+			.document("mutation { activateCatalog(name: \"unknown\") { __typename } }")
+			.executeAndExpectErrorsAndThen();
+		tester.test(SYSTEM_URL)
+			.document("mutation { activateCatalogWithProgress(name: \"unknown\") { progressId } }")
+			.executeAndExpectErrorsAndThen();
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
+	@DisplayName("Should refuse to rename catalog to a name that is taken")
+	void shouldRefuseRenameToExistingName(GraphQLTester tester) {
+		expectCatalog(tester, "createNewCatalog(name: \"clashCatalog\")",
+			"Catalog", "clashCatalog", CatalogState.WARMING_UP, false);
+
+		tester.test(SYSTEM_URL)
+			.document(
+				"mutation { renameCatalog(name: \"clashCatalog\", newName: \"%s\") { __typename } }",
+				TEST_CATALOG
+			)
+			.executeAndExpectErrorsAndThen();
+
+		tester.test(SYSTEM_URL)
+			.document("mutation { deleteCatalogIfExists(name: \"clashCatalog\") }")
+			.executeAndExpectOkAndThen()
+			.body(DELETE_CATALOG_PATH, equalTo(true));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
 	@DisplayName("Should not delete unknown catalog")
 	void shouldNotDeleteUnknownCatalog(GraphQLTester tester) {
 		tester.test(SYSTEM_URL)
@@ -180,19 +272,13 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(DELETE_CATALOG_PATH, equalTo(false));
-	}
 
-	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
-	@DisplayName("Should replace catalog")
-	void shouldReplaceCatalog(GraphQLTester tester) {
-		// create new temporary catalog
 		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					mutation {
-						createCatalog(name: "temporaryCatalog") {
-							name
+						deleteCatalogIfExistsWithProgress(name: "unknown") {
+							progressId
 						}
 					}
 					"""
@@ -200,14 +286,42 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(
-				CREATE_CATALOG_PATH,
-				equalTo(
-					map()
-						.e(CatalogDescriptor.NAME.name(), "temporaryCatalog")
-						.build()
-				)
-			);
+			.body("data.deleteCatalogIfExistsWithProgress", nullValue());
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
+	@DisplayName("Should return progress handle of an asynchronous operation")
+	void shouldReturnProgressHandle(GraphQLTester tester) {
+		expectCatalog(tester, "createNewCatalog(name: \"asyncCatalog\")",
+			"Catalog", "asyncCatalog", CatalogState.WARMING_UP, false);
+
+		tester.test(SYSTEM_URL)
+			.document(
+				"""
+					mutation {
+						makeCatalogAliveWithProgress(name: "asyncCatalog") {
+							progressId
+						}
+					}
+					"""
+			)
+			.executeAndExpectOkAndThen()
+			.body("data.makeCatalogAliveWithProgress.progressId", notNullValue());
+
+		tester.test(SYSTEM_URL)
+			.document("mutation { deleteCatalogIfExists(name: \"asyncCatalog\") }")
+			.executeAndExpectOkAndThen()
+			.body(DELETE_CATALOG_PATH, equalTo(true));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
+	@DisplayName("Should replace catalog")
+	void shouldReplaceCatalog(GraphQLTester tester) {
+		// create new temporary catalog
+		expectCatalog(tester, "createNewCatalog(name: \"temporaryCatalog\")",
+			"Catalog", "temporaryCatalog", CatalogState.WARMING_UP, false);
 
 		// replace test catalog to temporary catalog
 		tester.test(SYSTEM_URL)
@@ -215,7 +329,9 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 				"""
 					mutation {
 						replaceCatalog(nameToBeReplaced: "temporaryCatalog", nameToBeReplacedWith: "%s") {
-							name
+							... on Catalog {
+								name
+							}
 						}
 					}
 					""",
@@ -234,28 +350,8 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 			);
 
 		// recreate test catalog
-		tester.test(SYSTEM_URL)
-			.document(
-				"""
-					mutation {
-						createCatalog(name: "%s") {
-							name
-						}
-					}
-					""",
-				TEST_CATALOG
-			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
-			.body(
-				CREATE_CATALOG_PATH,
-				equalTo(
-					map()
-						.e(CatalogDescriptor.NAME.name(), TEST_CATALOG)
-						.build()
-				)
-			);
+		expectCatalog(tester, "createNewCatalog(name: \"" + TEST_CATALOG + "\")",
+			"Catalog", TEST_CATALOG, CatalogState.WARMING_UP, false);
 
 		// replace temporary catalog back to test catalog
 		tester.test(SYSTEM_URL)
@@ -263,7 +359,9 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 				"""
 					mutation {
 						replaceCatalog(nameToBeReplaced: "%s", nameToBeReplacedWith: "temporaryCatalog") {
-							name
+							... on Catalog {
+								name
+							}
 						}
 					}
 					""",
@@ -277,6 +375,34 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 				equalTo(
 					map()
 						.e(CatalogDescriptor.NAME.name(), TEST_CATALOG)
+						.build()
+				)
+			);
+	}
+
+	/**
+	 * Executes a blocking engine mutation selecting the whole `CatalogUnion` and verifies the returned catalog.
+	 */
+	private static void expectCatalog(
+		@Nonnull GraphQLTester tester,
+		@Nonnull String mutationCall,
+		@Nonnull String expectedTypeName,
+		@Nonnull String expectedName,
+		@Nonnull CatalogState expectedState,
+		boolean expectedReadOnly
+	) {
+		final String fieldName = mutationCall.substring(0, mutationCall.indexOf('('));
+		tester.test(SYSTEM_URL)
+			.document("mutation { " + mutationCall + " " + CATALOG_UNION_SELECTION + " }")
+			.executeAndExpectOkAndThen()
+			.body(
+				"data." + fieldName,
+				equalTo(
+					map()
+						.e("__typename", expectedTypeName)
+						.e(CatalogDescriptor.NAME.name(), expectedName)
+						.e(CatalogDescriptor.CATALOG_STATE.name(), expectedState.name())
+						.e(CatalogDescriptor.READ_ONLY.name(), expectedReadOnly)
 						.build()
 				)
 			);

@@ -32,7 +32,9 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record UpdateCatalogRequestDto(@Nullable String name,
-                                      @Nullable Boolean overwriteTarget,
-                                      @Nullable CatalogState catalogState) {
+public record UpdateCatalogRequestDto(
+	@Nullable String name,
+	@Nullable CatalogState state,
+	@Nullable Boolean readOnly
+) {
 }
