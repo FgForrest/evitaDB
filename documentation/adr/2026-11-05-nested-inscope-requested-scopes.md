@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-12 15:51
+updated: 2026-11-17 14:09
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917]
@@ -19,7 +19,8 @@ areas:
 supersedes: []
 superseded-by: []
 relates: [2026-10-08-scope-faithful-planning-and-facet-summary-parity,
-  2026-10-20-reference-content-filter-row-by-row, 2026-10-21-one-locale-per-entity-level]
+  2026-10-20-reference-content-filter-row-by-row, 2026-10-21-one-locale-per-entity-level,
+  2026-11-17-direct-entity-calls-check-requested-content]
 ---
 
 # A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
@@ -535,11 +536,10 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
     answered in that locale, dropping every body without data in it. `dataInLocales` in the fetch of the bodies
     brings every body back, with the attribute where the body has it.
 - **Open, left by #1915:**
-  - #1949: `getEntity` plans no fetch, so it does not refuse the named localized attribute above, which a planned
-    query refuses. It returns the entity, or the referenced entity bodies, without the attribute (measured), also for
-    a filter with no `entityHaving` at all, so the split is older than this change. For a locale named only below
-    `or`, `not` or `inScope` it used to fetch the bodies in that locale, dropping every body without data in it (read
-    from the code); under the and-only rule neither answer is right.
+  - **Resolved in #1949:** `getEntity` planned no fetch, so it did not refuse the named localized attribute above,
+    which a planned query refuses; it returned the entity, or the referenced entity bodies, without the attribute.
+    The direct calls now check the requested content against the schema next to the scope check
+    (`2026-11-17-direct-entity-calls-check-requested-content`).
   - #1920: an `inScope` in the require section narrows the scopes the planning check of a nested `referenceContent`
     inherits, while the pre-flight and the fetch do not, so the planned query refuses a filter they admit.
   - The `EXISTING` gate of the referenced entities searches every scope the filter names at any level
@@ -556,7 +556,10 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
     request derived from the entity, and it changes the lookup of its bodies. How the previous code answered this call
     was not measured.
   - `upsertAndFetchEntity` with automatic evolution creates a missing collection before the check, so a refused call can
-    leave an empty collection behind. The entity is not written.
+    leave an empty collection behind. The entity is not written. Measured in #1949: the collection stays only when the
+    refusal is caught inside `updateCatalog` or the catalog is in warm-up; a refusal escaping a bare session call
+    marks the transaction rollback-only, and closing the session discards the collection with the session's other
+    writes.
   - The GraphQL selections of an unknown entity build their requirements only for a found entity, so a missing one
     returns null without a verdict.
   - **Resolved in #1917:** the row compiler of `referenceContent` flattens the root `and` and single-child `or`
@@ -607,6 +610,8 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
 - `2026-10-21-one-locale-per-entity-level` — the body chain of `QueryUtils#resolveReferenceBodyLocale` reads the
   extraction of the body level, which since #1915 follows `and` only. The scope of the bodies uses the summary of
   every way to match instead, so a locale below `or` gives the bodies none, while a scope below `or` adds its scope.
+- `2026-11-17-direct-entity-calls-check-requested-content` — closes the open `getEntity` follow-up above: the direct
+  calls check the requested content next to the scope check this record added.
 
 ## Timeline
 
@@ -630,3 +635,6 @@ and the verdict on a filter below the bodies no longer depends on the rows. Two 
   transparent through root conjunctions and single-child disjunctions. Placement across all sections precedes
   duplicate detection. Hierarchy-node and segment root-scope exceptions and the internal evaluator caveat recorded.
 - **2026-11-11** — PR #1919 merged.
+- **2026-11-13** — PR #1913 merged.
+- **2026-11-17** — #1949: the direct calls check the requested content, recorded in
+  `2026-11-17-direct-entity-calls-check-requested-content`.

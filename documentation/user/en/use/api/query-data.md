@@ -206,6 +206,23 @@ To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass t
 method and specify a set of additional require constraints that should be satisfied. Due to immutability properties
 enforced by database design, enriching an entity object returns a new instance of the entity.
 
+`getEntity`, the enrichment methods and the mutations returning the entity they change (`upsertAndFetchEntity`, and
+`deleteEntity`, `deleteEntityAndItsHierarchy`, `archiveEntity` and `restoreEntity` with requirements) check the
+requested content against the schema before they read or change any entity, as a query does. An unknown attribute,
+associated data or reference name is refused, and so is a named localized attribute or associated data whose fetch
+level has no locale (`EntityLocaleMissingException`) - request one with `dataInLocales` or let the fetch inherit it
+from the enclosing one.
+A localized attribute unique in a requested scope is exempt. `attributeContentAll()` and `associatedDataContentAll()`
+without a locale return the non-localized data only; a named localized attribute next to them still needs a locale.
+
+`enrichEntity` and `enrichOrLimitEntity` without `dataInLocales` fetch in the locales the entity reports
+(`getLocales()`), or in all locales when it reports none.
+
+A refused `upsertAndFetchEntity` writes no entity. A collection it created or a schema it evolved automatically shares
+the fate of the session's other writes: in a transactional catalog, a refusal that escapes the outermost session call
+marks the transaction rollback-only and closing the session discards them all, while a refusal caught inside
+`updateCatalog` leaves the transaction to commit them. In a catalog in warm-up, which has no transaction, they stay.
+
 <SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.java)
