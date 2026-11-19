@@ -12,7 +12,7 @@ superseded-by: []
 relates: [2026-07-27-write-path-performance-tuning, 2026-09-03-content-sized-value-tree-columns,
   2026-10-20-session-free-tree-reads-are-management-only, 2026-08-16-per-index-usage-statistics,
   2026-09-07-storage-part-classification, 2026-10-06-unique-indexes-keep-no-record-set,
-  2026-10-20-single-owner-partitions-as-registry-rows, 2026-11-17-one-histogram-store-per-group]
+  2026-10-20-single-owner-partitions-as-registry-rows, 2026-11-19-one-histogram-store-per-group]
 ---
 
 # Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time
@@ -298,7 +298,7 @@ counters, the forward walk and the heap walk, and nothing that looks a key up - 
 
 ## Related work
 
-- [One histogram store per group](../2026-11-17-one-histogram-store-per-group.md) — adds the histogram-only
+- [One histogram store per group](../2026-11-19-one-histogram-store-per-group.md) — adds the histogram-only
   `REFERENCED_GROUP_HISTOGRAM` kind to index browse, detail and heap accounting, with zero entity membership.
 
 - [Write-path performance tuning](../2026-07-27-write-path-performance-tuning/README.md) — same code

@@ -11,7 +11,7 @@ areas: [evita_engine/src/main/java/io/evitadb/index/mutation/local, evita_engine
 supersedes: []
 superseded-by: []
 relates: [2026-04-23-bucketed-histogram-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass,
-  2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-11-17-one-histogram-store-per-group]
+  2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-11-19-one-histogram-store-per-group]
 ---
 
 # A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run
@@ -330,7 +330,7 @@ histogram trigger of each - O(N·K). On any other entity type it costs one regis
   missing mandatory attribute was accepted. It now verifies the references the upsert names, as the same-scope
   branch does.
 - **A group split into several reduced indexes holds and answers its histogram wrongly.** *Fixed: #1924.*
-  [One histogram store per group](2026-11-17-one-histogram-store-per-group.md) removes replication: one
+  [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) removes replication: one
   `GroupHistogramEntityIndex` per reference, group and scope holds contributions, and boundary resolution uses
   all reduced indexes listed for the group. Withdrawal checks the store rather than every reduced index.
 - **Conditions reading the parent or associated data are re-evaluated locally.** *Fixed: #1923.*
@@ -384,7 +384,7 @@ histogram trigger of each - O(N·K). On any other entity type it costs one regis
 
 ## Related work
 
-- [One histogram store per group](2026-11-17-one-histogram-store-per-group.md) — fixes split-group replication,
+- [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) — fixes split-group replication,
   preserves this record's deferred-run protocol and uses reporting for all committed WAL replay.
 
 - [[2026-04-23-bucketed-histogram-indexing]] — introduced the counter-gated insert and remove pair and the

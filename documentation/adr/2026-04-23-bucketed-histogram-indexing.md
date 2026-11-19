@@ -11,7 +11,7 @@ supersedes: []
 superseded-by: []
 relates: [2026-05-06-reference-histogram-statistics, 2026-05-27-range-and-multi-histogram-schema,
   2026-04-23-conditional-facet-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass,
-  2026-11-11-reference-histogram-net-change-per-run, 2026-11-17-one-histogram-store-per-group]
+  2026-11-11-reference-histogram-net-change-per-run, 2026-11-19-one-histogram-store-per-group]
 ---
 
 # Conditionally index per-reference attribute histograms via a dedicated HistogramIndex family
@@ -208,7 +208,7 @@ this session):
 
 ## Related work
 
-- [One histogram store per group](2026-11-17-one-histogram-store-per-group.md) — places grouped histograms in a
+- [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) — places grouped histograms in a
   histogram-only index per group and scope, retaining this record's histogram family and contribution counters.
 
 - [[faceted-partially-indexing]] (folder slug, not yet converted; issue #18) — the conditional
