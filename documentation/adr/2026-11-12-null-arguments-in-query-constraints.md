@@ -1,7 +1,7 @@
 ---
 title: Null arguments in query constraints follow one rule set in Java, EvitaQL and REST
 date: 2026-11-12
-updated: 2026-11-19 08:18
+updated: 2026-11-19 09:29
 status: accepted
 kind: fix
 issues: [1943, 2013]
@@ -129,12 +129,19 @@ A one-item array holding `null` would leave the filter out, longer all-null arra
 - **Rejected because:** the regression is silent (an empty result, no error) and hits a pattern the previous
   JavaDoc recommended.
 
-### Unwrap an array passed to the single-value `attributeInSet` at run time (declined)
+### Unwrap a lone array in an attribute value list at run time (first declined, then chosen in #2013)
 
-- **Rejected because:** javac already sends every statically typed object array (`String[]`, `Serializable[]`) to
-  the list overload; what reaches the single-value one as an array (a primitive array, an array behind a
+- **First rejected because:** javac already sends every statically typed object array (`String[]`, `Serializable[]`)
+  to the list overload; what reaches the single-value one as an array (a primitive array, an array behind a
   `Serializable` variable) was wrapped into a one-item list before too, so the plain overload changes nothing for a
-  defined value. Unwrapping would be a new feature nobody asked for.
+  defined value. Unwrapping looked like a new feature nobody asked for.
+- **Chosen after measuring:** the wrapped array never gave a sensible result. Embedded, the one-item list compared
+  the array by its identity text and matched nothing; over gRPC the client printed `attributeInSet(?, ?)` and the
+  server read the lone bound array as the whole list and matched its items, so the same Java query gave two answers.
+  A value list whose only item is an array is now that array, in both `attributeInSet` overloads and in
+  `attributeSetExact`, with primitive items boxed. EvitaQL already read a lone bound array that way and now reads a
+  lone array inside a bound array or collection the same way. An array among other items is refused: that shape never
+  worked anywhere.
 
 ### A single-value `dataInLocales` that leaves the requirement out (declined)
 
@@ -161,15 +168,16 @@ compiles and runs, and the gRPC parameters could carry the array.
 - **Rejected because:** the engine converts the items and then compares the array by its identity text
   (`[Ljava.lang.String;@…`), so the query never matches the array it names. Measured on an embedded catalog: equality
   with a product's exact `words` array returned nothing, and `attributeBetween` with two arrays failed on inverted
-  bounds. That is neither a conversion nor a refusal, so EvitaQL keeps the 2026.2 refusal (the Java side is an open
-  follow-up). Worth revisiting only if the engine compares an array value by its items.
+  bounds. That is neither a conversion nor a refusal, so EvitaQL keeps refusing it, and the Java factories now refuse
+  it too. Worth revisiting only if the engine compares an array value by its items.
 
 ### Accept a `Predecessor` as an EvitaQL attribute value (declined in #2013)
 
 - **Rejected because:** a Java query with one cannot leave the client (`QueryConverter#convertQueryParam` has no
   parameter type for it), a predecessor attribute cannot be filterable (the schema refuses it), and the chain's sort
   translator refuses `attributeSetExact`. The only path that runs is the planner stringifying the value against an
-  unrelated string attribute. Accepting it needs a lossless gRPC parameter first.
+  unrelated string attribute. Accepting it needs a lossless gRPC parameter first. The Java factories now refuse it
+  as well, `ReferencedEntityPredecessor` included; a chain is ordered with `attributeNatural`.
 
 ### Keep blank names working as before (declined)
 
@@ -254,6 +262,12 @@ One undefined value per list position, measured on 2026.2.9 and on the snapshot 
 EvitaQL refused every lone null parameter in 2026.2 and in the first implementation; it now answers like the last
 column.
 
+**Attribute values are scalars (#2013).** The attribute comparisons and both bounds of `attributeBetween` refuse an
+array and a chain predecessor (`Predecessor`, `ReferencedEntityPredecessor`), and so do the items of `attributeInSet`
+and `attributeSetExact`; a value list whose only item is an array is that array (see the option above).
+`histogramHaving` refuses a NaN or infinite bound as every other factory refuses one. EvitaQL gives the same answers:
+the parser lets these shapes reach the factories, and their refusal becomes the syntax error.
+
 Examples, before and after:
 
 | Input | Before | After |
@@ -283,6 +297,11 @@ Examples, before and after:
 | EvitaQL `inScope(LIVE)` without children | syntax error | left out |
 | EvitaQL `attributeInSet('code', ?)` with the lone `?` bound to `null` | syntax error | left out (#2013) |
 | EvitaQL `priceInPriceLists(' ')` | kept as written | left out (#2013) |
+| Java `attributeEquals("words", new String[]{"A", "B"})` | compared by identity: matches nothing | **error** (#2013) |
+| Java `attributeInSet("code", (Serializable) new String[]{"a", "b"})` | nothing; `a`, `b` in gRPC | `a`, `b` (#2013) |
+| Java `attributeInSet("code", "x", new String[]{"a"})` | matches nothing | **error** (#2013) |
+| Java `attributeEquals("code", Predecessor.HEAD)` | planner error, or the record's text compared | **error** (#2013) |
+| Java `histogramHaving("ref", Double.NaN, 5.0)` | `NumberFormatException` | **error** (#2013) |
 
 The meaning of an empty list stays a property of each constraint: `attributeContent`, `associatedDataContent`,
 `referenceContent` and `dataInLocales` fetch everything, filters match nothing, orderings are left out.
@@ -294,7 +313,16 @@ new explicit constraint, not a change of these rules).
 
 - `ConstraintArguments` (`evita_query`) holds the three shared checks: `requireName` (null or blank throws),
   `requireNonNullItems` for name and enum lists, `withoutNullValues` / `withoutUndefinedPriceLists` for value lists.
-  The factories call them first, before any "omit on undefined value" branch.
+  The factories call them first, before any "omit on undefined value" branch. For attribute values it also holds
+  `requireScalarAttributeValue` (refuses an array and a chain predecessor), `normalizeAttributeValues` (unwraps a lone
+  array, boxing primitive items, then checks every item before dropping nulls, so an array among other items, even
+  beside a null, is refused) and `toHistogramBound` (normalizes a `Float` or `Double` bound through
+  `EvitaDataTypes.toSupportedType`, which refuses NaN and the infinities).
+- **The attribute value checks sit in the factories, not in the constructors.** The `evita_store` query serializers
+  and `cloneWithArguments` build constraints through the constructors, and a stored query must stay readable. Every
+  entry point that builds a new query (Java, EvitaQL, REST, GraphQL) reaches these constraints through the factories
+  (`AttributeInRange`, a REST/GraphQL constructor fallback, takes no array or predecessor); a constraint made with
+  `new AttributeEquals(...)` by hand is not checked.
 - **EvitaQL builds constraints through the `QueryConstraints` factories**, not constructors, so parity holds by
   construction; a few reference-fetch forms that have no matching factory call `ConstraintArguments` directly.
   `ParseContext` accepts present null bindings; `Value` keeps nulls through conversions; bound arrays and lists are
@@ -321,9 +349,11 @@ new explicit constraint, not a change of these rules).
   (`ReferencedEntityFetcher#extractBodyFilter`, `FacetHavingTranslator`) constructs it directly.
 - **The single-value overloads construct their constraint directly.** Calling the factory of the same name from
   inside would resolve to the overload itself. For a defined value they build the same constraint as the one-item
-  list. `(String, T[])` is more specific than `(String, T)`, so a `String[]` or `Serializable[]` still reaches the
-  list form of `attributeInSet`; the REST/GraphQL `ConstraintResolver` matches creators by exact erased types and
-  every `@Creator` takes an array, so it keeps calling the list forms.
+  list; `attributeInSet(String, T)` passes its value through `normalizeAttributeValues`, so an array behind a
+  `Serializable` variable becomes its items there too. `(String, T[])` is more specific than `(String, T)`, so a
+  `String[]` or `Serializable[]` still reaches the list form of `attributeInSet`; the REST/GraphQL
+  `ConstraintResolver` matches creators by exact erased types and every `@Creator` takes an array, so it keeps calling
+  the list forms.
 - **EvitaQL keeps the argument shape.** `EvitaQLValueTokenVisitor#parseVariadicArguments` and
   `#visitExplicitVariadicValueTokens` mark one literal or one scalar or null binding with
   `Value#isSingleVariadicArgument`; the filter visitors convert once (keeping the overflow check of
@@ -334,15 +364,20 @@ new explicit constraint, not a change of these rules).
 - **Attribute value positions share one type set.** `EvitaQLValueTokenVisitor#withAttributeValueTypesAllowed` serves
   the attribute comparisons, `attributeBetween`, `attributeInSet` and `attributeSetExact`, and reads an unquoted enum
   literal there as its name. `ParseContext` lets a finite `Float` or `Double` through and refuses NaN and the
-  infinities, as the factories' `EvitaDataTypes.toSupportedType` does. Besides the attribute value positions, only
+  infinities, as the factories' `EvitaDataTypes.toSupportedType` does. The attribute value positions also let an array
+  binding (a lone array, or one array item of a bound array or collection, one level deep) and a chain predecessor
+  through to the factories, which unwrap or refuse them; `EvitaQLBaseVisitor#parse` turns the factory's
+  `EvitaInvalidUsageException` into the syntax error. Besides the attribute value positions, only
   the `attributeInRange` point and the `histogramHaving` bounds accept them (their factories take any `Number`); the
   visitor of every other position refuses both. `label` refuses floating-point numbers and enums too, because the
   `Label` constructor refuses them at run time although its signature compiles them. The parser has no schema, so a
   value that fits no attribute type (`1.5` for an `Integer`) is still refused by the planner, as in Java.
-- The factory JavaDoc in `QueryConstraints` is generated by `JavaDocSummarizer` (keyed by `@SourceHash`) and was not
-  edited by hand; the rules are stated once in the `QueryConstraints` class JavaDoc and here. The three single-value
-  overloads share the summary of their list form, generated from the constraint class, so the null rule they follow
-  is stated only in the class JavaDoc.
+- The factory JavaDoc in `QueryConstraints` is generated by `JavaDocSummarizer` (keyed by `@SourceHash`, which hashes
+  the constraint class JavaDoc and the factory signature); the rules are stated once in the `QueryConstraints` class
+  JavaDoc and here. The generated summaries of the three single-value overloads described the list form, because the
+  generator saw only the class JavaDoc and a bare signature. Their text is now written by hand under an unchanged
+  hash, so the generator leaves it until the class JavaDoc changes, and the generator now also sends the model the
+  method's annotations and body, asking it to describe that overload and its null result.
 
 ## Verification
 
@@ -386,8 +421,22 @@ new explicit constraint, not a change of these rules).
   `Double` bounds and `label` with floating-point numbers and enums, embedded and through the gRPC conversion: the
   first two run in Java and now in EvitaQL (14 cases failed before, again with the two types taken out), `label`
   refuses them in Java, so EvitaQL keeps refusing.
+- **Java side of the declined inputs (#2013):** a probe measured 57 input rows (`String[]`, `Integer[]`, `int[]`, an
+  array behind `Serializable`, an array beside a scalar, both predecessor types, NaN and the infinities) through the
+  Java factory, embedded, through the gRPC round trip and in EvitaQL; the before column of the examples above comes
+  from it. The new factory, parser, embedded and gRPC cases failed before the change (541 tests, 9 failures and 2
+  errors). Six counterfactuals each took one change out (the array refusal, the predecessor refusal, the unwrapping,
+  the parser's admission of array items, the value visitor's admission of arrays, the histogram bound normalization)
+  and each turned its own cases red. `QueryConverterTest#shouldRoundTripWrappedAttributeValueArrays` compares the
+  embedded primary keys with those of the query the gRPC server parses. Gate: the new and changed tests with the
+  parser, null-argument, dispatch, gRPC, embedded, REST and GraphQL suites, 5,920 tests, 0 failures (5 skipped).
+  `AttributeConstraintPathParityFunctionalTest` lost its ten array-as-one-value rows, which pinned the identity
+  comparison and are now refused before any execution path.
 - **Final gate (#2013):** the whole non-slow functional suite with its upstream modules and the release upgrade
-  fixtures, 39,387 tests, 0 failures (70 skipped); the whole reactor compiles with `-P full`.
+  fixtures, 39,387 tests, 0 failures (70 skipped); the whole reactor compiles with `-P full`. After the Java side of
+  the declined inputs: 39,397 tests, 0 failures, 3 errors (70 skipped). The errors were two TLS session-creation
+  timeouts (`LabTlsFunctionalTest`, `CatalogRestCdcFunctionalTest`) and a session clean-up race in
+  `CatalogGoLiveSessionDrainTest`; the three classes pass when rerun alone (13 tests, 0 failures).
 
 ## Consequences & open follow-ups
 
@@ -441,14 +490,16 @@ new explicit constraint, not a change of these rules).
 - A new filter value list factory needs its own single-value overload; `NullArgumentsInventoryTest` checks it once
   the factory is added to the test's filter value-list set.
 - When a constraint's class JavaDoc changes, its generated factory summary needs a `JavaDocSummarizer` run
-  (`tools/generate-query-constraints-javadoc.sh`); the #2013 overloads and `histogramStatistics` were regenerated.
-- **Open follow-up (#2013), the Java side of declined EvitaQL inputs:** the Java factories accept an array as one
-  attribute value and the engine compares it by identity (see the declined option); a `String[]` behind a
-  `Serializable` variable passed to `attributeInSet` prints as one `?`, which the server reads as the whole list, so
-  embedded and gRPC answers differ; `Predecessor` values compile and fail only at the client or the planner; a NaN or
-  infinite `histogramHaving` bound fails in Java with a raw `NumberFormatException` (`QueryConstraints#toBigDecimal`)
-  instead of `EvitaInvalidUsageException`. Each needs the maintainer's decision whether the factory should refuse the
-  value.
+  (`tools/generate-query-constraints-javadoc.sh`); the #2013 overloads and `histogramStatistics` were regenerated, and
+  the three single-value summaries were then rewritten by hand (see Key technical details). Removing a method's
+  `@SourceHash` forces its regeneration; a change of the method body alone does not trigger one.
+- **Java (#2013), the inputs EvitaQL already declined:** they compiled and gave a wrong result or an unrelated error,
+  and now throw `EvitaInvalidUsageException` from the factory: an array as one attribute value or `attributeBetween`
+  bound, an array among other items of `attributeInSet` or `attributeSetExact`, a `Predecessor` or
+  `ReferencedEntityPredecessor` attribute value, and a NaN or infinite `histogramHaving` bound (before, a raw
+  `NumberFormatException`). One input changes its result instead: an array behind a `Serializable` variable, or
+  wrapped in a one-item varargs array, in `attributeInSet` or `attributeSetExact` now means its items embedded too
+  (it matched nothing embedded and its items over gRPC). The maintainer chose these refusals and the unwrapping.
 
 ## Timeline
 
@@ -457,3 +508,6 @@ new explicit constraint, not a change of these rules).
   three filter value lists, EvitaQL aligned with Java in every list position, the lone-null syntax error removed;
   `dataInLocales` keeps every locale (2026.2 parity). The parameter binding defects listed under Consequences were
   fixed on the same branch.
+- **2026-11-19** — #2013 follow-up: the Java factories refuse the attribute values EvitaQL had declined and unwrap
+  a lone array in an attribute value list (maintainer's decision); the factory JavaDoc generator also receives the
+  method source.
