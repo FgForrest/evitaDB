@@ -1,7 +1,7 @@
 ---
 title: One histogram store per group
 date: 2026-11-17
-updated: 2026-11-17 12:50
+updated: 2026-11-19 09:12
 status: accepted
 kind: fix
 issues: [1924]
@@ -28,10 +28,11 @@ withdrawal values so the catalog can load, while live writes retain their config
 
 ## Why
 
-A group's histogram belongs to the group, but the group's reduced indexes are split by referenced entity and
-representative attribute tuple. Those partitions can appear, disappear or move independently of the histogram.
-Correctness must survive that movement without copying every existing contribution to every new partition.
-The reference-summary reader also needs the whole group when choosing the entity at a histogram boundary.
+A group's histogram belongs to the group, but a reference that allows duplicates splits the group's reduced indexes
+by representative attribute values, one index per distinct tuple. Those partitions can appear, disappear or move
+independently of the histogram. Correctness must survive that movement without copying every existing contribution
+to every new partition. The reference-summary reader also needs the whole group when choosing the entity at a
+histogram boundary.
 
 ### Previous state
 

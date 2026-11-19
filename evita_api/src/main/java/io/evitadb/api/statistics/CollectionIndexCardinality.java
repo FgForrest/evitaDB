@@ -46,8 +46,8 @@ import java.util.OptionalInt;
  *
  * A collection holds one {@link EntityIndexType#GLOBAL} index per scope, one
  * {@link EntityIndexType#REFERENCED_ENTITY_TYPE} / {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} index per
- * reference schema per scope - and one {@link EntityIndexType#REFERENCED_ENTITY} /
- * {@link EntityIndexType#REFERENCED_GROUP_ENTITY} index per *referenced entity*, of which there can be tens of
+ * reference schema per scope - and one {@link EntityIndexType#REFERENCED_ENTITY} index per *referenced entity* and
+ * one {@link EntityIndexType#REFERENCED_GROUP_ENTITY} index per *referenced group*, of which there can be tens of
  * thousands. The first group is bounded by the schema; the second grows with the data.
  *
  * Describing the second group would make this response's size grow with the catalog's data volume, multiplied again by

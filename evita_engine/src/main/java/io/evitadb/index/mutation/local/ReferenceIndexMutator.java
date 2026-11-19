@@ -490,7 +490,8 @@ public interface ReferenceIndexMutator {
 						referenceKey, referencePresenceExpected
 					);
 
-					// use entity RRK (with referenced entity PK) as group index discriminator
+					// the entity RRK supplies the reference name and representative values of the group index key;
+					// getOrCreateReferencedGroupEntityIndex replaces its referenced entity PK with the group PK
 					final RepresentativeReferenceKey entityRRK = referenceKey.isKnownInternalPrimaryKey() ?
 						bothKeys.stored() : bothKeys.current();
 
