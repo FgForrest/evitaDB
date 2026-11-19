@@ -54,12 +54,12 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 	private final Map<String, Integer> catalogRemovedFromLiveView = new HashMap<>();
 	private final Map<String, Integer> catalogSchemaUpdated = new HashMap<>();
 	private Subscription subscription;
-	@Getter private int received = 0;
+	@Getter private volatile int received = 0;
 	@Getter private int completed = 0;
 	@Getter private int errors = 0;
 	@Getter private boolean closed;
-	private CompletableFuture<Void> future;
-	private BooleanSupplier waitCondition;
+	private volatile CompletableFuture<Void> future;
+	private volatile BooleanSupplier waitCondition;
 
 	public MockEngineChangeCaptureSubscriber() {
 		this(Integer.MAX_VALUE);
@@ -163,6 +163,31 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 				return this.catalogSchemaUpdated.getOrDefault(catalogName, 0);
 			} catch (Exception e) {
 				return this.catalogSchemaUpdated.getOrDefault(catalogName, 0);
+			}
+		} else {
+			return result;
+		}
+	}
+
+	/**
+	 * Returns the number of all received captures, waiting up to the specified timeout for at least the expected
+	 * number of them to arrive - the captures are delivered asynchronously.
+	 *
+	 * @param timeout       the maximum time to wait
+	 * @param timeUnit      the unit of the timeout argument
+	 * @param expectedValue the minimum number of captures expected
+	 * @return the count of received captures at the time the wait completes
+	 */
+	public int getReceived(int timeout, @Nonnull TimeUnit timeUnit, int expectedValue) {
+		final int result = this.received;
+		if (result < expectedValue) {
+			try {
+				this.future = new CompletableFuture<>();
+				this.waitCondition = () -> this.received >= expectedValue;
+				this.future.get(timeout, timeUnit);
+				return this.received;
+			} catch (Exception e) {
+				return this.received;
 			}
 		} else {
 			return result;
@@ -276,10 +301,16 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 				.compute(schemaUpdated.catalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 		}
 		// check if we are waiting for some condition to be met
-		if (this.waitCondition != null && this.waitCondition.getAsBoolean()) {
-			this.future.complete(null);
+		final BooleanSupplier condition = this.waitCondition;
+		if (condition != null && condition.getAsBoolean()) {
+			// the fields are cleared before the waiting thread is woken up, so that it can arm its next wait
+			// without this thread clearing it afterwards
+			final CompletableFuture<Void> waitingFuture = this.future;
 			this.waitCondition = null;
 			this.future = null;
+			if (waitingFuture != null) {
+				waitingFuture.complete(null);
+			}
 		}
 	}
 
