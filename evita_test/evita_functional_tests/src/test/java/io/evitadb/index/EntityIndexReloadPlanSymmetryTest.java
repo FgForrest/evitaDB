@@ -167,6 +167,18 @@ class EntityIndexReloadPlanSymmetryTest {
 	}
 
 	/**
+	 * Verifies that the store's reload plan has a loader for every component the store registers.
+	 */
+	@Test
+	@DisplayName("GroupHistogramEntityIndex.reloadPlan() covers every registered IndexComponent")
+	void shouldCoverEveryComponentOfGroupHistogramEntityIndex() {
+		final GroupHistogramEntityIndex index = new GroupHistogramEntityIndex(
+			INDEX_PK, ENTITY_TYPE, GroupHistogramEntityIndex.keyOf(REFERENCE_NAME, 1, Scope.LIVE), true
+		);
+		assertReloadPlanCovers(index, GroupHistogramEntityIndex.reloadPlan());
+	}
+
+	/**
 	 * Walks every registered {@link IndexComponent} on `index` and asserts that the matching
 	 * {@link ComponentLoader} is present in `plan.loaders()`.
 	 *

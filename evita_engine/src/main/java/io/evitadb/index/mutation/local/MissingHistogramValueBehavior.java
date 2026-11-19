@@ -35,29 +35,31 @@ import javax.annotation.Nullable;
  * Before a write changes a reference whose attribute feeds a reference histogram, the engine withdraws the value the
  * reference contributed so far, and it asserts that the value is there. A value that is missing means the derived
  * histogram index has drifted from the stored entities - the entity bodies themselves are intact. The engine is
- * expected to keep its histograms consistent, so such drift stops the write by default.
+ * expected to keep its histograms consistent, so such drift stops a session write by default. Replay during
+ * catalog loading and live trunk incorporation always uses `REPORT`. The write is already committed to the WAL.
  *
  * Other histogram consistency checks - the final add of the values, the bookkeeping of the references awaiting it,
- * the shape of the values - are not governed by this behavior and always fail the write.
+ * the shape of the values - are not governed by this behavior and always fail the write. Cross-entity expression
+ * re-evaluation does not reach it either: it removes a contribution only when the index holds it and skips an absent
+ * one without a report.
  *
  * **An undocumented escape hatch.** The behavior is chosen by the system property
  * `evitadb.referenceHistogram.missingValueBehavior` and nothing else: it is deliberately absent from the server
  * options, the server configuration file and the user documentation. It is read once per engine start by
  * {@link #fromSystemProperty()}, which the engine's constructor calls, and the value travels from the engine through
- * the catalog and the collection into every index executor, so it cannot change under a running engine. The
+ * the catalog to every session write collector, so it cannot change under a running engine. The
  * property is temporary and will be removed in a later release, together with this choice.
  *
  * What an operator who sets `REPORT` needs to know:
  *
  * - every value the engine cannot withdraw produces one error line starting with `Cannot withdraw histogram value`,
  *   which is the text to alert on;
- * - a line is logged per application of the write, and a write to an alive catalog is applied twice - once in its
- *   session and once more when its transaction is incorporated into the catalog - so it logs two lines per value;
+ * - an alive catalog applies a write in its session and replays it during incorporation. Each application reports
+ *   the values missing when it runs;
  * - a write accepted under `REPORT` and not yet covered by a checkpoint is replayed from the write-ahead log when the
- *   engine starts after an unclean shutdown; an engine started without the property meets the same missing value in
- *   the replay and marks the catalog corrupted. After an unclean shutdown, start the engine with `REPORT` and drop
- *   the property only at a later start, once that engine has loaded the catalog and closed cleanly - the clean close
- *   publishes the replayed state.
+ *   engine starts after an unclean shutdown, and the replay reports the same missing value again under either
+ *   behavior - no property is needed to load the catalog. The clean close of that engine publishes the replayed
+ *   state, so a later start has nothing left to replay.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -65,8 +67,8 @@ import javax.annotation.Nullable;
 public enum MissingHistogramValueBehavior {
 
 	/**
-	 * The write fails with an error naming the entity, the reference, the histogram and the missing value. Chosen when
-	 * the property is absent or blank.
+	 * The session write fails with an error naming the entity, the reference, the histogram and the missing value.
+	 * Chosen when the property is absent or blank.
 	 */
 	REFUSE,
 	/**

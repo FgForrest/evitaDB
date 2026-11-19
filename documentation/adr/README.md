@@ -33,13 +33,14 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-11-19 | [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) | fix | accepted | #1924, PR #2001 |
 | 2026-11-18 | [Every engine mutation is tracked by its transaction id, its outcome retained as a compact record, and the GraphQL/REST system APIs expose blocking and asynchronous engine operations as a hard replace](2026-11-18-engine-mutation-progress-by-id.md) | feature | accepted | #995 |
 | 2026-11-17 | [Direct entity calls check the requested content against the schema, as a planned query does](2026-11-17-direct-entity-calls-check-requested-content.md) | fix | accepted | #1949, PR #2004 |
 | 2026-11-16 | [Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure](2026-11-16-copy-on-write-path-routing.md) | refactor | accepted | #1956, #1959, #1967, #1968, PR #1957, PR #1974 |
 | 2026-11-16 | [A warm-up schema change refused when its expression triggers are built raises the unpublishable barrier, and the inline DDL flush waits until they build](2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier.md) | fix | accepted | #1922, PR #1970 |
 | 2026-11-13 | [Cache parsed and validated GraphQL documents per GraphQL instance in a Caffeine cache bounded by bytes](2026-11-13-graphql-parsed-document-cache.md) | optimization | accepted | #1191, PR #1958 |
-| 2026-11-12 | [Null arguments in query constraints follow one rule set in Java, EvitaQL and REST](2026-11-12-null-arguments-in-query-constraints.md) | fix | accepted | #1943, #2013, PR #1965 |
-| 2026-11-11 | [A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue](2026-11-11-reference-histogram-net-change-per-run.md) | fix | accepted | #1911, #1916, #1918, #1923, #1948 |
+| 2026-11-12 | [Null arguments in query constraints follow one rule set in Java, EvitaQL and REST](2026-11-12-null-arguments-in-query-constraints.md) | fix | accepted | #1943, #2013, PR #1965, PR #2016 |
+| 2026-11-11 | [A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue](2026-11-11-reference-histogram-net-change-per-run.md) | fix | accepted | #1911, #1916, #1918, #1922, #1923, #1948, PR #1921, PR #1954, PR #1955, PR #1970 |
 | 2026-11-06 | [A catalog rename or replace waits for the commit pipeline on the caller's thread, then acts on the instance that wait found](2026-11-06-catalog-handover-waits-for-commit-pipeline.md) | fix | accepted | #1889, PR #1890 |
 | 2026-11-05 | [An export that cannot fit the export storage stops at the limit and names the setting to raise](2026-11-05-backup-stops-at-the-export-limit.md) | fix | accepted | #1881, PR #1885 |
 | 2026-11-05 | [A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front](2026-11-05-nested-inscope-requested-scopes.md) | fix | accepted | #1880, #1883, #1897, #1915, #1917, PR #1884, PR #1913, PR #1914, PR #1919 |

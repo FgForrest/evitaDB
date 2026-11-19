@@ -48,7 +48,7 @@ import java.util.function.Function;
 
 /**
  * Rebuilds release-written decimal-range companions and corrects bucket pages whose normalized keys do not ascend.
- * Every bound and record comes from the stored bucket rows. The protocol 6 to 7 migration reads those pages,
+ * Every bound and record comes from the stored bucket rows. The protocol 6 to 9 migration reads those pages,
  * applies these replacements and removals, and publishes them with its bootstrap record; this class performs no IO.
  *
  * @deprecated used only by the migration of catalogs written by release 2026.2 and older

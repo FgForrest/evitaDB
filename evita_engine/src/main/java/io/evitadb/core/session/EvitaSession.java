@@ -1907,6 +1907,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * termination callbacks. Ensures that the closing operation is executed only once
 	 * and performs cleanup, validation, and transaction operations if applicable.
 	 *
+	 * A repeated call - the owner closing twice, or the session drain forcing a close on a session whose own close is
+	 * still running - returns the progress of the close already under way and never completes it ahead of that close.
+	 *
 	 * @param commitBehavior determines in which commit stage the session should be considered as closed
 	 * @return A {@code CommitProgress} instance, representing the progress and
 	 * completion status of the closure operation. It encapsulates version
@@ -2058,8 +2061,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				this.closingSequenceFuture.get().join();
 				return this.commitProgress;
 			}
-		} else if (this.closedFuture != null && !this.commitProgress.isDone()) {
-			// this case is only possible when catalog is going live and session is closed
+		} else if (
+			this.closedFuture != null && this.closingSequenceFuture.get() == null && !this.commitProgress.isDone()
+		) {
+			// Reached only after `goLiveAndCloseWithProgress`, which terminates the session and assigns an already
+			// completed closed future without ever starting a closing sequence - so the progress is completed here,
+			// with that future's value. A close that DID start a closing sequence is still under way, and its flush
+			// or commit completes the progress itself: a repeated close returns that same progress and waits for it.
+			// Completing it early instead would report the session closed and run its termination callback while the
+			// flush is still in flight - and the session drain reads the registry that callback empties as proof that
+			// nobody writes to the catalog any more, so a go-live would then publish beside the running flush.
 			this.commitProgress.complete(this.closedFuture.toCompletableFuture().getNow(null));
 		}
 		return this.commitProgress;

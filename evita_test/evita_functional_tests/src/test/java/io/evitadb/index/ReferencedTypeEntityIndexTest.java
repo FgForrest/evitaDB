@@ -1249,6 +1249,29 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			);
 		}
 
+		/**
+		 * The histograms of a grouped reference live in the histogram store of each group, so the group-type index of
+		 * the reference never holds one: a value written into it is refused and leaves no histogram behind.
+		 */
+		@Test
+		@DisplayName("a group-type index refuses a histogram value")
+		void shouldRefuseHistogramValueWhenIndexIsGroupTypeIndex() {
+			final ReferencedTypeEntityIndex groupTypeIndex = new ReferencedTypeEntityIndex(
+				INDEX_PK, ENTITY_TYPE,
+				new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, Scope.LIVE, REFERENCE_NAME)
+			);
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> groupTypeIndex.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0)
+			);
+
+			assertTrue(error.getMessage().contains(HISTOGRAM_NAME), error.getMessage());
+			assertTrue(error.getMessage().contains(REFERENCE_NAME), error.getMessage());
+			assertNull(groupTypeIndex.getHistogramIndex(HISTOGRAM_NAME), "no histogram is created");
+			assertTrue(groupTypeIndex.isEmpty(), "the index stays empty");
+		}
+
 		@Test
 		@DisplayName("histogram modification at the unchanged scale is accepted")
 		void shouldAcceptHistogramModificationAtUnchangedScale() {

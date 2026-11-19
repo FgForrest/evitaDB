@@ -1,17 +1,17 @@
 ---
 title: A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue
 date: 2026-11-11
-updated: 2026-11-15 01:00
+updated: 2026-11-17 01:20
 status: accepted
 kind: fix
-issues: [1911, 1916, 1918, 1923, 1948]
-prs: []
+issues: [1911, 1916, 1918, 1922, 1923, 1948]
+prs: [1921, 1954, 1955, 1970]
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation/local, evita_engine/src/main/java/io/evitadb/core/catalog,
   evita_engine/src/main/java/io/evitadb/core/expression/proxy]
 supersedes: []
 superseded-by: []
 relates: [2026-04-23-bucketed-histogram-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass,
-  2026-09-08-conditional-histogram-per-contribution-verdicts]
+  2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-11-19-one-histogram-store-per-group]
 ---
 
 # A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run
@@ -329,13 +329,10 @@ histogram trigger of each - O(N·K). On any other entity type it costs one regis
   the reference attribute verification, so the default values were missing from the stored reference and a
   missing mandatory attribute was accepted. It now verifies the references the upsert names, as the same-scope
   branch does.
-- **A group split into several reduced indexes holds and answers its histogram wrongly.** *Open: #1924.* On a
-  reference that allows duplicates and has a representative attribute, every write goes to each reduced index
-  listed for the group, a new reduced index starts empty, an abandoned one keeps stale copies, a removal can take
-  a sibling's unit, and the reference summary reads one index per group. This change does not make the write
-  side correct for that shape: the replication itself is the defect. Withdrawal now fails loudly when a reduced
-  index created later lacks the group's values. The fix is planned as one histogram store per group and will
-  carry its own record.
+- **A group split into several reduced indexes holds and answers its histogram wrongly.** *Fixed: #1924.*
+  [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) removes replication: one
+  `GroupHistogramEntityIndex` per reference, group and scope holds contributions, and boundary resolution uses
+  all reduced indexes listed for the group. Withdrawal checks the store rather than every reduced index.
 - **Conditions reading the parent or associated data are re-evaluated locally.** *Fixed: #1923.*
   `ParentMutationFanOut` and `AssociatedDataMutationFanOut` withdraw the histogram values of every stored
   reference whose condition reads the parent or the changed associated data before the input changes; the final
@@ -386,6 +383,9 @@ histogram trigger of each - O(N·K). On any other entity type it costs one regis
   local path only.
 
 ## Related work
+
+- [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) — fixes split-group replication,
+  preserves this record's deferred-run protocol and uses reporting for all committed WAL replay.
 
 - [[2026-04-23-bucketed-histogram-indexing]] — introduced the counter-gated insert and remove pair and the
   deferred local queue this record changes the use of. Its invariant, an owner at most once per value, is what
