@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.parser;
 
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -263,6 +264,70 @@ class ParseContextTest {
 
 			assertEquals(List.of(1), positional);
 			assertEquals(List.of(1), named);
+		}
+
+		/**
+		 * The refusal names the type that cannot be bound, whether it is the scalar itself, the declared component of
+		 * an array or an item of a collection.
+		 */
+		@Test
+		@DisplayName("should name the unsupported scalar, array component and collection item type")
+		void shouldNameUnsupportedType() {
+			final String typeName = UnsupportedType.class.getTypeName();
+
+			final EvitaInvalidUsageException scalar = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> new ParseContext(new UnsupportedType()).getNextPositionalArgument()
+			);
+			// empty, so that only the component type check can refuse it
+			final EvitaInvalidUsageException component = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> new ParseContext((Object) new UnsupportedType[0]).getNextPositionalArgument()
+			);
+			final ParseContext namedContext = new ParseContext(Map.of("items", List.of(new UnsupportedType())));
+			final EvitaInvalidUsageException item = assertThrows(
+				EvitaInvalidUsageException.class, () -> namedContext.getNamedArgument("items")
+			);
+
+			assertTrue(scalar.getMessage().contains(typeName), scalar.getMessage());
+			assertTrue(component.getMessage().contains(typeName), component.getMessage());
+			assertTrue(item.getMessage().contains(typeName), item.getMessage());
+		}
+	}
+
+	@Nested
+	@DisplayName("Unused positional arguments")
+	class UnusedPositionalArguments {
+
+		@Test
+		@DisplayName("should accept a context without positional arguments or with all of them used")
+		void shouldAcceptWhenNoPositionalArgumentIsLeft() {
+			final ParseContext withoutArguments = new ParseContext();
+			final ParseContext withoutPositionalArguments = new ParseContext(Map.of("unused", "value"));
+			final ParseContext withEmptyPositionalArguments = new ParseContext(List.of());
+			final ParseContext allUsed = new ParseContext("a", 1);
+			allUsed.getNextPositionalArgument();
+			allUsed.getNextPositionalArgument();
+
+			assertDoesNotThrow(withoutArguments::assertAllPositionalArgumentsUsed);
+			assertDoesNotThrow(withoutPositionalArguments::assertAllPositionalArgumentsUsed);
+			assertDoesNotThrow(withEmptyPositionalArguments::assertAllPositionalArgumentsUsed);
+			assertDoesNotThrow(allUsed::assertAllPositionalArgumentsUsed);
+		}
+
+		@Test
+		@DisplayName("should refuse positional arguments left over, naming how many were passed and used")
+		void shouldRefuseLeftOverPositionalArguments() {
+			final ParseContext context = new ParseContext("a", 1, 2);
+			context.getNextPositionalArgument();
+			context.getNextPositionalArgument();
+
+			final EvitaSyntaxException exception = assertThrows(
+				EvitaSyntaxException.class, context::assertAllPositionalArgumentsUsed
+			);
+
+			assertTrue(exception.getMessage().contains("3 positional arguments"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("only 2 positional parameters"), exception.getMessage());
 		}
 	}
 }

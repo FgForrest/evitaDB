@@ -26,6 +26,7 @@ package io.evitadb.externalApi.grpc.query;
 import com.google.protobuf.Int32Value;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.filter.EntityScope;
@@ -34,6 +35,7 @@ import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -52,7 +54,11 @@ import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -63,6 +69,7 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
@@ -72,9 +79,13 @@ import static io.evitadb.api.query.QueryConstraints.attributeLessThan;
 import static io.evitadb.api.query.QueryConstraints.attributeSetExact;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
+import static io.evitadb.api.query.QueryConstraints.page;
+import static io.evitadb.api.query.QueryConstraints.referenceContent;
+import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
@@ -364,6 +375,89 @@ class QueryConverterTest {
 			(queryString, positionalArguments, namedArguments, error) -> fail(error)
 		);
 		assertEquals(original, parsed.parsedQuery());
+	}
+
+	/**
+	 * Checks that the server binds every parameter of the reference content and histogram shapes the Java client
+	 * prints. Each positional parameter takes the next value in the order the parser visits it, so a token visited
+	 * out of order or skipped would hand its value to another placeholder or leave it unused, and the server would
+	 * refuse the query or build a different one.
+	 *
+	 * @param shape description of the requirement shape
+	 * @param requirement the requirement the Java client sends
+	 */
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("referenceContentAndHistogramShapes")
+	@DisplayName("Round-trip reference content and histogram shapes through the gRPC query converter")
+	void shouldRoundTripReferenceContentAndHistogramShapes(
+		@Nonnull String shape, @Nonnull RequireConstraint requirement
+	) {
+		final Query original = query(collection("product"), require(requirement)).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
+		assertFalse(encoded.isEmpty());
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
+	}
+
+	/**
+	 * Supplies reference content and histogram requirements whose arguments the parser must visit in query order,
+	 * most of them with parameters inside a nested constraint.
+	 *
+	 * @return the shape description and the requirement for each case
+	 */
+	@Nonnull
+	static Stream<Arguments> referenceContentAndHistogramShapes() {
+		return Stream.of(
+			Arguments.of(
+				"attribute names after the reference name",
+				entityFetch(referenceContentWithAttributes("brand", "code", "name"))
+			),
+			Arguments.of(
+				"behaviour before the reference name and its fetch",
+				entityFetch(
+					referenceContent(
+						ManagedReferencesBehaviour.EXISTING, "brand", entityFetch(attributeContent("code"))
+					)
+				)
+			),
+			Arguments.of(
+				"filter and fetch after the reference name",
+				entityFetch(
+					referenceContent(
+						"brand", filterBy(entityPrimaryKeyInSet(1, 2)), entityFetch(attributeContent("code"))
+					)
+				)
+			),
+			Arguments.of(
+				"paging after the fetch",
+				entityFetch(referenceContent("brand", entityFetch(attributeContent("code")), page(1, 20)))
+			),
+			Arguments.of(
+				"several reference names before the fetch",
+				entityFetch(referenceContent(new String[]{"brand", "parameter"}, entityFetch(attributeContent("code"))))
+			),
+			Arguments.of(
+				"histogram with its fetch after the index names",
+				referenceSummaryWithHistograms(
+					FacetStatisticsDepth.COUNTS, null, null,
+					histogramStatistics(20, entityFetch(attributeContent("code")), "priceIndex", "ratingIndex")
+				)
+			),
+			Arguments.of(
+				"histogram with a behaviour and no fetch",
+				referenceSummaryWithHistograms(
+					FacetStatisticsDepth.COUNTS, null, null,
+					histogramStatistics(20, HistogramBehavior.OPTIMIZED, "priceIndex")
+				)
+			)
+		);
 	}
 
 	/**

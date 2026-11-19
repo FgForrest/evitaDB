@@ -501,4 +501,38 @@ class ValueTest {
 			assertThrows(EvitaInternalError.class, value::asSerializableAndComparable);
 		}
 	}
+
+	@Nested
+	@DisplayName("Single argument in a list position")
+	class SingleVariadicArgument {
+
+		/**
+		 * The filters call their single-value overload only for a value flagged this way, so a lone null must keep
+		 * the flag and reach the array conversions as one undefined item.
+		 */
+		@Test
+		@DisplayName("should flag one value, including null, and convert it to a one-item array")
+		void shouldFlagSingleValueAndConvertItToOneItemArray() {
+			final Value single = Value.singleVariadicArgument(5);
+			final Value singleNull = Value.singleVariadicArgument(null);
+
+			assertTrue(single.isSingleVariadicArgument());
+			assertArrayEquals(new Integer[]{5}, single.asIntegerArray());
+			assertTrue(singleNull.isSingleVariadicArgument());
+			assertArrayEquals(new Integer[]{null}, singleNull.asIntegerArray());
+		}
+
+		/**
+		 * A bound list or array is the whole list even when it holds a single item, so only the dedicated factory
+		 * marks a value as one argument.
+		 */
+		@Test
+		@DisplayName("should not flag a value created by the constructor, even a one-item list or array")
+		void shouldNotFlagValueCreatedByConstructor() {
+			assertFalse(new Value("a").isSingleVariadicArgument());
+			assertFalse(new Value(null).isSingleVariadicArgument());
+			assertFalse(new Value(List.of("a")).isSingleVariadicArgument());
+			assertFalse(new Value(new String[]{"a"}).isSingleVariadicArgument());
+		}
+	}
 }

@@ -39,6 +39,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -2595,14 +2596,14 @@ class EvitaQLRequireConstraintVisitorTest {
 	@Test
 	@DisplayName("should refuse a list bound as one of several accompanying price lists")
 	void shouldRefuseListBoundAsOneOfSeveralAccompanyingPriceLists() {
+		final List<String> list = List.of("vip");
+		final String[] array = {"vip"};
 		assertAll(
-			() -> assertThrows(
-				EvitaSyntaxException.class,
-				() -> parseRequireConstraint("defaultAccompanyingPriceLists(?, ?)", List.of("vip"), "basic")
+			() -> assertRefusedType(
+				list, () -> parseRequireConstraint("defaultAccompanyingPriceLists(?, ?)", list, "basic")
 			),
-			() -> assertThrows(
-				EvitaSyntaxException.class,
-				() -> parseRequireConstraint("priceContentRespectingFilter(?, ?)", "basic", new String[]{"vip"})
+			() -> assertRefusedType(
+				array, () -> parseRequireConstraint("priceContentRespectingFilter(?, ?)", "basic", array)
 			)
 		);
 	}
@@ -2614,23 +2615,38 @@ class EvitaQLRequireConstraintVisitorTest {
 	@Test
 	@DisplayName("should refuse a list bound to the accompanying price name")
 	void shouldRefuseListBoundToAccompanyingPriceName() {
+		final List<String> list = List.of("myCalculatedPrice");
+		final String[] array = {"myCalculatedPrice"};
 		assertAll(
-			() -> assertThrows(
-				EvitaSyntaxException.class,
-				() -> parseRequireConstraint("accompanyingPriceContent(?)", List.of("myCalculatedPrice"))
+			() -> assertRefusedType(
+				list, () -> parseRequireConstraint("accompanyingPriceContent(?)", list)
 			),
-			() -> assertThrows(
-				EvitaSyntaxException.class,
-				() -> parseRequireConstraint("accompanyingPriceContent(?, ?)", new String[]{"myCalculatedPrice"}, "basic")
+			() -> assertRefusedType(
+				array,
+				() -> parseRequireConstraint(
+					"accompanyingPriceContent(?, ?)", array, "basic"
+				)
 			),
-			() -> assertThrows(
-				EvitaSyntaxException.class,
+			() -> assertRefusedType(
+				list,
 				() -> parseRequireConstraint(
 					"accompanyingPriceContent(@name, @priceList)",
-					Map.of("name", List.of("myCalculatedPrice"), "priceList", "basic")
+					Map.of("name", list, "priceList", "basic")
 				)
 			)
 		);
+	}
+
+	/**
+	 * Checks that parsing fails with a syntax error naming the runtime type of the value its position refuses,
+	 * which a grammar or arity error would not name.
+	 *
+	 * @param refusedValue the bound value whose type the position does not allow
+	 * @param parsing the parser call that binds the value
+	 */
+	private static void assertRefusedType(@Nonnull Object refusedValue, @Nonnull Executable parsing) {
+		final EvitaSyntaxException error = assertThrows(EvitaSyntaxException.class, parsing);
+		assertTrue(error.getMessage().contains(refusedValue.getClass().getTypeName()), error::getMessage);
 	}
 
 	@Test

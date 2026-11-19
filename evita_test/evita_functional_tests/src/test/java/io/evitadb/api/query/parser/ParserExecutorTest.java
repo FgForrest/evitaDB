@@ -188,6 +188,26 @@ class ParserExecutorTest {
 
 			assertTrue(thrown.getMessage().contains("Result of parse execution is null"));
 		}
+
+		/**
+		 * Every parser entry point goes through this method, so the check for positional arguments that no
+		 * placeholder used runs here, after the whole input was parsed, and the context is cleared even then.
+		 */
+		@Test
+		@DisplayName("should refuse positional arguments the supplier left unused and clear the context")
+		void shouldRefuseUnusedPositionalArgumentsAndClearContext() {
+			final ParseContext context = new ParseContext(1, 2);
+
+			assertThrows(
+				EvitaSyntaxException.class,
+				() -> ParserExecutor.execute(context, () -> {
+					ParserExecutor.getContext().getNextPositionalArgument();
+					return "parsed";
+				})
+			);
+
+			assertThrows(EvitaInternalError.class, ParserExecutor::getContext);
+		}
 	}
 
 	@Nested

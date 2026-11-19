@@ -31,6 +31,7 @@ import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
 import java.util.Currency;
@@ -44,6 +45,7 @@ import static io.evitadb.api.query.QueryConstraints.label;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 
@@ -65,17 +67,29 @@ class EvitaQLHeadConstraintVisitorTest {
 	void shouldRejectBoundCurrencyAndLocaleInLabel() {
 		final Currency usd = Currency.getInstance("USD");
 		assertAll(
-			() -> assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("label(?, ?)", "currency", usd)),
-			() -> assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint(
+			() -> assertRefusedType(usd, () -> parseHeadConstraint("label(?, ?)", "currency", usd)),
+			() -> assertRefusedType(usd, () -> parseHeadConstraint(
 				"label(@key, @value)", Map.of("key", "currency", "value", usd)
 			)),
-			() -> assertThrows(
-				EvitaSyntaxException.class, () -> parseHeadConstraint("label(?, ?)", "lang", Locale.ENGLISH)
+			() -> assertRefusedType(
+				Locale.ENGLISH, () -> parseHeadConstraint("label(?, ?)", "lang", Locale.ENGLISH)
 			),
-			() -> assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint(
+			() -> assertRefusedType(Locale.ENGLISH, () -> parseHeadConstraint(
 				"label(@key, @value)", Map.of("key", "lang", "value", Locale.ENGLISH)
 			))
 		);
+	}
+
+	/**
+	 * Checks that parsing fails with a syntax error naming the runtime type of the value its position refuses,
+	 * which a grammar or arity error would not name.
+	 *
+	 * @param refusedValue the bound value whose type the position does not allow
+	 * @param parsing the parser call that binds the value
+	 */
+	private static void assertRefusedType(@Nonnull Object refusedValue, @Nonnull Executable parsing) {
+		final EvitaSyntaxException error = assertThrows(EvitaSyntaxException.class, parsing);
+		assertTrue(error.getMessage().contains(refusedValue.getClass().getTypeName()), error::getMessage);
 	}
 
     @Test

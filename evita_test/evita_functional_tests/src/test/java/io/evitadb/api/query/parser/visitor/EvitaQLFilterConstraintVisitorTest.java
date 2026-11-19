@@ -37,6 +37,7 @@ import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -1417,22 +1418,34 @@ class EvitaQLFilterConstraintVisitorTest {
 		@Test
 		@DisplayName("Should refuse a list bound as one of several price lists")
 		void shouldRefuseListBoundAsOneOfSeveralPriceLists() {
+			final List<String> list = List.of("vip");
+			final String[] array = {"vip"};
 			assertAll(
-				() -> assertThrows(
-					EvitaSyntaxException.class,
-					() -> parseFilterConstraint("priceInPriceLists(?, ?)", List.of("vip"), "basic")
+				() -> assertRefusedType(
+					list, () -> parseFilterConstraint("priceInPriceLists(?, ?)", list, "basic")
 				),
-				() -> assertThrows(
-					EvitaSyntaxException.class,
-					() -> parseFilterConstraint("priceInPriceLists(?, ?)", "basic", new String[]{"vip"})
+				() -> assertRefusedType(
+					array, () -> parseFilterConstraint("priceInPriceLists(?, ?)", "basic", array)
 				),
-				() -> assertThrows(
-					EvitaSyntaxException.class,
+				() -> assertRefusedType(
+					list,
 					() -> parseFilterConstraint(
-						"priceInPriceLists(@first, @second)", Map.of("first", List.of("vip"), "second", "basic")
+						"priceInPriceLists(@first, @second)", Map.of("first", list, "second", "basic")
 					)
 				)
 			);
+		}
+
+		/**
+		 * Checks that parsing fails with a syntax error naming the runtime type of the value its position refuses,
+		 * which a grammar or arity error would not name.
+		 *
+		 * @param refusedValue the bound value whose type the position does not allow
+		 * @param parsing the parser call that binds the value
+		 */
+		private void assertRefusedType(@Nonnull Object refusedValue, @Nonnull Executable parsing) {
+			final EvitaSyntaxException error = assertThrows(EvitaSyntaxException.class, parsing);
+			assertTrue(error.getMessage().contains(refusedValue.getClass().getTypeName()), error::getMessage);
 		}
 
 		@Test

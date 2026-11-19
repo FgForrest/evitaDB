@@ -86,6 +86,10 @@ public class EntityByAttributeFilteringFunctionalTest extends AbstractEntityByAt
 	 */
 	@Nonnull
 	private static final String CURRENCY_AND_LOCALE_PRODUCTS = "currencyAndLocaleProducts";
+	/**
+	 * Dataset of products with a string label, some named like enum constants, and a decimal amount.
+	 */
+	@Nonnull
 	private static final String COMPARABLE_ATTRIBUTE_PRODUCTS = "comparableAttributeProducts";
 
 	/**
