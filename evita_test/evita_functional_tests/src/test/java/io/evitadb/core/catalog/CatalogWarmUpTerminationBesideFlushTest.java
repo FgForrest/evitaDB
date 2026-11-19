@@ -31,6 +31,7 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.query.Query;
@@ -43,6 +44,7 @@ import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -64,6 +66,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -84,6 +87,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
@@ -449,6 +453,43 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 				published.values().stream().allMatch(Boolean::booleanValue),
 				() -> "the header write the termination waited for must be published whole, but the published " +
 					"state holds: " + published
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("when a collection write compacts after the termination closed the storage")
+	class CompactionFinishingAfterTermination {
+
+		@Test
+		@DisplayName("should leave no collection storage registered on the closed catalog")
+		void shouldNotRegisterCompactedStorageOnClosedCatalog() {
+			final CatalogWarmUpTerminationBesideFlushTest test = CatalogWarmUpTerminationBesideFlushTest.this;
+			test.restartWithEagerCompaction();
+			final Catalog catalog = test.catalog();
+			final EvitaSessionContract writer = test.evita.createReadWriteSession(TEST_CATALOG);
+			writeProductAndCategory(writer);
+			final InFlightFlush flush = startFlush(catalog::flush);
+			// a compaction asks the collection for its header once it has copied the records and before its new
+			// storage is registered - the parking supplier pauses exactly that question
+			final CountDownLatch compactionCopied = new CountDownLatch(1);
+			for (final EntityCollection collection : collections(catalog)) {
+				parkCompactionHeaderOf(collection, compactionCopied, test.releaseParked);
+			}
+			final Future<?> writes = test.fixtureThreads.submit(flush.heldBack()::runRemaining);
+			awaitLatch(compactionCopied, "no collection write compacted its storage");
+
+			final Future<?> termination = test.fixtureThreads.submit(catalog::terminate);
+			awaitCompletion(termination);
+			assertTrue(catalog.isTerminated(), "the termination must close the storage while the compaction waits");
+			test.releaseParked.countDown();
+			awaitCompletion(writes);
+
+			final Map<?, ?> registered = registeredCollectionStorages(catalog);
+			assertTrue(
+				registered.isEmpty(),
+				() -> "a closed catalog must hold no collection storage, but a compaction finishing after the " +
+					"termination registered: " + registered.keySet()
 			);
 		}
 	}
@@ -838,6 +879,67 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Replaces the header supplier of the collection with one that delegates, and pauses the first question a
+	 * compaction asks it - which comes once the compaction has copied the records and before the new storage is
+	 * registered - until the release latch is counted down.
+	 *
+	 * @param collection the collection whose compaction is paused
+	 * @param paused     counted down when a compaction reaches the question
+	 * @param release    awaited by the paused compaction
+	 */
+	private static void parkCompactionHeaderOf(
+		@Nonnull EntityCollection collection,
+		@Nonnull CountDownLatch paused,
+		@Nonnull CountDownLatch release
+	) {
+		try {
+			final Field field = EntityCollection.class.getDeclaredField("headerInfoSupplier");
+			field.setAccessible(true);
+			final HeaderInfoSupplier real = (HeaderInfoSupplier) field.get(collection);
+			final AtomicBoolean parked = new AtomicBoolean();
+			final HeaderInfoSupplier parking = (HeaderInfoSupplier) Proxy.newProxyInstance(
+				HeaderInfoSupplier.class.getClassLoader(),
+				new Class<?>[]{HeaderInfoSupplier.class},
+				(proxy, method, args) -> {
+					final boolean compacting = Arrays.stream(Thread.currentThread().getStackTrace())
+						.anyMatch(frame -> "compact".equals(frame.getMethodName()));
+					if (compacting && parked.compareAndSet(false, true)) {
+						paused.countDown();
+						awaitLatch(release, "the compaction was never released");
+					}
+					try {
+						return method.invoke(real, args);
+					} catch (InvocationTargetException ex) {
+						throw ex.getCause();
+					}
+				}
+			);
+			field.set(collection, parking);
+		} catch (ReflectiveOperationException ex) {
+			throw new IllegalStateException("The header supplier of the collection could not be replaced.", ex);
+		}
+	}
+
+	/**
+	 * Returns the collection storages the catalog's persistence service holds registered.
+	 *
+	 * @param catalog the catalog
+	 * @return the registered collection storages by their file reference
+	 */
+	@Nonnull
+	private static Map<?, ?> registeredCollectionStorages(@Nonnull Catalog catalog) {
+		try {
+			final Object persistenceService = readCatalogField(catalog, "persistenceService");
+			final Field field = Objects.requireNonNull(persistenceService).getClass()
+				.getDeclaredField("entityCollectionPersistenceServices");
+			field.setAccessible(true);
+			return (Map<?, ?>) field.get(persistenceService);
+		} catch (ReflectiveOperationException ex) {
+			throw new IllegalStateException("The collection storages of the catalog are not readable.", ex);
+		}
+	}
+
+	/**
 	 * Returns the innermost cause of a failure.
 	 *
 	 * @param failure the failure, or `null`
@@ -981,6 +1083,28 @@ class CatalogWarmUpTerminationBesideFlushTest implements EvitaTestSupport {
 			);
 		}
 		awaitLatch(held, "the transaction workers were never all held");
+	}
+
+	/**
+	 * Closes the engine and opens a new one over the same storage that compacts a collection's storage as soon as a
+	 * single record in it is stale.
+	 */
+	private void restartWithEagerCompaction() {
+		this.evita.close();
+		this.evita = new Evita(
+			newTestEvitaConfigurationBuilder(this.paths)
+				.storage(
+					StorageOptions.builder()
+						.storageDirectory(this.paths.storage())
+						.workDirectory(this.paths.work())
+						.fileSizeCompactionThresholdBytes(1L)
+						.minimalActiveRecordShare(0.999D)
+						.minCompactionIntervalMilliseconds(0L)
+						.build()
+				)
+				.build()
+		);
+		this.evita.waitUntilFullyInitialized();
 	}
 
 	/**
