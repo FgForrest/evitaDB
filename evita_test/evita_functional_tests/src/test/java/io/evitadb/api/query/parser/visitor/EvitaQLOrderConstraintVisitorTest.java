@@ -24,9 +24,11 @@
 package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.PickFirstByEntityProperty;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.order.TraversalMode;
+import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.parser.ParseMode;
@@ -35,6 +37,7 @@ import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -175,6 +178,27 @@ class EvitaQLOrderConstraintVisitorTest {
 			);
 		}
 
+
+		/** Checks positional and named wrapped arrays against the equivalent flat list in Java. */
+		@Test
+		@DisplayName("Expand sole array items in positional and named exact order lists")
+		void shouldExpandWrappedAttributeSetExactValues() {
+			final int[] numbers = {2, 1};
+			final String[] words = {"b", null, "a"};
+			assertAll(
+				() -> assertEquals(attributeSetExact("code", 2, 1),
+					parseOrderConstraint("attributeSetExact(?, ?)", "code", new Serializable[]{numbers})),
+				() -> assertEquals(attributeSetExact("code", "b", "a"),
+					parseOrderConstraint("attributeSetExact(@name, @values)",
+						Map.of("name", "code", "values", List.of((Object) words)))),
+				() -> assertEquals(Query.query(collection("Product")),
+					DefaultQueryParser.getInstance().parseQuery(
+						"query(collection(?), orderBy(attributeSetExact(?, ?)))",
+						"Product", "code", List.of((Object) new String[]{null})
+					))
+			);
+		}
+
 		/** Checks the diagnostics for values unsupported by the exact ordering list. */
 		@Test
 		@DisplayName("Name unsupported ordering value types in syntax errors")
@@ -183,7 +207,9 @@ class EvitaQLOrderConstraintVisitorTest {
 				() -> assertUnsupportedType(Predecessor.class, Predecessor.HEAD),
 				() -> assertUnsupportedType(Double.class, List.of(Double.NaN)),
 				() -> assertUnsupportedType(Float.class, List.of(Float.POSITIVE_INFINITY)),
-				() -> assertUnsupportedType(String[].class, List.of((Object) new String[]{"a", "b"}))
+				() -> assertUnsupportedType(String[].class, List.of("a", new String[]{"a", "b"})),
+				() -> assertUnsupportedType(ReferencedEntityPredecessor.class,
+					List.of((Object) new ReferencedEntityPredecessor[]{ReferencedEntityPredecessor.HEAD}))
 			);
 		}
 

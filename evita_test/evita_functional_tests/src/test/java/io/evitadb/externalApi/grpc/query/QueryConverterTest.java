@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.query;
 
 import com.google.protobuf.Int32Value;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
@@ -38,6 +39,8 @@ import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.core.Evita;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
@@ -51,9 +54,14 @@ import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.QueryParamCase;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
+import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -92,6 +100,7 @@ import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistogra
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.api.query.QueryConstraints.userFilter;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
@@ -114,6 +123,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag(GRPC)
 @Tag(EXTERNAL_API)
 @Tag(QUERY)
+@ExtendWith(EvitaParameterResolver.class)
 class QueryConverterTest {
 	private static final boolean enabled = true;
 	private static final String name = "test";
@@ -321,6 +331,55 @@ class QueryConverterTest {
 			(queryString, positionalArguments, namedArguments, error) -> fail(error)
 		);
 		assertEquals(original, parsed.parsedQuery());
+	}
+
+
+	/**
+	 * Creates products that distinguish membership and exact ordering from a query with no usable values.
+	 *
+	 * @param evita the embedded database
+	 * @return the dataset carrier
+	 */
+	@DataSet("queryConverterMembershipProducts")
+	@Nonnull
+	DataCarrier setUpMembershipProducts(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema("Product").withoutGeneratedPrimaryKey()
+				.withAttribute("number", Integer.class, attribute -> attribute.filterable().sortable())
+				.updateVia(session);
+			for (int id = 1; id <= 3; id++) {
+				session.createNewEntity("Product", id).setAttribute("number", id).upsertVia(session);
+			}
+		});
+		return new DataCarrier();
+	}
+
+	/**
+	 * Runs the original query and the query parsed by the gRPC server on the same data.
+	 *
+	 * @param session the populated catalog session
+	 */
+	@Test
+	@UseDataSet("queryConverterMembershipProducts")
+	@DisplayName("Round-trip wrapped membership and exact order arrays with identical primary keys")
+	void shouldRoundTripWrappedAttributeValueArrays(@Nonnull EvitaSessionContract session) {
+		final Serializable membership = new Integer[]{1, 2};
+		final Serializable order = new int[]{2, 1};
+		final Query original = query(collection("Product"),
+			filterBy(attributeInSet("number", membership)), orderBy(attributeSetExact("number", order)));
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream().map(QueryConverter::convertQueryParam)
+			.toList();
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null, (q, positional, named, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
+		final List<Integer> embeddedKeys = session.queryEntityReference(original).getRecordData().stream()
+			.map(EntityReferenceContract::getPrimaryKey).toList();
+		final List<Integer> serverKeys = session.queryEntityReference(parsed.parsedQuery()).getRecordData().stream()
+			.map(EntityReferenceContract::getPrimaryKey).toList();
+		assertEquals(List.of(2, 1), embeddedKeys);
+		assertEquals(embeddedKeys, serverKeys);
 	}
 
 	/**

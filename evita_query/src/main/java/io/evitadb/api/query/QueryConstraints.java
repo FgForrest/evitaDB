@@ -71,6 +71,10 @@ import static java.util.Optional.ofNullable;
  *   default and throws only where there is none (`inScope`, the special value of `attributeIs`, the mode of
  *   `priceContent`). A single nullable variable in `entityPrimaryKeyInSet(id)`, `attributeInSet("code", value)` or
  *   `priceInPriceLists(priceList)` binds to the single-value overload and leaves the filter out if it is null.
+ * - **Attribute Values**: Comparisons take scalar values. An attribute value list can be supplied as scalar items
+ *   or as a single array, with primitive elements boxed; an array among other items is refused. Chain predecessors
+ *   (`Predecessor`, `ReferencedEntityPredecessor`) are refused as query values: order by a chain with
+ *   `attributeNatural`.
  * - **Consistency**: Provides a uniform API across all constraint types (head, filter, order, require).
  *
  * **Usage Pattern:**
@@ -413,6 +417,8 @@ public interface QueryConstraints {
 	static <T extends Serializable> AttributeBetween attributeBetween(@Nonnull String attributeName, @Nullable T from,
 		@Nullable T to) {
 		requireName(attributeName, "attributeName");
+		requireScalarAttributeValue(attributeName, from);
+		requireScalarAttributeValue(attributeName, to);
 		if (from == null && to == null) {
 			return null;
 		} else {
@@ -498,6 +504,7 @@ public interface QueryConstraints {
 	static <T extends Serializable> AttributeEquals attributeEquals(@Nonnull String attributeName,
 		@Nullable T attributeValue) {
 		requireName(attributeName, "attributeName");
+		requireScalarAttributeValue(attributeName, attributeValue);
 		return attributeValue == null ? null : new AttributeEquals(attributeName, attributeValue);
 	}
 
@@ -519,6 +526,7 @@ public interface QueryConstraints {
 	static <T extends Serializable> AttributeLessThan attributeLessThan(@Nonnull String attributeName,
 		@Nullable T attributeValue) {
 		requireName(attributeName, "attributeName");
+		requireScalarAttributeValue(attributeName, attributeValue);
 		return attributeValue == null ? null : new AttributeLessThan(attributeName, attributeValue);
 	}
 
@@ -540,6 +548,7 @@ public interface QueryConstraints {
 	static <T extends Serializable> AttributeLessThanEquals attributeLessThanEquals(@Nonnull String attributeName,
 		@Nullable T attributeValue) {
 		requireName(attributeName, "attributeName");
+		requireScalarAttributeValue(attributeName, attributeValue);
 		return attributeValue == null ? null : new AttributeLessThanEquals(attributeName, attributeValue);
 	}
 
@@ -561,6 +570,7 @@ public interface QueryConstraints {
 	static <T extends Serializable> AttributeGreaterThan attributeGreaterThan(@Nonnull String attributeName,
 		@Nullable T attributeValue) {
 		requireName(attributeName, "attributeName");
+		requireScalarAttributeValue(attributeName, attributeValue);
 		return attributeValue == null ? null : new AttributeGreaterThan(attributeName, attributeValue);
 	}
 
@@ -582,6 +592,7 @@ public interface QueryConstraints {
 	static <T extends Serializable> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nonnull String attributeName,
 		@Nullable T attributeValue) {
 		requireName(attributeName, "attributeName");
+		requireScalarAttributeValue(attributeName, attributeValue);
 		return attributeValue == null ? null : new AttributeGreaterThanEquals(attributeName, attributeValue);
 	}
 
@@ -1022,20 +1033,29 @@ public interface QueryConstraints {
 	@Nullable
 	static <T extends Serializable> AttributeInSet attributeInSet(@Nonnull String attributeName, @Nullable T... set) {
 		requireName(attributeName, "attributeName");
-		final T[] normalizedSet = withoutNullValues(set);
+		final Serializable[] normalizedSet = normalizeAttributeValues(attributeName, set);
 		return normalizedSet == null ? null : new AttributeInSet(attributeName, normalizedSet);
 	}
 
 	/**
-	 * Filters entities where the specified attribute equals at least one value from the provided set, acting as a type-safe, high-performance alternative to multiple `attributeEquals` constraints joined by OR. Supports array attributes (matches if any element is in the set), case-sensitive string comparison, and type conversion. Ideal for multi-select, tag, or enum filtering.
+	 * Filters entities whose attribute equals the given value; an array attribute matches when any of its items does.
+	 * It is the single value form of `attributeInSet`: an array passed as the value is the list of values, as if its
+	 * items were passed one by one. A null value returns null, and the constraint is then left out of the query.
 	 *
 	 * ```evitaql
 	 * filterBy(
-	 *   attributeInSet("status", "PUBLISHED", "FEATURED", "PROMOTED")
+	 *   attributeInSet("status", "PUBLISHED")
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#attribute-in-set)
 	 *
+	 * @param attributeName  name of the attribute to match
+	 * @param attributeValue the value to match, or an array of the values to match
+	 * @param <T>            type of the attribute value
+	 * @return the attribute filter, or null when the value is null
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the attribute name is null or blank, or when the
+	 *                                                         value is of a type the engine cannot compare
 	 * @see io.evitadb.api.query.filter.AttributeInSet
 	 */
 	@SourceHash("dbf823e37c7cfe250efd7abdaf3b5e67")
@@ -1044,7 +1064,10 @@ public interface QueryConstraints {
 		@Nonnull String attributeName, @Nullable T attributeValue
 	) {
 		requireName(attributeName, "attributeName");
-		return attributeValue == null ? null : new AttributeInSet(attributeName, attributeValue);
+		return attributeValue == null ? null :
+			new AttributeInSet(
+				attributeName, normalizeAttributeValues(attributeName, new Serializable[]{attributeValue})
+			);
 	}
 
 	/**
@@ -1254,7 +1277,7 @@ public interface QueryConstraints {
 		if (from == null && to == null) {
 			return null;
 		}
-		return new HistogramHaving(referenceName, null, toBigDecimal(from), toBigDecimal(to), null);
+		return new HistogramHaving(referenceName, null, toHistogramBound(from), toHistogramBound(to), null);
 	}
 
 	/**
@@ -1282,7 +1305,7 @@ public interface QueryConstraints {
 		if (from == null && to == null) {
 			return null;
 		}
-		return new HistogramHaving(referenceName, histogramName, toBigDecimal(from), toBigDecimal(to), null);
+		return new HistogramHaving(referenceName, histogramName, toHistogramBound(from), toHistogramBound(to), null);
 	}
 
 	/**
@@ -1312,7 +1335,7 @@ public interface QueryConstraints {
 		if (from == null && to == null) {
 			return null;
 		}
-		return new HistogramHaving(referenceName, null, toBigDecimal(from), toBigDecimal(to), groupHaving);
+		return new HistogramHaving(referenceName, null, toHistogramBound(from), toHistogramBound(to), groupHaving);
 	}
 
 	/**
@@ -1345,22 +1368,9 @@ public interface QueryConstraints {
 		if (from == null && to == null) {
 			return null;
 		}
-		return new HistogramHaving(referenceName, histogramName, toBigDecimal(from), toBigDecimal(to), groupHaving);
-	}
-
-	/**
-	 * Converts an arbitrary {@link Number} to {@link BigDecimal} losslessly for the histogram-bound
-	 * factories above. {@code BigDecimal} round-trips through {@code Number#toString()} preserves the
-	 * exact decimal representation for every Evita-supported numeric type (Byte/Short/Integer/Long via
-	 * their integral string form, BigDecimal via its own string form), avoiding the precision loss that
-	 * {@code BigDecimal.valueOf(double)} would introduce for non-trivial decimals.
-	 */
-	@Nullable
-	private static BigDecimal toBigDecimal(@Nullable Number value) {
-		if (value == null) {
-			return null;
-		}
-		return value instanceof BigDecimal bd ? bd : new BigDecimal(value.toString());
+		return new HistogramHaving(
+			referenceName, histogramName, toHistogramBound(from), toHistogramBound(to), groupHaving
+		);
 	}
 
 	/**
@@ -1936,7 +1946,7 @@ public interface QueryConstraints {
 	static AttributeSetExact attributeSetExact(@Nonnull String attributeName,
 		@Nullable Serializable... attributeValues) {
 		requireName(attributeName, "attributeName");
-		final Serializable[] normalizedAttributeValues = withoutNullValues(attributeValues);
+		final Serializable[] normalizedAttributeValues = normalizeAttributeValues(attributeName, attributeValues);
 		return ArrayUtils.isEmpty(normalizedAttributeValues) ? null :
 			new AttributeSetExact(attributeName, normalizedAttributeValues);
 	}

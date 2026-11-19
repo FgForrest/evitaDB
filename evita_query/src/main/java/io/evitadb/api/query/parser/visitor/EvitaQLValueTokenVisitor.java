@@ -31,6 +31,7 @@ import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
+import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
@@ -112,22 +113,22 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
 	);
 
 	/**
-	 * Attribute value types accepted by filters and exact value ordering. Floating-point numbers and enums are
-	 * accepted because the Java factories normalize them: a finite `Float` or `Double` to a `BigDecimal`, an
-	 * enum to its name unless it is a supported enum. An array is never a single attribute value, because the
-	 * engine would compare it by its identity rather than by its items.
+	 * Attribute types bound before factory validation. The factories normalize floating-point numbers and enums
+	 * and reject chain predecessors with an attribute-specific diagnostic.
 	 */
 	@Nonnull
 	private static final Set<Class<?>> ATTRIBUTE_VALUE_TYPES = Set.copyOf(
 		CollectionUtils.combine(
-			COMPARABLE_TYPES, Set.of(Currency.class, Locale.class, Float.class, Double.class, Enum.class)
+			COMPARABLE_TYPES,
+			Set.of(Currency.class, Locale.class, Float.class, Double.class, float.class, double.class,
+				Enum.class, ChainableType.class)
 		)
 	);
 
 	/**
-	 * Whether an untyped enum literal represents its name as an attribute value.
+	 * Whether the visitor reads attribute values that will be validated by the query factories.
 	 */
-	private final boolean enumLiteralsAsStrings;
+	private final boolean attributeValues;
 
     protected final EvitaQLParameterVisitor parameterVisitor = new EvitaQLParameterVisitor();
 
@@ -146,14 +147,14 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
 	}
 
 	/**
-	 * Creates a visitor with position-specific validation and enum literal handling.
+	 * Creates a visitor with position-specific validation and optional attribute value handling.
 	 *
 	 * @param allowedDataTypes the types permitted in this position
-	 * @param enumLiteralsAsStrings whether enum literals represent their names as strings
+	 * @param attributeValues whether values are read for the attribute filter and ordering factories
 	 */
-	private EvitaQLValueTokenVisitor(@Nonnull Set<Class<?>> allowedDataTypes, boolean enumLiteralsAsStrings) {
+	private EvitaQLValueTokenVisitor(@Nonnull Set<Class<?>> allowedDataTypes, boolean attributeValues) {
 		this.allowedDataTypes = allowedDataTypes;
-		this.enumLiteralsAsStrings = enumLiteralsAsStrings;
+		this.attributeValues = attributeValues;
 	}
 
     /**
@@ -404,7 +405,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
 		assertSubclassOfDataTypeIsAllowed(ctx, Enum.class);
 
 		final EnumWrapper literal = EnumWrapper.fromString(ctx.getText());
-		return new Value(this.enumLiteralsAsStrings ? literal.getValue() : literal);
+		return new Value(this.attributeValues ? literal.getValue() : literal);
 	}
 
     @Override
@@ -472,13 +473,17 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
 	/**
-	 * Checks whether the supplied type is allowed in this value position.
+	 * Checks whether the supplied type may reach this value position. The attribute factories decide whether
+	 * an array binding is a list or an invalid single value.
 	 *
 	 * @param ctx the value or argument token being parsed
 	 * @param dataType the type to check
 	 * @throws EvitaSyntaxException when the type is forbidden in this position
 	 */
 	protected void assertDataTypeIsAllowed(@Nonnull ParserRuleContext ctx, @Nonnull Class<?> dataType) {
+		if (this.attributeValues && dataType.isArray()) {
+			return;
+		}
 		if (this.allowedDataTypes != null
 			&& this.allowedDataTypes.stream().anyMatch(type -> type.isAssignableFrom(dataType))) {
 			return;
@@ -524,29 +529,52 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
 	protected Value parseVariadicArguments(@Nonnull ParserRuleContext ctx, @Nullable Object argument) {
 		if (argument instanceof Iterable<?> iterableArgument) {
 			for (final Object item : iterableArgument) {
-				if (item != null) {
-					assertDataTypeIsAllowed(ctx, item.getClass());
-				}
+				assertVariadicItemType(ctx, item);
 			}
 			return new Value(argument);
 		} else if (argument != null && argument.getClass().isArray()) {
-			final Class<?> component = argument.getClass().getComponentType();
-			if (component != Object.class && component != Serializable.class) {
-				assertDataTypeIsAllowed(ctx, component);
-			}
-			final int length = Array.getLength(argument);
-			for (int i = 0; i < length; i++) {
-				final Object item = Array.get(argument, i);
-				if (item != null) {
-					assertDataTypeIsAllowed(ctx, item.getClass());
-				}
-			}
+			assertVariadicArrayTypes(ctx, argument);
 			return new Value(argument);
 		} else {
 			if (argument != null) {
 				assertDataTypeIsAllowed(ctx, argument.getClass());
 			}
 			return Value.singleVariadicArgument(argument);
+		}
+	}
+
+	/**
+	 * Checks the declared component and the items of a bound array after binding has limited the nesting depth.
+	 *
+	 * @param ctx the argument syntax
+	 * @param array the bound array
+	 * @throws EvitaSyntaxException when its component or an item has a forbidden type
+	 */
+	private void assertVariadicArrayTypes(@Nonnull ParserRuleContext ctx, @Nonnull Object array) {
+		final Class<?> component = array.getClass().getComponentType();
+		if (component != Object.class && component != Serializable.class) {
+			assertDataTypeIsAllowed(ctx, component);
+		}
+		final int length = Array.getLength(array);
+		for (int i = 0; i < length; i++) {
+			assertVariadicItemType(ctx, Array.get(array, i));
+		}
+	}
+
+	/**
+	 * Checks a bound list item and the types inside an array item before the attribute factory applies its shape
+	 * rules.
+	 *
+	 * @param ctx the argument syntax
+	 * @param item the bound item, or null for an undefined value
+	 * @throws EvitaSyntaxException when the item or one of its components has a forbidden type
+	 */
+	private void assertVariadicItemType(@Nonnull ParserRuleContext ctx, @Nullable Object item) {
+		if (item != null) {
+			assertDataTypeIsAllowed(ctx, item.getClass());
+			if (this.attributeValues && item.getClass().isArray()) {
+				assertVariadicArrayTypes(ctx, item);
+			}
 		}
 	}
 }

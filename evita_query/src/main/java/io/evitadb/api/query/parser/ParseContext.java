@@ -217,8 +217,8 @@ public class ParseContext {
 	}
 
 	/**
-	 * Finds the first unsupported type in a bound scalar, array or collection. Null and null list items
-	 * represent undefined values and pass through to the visitor.
+	 * Finds the first unsupported type in a binding. Visitors decide whether an array has meaning as an item of
+	 * a bound array or collection. Null represents an undefined value and passes through.
 	 *
 	 * @param argument bound argument, null for an undefined value
 	 * @return the unsupported scalar, array component or list item type, or null when all values can be bound
@@ -226,44 +226,64 @@ public class ParseContext {
 	@Nullable
 	private static Class<?> findUnsupportedArgumentType(@Nullable Object argument) {
 		if (argument != null && argument.getClass().isArray()) {
-			final Class<?> component = argument.getClass().getComponentType();
-			if (
-				component != Object.class && component != Serializable.class && !isArgumentValueTypeSupported(component)
-			) {
-				return component;
-			}
-			final int length = Array.getLength(argument);
-			for (int i = 0; i < length; i++) {
-				final Class<?> unsupportedType = findUnsupportedArgumentValueType(Array.get(argument, i));
-				if (unsupportedType != null) {
-					return unsupportedType;
-				}
-			}
+			return findUnsupportedArgumentArrayType(argument, true);
 		} else if (argument instanceof Collection<?> collection) {
 			for (final Object item : collection) {
-				final Class<?> unsupportedType = findUnsupportedArgumentValueType(item);
+				final Class<?> unsupportedType = findUnsupportedArgumentValueType(item, true);
 				if (unsupportedType != null) {
 					return unsupportedType;
 				}
 			}
 		} else {
-			return findUnsupportedArgumentValueType(argument);
+			return findUnsupportedArgumentValueType(argument, false);
 		}
 		return null;
 	}
 
 	/**
-	 * Checks a scalar parameter value or a single item in a bound array or collection.
+	 * Checks an array component and its values. A binding can contain only one level of array items.
+	 *
+	 * @param array the bound array or an array item of a binding
+	 * @param allowArrayItems whether array items can be validated as arrays
+	 * @return the first unsupported component or item type, or null if all items can be bound
+	 */
+	@Nullable
+	private static Class<?> findUnsupportedArgumentArrayType(
+		@Nonnull Object array, boolean allowArrayItems
+	) {
+		final Class<?> component = array.getClass().getComponentType();
+		if (
+			component != Object.class && component != Serializable.class && !component.isArray()
+				&& !isArgumentValueTypeSupported(component)
+		) {
+			return component;
+		}
+		final int length = Array.getLength(array);
+		for (int i = 0; i < length; i++) {
+			final Class<?> unsupportedType = findUnsupportedArgumentValueType(Array.get(array, i), allowArrayItems);
+			if (unsupportedType != null) {
+				return unsupportedType;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Checks a scalar parameter or a single item in a bound array or collection.
 	 *
 	 * @param value the value to check, null for an undefined value
+	 * @param allowArray whether this value can be an array of bound scalars
 	 * @return the unsupported type, or null for a valid binding
 	 */
 	@Nullable
-	private static Class<?> findUnsupportedArgumentValueType(@Nullable Object value) {
+	private static Class<?> findUnsupportedArgumentValueType(@Nullable Object value, boolean allowArray) {
 		if (value == null) {
 			return null;
 		}
 		final Class<?> type = value.getClass();
+		if (allowArray && type.isArray()) {
+			return findUnsupportedArgumentArrayType(value, false);
+		}
 		// the Java factories refuse a NaN or an infinity when they normalize a floating-point number to a decimal
 		final boolean nonFinite = value instanceof Double doubleValue && !Double.isFinite(doubleValue)
 			|| value instanceof Float floatValue && !Float.isFinite(floatValue);
@@ -271,14 +291,16 @@ public class ParseContext {
 	}
 
 	/**
-	 * Checks which types can reach the visitor for position-specific validation. Visitors allow floats and doubles in
-	 * attribute comparisons, `attributeBetween`, `attributeInSet`, `attributeSetExact`, `attributeInRange` and
-	 * `histogramHaving`, which normalize them to decimals. Scalar validation also requires these values to be finite.
+	 * Checks which types can reach the visitor for position-specific validation. Floats and doubles, boxed or as the
+	 * primitive components of a bound array, reach the visitors, which allow them where the Java factories normalize
+	 * them to decimals: the attribute comparisons, `attributeBetween`, `attributeInSet`, `attributeSetExact`,
+	 * `attributeInRange` and `histogramHaving`. Their values must also be finite.
 	 *
 	 * @param type the scalar or array component type
 	 * @return whether the type is eligible for binding
 	 */
 	private static boolean isArgumentValueTypeSupported(@Nonnull Class<?> type) {
-		return EvitaDataTypes.isSupportedType(type) || type.isEnum() || type == Float.class || type == Double.class;
+		return EvitaDataTypes.isSupportedType(type) || type.isEnum()
+			|| type == Float.class || type == Double.class || type == float.class || type == double.class;
 	}
 }

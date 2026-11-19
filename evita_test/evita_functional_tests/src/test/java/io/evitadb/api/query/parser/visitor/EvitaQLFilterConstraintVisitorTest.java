@@ -33,6 +33,7 @@ import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -269,6 +270,28 @@ class EvitaQLFilterConstraintVisitorTest {
 			);
 		}
 
+
+		/** Checks direct and wrapped array bindings against the same flat Java membership values. */
+		@Test
+		@DisplayName("Expand sole array items in positional and named membership lists")
+		void shouldExpandWrappedAttributeInSetValues() {
+			final int[] numbers = {2, 1};
+			final String[] words = {"a", null, "b"};
+			assertAll(
+				() -> assertEquals(attributeInSet("code", 2, 1),
+					parseFilterConstraint("attributeInSet(?, ?)", "code", new Serializable[]{numbers})),
+				() -> assertEquals(attributeInSet("code", "a", "b"),
+					parseFilterConstraint("attributeInSet(@name, @values)",
+						Map.of("name", "code", "values", List.of((Object) words)))),
+				() -> assertEquals(attributeInSet("code"),
+					parseFilterConstraint("attributeInSet(?, ?)", "code", List.of((Object) new String[]{null}))),
+				() -> assertEquals(attributeInSet("code"),
+					parseFilterConstraint("attributeInSet(?, ?)", "code", List.of((Object) new String[0][]))),
+				() -> assertEquals(attributeInSet("code", 1.5d, 2.0d),
+					parseFilterConstraint("attributeInSet(?, ?)", "code", new double[]{1.5d, 2.0d}))
+			);
+		}
+
 		/** Checks the diagnostics for unsupported scalar values and list items. */
 		@Test
 		@DisplayName("Name unsupported filter value types in syntax errors")
@@ -294,7 +317,16 @@ class EvitaQLFilterConstraintVisitorTest {
 				() -> assertUnsupportedType(String[].class, "attributeLessThan(?, ?)", "a", array),
 				() -> assertUnsupportedType(String[].class, "attributeLessThanEquals(?, ?)", "a", array),
 				() -> assertUnsupportedType(String[].class, "attributeBetween(?, ?, ?)", "a", array, array),
-				() -> assertUnsupportedType(String[].class, "attributeInSet(?, ?)", "a", List.of((Object) array)),
+				() -> assertUnsupportedType(String[].class, "attributeInSet(?, ?)", "a", List.of("a", array)),
+				() -> assertUnsupportedType(String[].class, "attributeInSet(?, ?)", "a",
+					new Serializable[]{null, array}),
+				() -> assertUnsupportedType(String[].class, "attributeInRange(?, ?)", "a", array),
+				() -> assertUnsupportedType(String[].class, "attributeStartsWith(?, ?)", "a", array),
+				() -> assertUnsupportedType(String[].class, "attributeEndsWith(?, ?)", "a", array),
+				() -> assertUnsupportedType(String[].class, "attributeContains(?, ?)", "a", array),
+				() -> assertUnsupportedType(int[].class, "attributeEquals(?, ?)", "a", new int[]{1}),
+				() -> assertUnsupportedType(ReferencedEntityPredecessor.class, "attributeInSet(?, ?)",
+					"a", List.of(ReferencedEntityPredecessor.HEAD)),
 				() -> assertUnsupportedType(String[].class, "attributeInSet(?, ?, ?)", "a", array, array),
 				() -> assertUnsupportedType(Double.class, "entityPrimaryKeyInSet(?)", 1.5d)
 			);

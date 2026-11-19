@@ -26,12 +26,16 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Tag;
 
@@ -56,6 +60,56 @@ class AttributeInSetTest {
 	@Nested
 	@DisplayName("Construction")
 	class ConstructionTest {
+
+		/** Checks list normalization through both overloads, including primitive boxing and undefined values. */
+		@Test
+		@DisplayName("Expand a sole wrapped array into membership values")
+		void shouldExpandSoleArrayValue() {
+			final Serializable strings = new String[]{"a", null, "b"};
+			final Serializable integers = new Integer[]{1, 2};
+			final Serializable primitives = new int[]{1, 2};
+			final Serializable allNull = new String[]{null};
+			final Serializable empty = new int[0];
+			assertAll(
+				() -> assertEquals(attributeInSet("code", "a", "b"), attributeInSet("code", strings)),
+				() -> assertEquals(attributeInSet("code", 1, 2), attributeInSet("code", new Serializable[]{integers})),
+				() -> assertEquals(attributeInSet("code", 1, 2), attributeInSet("code", primitives)),
+				() -> assertEquals(attributeInSet("code"), attributeInSet("code", allNull)),
+				() -> assertEquals(attributeInSet("code"), attributeInSet("code", new Serializable[]{empty}))
+			);
+		}
+
+		/** Checks that extra list items, including null, prevent array expansion. */
+		@Test
+		@DisplayName("Reject an array alongside other membership values")
+		void shouldRejectArrayAmongValues() {
+			final Serializable values = new int[]{1, 2};
+			for (final Serializable scalar : new Serializable[]{1, null}) {
+				final EvitaInvalidUsageException error = assertThrows(
+					EvitaInvalidUsageException.class, () -> attributeInSet("code", scalar, values)
+				);
+				assertTrue(error.getMessage().contains("int[]"), error::getMessage);
+				assertTrue(error.getMessage().contains("`code`"), error::getMessage);
+			}
+		}
+
+		/** Checks predecessor values passed directly, among scalars, or inside a sole wrapped array. */
+		@Test
+		@DisplayName("Reject both predecessor types in membership lists")
+		void shouldRejectPredecessorValues() {
+			for (final Serializable value : List.of(Predecessor.HEAD, ReferencedEntityPredecessor.HEAD)) {
+				for (final Serializable candidate : List.of(value, new Serializable[]{value})) {
+					final EvitaInvalidUsageException error = assertThrows(
+						EvitaInvalidUsageException.class, () -> attributeInSet("code", candidate)
+					);
+					assertTrue(error.getMessage().contains(value.getClass().getTypeName()), error::getMessage);
+				}
+				final EvitaInvalidUsageException error = assertThrows(
+					EvitaInvalidUsageException.class, () -> attributeInSet("code", "a", value)
+				);
+				assertTrue(error.getMessage().contains(value.getClass().getTypeName()), error::getMessage);
+			}
+		}
 
 		@Test
 		@DisplayName("should create via factory method with values")

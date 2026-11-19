@@ -48,6 +48,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.util.Currency;
@@ -312,6 +313,28 @@ public class EntityByAttributeFilteringFunctionalTest extends AbstractEntityByAt
 				"query(collection(?), filterBy(attributeLessThanEquals(?, ?)))", Entities.PRODUCT, "amount", 2.0f
 			)
 		);
+	}
+
+
+	/**
+	 * Compares the primary keys from the typed array, the single-value overload and a wrapped EvitaQL binding.
+	 *
+	 * @param evita the embedded database containing the products
+	 */
+	@Test
+	@UseDataSet(COMPARABLE_ATTRIBUTE_PRODUCTS)
+	@Tag(QUERY)
+	@DisplayName("Return the same primary keys for typed and wrapped membership arrays")
+	void shouldReturnSamePrimaryKeysForWrappedMembershipArray(@Nonnull Evita evita) {
+		final String[] labels = {"OPTIMIZED", "MONDAY"};
+		final Serializable values = labels;
+		final Query typed = query(collection(Entities.PRODUCT), filterBy(attributeInSet("label", labels)));
+		final Query wrapped = query(collection(Entities.PRODUCT), filterBy(attributeInSet("label", values)));
+		final Query parsed = DefaultQueryParser.getInstance().parseQuery(
+			"query(collection(?), filterBy(attributeInSet(?, ?)))", Entities.PRODUCT, "label", List.of(values)
+		);
+		assertPrimaryKeys(evita, List.of(1, 2), typed, wrapped);
+		assertPrimaryKeys(evita, List.of(1, 2), wrapped, parsed);
 	}
 
 	/**
