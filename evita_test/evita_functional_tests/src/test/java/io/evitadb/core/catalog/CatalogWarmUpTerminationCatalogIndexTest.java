@@ -242,6 +242,40 @@ class CatalogWarmUpTerminationCatalogIndexTest implements EvitaTestSupport {
 		}
 	}
 
+	@Nested
+	@DisplayName("when the termination fails to publish")
+	class PublicationFailingAtTermination {
+
+		@Test
+		@DisplayName("should still release every collection")
+		void shouldReleaseEveryCollectionWhenPublicationFailsAtTermination() {
+			final CatalogWarmUpTerminationCatalogIndexTest test = CatalogWarmUpTerminationCatalogIndexTest.this;
+			final Catalog catalog = test.catalog();
+			final EvitaSessionContract writer = test.evita.createReadWriteSession(TEST_CATALOG);
+			insertWrittenProduct(writer);
+			final List<EntityCollection> collections = List.of(
+				catalog.getCollectionForEntityOrThrowException(Entities.PRODUCT),
+				catalog.getCollectionForEntityOrThrowException(Entities.BRAND)
+			);
+			// the termination writes the catalog's own trapped changes as part of its publication - and that fails
+			failTrappedChangesPop(catalog, Catalog.class);
+
+			catalog.terminate();
+
+			assertAll(
+				() -> assertTrue(catalog.isTerminated(), "the storage must be closed although the publication failed"),
+				() -> assertTrue(
+					collections.stream().allMatch(EntityCollection::isTerminated),
+					"every collection must be released although the publication failed"
+				),
+				() -> assertTrue(
+					catalog.getCollectionForEntityInternal(Entities.PRODUCT).isEmpty(),
+					"the terminated catalog must hold no collection although its publication failed"
+				)
+			);
+		}
+	}
+
 	/**
 	 * Inserts the product carrying {@link #WRITTEN_CODE}.
 	 *

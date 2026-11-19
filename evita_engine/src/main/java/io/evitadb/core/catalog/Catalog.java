@@ -4282,7 +4282,7 @@ public final class Catalog
 	 * are concerned before it decides anything ({@link #beginWarmUpTermination(String)}): from then on no flush
 	 * starts, and one in progress publishes nothing, so when one is in progress nothing is published at all and the
 	 * last published state stays the catalog's state. The collections are released and the storage closed all the
-	 * same - the flush's writes still running fail on them, and its future completes exceptionally.
+	 * same - the flush's writes that still run fail on them, which completes its future exceptionally.
 	 */
 	private void terminateInternally() {
 		final String catalogName = getName();
@@ -4380,14 +4380,15 @@ public final class Catalog
 					this.dataStoreBuffer.popTrappedChanges(), entityHeaders, Functions.noOpIntConsumer()
 				);
 			}
-			// close all resources here, here we just hand all objects to GC
-			this.entityCollections.clear();
 			// log info
 			log.info("Catalog {} successfully terminated.", catalogName);
 		} catch (RuntimeException ex) {
 			// log error
 			log.error("Failed to terminate catalog {} due to: {}", catalogName, ex.getMessage(), ex);
 		} finally {
+			// close all resources here, here we just hand all objects to GC - in the `finally`, so that a publication
+			// that failed above cannot leave the collections it has just released behind
+			this.entityCollections.clear();
 			if (callLockHeld) {
 				// a call queued on the lock resumes the moment it is released - before `terminate()` closes the
 				// persistence service - and finds the collections released; it must not publish what is left of them
