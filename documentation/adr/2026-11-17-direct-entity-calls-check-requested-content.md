@@ -1,7 +1,7 @@
 ---
 title: Direct entity calls check the requested content against the schema, as a planned query does
 date: 2026-11-17
-updated: 2026-11-19 16:56
+updated: 2026-11-19 18:33
 status: accepted
 kind: fix
 issues: [1949]
