@@ -1,7 +1,7 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-11-19 21:41
+updated: 2026-11-19 21:54
 status: accepted
 kind: fix
 issues: [1466, 2014, 2032, 2033]
@@ -301,12 +301,12 @@ both reached the disk.
   matter, see the consequences.
 - **A count, not a flag.** Warm-up admits one session at a time, so two flushes are not in progress at once today;
   counting keeps the guard independent of that admission rule instead of adding a refusal for a second flush.
-- **Declined for now: a bounded wait for the flush in progress.** It would keep the flushing session's work, but the
-  flush it waits for is by construction one the 5 s drain has already given up on, so the wait spends shutdown time on
-  exactly the slowest flushes - and it still needs the refusal as its fallback when the bound runs out. The refusal
-  loses only unpublished work, and reload recovers the rest completely. Worth revisiting if losing the last session of
-  a slow idle writer at shutdown becomes a reported problem; the wait would then sit in
-  `Catalog#beginWarmUpTermination`, bounded, falling back to the refusal.
+- **Declined: a bounded wait for the flush in progress.** It would keep the flushing session's work, but the flush
+  it waits for is by construction one the 5 s drain has already given up on, so the wait spends shutdown time on
+  exactly the slowest flushes - and it still needs the refusal as its fallback when the bound runs out. The accepted
+  behaviour is: shutdown waits at most the 5 s of the drain and then refuses, which behaves like a rollback of the
+  last warm-up session. It is not a real rollback - warm-up has no transactions - but the outcome for the user is the
+  same: the catalog returns to the state it last published, and reload recovers that completely.
 - **Termination publishes the catalog index too (#2032).** Termination stored the header without the catalog's own
   trapped changes, so the catalog index - which holds the values of globally unique attributes, and answers lookups of
   them even within a collection - was published behind the collections: an inserted entity was not found by its unique
