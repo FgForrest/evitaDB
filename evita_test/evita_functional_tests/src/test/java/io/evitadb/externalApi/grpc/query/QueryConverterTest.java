@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.query;
 
 import com.google.protobuf.Int32Value;
+import com.google.protobuf.InvalidProtocolBufferException;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
@@ -280,6 +281,32 @@ class QueryConverterTest {
 	void shouldConvertQueryTelemetryContentInBothDirections() {
 		for (final QueryTelemetryContent content : QueryTelemetryContent.values()) {
 			assertEquals(content, convertQueryParam(content));
+		}
+	}
+
+	/**
+	 * The numbers on the wire are the contract with clients generated from the proto files, which never see the Java
+	 * conversion. Two mirrored mistakes in that conversion would cancel out between a Java client and a Java server,
+	 * so each level is checked against its wire number after a real serialization - including `TIMINGS`, whose zero
+	 * value must still arrive as a set parameter.
+	 *
+	 * @throws InvalidProtocolBufferException when the serialized parameter cannot be parsed back
+	 */
+	@Test
+	@DisplayName("should put each query telemetry content level on the wire under its own number")
+	void shouldSerializeQueryTelemetryContentUnderItsWireNumber() throws InvalidProtocolBufferException {
+		final Map<QueryTelemetryContent, Integer> wireNumbers = Map.of(
+			QueryTelemetryContent.TIMINGS, 0,
+			QueryTelemetryContent.PLAN, 1
+		);
+		assertEquals(QueryTelemetryContent.values().length, wireNumbers.size());
+		for (final QueryTelemetryContent content : QueryTelemetryContent.values()) {
+			final GrpcQueryParam received = GrpcQueryParam.parseFrom(
+				QueryConverter.convertQueryParam(content).toByteArray()
+			);
+			assertEquals(QueryParamCase.QUERYTELEMETRYCONTENT, received.getQueryParamCase());
+			assertEquals(wireNumbers.get(content).intValue(), received.getQueryTelemetryContentValue());
+			assertEquals(content, QueryConverter.convertQueryParam(received));
 		}
 	}
 
