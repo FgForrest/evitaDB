@@ -1,7 +1,7 @@
 ---
 title: Direct entity calls check the requested content against the schema, as a planned query does
 date: 2026-11-17
-updated: 2026-11-17 22:22
+updated: 2026-11-19 16:56
 status: accepted
 kind: fix
 issues: [1949]
@@ -116,8 +116,9 @@ wins only if a fetch by primary key starts planning anyway.
   level has a locale when its owner has one, when it names its own `dataInLocales`, or when the reference filter gives
   the body one (`QueryUtils#resolveReferenceBodyLocale`). A change to that rule (the `and`-only locale per level,
   #1951) must change the walk and `ExtraResultPlanningVisitor#getEntityFetchRequest` together.
-- The unique-in-scope exemption uses the request's root scopes at every level, as the planner does
-  (`ExtraResultPlanningVisitor#executeInContext` copies the root scopes into every fetch context).
+- The unique-in-scope exemption uses the request's root scopes at every level, as the planner does for the main fetch
+  (`ExtraResultPlanningVisitor#executeEntityFetchInContext` starts it with the query's searched scopes even below a
+  require-level `inScope`, and every fetch context below it inherits them).
 - Missing locales are collected across all levels into one `EntityLocaleMissingException`, without duplicate names;
   an unknown name throws at once.
 - Unmanaged referenced and group types are skipped, as the fetch skips their bodies; managed siblings are still

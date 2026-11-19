@@ -26,12 +26,17 @@ package io.evitadb.api.functional.reference;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityLocaleMissingException;
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -41,11 +46,13 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.core.exception.AttributeNotFilterableException;
+import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.PlanPreference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -54,9 +61,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -67,6 +76,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -126,6 +137,13 @@ public class NestedInScopeFilterFunctionalTest {
 	private static final String VALUE_GROUP = "valueGroup";
 	/** Nested label collection of the body-scope fixture. */
 	private static final String GROUP_LABEL = "groupLabel";
+	private static final String MIXED_HIERARCHY_DATA_SET = "mixedScopeHierarchy";
+	private static final String MIXED_NODE = "mixedNode";
+	private static final String MIXED_NODE_OWNER = "mixedNodeOwner";
+	private static final String ORDER_AND_LOCALE_DATA_SET = "orderAndLocale";
+	private static final String ORDERED_NODE = "orderedNode";
+	private static final String ORDERING_OWNER = "orderingOwner";
+	private static final String ORDERING_HOLDER = "orderingHolder";
 	private static final Scope[] BOTH = Scope.values();
 
 	/** Collection families with and without archived target indexes. */
@@ -267,6 +285,80 @@ public class NestedInScopeFilterFunctionalTest {
 			session.archiveEntity(GROUP_LABEL, 200);
 			session.archiveEntity(GROUP_LABEL, 300);
 			session.archiveEntity(GROUPED_PRODUCT, 3);
+		});
+	}
+
+	/**
+	 * Adds rowless owner 3 to the live hierarchy fixture and builds a second hierarchy with live root 1 and
+	 * children 2 (archived) and 3 (live). Mixed owners 1 and 2 reference children 2 and 3 respectively.
+	 * Mixed owner 3 has no references. Both hierarchies have a level filterable only in the live scope.
+	 * Mixed nodes declare a localized URL that is unique only in the archived scope.
+	 *
+	 * @param evita engine hosting the two hierarchies
+	 */
+	@DataSet(value = MIXED_HIERARCHY_DATA_SET, destroyAfterClass = true)
+	void setUpMixedHierarchyDataSet(@Nonnull Evita evita) {
+		setUpHierarchyDataSet(evita);
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.createNewEntity(NODE_OWNER, 3).upsertVia(session);
+			session.defineEntitySchema(MIXED_NODE).withoutGeneratedPrimaryKey().withHierarchy()
+				.withLocale(Locale.ENGLISH)
+				.withAttribute("level", Integer.class, a -> a.filterableInScope(Scope.LIVE))
+				.withAttribute("url", String.class, a -> a.localized().uniqueInScope(Scope.ARCHIVED).nullable())
+				.updateVia(session);
+			session.createNewEntity(MIXED_NODE, 1).setAttribute("level", 1).upsertVia(session);
+			session.createNewEntity(MIXED_NODE, 2).setParent(1).setAttribute("level", 2).upsertVia(session);
+			session.createNewEntity(MIXED_NODE, 3).setParent(1).setAttribute("level", 2).upsertVia(session);
+			session.defineEntitySchema(MIXED_NODE_OWNER).withoutGeneratedPrimaryKey()
+				.withReferenceToEntity("nodes", MIXED_NODE, Cardinality.ZERO_OR_MORE,
+					r -> r.indexedForFilteringAndPartitioningInScope(BOTH))
+				.updateVia(session);
+			session.createNewEntity(MIXED_NODE_OWNER, 1).setReference("nodes", 2).upsertVia(session);
+			session.createNewEntity(MIXED_NODE_OWNER, 2).setReference("nodes", 3).upsertVia(session);
+			session.createNewEntity(MIXED_NODE_OWNER, 3).upsertVia(session);
+			session.archiveEntity(MIXED_NODE, 2);
+		});
+	}
+
+	/**
+	 * Builds three nodes, with node 2 archived. Their rank is sortable only in the live scope, and their
+	 * English URL and code are unique only in the live and archived scopes respectively. Live owner 1 references
+	 * nodes 1 and 2. Archived owner 2 references node 3, and live owner 3 has no nodes. Each holder references the
+	 * owner of the same key. The owners' nodes reference is faceted only in the live scope.
+	 *
+	 * @param evita engine hosting the ordering and locale fixture
+	 */
+	@DataSet(value = ORDER_AND_LOCALE_DATA_SET, destroyAfterClass = true)
+	void setUpOrderAndLocaleDataSet(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(ORDERED_NODE).withoutGeneratedPrimaryKey()
+				.withLocale(Locale.ENGLISH)
+				.withAttribute("rank", Integer.class, a -> a.sortableInScope(Scope.LIVE))
+				.withAttribute("url", String.class, a -> a.localized().uniqueInScope(Scope.LIVE).nullable())
+				.withAttribute("code", String.class, a -> a.localized().uniqueInScope(Scope.ARCHIVED).nullable())
+				.updateVia(session);
+			for (int id = 1; id <= 3; id++) {
+				session.createNewEntity(ORDERED_NODE, id).setAttribute("rank", 10 - id)
+					.setAttribute("url", Locale.ENGLISH, "/url-" + id)
+					.setAttribute("code", Locale.ENGLISH, "code-" + id).upsertVia(session);
+			}
+			session.defineEntitySchema(ORDERING_OWNER).withoutGeneratedPrimaryKey()
+				.withReferenceToEntity("nodes", ORDERED_NODE, Cardinality.ZERO_OR_MORE,
+					r -> r.indexedForFilteringAndPartitioningInScope(BOTH).facetedInScope(Scope.LIVE))
+				.updateVia(session);
+			session.createNewEntity(ORDERING_OWNER, 1)
+				.setReference("nodes", 1).setReference("nodes", 2).upsertVia(session);
+			session.createNewEntity(ORDERING_OWNER, 2).setReference("nodes", 3).upsertVia(session);
+			session.createNewEntity(ORDERING_OWNER, 3).upsertVia(session);
+			session.defineEntitySchema(ORDERING_HOLDER).withoutGeneratedPrimaryKey()
+				.withReferenceToEntity("owners", ORDERING_OWNER, Cardinality.ZERO_OR_MORE,
+					r -> r.indexedForFilteringAndPartitioningInScope(BOTH))
+				.updateVia(session);
+			for (int id = 1; id <= 3; id++) {
+				session.createNewEntity(ORDERING_HOLDER, id).setReference("owners", id).upsertVia(session);
+			}
+			session.archiveEntity(ORDERED_NODE, 2);
+			session.archiveEntity(ORDERING_OWNER, 2);
 		});
 	}
 
@@ -2319,6 +2411,759 @@ public class NestedInScopeFilterFunctionalTest {
 				filterBy(scope(scopes), referenceHaving("values", filter)), require(entityFetch())))
 				.stream().map(SealedEntity::getPrimaryKey).sorted().toList();
 		});
+	}
+
+	/**
+	 * Checks main-fetch content against every searched scope and extra results against their own scope.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("A require-level inScope around the main fetch")
+	class RequireLevelInScope {
+
+		/**
+		 * The main fetch is checked in both searched scopes rather than in the live scope of its wrapper, so the label
+		 * filter may name the archived scope: it keeps label 200 of the archived group 20 and leaves the labels of the
+		 * live group 10 unfiltered.
+		 *
+		 * @param evita catalog with group labels in both scopes
+		 */
+		@Test
+		@DisplayName("Fetch archived group labels under a live wrapper")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchArchivedGroupLabelsWhenMainFetchIsWrappedInLive(@Nonnull Evita evita) {
+			final EntityFetch fetch = groupLabelFetch(Scope.ARCHIVED, 200, null);
+			assertFetched(evita, GROUPED_PRODUCT, inScope(Scope.LIVE, fetch), GroupBodyScopes::groupLabels, Map.of(
+				1, Map.of(
+					1, "group 10, labels [100, 200]", 2, "group 20, labels [200]", 3, "group 10, labels [100, 200]"
+				),
+				2, Map.of(),
+				3, Map.of(1, "group 10, labels [100, 200]", 3, "group 10, labels [100, 200]")
+			));
+		}
+
+		/**
+		 * The mirror of the case above: under an archived wrapper the label filter may name the live scope, so it keeps
+		 * label 100 of the live group 10 and leaves the labels of the archived group 20 unfiltered.
+		 *
+		 * @param evita catalog with group labels in both scopes
+		 */
+		@Test
+		@DisplayName("Fetch live group labels under an archived wrapper")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchLiveGroupLabelsWhenMainFetchIsWrappedInArchived(@Nonnull Evita evita) {
+			final EntityFetch fetch = groupLabelFetch(Scope.LIVE, 100, null);
+			assertFetched(evita, GROUPED_PRODUCT, inScope(Scope.ARCHIVED, fetch), GroupBodyScopes::groupLabels, Map.of(
+				1, Map.of(1, "group 10, labels [100]", 2, "group 20, labels [200, 300]", 3, "group 10, labels [100]"),
+				2, Map.of(),
+				3, Map.of(1, "group 10, labels [100]", 3, "group 10, labels [100]")
+			));
+		}
+
+		/**
+		 * The value rows are filtered to the archived value 3, whose group 10 is live, so the live label filter applies
+		 * below an archived wrapper and keeps label 100.
+		 *
+		 * @param evita catalog with rows whose entity and group bodies are in different scopes
+		 */
+		@Test
+		@DisplayName("Fetch live labels of the groups of rows filtered to archived values")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchLiveGroupLabelsWhenValueRowsAreFilteredToArchived(@Nonnull Evita evita) {
+			final EntityFetch fetch = groupLabelFetch(Scope.LIVE, 100, filterBy(entityHaving(scope(Scope.ARCHIVED))));
+			assertFetched(evita, GROUPED_PRODUCT, inScope(Scope.ARCHIVED, fetch), GroupBodyScopes::groupLabels, Map.of(
+				1, Map.of(3, "group 10, labels [100]"), 2, Map.of(), 3, Map.of(3, "group 10, labels [100]")
+			));
+		}
+
+		/**
+		 * Under a live wrapper the tag filter may name the archived scope, because the main fetch is checked in both
+		 * searched scopes: the archived values 4 to 6 keep only tag 3, which none of them has, and the tags of the live
+		 * values stay unfiltered.
+		 *
+		 * @param evita catalog with value and tag indexes in both scopes
+		 */
+		@Test
+		@DisplayName("Apply an archived tag filter under a live wrapper")
+		@UseDataSet(DATA_SET)
+		void shouldApplyArchivedTagFilterWhenMainFetchIsWrappedInLive(@Nonnull Evita evita) {
+			final EntityFetch fetch = tagFetch(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(3)));
+			assertFetched(evita, Target.ARCHIVED.product, inScope(Scope.LIVE, fetch),
+				NestedInScopeFilterFunctionalTest::tagIdsByValue, Map.of(
+					1, Map.of(1, List.of(1), 2, List.of(2), 3, List.of(1)),
+					2, Map.of(1, List.of(1), 2, List.of(2)),
+					3, Map.of(2, List.of(2)), 4, Map.of(4, List.of()), 5, Map.of(5, List.of()),
+					6, Map.of(6, List.of()), 7, Map.of()
+				));
+		}
+
+		/**
+		 * The mirror of the case above: under an archived wrapper the tag filter may name the live scope, so the live
+		 * values keep only tag 1 and the tags of the archived values stay unfiltered.
+		 *
+		 * @param evita catalog with value and tag indexes in both scopes
+		 */
+		@Test
+		@DisplayName("Apply a live tag filter under an archived wrapper")
+		@UseDataSet(DATA_SET)
+		void shouldApplyLiveTagFilterWhenMainFetchIsWrappedInArchived(@Nonnull Evita evita) {
+			final EntityFetch fetch = tagFetch(inScope(Scope.LIVE, entityPrimaryKeyInSet(1)));
+			assertFetched(evita, Target.ARCHIVED.product, inScope(Scope.ARCHIVED, fetch),
+				NestedInScopeFilterFunctionalTest::tagIdsByValue, Map.of(
+					1, Map.of(1, List.of(1), 2, List.of(), 3, List.of(1)),
+					2, Map.of(1, List.of(1), 2, List.of()),
+					3, Map.of(2, List.of()), 4, Map.of(4, List.of(1)), 5, Map.of(5, List.of()),
+					6, Map.of(6, List.of(2)), 7, Map.of()
+				));
+		}
+
+		/**
+		 * The node order names the live scope, where `rank` is sortable, and the main fetch is checked in both searched
+		 * scopes, so the order is admitted under an archived wrapper.
+		 *
+		 * @param evita catalog with a nested reference order indexed only in the live scope
+		 */
+		@Test
+		@DisplayName("Admit a live nested reference order under an archived wrapper")
+		@UseDataSet(ORDER_AND_LOCALE_DATA_SET)
+		void shouldAdmitLiveNestedOrderWhenMainFetchIsWrappedInArchived(@Nonnull Evita evita) {
+			final EntityFetch fetch = orderedNodeFetch(inScope(Scope.LIVE, entityProperty(attributeNatural("rank"))));
+			assertFetched(evita, ORDERING_HOLDER, inScope(Scope.ARCHIVED, fetch),
+				holder -> describeBodies(holder, "owners", owner -> referenceIds(owner, "nodes")),
+				Map.of(1, Map.of(1, List.of(1, 2)), 2, Map.of(2, List.of(3)), 3, Map.of(3, List.of())));
+		}
+
+		/**
+		 * A localized attribute unique in a checked scope can supply an implicit locale, and the main fetch is checked
+		 * in both searched scopes, so a fetch without a locale is admitted although the wrapper's scope lacks the
+		 * uniqueness index. It returns no value, while the same fetch in English returns one per body, so the empty
+		 * answer is not missing data.
+		 *
+		 * @param wrapper scope that lacks the named attribute's uniqueness index
+		 * @param evita catalog with localized attributes unique in opposite scopes
+		 */
+		@ParameterizedTest
+		@EnumSource(Scope.class)
+		@DisplayName("Fetch main bodies without a locale when the searched scopes include the unique index")
+		@UseDataSet(ORDER_AND_LOCALE_DATA_SET)
+		void shouldFetchMainBodiesWithoutLocaleWhenUniquenessIsOutsideWrapper(
+			@Nonnull Scope wrapper, @Nonnull Evita evita
+		) {
+			final String attribute = wrapper == Scope.LIVE ? "code" : "url";
+			assertAll(
+				() -> assertFetched(evita, ORDERED_NODE, inScope(wrapper, entityFetch(attributeContent(attribute))),
+					entity -> entity.getAttributeValues().size(), Map.of(1, 0, 2, 0, 3, 0)),
+				() -> assertFetched(evita, ORDERED_NODE,
+					inScope(wrapper, entityFetch(attributeContent(attribute), dataInLocales(Locale.ENGLISH))),
+					entity -> entity.getAttributeValues().size(), Map.of(1, 1, 2, 1, 3, 1))
+			);
+		}
+
+		/**
+		 * The case above one level down: the referenced node bodies inherit the scopes of the main fetch, so their
+		 * fetch without a locale is admitted too, and the same fetch in English returns one value per body.
+		 *
+		 * @param wrapper scope that lacks the referenced attribute's uniqueness index
+		 * @param evita catalog with localized attributes unique in opposite scopes
+		 */
+		@ParameterizedTest
+		@EnumSource(Scope.class)
+		@DisplayName("Fetch referenced bodies without a locale when the searched scopes include the unique index")
+		@UseDataSet(ORDER_AND_LOCALE_DATA_SET)
+		void shouldFetchReferencedBodiesWithoutLocaleWhenUniquenessIsOutsideWrapper(
+			@Nonnull Scope wrapper, @Nonnull Evita evita
+		) {
+			final String attribute = wrapper == Scope.LIVE ? "code" : "url";
+			assertAll(
+				() -> assertFetched(evita, ORDERING_OWNER,
+					inScope(wrapper, entityFetch(referenceContent("nodes", entityFetch(attributeContent(attribute))))),
+					owner -> describeBodies(owner, "nodes", entity -> entity.getAttributeValues().size()),
+					Map.of(1, Map.of(1, 0, 2, 0), 2, Map.of(3, 0), 3, Map.of())),
+				() -> assertFetched(evita, ORDERING_OWNER, inScope(wrapper, entityFetch(referenceContent(
+					"nodes", entityFetch(attributeContent(attribute), dataInLocales(Locale.ENGLISH))
+				))), owner -> describeBodies(owner, "nodes", entity -> entity.getAttributeValues().size()),
+					Map.of(1, Map.of(1, 1, 2, 1), 2, Map.of(3, 1), 3, Map.of()))
+			);
+		}
+
+		/**
+		 * The bound is checked in both scopes the main fetch searches, and `level` is filterable only in the live one,
+		 * so the bound is refused although every referenced node is live.
+		 *
+		 * @param evita catalog with live referenced nodes and an owner without rows
+		 */
+		@Test
+		@DisplayName("Refuse a live-only bound even when referenced nodes are live")
+		@UseDataSet(MIXED_HIERARCHY_DATA_SET)
+		void shouldRefuseLiveOnlyHierarchyBoundWhenReferencedNodesAreLive(@Nonnull Evita evita) {
+			final EntityFetch fetch = entityFetch(referenceContent("nodes", entityFetch(hierarchyBound(2))));
+			assertFilterRefused(evita, NODE_OWNER, Scope.LIVE, fetch, NODE, "level", 1, 2, 3);
+		}
+
+		/**
+		 * The refusal does not depend on the rows: owners referencing an archived node, a live node or none are refused
+		 * alike, because the bound is checked against the schema in both searched scopes.
+		 *
+		 * @param evita catalog with live and archived referenced nodes and an owner without rows
+		 */
+		@Test
+		@DisplayName("Refuse a live-only bound for all owners of a mixed hierarchy")
+		@UseDataSet(MIXED_HIERARCHY_DATA_SET)
+		void shouldRefuseLiveOnlyHierarchyBoundWhenReferenceRowsVary(@Nonnull Evita evita) {
+			final EntityFetch fetch = entityFetch(referenceContent("nodes", entityFetch(hierarchyBound(1))));
+			assertFilterRefused(evita, MIXED_NODE_OWNER, Scope.LIVE, fetch, MIXED_NODE, "level", 1, 2, 3);
+		}
+
+		/**
+		 * The same holds for the queried nodes themselves: the root without a parent is refused like its children,
+		 * because the bound is checked against the schema rather than against the parents found.
+		 *
+		 * @param evita catalog with live and archived nodes, including a root without a parent
+		 */
+		@Test
+		@DisplayName("Refuse a live-only bound even for nodes without parents")
+		@UseDataSet(MIXED_HIERARCHY_DATA_SET)
+		void shouldRefuseLiveOnlyHierarchyBoundWhenParentRowsVary(@Nonnull Evita evita) {
+			assertFilterRefused(
+				evita, MIXED_NODE, Scope.LIVE, entityFetch(hierarchyBound(1)), MIXED_NODE, "level", 1, 2, 3
+			);
+		}
+
+		/**
+		 * An unbounded `hierarchyContent` beside the bounded one does not hide the bound: whichever comes first, the
+		 * bound is checked in both searched scopes and refused.
+		 *
+		 * @param boundFirst whether the bounded hierarchy content comes before its unbounded sibling
+		 * @param evita catalog with nodes in both scopes and a live-only level index
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Refuse the written bound in either order with unbounded hierarchy content")
+		@UseDataSet(MIXED_HIERARCHY_DATA_SET)
+		void shouldRefuseWrittenHierarchyBoundWhenUnboundedContentIsPresent(boolean boundFirst, @Nonnull Evita evita) {
+			final HierarchyContent bound = hierarchyBound(1);
+			final EntityFetch fetch = boundFirst ? entityFetch(bound, hierarchyContent()) :
+				entityFetch(hierarchyContent(), bound);
+			assertFilterRefused(evita, MIXED_NODE, Scope.LIVE, fetch, MIXED_NODE, "level", 1, 2, 3);
+		}
+
+		/**
+		 * The nested tag filter is checked in both searched scopes of the main fetch, and `y` is filterable only in the
+		 * live one, so the filter is refused for every product, including those whose values have no tags.
+		 *
+		 * @param evita catalog with values with and without tag rows
+		 */
+		@Test
+		@DisplayName("Refuse a live-only nested tag filter for every product")
+		@UseDataSet(DATA_SET)
+		void shouldRefuseLiveOnlyTagFilterWhenReferenceRowsVary(@Nonnull Evita evita) {
+			final EntityFetch fetch = tagFetch(entityHaving(attributeEquals("y", 1)));
+			assertFilterRefused(evita, Target.ARCHIVED.product, Scope.LIVE, fetch, Target.ARCHIVED.tag, "y",
+				1, 2, 3, 4, 5, 6, 7);
+		}
+
+		/**
+		 * The nested node order is checked in both searched scopes of the main fetch, and `rank` is sortable only in
+		 * the live one, so the order is refused for every holder, including the one whose owner has no nodes.
+		 *
+		 * @param evita catalog with nested references with and without node rows
+		 */
+		@Test
+		@DisplayName("Refuse a live-only nested order for every holder")
+		@UseDataSet(ORDER_AND_LOCALE_DATA_SET)
+		void shouldRefuseLiveOnlyNestedOrderWhenReferenceRowsVary(@Nonnull Evita evita) {
+			final EntityFetch fetch = orderedNodeFetch(entityProperty(attributeNatural("rank")));
+			assertOrderRefused(evita, ORDERING_HOLDER, Scope.LIVE, fetch);
+		}
+
+		/**
+		 * An order that names the archived scope is checked there, where `rank` is not sortable, although the main
+		 * fetch is wrapped in the live scope.
+		 *
+		 * @param evita catalog with nested references to nodes whose rank is sortable only in the live scope
+		 */
+		@Test
+		@DisplayName("Refuse the order attribute when nested order explicitly targets archived")
+		@UseDataSet(ORDER_AND_LOCALE_DATA_SET)
+		void shouldRefuseNestedOrderAttributeWhenOrderTargetsArchived(@Nonnull Evita evita) {
+			final EntityFetch fetch = orderedNodeFetch(
+				inScope(Scope.ARCHIVED, entityProperty(attributeNatural("rank")))
+			);
+			assertOrderRefused(evita, ORDERING_HOLDER, Scope.LIVE, fetch);
+		}
+
+		/**
+		 * A first-level reference filter is checked in both searched scopes whatever wraps the fetch, so `x`,
+		 * filterable only in the live scope, is refused with a live wrapper, an archived one or none.
+		 *
+		 * @param wrapper scope around the fetch, or null for a direct fetch
+		 * @param evita catalog with a live-only filter index on referenced values
+		 */
+		@ParameterizedTest
+		@NullSource
+		@EnumSource(Scope.class)
+		@DisplayName("Refuse the first-level reference filter under every wrapper")
+		@UseDataSet(DATA_SET)
+		void shouldRefuseLiveOnlyValueFilterWhenQuerySearchesBothScopes(@Nullable Scope wrapper, @Nonnull Evita evita) {
+			final EntityFetch fetch = entityFetch(referenceContent(
+				"values", filterBy(entityHaving(attributeEquals("x", 1)))
+			));
+			assertFilterRefused(evita, Target.ARCHIVED.product, wrapper, fetch, Target.ARCHIVED.value, "x",
+				1, 2, 3, 4, 5, 6, 7);
+		}
+
+		/**
+		 * The filter refused above when the query searches both scopes is admitted when the query searches only the
+		 * live scope the wrapper names: the main fetch is checked in the searched scopes, which then hold the index.
+		 *
+		 * @param evita catalog with a live-only filter index on referenced values
+		 */
+		@Test
+		@DisplayName("Apply the live-only reference filter when the wrapper names the only searched scope")
+		@UseDataSet(DATA_SET)
+		void shouldFetchLiveRowsWhenWrapperEqualsTheSingleSearchedScope(@Nonnull Evita evita) {
+			final List<SealedEntity> products = evita.queryCatalog(TEST_CATALOG, session -> {
+				return session.queryListOfSealedEntities(query(
+					collection(Target.ARCHIVED.product), filterBy(scope(Scope.LIVE)),
+					require(inScope(Scope.LIVE, entityFetch(referenceContent(
+						"values", filterBy(entityHaving(attributeEquals("x", 1)))
+					))))
+				));
+			});
+
+			assertEquals(
+				Map.of(1, List.of(1, 3), 3, List.of(), 4, List.of(), 6, List.of(), 7, List.of()),
+				describeEntities(products, NestedInScopeFilterFunctionalTest::rowIds)
+			);
+		}
+
+		/**
+		 * A first-level reference order is checked in both searched scopes whatever wraps the fetch, so `rank`,
+		 * sortable only in the live scope, is refused with a live wrapper, an archived one or none.
+		 *
+		 * @param wrapper scope around the fetch, or null for a direct fetch
+		 * @param evita catalog with a live-only sort index on referenced nodes
+		 */
+		@ParameterizedTest
+		@NullSource
+		@EnumSource(Scope.class)
+		@DisplayName("Refuse the first-level reference order under every wrapper")
+		@UseDataSet(ORDER_AND_LOCALE_DATA_SET)
+		void shouldRefuseLiveOnlyNodeOrderWhenQuerySearchesBothScopes(@Nullable Scope wrapper, @Nonnull Evita evita) {
+			final EntityFetch fetch = entityFetch(referenceContent(
+				"nodes", orderBy(entityProperty(attributeNatural("rank")))
+			));
+			assertOrderRefused(evita, ORDERING_OWNER, wrapper, fetch);
+		}
+
+		/**
+		 * A first-level reference filter may name either searched scope under any wrapper, because the main fetch is
+		 * checked in both: each filter restricts the rows of the products in the scope it names and leaves the rows of
+		 * the other products whole.
+		 *
+		 * @param wrapper scope around the fetch, or null for a direct fetch
+		 * @param evita catalog with grouped values in both scopes
+		 */
+		@ParameterizedTest
+		@NullSource
+		@EnumSource(Scope.class)
+		@DisplayName("Apply both first-level reference filters under every wrapper")
+		@UseDataSet(GROUP_BODY_DATA_SET)
+		void shouldFetchFirstLevelGroupsWhenReferenceFiltersNameEitherScope(
+			@Nullable Scope wrapper, @Nonnull Evita evita
+		) {
+			assertAll(
+				() -> assertFetched(evita, GROUPED_PRODUCT, wrapFetch(wrapper, entityFetch(referenceContent(
+					"values", filterBy(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(3))), entityGroupFetch()
+				))), RequireLevelInScope::groupIdsByValue,
+					Map.of(1, Map.of(1, 10, 2, 20, 3, 10), 2, Map.of(), 3, Map.of(3, 10))),
+				() -> assertFetched(evita, GROUPED_PRODUCT, wrapFetch(wrapper, entityFetch(referenceContent(
+					"values", filterBy(inScope(Scope.LIVE, entityPrimaryKeyInSet(1))), entityGroupFetch()
+				))), RequireLevelInScope::groupIdsByValue,
+					Map.of(1, Map.of(1, 10), 2, Map.of(), 3, Map.of(1, 10, 3, 10)))
+			);
+		}
+
+		/**
+		 * The main fetch returns the rows of live and archived products alike under any wrapper, whether the query
+		 * resolves the indexes or prefetches the entity bodies.
+		 *
+		 * @param wrapper scope around the fetch, or null for a direct fetch
+		 * @param evita catalog with live and archived products and reference rows
+		 */
+		@ParameterizedTest
+		@NullSource
+		@EnumSource(Scope.class)
+		@DisplayName("Fetch the same reference rows from both scopes on both query routes")
+		@UseDataSet(DATA_SET)
+		void shouldFetchRowsInBothScopesWhenUsingEitherQueryRoute(@Nullable Scope wrapper, @Nonnull Evita evita) {
+			final RequireConstraint fetch = wrapFetch(wrapper, entityFetch(referenceContent("values")));
+			final Map<Integer, List<Integer>> expected = Map.of(
+				1, List.of(1, 2, 3), 2, List.of(1, 2), 3, List.of(2), 4, List.of(4),
+				5, List.of(5), 6, List.of(6), 7, List.of()
+			);
+			assertAll(Stream.of(PlanPreference.values()).map(route -> () -> {
+				final EvitaResponse<SealedEntity> response = evita.queryCatalog(TEST_CATALOG, session -> {
+					return session.query(query(
+						collection(Target.ARCHIVED.product),
+						filterBy(route.filter(new int[]{1, 2, 3, 4, 5, 6, 7}, scope(BOTH))),
+						require(fetch, route.debug(), queryTelemetry())
+					), SealedEntity.class);
+				});
+				route.assertTaken(response);
+				assertEquals(expected, describeEntities(
+					response.getRecordData(), NestedInScopeFilterFunctionalTest::rowIds
+				));
+			}));
+		}
+
+		/**
+		 * The related owners are of the queried type, but their fetch is nested in the main fetch rather than being it,
+		 * so their node filter may name the live scope under an archived wrapper, whether or not the self-reference
+		 * names the scope of the related bodies.
+		 *
+		 * @param explicit whether the self-reference specifies the fetched body's scope
+		 * @param evita catalog where archived owner 1 references live owner 2 of the same type
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Fetch nested live nodes through a self-reference under an archived wrapper")
+		@UseDataSet(HIERARCHY_DATA_SET)
+		void shouldFetchNestedLiveRowsWhenBodyTypeMatchesQueriedType(boolean explicit, @Nonnull Evita evita) {
+			final EntityFetch fetch = entityFetch(referenceContent(
+				"related", explicit ? filterBy(entityHaving(scope(Scope.LIVE))) : null,
+				entityFetch(referenceContent("nodes", filterBy(inScope(Scope.LIVE, entityPrimaryKeyInSet(3)))))
+			));
+			assertFetched(evita, NODE_OWNER, inScope(Scope.ARCHIVED, fetch),
+				owner -> describeBodies(owner, "related", related -> referenceIds(related, "nodes")),
+				Map.of(1, Map.of(2, List.of(3)), 2, Map.of()));
+		}
+
+		/**
+		 * A facet summary in the same wrapper stays in the live scope while the main fetch beside it fetches the nodes
+		 * of owners in both scopes, in either visit order: only the live owner 1 contributes to the counts. The node
+		 * bodies name `code` without a locale, which only a check in both scopes admits, so the main fetch is
+		 * recognized as such also after the summary was visited.
+		 *
+		 * @param fetchFirst whether the main fetch is visited before the summary
+		 * @param evita catalog where the nodes reference is faceted only in the live scope
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Compute the live facet counts beside a fetch of both scopes in either order")
+		@UseDataSet(ORDER_AND_LOCALE_DATA_SET)
+		void shouldKeepFacetCountsInLiveWhenMainFetchSharesItsWrapper(boolean fetchFirst, @Nonnull Evita evita) {
+			final EntityFetch fetch = entityFetch(referenceContent("nodes", entityFetch(attributeContent("code"))));
+			final RequireConstraint summary = facetSummaryOfReference("nodes", COUNTS);
+			final EvitaResponse<SealedEntity> response = evita.queryCatalog(TEST_CATALOG, session -> {
+				return session.query(query(
+					collection(ORDERING_OWNER), filterBy(scope(BOTH)),
+					require(fetchFirst ? inScope(Scope.LIVE, fetch, summary) : inScope(Scope.LIVE, summary, fetch))
+				), SealedEntity.class);
+			});
+			final Map<Integer, Integer> counts = new TreeMap<>();
+			for (final FacetSummary.FacetGroupStatistics group :
+				Objects.requireNonNull(response.getExtraResult(FacetSummary.class)).getReferenceStatistics()) {
+				for (final var facet : group.getFacetStatistics()) {
+					counts.put(facet.getFacetEntity().getPrimaryKey(), facet.getCount());
+				}
+			}
+			assertAll(
+				() -> assertEquals(Map.of(1, 1, 2, 1), counts),
+				() -> assertEquals(Map.of(1, List.of(1, 2), 2, List.of(3), 3, List.of()),
+					describeEntities(response.getRecordData(), owner -> referenceIds(owner, "nodes")))
+			);
+		}
+
+		/**
+		 * A summary body is the content of an extra result and is checked in the live scope of the wrapper, where
+		 * `code` is not unique, so it needs a locale although the main fetch beside it is checked in both scopes.
+		 *
+		 * @param evita catalog whose node code is localized and unique only in the archived scope
+		 */
+		@Test
+		@DisplayName("Require a locale in a summary body whose unique index is outside the wrapper")
+		@UseDataSet(ORDER_AND_LOCALE_DATA_SET)
+		void shouldRefuseSummaryBodyWithoutLocaleWhenUniquenessIsOutsideWrapper(@Nonnull Evita evita) {
+			assertRefused(evita, ORDERING_OWNER, inScope(Scope.LIVE, entityFetch(), facetSummaryOfReference(
+				"nodes", COUNTS, entityFetch(attributeContent("code"))
+			)), EntityLocaleMissingException.class,
+				"Query requires localized attributes: `code`, and doesn't provide information about the locale!");
+		}
+
+		/**
+		 * A fetch copied into `hierarchyOfSelf` is the content of that container, not the main fetch, which is a
+		 * separate bare `entityFetch`, so its bound is checked in the live scope of the wrapper, where `level` is
+		 * filterable, and the query answers with the nodes of both scopes.
+		 *
+		 * @param evita catalog with a live-only level index in a mixed hierarchy
+		 */
+		@Test
+		@DisplayName("Keep the copied hierarchy fetch bound in the wrapper scope")
+		@UseDataSet(MIXED_HIERARCHY_DATA_SET)
+		void shouldKeepHierarchyFetchBoundInLiveWhenHierarchyIsCopiedWithABareFetch(@Nonnull Evita evita) {
+			final RequireConstraint hierarchy = hierarchyOfSelf(fromRoot("tree")).getCopyWithNewChildren(
+				new RequireConstraint[]{entityFetch(hierarchyBound(1))}, new Constraint<?>[0]
+			);
+			assertFetched(evita, MIXED_NODE, inScope(Scope.LIVE, hierarchy, entityFetch()), SealedEntity::getScope,
+				Map.of(1, Scope.LIVE, 2, Scope.ARCHIVED, 3, Scope.LIVE));
+		}
+
+		/**
+		 * Even when the copied fetch is the very object used as the main fetch, the copy inside the hierarchy is
+		 * checked in the live scope of the wrapper, where `url` is not unique, so it needs a locale.
+		 *
+		 * @param evita catalog with a mixed hierarchy and URL uniqueness only in the archived scope
+		 */
+		@Test
+		@DisplayName("Require a locale in the copied hierarchy even when its fetch is shared with the main query")
+		@UseDataSet(MIXED_HIERARCHY_DATA_SET)
+		void shouldRefuseCopiedHierarchyBodyWithoutLocaleWhenItSharesTheMainFetchObject(@Nonnull Evita evita) {
+			final EntityFetch fetch = entityFetch(attributeContent("url"));
+			final RequireConstraint hierarchy = hierarchyOfSelf(fromRoot("tree")).getCopyWithNewChildren(
+				new RequireConstraint[]{fetch}, new Constraint<?>[0]
+			);
+			assertRefused(evita, MIXED_NODE, inScope(Scope.LIVE, hierarchy, fetch), EntityLocaleMissingException.class,
+				"Query requires localized attributes: `url`, and doesn't provide information about the locale!");
+		}
+
+		/**
+		 * Builds a fetch that filters labels on group bodies independently of any filter on the value bodies.
+		 *
+		 * @param labelScope scope selected by the label filter
+		 * @param labelKey label admitted in that scope
+		 * @param valueFilter optional restriction on rows at the value level
+		 * @return fetch of values' groups and their filtered labels
+		 */
+		@Nonnull
+		private static EntityFetch groupLabelFetch(
+			@Nonnull Scope labelScope, int labelKey, @Nullable FilterBy valueFilter
+		) {
+			return entityFetch(referenceContent("values", valueFilter, entityGroupFetch(referenceContent(
+				"labels", filterBy(inScope(labelScope, entityPrimaryKeyInSet(labelKey)))
+			))));
+		}
+
+		/**
+		 * Builds a fetch of the values of a product and of their tags, filtered by the given constraint.
+		 *
+		 * @param tagFilter filter applied to tag rows below fetched values
+		 * @return fetch of values and their filtered tags
+		 */
+		@Nonnull
+		private static EntityFetch tagFetch(@Nonnull FilterConstraint tagFilter) {
+			return entityFetch(referenceContent("values", entityFetch(referenceContent("tags", filterBy(tagFilter)))));
+		}
+
+		/**
+		 * Builds a fetch of the owners of a holder and of their nodes, ordered by the given constraint.
+		 *
+		 * @param nodeOrder order applied to node rows below fetched owners
+		 * @return fetch of owners and their ordered nodes
+		 */
+		@Nonnull
+		private static EntityFetch orderedNodeFetch(@Nonnull OrderConstraint nodeOrder) {
+			return entityFetch(referenceContent("owners", entityFetch(referenceContent("nodes", orderBy(nodeOrder)))));
+		}
+
+		/**
+		 * Builds a parent fetch whose walk stops at the node of the given `level`, an attribute filterable only in the
+		 * live scope.
+		 *
+		 * @param level value at which the hierarchy walk should stop
+		 * @return hierarchy content with a bound on the live-only level index
+		 */
+		@Nonnull
+		private static HierarchyContent hierarchyBound(int level) {
+			return hierarchyContent(stopAt(node(filterBy(attributeEquals("level", level)))));
+		}
+
+		/**
+		 * Wraps the fetch in a require-level `inScope`, so that one parameterized test covers each wrapper and none.
+		 *
+		 * @param wrapper scope around the fetch, or null to keep the fetch direct
+		 * @param fetch content of the queried entities
+		 * @return fetch with the selected wrapper, if any
+		 */
+		@Nonnull
+		private static RequireConstraint wrapFetch(@Nullable Scope wrapper, @Nonnull EntityFetch fetch) {
+			return wrapper == null ? fetch : inScope(wrapper, fetch);
+		}
+
+		/**
+		 * Describes each value row of a product by the key of its fetched group body, failing when the body is missing.
+		 *
+		 * @param product entity whose group bodies were fetched
+		 * @return group key by value key
+		 */
+		@Nonnull
+		private static Map<Integer, Integer> groupIdsByValue(@Nonnull SealedEntity product) {
+			final Map<Integer, Integer> groups = new TreeMap<>();
+			for (final ReferenceContract row : product.getReferences("values")) {
+				groups.put(row.getReferencedPrimaryKey(), row.getGroupEntity().orElseThrow().getPrimaryKey());
+			}
+			return groups;
+		}
+
+		/**
+		 * Lists the referenced keys of the named reference in the order the fetch returned them.
+		 *
+		 * @param entity owner of the fetched rows
+		 * @param name reference whose order should be preserved
+		 * @return referenced keys in the order returned by the fetch
+		 */
+		@Nonnull
+		private static List<Integer> referenceIds(@Nonnull SealedEntity entity, @Nonnull String name) {
+			return entity.getReferences(name).stream().map(ReferenceContract::getReferencedPrimaryKey).toList();
+		}
+
+		/**
+		 * Projects every fetched reference body of the owner, failing when a row has no body.
+		 *
+		 * @param <T> the assertion value for a fetched body
+		 * @param owner entity with fetched reference bodies
+		 * @param name reference whose bodies are examined
+		 * @param describe projection to assert for each body
+		 * @return projected body content by reference key
+		 */
+		@Nonnull
+		private static <T> Map<Integer, T> describeBodies(
+			@Nonnull SealedEntity owner, @Nonnull String name, @Nonnull Function<SealedEntity, T> describe
+		) {
+			final Map<Integer, T> bodies = new TreeMap<>();
+			for (final ReferenceContract row : owner.getReferences(name)) {
+				bodies.put(row.getReferencedPrimaryKey(), describe.apply(row.getReferencedEntity().orElseThrow()));
+			}
+			return bodies;
+		}
+
+		/**
+		 * Projects every queried entity, keyed by its primary key.
+		 *
+		 * @param <T> the assertion value for a queried entity
+		 * @param entities entities returned by the query
+		 * @param describe projection to assert for each queried entity
+		 * @return projected content by queried entity key
+		 */
+		@Nonnull
+		private static <T> Map<Integer, T> describeEntities(
+			@Nonnull List<SealedEntity> entities, @Nonnull Function<SealedEntity, T> describe
+		) {
+			final Map<Integer, T> result = new TreeMap<>();
+			for (final SealedEntity entity : entities) {
+				result.put(entity.getPrimaryKey(), describe.apply(entity));
+			}
+			return result;
+		}
+
+		/**
+		 * Checks the literal full result and every exact-key query independently.
+		 *
+		 * @param <T> the asserted result for an individual queried owner
+		 * @param evita engine to query
+		 * @param type collection searched in both scopes
+		 * @param requirement requirement applied to the query
+		 * @param describe projection to compare to the literal answer
+		 * @param expected expected answer keyed by owner
+		 */
+		private static <T> void assertFetched(
+			@Nonnull Evita evita, @Nonnull String type, @Nonnull RequireConstraint requirement,
+			@Nonnull Function<SealedEntity, T> describe, @Nonnull Map<Integer, T> expected
+		) {
+			assertAll(Stream.concat(
+				Stream.of(() -> assertEquals(expected, describeEntities(
+					fetchEntities(evita, type, null, requirement), describe), "all owners")),
+				expected.keySet().stream().sorted().map(key -> () -> assertEquals(
+					Map.of(key, expected.get(key)),
+					describeEntities(fetchEntities(evita, type, key, requirement), describe),
+					"owner " + key))
+			));
+		}
+
+		/**
+		 * Queries the collection in both scopes, optionally narrowed to a single owner.
+		 *
+		 * @param evita engine to query
+		 * @param type collection searched in both scopes
+		 * @param key owner key, or null for all owners
+		 * @param requirement requirement applied to the query
+		 * @return queried entities with their fetched content
+		 */
+		@Nonnull
+		private static List<SealedEntity> fetchEntities(
+			@Nonnull Evita evita, @Nonnull String type, @Nullable Integer key, @Nonnull RequireConstraint requirement
+		) {
+			return evita.queryCatalog(TEST_CATALOG, session -> {
+				return session.queryListOfSealedEntities(query(
+					collection(type), filterBy(scope(BOTH), key == null ? null : entityPrimaryKeyInSet(key)),
+					require(requirement)
+				));
+			});
+		}
+
+		/**
+		 * Asserts the refusal of a filter on an attribute filterable only in the live scope, for all owners and for
+		 * each given owner alone.
+		 *
+		 * @param evita engine to query
+		 * @param type collection searched in both scopes
+		 * @param wrapper scope around the fetch, or null for a direct fetch
+		 * @param fetch content whose filter is checked
+		 * @param attributeType entity type owning the attribute
+		 * @param attribute name of the attribute filterable only in the live scope
+		 * @param keys individual owners to check in addition to the unfiltered query
+		 */
+		private static void assertFilterRefused(
+			@Nonnull Evita evita, @Nonnull String type, @Nullable Scope wrapper, @Nonnull EntityFetch fetch,
+			@Nonnull String attributeType, @Nonnull String attribute, @Nonnull Integer... keys
+		) {
+			assertRefused(evita, type, wrapFetch(wrapper, fetch), AttributeNotFilterableException.class,
+				"Attribute with name `" + attribute + "` in entity `" + attributeType +
+					"` is not marked as \"filterable\" or \"unique\" in scope `ARCHIVED` and cannot be filtered by. " +
+					"Filtering by without having an index would be slow.", keys);
+		}
+
+		/**
+		 * Asserts the refusal of the `rank` order, sortable only in the live scope, for all owners and for each of the
+		 * three owners alone.
+		 *
+		 * @param evita engine to query
+		 * @param type collection searched in both scopes
+		 * @param wrapper scope around the fetch, or null for a direct fetch
+		 * @param fetch content whose reference order is checked
+		 */
+		private static void assertOrderRefused(
+			@Nonnull Evita evita, @Nonnull String type, @Nullable Scope wrapper, @Nonnull EntityFetch fetch
+		) {
+			assertRefused(evita, type, wrapFetch(wrapper, fetch), AttributeNotSortableException.class,
+				"Attribute with name `rank` in entity `orderedNode` is not marked as \"sortable\" and cannot be " +
+					"ordered by. Ordering by it without having an index would be slow.", 1, 2, 3);
+		}
+
+		/**
+		 * Asserts the exact exception type and message for the query of all owners and for the query of each given
+		 * owner alone.
+		 *
+		 * @param evita engine to query
+		 * @param type collection searched in both scopes
+		 * @param requirement requirement whose planning must fail
+		 * @param exceptionType exact exception type expected
+		 * @param message exact message expected
+		 * @param keys individual owners to check in addition to the unfiltered query
+		 */
+		private static void assertRefused(
+			@Nonnull Evita evita, @Nonnull String type, @Nonnull RequireConstraint requirement,
+			@Nonnull Class<? extends RuntimeException> exceptionType, @Nonnull String message, @Nonnull Integer... keys
+		) {
+			assertAll(Stream.concat(Stream.of((Integer) null), Stream.of(keys)).map(key -> () -> {
+				final String context = key == null ? "all owners" : "owner " + key;
+				final RuntimeException exception = assertThrowsExactly(
+					exceptionType, () -> fetchEntities(evita, type, key, requirement), context
+				);
+				assertEquals(message, exception.getMessage(), context);
+			}));
+		}
 	}
 
 	/** Checks the public exception type and the translator's exact diagnostic. */
