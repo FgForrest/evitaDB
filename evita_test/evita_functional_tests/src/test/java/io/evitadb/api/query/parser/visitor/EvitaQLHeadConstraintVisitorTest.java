@@ -29,17 +29,28 @@ import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
+import io.evitadb.api.query.require.HistogramBehavior;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.time.DayOfWeek;
+import java.util.Currency;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.head;
 import static io.evitadb.api.query.QueryConstraints.label;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 
@@ -51,6 +62,81 @@ import static io.evitadb.test.TestTags.QUERY;
 @Tag(CONTRACT)
 @Tag(QUERY)
 class EvitaQLHeadConstraintVisitorTest {
+
+	/**
+	 * Checks that the comparable label value rejects a currency and a locale in either binding mode, because the Java
+	 * factory requires a comparable value and neither type is one.
+	 */
+	@Test
+	@DisplayName("Reject currency and locale parameters in labels")
+	void shouldRejectBoundCurrencyAndLocaleInLabel() {
+		final Currency usd = Currency.getInstance("USD");
+		assertAll(
+			() -> assertRefusedType(usd, () -> parseHeadConstraint("label(?, ?)", "currency", usd)),
+			() -> assertRefusedType(usd, () -> parseHeadConstraint(
+				"label(@key, @value)", Map.of("key", "currency", "value", usd)
+			)),
+			() -> assertRefusedType(
+				Locale.ENGLISH, () -> parseHeadConstraint("label(?, ?)", "lang", Locale.ENGLISH)
+			),
+			() -> assertRefusedType(Locale.ENGLISH, () -> parseHeadConstraint(
+				"label(@key, @value)", Map.of("key", "lang", "value", Locale.ENGLISH)
+			))
+		);
+	}
+
+	/**
+	 * Checks the diagnostics for types the Java label constructor refuses.
+	 *
+	 * @param value the floating-point or enum parameter
+	 */
+	@ParameterizedTest
+	@MethodSource("unsupportedLabelValues")
+	@DisplayName("Name unsupported floating-point and enum label types in both binding modes")
+	void shouldRejectUnsupportedLabelValues(@Nonnull Object value) {
+		assertAll(
+			() -> assertRefusedType(value, () -> parseHeadConstraint("label(?, ?)", "value", value)),
+			() -> assertRefusedType(value, () -> parseHeadConstraint(
+				"label(@name, @value)", Map.of("name", "value", "value", value)
+			))
+		);
+	}
+
+	/**
+	 * Supplies floating-point values and both kinds of enum refused by the label factory.
+	 *
+	 * @return the refused label values
+	 */
+	@Nonnull
+	static Stream<Object> unsupportedLabelValues() {
+		return Stream.of(
+			2.1d, 2.1f, DayOfWeek.MONDAY, HistogramBehavior.OPTIMIZED,
+			Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY,
+			Float.NaN, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY
+		);
+	}
+
+	/** Checks that an enum literal still requires a type permitted by the label position. */
+	@Test
+	@DisplayName("Name the enum type when refusing an unquoted enum label value")
+	void shouldRejectUntypedLabelEnumLiteral() {
+		final EvitaSyntaxException error = assertThrows(
+			EvitaSyntaxException.class, () -> parseHeadConstraintUnsafe("label('day', MONDAY)")
+		);
+		assertTrue(error.getMessage().contains(Enum.class.getTypeName()), error::getMessage);
+	}
+
+	/**
+	 * Checks that parsing fails with a syntax error naming the runtime type of the value its position refuses,
+	 * which a grammar or arity error would not name.
+	 *
+	 * @param refusedValue the bound value whose type the position does not allow
+	 * @param parsing the parser call that binds the value
+	 */
+	private static void assertRefusedType(@Nonnull Object refusedValue, @Nonnull Executable parsing) {
+		final EvitaSyntaxException error = assertThrows(EvitaSyntaxException.class, parsing);
+		assertTrue(error.getMessage().contains(refusedValue.getClass().getTypeName()), error::getMessage);
+	}
 
     @Test
     void shouldParseCollectionConstraint() {

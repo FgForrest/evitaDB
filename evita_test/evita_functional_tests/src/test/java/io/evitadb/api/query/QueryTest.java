@@ -31,6 +31,7 @@ import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -615,6 +616,27 @@ class QueryTest {
 						)
 					)
 				)
+			).normalizeQuery()
+		);
+	}
+
+	/**
+	 * Preserves the category code filter when the optional primary key is undefined.
+	 */
+	@Test
+	@DisplayName("should filter by category code when the category ID is undefined")
+	void shouldFilterByCategoryCodeWhenCategoryIdIsNull() {
+		final Integer categoryId = null;
+
+		assertEquals(
+			query(
+				collection("product"),
+				filterBy(hierarchyWithin("categories", attributeEquals("code", "phones")))
+			).normalizeQuery(),
+			query(
+				collection("product"),
+				filterBy(hierarchyWithin("categories",
+					and(entityPrimaryKeyInSet(categoryId), attributeEquals("code", "phones"))))
 			).normalizeQuery()
 		);
 	}

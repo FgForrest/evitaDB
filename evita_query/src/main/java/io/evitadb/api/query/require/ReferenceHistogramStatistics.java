@@ -80,7 +80,7 @@ import java.util.Optional;
  * referenceSummary(
  *     COUNTS,
  *     histogramStatistics(20, "priceIndex"),
- *     histogramStatistics(10, OPTIMIZED, "ratingIndex", "weightIndex")
+ *     histogramStatistics(10, OPTIMIZED, "ratingIndex", "weightIndex", entityFetch(attributeContent("code")))
  * )
  * ```
  *

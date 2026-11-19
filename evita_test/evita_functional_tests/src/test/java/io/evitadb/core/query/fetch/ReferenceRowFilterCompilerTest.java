@@ -683,17 +683,21 @@ class ReferenceRowFilterCompilerTest {
 			);
 		}
 
+		/**
+		 * Compares array elements and temporal ranges with the same semantics as the index.
+		 *
+		 * @param evita the database containing the reference rows
+		 */
 		@Test
 		@DisplayName("an array matches by any element, ranges and moments as the index reads them")
 		@UseDataSet(ROW_FILTER)
-		void shouldReadArraysRangesAndMoments(Evita evita) {
+		void shouldReadArraysRangesAndMoments(@Nonnull Evita evita) {
 			assertVerdicts(
 				evita, filterBy(attributeEquals(ATTR_KEYWORDS, "y")), null, expected(true, false, false, false)
 			);
-			// an array as the value is stringified as the index stringifies it, and the index finds no such value
 			assertVerdicts(
-				evita, filterBy(attributeEquals(ATTR_KEYWORDS, new String[]{"x"})), null,
-				expected(false, false, false, false)
+				evita, filterBy(attributeInSet(ATTR_KEYWORDS, new String[]{"x", "absent"})), null,
+				expected(true, false, false, false)
 			);
 			assertVerdicts(
 				evita, filterBy(attributeInRange(ATTR_VALIDITY, OffsetDateTime.parse("2026-06-01T00:00:00+02:00"))),
