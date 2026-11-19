@@ -207,6 +207,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
@@ -2878,28 +2879,7 @@ public final class Catalog
 				}
 				// if any of the collections changed, we need to flush the trapped changes and store the catalog header
 				if (resolvedChangeOccurred) {
-					this.persistenceService.flushTrappedUpdates(
-						0L,
-						trappedChanges,
-						progress::updateProgress
-					);
-
-					final CatalogHeader<LogRecordReference, CollectionReference> catalogHeader =
-						this.persistenceService.getCatalogHeader(0L);
-					Assert.isPremiseValid(
-						catalogHeader != null && catalogHeader.catalogState() == CatalogState.WARMING_UP,
-						"Catalog header is expected to be present in the storage in WARMING_UP flag!"
-					);
-					this.persistenceService.storeHeader(
-						this.catalogId,
-						getCatalogState(),
-						0L,
-						this.entityTypeSequence.get(),
-						null,
-						entityHeaders,
-						this.dataStoreBuffer
-					);
-					this.lastPersistedSchemaVersion = getInternalSchema().version();
+					publishWarmUpState(trappedChanges, entityHeaders, progress::updateProgress);
 				}
 				return null;
 			},
@@ -2936,6 +2916,45 @@ public final class Catalog
 			}
 		);
 		return flushFuture;
+	}
+
+	/**
+	 * Publishes the warm-up state of this catalog: writes the catalog's own trapped changes - among them the catalog
+	 * index, which holds the values of globally unique attributes - and then stores the catalog header naming the
+	 * given collection headers, whose bootstrap record makes that state the catalog's state.
+	 *
+	 * Both warm-up publishers end here, {@link #flush()} and the termination of a warming-up instance, so that what a
+	 * publication consists of is written down once. A termination that stored the header without the catalog's
+	 * trapped changes published entities whose globally unique values its catalog index did not hold, and kept the
+	 * values of entities it no longer held. The caller pops the trapped changes rather than this method, because
+	 * {@link #flush()} sizes its future by them before a single collection is written.
+	 *
+	 * @param catalogChanges   the catalog's own trapped changes, popped from {@link #dataStoreBuffer} by the caller
+	 * @param entityHeaders    the header of every entity collection, as its flush left it
+	 * @param progressObserver observes how many of the trapped changes have been written
+	 */
+	private void publishWarmUpState(
+		@Nonnull TrappedChanges catalogChanges,
+		@Nonnull List<EntityCollectionHeader> entityHeaders,
+		@Nonnull IntConsumer progressObserver
+	) {
+		this.persistenceService.flushTrappedUpdates(0L, catalogChanges, progressObserver);
+		final CatalogHeader<LogRecordReference, CollectionReference> catalogHeader =
+			this.persistenceService.getCatalogHeader(0L);
+		Assert.isPremiseValid(
+			catalogHeader != null && catalogHeader.catalogState() == CatalogState.WARMING_UP,
+			"Catalog header is expected to be present in the storage in WARMING_UP flag!"
+		);
+		this.persistenceService.storeHeader(
+			this.catalogId,
+			getCatalogState(),
+			0L,
+			this.entityTypeSequence.get(),
+			null,
+			entityHeaders,
+			this.dataStoreBuffer
+		);
+		this.lastPersistedSchemaVersion = getInternalSchema().version();
 	}
 
 	/**
@@ -4202,15 +4221,9 @@ public final class Catalog
 
 			// if any change occurred (this may happen only in warm up state)
 			if (flushBeforeTerminate && changeOccurred && everyCollectionFlushed) {
-				// store catalog header
-				this.persistenceService.storeHeader(
-					this.catalogId,
-					getCatalogState(),
-					getVersion(),
-					this.entityTypeSequence.get(),
-					null,
-					entityHeaders,
-					this.dataStoreBuffer
+				// the catalog's own trapped changes and the catalog header, exactly as a flush publishes them
+				publishWarmUpState(
+					this.dataStoreBuffer.popTrappedChanges(), entityHeaders, Functions.noOpIntConsumer()
 				);
 			}
 			// close all resources here, here we just hand all objects to GC
